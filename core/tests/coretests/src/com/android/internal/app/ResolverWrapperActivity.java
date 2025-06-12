@@ -112,8 +112,8 @@ public class ResolverWrapperActivity extends ResolverActivity {
 
     @Override
     protected ResolverListController createListController(UserHandle userHandle) {
-        if (userHandle == UserHandle.SYSTEM) {
-            when(sOverrides.resolverListController.getUserHandle()).thenReturn(UserHandle.SYSTEM);
+        if (userHandle == getUser()) {
+            when(sOverrides.resolverListController.getUserHandle()).thenReturn(getUser());
             return sOverrides.resolverListController;
         }
         if (isLaunchedInSingleUserMode()) {

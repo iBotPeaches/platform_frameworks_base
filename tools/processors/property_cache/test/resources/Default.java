@@ -42,7 +42,7 @@ public class Default {
      * @param userId - user Id
      * @return number of days till birthday of given user Id
      */
-    @CachedProperty(modsFlagOnOrNone = {CacheModifier.STATIC})
+    @CachedProperty(mods = {CacheModifier.STATIC})
     public int getDaysTillBirthday(int userId) {
         return DefaultCache.getDaysTillBirthday(mService::getDaysTillBirthday, userId);
     }
@@ -52,7 +52,7 @@ public class Default {
      * @param userId - user Id
      * @return number of days since birthday of given user Id
      */
-    @CachedProperty(modsFlagOnOrNone = {})
+    @CachedProperty(mods = {})
     public int getDaysSinceBirthday(int userId) {
         return ((DefaultCache) mCache).getDaysSinceBirthday(mService::getDaysSinceBirthday, userId);
     }
@@ -62,7 +62,7 @@ public class Default {
      * @return number of days till birthay of current user
      */
     @CachedProperty(
-            modsFlagOnOrNone = {CacheModifier.STATIC},
+            mods = {CacheModifier.STATIC},
             max = 1)
     public int getDaysTillMyBirthday() {
         return DefaultCache.getDaysTillMyBirthday((Void) -> mService.getDaysTillMyBirthday());
@@ -74,7 +74,7 @@ public class Default {
      * @return number of days since birthay of current user
      */
     @CachedProperty(
-            modsFlagOnOrNone = {},
+            mods = {},
             max = 1,
             api = "my_unique_key")
     public int getDaysSinceMyBirthday() {

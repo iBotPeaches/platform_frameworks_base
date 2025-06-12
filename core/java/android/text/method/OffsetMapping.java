@@ -27,6 +27,7 @@ import java.lang.annotation.RetentionPolicy;
  * {@link TransformationMethod} that alters the text length.
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface OffsetMapping {
     /**
      * The mapping strategy for a character offset.

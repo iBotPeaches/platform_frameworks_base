@@ -85,6 +85,7 @@ public:
 
     int addOrUpdateStream(int deviceId, int streamId, const sp<Surface>& surface);
     int setTvMessageEnabled(int deviceId, int streamId, int type, bool enabled);
+    int setPictureProfileId(int deviceId, int streamId, long profileHandle);
     int removeStream(int deviceId, int streamId);
     const std::vector<AidlTvStreamConfig> getStreamConfigs(int deviceId);
 
@@ -208,6 +209,7 @@ private:
         ::ndk::ScopedAStatus closeStream(int32_t in_deviceId, int32_t in_streamId);
         ::ndk::ScopedAStatus setTvMessageEnabled(int32_t deviceId, int32_t streamId,
                                                  TvMessageEventType in_type, bool enabled);
+        ::ndk::ScopedAStatus setPictureProfileId(int deviceId, int streamId, long profileHandle);
         ::ndk::ScopedAStatus getTvMessageQueueDesc(
                 MQDescriptor<int8_t, SynchronizedReadWrite>* out_queue, int32_t in_deviceId,
                 int32_t in_streamId);

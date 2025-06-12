@@ -44,6 +44,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.internal.R;
 import com.android.internal.view.RotationPolicy;
+import com.android.settingslib.devicestate.AndroidSecureSettings;
 import com.android.settingslib.devicestate.DeviceStateRotationLockSettingsManager;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.dump.DumpManager;
@@ -117,7 +118,8 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 ArgumentCaptor.forClass(DeviceStateManager.DeviceStateCallback.class);
 
         mContentResolver = mContext.getContentResolver();
-        mSettingsManager = DeviceStateRotationLockSettingsManager.getInstance(mContext);
+        mSettingsManager = new DeviceStateRotationLockSettingsManager(mContext,
+                new AndroidSecureSettings(mContentResolver));
         mDeviceStateRotationLockSettingController =
                 new DeviceStateRotationLockSettingController(
                         mFakeRotationPolicy,

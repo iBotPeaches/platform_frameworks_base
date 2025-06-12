@@ -29,9 +29,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -129,7 +129,7 @@ public class ActionReplacingCallbackTest {
                 mMockServiceCallback, mMockReplacerConnection, INTERACTION_ID, INTERROGATING_PID,
                 INTERROGATING_TID);
         verify(mMockReplacerConnection).findAccessibilityNodeInfoByAccessibilityId(
-                eq(AccessibilityNodeInfo.ROOT_NODE_ID), (Region) anyObject(),
+                eq(AccessibilityNodeInfo.ROOT_NODE_ID), (Region) any(),
                 mInteractionIdCaptor.capture(), eq(mActionReplacingCallback), eq(0),
                 eq(INTERROGATING_PID), eq(INTERROGATING_TID), nullable(MagnificationSpec.class),
                 nullable(float[].class), eq(null));
@@ -246,9 +246,9 @@ public class ActionReplacingCallbackTest {
             throws RemoteException {
         doThrow(RemoteException.class).when(mMockReplacerConnection)
                 .findAccessibilityNodeInfoByAccessibilityId(eq(AccessibilityNodeInfo.ROOT_NODE_ID),
-                        (Region) anyObject(), anyInt(), (ActionReplacingCallback) anyObject(),
+                        (Region) any(), anyInt(), (ActionReplacingCallback) any(),
                         eq(0),  eq(INTERROGATING_PID), eq(INTERROGATING_TID),
-                        (MagnificationSpec) anyObject(), nullable(float[].class), eq(null));
+                        (MagnificationSpec) any(), nullable(float[].class), eq(null));
         ActionReplacingCallback actionReplacingCallback = new ActionReplacingCallback(
                 mMockServiceCallback, mMockReplacerConnection, INTERACTION_ID, INTERROGATING_PID,
                 INTERROGATING_TID);

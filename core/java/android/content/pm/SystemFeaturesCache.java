@@ -16,9 +16,8 @@
 
 package android.content.pm;
 
+import android.annotation.MainThread;
 import android.annotation.NonNull;
-import android.os.Parcel;
-import android.os.Parcelable;
 import android.util.ArrayMap;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -35,14 +34,56 @@ import java.util.Collection;
  *
  * @hide
  */
-public final class SystemFeaturesCache implements Parcelable {
+public final class SystemFeaturesCache {
 
     // Sentinel value used for SDK-declared features that are unavailable on the current device.
     private static final int UNAVAILABLE_FEATURE_VERSION = Integer.MIN_VALUE;
 
+    // This will be initialized just once, from the process main thread, but ready from any thread.
+    private static volatile SystemFeaturesCache sInstance;
+
     // An array of versions for SDK-defined features, from [0, PackageManager.SDK_FEATURE_COUNT).
     @NonNull
     private final int[] mSdkFeatureVersions;
+
+    /**
+     * Installs the process-global cache instance.
+     *
+     * <p>Note: Usage should be gated on android.content.pm.Flags.cacheSdkSystemFeature(). In
+     * practice, this should only be called from 1) SystemServer init, or 2) bindApplication.
+     */
+    @MainThread
+    public static void setInstance(SystemFeaturesCache instance) {
+        if (sInstance != null) {
+            throw new IllegalStateException("SystemFeaturesCache instance already initialized.");
+        }
+        sInstance = instance;
+    }
+
+    /**
+     * Gets the process-global cache instance.
+     *
+     * Note: Usage should be gated on android.content.pm.Flags.cacheSdkSystemFeature(), and should
+     * always occur after the instance has been installed early in the process lifecycle.
+     */
+    public static @NonNull SystemFeaturesCache getInstance() {
+        SystemFeaturesCache instance = sInstance;
+        if (instance == null) {
+            throw new IllegalStateException("SystemFeaturesCache not initialized");
+        }
+        return instance;
+    }
+
+    /** Checks for existence of the process-global instance. */
+    public static boolean hasInstance() {
+        return sInstance != null;
+    }
+
+    /** Clears the process-global cache instance for testing. */
+    @VisibleForTesting
+    public static void clearInstance() {
+        sInstance = null;
+    }
 
     /**
      * Populates the cache from the set of all available {@link FeatureInfo} definitions.
@@ -69,20 +110,28 @@ public final class SystemFeaturesCache implements Parcelable {
         }
     }
 
-    /** Only used by @{code CREATOR.createFromParcel(...)} */
-    private SystemFeaturesCache(@NonNull Parcel parcel) {
-        final int[] featureVersions = parcel.createIntArray();
-        if (featureVersions == null) {
-            throw new IllegalArgumentException(
-                    "Parceled SDK feature versions should never be null");
-        }
-        if (featureVersions.length != PackageManager.SDK_FEATURE_COUNT) {
+    /**
+     * Populates the cache from an array of SDK feature versions originally obtained via {@link
+     * #getSdkFeatureVersions()} from another instance.
+     */
+    public SystemFeaturesCache(@NonNull int[] sdkFeatureVersions) {
+        if (sdkFeatureVersions.length != PackageManager.SDK_FEATURE_COUNT) {
             throw new IllegalArgumentException(
                     String.format(
                             "Unexpected cached SDK feature count: %d (expected %d)",
-                            featureVersions.length, PackageManager.SDK_FEATURE_COUNT));
+                            sdkFeatureVersions.length, PackageManager.SDK_FEATURE_COUNT));
         }
-        mSdkFeatureVersions = featureVersions;
+        mSdkFeatureVersions = sdkFeatureVersions;
+    }
+
+    /**
+     * Gets the raw cached feature versions.
+     *
+     * <p>Note: This should generally only be neded for (de)serialization purposes.
+     */
+    // TODO(b/375000483): Consider reusing the ApplicationSharedMemory mapping for version lookup.
+    public int[] getSdkFeatureVersions() {
+        return mSdkFeatureVersions;
     }
 
     /**
@@ -105,29 +154,4 @@ public final class SystemFeaturesCache implements Parcelable {
 
         return mSdkFeatureVersions[sdkFeatureIndex] >= version;
     }
-
-    @Override
-    public int describeContents() {
-        return 0;
-    }
-
-    @Override
-    public void writeToParcel(@NonNull Parcel parcel, int flags) {
-        parcel.writeIntArray(mSdkFeatureVersions);
-    }
-
-    @NonNull
-    public static final Parcelable.Creator<SystemFeaturesCache> CREATOR =
-            new Parcelable.Creator<SystemFeaturesCache>() {
-
-                @Override
-                public SystemFeaturesCache createFromParcel(Parcel parcel) {
-                    return new SystemFeaturesCache(parcel);
-                }
-
-                @Override
-                public SystemFeaturesCache[] newArray(int size) {
-                    return new SystemFeaturesCache[size];
-                }
-            };
 }

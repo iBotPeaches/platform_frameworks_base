@@ -26,6 +26,7 @@ sealed interface ShortcutsUiState {
         val defaultSelectedCategory: ShortcutCategoryType?,
         val isShortcutCustomizerFlagEnabled: Boolean = false,
         val shouldShowResetButton: Boolean = false,
+        val isCustomizationModeEnabled: Boolean = false,
     ) : ShortcutsUiState
 
     data object Inactive : ShortcutsUiState

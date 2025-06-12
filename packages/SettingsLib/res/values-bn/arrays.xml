@@ -232,7 +232,7 @@
     <item msgid="2464080977843960236">"অ্যানিমেশন স্কেল ১০x"</item>
   </string-array>
   <string-array name="overlay_display_devices_entries">
-    <item msgid="4497393944195787240">"কোনো কিছুই নয়"</item>
+    <item msgid="4497393944195787240">"কোনও কিছুই নয়"</item>
     <item msgid="8461943978957133391">"480p"</item>
     <item msgid="6923083594932909205">"480p (নিরাপদ)"</item>
     <item msgid="1226941831391497335">"720p"</item>
@@ -287,5 +287,23 @@
     <item msgid="2646486108212979598">"1"</item>
     <item msgid="3753634915787796632">"2"</item>
     <item msgid="4779928470672877922">"3"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_entries">
+    <item msgid="816770658383209617">"শুধুমাত্র ডিভাইসের ডিসপ্লে (ডিফল্ট)"</item>
+    <item msgid="9161645858025071955">"এক্সটার্নাল ডিসপ্লে"</item>
+    <item msgid="23651860565814477">"লেটেস্ট স্ট্যাটাস বার টাচ"</item>
+    <item msgid="7521112827893653392">"ফোকাস-ভিত্তিক"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_summaries">
+    <item msgid="2964753205732912921">"শুধুমাত্র ডিভাইসের ডিসপ্লেতে শেড দেখুন"</item>
+    <item msgid="1955398604822147783">"কোনও একটি বাইরের ডিসপ্লেতে শেড দেখুন"</item>
+    <item msgid="391477482416751568">"সেই ডিসপ্লেতে শেড দেখুন যেখানে যার স্ট্যাটাস বারে শেষ বার ইন্টার‍্যাকশন করা হয়েছে"</item>
+    <item msgid="1746820128097981528">"সেই ডিসপ্লেতে শেড দেখুন যেখানে শেষবার ফোকাস করা হয়েছে"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_values">
+    <item msgid="3055776101992426514">"default_display"</item>
+    <item msgid="774789415968826925">"any_external_display"</item>
+    <item msgid="7880769915418638436">"status_bar_latest_touch"</item>
+    <item msgid="4313165186636015195">"focused_display"</item>
   </string-array>
 </resources>

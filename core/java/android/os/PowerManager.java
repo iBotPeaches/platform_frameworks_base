@@ -16,6 +16,8 @@
 
 package android.os;
 
+import static android.app.PropertyInvalidatedCache.MODULE_SYSTEM;
+
 import android.Manifest.permission;
 import android.annotation.CallbackExecutor;
 import android.annotation.CurrentTimeMillisLong;
@@ -34,6 +36,7 @@ import android.annotation.TestApi;
 import android.app.PropertyInvalidatedCache;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
+import android.os.IScreenTimeoutPolicyListener;
 import android.service.dreams.Sandman;
 import android.util.ArrayMap;
 import android.util.ArraySet;
@@ -614,6 +617,7 @@ public final class PowerManager {
             WAKE_REASON_WAKE_KEY,
             WAKE_REASON_WAKE_MOTION,
             WAKE_REASON_HDMI,
+            WAKE_REASON_LID,
             WAKE_REASON_DISPLAY_GROUP_ADDED,
             WAKE_REASON_DISPLAY_GROUP_TURNED_ON,
             WAKE_REASON_UNFOLD_DEVICE,
@@ -622,6 +626,7 @@ public final class PowerManager {
             WAKE_REASON_TAP,
             WAKE_REASON_LIFT,
             WAKE_REASON_BIOMETRIC,
+            WAKE_REASON_DOCK,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface WakeReason{}
@@ -763,6 +768,12 @@ public final class PowerManager {
     public static final int WAKE_REASON_BIOMETRIC = 17;
 
     /**
+     * Wake up reason code: Waking up due to a user docking the device.
+     * @hide
+     */
+    public static final int WAKE_REASON_DOCK = 18;
+
+    /**
      * Convert the wake reason to a string for debugging purposes.
      * @hide
      */
@@ -786,6 +797,7 @@ public final class PowerManager {
             case WAKE_REASON_TAP: return "WAKE_REASON_TAP";
             case WAKE_REASON_LIFT: return "WAKE_REASON_LIFT";
             case WAKE_REASON_BIOMETRIC: return "WAKE_REASON_BIOMETRIC";
+            case WAKE_REASON_DOCK: return "WAKE_REASON_DOCK";
             default: return Integer.toString(wakeReason);
         }
     }
@@ -1049,6 +1061,29 @@ public final class PowerManager {
     }
 
     /**
+     * Screen timeout policy type: the screen turns off after a timeout
+     * @hide
+     */
+    public static final int SCREEN_TIMEOUT_ACTIVE = 0;
+
+    /**
+     * Screen timeout policy type: the screen is kept 'on' (no timeout)
+     * @hide
+     */
+    public static final int SCREEN_TIMEOUT_KEEP_DISPLAY_ON = 1;
+
+    /**
+     * @hide
+     */
+    @IntDef(prefix = { "SCREEN_TIMEOUT_" }, value = {
+            SCREEN_TIMEOUT_ACTIVE,
+            SCREEN_TIMEOUT_KEEP_DISPLAY_ON
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ScreenTimeoutPolicy{}
+
+
+    /**
      * Either the location providers shouldn't be affected by battery saver,
      * or battery saver is off.
      */
@@ -1153,17 +1188,23 @@ public final class PowerManager {
         }
     }
 
-    private static final String CACHE_KEY_IS_POWER_SAVE_MODE_PROPERTY =
-            PropertyInvalidatedCache.createSystemCacheKey("is_power_save_mode");
+    private static final String CACHE_KEY_IS_POWER_SAVE_MODE_API = "is_power_save_mode";
 
-    private static final String CACHE_KEY_IS_INTERACTIVE_PROPERTY =
-            PropertyInvalidatedCache.createSystemCacheKey("is_interactive");
+    private static final String CACHE_KEY_IS_INTERACTIVE_API = "is_interactive";
 
     private static final int MAX_CACHE_ENTRIES = 1;
 
+    private static PropertyInvalidatedCache.Args getCacheArgs(String api) {
+        return new PropertyInvalidatedCache.Args(MODULE_SYSTEM)
+                .maxEntries(MAX_CACHE_ENTRIES)
+                .isolateUids(false)
+                .cacheNulls(false)
+                .api(api);
+    }
+
     private final PropertyInvalidatedCache<Void, Boolean> mPowerSaveModeCache =
-            new PropertyInvalidatedCache<Void, Boolean>(MAX_CACHE_ENTRIES,
-                CACHE_KEY_IS_POWER_SAVE_MODE_PROPERTY) {
+            new PropertyInvalidatedCache<>(getCacheArgs(CACHE_KEY_IS_POWER_SAVE_MODE_API),
+                    CACHE_KEY_IS_POWER_SAVE_MODE_API, null) {
                 @Override
                 public Boolean recompute(Void query) {
                     try {
@@ -1175,8 +1216,8 @@ public final class PowerManager {
             };
 
     private final PropertyInvalidatedCache<Integer, Boolean> mInteractiveCache =
-            new PropertyInvalidatedCache<Integer, Boolean>(MAX_CACHE_ENTRIES,
-                CACHE_KEY_IS_INTERACTIVE_PROPERTY) {
+            new PropertyInvalidatedCache<>(getCacheArgs(CACHE_KEY_IS_INTERACTIVE_API),
+                    CACHE_KEY_IS_INTERACTIVE_API, null) {
                 @Override
                 public Boolean recompute(Integer displayId) {
                     try {
@@ -1207,6 +1248,9 @@ public final class PowerManager {
     @GuardedBy("mThermalHeadroomListenerMap")
     private final ArrayMap<OnThermalHeadroomChangedListener, IThermalHeadroomListener>
             mThermalHeadroomListenerMap = new ArrayMap<>();
+
+    private final ArrayMap<ScreenTimeoutPolicyListener, IScreenTimeoutPolicyListener>
+            mScreenTimeoutPolicyListeners = new ArrayMap<>();
 
     /**
      * {@hide}
@@ -1744,6 +1788,77 @@ public final class PowerManager {
     public void boostScreenBrightness(long time) {
         try {
             mService.boostScreenBrightness(time);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * Adds a listener to be notified about changes in screen timeout policy.
+     *
+     * <p>The screen timeout policy determines the behavior of the device's screen
+     * after a period of inactivity. It can be used to understand if the display is going
+     * to be turned off after a timeout to conserve power, or if it will be kept on indefinitely.
+     * For example, it might be useful for adjusting display switch conditions on foldable
+     * devices based on the current timeout policy.
+     *
+     * <p>See {@link ScreenTimeoutPolicy} for possible values.
+     *
+     * <p>The listener will be fired with the initial state upon subscribing.
+     *
+     * <p>IScreenTimeoutPolicyListener is called on either system server's main thread or
+     * on a binder thread if subscribed outside the system service process.
+     *
+     * @param displayId display id for which to be notified about screen timeout policy changes
+     * @param executor executor on which to execute ScreenTimeoutPolicyListener methods
+     * @param listener listener that will be fired on screem timeout policy updates
+     * @hide
+     */
+    @RequiresPermission(android.Manifest.permission.DEVICE_POWER)
+    public void addScreenTimeoutPolicyListener(int displayId,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ScreenTimeoutPolicyListener listener) {
+        Objects.requireNonNull(listener, "listener cannot be null");
+        Objects.requireNonNull(executor, "executor cannot be null");
+        Preconditions.checkArgument(!mScreenTimeoutPolicyListeners.containsKey(listener),
+                "Listener already registered: %s", listener);
+
+        final IScreenTimeoutPolicyListener stub = new IScreenTimeoutPolicyListener.Stub() {
+            public void onScreenTimeoutPolicyChanged(int screenTimeoutPolicy) {
+                final long token = Binder.clearCallingIdentity();
+                try {
+                    executor.execute(() ->
+                            listener.onScreenTimeoutPolicyChanged(screenTimeoutPolicy));
+                } finally {
+                    Binder.restoreCallingIdentity(token);
+                }
+            }
+        };
+
+        try {
+            mService.addScreenTimeoutPolicyListener(displayId, stub);
+            mScreenTimeoutPolicyListeners.put(listener, stub);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * Removes a listener that is used to listen for screen timeout policy changes.
+     * @see PowerManager#addScreenTimeoutPolicyListener(int, ScreenTimeoutPolicyListener)
+     * @param displayId display id for which to be notified about screen timeout changes
+     * @hide
+     */
+    @RequiresPermission(android.Manifest.permission.DEVICE_POWER)
+    public void removeScreenTimeoutPolicyListener(int displayId,
+            @NonNull ScreenTimeoutPolicyListener listener) {
+        Objects.requireNonNull(listener, "listener cannot be null");
+        IScreenTimeoutPolicyListener internalListener = mScreenTimeoutPolicyListeners.get(listener);
+        Preconditions.checkArgument(internalListener != null, "Listener was not added");
+
+        try {
+            mService.removeScreenTimeoutPolicyListener(displayId, internalListener);
+            mScreenTimeoutPolicyListeners.remove(listener);
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -3825,6 +3940,21 @@ public final class PowerManager {
     }
 
     /**
+     * Listener for screen timeout policy changes
+     * @see PowerManager#addScreenTimeoutPolicyListener(int, ScreenTimeoutPolicyListener)
+     * @hide
+     */
+    public interface ScreenTimeoutPolicyListener {
+        /**
+         * Invoked on changes in screen timeout policy.
+         *
+         * @param screenTimeoutPolicy Screen timeout policy, one of {@link ScreenTimeoutPolicy}
+         * @see PowerManager#addScreenTimeoutPolicyListener
+         */
+        void onScreenTimeoutPolicyChanged(@ScreenTimeoutPolicy int screenTimeoutPolicy);
+    }
+
+    /**
      * A wake lock is a mechanism to indicate that your application needs
      * to have the device stay on.
      * <p>
@@ -4091,6 +4221,17 @@ public final class PowerManager {
             else mFlags &= ~UNIMPORTANT_FOR_LOGGING;
         }
 
+        /** @hide */
+        public void updateUids(int[] uids) {
+            synchronized (mToken) {
+                try {
+                    mService.updateWakeLockUids(mToken, uids);
+                } catch (RemoteException e) {
+                    throw e.rethrowFromSystemServer();
+                }
+            }
+        }
+
         @Override
         public String toString() {
             synchronized (mToken) {
@@ -4189,13 +4330,13 @@ public final class PowerManager {
      * @hide
      */
     public static void invalidatePowerSaveModeCaches() {
-        PropertyInvalidatedCache.invalidateCache(CACHE_KEY_IS_POWER_SAVE_MODE_PROPERTY);
+        PropertyInvalidatedCache.invalidateCache(MODULE_SYSTEM, CACHE_KEY_IS_POWER_SAVE_MODE_API);
     }
 
     /**
      * @hide
      */
     public static void invalidateIsInteractiveCaches() {
-        PropertyInvalidatedCache.invalidateCache(CACHE_KEY_IS_INTERACTIVE_PROPERTY);
+        PropertyInvalidatedCache.invalidateCache(MODULE_SYSTEM, CACHE_KEY_IS_INTERACTIVE_API);
     }
 }

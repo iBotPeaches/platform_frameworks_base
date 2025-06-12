@@ -275,14 +275,14 @@ public class QRCodeScannerControllerTest extends SysuiTestCase {
         setUpLocal(/* deviceConfigActivity */ null, /* defaultActivity */
                 "abc/.def", /* validateActivity */ true, /* enableSetting */true,
                 /* enableOnLockScreen */ true);
-        mSecureSettings.putStringForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, "0",
+        mSecureSettings.putIntForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, 0,
                 UserHandle.USER_CURRENT);
-        mSecureSettings.putStringForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, "0",
+        mSecureSettings.putIntForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, 0,
                 UserHandle.USER_CURRENT);
 
-        mSecureSettings.putStringForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, "1",
+        mSecureSettings.putIntForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, 1,
                 UserHandle.USER_CURRENT);
-        mSecureSettings.putStringForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, "1",
+        mSecureSettings.putIntForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, 1,
                 UserHandle.USER_CURRENT);
         // Once from setup + twice from this function
         verify(mCallback, times(3)).onQRCodeScannerPreferenceChanged();
@@ -297,14 +297,14 @@ public class QRCodeScannerControllerTest extends SysuiTestCase {
         assertThat(mController.isEnabledForLockScreenButton()).isTrue();
         assertThat(mController.isAbleToLaunchScannerActivity()).isTrue();
 
-        mSecureSettings.putStringForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, "0",
+        mSecureSettings.putIntForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, 0,
                 UserHandle.USER_CURRENT);
         verifyActivityDetails("abc/.def");
         assertThat(mController.isEnabledForLockScreenButton()).isTrue();
         assertThat(mController.isAllowedOnLockScreen()).isTrue();
         assertThat(mController.isAbleToLaunchScannerActivity()).isTrue();
 
-        mSecureSettings.putStringForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, "1",
+        mSecureSettings.putIntForUser(LOCK_SCREEN_SHOW_QR_CODE_SCANNER, 1,
                 UserHandle.USER_CURRENT);
         verifyActivityDetails("abc/.def");
         assertThat(mController.isEnabledForLockScreenButton()).isTrue();

@@ -27,19 +27,18 @@ import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.scene.domain.startable.sceneContainerStartable
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.shared.model.fakeSceneDataSource
 import com.android.systemui.testKosmos
 import com.android.systemui.truth.containsEntriesExactly
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableSceneContainer
@@ -64,13 +63,13 @@ class BouncerUserActionsViewModelTest : SysuiTestCase() {
             kosmos.fakeSceneDataSource.changeScene(Scenes.QuickSettings)
             runCurrent()
 
-            kosmos.fakeSceneDataSource.changeScene(Scenes.Bouncer)
+            kosmos.fakeSceneDataSource.showOverlay(Overlays.Bouncer)
             runCurrent()
 
             assertThat(actions)
                 .containsEntriesExactly(
-                    Back to UserActionResult(Scenes.QuickSettings),
-                    Swipe.Down to UserActionResult(Scenes.QuickSettings),
+                    Back to UserActionResult.HideOverlay(Overlays.Bouncer),
+                    Swipe.Down to UserActionResult.HideOverlay(Overlays.Bouncer),
                 )
         }
 }

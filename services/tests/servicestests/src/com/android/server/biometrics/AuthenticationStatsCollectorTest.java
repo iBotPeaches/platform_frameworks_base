@@ -16,6 +16,7 @@
 
 package com.android.server.biometrics;
 
+import static com.android.server.biometrics.AuthenticationStatsCollector.FRR_MINIMAL_DURATION;
 import static com.android.server.biometrics.AuthenticationStatsCollector.MAXIMUM_ENROLLMENT_NOTIFICATIONS;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -37,9 +38,13 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.hardware.biometrics.BiometricsProtoEnums;
 import android.hardware.face.FaceManager;
 import android.hardware.fingerprint.FingerprintManager;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.test.filters.SmallTest;
 
@@ -54,6 +59,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import java.io.File;
+import java.time.Clock;
 
 @Presubmit
 @SmallTest
@@ -61,6 +67,8 @@ public class AuthenticationStatsCollectorTest {
 
     @Rule
     public MockitoRule mockitoRule = MockitoJUnit.rule();
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     private AuthenticationStatsCollector mAuthenticationStatsCollector;
     private static final float FRR_THRESHOLD = 0.2f;
@@ -82,6 +90,8 @@ public class AuthenticationStatsCollectorTest {
     private SharedPreferences.Editor mEditor;
     @Mock
     private BiometricNotification mBiometricNotification;
+    @Mock
+    private Clock mClock;
 
     @Before
     public void setUp() {
@@ -107,9 +117,12 @@ public class AuthenticationStatsCollectorTest {
         when(mSharedPreferences.edit()).thenReturn(mEditor);
         when(mEditor.putFloat(anyString(), anyFloat())).thenReturn(mEditor);
         when(mEditor.putStringSet(anyString(), anySet())).thenReturn(mEditor);
+        when(mBiometricNotification.sendCustomizeFpFrrNotification(eq(mContext)))
+                .thenReturn(true);
+        when(mClock.millis()).thenReturn(Clock.systemUTC().millis());
 
         mAuthenticationStatsCollector = new AuthenticationStatsCollector(mContext,
-                0 /* modality */, mBiometricNotification);
+                0 /* modality */, mBiometricNotification, mClock);
     }
 
     @Test
@@ -130,6 +143,8 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getTotalAttempts()).isEqualTo(1);
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(0);
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(0L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(0L);
     }
 
     @Test
@@ -151,6 +166,8 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getTotalAttempts()).isEqualTo(1);
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(1);
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(0L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(0L);
     }
 
     /**
@@ -165,6 +182,7 @@ public class AuthenticationStatsCollectorTest {
                 new AuthenticationStats(USER_ID_1, 400 /* totalAttempts */,
                         40 /* rejectedAttempts */,
                         MAXIMUM_ENROLLMENT_NOTIFICATIONS /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
                         0 /* modality */));
 
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
@@ -178,14 +196,18 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(40);
         assertThat(authenticationStats.getEnrollmentNotifications())
                 .isEqualTo(MAXIMUM_ENROLLMENT_NOTIFICATIONS);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(200L);
     }
 
+    // TODO WIP
     @Test
     public void authenticate_frrNotExceeded_notificationNotExceeded_shouldNotSendNotification() {
 
         mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         40 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
                         0 /* modality */));
 
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
@@ -196,6 +218,7 @@ public class AuthenticationStatsCollectorTest {
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
 
         // Assert that no notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
         verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
         verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
         // Assert that data has been reset.
@@ -205,6 +228,9 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(0);
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
         assertThat(authenticationStats.getFrr()).isWithin(0f).of(-1.0f);
+        // lastEnrollmentTime and lastFrrNotificationTime shall be kept
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(200L);
     }
 
     @Test
@@ -214,11 +240,13 @@ public class AuthenticationStatsCollectorTest {
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         400 /* rejectedAttempts */,
                         MAXIMUM_ENROLLMENT_NOTIFICATIONS /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
                         0 /* modality */));
 
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
 
         // Assert that no notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
         verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
         verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
         // Assert that data hasn't been reset.
@@ -228,15 +256,19 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(400);
         assertThat(authenticationStats.getEnrollmentNotifications())
                 .isEqualTo(MAXIMUM_ENROLLMENT_NOTIFICATIONS);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(200L);
         assertThat(authenticationStats.getFrr()).isWithin(0f).of(0.8f);
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
     public void authenticate_frrExceeded_bothBiometricsEnrolled_shouldNotSendNotification() {
 
         mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
                         0 /* modality */));
 
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
@@ -248,6 +280,7 @@ public class AuthenticationStatsCollectorTest {
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
 
         // Assert that no notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
         verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
         verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
         // Assert that data hasn't been reset.
@@ -257,6 +290,79 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(400);
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
         assertThat(authenticationStats.getFrr()).isWithin(0f).of(0.8f);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(200L);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
+    public void authenticate_enrollTimeNotPass_bothBiometricsEnrolled_shouldNotSendNotification() {
+
+        long lastEnrollmentTime = 60L * 60L * 1000L;
+        mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
+                new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
+                        400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        lastEnrollmentTime, 0L /* lastFrrNotificationTime */,
+                        0 /* modality */));
+
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
+                .thenReturn(true);
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
+        when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mClock.millis()).thenReturn(lastEnrollmentTime + FRR_MINIMAL_DURATION.toMillis());
+
+        mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
+
+        // Assert that no notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
+        verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
+        verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
+        // Assert that data hasn't been reset.
+        AuthenticationStats authenticationStats = mAuthenticationStatsCollector
+                .getAuthenticationStatsForUser(USER_ID_1);
+        assertThat(authenticationStats.getTotalAttempts()).isEqualTo(500);
+        assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(400);
+        assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
+        assertThat(authenticationStats.getFrr()).isWithin(0f).of(0.8f);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(lastEnrollmentTime);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(0L);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
+    public void authenticate_lastFrrTimeNotPass_bothBiometricsEnrolled_shouldNotSendNotification() {
+
+        long lastFrrNotificationTime = 200L;
+        mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
+                new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
+                        400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, lastFrrNotificationTime,
+                        0 /* modality */));
+
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
+                .thenReturn(true);
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
+        when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mClock.millis()).thenReturn(lastFrrNotificationTime + FRR_MINIMAL_DURATION.toMillis());
+
+        mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
+
+        // Assert that no notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
+        verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
+        verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
+        // Assert that data hasn't been reset.
+        AuthenticationStats authenticationStats = mAuthenticationStatsCollector
+                .getAuthenticationStatsForUser(USER_ID_1);
+        assertThat(authenticationStats.getTotalAttempts()).isEqualTo(500);
+        assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(400);
+        assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
+        assertThat(authenticationStats.getFrr()).isWithin(0f).of(0.8f);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(
+                lastFrrNotificationTime);
     }
 
     @Test
@@ -265,6 +371,7 @@ public class AuthenticationStatsCollectorTest {
         mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
                         0 /* modality */));
 
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
@@ -276,6 +383,7 @@ public class AuthenticationStatsCollectorTest {
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
 
         // Assert that no notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
         verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
         verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
         // Assert that data hasn't been reset.
@@ -285,26 +393,35 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(400);
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(0);
         assertThat(authenticationStats.getFrr()).isWithin(0f).of(0.8f);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(200L);
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
     public void authenticate_frrExceeded_faceEnrolled_shouldSendFpNotification() {
+        // Use correct modality
+        mAuthenticationStatsCollector = new AuthenticationStatsCollector(mContext,
+                BiometricsProtoEnums.MODALITY_FACE, mBiometricNotification, mClock);
+
         mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
-                        0 /* modality */));
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
+                        BiometricsProtoEnums.MODALITY_FACE /* modality */));
 
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
                 .thenReturn(true);
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
         when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(false);
         when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mClock.millis()).thenReturn(3344L);
 
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
 
         // Assert that fingerprint enrollment notification should be sent.
-        verify(mBiometricNotification, times(1))
-                .sendFpEnrollNotification(mContext);
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
+        verify(mBiometricNotification, times(1)).sendFpEnrollNotification(mContext);
         verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
         // Assert that data has been reset.
         AuthenticationStats authenticationStats = mAuthenticationStatsCollector
@@ -314,26 +431,73 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getFrr()).isWithin(0f).of(-1.0f);
         // Assert that notification count has been updated.
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(1);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        // Assert that lastFrrNotificationTime has been updated.
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(3344L);
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
+    public void authenticate_frrExceeded_faceEnrolled_shouldSendFpNotification_withFrrFlag() {
+        // Use correct modality
+        mAuthenticationStatsCollector = new AuthenticationStatsCollector(mContext,
+                BiometricsProtoEnums.MODALITY_FACE, mBiometricNotification, mClock);
+
+        mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
+                new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
+                        400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
+                        BiometricsProtoEnums.MODALITY_FACE /* modality */));
+
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
+                .thenReturn(true);
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
+        when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(false);
+        when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        long newLastFrrNotificationTime = 200L + FRR_MINIMAL_DURATION.toMillis() + 1;
+        when(mClock.millis()).thenReturn(newLastFrrNotificationTime);
+
+        mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
+
+        // Assert that fingerprint enrollment notification should be sent.
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
+        verify(mBiometricNotification, times(1)).sendFpEnrollNotification(mContext);
+        verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
+        // Assert that data has been reset.
+        AuthenticationStats authenticationStats = mAuthenticationStatsCollector
+                .getAuthenticationStatsForUser(USER_ID_1);
+        assertThat(authenticationStats.getTotalAttempts()).isEqualTo(0);
+        assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(0);
+        assertThat(authenticationStats.getFrr()).isWithin(0f).of(-1.0f);
+        // Assert that notification count has been updated.
+        assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(1);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        // Assert that lastFrrNotificationTime has been updated.
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(
+                newLastFrrNotificationTime);
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
     public void authenticate_frrExceeded_fpEnrolled_shouldSendFaceNotification() {
         mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
-                        0 /* modality */));
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
+                        BiometricsProtoEnums.MODALITY_FINGERPRINT /* modality */));
 
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
                 .thenReturn(true);
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
         when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
         when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(false);
+        when(mClock.millis()).thenReturn(3344L);
 
         mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
 
         // Assert that fingerprint enrollment notification should be sent.
-        verify(mBiometricNotification, times(1))
-                .sendFaceEnrollNotification(mContext);
+        verify(mBiometricNotification, never()).sendCustomizeFpFrrNotification(any());
+        verify(mBiometricNotification, times(1)).sendFaceEnrollNotification(mContext);
         verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
         // Assert that data has been reset.
         AuthenticationStats authenticationStats = mAuthenticationStatsCollector
@@ -343,6 +507,93 @@ public class AuthenticationStatsCollectorTest {
         assertThat(authenticationStats.getFrr()).isWithin(0f).of(-1.0f);
         // Assert that notification count has been updated.
         assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(1);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        // Assert that lastFrrNotificationTime has been updated.
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(3344L);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
+    public void authenticate_frrExceeded_fpEnrolled_shouldSendCustNotification_withFrrFlag() {
+        // Use correct modality
+        mAuthenticationStatsCollector = new AuthenticationStatsCollector(mContext,
+                BiometricsProtoEnums.MODALITY_FINGERPRINT, mBiometricNotification, mClock);
+
+        mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
+                new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
+                        400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
+                        BiometricsProtoEnums.MODALITY_FINGERPRINT /* modality */));
+
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
+                .thenReturn(true);
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
+        when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(false);
+        long newFrrNotificationTime = 200L + FRR_MINIMAL_DURATION.toMillis() + 1;
+        when(mClock.millis()).thenReturn(newFrrNotificationTime);
+
+        mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
+
+        // Assert that fingerprint enrollment notification should be sent.
+        verify(mBiometricNotification, times(1)).sendCustomizeFpFrrNotification(mContext);
+        verify(mBiometricNotification, never()).sendFaceEnrollNotification(any());
+        verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
+        // Assert that data has been reset.
+        AuthenticationStats authenticationStats = mAuthenticationStatsCollector
+                .getAuthenticationStatsForUser(USER_ID_1);
+        assertThat(authenticationStats.getTotalAttempts()).isEqualTo(0);
+        assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(0);
+        assertThat(authenticationStats.getFrr()).isWithin(0f).of(-1.0f);
+        // Assert that notification count has been updated.
+        assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(1);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        // Assert that lastFrrNotificationTime has been updated.
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(
+                newFrrNotificationTime);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_FRR_DIALOG_IMPROVEMENT)
+    public void authenticate_frrExceeded_fpEnrolled_shouldSendFaceNotification_withFrrFlag() {
+        // Use correct modality
+        mAuthenticationStatsCollector = new AuthenticationStatsCollector(mContext,
+                BiometricsProtoEnums.MODALITY_FINGERPRINT, mBiometricNotification, mClock);
+
+        mAuthenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
+                new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
+                        400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
+                        BiometricsProtoEnums.MODALITY_FINGERPRINT /* modality */));
+
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
+                .thenReturn(true);
+        when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
+        when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
+        when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(false);
+        long newFrrNotificationTime = 200L + FRR_MINIMAL_DURATION.toMillis() + 1;
+        when(mClock.millis()).thenReturn(newFrrNotificationTime);
+        when(mBiometricNotification.sendCustomizeFpFrrNotification(eq(mContext)))
+                .thenReturn(false);
+
+        mAuthenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);
+
+        // Assert that fingerprint enrollment notification should be sent.
+        verify(mBiometricNotification, times(1)).sendCustomizeFpFrrNotification(mContext);
+        verify(mBiometricNotification, times(1)).sendFaceEnrollNotification(mContext);
+        verify(mBiometricNotification, never()).sendFpEnrollNotification(any());
+        // Assert that data has been reset.
+        AuthenticationStats authenticationStats = mAuthenticationStatsCollector
+                .getAuthenticationStatsForUser(USER_ID_1);
+        assertThat(authenticationStats.getTotalAttempts()).isEqualTo(0);
+        assertThat(authenticationStats.getRejectedAttempts()).isEqualTo(0);
+        assertThat(authenticationStats.getFrr()).isWithin(0f).of(-1.0f);
+        // Assert that notification count has been updated.
+        assertThat(authenticationStats.getEnrollmentNotifications()).isEqualTo(1);
+        assertThat(authenticationStats.getLastEnrollmentTime()).isEqualTo(100L);
+        // Assert that lastFrrNotificationTime has been updated.
+        assertThat(authenticationStats.getLastFrrNotificationTime()).isEqualTo(
+                newFrrNotificationTime);
     }
 
     @Test
@@ -352,11 +603,12 @@ public class AuthenticationStatsCollectorTest {
                 .thenReturn(false);
         AuthenticationStatsCollector authenticationStatsCollector =
                 new AuthenticationStatsCollector(mContext, 0 /* modality */,
-                        mBiometricNotification);
+                        mBiometricNotification, Clock.systemUTC());
 
         authenticationStatsCollector.setAuthenticationStatsForUser(USER_ID_1,
                 new AuthenticationStats(USER_ID_1, 500 /* totalAttempts */,
                         400 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        0L /* lastEnrollmentTime */, 0L /* lastFrrNotificationTime */,
                         0 /* modality */));
 
         authenticationStatsCollector.authenticate(USER_ID_1, false /* authenticated */);

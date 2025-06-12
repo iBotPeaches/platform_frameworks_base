@@ -27,6 +27,7 @@ import java.util.Locale;
  * InputFilters can be attached to {@link Editable}s to constrain the
  * changes that can be made to them.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface InputFilter
 {
     /**

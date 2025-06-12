@@ -41,7 +41,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -64,7 +63,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.os.Handler;
 import android.os.RemoteException;
-import android.platform.test.annotations.EnableFlags;
 import android.service.notification.NotificationListenerService.Ranking;
 import android.service.notification.NotificationListenerService.RankingMap;
 import android.service.notification.StatusBarNotification;
@@ -78,7 +76,6 @@ import androidx.test.filters.SmallTest;
 
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.statusbar.NotificationVisibility;
-import com.android.systemui.Flags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.dump.LogBufferEulogizer;
@@ -96,6 +93,7 @@ import com.android.systemui.statusbar.notification.collection.notifcollection.No
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionLogger;
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifDismissInterceptor;
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifLifetimeExtender;
+import com.android.systemui.statusbar.notification.collection.notifcollection.UpdateSource;
 import com.android.systemui.statusbar.notification.collection.provider.NotificationDismissibilityProvider;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.util.concurrency.FakeExecutor;
@@ -1383,7 +1381,6 @@ public class NotifCollectionTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_NOTIFICATIONS_DISMISS_PRUNED_SUMMARIES)
     public void testDismissNotificationsIncludesPrunedParents() {
         // GIVEN a collection with 2 groups; one has a single child, one has two.
         mCollection.addNotificationDismissInterceptor(mInterceptor1);
@@ -1588,7 +1585,7 @@ public class NotifCollectionTest extends SysuiTestCase {
 
         // THEN entry updated gets called, added does not, and ranking is called again
         verify(mCollectionListener).onEntryUpdated(eq(entry));
-        verify(mCollectionListener).onEntryUpdated(eq(entry), eq(true));
+        verify(mCollectionListener).onEntryUpdated(eq(entry), eq(UpdateSource.App));
         verify(mCollectionListener).onEntryAdded((entry));
         verify(mCollectionListener, times(2)).onRankingApplied();
     }
@@ -1611,7 +1608,7 @@ public class NotifCollectionTest extends SysuiTestCase {
         verify(mCollectionListener).onEntryAdded(eq(entry));
         verify(mCollectionListener).onRankingApplied();
         verify(mCollectionListener).onEntryUpdated(eq(entry));
-        verify(mCollectionListener).onEntryUpdated(eq(entry), eq(false));
+        verify(mCollectionListener).onEntryUpdated(eq(entry), eq(UpdateSource.SystemUi));
     }
 
     @Test
@@ -1627,7 +1624,7 @@ public class NotifCollectionTest extends SysuiTestCase {
         verify(mCollectionListener, never()).onRankingUpdate(any());
         verify(mCollectionListener, never()).onRankingApplied();
         verify(mCollectionListener, never()).onEntryUpdated(any());
-        verify(mCollectionListener, never()).onEntryUpdated(any(), anyBoolean());
+        verify(mCollectionListener, never()).onEntryUpdated(any(), any());
     }
 
     @Test
@@ -1787,6 +1784,7 @@ public class NotifCollectionTest extends SysuiTestCase {
 
     private static NotificationEntryBuilder buildNotif(String pkg, int id, String tag) {
         return new NotificationEntryBuilder()
+                .setPostTime(System.currentTimeMillis())
                 .setPkg(pkg)
                 .setId(id)
                 .setTag(tag);
@@ -1806,7 +1804,8 @@ public class NotifCollectionTest extends SysuiTestCase {
     }
 
     private static EntryWithDismissStats entryWithDefaultStats(NotificationEntry entry) {
-        return new EntryWithDismissStats(entry, defaultStats(entry));
+        return new EntryWithDismissStats(
+                entry, defaultStats(entry), entry.getKey(), entry.hashCode());
     }
 
     private CollectionEvent postNotif(NotificationEntryBuilder builder) {
@@ -1839,7 +1838,7 @@ public class NotifCollectionTest extends SysuiTestCase {
         }
 
         @Override
-        public void onEntryUpdated(NotificationEntry entry, boolean fromSystem) {
+        public void onEntryUpdated(NotificationEntry entry, UpdateSource source) {
             onEntryUpdated(entry);
         }
 

@@ -15,9 +15,6 @@
  */
 package com.android.keyguard;
 
-import static com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants.ColorId.NUM_PAD_BUTTON;
-import static com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants.ColorId.NUM_PAD_KEY;
-
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
@@ -28,9 +25,11 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.Nullable;
 
-import com.android.settingslib.Utils;
+import com.android.systemui.Flags;
+import com.android.systemui.bouncer.shared.constants.PinBouncerConstants.Color;
 import com.android.systemui.res.R;
 
 /**
@@ -43,6 +42,12 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
     private int mOrientation;
     private int mStyleAttr;
     private boolean mIsTransparentMode;
+
+    @DrawableRes
+    private int mDrawableForTransparentMode = 0;
+
+    @DrawableRes
+    private int mDefaultDrawable = 0;
 
     public NumPadButton(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -100,8 +105,8 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
     public void reloadColors() {
         if (mAnimator != null) mAnimator.reloadColors(getContext());
 
-        int textColorResId = mIsTransparentMode ? NUM_PAD_KEY : NUM_PAD_BUTTON;
-        int imageColor = Utils.getColorAttrDefaultColor(getContext(), textColorResId);
+        int textColorResId = mIsTransparentMode ? Color.actionWithAutoConfirm : Color.action;
+        int imageColor = getContext().getColor(textColorResId);
         ((VectorDrawable) getDrawable()).setTintList(ColorStateList.valueOf(imageColor));
     }
 
@@ -125,9 +130,19 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
         mIsTransparentMode = isTransparentMode;
 
         if (isTransparentMode) {
+            if (mDrawableForTransparentMode != 0) {
+                setImageResource(mDrawableForTransparentMode);
+            }
             setBackgroundColor(getResources().getColor(android.R.color.transparent));
         } else {
-            setBackground(getContext().getDrawable(R.drawable.num_pad_key_background));
+            if (mDefaultDrawable != 0) {
+                setImageResource(mDefaultDrawable);
+            }
+            Drawable bgDrawable = getContext().getDrawable(R.drawable.num_pad_key_background);
+            if (Flags.bouncerUiRevamp2() && bgDrawable != null) {
+                bgDrawable.setTint(Color.actionBg);
+            }
+            setBackground(bgDrawable);
         }
         setupAnimator();
         reloadColors();
@@ -151,5 +166,20 @@ public class NumPadButton extends AlphaOptimizedImageButton implements NumPadAni
     public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info);
         info.setTextEntryKey(true);
+    }
+
+    /**
+     * Drawable to use when transparent mode is enabled
+     */
+    public void setDrawableForTransparentMode(@DrawableRes int drawableResId) {
+        mDrawableForTransparentMode = drawableResId;
+    }
+
+    /**
+     * Drawable to use when transparent mode is not enabled.
+     */
+    public void setDefaultDrawable(@DrawableRes int drawableResId) {
+        mDefaultDrawable = drawableResId;
+        setImageResource(mDefaultDrawable);
     }
 }

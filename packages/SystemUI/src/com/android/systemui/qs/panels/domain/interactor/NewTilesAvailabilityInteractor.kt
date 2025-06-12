@@ -19,14 +19,14 @@ package com.android.systemui.qs.panels.domain.interactor
 import android.os.UserHandle
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
 import com.android.systemui.user.data.repository.UserRepository
 import com.android.systemui.utils.coroutines.flow.flatMapLatestConflated
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
 /**
  * Uses the [QSTileAvailabilityInteractor] from the new tiles to provide a map of availability, for
@@ -38,23 +38,26 @@ import javax.inject.Inject
 class NewTilesAvailabilityInteractor
 @Inject
 constructor(
-        private val availabilityInteractors:
-                Map<String, @JvmSuppressWildcards QSTileAvailabilityInteractor>,
-        userRepository: UserRepository,
+    private val availabilityInteractors:
+        Map<String, @JvmSuppressWildcards QSTileAvailabilityInteractor>,
+    userRepository: UserRepository,
 ) {
     val newTilesAvailable: Flow<Map<TileSpec, Boolean>> =
-            userRepository.selectedUserInfo.map { it.id }
-                    .flatMapLatestConflated { userId ->
-                        if (availabilityInteractors.isEmpty()) {
-                            flowOf(emptyMap())
-                        } else {
-                            combine(availabilityInteractors.map { (spec, interactor) ->
-                                interactor.availability(UserHandle.of(userId)).map {
-                                    TileSpec.create(spec) to it
-                                }
-                            }) {
-                                it.toMap()
+        userRepository.selectedUserInfo
+            .map { it.id }
+            .flatMapLatestConflated { userId ->
+                if (availabilityInteractors.isEmpty()) {
+                    flowOf(emptyMap())
+                } else {
+                    combine(
+                        availabilityInteractors.map { (spec, interactor) ->
+                            interactor.availability(UserHandle.of(userId)).map {
+                                TileSpec.create(spec) to it
                             }
                         }
+                    ) {
+                        it.toMap()
                     }
+                }
+            }
 }

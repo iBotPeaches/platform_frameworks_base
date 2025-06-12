@@ -13,6 +13,16 @@ flag {
 }
 
 flag {
+    name: "adpf_25q2_metrics"
+    namespace: "game"
+    description: "Add missing metrics for ADPF 25Q2 features."
+    bug: "367803904"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "adpf_gpu_report_actual_work_duration"
     is_exported: true
     namespace: "game"
@@ -110,6 +120,14 @@ flag {
 }
 
 flag {
+    name: "allow_thermal_hal_skin_forecast"
+    is_exported: true
+    namespace: "game"
+    description: "Enable thermal HAL skin temperature forecast to be used by headroom API"
+    bug: "383211885"
+}
+
+flag {
     name: "allow_thermal_headroom_thresholds"
     is_exported: true
     namespace: "game"
@@ -139,6 +157,13 @@ flag {
     description: "Public API app developers use to check if a known issue is fixed on a device."
     bug: "308461809"
     is_exported: true
+}
+
+flag {
+     name: "app_zygote_retry_start"
+     namespace: "arc_next"
+     description: "Guard the new added retry logic in app zygote."
+     bug: "361799815"
 }
 
 flag {
@@ -205,11 +230,27 @@ flag {
 }
 
 flag {
+     name: "force_concurrent_message_queue"
+     namespace: "system_performance"
+     is_exported: true
+     description: "Whether MessageQueue uses the new concurrent implementation"
+     bug: "336880969"
+}
+
+flag {
     name: "get_private_space_settings"
     namespace: "profile_experiences"
     description: "Guards a new Private Profile API in LauncherApps"
     bug: "346294653"
     is_exported: true
+}
+
+flag {
+     name: "ipc_data_cache_test_apis"
+     namespace: "system_performance"
+     description: "Expose IpcDataCache test apis to mainline modules."
+     bug: "396173886"
+     is_exported: true
 }
 
 flag {
@@ -340,8 +381,24 @@ flag {
 
 flag {
      namespace: "system_performance"
+     name: "parcel_marshall_bytebuffer"
+     is_exported: true
+     description: "Parcel marshal/unmarshall APIs that use ByteBuffer."
+     is_fixed_read_only: true
+     bug: "401362825"
+}
+
+flag {
+     namespace: "system_performance"
      name: "perfetto_sdk_tracing"
      description: "Tracing using Perfetto SDK."
+     bug: "303199244"
+}
+
+flag {
+     namespace: "system_performance"
+     name: "perfetto_sdk_tracing_v2"
+     description: "Tracing using Perfetto SDK API."
      bug: "303199244"
 }
 

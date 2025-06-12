@@ -17,12 +17,16 @@
 package com.android.server.biometrics.sensors;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricsProtoEnums;
 import android.hardware.face.FaceEnrollOptions;
@@ -30,6 +34,7 @@ import android.hardware.fingerprint.FingerprintEnrollOptions;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.text.BidiFormatter;
+import android.text.TextUtils;
 import android.util.Slog;
 
 import com.android.internal.R;
@@ -56,6 +61,7 @@ public class BiometricNotificationUtils {
     private static final String FACE_ENROLL_CHANNEL = "FaceEnrollNotificationChannel";
     private static final String FACE_RE_ENROLL_CHANNEL = "FaceReEnrollNotificationChannel";
     private static final String FINGERPRINT_ENROLL_CHANNEL = "FingerprintEnrollNotificationChannel";
+    private static final String FINGERPRINT_FRR_CHANNEL = "FingerprintFrrNotificationChannel";
     private static final String FINGERPRINT_RE_ENROLL_CHANNEL =
             "FingerprintReEnrollNotificationChannel";
     private static final String FINGERPRINT_BAD_CALIBRATION_CHANNEL =
@@ -69,6 +75,7 @@ public class BiometricNotificationUtils {
     public static final int NOTIFICATION_ID = 1;
     public static final String FACE_ENROLL_NOTIFICATION_TAG = "FaceEnroll";
     public static final String FINGERPRINT_ENROLL_NOTIFICATION_TAG = "FingerprintEnroll";
+    public static final String FINGERPRINT_FRR_NOTIFICATION_TAG = "FingerprintFrr";
     /**
      * Shows a face re-enrollment notification.
      */
@@ -148,6 +155,65 @@ public class BiometricNotificationUtils {
                 Notification.CATEGORY_RECOMMENDATION, FINGERPRINT_ENROLL_CHANNEL,
                 FINGERPRINT_ENROLL_NOTIFICATION_TAG, Notification.VISIBILITY_PUBLIC, true);
 
+    }
+
+    /**
+     * Shows a customized fingerprint frr notification.
+     *
+     * @return true if notification shows
+     */
+    public static boolean showCustomizeFpFrrNotification(@NonNull Context context) {
+        final String name =
+                context.getString(R.string.device_unlock_notification_name);
+        final String title =
+                context.getString(R.string.fingerprint_frr_notification_title);
+        final String content =
+                context.getString(R.string.fingerprint_frr_notification_msg);
+
+        Intent intent = getIntentFromFpFrrComponentNameStringRes(context);
+        Slog.d(TAG, "Showing Customize Fingerprint Frr Notification result:" + (intent != null));
+        if (intent == null) {
+            return false;
+        }
+
+        final PendingIntent pendingIntent = PendingIntent.getActivityAsUser(context,
+                0 /* requestCode */, intent, PendingIntent.FLAG_IMMUTABLE /* flags */,
+                null /* options */, UserHandle.CURRENT);
+
+        showNotificationHelper(context, name, title, content, pendingIntent,
+                Notification.CATEGORY_RECOMMENDATION, FINGERPRINT_FRR_CHANNEL,
+                FINGERPRINT_FRR_NOTIFICATION_TAG, Notification.VISIBILITY_PUBLIC, true);
+
+        return true;
+    }
+
+    @Nullable
+    private static Intent getIntentFromFpFrrComponentNameStringRes(@NonNull Context context) {
+        String componentNameString = context.getResources().getString(
+                R.string.config_fingerprintFrrTargetComponent);
+        if (TextUtils.isEmpty(componentNameString)) {
+            return null;
+        }
+
+        ComponentName componentName = ComponentName.unflattenFromString(componentNameString);
+        if (componentName == null) {
+            return null;
+        }
+
+        PackageManager packageManager = context.getPackageManager();
+        Intent intent = new Intent();
+        intent.setComponent(componentName);
+        intent.setAction(Intent.ACTION_MAIN);
+        intent.addCategory(Intent.CATEGORY_LAUNCHER);
+
+        ResolveInfo resolveInfo = packageManager.resolveActivity(intent,
+                PackageManager.MATCH_DEFAULT_ONLY);
+        if (resolveInfo != null) {
+            return intent;
+        } else {
+            Slog.d(TAG, "Component for " + componentNameString + " not found");
+            return null;
+        }
     }
 
     /**

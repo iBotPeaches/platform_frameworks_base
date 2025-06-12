@@ -21,6 +21,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyguard.data.repository.KeyguardBypassRepository
 import com.android.systemui.scene.domain.interactor.SceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.util.kotlin.FlowDumperImpl
@@ -61,7 +62,9 @@ constructor(
             .flatMapLatest { isBypassAvailable ->
                 if (isBypassAvailable) {
                     combine(
-                        sceneInteractor.currentScene.map { scene -> scene == Scenes.Bouncer },
+                        sceneInteractor.currentOverlays.map { overlays ->
+                            Overlays.Bouncer in overlays
+                        },
                         alternateBouncerInteractor.isVisible,
                         sceneInteractor.currentScene.map { scene -> scene == Scenes.Lockscreen },
                         keyguardQuickAffordanceInteractor.launchingAffordance,

@@ -17,13 +17,23 @@
 package com.android.wm.shell.common.split;
 
 import static com.android.wm.shell.shared.split.SplitScreenConstants.NOT_IN_SPLIT;
+import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_2_10_90;
+import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_2_90_10;
+import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_3_10_45_45;
+import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_3_45_45_10;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SplitScreenState;
+
+import android.graphics.Rect;
+import android.graphics.RectF;
+
+import java.util.List;
 
 /**
  * A class that manages the "state" of split screen. See {@link SplitScreenState} for definitions.
  */
 public class SplitState {
     private @SplitScreenState int mState = NOT_IN_SPLIT;
+    private SplitSpec mSplitSpec;
 
     /** Updates the current state of split screen on this device. */
     public void set(@SplitScreenState int newState) {
@@ -38,5 +48,30 @@ public class SplitState {
     /** Sets NOT_IN_SPLIT when user exits split. */
     public void exit() {
         set(NOT_IN_SPLIT);
+    }
+
+    /** Refresh the valid layouts for this display/orientation. */
+    public void populateLayouts(Rect displayBounds, int dividerSize, boolean isLeftRightSplit,
+            Rect pinnedTaskbarInsets) {
+        mSplitSpec =
+                new SplitSpec(displayBounds, dividerSize, isLeftRightSplit, pinnedTaskbarInsets);
+    }
+
+    /** Returns the layout associated with a given split state. */
+    public List<RectF> getLayout(@SplitScreenState int state) {
+        return mSplitSpec.getSpec(state);
+    }
+
+    /** Returns the layout associated with the current split state. */
+    public List<RectF> getCurrentLayout() {
+        return getLayout(mState);
+    }
+
+    /** @return {@code true} if at least one app is partially offscreen in the current layout. */
+    public boolean currentStateSupportsOffscreenApps() {
+        return mState == SNAP_TO_2_10_90
+                || mState == SNAP_TO_2_90_10
+                || mState == SNAP_TO_3_10_45_45
+                || mState == SNAP_TO_3_45_45_10;
     }
 }

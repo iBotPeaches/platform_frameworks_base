@@ -58,6 +58,8 @@ TEST(BinaryStreamVisitorTests, CreateBinaryStreamViaBinaryStreamVisitor) {
   ASSERT_EQ(idmap1->GetData().size(), 1U);
   ASSERT_EQ(idmap1->GetData().size(), idmap2->GetData().size());
 
+  ASSERT_EQ(idmap1->GetConstraints()->constraints, idmap2->GetConstraints()->constraints);
+
   const std::vector<std::unique_ptr<const IdmapData>>& data_blocks1 = idmap1->GetData();
   ASSERT_EQ(data_blocks1.size(), 1U);
   const std::unique_ptr<const IdmapData>& data1 = data_blocks1[0];

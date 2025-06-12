@@ -16,7 +16,6 @@
 
 package android.os;
 
-import android.annotation.FlaggedApi;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.annotation.SystemApi;
@@ -144,7 +143,6 @@ public final class ConfigUpdate {
      * @hide
      */
     @SystemApi
-    @FlaggedApi(com.android.internal.telephony.flags.Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_UPDATE_CONFIG = "android.os.action.UPDATE_CONFIG";
 
@@ -172,7 +170,6 @@ public final class ConfigUpdate {
      * @hide
      */
     @SystemApi
-    @FlaggedApi(com.android.internal.telephony.flags.Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final String EXTRA_DOMAIN  = "android.os.extra.DOMAIN";
 
     private ConfigUpdate() {

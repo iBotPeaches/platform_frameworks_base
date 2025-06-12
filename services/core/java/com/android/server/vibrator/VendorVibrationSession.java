@@ -51,6 +51,9 @@ import java.util.NoSuchElementException;
 final class VendorVibrationSession extends IVibrationSession.Stub
         implements VibrationSession, CancellationSignal.OnCancelListener, IBinder.DeathRecipient {
     private static final String TAG = "VendorVibrationSession";
+    // To enable these logs, run:
+    // 'adb shell setprop persist.log.tag.VendorVibrationSession DEBUG && adb reboot'
+    private static final boolean DEBUG = VibratorDebugUtils.isDebuggable(TAG);
 
     /** Calls into VibratorManager functionality needed for playing an {@link ExternalVibration}. */
     interface VibratorManagerHooks {
@@ -73,8 +76,8 @@ final class VendorVibrationSession extends IVibrationSession.Stub
     private final ICancellationSignal mCancellationSignal = CancellationSignal.createTransport();
     private final int[] mVibratorIds;
     private final long mCreateUptime;
-    private final long mCreateTime; // for debugging
-    private final IVibrationSessionCallback mCallback;
+    private final long mCreateTime;
+    private final VendorCallbackWrapper mCallback;
     private final CallerInfo mCallerInfo;
     private final VibratorManagerHooks mManagerHooks;
     private final DeviceAdapter mDeviceAdapter;
@@ -88,11 +91,11 @@ final class VendorVibrationSession extends IVibrationSession.Stub
     @GuardedBy("mLock")
     private boolean mEndedByVendor;
     @GuardedBy("mLock")
-    private long mStartTime; // for debugging
+    private long mStartTime;
     @GuardedBy("mLock")
     private long mEndUptime;
     @GuardedBy("mLock")
-    private long mEndTime; // for debugging
+    private long mEndTime;
     @GuardedBy("mLock")
     private VibrationStepConductor mConductor;
 
@@ -103,7 +106,7 @@ final class VendorVibrationSession extends IVibrationSession.Stub
         mCreateTime = System.currentTimeMillis();
         mVibratorIds = deviceAdapter.getAvailableVibratorIds();
         mHandler = handler;
-        mCallback = callback;
+        mCallback = new VendorCallbackWrapper(callback, handler);
         mCallerInfo = callerInfo;
         mManagerHooks = managerHooks;
         mDeviceAdapter = deviceAdapter;
@@ -119,7 +122,9 @@ final class VendorVibrationSession extends IVibrationSession.Stub
 
     @Override
     public void finishSession() {
-        Slog.d(TAG, "Session finish requested, ending vibration session...");
+        if (DEBUG) {
+            Slog.d(TAG, "Session finish requested, ending vibration session...");
+        }
         // Do not abort session in HAL, wait for ongoing vibration requests to complete.
         // This might take a while to end the session, but it can be aborted by cancelSession.
         requestEndSession(Status.FINISHED, /* shouldAbort= */ false, /* isVendorRequest= */ true);
@@ -127,7 +132,9 @@ final class VendorVibrationSession extends IVibrationSession.Stub
 
     @Override
     public void cancelSession() {
-        Slog.d(TAG, "Session cancel requested, aborting vibration session...");
+        if (DEBUG) {
+            Slog.d(TAG, "Session cancel requested, aborting vibration session...");
+        }
         // Always abort session in HAL while cancelling it.
         // This might be triggered after finishSession was already called.
         requestEndSession(Status.CANCELLED_BY_USER, /* shouldAbort= */ true,
@@ -156,7 +163,7 @@ final class VendorVibrationSession extends IVibrationSession.Stub
 
     @Override
     public IBinder getCallerToken() {
-        return mCallback.asBinder();
+        return mCallback.getBinderToken();
     }
 
     @Override
@@ -176,36 +183,30 @@ final class VendorVibrationSession extends IVibrationSession.Stub
 
     @Override
     public void onCancel() {
-        Slog.d(TAG, "Cancellation signal received, cancelling vibration session...");
+        if (DEBUG) {
+            Slog.d(TAG, "Session cancellation signal received, aborting vibration session...");
+        }
         requestEndSession(Status.CANCELLED_BY_USER, /* shouldAbort= */ true,
                 /* isVendorRequest= */ true);
     }
 
     @Override
     public void binderDied() {
-        Slog.d(TAG, "Binder died, cancelling vibration session...");
+        if (DEBUG) {
+            Slog.d(TAG, "Session binder died, aborting vibration session...");
+        }
         requestEndSession(Status.CANCELLED_BINDER_DIED, /* shouldAbort= */ true,
                 /* isVendorRequest= */ false);
     }
 
     @Override
     public boolean linkToDeath() {
-        try {
-            mCallback.asBinder().linkToDeath(this, 0);
-        } catch (RemoteException e) {
-            Slog.e(TAG, "Error linking session to token death", e);
-            return false;
-        }
-        return true;
+        return mCallback.linkToDeath(this);
     }
 
     @Override
     public void unlinkToDeath() {
-        try {
-            mCallback.asBinder().unlinkToDeath(this, 0);
-        } catch (NoSuchElementException e) {
-            Slog.wtf(TAG, "Failed to unlink session to token death", e);
-        }
+        mCallback.unlinkToDeath(this);
     }
 
     @Override
@@ -218,25 +219,38 @@ final class VendorVibrationSession extends IVibrationSession.Stub
     }
 
     @Override
-    public void notifyVibratorCallback(int vibratorId, long vibrationId) {
-        // Ignore it, the session vibration playback doesn't depend on HAL timings
+    public void notifyVibratorCallback(int vibratorId, long vibrationId, long stepId) {
+        if (DEBUG) {
+            Slog.d(TAG, "Vibration callback received for vibration " + vibrationId
+                    + " step " + stepId + " on vibrator " + vibratorId + ", ignoring...");
+        }
     }
 
     @Override
     public void notifySyncedVibratorsCallback(long vibrationId) {
-        // Ignore it, the session vibration playback doesn't depend on HAL timings
+        if (DEBUG) {
+            Slog.d(TAG, "Synced vibration callback received for vibration " + vibrationId
+                    + ", ignoring...");
+        }
     }
 
     @Override
     public void notifySessionCallback() {
-        synchronized (mLock) {
+        if (DEBUG) {
             Slog.d(TAG, "Session callback received, ending vibration session...");
+        }
+        synchronized (mLock) {
             // If end was not requested then the HAL has cancelled the session.
-            maybeSetEndRequestLocked(Status.CANCELLED_BY_UNKNOWN_REASON,
+            notifyEndRequestLocked(Status.CANCELLED_BY_UNKNOWN_REASON,
                     /* isVendorRequest= */ false);
             maybeSetStatusToRequestedLocked();
             clearVibrationConductor();
-            mHandler.post(() -> mManagerHooks.onSessionReleased(mSessionId));
+            final Status endStatus = mStatus;
+            mHandler.post(() -> {
+                mManagerHooks.onSessionReleased(mSessionId);
+                // Only trigger client callback after session is released in the manager.
+                mCallback.notifyFinished(endStatus);
+            });
         }
     }
 
@@ -269,7 +283,7 @@ final class VendorVibrationSession extends IVibrationSession.Stub
 
     public boolean isEnded() {
         synchronized (mLock) {
-            return mStatus != Status.RUNNING;
+            return mEndTime > 0;
         }
     }
 
@@ -295,19 +309,17 @@ final class VendorVibrationSession extends IVibrationSession.Stub
                 // Session already ended, skip start callbacks.
                 isAlreadyEnded = true;
             } else {
+                if (DEBUG) {
+                    Slog.d(TAG, "Session started at the HAL");
+                }
                 mStartTime = System.currentTimeMillis();
-                // Run client callback in separate thread.
-                mHandler.post(() -> {
-                    try {
-                        mCallback.onStarted(this);
-                    } catch (RemoteException e) {
-                        Slog.e(TAG, "Error notifying vendor session started", e);
-                    }
-                });
+                mCallback.notifyStarted(this);
             }
         }
         if (isAlreadyEnded) {
-            // Session already ended, make sure we end it in the HAL.
+            if (DEBUG) {
+                Slog.d(TAG, "Session already ended after starting the HAL, aborting...");
+            }
             mHandler.post(() -> mManagerHooks.endSession(mSessionId, /* shouldAbort= */ true));
         }
     }
@@ -335,8 +347,10 @@ final class VendorVibrationSession extends IVibrationSession.Stub
     public boolean maybeSetVibrationConductor(VibrationStepConductor conductor) {
         synchronized (mLock) {
             if (mConductor != null) {
-                Slog.d(TAG, "Vibration session still dispatching previous vibration,"
-                        + " new vibration ignored");
+                if (DEBUG) {
+                    Slog.d(TAG, "Session still dispatching previous vibration, new vibration "
+                            + conductor.getVibration().id + " ignored");
+                }
                 return false;
             }
             mConductor = conductor;
@@ -345,48 +359,44 @@ final class VendorVibrationSession extends IVibrationSession.Stub
     }
 
     private void requestEndSession(Status status, boolean shouldAbort, boolean isVendorRequest) {
-        boolean shouldTriggerSessionHook = false;
-        synchronized (mLock) {
-            maybeSetEndRequestLocked(status, isVendorRequest);
-            if (isStarted()) {
-                // Always trigger session hook after it has started, in case new request aborts an
-                // already finishing session. Wait for HAL callback before actually ending here.
-                shouldTriggerSessionHook = true;
-            } else {
-                // Session did not start in the HAL, end it right away.
-                maybeSetStatusToRequestedLocked();
-            }
+        if (DEBUG) {
+            Slog.d(TAG, "Session end request received with status " + status);
         }
-        if (shouldTriggerSessionHook) {
-            mHandler.post(() ->  mManagerHooks.endSession(mSessionId, shouldAbort));
+        synchronized (mLock) {
+            notifyEndRequestLocked(status, isVendorRequest);
+            if (!isEnded() && isStarted()) {
+                // Trigger session hook even if it was already triggered, in case a second request
+                // is aborting the ongoing/ending session. This might cause it to end right away.
+                // Wait for HAL callback before setting the end status.
+                if (DEBUG) {
+                    Slog.d(TAG, "Requesting HAL session end with abort=" + shouldAbort);
+                }
+                mHandler.post(() ->  mManagerHooks.endSession(mSessionId, shouldAbort));
+            } else {
+                // Session not active in the HAL, try to set end status right away.
+                maybeSetStatusToRequestedLocked();
+                // Use status used to end this session, which might be different from requested.
+                mCallback.notifyFinished(mStatus);
+            }
         }
     }
 
     @GuardedBy("mLock")
-    private void maybeSetEndRequestLocked(Status status, boolean isVendorRequest) {
+    private void notifyEndRequestLocked(Status status, boolean isVendorRequest) {
         if (mEndStatusRequest != null) {
-            // End already requested, keep first requested status and time.
+            // End already requested, keep first requested status.
             return;
+        }
+        if (DEBUG) {
+            Slog.d(TAG, "Session end request accepted for status " + status);
         }
         mEndStatusRequest = status;
         mEndedByVendor = isVendorRequest;
-        mEndTime = System.currentTimeMillis();
-        mEndUptime = SystemClock.uptimeMillis();
+        mCallback.notifyFinishing();
         if (mConductor != null) {
             // Vibration is being dispatched when session end was requested, cancel it.
             mConductor.notifyCancelled(new Vibration.EndInfo(status),
                     /* immediate= */ status != Status.FINISHED);
-        }
-        if (isStarted()) {
-            // Only trigger "finishing" callback if session started.
-            // Run client callback in separate thread.
-            mHandler.post(() -> {
-                try {
-                    mCallback.onFinishing();
-                } catch (RemoteException e) {
-                    Slog.e(TAG, "Error notifying vendor session is finishing", e);
-                }
-            });
         }
     }
 
@@ -400,39 +410,123 @@ final class VendorVibrationSession extends IVibrationSession.Stub
             // No end status was requested, nothing to set.
             return;
         }
+        if (DEBUG) {
+            Slog.d(TAG, "Session end request applied for status " + mEndStatusRequest);
+        }
         mStatus = mEndStatusRequest;
-        // Run client callback in separate thread.
-        final Status endStatus = mStatus;
-        mHandler.post(() -> {
-            try {
-                mCallback.onFinished(toSessionStatus(endStatus));
-            } catch (RemoteException e) {
-                Slog.e(TAG, "Error notifying vendor session is finishing", e);
-            }
-        });
+        mEndTime = System.currentTimeMillis();
+        mEndUptime = SystemClock.uptimeMillis();
     }
 
-    @android.os.vibrator.VendorVibrationSession.Status
-    private static int toSessionStatus(Status status) {
-        // Exhaustive switch to cover all possible internal status.
-        return switch (status) {
-            case FINISHED
-                    -> android.os.vibrator.VendorVibrationSession.STATUS_SUCCESS;
-            case IGNORED_UNSUPPORTED
-                    -> STATUS_UNSUPPORTED;
-            case CANCELLED_BINDER_DIED, CANCELLED_BY_APP_OPS, CANCELLED_BY_USER,
-                 CANCELLED_SUPERSEDED, CANCELLED_BY_FOREGROUND_USER, CANCELLED_BY_SCREEN_OFF,
-                 CANCELLED_BY_SETTINGS_UPDATE, CANCELLED_BY_UNKNOWN_REASON
-                    -> android.os.vibrator.VendorVibrationSession.STATUS_CANCELED;
-            case IGNORED_APP_OPS, IGNORED_BACKGROUND, IGNORED_FOR_EXTERNAL, IGNORED_FOR_ONGOING,
-                 IGNORED_FOR_POWER, IGNORED_FOR_SETTINGS, IGNORED_FOR_HIGHER_IMPORTANCE,
-                 IGNORED_FOR_RINGER_MODE, IGNORED_FROM_VIRTUAL_DEVICE, IGNORED_SUPERSEDED,
-                 IGNORED_MISSING_PERMISSION, IGNORED_ON_WIRELESS_CHARGER
-                    -> android.os.vibrator.VendorVibrationSession.STATUS_IGNORED;
-            case UNKNOWN, IGNORED_ERROR_APP_OPS, IGNORED_ERROR_CANCELLING, IGNORED_ERROR_SCHEDULING,
-                 IGNORED_ERROR_TOKEN, FORWARDED_TO_INPUT_DEVICES, FINISHED_UNEXPECTED, RUNNING
-                    -> android.os.vibrator.VendorVibrationSession.STATUS_UNKNOWN_ERROR;
-        };
+    /**
+     * Wrapper class to handle client callbacks asynchronously.
+     *
+     * <p>This class is also responsible for link/unlink to the client process binder death, and for
+     * making sure the callbacks are only triggered once. The conversion between session status and
+     * the API status code is also defined here.
+     */
+    private static final class VendorCallbackWrapper {
+        private final IVibrationSessionCallback mCallback;
+        private final Handler mHandler;
+
+        private boolean mIsStarted;
+        private boolean mIsFinishing;
+        private boolean mIsFinished;
+
+        VendorCallbackWrapper(@NonNull IVibrationSessionCallback callback,
+                @NonNull Handler handler) {
+            mCallback = callback;
+            mHandler = handler;
+        }
+
+        synchronized IBinder getBinderToken() {
+            return mCallback.asBinder();
+        }
+
+        synchronized boolean linkToDeath(DeathRecipient recipient) {
+            try {
+                mCallback.asBinder().linkToDeath(recipient, 0);
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Error linking session to token death", e);
+                return false;
+            }
+            return true;
+        }
+
+        synchronized void unlinkToDeath(DeathRecipient recipient) {
+            try {
+                mCallback.asBinder().unlinkToDeath(recipient, 0);
+            } catch (NoSuchElementException e) {
+                Slog.wtf(TAG, "Failed to unlink session to token death", e);
+            }
+        }
+
+        synchronized void notifyStarted(IVibrationSession session) {
+            if (mIsStarted) {
+                return;
+            }
+            mIsStarted = true;
+            mHandler.post(() -> {
+                try {
+                    mCallback.onStarted(session);
+                } catch (RemoteException e) {
+                    Slog.e(TAG, "Error notifying vendor session started", e);
+                }
+            });
+        }
+
+        synchronized void notifyFinishing() {
+            if (!mIsStarted || mIsFinishing || mIsFinished) {
+                // Ignore if never started or if already finishing or finished.
+                return;
+            }
+            mIsFinishing = true;
+            mHandler.post(() -> {
+                try {
+                    mCallback.onFinishing();
+                } catch (RemoteException e) {
+                    Slog.e(TAG, "Error notifying vendor session is finishing", e);
+                }
+            });
+        }
+
+        synchronized void notifyFinished(Status status) {
+            if (mIsFinished) {
+                return;
+            }
+            mIsFinished = true;
+            mHandler.post(() -> {
+                try {
+                    mCallback.onFinished(toSessionStatus(status));
+                } catch (RemoteException e) {
+                    Slog.e(TAG, "Error notifying vendor session finished", e);
+                }
+            });
+        }
+
+        @android.os.vibrator.VendorVibrationSession.Status
+        private static int toSessionStatus(Status status) {
+            // Exhaustive switch to cover all possible internal status.
+            return switch (status) {
+                case FINISHED
+                        -> android.os.vibrator.VendorVibrationSession.STATUS_SUCCESS;
+                case IGNORED_UNSUPPORTED
+                        -> STATUS_UNSUPPORTED;
+                case CANCELLED_BINDER_DIED, CANCELLED_BY_APP_OPS, CANCELLED_BY_USER,
+                     CANCELLED_SUPERSEDED, CANCELLED_BY_FOREGROUND_USER, CANCELLED_BY_SCREEN_OFF,
+                     CANCELLED_BY_SETTINGS_UPDATE, CANCELLED_BY_UNKNOWN_REASON
+                        -> android.os.vibrator.VendorVibrationSession.STATUS_CANCELED;
+                case IGNORED_APP_OPS, IGNORED_BACKGROUND, IGNORED_FOR_EXTERNAL, IGNORED_FOR_ONGOING,
+                     IGNORED_FOR_POWER, IGNORED_FOR_SETTINGS, IGNORED_FOR_HIGHER_IMPORTANCE,
+                     IGNORED_FOR_RINGER_MODE, IGNORED_FROM_VIRTUAL_DEVICE, IGNORED_SUPERSEDED,
+                     IGNORED_MISSING_PERMISSION, IGNORED_ON_WIRELESS_CHARGER
+                        -> android.os.vibrator.VendorVibrationSession.STATUS_IGNORED;
+                case UNKNOWN, IGNORED_ERROR_APP_OPS, IGNORED_ERROR_CANCELLING,
+                     IGNORED_ERROR_SCHEDULING, IGNORED_ERROR_TOKEN, FORWARDED_TO_INPUT_DEVICES,
+                     FINISHED_UNEXPECTED, RUNNING
+                        -> android.os.vibrator.VendorVibrationSession.STATUS_UNKNOWN_ERROR;
+            };
+        }
     }
 
     /**
@@ -492,7 +586,7 @@ final class VendorVibrationSession extends IVibrationSession.Stub
         @Override
         public void logMetrics(VibratorFrameworkStatsLogger statsLogger) {
             if (mStartTime > 0) {
-                // Only log sessions that have started.
+                // Only log sessions that have started in the HAL.
                 statsLogger.logVibrationVendorSessionStarted(mCallerInfo.uid);
                 statsLogger.logVibrationVendorSessionVibrations(mCallerInfo.uid,
                         mVibrations.size());

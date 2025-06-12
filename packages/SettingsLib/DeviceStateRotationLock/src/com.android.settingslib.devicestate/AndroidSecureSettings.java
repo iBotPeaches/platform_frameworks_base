@@ -24,11 +24,11 @@ import android.provider.Settings;
  * Implementation of {@link SecureSettings} that uses Android's {@link Settings.Secure}
  * implementation.
  */
-class AndroidSecureSettings implements SecureSettings {
+public class AndroidSecureSettings implements SecureSettings {
 
     private final ContentResolver mContentResolver;
 
-    AndroidSecureSettings(ContentResolver contentResolver) {
+    public AndroidSecureSettings(ContentResolver contentResolver) {
         mContentResolver = contentResolver;
     }
 

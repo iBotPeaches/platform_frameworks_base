@@ -44,6 +44,7 @@ import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -134,74 +135,6 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
         mDataSource = datasource;
     }
 
-    public static class RegisterClientArgs extends IRegisterClientArgs.Stub {
-        /**
-         * The viewer config file to be registered for this client ProtoLog process.
-         */
-        @Nullable
-        private String mViewerConfigFile = null;
-        /**
-         * The list of all groups that this client protolog process supports and might trace.
-         */
-        @NonNull
-        private String[] mGroups = new String[0];
-        /**
-         * The default logcat status of the ProtoLog client. True is logging to logcat, false
-         * otherwise. The indices should match the indices in {@link mGroups}.
-         */
-        @NonNull
-        private boolean[] mLogcatStatus = new boolean[0];
-
-        public record GroupConfig(@NonNull String group, boolean logToLogcat) {}
-
-        /**
-         * Specify groups to register with this client that will be used for protologging in this
-         * process.
-         * @param groups to register with this client.
-         * @return self
-         */
-        public RegisterClientArgs setGroups(GroupConfig... groups) {
-            mGroups = new String[groups.length];
-            mLogcatStatus = new boolean[groups.length];
-
-            for (int i = 0; i < groups.length; i++) {
-                mGroups[i] = groups[i].group;
-                mLogcatStatus[i] = groups[i].logToLogcat;
-            }
-
-            return this;
-        }
-
-        /**
-         * Set the viewer config file that the logs in this process are using.
-         * @param viewerConfigFile The file path of the viewer config.
-         * @return self
-         */
-        public RegisterClientArgs setViewerConfigFile(@NonNull String viewerConfigFile) {
-            mViewerConfigFile = viewerConfigFile;
-
-            return this;
-        }
-
-        @Override
-        @NonNull
-        public String[] getGroups() {
-            return mGroups;
-        }
-
-        @Override
-        @NonNull
-        public boolean[] getGroupsDefaultLogcatStatus() {
-            return mLogcatStatus;
-        }
-
-        @Nullable
-        @Override
-        public String getViewerConfigFile() {
-            return mViewerConfigFile;
-        }
-    }
-
     @FunctionalInterface
     public interface ViewerConfigFileTracer {
         /**
@@ -216,16 +149,16 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
     }
 
     @Override
-    public void registerClient(@NonNull IProtoLogClient client, @NonNull IRegisterClientArgs args)
+    public void registerClient(@NonNull IProtoLogClient client, @NonNull RegisterClientArgs args)
             throws RemoteException {
         client.asBinder().linkToDeath(() -> onClientBinderDeath(client), /* flags */ 0);
 
-        final String viewerConfigFile = args.getViewerConfigFile();
+        final String viewerConfigFile = args.viewerConfigFile;
         if (viewerConfigFile != null) {
             registerViewerConfigFile(client, viewerConfigFile);
         }
 
-        registerGroups(client, args.getGroups(), args.getGroupsDefaultLogcatStatus());
+        registerGroups(client, args.groups, args.groupsDefaultLogcatStatus);
     }
 
     @Override
@@ -251,8 +184,8 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
      * @param groups we want to enable logging them to logcat for.
      */
     @Override
-    public void enableProtoLogToLogcat(@NonNull String... groups) {
-        toggleProtoLogToLogcat(true, groups);
+    public void enableProtoLogToLogcat(@NonNull PrintWriter pw, @NonNull String... groups) {
+        toggleProtoLogToLogcat(pw, true, groups);
     }
 
     /**
@@ -260,8 +193,8 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
      * @param groups we want to disable from being logged to logcat.
      */
     @Override
-    public void disableProtoLogToLogcat(@NonNull String... groups) {
-        toggleProtoLogToLogcat(false, groups);
+    public void disableProtoLogToLogcat(@NonNull PrintWriter pw, @NonNull String... groups) {
+        toggleProtoLogToLogcat(pw, false, groups);
     }
 
     /**
@@ -317,7 +250,9 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
         }
     }
 
-    private void toggleProtoLogToLogcat(boolean enabled, @NonNull String[] groups) {
+    private void toggleProtoLogToLogcat(
+            @NonNull PrintWriter pw, boolean enabled, @NonNull String[] groups
+    ) {
         final var clientToGroups = new HashMap<IProtoLogClient, Set<String>>();
 
         for (String group : groups) {
@@ -325,8 +260,10 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
 
             if (clients == null) {
                 // No clients associated to this group
-                Log.w(LOG_TAG, "Attempting to toggle log to logcat for group " + group
-                        + " with no registered clients.");
+                var warning = "Attempting to toggle log to logcat for group " + group
+                        + " with no registered clients. This is a no-op.";
+                Log.w(LOG_TAG, warning);
+                pw.println("WARNING: " + warning);
                 continue;
             }
 
@@ -338,8 +275,14 @@ public class ProtoLogConfigurationServiceImpl extends IProtoLogConfigurationServ
 
         for (IProtoLogClient client : clientToGroups.keySet()) {
             try {
-                client.toggleLogcat(enabled, clientToGroups.get(client).toArray(new String[0]));
+                final var clientGroups = clientToGroups.get(client).toArray(new String[0]);
+                pw.println("Toggling logcat logging for client " + client.toString()
+                        + " to " + enabled + " for groups: ["
+                        + String.join(", ", clientGroups) + "]");
+                client.toggleLogcat(enabled, clientGroups);
+                pw.println("- Done");
             } catch (RemoteException e) {
+                pw.println("- Failed");
                 throw new RuntimeException(
                         "Failed to toggle logcat status for groups on client", e);
             }

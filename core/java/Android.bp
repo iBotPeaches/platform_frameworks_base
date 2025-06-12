@@ -17,18 +17,27 @@ aidl_library {
 filegroup {
     name: "framework-core-sources",
     srcs: [
-        "**/*.java",
         "**/*.aidl",
-        ":systemfeatures-gen-srcs",
+        "**/*.java",
         ":framework-nfc-non-updatable-sources",
         ":messagequeue-gen",
         ":ranging_stack_mock_initializer",
+        ":systemfeatures-gen-srcs",
     ],
     // Exactly one MessageQueue.java will be added to srcs by messagequeue-gen
     exclude_srcs: [
+        "**/*_ravenwood.java",
+        ":dynamic_instrumentation_manager_aidl_sources",
         "android/os/*MessageQueue/**/*.java",
         "android/ranging/**/*.java",
-        ":dynamic_instrumentation_manager_aidl_sources",
+    ],
+    visibility: ["//frameworks/base"],
+}
+
+filegroup {
+    name: "framework-ravenwood-sources",
+    srcs: [
+        "**/*_ravenwood.java",
     ],
     visibility: ["//frameworks/base"],
 }
@@ -43,9 +52,9 @@ soong_config_module_type {
         "release_ranging_stack",
     ],
     properties: [
-        "srcs",
         "cmd",
         "out",
+        "srcs",
     ],
 }
 
@@ -87,7 +96,7 @@ release_package_messagequeue_implementation_srcs {
         release_package_messagequeue_implementation: {
             srcs: ["android/os/%s"],
             conditions_default: {
-                srcs: ["android/os/LegacyMessageQueue/MessageQueue.java"],
+                srcs: ["android/os/CombinedMessageQueue/MessageQueue.java"],
             },
         },
     },
@@ -144,9 +153,9 @@ filegroup {
 filegroup {
     name: "framework-core-sources-for-test-mock",
     srcs: [
+        "android/accounts/AccountManager.java",
         "android/accounts/AccountManagerCallback.java",
         "android/accounts/AccountManagerFuture.java",
-        "android/accounts/AccountManager.java",
         "android/accounts/AccountsException.java",
         "android/accounts/AuthenticatorException.java",
         "android/accounts/OperationCanceledException.java",
@@ -154,8 +163,8 @@ filegroup {
         "android/app/IApplicationThread.aidl",
         "android/app/IServiceConnection.aidl",
         "android/app/PackageDeleteObserver.java",
-        "android/content/ComponentCallbacks2.java",
         "android/content/ComponentCallbacks.java",
+        "android/content/ComponentCallbacks2.java",
         "android/content/ContentInterface.java",
         "android/content/ContentProvider.java",
         "android/content/ContentProviderNative.java",
@@ -169,8 +178,8 @@ filegroup {
         "android/content/OperationApplicationException.java",
         "android/content/pm/ActivityInfo.java",
         "android/content/pm/ApplicationInfo.java",
-        "android/content/pm/InstantAppInfo.java",
         "android/content/pm/IPackageDataObserver.aidl",
+        "android/content/pm/InstantAppInfo.java",
         "android/content/pm/KeySet.java",
         "android/content/pm/PackageManager.java",
         "android/content/pm/VerifierDeviceIdentity.java",
@@ -183,8 +192,8 @@ filegroup {
         "android/os/Bundle.java",
         "android/os/IBinder.java",
         "android/os/IInterface.java",
-        "android/os/Parcelable.java",
         "android/os/ParcelFileDescriptor.java",
+        "android/os/Parcelable.java",
         "android/os/RemoteException.java",
         "android/os/storage/VolumeInfo.java",
         "android/util/AndroidException.java",
@@ -206,23 +215,24 @@ filegroup {
 filegroup {
     name: "libvibrator_aidl",
     srcs: [
+        "android/os/ExternalVibrationScale.aidl",
         "android/os/IExternalVibrationController.aidl",
         "android/os/IExternalVibratorService.aidl",
-        "android/os/ExternalVibrationScale.aidl",
     ],
 }
 
 filegroup {
     name: "libpowermanager_aidl",
     srcs: [
-        "android/os/Temperature.aidl",
         "android/os/CoolingDevice.aidl",
+        "android/os/IPowerManager.aidl",
+        "android/os/IScreenTimeoutPolicyListener.aidl",
         "android/os/IThermalEventListener.aidl",
         "android/os/IThermalHeadroomListener.aidl",
-        "android/os/IThermalStatusListener.aidl",
         "android/os/IThermalService.aidl",
-        "android/os/IPowerManager.aidl",
+        "android/os/IThermalStatusListener.aidl",
         "android/os/IWakeLockCallback.aidl",
+        "android/os/Temperature.aidl",
     ],
 }
 
@@ -272,8 +282,8 @@ genrule {
 java_library {
     name: "uieventloggerlib",
     srcs: [
-        "com/android/internal/logging/UiEventLoggerImpl.java",
         ":statslog-framework-java-gen",
+        "com/android/internal/logging/UiEventLoggerImpl.java",
     ],
     libs: [
         "androidx.annotation_annotation",
@@ -343,11 +353,11 @@ filegroup {
     name: "framework-permission-s-shared-srcs",
     srcs: [
         ":modules-utils-preconditions-srcs",
-        "com/android/internal/infra/AndroidFuture.java",
-        "com/android/internal/infra/ServiceConnector.java",
-        "com/android/internal/infra/AndroidFuture.aidl",
-        "com/android/internal/infra/IAndroidFuture.aidl",
         "android/os/HandlerExecutor.java",
+        "com/android/internal/infra/AndroidFuture.aidl",
+        "com/android/internal/infra/AndroidFuture.java",
+        "com/android/internal/infra/IAndroidFuture.aidl",
+        "com/android/internal/infra/ServiceConnector.java",
     ],
 }
 
@@ -383,10 +393,10 @@ filegroup {
         "android/content/pm/FileSystemControlParcel.aidl",
         "android/content/pm/IDataLoader.aidl",
         "android/content/pm/IDataLoaderManager.aidl",
-        "android/content/pm/InstallationFileParcel.aidl",
-        "android/content/pm/InstallationFileLocation.aidl",
         "android/content/pm/IDataLoaderStatusListener.aidl",
         "android/content/pm/IPackageInstallerSessionFileSystemConnector.aidl",
+        "android/content/pm/InstallationFileLocation.aidl",
+        "android/content/pm/InstallationFileParcel.aidl",
     ],
 }
 
@@ -394,9 +404,9 @@ filegroup {
     name: "incremental_manager_aidl",
     srcs: [
         "android/os/incremental/IIncrementalService.aidl",
+        "android/os/incremental/IStorageHealthListener.aidl",
         "android/os/incremental/IStorageLoadingProgressListener.aidl",
         "android/os/incremental/IncrementalNewFileParams.aidl",
-        "android/os/incremental/IStorageHealthListener.aidl",
         "android/os/incremental/PerUidReadTimeouts.aidl",
         "android/os/incremental/StorageHealthCheckParams.aidl",
     ],
@@ -412,15 +422,15 @@ filegroup {
 filegroup {
     name: "hwbinder-stubs-srcs",
     srcs: [
-        "android/os/HidlSupport.java",
+        "android/os/DeadObjectException.java",
+        "android/os/DeadSystemException.java",
         "android/os/HidlMemory.java",
+        "android/os/HidlSupport.java",
         "android/os/HwBinder.java",
         "android/os/HwBlob.java",
         "android/os/HwParcel.java",
         "android/os/IHwBinder.java",
         "android/os/IHwInterface.java",
-        "android/os/DeadObjectException.java",
-        "android/os/DeadSystemException.java",
         "android/os/NativeHandle.java",
         "android/os/RemoteException.java",
         "android/util/AndroidException.java",
@@ -434,12 +444,12 @@ filegroup {
 cc_defaults {
     name: "incremental_default",
     cflags: [
+        "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
         "-Wall",
+        "-Werror",
         "-Wextra",
         "-Wextra-semi",
-        "-Werror",
         "-Wzero-as-null-pointer-constant",
-        "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
     ],
     shared_libs: [
         "libbinder",
@@ -479,8 +489,8 @@ cc_library {
     ],
     defaults: ["incremental_default"],
     shared_libs: [
-        "libincremental_aidl-cpp",
         "libdataloader_aidl-cpp",
+        "libincremental_aidl-cpp",
     ],
 }
 
@@ -570,8 +580,8 @@ filegroup {
 filegroup {
     name: "framework-telephony-common-shared-srcs",
     srcs: [
-        "android/os/RegistrantList.java",
         "android/os/Registrant.java",
+        "android/os/RegistrantList.java",
         "android/util/IndentingPrintWriter.java",
         "android/util/LocalLog.java",
         "android/util/TimeUtils.java",
@@ -589,8 +599,8 @@ filegroup {
     name: "framework-ims-common-shared-srcs",
     srcs: [
         ":modules-utils-preconditions-srcs",
-        "android/os/RegistrantList.java",
         "android/os/Registrant.java",
+        "android/os/RegistrantList.java",
         "com/android/internal/os/SomeArgs.java",
     ],
 }
@@ -599,9 +609,9 @@ filegroup {
 filegroup {
     name: "framework-core-sources-for-fuzzers",
     srcs: [
-        "android/os/IInterface.java",
         "android/os/Binder.java",
         "android/os/IBinder.java",
+        "android/os/IInterface.java",
         "android/os/Parcelable.java",
     ],
 }
@@ -647,6 +657,17 @@ filegroup {
 }
 
 java_library {
+    name: "protolog-common-lib",
+    srcs: [
+        ":protolog-common-src",
+    ],
+    host_supported: true,
+    static_libs: [
+        "framework-annotations-lib",
+    ],
+}
+
+java_library {
     name: "protolog-group",
     srcs: [
         "com/android/internal/protolog/common/IProtoLogGroup.java",
@@ -684,7 +705,9 @@ java_library {
     name: "protolog-groups",
     srcs: [
         "com/android/internal/protolog/WmProtoLogGroups.java",
-        ":protolog-common-src",
+    ],
+    static_libs: [
+        "protolog-common-lib",
     ],
 }
 

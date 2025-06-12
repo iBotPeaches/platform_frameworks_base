@@ -30,7 +30,8 @@ interface ActivatableNotificationViewModel : ExpandableOutlineViewModel {
     companion object {
         operator fun invoke(
             a11yInteractor: AccessibilityInteractor,
-        ): ActivatableNotificationViewModel = ActivatableNotificationViewModelImpl(a11yInteractor)
+        ): ActivatableNotificationViewModel =
+            ActivatableNotificationViewModelImpl(a11yInteractor)
     }
 }
 
@@ -45,6 +46,8 @@ private class ActivatableNotificationViewModelImpl(
 @Module
 object ActivatableNotificationViewModelModule {
     @Provides
-    fun provideViewModel(interactor: AccessibilityInteractor) =
-        ActivatableNotificationViewModel(interactor)
+    fun provideViewModel(
+        a11yInteractor: AccessibilityInteractor,
+    ) =
+        ActivatableNotificationViewModel(a11yInteractor)
 }

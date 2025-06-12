@@ -25,7 +25,7 @@ import static android.view.Surface.FRAME_RATE_CATEGORY_HIGH_HINT;
 import static android.view.Surface.FRAME_RATE_CATEGORY_LOW;
 import static android.view.Surface.FRAME_RATE_CATEGORY_NORMAL;
 import static android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
-import static android.view.Surface.FRAME_RATE_COMPATIBILITY_GTE;
+import static android.view.Surface.FRAME_RATE_COMPATIBILITY_AT_LEAST;
 import static android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
 import static android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
 import static android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
@@ -51,6 +51,8 @@ import static android.view.flags.Flags.toolkitFrameRateBySizeReadOnly;
 import static android.view.flags.Flags.toolkitFrameRateDefaultNormalReadOnly;
 import static android.view.flags.Flags.toolkitFrameRateVelocityMappingReadOnly;
 
+import static com.android.cts.input.inputeventmatchers.InputEventMatchersKt.withKeyCode;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -66,6 +68,7 @@ import android.annotation.NonNull;
 import android.app.Instrumentation;
 import android.app.UiModeManager;
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.ForceDarkType;
 import android.graphics.Rect;
 import android.hardware.display.DisplayManagerGlobal;
@@ -91,8 +94,11 @@ import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ShellIdentityUtils;
+import com.android.compatibility.common.util.TestUtils;
+import com.android.cts.input.BlockingQueueEventVerifier;
 import com.android.window.flags.Flags;
 
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -101,7 +107,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -121,7 +129,6 @@ public class ViewRootImplTest {
 
     private ViewRootImpl mViewRootImpl;
     private View mView;
-    private volatile boolean mKeyReceived = false;
 
     private static Context sContext;
     private static Instrumentation sInstrumentation = InstrumentationRegistry.getInstrumentation();
@@ -861,10 +868,10 @@ public class ViewRootImplTest {
             assertEquals(mViewRootImpl.getFrameRateCompatibility(),
                     FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
             assertFalse(mViewRootImpl.isFrameRateConflicted());
-            mViewRootImpl.votePreferredFrameRate(24, FRAME_RATE_COMPATIBILITY_GTE);
+            mViewRootImpl.votePreferredFrameRate(24, FRAME_RATE_COMPATIBILITY_AT_LEAST);
             if (toolkitFrameRateVelocityMappingReadOnly()) {
                 assertEquals(24, mViewRootImpl.getPreferredFrameRate(), 0.1);
-                assertEquals(FRAME_RATE_COMPATIBILITY_GTE,
+                assertEquals(FRAME_RATE_COMPATIBILITY_AT_LEAST,
                         mViewRootImpl.getFrameRateCompatibility());
                 assertFalse(mViewRootImpl.isFrameRateConflicted());
             } else {
@@ -888,10 +895,10 @@ public class ViewRootImplTest {
 
         sInstrumentation.runOnMainSync(() -> {
             assertFalse(mViewRootImpl.isFrameRateConflicted());
-            mViewRootImpl.votePreferredFrameRate(60, FRAME_RATE_COMPATIBILITY_GTE);
+            mViewRootImpl.votePreferredFrameRate(60, FRAME_RATE_COMPATIBILITY_AT_LEAST);
             if (toolkitFrameRateVelocityMappingReadOnly()) {
                 assertEquals(60, mViewRootImpl.getPreferredFrameRate(), 0.1);
-                assertEquals(FRAME_RATE_COMPATIBILITY_GTE,
+                assertEquals(FRAME_RATE_COMPATIBILITY_AT_LEAST,
                         mViewRootImpl.getFrameRateCompatibility());
             } else {
                 assertEquals(FRAME_RATE_CATEGORY_HIGH,
@@ -904,7 +911,7 @@ public class ViewRootImplTest {
                     mViewRootImpl.getFrameRateCompatibility());
             // Should be false since 60 is a divisor of 120.
             assertFalse(mViewRootImpl.isFrameRateConflicted());
-            mViewRootImpl.votePreferredFrameRate(60, FRAME_RATE_COMPATIBILITY_GTE);
+            mViewRootImpl.votePreferredFrameRate(60, FRAME_RATE_COMPATIBILITY_AT_LEAST);
             assertEquals(120, mViewRootImpl.getPreferredFrameRate(), 0.1);
             // compatibility should be remained the same (FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
             // since the frame rate 60 is smaller than 120.
@@ -1049,7 +1056,7 @@ public class ViewRootImplTest {
         ViewRootImpl viewRootImpl = mView.getViewRootImpl();
         sInstrumentation.runOnMainSync(() -> {
             mView.invalidate();
-            viewRootImpl.notifyInsetsAnimationRunningStateChanged(true);
+            viewRootImpl.updateAnimatingTypes(Type.systemBars(), null /* statsToken */);
             mView.invalidate();
         });
         sInstrumentation.waitForIdleSync();
@@ -1502,49 +1509,88 @@ public class ViewRootImplTest {
     }
 
     @Test
-    public void forceInvertOffDarkThemeOff_forceDarkModeDisabled() {
-        mSetFlagsRule.enableFlags(FLAG_FORCE_INVERT_COLOR);
-        ShellIdentityUtils.invokeWithShellPermissions(() -> {
-            Settings.Secure.putInt(
-                    sContext.getContentResolver(),
-                    Settings.Secure.ACCESSIBILITY_FORCE_INVERT_COLOR_ENABLED,
-                    /* value= */ 0
-            );
-            var uiModeManager = sContext.getSystemService(UiModeManager.class);
-            uiModeManager.setNightMode(UiModeManager.MODE_NIGHT_NO);
-        });
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
+    public void determineForceDarkType_systemLightMode_returnsNone() throws Exception {
+        waitForSystemNightModeActivated(false);
 
-        sInstrumentation.runOnMainSync(() ->
-                mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId())
-        );
+        TestUtils.waitUntil("Waiting for ForceDarkType to be ready",
+                () -> (mViewRootImpl.determineForceDarkType() == ForceDarkType.NONE));
 
-        assertThat(mViewRootImpl.determineForceDarkType()).isEqualTo(ForceDarkType.NONE);
     }
 
     @Test
-    public void forceInvertOnDarkThemeOff_forceDarkModeEnabled() {
-        mSetFlagsRule.enableFlags(FLAG_FORCE_INVERT_COLOR);
-        ShellIdentityUtils.invokeWithShellPermissions(() -> {
-            Settings.Secure.putInt(
-                    sContext.getContentResolver(),
-                    Settings.Secure.ACCESSIBILITY_FORCE_INVERT_COLOR_ENABLED,
-                    /* value= */ 1
-            );
-            var uiModeManager = sContext.getSystemService(UiModeManager.class);
-            uiModeManager.setNightMode(UiModeManager.MODE_NIGHT_NO);
-        });
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
+    public void determineForceDarkType_systemNightModeAndDisableForceInvertColor_returnsNone()
+            throws Exception {
+        waitForSystemNightModeActivated(true);
 
-        sInstrumentation.runOnMainSync(() ->
-                mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId())
-        );
+        enableForceInvertColor(false);
 
-        assertThat(mViewRootImpl.determineForceDarkType())
-                .isEqualTo(ForceDarkType.FORCE_INVERT_COLOR_DARK);
+        TestUtils.waitUntil("Waiting for ForceDarkType to be ready",
+                () -> (mViewRootImpl.determineForceDarkType() == ForceDarkType.NONE));
     }
 
     @Test
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
+    public void
+            determineForceDarkType_isLightThemeAndIsLightBackground_returnsForceInvertColorDark()
+            throws Exception {
+        // Set up configurations for force invert color
+        waitForSystemNightModeActivated(true);
+        enableForceInvertColor(true);
+
+        setUpViewAttributes(/* isLightTheme= */ true, /* isLightBackground = */ true);
+
+        TestUtils.waitUntil("Waiting for ForceDarkType to be ready",
+                () -> (mViewRootImpl.determineForceDarkType()
+                        == ForceDarkType.FORCE_INVERT_COLOR_DARK));
+    }
+
+    @Test
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
+    public void determineForceDarkType_isLightThemeAndNotLightBackground_returnsNone()
+            throws Exception {
+        // Set up configurations for force invert color
+        waitForSystemNightModeActivated(true);
+        enableForceInvertColor(true);
+
+        setUpViewAttributes(/* isLightTheme= */ true, /* isLightBackground = */ false);
+
+        TestUtils.waitUntil("Waiting for ForceDarkType to be ready",
+                () -> (mViewRootImpl.determineForceDarkType() == ForceDarkType.NONE));
+    }
+
+    @Test
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
+    public void determineForceDarkType_notLightThemeAndIsLightBackground_returnsNone()
+            throws Exception {
+        // Set up configurations for force invert color
+        waitForSystemNightModeActivated(true);
+        enableForceInvertColor(true);
+
+        setUpViewAttributes(/* isLightTheme= */ false, /* isLightBackground = */ true);
+
+        TestUtils.waitUntil("Waiting for ForceDarkType to be ready",
+                () -> (mViewRootImpl.determineForceDarkType() == ForceDarkType.NONE));
+    }
+
+    @Test
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
+    public void determineForceDarkType_notLightThemeAndNotLightBackground_returnsNone()
+            throws Exception {
+        // Set up configurations for force invert color
+        waitForSystemNightModeActivated(true);
+        enableForceInvertColor(true);
+
+        setUpViewAttributes(/* isLightTheme= */ false, /* isLightBackground = */ false);
+
+        TestUtils.waitUntil("Waiting for ForceDarkType to be ready",
+                () -> (mViewRootImpl.determineForceDarkType() == ForceDarkType.NONE));
+    }
+
+    @Test
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
     public void forceInvertOffForceDarkOff_forceDarkModeDisabled() {
-        mSetFlagsRule.enableFlags(FLAG_FORCE_INVERT_COLOR);
         ShellIdentityUtils.invokeWithShellPermissions(() -> {
             Settings.Secure.putInt(
                     sContext.getContentResolver(),
@@ -1557,15 +1603,14 @@ public class ViewRootImplTest {
         });
 
         sInstrumentation.runOnMainSync(() ->
-                mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId())
-        );
+                mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId()));
 
         assertThat(mViewRootImpl.determineForceDarkType()).isEqualTo(ForceDarkType.NONE);
     }
 
     @Test
+    @EnableFlags(FLAG_FORCE_INVERT_COLOR)
     public void forceInvertOffForceDarkOn_forceDarkModeEnabled() {
-        mSetFlagsRule.enableFlags(FLAG_FORCE_INVERT_COLOR);
         ShellIdentityUtils.invokeWithShellPermissions(() -> {
             Settings.Secure.putInt(
                     sContext.getContentResolver(),
@@ -1577,8 +1622,7 @@ public class ViewRootImplTest {
         });
 
         sInstrumentation.runOnMainSync(() ->
-                mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId())
-        );
+                mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId()));
 
         assertThat(mViewRootImpl.determineForceDarkType()).isEqualTo(ForceDarkType.FORCE_DARK);
     }
@@ -1679,15 +1723,27 @@ public class ViewRootImplTest {
         }
     }
 
-    class KeyView extends View {
-        KeyView(Context context) {
+    static class InputView extends View {
+        private final BlockingQueue<InputEvent> mEvents = new LinkedBlockingQueue<>();
+        private final BlockingQueueEventVerifier mVerifier =
+                new BlockingQueueEventVerifier(mEvents);
+
+        InputView(Context context) {
             super(context);
         }
 
         @Override
         public boolean dispatchKeyEventPreIme(KeyEvent event) {
-            mKeyReceived = true;
+            mEvents.add(event.copy());
             return true /*handled*/;
+        }
+
+        public void assertReceivedKey(Matcher<KeyEvent> matcher) {
+            mVerifier.assertReceivedKey(matcher);
+        }
+
+        public void assertNoEvents() {
+            mVerifier.assertNoEvents();
         }
     }
 
@@ -1697,7 +1753,7 @@ public class ViewRootImplTest {
      * Next, inject an event into this view, and check whether it is received.
      */
     private void checkKeyEvent(Runnable setup, boolean shouldReceiveKey) {
-        final KeyView view = new KeyView(sContext);
+        final InputView view = new InputView(sContext);
         mView = view;
 
         attachViewToWindow(view);
@@ -1712,7 +1768,11 @@ public class ViewRootImplTest {
             mViewRootImpl.dispatchInputEvent(event);
         });
         sInstrumentation.waitForIdleSync();
-        assertEquals(shouldReceiveKey, mKeyReceived);
+        if (shouldReceiveKey) {
+            view.assertReceivedKey(withKeyCode(KeyEvent.KEYCODE_A));
+        } else {
+            view.assertNoEvents();
+        }
     }
 
     private void attachViewToWindow(View view) {
@@ -1768,5 +1828,46 @@ public class ViewRootImplTest {
             sInstrumentation.runOnMainSync(
                     () -> view.getViewTreeObserver().removeOnDrawListener(listener));
         }
+    }
+
+    private void waitForSystemNightModeActivated(boolean active) {
+        ShellIdentityUtils.invokeWithShellPermissions(() ->
+                sInstrumentation.runOnMainSync(() -> {
+                    var uiModeManager = sContext.getSystemService(UiModeManager.class);
+                    uiModeManager.setNightModeActivated(active);
+                }));
+        sInstrumentation.waitForIdleSync();
+    }
+
+    private void enableForceInvertColor(boolean enabled) {
+        ShellIdentityUtils.invokeWithShellPermissions(() -> {
+            Settings.Secure.putInt(
+                    sContext.getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_FORCE_INVERT_COLOR_ENABLED,
+                    enabled ? 1 : 0
+            );
+        });
+    }
+
+    private void setUpViewAttributes(boolean isLightTheme, boolean isLightBackground) {
+        ShellIdentityUtils.invokeWithShellPermissions(() -> {
+            sContext.setTheme(isLightTheme ? android.R.style.Theme_DeviceDefault_Light
+                    : android.R.style.Theme_DeviceDefault);
+        });
+
+        sInstrumentation.runOnMainSync(() -> {
+            View view = new View(sContext);
+            WindowManager.LayoutParams layoutParams = new WindowManager.LayoutParams(
+                    TYPE_APPLICATION_OVERLAY);
+            layoutParams.token = new Binder();
+            view.setLayoutParams(layoutParams);
+            if (isLightBackground) {
+                view.setBackgroundColor(Color.WHITE);
+            } else {
+                view.setBackgroundColor(Color.BLACK);
+            }
+            mViewRootImpl.setView(view, layoutParams, /* panelParentView= */ null);
+            mViewRootImpl.updateConfiguration(sContext.getDisplayNoVerify().getDisplayId());
+        });
     }
 }

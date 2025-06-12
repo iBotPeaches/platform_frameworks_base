@@ -33,6 +33,7 @@ import android.widget.TextView;
  * A movement method that traverses links in the text buffer and scrolls if necessary.
  * Supports clicking on links with DPad Center or Enter.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class LinkMovementMethod extends ScrollingMovementMethod {
     private static final int CLICK = 1;
     private static final int UP = 2;

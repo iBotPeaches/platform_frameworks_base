@@ -42,6 +42,8 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import java.util.Optional
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.runningFold
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class KeyboardTouchpadTutorialViewModel(
     private val gesturesInteractor: Optional<TouchpadGesturesInteractor>,
     private val keyboardTouchpadConnectionInteractor: KeyboardTouchpadConnectionInteractor,
@@ -149,7 +152,16 @@ class KeyboardTouchpadTutorialViewModel(
         clearDeviceStateForScreen(_screen.value)
     }
 
+    suspend fun onAutoProceed() {
+        delay(AUTO_PROCEED_DELAY)
+        progressToNextScreen()
+    }
+
     fun onDoneButtonClicked() {
+        progressToNextScreen()
+    }
+
+    private fun progressToNextScreen() {
         var nextScreen = screenSequence.nextScreen(_screen.value)
         while (nextScreen != null) {
             if (requiredHardwarePresent(nextScreen)) {
@@ -249,6 +261,10 @@ class KeyboardTouchpadTutorialViewModel(
 
     private object SingleScreenOnly : ScreenSequence {
         override fun nextScreen(current: Screen): Screen? = null
+    }
+
+    companion object {
+        private val AUTO_PROCEED_DELAY = 3.seconds
     }
 }
 

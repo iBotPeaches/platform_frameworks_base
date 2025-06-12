@@ -24,23 +24,38 @@ import android.annotation.Nullable;
 import com.android.internal.widget.remotecompose.core.Operation;
 import com.android.internal.widget.remotecompose.core.Operations;
 import com.android.internal.widget.remotecompose.core.PaintContext;
+import com.android.internal.widget.remotecompose.core.Platform;
 import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
+import com.android.internal.widget.remotecompose.core.operations.Utils;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentStartOperation;
+import com.android.internal.widget.remotecompose.core.operations.layout.measure.ComponentMeasure;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.MeasurePass;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.Size;
 import com.android.internal.widget.remotecompose.core.operations.paint.PaintBundle;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
 import com.android.internal.widget.remotecompose.core.semantics.AccessibleComponent;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
 /** Text component, referencing a text id */
-public class TextLayout extends LayoutManager
-        implements ComponentStartOperation, VariableSupport, AccessibleComponent {
+public class TextLayout extends LayoutManager implements VariableSupport, AccessibleComponent {
+
+    public static final int TEXT_ALIGN_LEFT = 1;
+    public static final int TEXT_ALIGN_RIGHT = 2;
+    public static final int TEXT_ALIGN_CENTER = 3;
+    public static final int TEXT_ALIGN_JUSTIFY = 4;
+    public static final int TEXT_ALIGN_START = 5;
+    public static final int TEXT_ALIGN_END = 6;
+
+    public static final int OVERFLOW_CLIP = 1;
+    public static final int OVERFLOW_VISIBLE = 2;
+    public static final int OVERFLOW_ELLIPSIS = 3;
+    public static final int OVERFLOW_START_ELLIPSIS = 4;
+    public static final int OVERFLOW_MIDDLE_ELLIPSIS = 5;
 
     private static final boolean DEBUG = false;
     private int mTextId = -1;
@@ -50,6 +65,8 @@ public class TextLayout extends LayoutManager
     private float mFontWeight = 400f;
     private int mFontFamilyId = -1;
     private int mTextAlign = -1;
+    private int mOverflow = 1;
+    private int mMaxLines = Integer.MAX_VALUE;
 
     private int mType = -1;
     private float mTextX;
@@ -57,7 +74,12 @@ public class TextLayout extends LayoutManager
     private float mTextW = -1;
     private float mTextH = -1;
 
+    private final Size mCachedSize = new Size(0f, 0f);
+
     @Nullable private String mCachedString = "";
+    @Nullable private String mNewString;
+
+    Platform.ComputedTextLayout mComputedTextLayout;
 
     @Nullable
     @Override
@@ -78,7 +100,7 @@ public class TextLayout extends LayoutManager
         if (cachedString != null && cachedString.equalsIgnoreCase(mCachedString)) {
             return;
         }
-        mCachedString = cachedString;
+        mNewString = cachedString;
         if (mType == -1) {
             if (mFontFamilyId != -1) {
                 String fontFamily = context.getText(mFontFamilyId);
@@ -98,8 +120,6 @@ public class TextLayout extends LayoutManager
                 mType = 0;
             }
         }
-        mTextW = -1;
-        mTextH = -1;
 
         if (mHorizontalScrollDelegate != null) {
             mHorizontalScrollDelegate.reset();
@@ -124,7 +144,9 @@ public class TextLayout extends LayoutManager
             int fontStyle,
             float fontWeight,
             int fontFamilyId,
-            int textAlign) {
+            int textAlign,
+            int overflow,
+            int maxLines) {
         super(parent, componentId, animationId, x, y, width, height);
         mTextId = textId;
         mColor = color;
@@ -133,6 +155,8 @@ public class TextLayout extends LayoutManager
         mFontWeight = fontWeight;
         mFontFamilyId = fontFamilyId;
         mTextAlign = textAlign;
+        mOverflow = overflow;
+        mMaxLines = maxLines;
     }
 
     public TextLayout(
@@ -145,7 +169,9 @@ public class TextLayout extends LayoutManager
             int fontStyle,
             float fontWeight,
             int fontFamilyId,
-            int textAlign) {
+            int textAlign,
+            int overflow,
+            int maxLines) {
         this(
                 parent,
                 componentId,
@@ -160,15 +186,27 @@ public class TextLayout extends LayoutManager
                 fontStyle,
                 fontWeight,
                 fontFamilyId,
-                textAlign);
+                textAlign,
+                overflow,
+                maxLines);
     }
 
     @NonNull public PaintBundle mPaint = new PaintBundle();
 
     @Override
     public void paintingComponent(@NonNull PaintContext context) {
+        Component prev = context.getContext().mLastComponent;
+        RemoteContext remoteContext = context.getContext();
+        remoteContext.mLastComponent = this;
+
         context.save();
         context.translate(mX, mY);
+        if (mGraphicsLayerModifier != null) {
+            context.startGraphicsLayer((int) getWidth(), (int) getHeight());
+            mCachedAttributes.clear();
+            mGraphicsLayerModifier.fillInAttributes(mCachedAttributes);
+            context.setGraphicsLayer(mCachedAttributes);
+        }
         mComponentModifiers.paint(context);
         float tx = mPaddingLeft;
         float ty = mPaddingTop;
@@ -183,23 +221,41 @@ public class TextLayout extends LayoutManager
         mPaint.setColor(mColor);
         mPaint.setTextSize(mFontSize);
         mPaint.setTextStyle(mType, (int) mFontWeight, mFontStyle == 1);
-        context.applyPaint(mPaint);
+        context.replacePaint(mPaint);
         if (mCachedString == null) {
             return;
         }
         int length = mCachedString.length();
-        if (mTextW > mWidth) {
-            context.save();
-            context.clipRect(
-                    mPaddingLeft,
-                    mPaddingTop,
-                    mWidth - mPaddingLeft - mPaddingRight,
-                    mHeight - mPaddingTop - mPaddingBottom);
-            context.translate(getScrollX(), getScrollY());
-            context.drawTextRun(mTextId, 0, length, 0, 0, mTextX, mTextY, false);
-            context.restore();
+        if (mComputedTextLayout != null) {
+            context.drawComplexText(mComputedTextLayout);
         } else {
-            context.drawTextRun(mTextId, 0, length, 0, 0, mTextX, mTextY, false);
+            float px = mTextX;
+            switch (mTextAlign) {
+                case TEXT_ALIGN_CENTER:
+                    px = (mWidth - mPaddingLeft - mPaddingRight - mTextW) / 2f;
+                    break;
+                case TEXT_ALIGN_RIGHT:
+                case TEXT_ALIGN_END:
+                    px = (mWidth - mPaddingLeft - mPaddingRight - mTextW);
+                    break;
+                case TEXT_ALIGN_LEFT:
+                case TEXT_ALIGN_START:
+                default:
+            }
+
+            if (mTextW > (mWidth - mPaddingLeft - mPaddingRight)) {
+                context.save();
+                context.clipRect(
+                        0f,
+                        0f,
+                        mWidth - mPaddingLeft - mPaddingRight,
+                        mHeight - mPaddingTop - mPaddingBottom);
+                context.translate(getScrollX(), getScrollY());
+                context.drawTextRun(mTextId, 0, length, 0, 0, px, mTextY, false);
+                context.restore();
+            } else {
+                context.drawTextRun(mTextId, 0, length, 0, 0, px, mTextY, false);
+            }
         }
         if (DEBUG) {
             mPaint.setStyle(PaintBundle.STYLE_FILL_AND_STROKE);
@@ -217,8 +273,13 @@ public class TextLayout extends LayoutManager
         context.restorePaint();
         //////////////////////////////////////////////////////////
 
+        if (mGraphicsLayerModifier != null) {
+            context.endGraphicsLayer();
+        }
+
         context.translate(-tx, -ty);
         context.restore();
+        context.getContext().mLastComponent = prev;
     }
 
     @NonNull
@@ -237,7 +298,7 @@ public class TextLayout extends LayoutManager
                 + " x "
                 + mHeight
                 + ") "
-                + mVisibility;
+                + Visibility.toString(mVisibility);
     }
 
     @NonNull
@@ -265,12 +326,27 @@ public class TextLayout extends LayoutManager
                         + ", "
                         + mHeight
                         + "] "
-                        + mVisibility
+                        + Visibility.toString(mVisibility)
                         + " ("
                         + mTextId
                         + ":\""
                         + mCachedString
                         + "\")");
+    }
+
+    @Override
+    public void computeSize(
+            @NonNull PaintContext context,
+            float minWidth,
+            float maxWidth,
+            float minHeight,
+            float maxHeight,
+            @NonNull MeasurePass measure) {
+        super.computeSize(context, minWidth, maxWidth, minHeight, maxHeight, measure);
+        computeWrapSize(context, maxWidth, maxHeight, true, true, measure, mCachedSize);
+        ComponentMeasure m = measure.get(this);
+        m.setW(mCachedSize.getWidth());
+        m.setH(mCachedSize.getHeight());
     }
 
     @Override
@@ -286,13 +362,57 @@ public class TextLayout extends LayoutManager
         mPaint.reset();
         mPaint.setTextSize(mFontSize);
         mPaint.setTextStyle(mType, (int) mFontWeight, mFontStyle == 1);
-        context.applyPaint(mPaint);
+        mPaint.setColor(mColor);
+        context.replacePaint(mPaint);
         float[] bounds = new float[4];
-        int flags = PaintContext.TEXT_MEASURE_FONT_HEIGHT;
+        if (mNewString != null && !mNewString.equals(mCachedString)) {
+            mCachedString = mNewString;
+        }
         if (mCachedString == null) {
             return;
         }
-        context.getTextBounds(mTextId, 0, mCachedString.length(), flags, bounds);
+
+        boolean forceComplex = false;
+        int flags = PaintContext.TEXT_MEASURE_FONT_HEIGHT | PaintContext.TEXT_MEASURE_SPACES;
+        if (mMaxLines == 1
+                && (mOverflow == OVERFLOW_START_ELLIPSIS
+                        || mOverflow == OVERFLOW_MIDDLE_ELLIPSIS
+                        || mOverflow == OVERFLOW_ELLIPSIS)) {
+            flags |= PaintContext.TEXT_COMPLEX;
+        }
+        if ((flags & PaintContext.TEXT_COMPLEX) != PaintContext.TEXT_COMPLEX) {
+            for (int i = 0; i < mCachedString.length(); i++) {
+                char c = mCachedString.charAt(i);
+                if ((c == '\n') || (c == '\t')) {
+                    flags |= PaintContext.TEXT_COMPLEX;
+                    forceComplex = true;
+                    break;
+                }
+            }
+        }
+        if (!forceComplex) {
+            context.getTextBounds(mTextId, 0, mCachedString.length(), flags, bounds);
+        }
+        if (forceComplex || bounds[2] - bounds[1] > maxWidth && mMaxLines > 1 && maxWidth > 0f) {
+            mComputedTextLayout =
+                    context.layoutComplexText(
+                            mTextId,
+                            0,
+                            mCachedString.length(),
+                            mTextAlign,
+                            mOverflow,
+                            mMaxLines,
+                            maxWidth,
+                            flags);
+            if (mComputedTextLayout != null) {
+                bounds[0] = 0f;
+                bounds[1] = 0f;
+                bounds[2] = mComputedTextLayout.getWidth();
+                bounds[3] = mComputedTextLayout.getHeight();
+            }
+        } else {
+            mComputedTextLayout = null;
+        }
         context.restorePaint();
         float w = bounds[2] - bounds[0];
         float h = bounds[3] - bounds[1];
@@ -305,12 +425,12 @@ public class TextLayout extends LayoutManager
     }
 
     @Override
-    public float intrinsicHeight(@Nullable RemoteContext context) {
+    public float minIntrinsicHeight(@Nullable RemoteContext context) {
         return mTextH;
     }
 
     @Override
-    public float intrinsicWidth(@Nullable RemoteContext context) {
+    public float minIntrinsicWidth(@Nullable RemoteContext context) {
         return mTextW;
     }
 
@@ -333,6 +453,22 @@ public class TextLayout extends LayoutManager
         return Operations.LAYOUT_TEXT;
     }
 
+    /**
+     * Write the operation in the buffer
+     *
+     * @param buffer the WireBuffer we write on
+     * @param componentId the component id
+     * @param animationId the animation id (-1 if not set)
+     * @param textId the text id
+     * @param color the text color
+     * @param fontSize the font size
+     * @param fontStyle the font style
+     * @param fontWeight the font weight
+     * @param fontFamilyId the font family id
+     * @param textAlign the alignment rules
+     * @param overflow
+     * @param maxLines
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int componentId,
@@ -343,7 +479,9 @@ public class TextLayout extends LayoutManager
             int fontStyle,
             float fontWeight,
             int fontFamilyId,
-            int textAlign) {
+            int textAlign,
+            int overflow,
+            int maxLines) {
         buffer.start(id());
         buffer.writeInt(componentId);
         buffer.writeInt(animationId);
@@ -354,6 +492,8 @@ public class TextLayout extends LayoutManager
         buffer.writeFloat(fontWeight);
         buffer.writeInt(fontFamilyId);
         buffer.writeInt(textAlign);
+        buffer.writeInt(overflow);
+        buffer.writeInt(maxLines);
     }
 
     /**
@@ -372,6 +512,8 @@ public class TextLayout extends LayoutManager
         float fontWeight = buffer.readFloat();
         int fontFamilyId = buffer.readInt();
         int textAlign = buffer.readInt();
+        int overflow = buffer.readInt();
+        int maxLines = buffer.readInt();
         operations.add(
                 new TextLayout(
                         null,
@@ -383,7 +525,9 @@ public class TextLayout extends LayoutManager
                         fontStyle,
                         fontWeight,
                         fontFamilyId,
-                        textAlign));
+                        textAlign,
+                        overflow,
+                        maxLines));
     }
 
     /**
@@ -418,6 +562,20 @@ public class TextLayout extends LayoutManager
                 mFontStyle,
                 mFontWeight,
                 mFontFamilyId,
-                mTextAlign);
+                mTextAlign,
+                mOverflow,
+                mMaxLines);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        super.serialize(serializer);
+        serializer.add("textId", mTextId);
+        serializer.add("color", Utils.colorInt(mColor));
+        serializer.add("fontSize", mFontSize);
+        serializer.add("fontStyle", mFontStyle);
+        serializer.add("fontWeight", mFontWeight);
+        serializer.add("fontFamilyId", mFontFamilyId);
+        serializer.add("textAlign", mTextAlign);
     }
 }

@@ -35,12 +35,12 @@ class FrameMetricsReporter {
 public:
     FrameMetricsReporter() {}
 
-    void addObserver(FrameMetricsObserver* observer) {
+    void addObserver(sp<FrameMetricsObserver>&& observer) {
         std::lock_guard lock(mObserversLock);
-        mObservers.push_back(observer);
+        mObservers.push_back(std::move(observer));
     }
 
-    bool removeObserver(FrameMetricsObserver* observer) {
+    bool removeObserver(const sp<FrameMetricsObserver>& observer) {
         std::lock_guard lock(mObserversLock);
         for (size_t i = 0; i < mObservers.size(); i++) {
             if (mObservers[i].get() == observer) {
@@ -69,7 +69,7 @@ public:
      * stats of frames that are from "old" surfaces (i.e. with surfaceControlIds older than the one
      * the observer was attached on) nor those that are from "old" frame numbers.
      */
-    void reportFrameMetrics(const int64_t* stats, bool hasPresentTime, uint64_t frameNumber,
+    void reportFrameMetrics(const FrameInfoBuffer& stats, bool hasPresentTime, uint64_t frameNumber,
                             int32_t surfaceControlId);
 
 private:

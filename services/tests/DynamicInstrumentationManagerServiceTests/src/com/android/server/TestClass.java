@@ -17,6 +17,9 @@
 package com.android.server;
 
 public class TestClass {
+    TestClass() {
+    }
+
     void primitiveParams(boolean a, boolean[] b, byte c, byte[] d, char e, char[] f, short g,
             short[] h, int i, int[] j, long k, long[] l, float m, float[] n, double o, double[] p) {
     }

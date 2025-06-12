@@ -15,7 +15,6 @@
  */
 package com.android.wm.shell.windowdecor.viewholder
 
-import android.animation.ObjectAnimator
 import android.app.ActivityManager.RunningTaskInfo
 import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
 import android.content.res.ColorStateList
@@ -40,7 +39,10 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Accessibilit
 import com.android.internal.policy.SystemBarUtils
 import com.android.window.flags.Flags
 import com.android.wm.shell.R
-import com.android.wm.shell.shared.animation.Interpolators
+import com.android.wm.shell.desktopmode.DesktopModeUiEventLogger
+import com.android.wm.shell.desktopmode.DesktopModeUiEventLogger.DesktopUiEventEnum.A11Y_APP_HANDLE_MENU_OPENED
+import com.android.wm.shell.shared.bubbles.BubbleAnythingFlagHelper
+import com.android.wm.shell.windowdecor.AppHandleAnimator
 import com.android.wm.shell.windowdecor.WindowManagerWrapper
 import com.android.wm.shell.windowdecor.additionalviewcontainer.AdditionalSystemViewContainer
 
@@ -48,30 +50,29 @@ import com.android.wm.shell.windowdecor.additionalviewcontainer.AdditionalSystem
  * A desktop mode window decoration used when the window is in full "focus" (i.e. fullscreen/split).
  * It hosts a simple handle bar from which to initiate a drag motion to enter desktop mode.
  */
-internal class AppHandleViewHolder(
+class AppHandleViewHolder(
     rootView: View,
     onCaptionTouchListener: View.OnTouchListener,
     onCaptionButtonClickListener: OnClickListener,
     private val windowManagerWrapper: WindowManagerWrapper,
-    private val handler: Handler
+    private val handler: Handler,
+    private val desktopModeUiEventLogger: DesktopModeUiEventLogger,
 ) : WindowDecorationViewHolder<AppHandleViewHolder.HandleData>(rootView) {
-
-    companion object {
-        private const val CAPTION_HANDLE_ANIMATION_DURATION: Long = 100
-    }
 
     data class HandleData(
         val taskInfo: RunningTaskInfo,
         val position: Point,
         val width: Int,
         val height: Int,
-        val isCaptionVisible: Boolean
+        val showInputLayer: Boolean,
+        val isCaptionVisible: Boolean,
     ) : Data()
 
     private lateinit var taskInfo: RunningTaskInfo
     private val captionView: View = rootView.requireViewById(R.id.desktop_mode_caption)
     private val captionHandle: ImageButton = rootView.requireViewById(R.id.caption_handle)
     private val inputManager = context.getSystemService(InputManager::class.java)
+    private val animator: AppHandleAnimator = AppHandleAnimator(rootView, captionHandle)
     private var statusBarInputLayerExists = false
 
     // An invisible View that takes up the same coordinates as captionHandle but is layered
@@ -100,7 +101,14 @@ internal class AppHandleViewHolder(
     }
 
     override fun bindData(data: HandleData) {
-        bindData(data.taskInfo, data.position, data.width, data.height, data.isCaptionVisible)
+        bindData(
+            data.taskInfo,
+            data.position,
+            data.width,
+            data.height,
+            data.showInputLayer,
+            data.isCaptionVisible
+        )
     }
 
     private fun bindData(
@@ -108,14 +116,15 @@ internal class AppHandleViewHolder(
         position: Point,
         width: Int,
         height: Int,
+        showInputLayer: Boolean,
         isCaptionVisible: Boolean
     ) {
+        setVisibility(isCaptionVisible)
         captionHandle.imageTintList = ColorStateList.valueOf(getCaptionHandleBarColor(taskInfo))
         this.taskInfo = taskInfo
         // If handle is not in status bar region(i.e., bottom stage in vertical split),
         // do not create an input layer
-        if (position.y >= SystemBarUtils.getStatusBarHeight(context)) return
-        if (!isCaptionVisible) {
+        if (position.y >= SystemBarUtils.getStatusBarHeight(context) || !showInputLayer) {
             disposeStatusBarInputLayer()
             return
         }
@@ -131,11 +140,11 @@ internal class AppHandleViewHolder(
     }
 
     override fun onHandleMenuOpened() {
-        animateCaptionHandleAlpha(startValue = 1f, endValue = 0f)
+        animator.animateCaptionHandleAlpha(startValue = 1f, endValue = 0f)
     }
 
     override fun onHandleMenuClosed() {
-        animateCaptionHandleAlpha(startValue = 0f, endValue = 1f)
+        animator.animateCaptionHandleAlpha(startValue = 0f, endValue = 1f)
     }
 
     private fun createStatusBarInputLayer(handlePosition: Point,
@@ -146,6 +155,7 @@ internal class AppHandleViewHolder(
             taskInfo.taskId, handlePosition.x, handlePosition.y, handleWidth, handleHeight,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             ignoreCutouts = Flags.showAppHandleLargeScreens()
+                    || BubbleAnythingFlagHelper.enableBubbleToFullscreen()
         )
         val view = statusBarInputLayer?.view ?: error("Unable to find statusBarInputLayer View")
         val lp = statusBarInputLayer?.lp ?: error("Unable to find statusBarInputLayer " +
@@ -194,6 +204,7 @@ internal class AppHandleViewHolder(
                 // Passthrough the a11y click action so the caption handle, so that app handle menu
                 // is opened on a11y click, similar to a real click
                 if (action == AccessibilityAction.ACTION_CLICK.id) {
+                    desktopModeUiEventLogger.log(taskInfo, A11Y_APP_HANDLE_MENU_OPENED)
                     captionHandle.performClick()
                 }
                 return super.performAccessibilityAction(host, action, args)
@@ -209,10 +220,13 @@ internal class AppHandleViewHolder(
             }
         }
 
-        // Update a11y action text so that Talkback announces "Press double tap to open app handle
-        // menu" while focused on status bar input layer
+        // Update a11y action text so that Talkback announces "Press double tap to open menu"
+        // while focused on status bar input layer
         ViewCompat.replaceAccessibilityAction(
-            view, AccessibilityActionCompat.ACTION_CLICK, "Open app handle menu", null
+            view,
+            AccessibilityActionCompat.ACTION_CLICK,
+            context.getString(R.string.app_handle_chip_accessibility_announce),
+            null
         )
     }
 
@@ -231,10 +245,22 @@ internal class AppHandleViewHolder(
     fun disposeStatusBarInputLayer() {
         if (!statusBarInputLayerExists) return
         statusBarInputLayerExists = false
+        statusBarInputLayer?.view?.setOnTouchListener(null)
         handler.post {
             statusBarInputLayer?.releaseView()
             statusBarInputLayer = null
         }
+    }
+
+    private fun setVisibility(visible: Boolean) {
+        val v = if (visible) View.VISIBLE else View.GONE
+        if (
+            captionView.visibility == v ||
+                !DesktopModeFlags.ENABLE_DESKTOP_APP_HANDLE_ANIMATION.isTrue()
+        ) {
+            return
+        }
+        animator.animateVisibilityChange(v)
     }
 
     private fun getCaptionHandleBarColor(taskInfo: RunningTaskInfo): Int {
@@ -262,13 +288,30 @@ internal class AppHandleViewHolder(
             } ?: false
     }
 
-    /** Animate appearance/disappearance of caption handle as the handle menu is animated. */
-    private fun animateCaptionHandleAlpha(startValue: Float, endValue: Float) {
-        val animator =
-            ObjectAnimator.ofFloat(captionHandle, View.ALPHA, startValue, endValue).apply {
-                duration = CAPTION_HANDLE_ANIMATION_DURATION
-                interpolator = Interpolators.FAST_OUT_SLOW_IN
-            }
-        animator.start()
+    override fun close() {
+        animator.cancel()
+    }
+
+    /** Factory class for creating [AppHandleViewHolder] objects. */
+    class Factory {
+        /**
+         * Create a [AppHandleViewHolder] object to handle caption view and status bar
+         * input layer logic.
+         */
+        fun create(
+            rootView: View,
+            onCaptionTouchListener: View.OnTouchListener,
+            onCaptionButtonClickListener: OnClickListener,
+            windowManagerWrapper: WindowManagerWrapper,
+            handler: Handler,
+            desktopModeUiEventLogger: DesktopModeUiEventLogger,
+        ): AppHandleViewHolder = AppHandleViewHolder(
+            rootView,
+            onCaptionTouchListener,
+            onCaptionButtonClickListener,
+            windowManagerWrapper,
+            handler,
+            desktopModeUiEventLogger,
+        )
     }
 }

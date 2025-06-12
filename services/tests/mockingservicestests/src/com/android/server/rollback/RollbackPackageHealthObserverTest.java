@@ -43,7 +43,6 @@ import android.content.pm.VersionedPackage;
 import android.content.rollback.PackageRollbackInfo;
 import android.content.rollback.RollbackInfo;
 import android.content.rollback.RollbackManager;
-import android.crashrecovery.flags.Flags;
 import android.os.Handler;
 import android.os.MessageQueue;
 import android.os.SystemProperties;
@@ -273,7 +272,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void healthCheckFailed_impactLevelLow_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -304,7 +302,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void healthCheckFailed_impactLevelHigh_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -335,7 +332,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void healthCheckFailed_impactLevelManualOnly_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -365,7 +361,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void healthCheckFailed_impactLevelLowAndHigh_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -404,7 +399,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelLow_nativeCrash_rollback()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -438,7 +432,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelLow_rollbackFailedPackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -483,7 +476,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelLow_rollbackAll()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -530,7 +522,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelLowAndHigh_rollbackLow()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -578,7 +569,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelHigh_rollbackHigh()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId2 = 2;
         VersionedPackage appBFrom = new VersionedPackage(APP_B, VERSION_CODE_2);
         VersionedPackage appBTo = new VersionedPackage(APP_B, VERSION_CODE);
@@ -612,7 +602,6 @@ public class RollbackPackageHealthObserverTest {
      */
     @Test
     public void onBootLoop_impactLevelLow_onePackage() throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -637,7 +626,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void onBootLoop_impactLevelHigh_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -662,7 +650,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void onBootLoop_impactLevelHighDisableHighImpactRollback_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         SystemProperties.set(PROP_DISABLE_HIGH_IMPACT_ROLLBACK_FLAG, Boolean.toString(true));
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -692,7 +679,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void onBootLoop_impactLevelManualOnly_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -720,7 +706,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void onBootLoop_impactLevelLowAndHigh_onePackage()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
         PackageRollbackInfo packageRollbackInfo = new PackageRollbackInfo(appAFrom, appATo,
@@ -757,7 +742,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void executeBootLoopMitigation_impactLevelLow_rollbackAll()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -802,7 +786,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void executeBootLoopMitigation_impactLevelLowAndHigh_rollbackLow()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -847,7 +830,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void executeBootLoopMitigation_impactLevelHigh_rollbackHigh()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId2 = 2;
         VersionedPackage appBFrom = new VersionedPackage(APP_B, VERSION_CODE_2);
         VersionedPackage appBTo = new VersionedPackage(APP_B, VERSION_CODE);
@@ -882,7 +864,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelLowAndManual_rollbackLowImpactOnly()
             throws PackageManager.NameNotFoundException, InterruptedException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -928,7 +909,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void execute_impactLevelManual_rollbackLowImpactOnly()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appAFrom = new VersionedPackage(APP_A, VERSION_CODE_2);
         VersionedPackage appATo = new VersionedPackage(APP_A, VERSION_CODE);
@@ -962,7 +942,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void executeBootLoopMitigation_impactLevelHighMultiplePackage_rollbackHigh()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         int rollbackId1 = 1;
         VersionedPackage appBFrom = new VersionedPackage(APP_B, VERSION_CODE_2);
         VersionedPackage appBTo = new VersionedPackage(APP_B, VERSION_CODE);
@@ -1008,7 +987,6 @@ public class RollbackPackageHealthObserverTest {
     @Test
     public void executeBootLoopMitigation_impactLevelHighKillSwitchTrue_rollbackHigh()
             throws PackageManager.NameNotFoundException {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         SystemProperties.set(PROP_DISABLE_HIGH_IMPACT_ROLLBACK_FLAG, Boolean.toString(true));
         int rollbackId1 = 1;
         VersionedPackage appBFrom = new VersionedPackage(APP_B, VERSION_CODE_2);

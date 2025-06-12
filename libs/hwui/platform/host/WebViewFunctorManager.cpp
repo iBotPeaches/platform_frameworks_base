@@ -45,7 +45,7 @@ void WebViewFunctor::destroyContext() {}
 void WebViewFunctor::removeOverlays() {}
 
 ASurfaceControl* WebViewFunctor::getSurfaceControl() {
-    return mSurfaceControl;
+    return nullptr;
 }
 
 void WebViewFunctor::mergeTransaction(ASurfaceTransaction* transaction) {}

@@ -16,12 +16,10 @@
 
 package com.android.compose.test
 
-import androidx.compose.foundation.gestures.Orientation
-import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.SceneKey
 import com.android.compose.animation.scene.SceneTransitionLayoutImpl
-import com.android.compose.animation.scene.content.state.TransitionState
 import com.android.compose.animation.scene.content.state.TransitionState.Transition
+import com.android.mechanics.GestureContext
 import kotlinx.coroutines.CompletableDeferred
 
 /** A [Transition.ChangeScene] for tests that will be finished once [finish] is called. */
@@ -55,14 +53,11 @@ fun transition(
     interruptionProgress: () -> Float = { 0f },
     isInitiatedByUserInput: Boolean = false,
     isUserInputOngoing: Boolean = false,
-    isUpOrLeft: Boolean = false,
-    bouncingContent: ContentKey? = null,
-    orientation: Orientation = Orientation.Horizontal,
     onFreezeAndAnimate: ((TestSceneTransition) -> Unit)? = null,
     replacedTransition: Transition? = null,
+    gestureContext: GestureContext? = null,
 ): TestSceneTransition {
-    return object :
-        TestSceneTransition(from, to, replacedTransition), TransitionState.HasOverscrollProperties {
+    return object : TestSceneTransition(from, to, replacedTransition) {
         override val currentScene: SceneKey
             get() = current()
 
@@ -83,10 +78,7 @@ fun transition(
 
         override val isInitiatedByUserInput: Boolean = isInitiatedByUserInput
         override val isUserInputOngoing: Boolean = isUserInputOngoing
-        override val isUpOrLeft: Boolean = isUpOrLeft
-        override val bouncingContent: ContentKey? = bouncingContent
-        override val orientation: Orientation = orientation
-        override val absoluteDistance = 0f
+        override val gestureContext: GestureContext? = gestureContext
 
         override fun freezeAndAnimateToCurrentState() {
             if (onFreezeAndAnimate != null) {

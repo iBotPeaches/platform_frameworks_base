@@ -17,15 +17,19 @@
 package com.android.systemui.statusbar.chips.ui.viewmodel
 
 import android.view.View
+import com.android.internal.logging.InstanceId
 import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
+import com.android.systemui.animation.Expandable
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.chips.StatusBarChipsLog
 import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
 import com.android.systemui.statusbar.chips.ui.view.ChipBackgroundContainer
+import com.android.systemui.statusbar.chips.uievents.StatusBarChipsUiEventLogger
 import com.android.systemui.statusbar.phone.SystemUIDialog
+import com.android.systemui.statusbar.phone.ongoingcall.StatusBarChipsModernization
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -42,17 +46,51 @@ interface OngoingActivityChipViewModel {
             dialogDelegate: SystemUIDialog.Delegate,
             dialogTransitionAnimator: DialogTransitionAnimator,
             cuj: DialogCuj,
+            instanceId: InstanceId,
+            uiEventLogger: StatusBarChipsUiEventLogger,
             @StatusBarChipsLog logger: LogBuffer,
             tag: String,
         ): View.OnClickListener {
             return View.OnClickListener { view ->
+                StatusBarChipsModernization.assertInLegacyMode()
+
                 logger.log(tag, LogLevel.INFO, {}, { "Chip clicked" })
+                uiEventLogger.logChipTapToShow(instanceId)
+
                 val dialog = dialogDelegate.createDialog()
                 val launchableView =
                     view.requireViewById<ChipBackgroundContainer>(
                         R.id.ongoing_activity_chip_background
                     )
                 dialogTransitionAnimator.showFromView(dialog, launchableView, cuj)
+            }
+        }
+
+        /**
+         * Creates a chip click callback with an [Expandable] parameter that launches a dialog
+         * created by [dialogDelegate].
+         */
+        fun createDialogLaunchOnClickCallback(
+            dialogDelegate: SystemUIDialog.Delegate,
+            dialogTransitionAnimator: DialogTransitionAnimator,
+            cuj: DialogCuj,
+            instanceId: InstanceId,
+            uiEventLogger: StatusBarChipsUiEventLogger,
+            @StatusBarChipsLog logger: LogBuffer,
+            tag: String,
+        ): (Expandable) -> Unit {
+            return { expandable ->
+                StatusBarChipsModernization.unsafeAssertInNewMode()
+
+                logger.log(tag, LogLevel.INFO, {}, { "Chip clicked" })
+                uiEventLogger.logChipTapToShow(instanceId)
+
+                val dialog = dialogDelegate.createDialog()
+
+                val controller = expandable.dialogTransitionController(cuj)
+                if (controller != null) {
+                    dialogTransitionAnimator.show(dialog, controller)
+                }
             }
         }
     }

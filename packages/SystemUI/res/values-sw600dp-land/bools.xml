@@ -22,4 +22,6 @@
 
     <!--  True when small screen (<sw600dp) is landscape. -->
     <bool name="is_small_screen_landscape">false</bool>
+
+    <bool name="volume_dialog_ringer_drawer_should_open_to_the_side">false</bool>
 </resources>

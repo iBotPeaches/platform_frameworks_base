@@ -31,10 +31,8 @@ import android.window.TransitionInfo.Change
 import android.window.TransitionRequestInfo
 import android.window.WindowContainerTransaction
 import androidx.annotation.VisibleForTesting
-import com.android.internal.jank.Cuj.CUJ_DESKTOP_MODE_EXIT_MODE_ON_LAST_WINDOW_CLOSE
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.protolog.ProtoLog
-import com.android.window.flags.Flags
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer
 import com.android.wm.shell.freeform.FreeformTaskTransitionHandler
 import com.android.wm.shell.freeform.FreeformTaskTransitionStarter
@@ -54,7 +52,7 @@ class DesktopMixedTransitionHandler(
     private val freeformTaskTransitionHandler: FreeformTaskTransitionHandler,
     private val closeDesktopTaskTransitionHandler: CloseDesktopTaskTransitionHandler,
     private val desktopImmersiveController: DesktopImmersiveController,
-    private val desktopBackNavigationTransitionHandler: DesktopBackNavigationTransitionHandler,
+    private val desktopMinimizationTransitionHandler: DesktopMinimizationTransitionHandler,
     private val interactionJankMonitor: InteractionJankMonitor,
     @ShellMainThread private val handler: Handler,
     shellInit: ShellInit,
@@ -73,9 +71,31 @@ class DesktopMixedTransitionHandler(
         wct: WindowContainerTransaction?,
     ) = freeformTaskTransitionHandler.startWindowingModeTransition(targetWindowingMode, wct)
 
-    /** Delegates starting minimized mode transition to [FreeformTaskTransitionHandler]. */
-    override fun startMinimizedModeTransition(wct: WindowContainerTransaction?): IBinder =
-        freeformTaskTransitionHandler.startMinimizedModeTransition(wct)
+    /**
+     * Starts a minimize transition for [taskId], with [isLastTask] which is true if the task going
+     * to be minimized is the last visible task.
+     */
+    override fun startMinimizedModeTransition(
+        wct: WindowContainerTransaction?,
+        taskId: Int,
+        isLastTask: Boolean,
+    ): IBinder {
+        if (!DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_EXIT_BY_MINIMIZE_TRANSITION_BUGFIX.isTrue) {
+            return freeformTaskTransitionHandler.startMinimizedModeTransition(
+                wct,
+                taskId,
+                isLastTask,
+            )
+        }
+        requireNotNull(wct)
+        return transitions
+            .startTransition(Transitions.TRANSIT_MINIMIZE, wct, /* handler= */ this)
+            .also { transition ->
+                pendingMixedTransitions.add(
+                    PendingMixedTransition.Minimize(transition, taskId, isLastTask)
+                )
+            }
+    }
 
     /** Delegates starting PiP transition to [FreeformTaskTransitionHandler]. */
     override fun startPipTransition(wct: WindowContainerTransaction?): IBinder =
@@ -83,10 +103,7 @@ class DesktopMixedTransitionHandler(
 
     /** Starts close transition and handles or delegates desktop task close animation. */
     override fun startRemoveTransition(wct: WindowContainerTransaction?): IBinder {
-        if (
-            !DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_EXIT_TRANSITIONS.isTrue &&
-                !DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_EXIT_TRANSITIONS_BUGFIX.isTrue
-        ) {
+        if (!DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_EXIT_TRANSITIONS_BUGFIX.isTrue) {
             return freeformTaskTransitionHandler.startRemoveTransition(wct)
         }
         requireNotNull(wct)
@@ -109,8 +126,7 @@ class DesktopMixedTransitionHandler(
         exitingImmersiveTask: Int? = null,
     ): IBinder {
         if (
-            !Flags.enableFullyImmersiveInDesktop() &&
-                !DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_TRANSITIONS.isTrue &&
+            !DesktopModeFlags.ENABLE_FULLY_IMMERSIVE_IN_DESKTOP.isTrue &&
                 !DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_TRANSITIONS_BUGFIX.isTrue
         ) {
             return transitions.startTransition(transitionType, wct, /* handler= */ null)
@@ -208,7 +224,6 @@ class DesktopMixedTransitionHandler(
             return dispatchCloseLastDesktopTaskAnimation(
                 transition,
                 info,
-                closeChange,
                 startTransaction,
                 finishTransaction,
                 finishCallback,
@@ -239,7 +254,6 @@ class DesktopMixedTransitionHandler(
             pending.minimizingTask?.let { minimizingTask -> findTaskChange(info, minimizingTask) }
         val launchChange = findDesktopTaskLaunchChange(info, pending.launchingTask)
         if (launchChange == null) {
-            check(minimizeChange == null)
             check(immersiveExitChange == null)
             logV("No launch Change, returning")
             return false
@@ -260,10 +274,7 @@ class DesktopMixedTransitionHandler(
             minimizeChange?.taskInfo?.taskId,
             immersiveExitChange?.taskInfo?.taskId,
         )
-        if (
-            DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_TRANSITIONS.isTrue ||
-                DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_TRANSITIONS_BUGFIX.isTrue
-        ) {
+        if (DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_TRANSITIONS_BUGFIX.isTrue) {
             // Only apply minimize change reparenting here if we implement the new app launch
             // transitions, otherwise this reparenting is handled in the default handler.
             minimizeChange?.let {
@@ -309,7 +320,15 @@ class DesktopMixedTransitionHandler(
         finishTransaction: SurfaceControl.Transaction,
         finishCallback: TransitionFinishCallback,
     ): Boolean {
-        if (!DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_BACK_NAVIGATION.isTrue) return false
+        val shouldAnimate =
+            if (info.type == Transitions.TRANSIT_MINIMIZE) {
+                DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_EXIT_BY_MINIMIZE_TRANSITION_BUGFIX.isTrue
+            } else {
+                DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_BACK_NAVIGATION.isTrue
+            }
+        if (!shouldAnimate) {
+            return false
+        }
 
         val minimizeChange = findTaskChange(info, pending.minimizingTask)
         if (minimizeChange == null) {
@@ -327,8 +346,8 @@ class DesktopMixedTransitionHandler(
             )
         }
 
-        // Animate minimizing desktop task transition with [DesktopBackNavigationTransitionHandler].
-        return desktopBackNavigationTransitionHandler.startAnimation(
+        // Animate minimizing desktop task transition with [DesktopMinimizationTransitionHandler].
+        return desktopMinimizationTransitionHandler.startAnimation(
             transition,
             info,
             startTransaction,
@@ -353,18 +372,10 @@ class DesktopMixedTransitionHandler(
     private fun dispatchCloseLastDesktopTaskAnimation(
         transition: IBinder,
         info: TransitionInfo,
-        change: TransitionInfo.Change,
         startTransaction: SurfaceControl.Transaction,
         finishTransaction: SurfaceControl.Transaction,
         finishCallback: TransitionFinishCallback,
     ): Boolean {
-        // Starting the jank trace if closing the last window in desktop mode.
-        interactionJankMonitor.begin(
-            change.leash,
-            context,
-            handler,
-            CUJ_DESKTOP_MODE_EXIT_MODE_ON_LAST_WINDOW_CLOSE,
-        )
         // Dispatch the last desktop task closing animation.
         return dispatchToLeftoverHandler(
             transition = transition,
@@ -372,10 +383,6 @@ class DesktopMixedTransitionHandler(
             startTransaction = startTransaction,
             finishTransaction = finishTransaction,
             finishCallback = finishCallback,
-            doOnFinishCallback = {
-                // Finish the jank trace when closing the last window in desktop mode.
-                interactionJankMonitor.end(CUJ_DESKTOP_MODE_EXIT_MODE_ON_LAST_WINDOW_CLOSE)
-            },
         )
     }
 
@@ -427,7 +434,7 @@ class DesktopMixedTransitionHandler(
 
     private fun isWallpaperActivityClosing(info: TransitionInfo) =
         info.changes.any { change ->
-            change.mode == TRANSIT_CLOSE &&
+            TransitionUtil.isClosingMode(change.mode) &&
                 change.taskInfo != null &&
                 DesktopWallpaperActivity.isWallpaperTask(change.taskInfo!!)
         }
@@ -445,6 +452,11 @@ class DesktopMixedTransitionHandler(
     private fun findTaskChange(info: TransitionInfo, taskId: Int): TransitionInfo.Change? =
         info.changes.firstOrNull { change -> change.taskInfo?.taskId == taskId }
 
+    private fun findLaunchChange(info: TransitionInfo): TransitionInfo.Change? =
+        info.changes.firstOrNull { change ->
+            change.mode == TRANSIT_OPEN && change.taskInfo != null && change.taskInfo!!.isFreeform
+        }
+
     private fun findDesktopTaskLaunchChange(
         info: TransitionInfo,
         launchTaskId: Int?,
@@ -452,14 +464,18 @@ class DesktopMixedTransitionHandler(
         return if (launchTaskId != null) {
             // Launching a known task (probably from background or moving to front), so
             // specifically look for it.
-            findTaskChange(info, launchTaskId)
+            val launchChange = findTaskChange(info, launchTaskId)
+            if (
+                DesktopModeFlags.ENABLE_DESKTOP_OPENING_DEEPLINK_MINIMIZE_ANIMATION_BUGFIX.isTrue &&
+                    launchChange == null
+            ) {
+                findLaunchChange(info)
+            } else {
+                launchChange
+            }
         } else {
             // Launching a new task, so the first opening freeform task.
-            info.changes.firstOrNull { change ->
-                change.mode == TRANSIT_OPEN &&
-                    change.taskInfo != null &&
-                    change.taskInfo!!.isFreeform
-            }
+            findLaunchChange(info)
         }
     }
 

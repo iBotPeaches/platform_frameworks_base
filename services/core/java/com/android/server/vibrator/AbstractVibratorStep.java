@@ -124,6 +124,8 @@ abstract class AbstractVibratorStep extends Step {
             Slog.d(VibrationThread.TAG,
                     "Turning off vibrator " + getVibratorId());
         }
+        // Make sure we ignore any pending callback from old vibration commands.
+        conductor.nextVibratorCallbackStepId(getVibratorId());
         controller.off();
         getVibration().stats.reportVibratorOff();
         mPendingVibratorOffDeadline = 0;

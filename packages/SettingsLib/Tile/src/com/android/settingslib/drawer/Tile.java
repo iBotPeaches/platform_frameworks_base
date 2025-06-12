@@ -46,6 +46,8 @@ import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -324,6 +326,15 @@ public abstract class Tile implements Parcelable {
             return mMetaData.getBoolean(TileUtils.META_DATA_PREFERENCE_ICON_TINTABLE);
         }
         return false;
+    }
+
+    /** Returns the icon color scheme. */
+    @Nullable
+    public String getIconColorScheme(@NonNull Context context) {
+        ensureMetadataNotStale(context);
+        return mMetaData != null
+                ? mMetaData.getString(TileUtils.META_DATA_PREFERENCE_ICON_COLOR_SCHEME, null)
+                : null;
     }
 
     /** Whether the {@link Activity} should be launched in a separate task. */

@@ -42,7 +42,7 @@
     <string name="choose_create_option_passkey_title" msgid="8762295821604276511">"Utworzyć klucz dostępu do logowania w aplikacji <xliff:g id="APP_NAME">%1$s</xliff:g>?"</string>
     <string name="choose_create_option_password_title" msgid="4481366993598649224">"Zapisać hasło do logowania w aplikacji <xliff:g id="APP_NAME">%1$s</xliff:g>?"</string>
     <string name="choose_create_option_sign_in_title" msgid="7092914088455358079">"Zapisać dane używane do logowania w aplikacji <xliff:g id="APP_NAME">%1$s</xliff:g>?"</string>
-    <string name="passkey" msgid="632353688396759522">"klucz"</string>
+    <string name="passkey" msgid="632353688396759522">"klucz dostępu"</string>
     <string name="password" msgid="6738570945182936667">"hasło"</string>
     <string name="passkeys" msgid="5733880786866559847">"klucze dostępu"</string>
     <string name="passwords" msgid="5419394230391253816">"hasła"</string>
@@ -61,7 +61,7 @@
     <string name="more_options_usage_passwords" msgid="1632047277723187813">"Hasła: <xliff:g id="PASSWORDSNUMBER">%1$s</xliff:g>"</string>
     <string name="more_options_usage_passkeys" msgid="5390320437243042237">"Klucze dostępu: <xliff:g id="PASSKEYSNUMBER">%1$s</xliff:g>"</string>
     <string name="more_options_usage_credentials" msgid="1785697001787193984">"Dane logowania: <xliff:g id="TOTALCREDENTIALSNUMBER">%1$s</xliff:g>"</string>
-    <string name="passkey_before_subtitle" msgid="2448119456208647444">"Klucz"</string>
+    <string name="passkey_before_subtitle" msgid="2448119456208647444">"Klucz dostępu"</string>
     <string name="another_device" msgid="5147276802037801217">"Inne urządzenie"</string>
     <string name="other_password_manager" msgid="565790221427004141">"Inne menedżery haseł"</string>
     <string name="close_sheet" msgid="1393792015338908262">"Zamknij arkusz"</string>

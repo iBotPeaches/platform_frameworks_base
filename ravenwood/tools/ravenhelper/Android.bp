@@ -14,13 +14,7 @@ java_binary_host {
     static_libs: [
         "guava",
         "hoststubgen-lib",
-        "junit",
         "metalava-gradle-plugin-deps", // Get lint/PSI related classes from here.
-        "ow2-asm",
-        "ow2-asm-analysis",
-        "ow2-asm-commons",
-        "ow2-asm-tree",
-        "ow2-asm-util",
     ],
     visibility: ["//visibility:public"],
 }

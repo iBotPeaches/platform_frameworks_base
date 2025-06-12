@@ -16,7 +16,11 @@
 
 package android.view;
 
+import static android.view.InsetsController.ANIMATION_DURATION_SYNC_IME_MS;
+import static android.view.InsetsController.ANIMATION_DURATION_UNSYNC_IME_MS;
 import static android.view.InsetsController.ANIMATION_TYPE_USER;
+import static android.view.InsetsController.FAST_OUT_LINEAR_IN_INTERPOLATOR;
+import static android.view.InsetsController.SYNC_IME_INTERPOLATOR;
 import static android.view.WindowInsets.Type.ime;
 import static android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN;
 import static android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;
@@ -56,8 +60,6 @@ public class ImeBackAnimationController implements OnBackAnimationCallback {
     private static final Interpolator BACK_GESTURE = new BackGestureInterpolator();
     private static final Interpolator EMPHASIZED_DECELERATE = new PathInterpolator(
             0.05f, 0.7f, 0.1f, 1f);
-    private static final Interpolator STANDARD_ACCELERATE = new PathInterpolator(0.3f, 0f, 1f, 1f);
-
     private final InsetsController mInsetsController;
     private final ViewRootImpl mViewRoot;
     private WindowInsetsAnimationController mWindowInsetsAnimationController = null;
@@ -183,8 +185,21 @@ public class ImeBackAnimationController implements OnBackAnimationCallback {
         float targetProgress = triggerBack ? 1f : 0f;
         mPostCommitAnimator = ValueAnimator.ofFloat(
                 BACK_GESTURE.getInterpolation(mLastProgress) * PEEK_FRACTION, targetProgress);
-        mPostCommitAnimator.setInterpolator(
-                triggerBack ? STANDARD_ACCELERATE : EMPHASIZED_DECELERATE);
+        Interpolator interpolator;
+        long duration;
+        if (triggerBack && mViewRoot.mView.hasWindowInsetsAnimationCallback()
+                && mWindowInsetsAnimationController.getShownStateInsets().bottom != 0) {
+            interpolator = SYNC_IME_INTERPOLATOR;
+            duration = ANIMATION_DURATION_SYNC_IME_MS;
+        } else if (triggerBack) {
+            interpolator = FAST_OUT_LINEAR_IN_INTERPOLATOR;
+            duration = ANIMATION_DURATION_UNSYNC_IME_MS;
+        } else {
+            interpolator = EMPHASIZED_DECELERATE;
+            duration = POST_COMMIT_CANCEL_DURATION_MS;
+        }
+        mPostCommitAnimator.setInterpolator(interpolator);
+        mPostCommitAnimator.setDuration(duration);
         mPostCommitAnimator.addUpdateListener(animation -> {
             if (mWindowInsetsAnimationController != null) {
                 setInterpolatedProgress((float) animation.getAnimatedValue());
@@ -207,8 +222,6 @@ public class ImeBackAnimationController implements OnBackAnimationCallback {
                 reset();
             }
         });
-        mPostCommitAnimator.setDuration(
-                triggerBack ? POST_COMMIT_DURATION_MS : POST_COMMIT_CANCEL_DURATION_MS);
         mPostCommitAnimator.start();
         if (triggerBack) {
             mInsetsController.setPredictiveBackImeHideAnimInProgress(true);

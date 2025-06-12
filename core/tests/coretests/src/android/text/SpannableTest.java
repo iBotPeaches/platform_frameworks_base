@@ -16,10 +16,10 @@
 
 package android.text;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 import android.platform.test.annotations.Presubmit;
-import android.test.MoreAsserts;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -50,13 +50,13 @@ public abstract class SpannableTest {
         // but other spans are not, unless the query region is empty, in
         // in which case any abutting spans are returned.
         spans = spannable.getSpans(0, 1, Object.class);
-        MoreAsserts.assertEquals(new Object[]{emptySpan}, spans);
+        assertArrayEquals(new Object[]{emptySpan}, spans);
         spans = spannable.getSpans(0, 2, Object.class);
-        MoreAsserts.assertEquals(new Object[]{emptySpan, unemptySpan}, spans);
+        assertArrayEquals(new Object[]{emptySpan, unemptySpan}, spans);
         spans = spannable.getSpans(1, 2, Object.class);
-        MoreAsserts.assertEquals(new Object[]{emptySpan, unemptySpan}, spans);
+        assertArrayEquals(new Object[]{emptySpan, unemptySpan}, spans);
         spans = spannable.getSpans(2, 2, Object.class);
-        MoreAsserts.assertEquals(new Object[]{unemptySpan}, spans);
+        assertArrayEquals(new Object[]{unemptySpan}, spans);
     }
 
     @Test

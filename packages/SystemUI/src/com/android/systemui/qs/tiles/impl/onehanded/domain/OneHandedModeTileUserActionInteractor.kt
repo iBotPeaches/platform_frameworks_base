@@ -19,11 +19,11 @@ package com.android.systemui.qs.tiles.impl.onehanded.domain
 import android.content.Intent
 import android.provider.Settings
 import com.android.systemui.accessibility.data.repository.OneHandedModeRepository
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.onehanded.domain.model.OneHandedModeTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import javax.inject.Inject
 
 /** Handles one handed mode tile clicks. */
@@ -38,15 +38,12 @@ constructor(
         with(input) {
             when (action) {
                 is QSTileUserAction.Click -> {
-                    oneHandedModeRepository.setIsEnabled(
-                        !data.isEnabled,
-                        user,
-                    )
+                    oneHandedModeRepository.setIsEnabled(!data.isEnabled, user)
                 }
                 is QSTileUserAction.LongClick -> {
                     qsTileIntentUserActionHandler.handle(
                         action.expandable,
-                        Intent(Settings.ACTION_ONE_HANDED_SETTINGS)
+                        Intent(Settings.ACTION_ONE_HANDED_SETTINGS),
                     )
                 }
                 is QSTileUserAction.ToggleClick -> {}

@@ -31,6 +31,7 @@ class ActivitySnapshotCache extends SnapshotCache<ActivityRecord> {
     void putSnapshot(ActivityRecord ar, TaskSnapshot snapshot) {
         final int hasCode = System.identityHashCode(ar);
         snapshot.addReference(TaskSnapshot.REFERENCE_CACHE);
+        snapshot.setSafeRelease(mSafeSnapshotReleaser);
         synchronized (mLock) {
             final CacheEntry entry = mRunningCache.get(hasCode);
             if (entry != null) {

@@ -32,6 +32,7 @@ import android.compat.annotation.UnsupportedAppUsage;
  * using a WYSIWYG graphics editor.
  * </p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class NinePatch {
     /**
      * Struct of inset information attached to a 9 patch bitmap.

@@ -18,6 +18,7 @@ package com.android.systemui.scene
 
 import com.android.systemui.scene.domain.SceneDomainModule
 import com.android.systemui.scene.domain.resolver.HomeSceneFamilyResolverModule
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.SceneContainerConfig
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.ui.composable.SceneContainerTransitions
@@ -28,7 +29,7 @@ import dagger.Provides
 @Module(
     includes =
         [
-            BouncerSceneModule::class,
+            BouncerOverlayModule::class,
             EmptySceneModule::class,
             GoneSceneModule::class,
             LockscreenSceneModule::class,
@@ -45,14 +46,13 @@ object ShadelessSceneContainerFrameworkModule {
     @Provides
     fun containerConfig(): SceneContainerConfig {
         return SceneContainerConfig(
-            // Note that this list is in z-order. The first one is the bottom-most and the
-            // last one is top-most.
-            sceneKeys = listOf(Scenes.Gone, Scenes.Lockscreen, Scenes.Bouncer),
+            // Note that this list is in z-order. The first one is the bottom-most and the last one
+            // is top-most.
+            sceneKeys = listOf(Scenes.Gone, Scenes.Lockscreen),
             initialSceneKey = Scenes.Lockscreen,
-            transitions = SceneContainerTransitions,
-            overlayKeys = emptyList(),
-            navigationDistances =
-                mapOf(Scenes.Gone to 0, Scenes.Lockscreen to 0, Scenes.Bouncer to 1),
+            overlayKeys = listOf(Overlays.Bouncer),
+            navigationDistances = mapOf(Scenes.Gone to 0, Scenes.Lockscreen to 0),
+            transitionsBuilder = SceneContainerTransitions(),
         )
     }
 }

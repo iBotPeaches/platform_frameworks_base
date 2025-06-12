@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Menedżer urządzeń towarzyszących"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Zezwolić aplikacji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na dostęp do urządzenia &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Upewnij się, że <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> ma włączoną funkcję <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>, i trzymaj <xliff:g id="PROFILE_NAME">%3$s</xliff:g> w pobliżu."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nie znaleziono urządzeń. Spróbuj ponownie później."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth i Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"zegarek"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Wybierz urządzenie, którym ma zarządzać aplikacja &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Wybierz profil <xliff:g id="PROFILE_NAME">%1$s</xliff:g>, aby go skonfigurować"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Wybierz <xliff:g id="PROFILE_NAME">%1$s</xliff:g>, aby go skonfigurować"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Szukam: <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Aplikacja będzie mogła synchronizować informacje takie jak nazwa dzwoniącego oraz korzystać z tych uprawnień na Twoim urządzeniu (<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>)"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Zezwolić na dostęp aplikacji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; do urządzenia &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"urządzenie"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Zezwolić aplikacji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na strumieniowanie aplikacji na <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> na urządzenie &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Aplikacja <xliff:g id="APP_NAME_0">%1$s</xliff:g> będzie miała dostęp do wszystkiego, co jest widoczne i odtwarzane na <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, w tym do dźwięku, zdjęć, haseł i wiadomości.&lt;br/&gt;&lt;br/&gt;Aplikacja <xliff:g id="APP_NAME_2">%1$s</xliff:g> będzie mogła strumieniować aplikacje na urządzenie <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, dopóki nie usuniesz dostępu do tego uprawnienia."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Aplikacja <xliff:g id="APP_NAME">%1$s</xliff:g> prosi w imieniu urządzenia <xliff:g id="DEVICE_NAME">%2$s</xliff:g> o pozwolenie na strumieniowanie aplikacji z urządzenia <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Zezwolić aplikacji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na strumieniowanie dźwięku i funkcji systemowych między urządzeniami <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> i &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> będzie mieć dostęp do wszystkiego, co jest odtwarzane na urządzeniu <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;Aplikacja <xliff:g id="APP_NAME_2">%2$s</xliff:g> będzie mogła odtwarzać dźwięk na urządzeniu <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, dopóki nie usuniesz dostępu do tego uprawnienia."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"urządzenie"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ta aplikacja może synchronizować informacje takie jak imię i nazwisko osoby dzwoniącej między Twoim telefonem i wybranym urządzeniem"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Zezwól"</string>
     <string name="consent_no" msgid="2640796915611404382">"Nie zezwalaj"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Anuluj"</string>
     <string name="consent_back" msgid="2560683030046918882">"Wstecz"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Przewiń listę w dół"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Strzałka w dół"</string>
     <string name="permission_expand" msgid="893185038020887411">"Rozwiń sekcję <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Zwiń sekcję <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Czy aplikacjom na urządzeniu &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; przyznać te same uprawnienia co na urządzeniu &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

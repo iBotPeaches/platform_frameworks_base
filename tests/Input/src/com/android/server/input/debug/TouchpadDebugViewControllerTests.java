@@ -23,7 +23,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.content.Context;
 import android.graphics.Rect;
 import android.hardware.input.InputManager;
 import android.testing.AndroidTestingRunner;
@@ -60,9 +59,12 @@ public class TouchpadDebugViewControllerTests {
     private static final String TAG = "TouchpadDebugViewController";
 
     @Rule
+    public final TestableContext mTestableContext =
+            new TestableContext(InstrumentationRegistry.getInstrumentation().getContext());
+
+    @Rule
     public final MockitoRule mockito = MockitoJUnit.rule();
 
-    private Context mContext;
     private TouchpadDebugViewController mTouchpadDebugViewController;
     @Mock
     private InputManager mInputManagerMock;
@@ -74,8 +76,6 @@ public class TouchpadDebugViewControllerTests {
 
     @Before
     public void setup() throws Exception {
-        mContext = InstrumentationRegistry.getInstrumentation().getContext();
-        TestableContext mTestableContext = new TestableContext(mContext);
         mTestableContext.addMockSystemService(WindowManager.class, mWindowManagerMock);
 
         Rect bounds = new Rect(0, 0, 2560, 1600);

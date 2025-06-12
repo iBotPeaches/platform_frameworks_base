@@ -21,6 +21,7 @@ import android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD
 import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
 import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.app.WindowConfiguration.WindowingMode
+import android.os.Handler
 import android.testing.AndroidTestingRunner
 import android.testing.TestableLooper.RunWithLooper
 import android.view.SurfaceControl
@@ -52,6 +53,7 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
 
     @Mock lateinit var testExecutor: ShellExecutor
     @Mock lateinit var closingTaskLeash: SurfaceControl
+    @Mock lateinit var mockHandler: Handler
 
     private val transactionSupplier = Supplier { mock<SurfaceControl.Transaction>() }
 
@@ -64,7 +66,8 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
                 context,
                 testExecutor,
                 testExecutor,
-                transactionSupplier
+                transactionSupplier,
+                mockHandler,
             )
     }
 
@@ -81,11 +84,11 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
                 info =
                     createTransitionInfo(
                         type = WindowManager.TRANSIT_OPEN,
-                        task = createTask(WINDOWING_MODE_FREEFORM)
+                        task = createTask(WINDOWING_MODE_FREEFORM),
                     ),
                 startTransaction = mock(),
                 finishTransaction = mock(),
-                finishCallback = {}
+                finishCallback = {},
             )
 
         assertFalse("Should not animate open transition", animates)
@@ -99,7 +102,7 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
                 info = createTransitionInfo(task = createTask(WINDOWING_MODE_FULLSCREEN)),
                 startTransaction = mock(),
                 finishTransaction = mock(),
-                finishCallback = {}
+                finishCallback = {},
             )
 
         assertFalse("Should not animate fullscreen task close transition", animates)
@@ -113,11 +116,11 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
                 info =
                     createTransitionInfo(
                         changeMode = WindowManager.TRANSIT_OPEN,
-                        task = createTask(WINDOWING_MODE_FREEFORM)
+                        task = createTask(WINDOWING_MODE_FREEFORM),
                     ),
                 startTransaction = mock(),
                 finishTransaction = mock(),
-                finishCallback = {}
+                finishCallback = {},
             )
 
         assertFalse("Should not animate opening freeform task close transition", animates)
@@ -131,7 +134,7 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
                 info = createTransitionInfo(task = createTask(WINDOWING_MODE_FREEFORM)),
                 startTransaction = mock(),
                 finishTransaction = mock(),
-                finishCallback = {}
+                finishCallback = {},
             )
 
         assertTrue("Should animate closing freeform task close transition", animates)
@@ -140,9 +143,9 @@ class CloseDesktopTaskTransitionHandlerTest : ShellTestCase() {
     private fun createTransitionInfo(
         type: Int = WindowManager.TRANSIT_CLOSE,
         changeMode: Int = WindowManager.TRANSIT_CLOSE,
-        task: RunningTaskInfo
+        task: RunningTaskInfo,
     ): TransitionInfo =
-        TransitionInfo(type, 0 /* flags */).apply {
+        TransitionInfo(type, /* flags= */ 0).apply {
             addChange(
                 TransitionInfo.Change(mock(), closingTaskLeash).apply {
                     mode = changeMode

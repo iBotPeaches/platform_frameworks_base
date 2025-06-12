@@ -16,8 +16,6 @@
 
 package com.android.server.pm.test
 
-import android.platform.test.annotations.RequiresFlagsEnabled
-import android.platform.test.flag.junit.host.HostFlagsValueProvider
 import com.android.internal.util.test.SystemPreparer
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test
@@ -35,7 +33,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 
 @RunWith(DeviceJUnit4ClassRunner::class)
-@RequiresFlagsEnabled(android.security.Flags.FLAG_EXTEND_VB_CHAIN_TO_UPDATED_APK)
 class TamperedUpdatedSystemPackageTest : BaseHostJUnit4Test() {
 
     companion object {
@@ -65,10 +62,6 @@ class TamperedUpdatedSystemPackageTest : BaseHostJUnit4Test() {
     private val productPath =
             HostUtils.makePathForApk("PackageManagerTestApp.apk", Partition.PRODUCT)
     private lateinit var originalConfigFile: File
-
-    @Rule
-    @JvmField
-    val checkFlagsRule = HostFlagsValueProvider.createCheckFlagsRule({ getDevice() })
 
     @Rule
     @JvmField

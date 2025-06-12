@@ -21,8 +21,12 @@ import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.internal.widget.LockPatternUtils
-import com.android.systemui.Flags
+import com.android.systemui.Flags.FLAG_GLANCEABLE_HUB_V2
+import com.android.systemui.Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.communal.data.repository.communalSceneRepository
+import com.android.systemui.communal.domain.interactor.setCommunalV2Enabled
+import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.keyguard.data.repository.fakeBiometricSettingsRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepositorySpy
@@ -32,10 +36,12 @@ import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
 import com.android.systemui.keyguard.util.KeyguardTransitionRepositorySpySubject.Companion.assertThat
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.testKosmos
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
+import com.google.common.truth.Truth
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
@@ -46,12 +52,10 @@ import org.mockito.Mockito.reset
 @RunWith(AndroidJUnit4::class)
 class FromGoneTransitionInteractorTest : SysuiTestCase() {
     private val kosmos =
-        testKosmos().apply {
+        testKosmos().useUnconfinedTestDispatcher().apply {
             this.keyguardTransitionRepository = fakeKeyguardTransitionRepositorySpy
         }
-    private val testScope = kosmos.testScope
     private val underTest = kosmos.fromGoneTransitionInteractor
-    private val keyguardTransitionRepository = kosmos.fakeKeyguardTransitionRepositorySpy
 
     @Before
     fun setUp() {
@@ -61,8 +65,8 @@ class FromGoneTransitionInteractorTest : SysuiTestCase() {
     @Test
     @Ignore("Fails due to fix for b/324432820 - will re-enable once permanent fix is submitted.")
     fun testDoesNotTransitionToLockscreen_ifStartedButNotFinishedInGone() =
-        testScope.runTest {
-            keyguardTransitionRepository.sendTransitionSteps(
+        kosmos.runTest {
+            fakeKeyguardTransitionRepositorySpy.sendTransitionSteps(
                 listOf(
                     TransitionStep(
                         from = KeyguardState.LOCKSCREEN,
@@ -77,54 +81,74 @@ class FromGoneTransitionInteractorTest : SysuiTestCase() {
                 ),
                 testScope,
             )
-            reset(keyguardTransitionRepository)
-            kosmos.fakeKeyguardRepository.setKeyguardShowing(true)
-            runCurrent()
+            reset(fakeKeyguardTransitionRepositorySpy)
+            fakeKeyguardRepository.setKeyguardShowing(true)
 
             // We're in the middle of a LOCKSCREEN -> GONE transition.
-            assertThat(keyguardTransitionRepository).noTransitionsStarted()
+            assertThat(fakeKeyguardTransitionRepositorySpy).noTransitionsStarted()
         }
 
     @Test
-    @DisableFlags(Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR)
+    @DisableFlags(FLAG_KEYGUARD_WM_STATE_REFACTOR)
     fun testTransitionsToLockscreen_ifFinishedInGone() =
-        testScope.runTest {
-            keyguardTransitionRepository.sendTransitionSteps(
+        kosmos.runTest {
+            fakeKeyguardTransitionRepositorySpy.sendTransitionSteps(
                 from = KeyguardState.LOCKSCREEN,
                 to = KeyguardState.GONE,
                 testScope,
             )
-            reset(keyguardTransitionRepository)
-            kosmos.fakeKeyguardRepository.setKeyguardShowing(true)
-            runCurrent()
+            reset(fakeKeyguardTransitionRepositorySpy)
+            fakeKeyguardRepository.setKeyguardShowing(true)
 
             // We're in the middle of a GONE -> LOCKSCREEN transition.
-            assertThat(keyguardTransitionRepository)
+            assertThat(fakeKeyguardTransitionRepositorySpy)
                 .startedTransition(to = KeyguardState.LOCKSCREEN)
         }
 
     @Test
-    @EnableFlags(Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR)
+    @EnableFlags(FLAG_KEYGUARD_WM_STATE_REFACTOR)
     fun testTransitionsToLockscreen_ifFinishedInGone_wmRefactor() =
-        testScope.runTest {
-            keyguardTransitionRepository.sendTransitionSteps(
+        kosmos.runTest {
+            fakeKeyguardTransitionRepositorySpy.sendTransitionSteps(
                 from = KeyguardState.LOCKSCREEN,
                 to = KeyguardState.GONE,
                 testScope,
             )
-            reset(keyguardTransitionRepository)
+            reset(fakeKeyguardTransitionRepositorySpy)
 
             // Trigger lockdown.
-            kosmos.fakeBiometricSettingsRepository.setAuthenticationFlags(
+            fakeBiometricSettingsRepository.setAuthenticationFlags(
                 AuthenticationFlags(
                     0,
                     LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN,
                 )
             )
-            runCurrent()
 
             // We're in the middle of a GONE -> LOCKSCREEN transition.
-            assertThat(keyguardTransitionRepository)
+            assertThat(fakeKeyguardTransitionRepositorySpy)
                 .startedTransition(to = KeyguardState.LOCKSCREEN)
+        }
+
+    @Test
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    @DisableFlags(FLAG_KEYGUARD_WM_STATE_REFACTOR)
+    fun testTransitionToGlanceableHub() =
+        kosmos.runTest {
+            val currentScene by collectLastValue(communalSceneRepository.currentScene)
+
+            fakeKeyguardTransitionRepositorySpy.sendTransitionSteps(
+                from = KeyguardState.LOCKSCREEN,
+                to = KeyguardState.GONE,
+                testScope,
+            )
+            reset(fakeKeyguardTransitionRepositorySpy)
+            // Communal is enabled
+            setCommunalV2Enabled(true)
+            Truth.assertThat(currentScene).isEqualTo(CommunalScenes.Blank)
+
+            fakeKeyguardRepository.setKeyguardShowing(true)
+
+            Truth.assertThat(currentScene).isEqualTo(CommunalScenes.Communal)
+            assertThat(fakeKeyguardTransitionRepositorySpy).noTransitionsStarted()
         }
 }

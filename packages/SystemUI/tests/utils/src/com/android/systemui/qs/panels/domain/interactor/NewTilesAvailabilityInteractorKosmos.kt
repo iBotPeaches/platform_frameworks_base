@@ -17,16 +17,13 @@
 package com.android.systemui.qs.panels.domain.interactor
 
 import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
 import com.android.systemui.user.data.repository.userRepository
 
-var Kosmos.tileAvailabilityInteractorsMap by Kosmos.Fixture {
-    emptyMap<String, QSTileAvailabilityInteractor>()
-}
+var Kosmos.tileAvailabilityInteractorsMap by
+    Kosmos.Fixture { emptyMap<String, QSTileAvailabilityInteractor>() }
 
-val Kosmos.newTilesAvailabilityInteractor by Kosmos.Fixture {
-    NewTilesAvailabilityInteractor(
-            tileAvailabilityInteractorsMap,
-            userRepository,
-    )
-}
+val Kosmos.newTilesAvailabilityInteractor by
+    Kosmos.Fixture {
+        NewTilesAvailabilityInteractor(tileAvailabilityInteractorsMap, userRepository)
+    }

@@ -19,10 +19,10 @@ package com.android.server.input;
 import static android.hardware.input.InputGestureData.createKeyTrigger;
 
 import static com.android.hardware.input.Flags.enableTalkbackAndMagnifierKeyGestures;
+import static com.android.hardware.input.Flags.enableVoiceAccessKeyGestures;
 import static com.android.hardware.input.Flags.keyboardA11yShortcutControl;
 import static com.android.server.flags.Flags.newBugreportKeyboardShortcut;
 import static com.android.window.flags.Flags.enableMoveToNextDisplayShortcut;
-import static com.android.window.flags.Flags.enableTaskResizingKeyboardShortcuts;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -36,6 +36,7 @@ import android.os.SystemProperties;
 import android.util.IndentingPrintWriter;
 import android.util.SparseArray;
 import android.view.KeyEvent;
+import android.window.DesktopModeFlags;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -93,9 +94,9 @@ final class InputGestureManager {
         mContext = context;
     }
 
-    public void systemRunning() {
+    public void init(List<InputGestureData> bookmarks) {
         initSystemShortcuts();
-        blockListBookmarkedTriggers();
+        blockListBookmarkedTriggers(bookmarks);
     }
 
     private void initSystemShortcuts() {
@@ -132,19 +133,9 @@ final class InputGestureManager {
                         KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_NOTIFICATION_PANEL
                 ),
                 createKeyGesture(
-                        KeyEvent.KEYCODE_N,
-                        KeyEvent.META_META_ON | KeyEvent.META_CTRL_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES
-                ),
-                createKeyGesture(
                         KeyEvent.KEYCODE_S,
-                        KeyEvent.META_META_ON | KeyEvent.META_CTRL_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT
-                ),
-                createKeyGesture(
-                        KeyEvent.KEYCODE_DEL,
                         KeyEvent.META_META_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_BACK
+                        KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT
                 ),
                 createKeyGesture(
                         KeyEvent.KEYCODE_ESCAPE,
@@ -172,19 +163,9 @@ final class InputGestureManager {
                         KeyGestureEvent.KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_LEFT
                 ),
                 createKeyGesture(
-                        KeyEvent.KEYCODE_DPAD_LEFT,
-                        KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_CHANGE_SPLITSCREEN_FOCUS_LEFT
-                ),
-                createKeyGesture(
                         KeyEvent.KEYCODE_DPAD_RIGHT,
                         KeyEvent.META_META_ON | KeyEvent.META_CTRL_ON,
                         KeyGestureEvent.KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_RIGHT
-                ),
-                createKeyGesture(
-                        KeyEvent.KEYCODE_DPAD_RIGHT,
-                        KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_CHANGE_SPLITSCREEN_FOCUS_RIGHT
                 ),
                 createKeyGesture(
                         KeyEvent.KEYCODE_SLASH,
@@ -215,12 +196,6 @@ final class InputGestureManager {
             systemShortcuts.add(createKeyGesture(KeyEvent.KEYCODE_T,
                     KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
                     KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_TALKBACK));
-            systemShortcuts.add(createKeyGesture(KeyEvent.KEYCODE_MINUS,
-                    KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                    KeyGestureEvent.KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT));
-            systemShortcuts.add(createKeyGesture(KeyEvent.KEYCODE_EQUALS,
-                    KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                    KeyGestureEvent.KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN));
             systemShortcuts.add(createKeyGesture(KeyEvent.KEYCODE_M,
                     KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
                     KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_MAGNIFICATION));
@@ -228,7 +203,14 @@ final class InputGestureManager {
                     KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
                     KeyGestureEvent.KEY_GESTURE_TYPE_ACTIVATE_SELECT_TO_SPEAK));
         }
-        if (enableTaskResizingKeyboardShortcuts()) {
+        if (enableVoiceAccessKeyGestures()) {
+            systemShortcuts.add(
+                    createKeyGesture(
+                            KeyEvent.KEYCODE_V,
+                            KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
+                            KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS));
+        }
+        if (DesktopModeFlags.ENABLE_TASK_RESIZING_KEYBOARD_SHORTCUTS.isTrue()) {
             systemShortcuts.add(createKeyGesture(
                     KeyEvent.KEYCODE_LEFT_BRACKET,
                     KeyEvent.META_META_ON,
@@ -251,13 +233,11 @@ final class InputGestureManager {
             ));
         }
         if (keyboardA11yShortcutControl()) {
-            if (InputSettings.isAccessibilityBounceKeysFeatureEnabled()) {
-                systemShortcuts.add(createKeyGesture(
-                        KeyEvent.KEYCODE_3,
-                        KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_BOUNCE_KEYS
-                ));
-            }
+            systemShortcuts.add(createKeyGesture(
+                    KeyEvent.KEYCODE_3,
+                    KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
+                    KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_BOUNCE_KEYS
+            ));
             if (InputSettings.isAccessibilityMouseKeysFeatureFlagEnabled()) {
                 systemShortcuts.add(createKeyGesture(
                         KeyEvent.KEYCODE_4,
@@ -265,20 +245,16 @@ final class InputGestureManager {
                         KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_MOUSE_KEYS
                 ));
             }
-            if (InputSettings.isAccessibilityStickyKeysFeatureEnabled()) {
-                systemShortcuts.add(createKeyGesture(
-                        KeyEvent.KEYCODE_5,
-                        KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_STICKY_KEYS
-                ));
-            }
-            if (InputSettings.isAccessibilitySlowKeysFeatureFlagEnabled()) {
-                systemShortcuts.add(createKeyGesture(
-                        KeyEvent.KEYCODE_6,
-                        KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_SLOW_KEYS
-                ));
-            }
+            systemShortcuts.add(createKeyGesture(
+                    KeyEvent.KEYCODE_5,
+                    KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
+                    KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_STICKY_KEYS
+            ));
+            systemShortcuts.add(createKeyGesture(
+                    KeyEvent.KEYCODE_6,
+                    KeyEvent.META_META_ON | KeyEvent.META_ALT_ON,
+                    KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_SLOW_KEYS
+            ));
         }
         synchronized (mGestureLock) {
             for (InputGestureData systemShortcut : systemShortcuts) {
@@ -287,12 +263,36 @@ final class InputGestureManager {
         }
     }
 
-    private void blockListBookmarkedTriggers() {
+    private void blockListBookmarkedTriggers(List<InputGestureData> bookmarks) {
         synchronized (mGestureLock) {
-            InputManager im = Objects.requireNonNull(mContext.getSystemService(InputManager.class));
-            for (InputGestureData bookmark : im.getAppLaunchBookmarks()) {
+            for (InputGestureData bookmark : bookmarks) {
                 mBlockListedTriggers.add(bookmark.getTrigger());
             }
+        }
+    }
+
+    @Nullable
+    public InputGestureData getInputGesture(int userId, InputGestureData.Trigger trigger) {
+        synchronized (mGestureLock) {
+            if (mBlockListedTriggers.contains(trigger)) {
+                return new InputGestureData.Builder().setTrigger(trigger).setKeyGestureType(
+                        KeyGestureEvent.KEY_GESTURE_TYPE_SYSTEM_RESERVED).build();
+            }
+            if (trigger instanceof InputGestureData.KeyTrigger keyTrigger) {
+                if (KeyEvent.isModifierKey(keyTrigger.getKeycode()) ||
+                        KeyEvent.isSystemKey(keyTrigger.getKeycode())) {
+                    return new InputGestureData.Builder().setTrigger(trigger).setKeyGestureType(
+                            KeyGestureEvent.KEY_GESTURE_TYPE_SYSTEM_RESERVED).build();
+                }
+            }
+            InputGestureData gestureData = mSystemShortcuts.get(trigger);
+            if (gestureData != null) {
+                return gestureData;
+            }
+            if (!mCustomInputGestures.contains(userId)) {
+                return null;
+            }
+            return mCustomInputGestures.get(userId).get(trigger);
         }
     }
 

@@ -17,13 +17,20 @@
 package com.android.compose.animation
 
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.node.LayoutModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import kotlin.math.roundToInt
 
 /** A component that can bounce in one dimension, for instance when it is tapped. */
+@Stable
 interface Bounceable {
     val bounce: Dp
 }
@@ -46,6 +53,7 @@ interface Bounceable {
  *   RTL layouts) side. This can be used for grids for which the last item does not align perfectly
  *   with the end of the grid.
  */
+@Stable
 fun Modifier.bounceable(
     bounceable: Bounceable,
     previousBounceable: Bounceable?,
@@ -53,7 +61,47 @@ fun Modifier.bounceable(
     orientation: Orientation,
     bounceEnd: Boolean = nextBounceable != null,
 ): Modifier {
-    return layout { measurable, constraints ->
+    return this then
+        BounceableElement(bounceable, previousBounceable, nextBounceable, orientation, bounceEnd)
+}
+
+private data class BounceableElement(
+    private val bounceable: Bounceable,
+    private val previousBounceable: Bounceable?,
+    private val nextBounceable: Bounceable?,
+    private val orientation: Orientation,
+    private val bounceEnd: Boolean,
+) : ModifierNodeElement<BounceableNode>() {
+    override fun create(): BounceableNode {
+        return BounceableNode(
+            bounceable,
+            previousBounceable,
+            nextBounceable,
+            orientation,
+            bounceEnd,
+        )
+    }
+
+    override fun update(node: BounceableNode) {
+        node.bounceable = bounceable
+        node.previousBounceable = previousBounceable
+        node.nextBounceable = nextBounceable
+        node.orientation = orientation
+        node.bounceEnd = bounceEnd
+    }
+}
+
+private class BounceableNode(
+    var bounceable: Bounceable,
+    var previousBounceable: Bounceable?,
+    var nextBounceable: Bounceable?,
+    var orientation: Orientation,
+    var bounceEnd: Boolean = nextBounceable != null,
+) : Modifier.Node(), LayoutModifierNode {
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints,
+    ): MeasureResult {
         // The constraints in the orientation should be fixed, otherwise there is no way to know
         // what the size of our child node will be without this animation code.
         checkFixedSize(constraints, orientation)
@@ -61,10 +109,12 @@ fun Modifier.bounceable(
         var sizePrevious = 0f
         var sizeNext = 0f
 
+        val previousBounceable = previousBounceable
         if (previousBounceable != null) {
             sizePrevious += bounceable.bounce.toPx() - previousBounceable.bounce.toPx()
         }
 
+        val nextBounceable = nextBounceable
         if (nextBounceable != null) {
             sizeNext += bounceable.bounce.toPx() - nextBounceable.bounce.toPx()
         } else if (bounceEnd) {
@@ -84,7 +134,7 @@ fun Modifier.bounceable(
                 // constraints, otherwise the parent will automatically center this node given the
                 // size that it expects us to be. This allows us to then place the element where we
                 // want it to be.
-                layout(idleWidth, placeable.height) {
+                return layout(idleWidth, placeable.height) {
                     placeable.placeRelative(-sizePrevious.roundToInt(), 0)
                 }
             }
@@ -95,7 +145,7 @@ fun Modifier.bounceable(
                     constraints.copy(minHeight = animatedHeight, maxHeight = animatedHeight)
 
                 val placeable = measurable.measure(animatedConstraints)
-                layout(placeable.width, idleHeight) {
+                return layout(placeable.width, idleHeight) {
                     placeable.placeRelative(0, -sizePrevious.roundToInt())
                 }
             }

@@ -50,6 +50,9 @@
 #include "utils/RingBuffer.h"
 
 namespace android {
+
+class SurfaceStats;
+
 namespace uirenderer {
 
 class AnimationContext;
@@ -121,7 +124,9 @@ public:
      */
     GrDirectContext* getGrContext() const { return mRenderThread.getGrContext(); }
 
-    ASurfaceControl* getSurfaceControl() const { return mSurfaceControl; }
+#ifdef __ANDROID__
+    sp<SurfaceControl> getSurfaceControl() const;
+#endif
     int32_t getSurfaceControlGenerationId() const { return mSurfaceControlGenerationId; }
 
     // Won't take effect until next EGLSurface creation
@@ -129,7 +134,7 @@ public:
 
     void setHardwareBuffer(AHardwareBuffer* buffer);
     void setSurface(ANativeWindow* window, bool enableTimeout = true);
-    void setSurfaceControl(ASurfaceControl* surfaceControl);
+    void setSurfaceControl(sp<SurfaceControl> surfaceControl);
     bool pauseSurface();
     void setStopped(bool stopped);
     bool isStopped() { return mStopped || !hasOutputTarget(); }
@@ -176,8 +181,8 @@ public:
 
     void setContentDrawBounds(const Rect& bounds) { mContentDrawBounds = bounds; }
 
-    void addFrameMetricsObserver(FrameMetricsObserver* observer);
-    void removeFrameMetricsObserver(FrameMetricsObserver* observer);
+    void addFrameMetricsObserver(sp<FrameMetricsObserver>&& observer);
+    void removeFrameMetricsObserver(const sp<FrameMetricsObserver>& observer);
 
     // Used to queue up work that needs to be completed before this frame completes
     void enqueueFrameWork(std::function<void()>&& func);
@@ -207,7 +212,7 @@ public:
 
     // Called when SurfaceStats are available.
     static void onSurfaceStatsAvailable(void* context, int32_t surfaceControlId,
-                                        ASurfaceControlStats* stats);
+                                        const SurfaceStats& stats);
 
     void setASurfaceTransactionCallback(
             const std::function<bool(int64_t, int64_t, int64_t)>& callback) {
@@ -218,7 +223,7 @@ public:
         mBufferParams = params;
     }
 
-    bool mergeTransaction(ASurfaceTransaction* transaction, ASurfaceControl* control);
+    bool mergeTransaction(ASurfaceTransaction* transaction, const sp<SurfaceControl>& control);
 
     void setPrepareSurfaceControlForWebviewCallback(const std::function<void()>& callback) {
         mPrepareSurfaceControlForWebviewCallback = callback;
@@ -286,7 +291,9 @@ private:
     std::unique_ptr<ReliableSurface> mNativeSurface;
     // The SurfaceControl reference is passed from ViewRootImpl, can be set to
     // NULL to remove the reference
-    ASurfaceControl* mSurfaceControl = nullptr;
+#ifdef __ANDROID__
+    sp<SurfaceControl> mSurfaceControl = nullptr;
+#endif
     // id to track surface control changes and WebViewFunctor uses it to determine
     // whether reparenting is needed also used by FrameMetricsReporter to determine
     // if a frame is from an "old" surface (i.e. one that existed before the

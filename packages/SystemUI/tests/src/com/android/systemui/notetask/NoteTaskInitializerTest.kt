@@ -38,8 +38,6 @@ import com.android.systemui.notetask.NoteTaskEntryPoint.TAIL_BUTTON
 import com.android.systemui.settings.FakeUserTracker
 import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.util.concurrency.FakeExecutor
-import com.android.systemui.util.mockito.any
-import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.mockito.withArgCaptor
@@ -47,20 +45,22 @@ import com.android.systemui.util.time.FakeSystemClock
 import com.android.wm.shell.bubbles.Bubbles
 import com.google.common.truth.Truth.assertThat
 import java.util.Optional
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
+import org.mockito.Mockito.anyList
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.MockitoAnnotations.initMocks
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 
 /** atest SystemUITests:NoteTaskInitializerTest */
-@OptIn(ExperimentalCoroutinesApi::class, InternalNoteTaskApi::class)
+@OptIn(InternalNoteTaskApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 internal class NoteTaskInitializerTest : SysuiTestCase() {
@@ -181,6 +181,18 @@ internal class NoteTaskInitializerTest : SysuiTestCase() {
 
     @Test
     @EnableFlags(com.android.hardware.input.Flags.FLAG_USE_KEY_GESTURE_EVENT_HANDLER)
+    fun initialize_keyGestureTypeOpenNotes_isRegistered() {
+        val underTest = createUnderTest(isEnabled = true, bubbles = bubbles)
+        underTest.initialize()
+        verify(inputManager)
+            .registerKeyGestureEventHandler(
+                eq(listOf(KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES)),
+                any(),
+            )
+    }
+
+    @Test
+    @EnableFlags(com.android.hardware.input.Flags.FLAG_USE_KEY_GESTURE_EVENT_HANDLER)
     fun handlesShortcut_keyGestureTypeOpenNotes() {
         val gestureEvent =
             KeyGestureEvent.Builder()
@@ -190,12 +202,12 @@ internal class NoteTaskInitializerTest : SysuiTestCase() {
         val underTest = createUnderTest(isEnabled = true, bubbles = bubbles)
         underTest.initialize()
         val callback = withArgCaptor {
-            verify(inputManager).registerKeyGestureEventHandler(capture())
+            verify(inputManager).registerKeyGestureEventHandler(anyList(), capture())
         }
 
-        assertThat(callback.handleKeyGestureEvent(gestureEvent, null)).isTrue()
-
+        callback.handleKeyGestureEvent(gestureEvent, null)
         executor.runAllReady()
+
         verify(controller).showNoteTask(eq(KEYBOARD_SHORTCUT))
     }
 
@@ -204,19 +216,19 @@ internal class NoteTaskInitializerTest : SysuiTestCase() {
     fun handlesShortcut_stylusTailButton() {
         val gestureEvent =
             KeyGestureEvent.Builder()
-                .setKeycodes(intArrayOf(KeyEvent.KEYCODE_STYLUS_BUTTON_TAIL))
+                .setKeycodes(intArrayOf(KEYCODE_STYLUS_BUTTON_TAIL))
                 .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES)
                 .setAction(KeyGestureEvent.ACTION_GESTURE_COMPLETE)
                 .build()
         val underTest = createUnderTest(isEnabled = true, bubbles = bubbles)
         underTest.initialize()
         val callback = withArgCaptor {
-            verify(inputManager).registerKeyGestureEventHandler(capture())
+            verify(inputManager).registerKeyGestureEventHandler(anyList(), capture())
         }
 
-        assertThat(callback.handleKeyGestureEvent(gestureEvent, null)).isTrue()
-
+        callback.handleKeyGestureEvent(gestureEvent, null)
         executor.runAllReady()
+
         verify(controller).showNoteTask(eq(TAIL_BUTTON))
     }
 
@@ -225,19 +237,19 @@ internal class NoteTaskInitializerTest : SysuiTestCase() {
     fun ignoresUnrelatedShortcuts() {
         val gestureEvent =
             KeyGestureEvent.Builder()
-                .setKeycodes(intArrayOf(KeyEvent.KEYCODE_STYLUS_BUTTON_TAIL))
+                .setKeycodes(intArrayOf(KEYCODE_STYLUS_BUTTON_TAIL))
                 .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
                 .setAction(KeyGestureEvent.ACTION_GESTURE_COMPLETE)
                 .build()
         val underTest = createUnderTest(isEnabled = true, bubbles = bubbles)
         underTest.initialize()
         val callback = withArgCaptor {
-            verify(inputManager).registerKeyGestureEventHandler(capture())
+            verify(inputManager).registerKeyGestureEventHandler(anyList(), capture())
         }
 
-        assertThat(callback.handleKeyGestureEvent(gestureEvent, null)).isFalse()
-
+        callback.handleKeyGestureEvent(gestureEvent, null)
         executor.runAllReady()
+
         verify(controller, never()).showNoteTask(any())
     }
 

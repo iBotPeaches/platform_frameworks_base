@@ -24,7 +24,7 @@ import com.android.wm.shell.windowdecor.viewholder.WindowDecorationViewHolder.Da
  * Encapsulates the root [View] of a window decoration and its children to facilitate looking up
  * children (via findViewById) and updating to the latest data from [RunningTaskInfo].
  */
-abstract class WindowDecorationViewHolder<T : Data>(rootView: View) {
+abstract class WindowDecorationViewHolder<T : Data>(rootView: View) : AutoCloseable {
   val context: Context = rootView.context
 
   /**
@@ -38,6 +38,9 @@ abstract class WindowDecorationViewHolder<T : Data>(rootView: View) {
 
   /** Callback when the handle menu is closed. */
   abstract fun onHandleMenuClosed()
+
+  /** Callback when the window decoration is destroyed. */
+  abstract override fun close()
 
   /** Data clas that contains the information needed to update the view holder. */
   abstract class Data

@@ -26,7 +26,6 @@ import com.android.systemui.media.controls.domain.pipeline.mediaDeviceManager
 import com.android.systemui.media.controls.domain.pipeline.mediaResumeListener
 import com.android.systemui.media.controls.domain.pipeline.mediaSessionBasedFilter
 import com.android.systemui.media.controls.domain.pipeline.mediaTimeoutListener
-import com.android.systemui.media.controls.util.mediaFlags
 
 val Kosmos.mediaCarouselInteractor by
     Kosmos.Fixture {
@@ -40,6 +39,5 @@ val Kosmos.mediaCarouselInteractor by
             mediaDataCombineLatest = mediaDataCombineLatest,
             mediaDataFilter = mediaDataFilter,
             mediaFilterRepository = mediaFilterRepository,
-            mediaFlags = mediaFlags,
         )
     }

@@ -96,8 +96,10 @@ abstract class SystemAudioAction extends HdmiCecFeatureAction {
             public void onSendCompleted(int error) {
                 if (error != SendMessageResult.SUCCESS) {
                     HdmiLogger.debug("Failed to send <System Audio Mode Request>:" + error);
-                    setSystemAudioMode(false);
-                    finishWithCallback(HdmiControlManager.RESULT_COMMUNICATION_FAILED);
+                    if (error == SendMessageResult.FAIL) {
+                        setSystemAudioMode(false);
+                        finishWithCallback(HdmiControlManager.RESULT_COMMUNICATION_FAILED);
+                    }
                 }
             }
         });

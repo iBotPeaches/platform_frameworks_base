@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +52,7 @@ import com.android.settingslib.spa.widget.preference.Preference
 import com.android.settingslib.spa.widget.preference.PreferenceModel
 
 /** A category title that is placed before a group of similar items. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CategoryTitle(title: String) {
     Text(
@@ -67,16 +69,24 @@ fun CategoryTitle(title: String) {
                 bottom = 8.dp,
             ),
         color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.labelMedium,
+        style =
+            if (isSpaExpressiveEnabled) MaterialTheme.typography.labelLargeEmphasized
+            else MaterialTheme.typography.labelMedium,
     )
 }
 
 /**
  * A container that is used to group similar items. A [Category] displays a [CategoryTitle] and
  * visually separates groups of items.
+ *
+ * @param content The content of the category.
  */
 @Composable
-fun Category(title: String? = null, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun Category(
+    title: String? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     var displayTitle by remember { mutableStateOf(false) }
     Column(
         modifier =
@@ -90,7 +100,8 @@ fun Category(title: String? = null, modifier: Modifier = Modifier, content: @Com
         if (title != null && displayTitle) CategoryTitle(title = title)
         Column(
             modifier =
-                modifier.onGloballyPositioned { coordinates ->
+                modifier
+                    .onGloballyPositioned { coordinates ->
                         displayTitle = coordinates.size.height > 0
                     }
                     .then(
@@ -117,7 +128,8 @@ fun Category(title: String? = null, modifier: Modifier = Modifier, content: @Com
  *   be decided by the index.
  * @param bottomPadding Optional. Bottom outside padding of the category.
  * @param state Optional. State of LazyList.
- * @param content Optional. Content to be shown at the top of the category.
+ * @param footer Optional. Content to be shown at the bottom of the category.
+ * @param header Optional. Content to be shown at the top of the category.
  */
 @Composable
 fun LazyCategory(
@@ -127,7 +139,8 @@ fun LazyCategory(
     title: ((Int) -> String?)? = null,
     bottomPadding: Dp = SettingsDimension.paddingSmall,
     state: LazyListState = rememberLazyListState(),
-    content: @Composable () -> Unit,
+    footer: @Composable () -> Unit = {},
+    header: @Composable () -> Unit,
 ) {
     Column(
         Modifier.padding(
@@ -145,12 +158,14 @@ fun LazyCategory(
             verticalArrangement = Arrangement.spacedBy(SettingsDimension.paddingTiny),
             state = state,
         ) {
-            item { CompositionLocalProvider(LocalIsInCategory provides true) { content() } }
+            item { CompositionLocalProvider(LocalIsInCategory provides true) { header() } }
 
             items(count = list.size, key = key) {
                 title?.invoke(it)?.let { title -> CategoryTitle(title) }
                 CompositionLocalProvider(LocalIsInCategory provides true) { entry(it)() }
             }
+
+            item { CompositionLocalProvider(LocalIsInCategory provides true) { footer() } }
         }
     }
 }
@@ -178,5 +193,30 @@ private fun CategoryPreview() {
                 }
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun LazyCategoryPreview() {
+    SettingsTheme {
+        LazyCategory(
+            list = listOf(1, 2, 3),
+            entry = { key ->
+                @Composable {
+                    Preference(
+                        object : PreferenceModel {
+                            override val title = key.toString()
+                        }
+                    )
+                }
+            },
+            footer = @Composable {
+                Footer("Footer")
+            },
+            header = @Composable {
+                Text("Header")
+            },
+        )
     }
 }

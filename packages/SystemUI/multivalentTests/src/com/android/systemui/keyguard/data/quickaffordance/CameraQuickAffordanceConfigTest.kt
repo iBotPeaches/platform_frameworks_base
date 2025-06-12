@@ -28,7 +28,6 @@ import com.android.systemui.camera.CameraGestureHelper
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -40,7 +39,6 @@ import org.mockito.Mock
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @android.platform.test.annotations.EnabledOnRavenwood
@@ -81,7 +79,7 @@ class CameraQuickAffordanceConfigTest : SysuiTestCase() {
         // Then
         verify(cameraGestureHelper)
             .launchCamera(StatusBarManager.CAMERA_LAUNCH_SOURCE_QUICK_AFFORDANCE)
-        assertEquals(KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled, result)
+        assertEquals(KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(true), result)
     }
 
     @Test

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<first  xmlns:android="http://schemas.android.com/apk/res/android">
+    <second android:featureFlag="android.content.res.always_false"/>
+</first>

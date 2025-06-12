@@ -43,9 +43,10 @@ import com.android.wm.shell.bubbles.BubbleLogger;
 import com.android.wm.shell.bubbles.BubbleOverflowContainerView;
 import com.android.wm.shell.bubbles.BubblePositioner;
 import com.android.wm.shell.bubbles.BubbleTaskView;
-import com.android.wm.shell.bubbles.BubbleTaskViewHelper;
+import com.android.wm.shell.bubbles.BubbleTaskViewListener;
 import com.android.wm.shell.bubbles.Bubbles;
 import com.android.wm.shell.bubbles.RegionSamplingProvider;
+import com.android.wm.shell.dagger.HasWMComponent;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 import com.android.wm.shell.shared.handles.RegionSamplingHelper;
 import com.android.wm.shell.taskview.TaskView;
@@ -53,8 +54,10 @@ import com.android.wm.shell.taskview.TaskView;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
+import javax.inject.Inject;
+
 /** Expanded view of a bubble when it's part of the bubble bar. */
-public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskViewHelper.Listener {
+public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskViewListener.Callback {
     /**
      * The expanded view listener notifying the {@link BubbleBarLayerView} about the internal
      * actions and events
@@ -107,9 +110,8 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
     private Bubble mBubble;
     private BubbleExpandedViewManager mManager;
     private BubblePositioner mPositioner;
-    private BubbleLogger mBubbleLogger;
     private boolean mIsOverflow;
-    private BubbleTaskViewHelper mBubbleTaskViewHelper;
+    private BubbleTaskViewListener mBubbleTaskViewListener;
     private BubbleBarMenuViewController mMenuViewController;
     @Nullable
     private Supplier<Rect> mLayerBoundsSupplier;
@@ -137,6 +139,7 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
     private Executor mBackgroundExecutor;
     private final Rect mSampleRect = new Rect();
     private final int[] mLoc = new int[2];
+    private final Rect mTempBounds = new Rect();
 
     /** Height of the caption inset at the top of the TaskView */
     private int mCaptionHeight;
@@ -161,6 +164,9 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
     private boolean mIsAnimating;
     private boolean mIsDragging;
 
+    private boolean mIsClipping = false;
+    private int mBottomClip = 0;
+
     /** An enum value that tracks the visibility state of the task view */
     private enum TaskViewVisibilityState {
         /** The task view is going away, and we're waiting for the surface to be destroyed. */
@@ -172,6 +178,12 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
         /** The task view is visible and has a surface. */
         VISIBLE
     }
+
+    // Ideally this would be package private, but we have to set this in a fake for test and we
+    // don't yet have dagger set up for tests, so have to set manually
+    @VisibleForTesting
+    @Inject
+    public BubbleLogger bubbleLogger;
 
     public BubbleBarExpandedView(Context context) {
         this(context, null);
@@ -194,6 +206,9 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
     protected void onFinishInflate() {
         super.onFinishInflate();
         Context context = getContext();
+        if (context instanceof HasWMComponent) {
+            ((HasWMComponent) context).getWMComponent().inject(this);
+        }
         setElevation(getResources().getDimensionPixelSize(R.dimen.bubble_elevation));
         mCaptionHeight = context.getResources().getDimensionPixelSize(
                 R.dimen.bubble_bar_expanded_view_caption_height);
@@ -203,7 +218,8 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
         setOutlineProvider(new ViewOutlineProvider() {
             @Override
             public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), mCurrentCornerRadius);
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight() - mBottomClip,
+                        mCurrentCornerRadius);
             }
         });
         // Set a touch sink to ensure that clicks on the caption area do not propagate to the parent
@@ -213,7 +229,6 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
     /** Initializes the view, must be called before doing anything else. */
     public void initialize(BubbleExpandedViewManager expandedViewManager,
             BubblePositioner positioner,
-            BubbleLogger bubbleLogger,
             boolean isOverflow,
             @Nullable BubbleTaskView bubbleTaskView,
             @Nullable Executor mainExecutor,
@@ -221,7 +236,6 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
             @Nullable RegionSamplingProvider regionSamplingProvider) {
         mManager = expandedViewManager;
         mPositioner = positioner;
-        mBubbleLogger = bubbleLogger;
         mIsOverflow = isOverflow;
         mMainExecutor = mainExecutor;
         mBackgroundExecutor = backgroundExecutor;
@@ -236,9 +250,10 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
             mHandleView.setVisibility(View.GONE);
         } else {
             mTaskView = bubbleTaskView.getTaskView();
-            mBubbleTaskViewHelper = new BubbleTaskViewHelper(mContext, expandedViewManager,
-                    /* listener= */ this, bubbleTaskView,
-                    /* viewParent= */ this);
+            mBubbleTaskViewListener = new BubbleTaskViewListener(mContext, bubbleTaskView,
+                    /* viewParent= */ this,
+                    expandedViewManager,
+                    /* callback= */ this);
 
             // if the task view is already attached to a parent we need to remove it
             if (mTaskView.getParent() != null) {
@@ -285,20 +300,20 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
                 if (mListener != null) {
                     mListener.onUnBubbleConversation(bubble.getKey());
                 }
-                mBubbleLogger.log(bubble, BubbleLogger.Event.BUBBLE_BAR_APP_MENU_OPT_OUT);
+                bubbleLogger.log(bubble, BubbleLogger.Event.BUBBLE_BAR_APP_MENU_OPT_OUT);
             }
 
             @Override
             public void onOpenAppSettings(Bubble bubble) {
                 mManager.collapseStack();
                 mContext.startActivityAsUser(bubble.getSettingsIntent(mContext), bubble.getUser());
-                mBubbleLogger.log(bubble, BubbleLogger.Event.BUBBLE_BAR_APP_MENU_GO_TO_SETTINGS);
+                bubbleLogger.log(bubble, BubbleLogger.Event.BUBBLE_BAR_APP_MENU_GO_TO_SETTINGS);
             }
 
             @Override
             public void onDismissBubble(Bubble bubble) {
                 mManager.dismissBubble(bubble, Bubbles.DISMISS_USER_GESTURE);
-                mBubbleLogger.log(bubble, BubbleLogger.Event.BUBBLE_BAR_BUBBLE_DISMISSED_APP_MENU);
+                bubbleLogger.log(bubble, BubbleLogger.Event.BUBBLE_BAR_BUBBLE_DISMISSED_APP_MENU);
             }
 
             @Override
@@ -525,13 +540,15 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
     /** Updates the bubble shown in the expanded view. */
     public void update(Bubble bubble) {
         mBubble = bubble;
-        mBubbleTaskViewHelper.update(bubble);
+        mBubbleTaskViewListener.setBubble(bubble);
         mMenuViewController.updateMenu(bubble);
     }
 
     /** The task id of the activity shown in the task view, if it exists. */
     public int getTaskId() {
-        return mBubbleTaskViewHelper != null ? mBubbleTaskViewHelper.getTaskId() : INVALID_TASK_ID;
+        return mBubbleTaskViewListener != null
+                ? mBubbleTaskViewListener.getTaskId()
+                : INVALID_TASK_ID;
     }
 
     /** Sets layer bounds supplier used for obscured touchable region of task view */
@@ -658,6 +675,50 @@ public class BubbleBarExpandedView extends FrameLayout implements BubbleTaskView
                 mTaskView.setCornerRadius(cornerRadius);
             }
             invalidateOutline();
+        }
+    }
+
+    /** The y coordinate of the bottom of the expanded view. */
+    public int getContentBottomOnScreen() {
+        if (mOverflowView != null) {
+            mOverflowView.getBoundsOnScreen(mTempBounds);
+        }
+        if (mTaskView != null) {
+            mTaskView.getBoundsOnScreen(mTempBounds);
+        }
+        return mTempBounds.bottom;
+    }
+
+    /** Update the amount by which to clip the expanded view at the bottom. */
+    public void updateBottomClip(int bottomClip) {
+        mBottomClip = bottomClip;
+        onClipUpdate();
+    }
+
+    private void onClipUpdate() {
+        if (mBottomClip == 0) {
+            if (mIsClipping) {
+                mIsClipping = false;
+                if (mTaskView != null) {
+                    mTaskView.setClipBounds(null);
+                    mTaskView.setEnableSurfaceClipping(false);
+                }
+                invalidateOutline();
+            }
+        } else {
+            if (!mIsClipping) {
+                mIsClipping = true;
+                if (mTaskView != null) {
+                    mTaskView.setEnableSurfaceClipping(true);
+                }
+            }
+            invalidateOutline();
+            if (mTaskView != null) {
+                Rect clipBounds = new Rect(0, 0,
+                        mTaskView.getWidth(),
+                        mTaskView.getHeight() - mBottomClip);
+                mTaskView.setClipBounds(clipBounds);
+            }
         }
     }
 

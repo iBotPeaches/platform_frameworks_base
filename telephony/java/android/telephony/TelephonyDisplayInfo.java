@@ -16,14 +16,11 @@
 
 package android.telephony;
 
-import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.telephony.Annotation.NetworkType;
 import android.telephony.Annotation.OverrideNetworkType;
-
-import com.android.internal.telephony.flags.Flags;
 
 import java.util.Objects;
 
@@ -97,10 +94,8 @@ public final class TelephonyDisplayInfo implements Parcelable {
 
     private final boolean mIsRoaming;
 
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     private final boolean mIsNtn;
 
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     private final boolean mIsSatelliteConstrainedData;
 
     /**

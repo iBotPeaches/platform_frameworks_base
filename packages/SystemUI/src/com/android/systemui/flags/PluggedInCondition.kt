@@ -16,7 +16,7 @@
 
 package com.android.systemui.flags
 
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.statusbar.policy.BatteryController
 import dagger.Lazy
 import javax.inject.Inject

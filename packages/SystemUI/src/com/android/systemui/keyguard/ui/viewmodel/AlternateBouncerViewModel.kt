@@ -27,14 +27,12 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
 import dagger.Lazy
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 
-@ExperimentalCoroutinesApi
 class AlternateBouncerViewModel
 @Inject
 constructor(
@@ -49,7 +47,9 @@ constructor(
 
     /** Reports the alternate bouncer visible state if the scene container flag is enabled. */
     val isVisible: Flow<Boolean> =
-        alternateBouncerInteractor.get().isVisible.onEach { SceneContainerFlag.assertInNewMode() }
+        alternateBouncerInteractor.get().isVisible.onEach {
+            SceneContainerFlag.unsafeAssertInNewMode()
+        }
 
     /** Progress to a fully transitioned alternate bouncer. 1f represents fully transitioned. */
     val transitionToAlternateBouncerProgress: Flow<Float> =
@@ -65,7 +65,10 @@ constructor(
         transitionToAlternateBouncerProgress.map { it == 1f }.distinctUntilChanged()
 
     fun onTapped() {
-        statusBarKeyguardViewManager.showPrimaryBouncer(/* scrimmed */ true)
+        statusBarKeyguardViewManager.showPrimaryBouncer(
+            /* scrimmed */ true,
+            "AlternateBouncerViewModel#onTapped",
+        )
     }
 
     fun onRemovedFromWindow() {

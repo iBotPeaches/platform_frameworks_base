@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.provider.DeviceConfig;
 import android.util.Log;
@@ -145,7 +145,7 @@ public class FastXmlSerializerTest {
 
     @Test
     @LargeTest
-    @IgnoreUnderRavenwood(reason = "Long test runtime")
+    @DisabledOnRavenwood(reason = "Long test runtime")
     public void testAllCharacters() throws Exception {
         boolean ok = true;
         for (int i = 0; i < 0xffff; i++) {

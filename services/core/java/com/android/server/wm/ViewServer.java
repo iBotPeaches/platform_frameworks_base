@@ -19,7 +19,10 @@ package com.android.server.wm;
 
 import static com.android.server.wm.WindowManagerDebugConfig.TAG_WITH_CLASS_NAME;
 import static com.android.server.wm.WindowManagerDebugConfig.TAG_WM;
+import static com.android.server.wm.WindowManagerInternal.WindowFocusChangeListener;
+import static com.android.server.wm.WindowManagerService.WindowChangeListener;
 
+import android.os.IBinder;
 import android.util.Slog;
 
 import java.net.ServerSocket;
@@ -206,7 +209,7 @@ class ViewServer implements Runnable {
         return result;
     }
 
-    class ViewServerWorker implements Runnable, WindowManagerService.WindowChangeListener {
+    class ViewServerWorker implements Runnable, WindowChangeListener, WindowFocusChangeListener {
         private Socket mClient;
         private boolean mNeedWindowListUpdate;
         private boolean mNeedFocusedWindowUpdate;
@@ -284,7 +287,7 @@ class ViewServer implements Runnable {
             }
         }
 
-        public void focusChanged() {
+        public void focusChanged(IBinder focusedWindowToken) {
             synchronized(this) {
                 mNeedFocusedWindowUpdate = true;
                 notifyAll();
@@ -293,6 +296,7 @@ class ViewServer implements Runnable {
 
         private boolean windowManagerAutolistLoop() {
             mWindowManager.addWindowChangeListener(this);
+            mWindowManager.addWindowFocusChangeListener(this);
             BufferedWriter out = null;
             try {
                 out = new BufferedWriter(new OutputStreamWriter(mClient.getOutputStream()));
@@ -332,6 +336,7 @@ class ViewServer implements Runnable {
                     }
                 }
                 mWindowManager.removeWindowChangeListener(this);
+                mWindowManager.removeWindowFocusChangeListener(this);
             }
             return true;
         }

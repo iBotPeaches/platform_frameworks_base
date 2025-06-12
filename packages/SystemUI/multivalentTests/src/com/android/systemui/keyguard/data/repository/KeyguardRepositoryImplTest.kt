@@ -45,7 +45,6 @@ import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.mockito.withArgCaptor
 import com.android.systemui.util.time.FakeSystemClock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -62,7 +61,6 @@ import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @android.platform.test.annotations.EnabledOnRavenwood
@@ -120,27 +118,6 @@ class KeyguardRepositoryImplTest : SysuiTestCase() {
 
             underTest.setAnimateDozingTransitions(true)
             assertThat(underTest.animateBottomAreaDozingTransitions.value).isTrue()
-        }
-
-    @Test
-    fun bottomAreaAlpha() =
-        testScope.runTest {
-            assertThat(underTest.bottomAreaAlpha.value).isEqualTo(1f)
-
-            underTest.setBottomAreaAlpha(0.1f)
-            assertThat(underTest.bottomAreaAlpha.value).isEqualTo(0.1f)
-
-            underTest.setBottomAreaAlpha(0.2f)
-            assertThat(underTest.bottomAreaAlpha.value).isEqualTo(0.2f)
-
-            underTest.setBottomAreaAlpha(0.3f)
-            assertThat(underTest.bottomAreaAlpha.value).isEqualTo(0.3f)
-
-            underTest.setBottomAreaAlpha(0.5f)
-            assertThat(underTest.bottomAreaAlpha.value).isEqualTo(0.5f)
-
-            underTest.setBottomAreaAlpha(1.0f)
-            assertThat(underTest.bottomAreaAlpha.value).isEqualTo(1f)
         }
 
     @Test

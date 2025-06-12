@@ -216,6 +216,9 @@ public class EvemuParserTest {
         assertInjectEvent(parser.getNextEvent(), 0x2, 0x0, 1, -1);
         assertInjectEvent(parser.getNextEvent(), 0x2, 0x1, -2);
         assertInjectEvent(parser.getNextEvent(), 0x0, 0x0, 0);
+
+        // Now we should be at the end of the file.
+        assertThat(parser.getNextEvent()).isNull();
     }
 
     @Test
@@ -246,6 +249,8 @@ public class EvemuParserTest {
 
         assertInjectEvent(parser.getNextEvent(), 0x1, 0x15, 1, 1_000_000);
         assertInjectEvent(parser.getNextEvent(), 0x0, 0x0, 0);
+
+        assertThat(parser.getNextEvent()).isNull();
     }
 
     @Test

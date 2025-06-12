@@ -25,6 +25,7 @@ import android.hardware.BatteryState;
 import android.hardware.SensorManager;
 import android.hardware.input.InputManager.InputDeviceBatteryListener;
 import android.hardware.input.InputManager.InputDeviceListener;
+import android.hardware.input.InputManager.KeyEventActivityListener;
 import android.hardware.input.InputManager.KeyGestureEventHandler;
 import android.hardware.input.InputManager.KeyGestureEventListener;
 import android.hardware.input.InputManager.KeyboardBacklightListener;
@@ -48,6 +49,7 @@ import android.os.ServiceManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.util.IntArray;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
@@ -57,12 +59,15 @@ import android.view.InputMonitor;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
+import android.view.inputmethod.InputMethodInfo;
+import android.view.inputmethod.InputMethodSubtype;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -76,8 +81,9 @@ import java.util.concurrent.Executor;
 public final class InputManagerGlobal {
     private static final String TAG = "InputManagerGlobal";
     // To enable these logs, run: 'adb shell setprop log.tag.InputManagerGlobal DEBUG'
-    // (requires restart)
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private boolean debug() {
+        return Log.isLoggable(TAG, Log.DEBUG);
+    }
 
     @GuardedBy("mInputDeviceListeners")
     @Nullable private SparseArray<InputDevice> mInputDevices;
@@ -120,13 +126,20 @@ public final class InputManagerGlobal {
     @Nullable
     private IKeyGestureEventListener mKeyGestureEventListener;
 
-    private final Object mKeyGestureEventHandlerLock = new Object();
-    @GuardedBy("mKeyGestureEventHandlerLock")
+    private final Object mKeyEventActivityLock = new Object();
+    @GuardedBy("mKeyEventActivityLock")
+    private ArrayList<KeyEventActivityListener> mKeyEventActivityListeners;
+    @GuardedBy("mKeyEventActivityLock")
     @Nullable
-    private ArrayList<KeyGestureEventHandler> mKeyGestureEventHandlers;
-    @GuardedBy("mKeyGestureEventHandlerLock")
+    private IKeyEventActivityListener mKeyEventActivityListener;
+
+    @GuardedBy("mKeyGesturesToHandlerMap")
     @Nullable
     private IKeyGestureHandler mKeyGestureHandler;
+    @GuardedBy("mKeyGesturesToHandlerMap")
+    private final SparseArray<KeyGestureEventHandler> mKeyGesturesToHandlerMap =
+            new SparseArray<>();
+
 
     // InputDeviceSensorManager gets notified synchronously from the binder thread when input
     // devices change, so it must be synchronized with the input device listeners.
@@ -269,16 +282,19 @@ public final class InputManagerGlobal {
     }
 
     private void onInputDevicesChanged(int[] deviceIdAndGeneration) {
-        if (DEBUG) {
-            Log.d(TAG, "Received input devices changed.");
+        final boolean enableDebugLogs = debug();
+        if (enableDebugLogs) {
+            Log.d(TAG, "Received input devices changed: " + Arrays.toString(deviceIdAndGeneration));
         }
 
         synchronized (mInputDeviceListeners) {
             for (int i = mInputDevices.size(); --i > 0; ) {
                 final int deviceId = mInputDevices.keyAt(i);
                 if (!containsDeviceId(deviceIdAndGeneration, deviceId)) {
-                    if (DEBUG) {
-                        Log.d(TAG, "Device removed: " + deviceId);
+                    if (enableDebugLogs) {
+                        final InputDevice device = mInputDevices.valueAt(i);
+                        final String name = device != null ? device.getName() : "<null>";
+                        Log.d(TAG, "Device removed: " + deviceId + " (" + name + ")");
                     }
                     mInputDevices.removeAt(i);
                     if (mInputDeviceSensorManager != null) {
@@ -297,8 +313,9 @@ public final class InputManagerGlobal {
                     if (device != null) {
                         final int generation = deviceIdAndGeneration[i + 1];
                         if (device.getGeneration() != generation) {
-                            if (DEBUG) {
-                                Log.d(TAG, "Device changed: " + deviceId);
+                            if (enableDebugLogs) {
+                                Log.d(TAG, "Device changed: " + deviceId + " ("
+                                        + device.getName() + ")");
                             }
                             mInputDevices.setValueAt(index, null);
                             if (mInputDeviceSensorManager != null) {
@@ -309,7 +326,7 @@ public final class InputManagerGlobal {
                         }
                     }
                 } else {
-                    if (DEBUG) {
+                    if (enableDebugLogs) {
                         Log.d(TAG, "Device added: " + deviceId);
                     }
                     mInputDevices.put(deviceId, null);
@@ -517,7 +534,7 @@ public final class InputManagerGlobal {
     }
 
     private void onTabletModeChanged(long whenNanos, boolean inTabletMode) {
-        if (DEBUG) {
+        if (debug()) {
             Log.d(TAG, "Received tablet mode changed: "
                     + "whenNanos=" + whenNanos + ", inTabletMode=" + inTabletMode);
         }
@@ -1161,67 +1178,69 @@ public final class InputManagerGlobal {
 
     private class LocalKeyGestureHandler extends IKeyGestureHandler.Stub {
         @Override
-        public boolean handleKeyGesture(@NonNull AidlKeyGestureEvent ev, IBinder focusedToken) {
-            synchronized (mKeyGestureEventHandlerLock) {
-                if (mKeyGestureEventHandlers == null) {
-                    return false;
+        public void handleKeyGesture(@NonNull AidlKeyGestureEvent ev, IBinder focusedToken) {
+            synchronized (mKeyGesturesToHandlerMap) {
+                KeyGestureEventHandler handler = mKeyGesturesToHandlerMap.get(ev.gestureType);
+                if (handler == null) {
+                    Log.w(TAG, "Key gesture event " + ev.gestureType
+                            + " occurred without a registered handler!");
+                    return;
                 }
-                final int numHandlers = mKeyGestureEventHandlers.size();
-                final KeyGestureEvent event = new KeyGestureEvent(ev);
-                for (int i = 0; i < numHandlers; i++) {
-                    KeyGestureEventHandler handler = mKeyGestureEventHandlers.get(i);
-                    if (handler.handleKeyGestureEvent(event, focusedToken)) {
-                        return true;
-                    }
-                }
+                handler.handleKeyGestureEvent(new KeyGestureEvent(ev), focusedToken);
             }
-            return false;
-        }
-
-        @Override
-        public boolean isKeyGestureSupported(@KeyGestureEvent.KeyGestureType int gestureType) {
-            synchronized (mKeyGestureEventHandlerLock) {
-                if (mKeyGestureEventHandlers == null) {
-                    return false;
-                }
-                final int numHandlers = mKeyGestureEventHandlers.size();
-                for (int i = 0; i < numHandlers; i++) {
-                    KeyGestureEventHandler handler = mKeyGestureEventHandlers.get(i);
-                    if (handler.isKeyGestureSupported(gestureType)) {
-                        return true;
-                    }
-                }
-            }
-            return false;
         }
     }
 
     /**
-     * @see InputManager#registerKeyGestureEventHandler(KeyGestureEventHandler)
+     * @see InputManager#registerKeyGestureEventHandler(List, KeyGestureEventHandler)
      */
     @RequiresPermission(Manifest.permission.MANAGE_KEY_GESTURES)
-    void registerKeyGestureEventHandler(@NonNull KeyGestureEventHandler handler)
-            throws IllegalArgumentException {
+    void registerKeyGestureEventHandler(List<Integer> keyGesturesToHandle,
+            @NonNull KeyGestureEventHandler handler) throws IllegalArgumentException {
+        Objects.requireNonNull(keyGesturesToHandle, "List of gestures should not be null");
         Objects.requireNonNull(handler, "handler should not be null");
 
-        synchronized (mKeyGestureEventHandlerLock) {
-            if (mKeyGestureHandler == null) {
-                mKeyGestureEventHandlers = new ArrayList<>();
-                mKeyGestureHandler = new LocalKeyGestureHandler();
+        if (keyGesturesToHandle.isEmpty()) {
+            throw new IllegalArgumentException("No key gestures provided!");
+        }
 
-                try {
-                    mIm.registerKeyGestureHandler(mKeyGestureHandler);
-                } catch (RemoteException e) {
-                    throw e.rethrowFromSystemServer();
-                }
-            }
-            final int numHandlers = mKeyGestureEventHandlers.size();
-            for (int i = 0; i < numHandlers; i++) {
-                if (mKeyGestureEventHandlers.get(i) == handler) {
+        synchronized (mKeyGesturesToHandlerMap) {
+            IntArray newKeyGestures = new IntArray(
+                    keyGesturesToHandle.size() + mKeyGesturesToHandlerMap.size());
+
+            // Check if the handler already exists
+            for (int i = 0; i < mKeyGesturesToHandlerMap.size(); i++) {
+                KeyGestureEventHandler h = mKeyGesturesToHandlerMap.valueAt(i);
+                if (h == handler) {
                     throw new IllegalArgumentException("Handler has already been registered!");
                 }
+                newKeyGestures.add(mKeyGesturesToHandlerMap.keyAt(i));
             }
-            mKeyGestureEventHandlers.add(handler);
+
+            // Check if any of the key gestures are already handled by existing handlers
+            for (int gesture : keyGesturesToHandle) {
+                if (mKeyGesturesToHandlerMap.contains(gesture)) {
+                    throw new IllegalArgumentException("Key gesture " + gesture
+                            + " is already registered by another handler!");
+                }
+                newKeyGestures.add(gesture);
+            }
+
+            try {
+                // If handler was already registered for this process, we need to unregister and
+                // re-register it for the new set of gestures
+                if (mKeyGestureHandler != null) {
+                    mIm.unregisterKeyGestureHandler(mKeyGestureHandler);
+                } else {
+                    mKeyGestureHandler = new LocalKeyGestureHandler();
+                }
+                mIm.registerKeyGestureHandler(newKeyGestures.toArray(), mKeyGestureHandler);
+                for (int gesture : keyGesturesToHandle) {
+                    mKeyGesturesToHandlerMap.put(gesture, handler);
+                }
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
         }
     }
 
@@ -1232,20 +1251,117 @@ public final class InputManagerGlobal {
     void unregisterKeyGestureEventHandler(@NonNull KeyGestureEventHandler handler) {
         Objects.requireNonNull(handler, "handler should not be null");
 
-        synchronized (mKeyGestureEventHandlerLock) {
-            if (mKeyGestureEventHandlers == null) {
+        synchronized (mKeyGesturesToHandlerMap) {
+            if (mKeyGestureHandler == null) {
                 return;
             }
-            mKeyGestureEventHandlers.removeIf(existingHandler -> existingHandler == handler);
-            if (mKeyGestureEventHandlers.isEmpty()) {
+            for (int i = mKeyGesturesToHandlerMap.size() - 1; i >= 0; i--) {
+                if (mKeyGesturesToHandlerMap.valueAt(i) == handler) {
+                    mKeyGesturesToHandlerMap.removeAt(i);
+                }
+            }
+            if (mKeyGesturesToHandlerMap.size() == 0) {
                 try {
                     mIm.unregisterKeyGestureHandler(mKeyGestureHandler);
                 } catch (RemoteException e) {
                     throw e.rethrowFromSystemServer();
                 }
-                mKeyGestureEventHandlers = null;
                 mKeyGestureHandler = null;
             }
+        }
+    }
+
+    private class LocalKeyEventActivityListener extends IKeyEventActivityListener.Stub {
+        @Override
+        public void onKeyEventActivity() {
+            synchronized (mKeyEventActivityLock) {
+                final int numListeners = mKeyEventActivityListeners.size();
+                for (int i = 0; i < numListeners; i++) {
+                    KeyEventActivityListener listener = mKeyEventActivityListeners.get(i);
+                    listener.onKeyEventActivity();
+                }
+            }
+        }
+    }
+
+    boolean registerKeyEventActivityListener(@NonNull KeyEventActivityListener listener) {
+        Objects.requireNonNull(listener, "listener should not be null");
+        boolean success = false;
+        synchronized (mKeyEventActivityLock) {
+            if (mKeyEventActivityListener == null) {
+                mKeyEventActivityListeners = new ArrayList<>();
+                mKeyEventActivityListener = new LocalKeyEventActivityListener();
+
+                try {
+                    success = mIm.registerKeyEventActivityListener(mKeyEventActivityListener);
+                } catch (RemoteException e) {
+                    throw e.rethrowFromSystemServer();
+                }
+            }
+            if (mKeyEventActivityListeners.contains(listener)) {
+                throw new IllegalArgumentException("Listener has already been registered!");
+            }
+            mKeyEventActivityListeners.add(listener);
+            return success;
+        }
+    }
+
+    boolean unregisterKeyEventActivityListener(@NonNull KeyEventActivityListener listener) {
+        Objects.requireNonNull(listener, "listener should not be null");
+
+        boolean success = true;
+        synchronized (mKeyEventActivityLock) {
+            if (mKeyEventActivityListeners == null) {
+                return success;
+            }
+            mKeyEventActivityListeners.remove(listener);
+            if (mKeyEventActivityListeners.isEmpty()) {
+                try {
+                    success = mIm.unregisterKeyEventActivityListener(mKeyEventActivityListener);
+                } catch (RemoteException e) {
+                    throw e.rethrowFromSystemServer();
+                }
+                mKeyEventActivityListeners = null;
+                mKeyEventActivityListener = null;
+            }
+        }
+        return success;
+    }
+
+    /**
+     * Sets the keyboard layout override for the specified input device. This will set the
+     * keyboard layout as the default for the input device irrespective of the underlying IME
+     * configuration.
+     *
+     * <p>
+     * Prefer using {@link InputManager#setKeyboardLayoutForInputDevice(InputDeviceIdentifier, int,
+     * InputMethodInfo, InputMethodSubtype, String)} for normal use cases.
+     * </p><p>
+     * This method is to be used only for special cases where we knowingly want to set a
+     * particular keyboard layout for a keyboard, ignoring the IME configuration. e.g. Setting a
+     * default layout for an Android Emulator where we know the preferred H/W keyboard layout.
+     * </p><p>
+     * NOTE: This may affect the typing experience if the layout isn't compatible with the IME
+     * configuration.
+     * </p><p>
+     * NOTE: User can still change the keyboard layout configuration from the settings page.
+     * </p>
+     *
+     * @param identifier The identifier for the input device.
+     * @param keyboardLayoutDescriptor The keyboard layout descriptor to use.
+     *
+     * @hide
+     */
+    @RequiresPermission(Manifest.permission.SET_KEYBOARD_LAYOUT)
+    public void setKeyboardLayoutOverrideForInputDevice(@NonNull InputDeviceIdentifier identifier,
+            @NonNull String keyboardLayoutDescriptor) {
+        Objects.requireNonNull(identifier, "identifier should not be null");
+        Objects.requireNonNull(keyboardLayoutDescriptor,
+                "keyboardLayoutDescriptor should not be null");
+        try {
+            mIm.setKeyboardLayoutOverrideForInputDevice(identifier, keyboardLayoutDescriptor);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
         }
     }
 

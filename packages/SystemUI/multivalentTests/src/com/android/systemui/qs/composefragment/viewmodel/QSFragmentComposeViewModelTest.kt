@@ -53,10 +53,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.whenever
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @RunWithLooper
-@OptIn(ExperimentalCoroutinesApi::class)
 class QSFragmentComposeViewModelTest : AbstractQSFragmentComposeViewModelTest() {
 
     @Test
@@ -456,6 +456,20 @@ class QSFragmentComposeViewModelTest : AbstractQSFragmentComposeViewModelTest() 
                 underTest.isQsVisible = true
                 fakeShadeRepository.setLegacyExpandedOrAwaitingInputTransfer(true)
                 assertThat(underTest.isQsVisibleAndAnyShadeExpanded).isTrue()
+            }
+        }
+
+    @Test
+    fun isEditing() =
+        with(kosmos) {
+            testScope.testWithinLifecycle {
+                underTest.containerViewModel.editModeViewModel.startEditing()
+                runCurrent()
+                assertThat(underTest.isEditing).isTrue()
+
+                underTest.containerViewModel.editModeViewModel.stopEditing()
+                runCurrent()
+                assertThat(underTest.isEditing).isFalse()
             }
         }
 

@@ -17,7 +17,6 @@
 package com.android.settingslib.satellite
 
 import android.content.Context
-import android.platform.test.annotations.RequiresFlagsEnabled
 import android.telephony.satellite.SatelliteManager
 import android.telephony.satellite.SatelliteManager.SATELLITE_MODEM_STATE_ENABLING_SATELLITE
 import android.telephony.satellite.SatelliteManager.SATELLITE_MODEM_STATE_OFF
@@ -25,7 +24,6 @@ import android.telephony.satellite.SatelliteManager.SATELLITE_RESULT_MODEM_ERROR
 import android.telephony.satellite.SatelliteModemStateCallback
 import android.util.AndroidRuntimeException
 import androidx.test.core.app.ApplicationProvider
-import com.android.internal.telephony.flags.Flags
 import com.android.settingslib.satellite.SatelliteDialogUtils.TYPE_IS_WIFI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,12 +36,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
 import org.mockito.Mockito.any
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.Spy
+import org.mockito.internal.verification.Times
 import org.mockito.junit.MockitoJUnit
 import org.mockito.junit.MockitoRule
-import org.mockito.Mockito.verify
-import org.mockito.internal.verification.Times
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
@@ -66,8 +64,7 @@ class SatelliteDialogUtilsTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
-    fun mayStartSatelliteWarningDialog_satelliteIsOn_showWarningDialog() = runBlocking {
+    fun mayStartSatelliteWarningDialog_satelliteIsOn_showWarningDialog(): Unit = runBlocking {
         `when`(satelliteManager.registerForModemStateChanged(any(), any()))
                 .thenAnswer { invocation ->
                     val callback = invocation
@@ -87,7 +84,6 @@ class SatelliteDialogUtilsTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun mayStartSatelliteWarningDialog_satelliteIsOff_notShowWarningDialog() = runBlocking {
         `when`(satelliteManager.registerForModemStateChanged(any(), any()))
                 .thenAnswer { invocation ->
@@ -107,7 +103,6 @@ class SatelliteDialogUtilsTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun mayStartSatelliteWarningDialog_noSatelliteManager_notShowWarningDialog() = runBlocking {
         `when`(context.getSystemService(SatelliteManager::class.java)).thenReturn(null)
 
@@ -120,7 +115,6 @@ class SatelliteDialogUtilsTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun mayStartSatelliteWarningDialog_satelliteErrorResult_notShowWarningDialog() = runBlocking {
         `when`(satelliteManager.registerForModemStateChanged(any(), any()))
                 .thenReturn(SATELLITE_RESULT_MODEM_ERROR)
@@ -134,7 +128,6 @@ class SatelliteDialogUtilsTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun mayStartSatelliteWarningDialog_phoneCrash_notShowWarningDialog() = runBlocking {
         `when`(satelliteManager.registerForModemStateChanged(any(), any()))
                 .thenThrow(IllegalStateException("Telephony is null!!!"))

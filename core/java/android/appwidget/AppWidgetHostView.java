@@ -16,11 +16,15 @@
 
 package android.appwidget;
 
+import static android.appwidget.flags.Flags.FLAG_ENGAGEMENT_METRICS;
+import static android.appwidget.flags.Flags.engagementMetrics;
+
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.Activity;
 import android.app.ActivityOptions;
-import android.app.LoadedApk;
+import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.ComponentName;
 import android.content.Context;
@@ -39,6 +43,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.Parcelable;
+import android.os.SystemClock;
+import android.util.ArraySet;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Pair;
@@ -48,7 +54,9 @@ import android.util.SparseIntArray;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.AbsListView;
 import android.widget.Adapter;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
@@ -58,8 +66,11 @@ import android.widget.RemoteViews.InteractionHandler;
 import android.widget.RemoteViewsAdapter.RemoteAdapterConnectionCallback;
 import android.widget.TextView;
 
+import com.android.internal.annotations.VisibleForTesting;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -100,7 +111,8 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
     int mViewMode = VIEW_MODE_NOINIT;
     // If true, we should not try to re-apply the RemoteViews on the next inflation.
     boolean mColorMappingChanged = false;
-    private InteractionHandler mInteractionHandler;
+    @NonNull
+    private InteractionLogger mInteractionLogger = new InteractionLogger();
     private boolean mOnLightBackground;
     private SizeF mCurrentSize = null;
     private RemoteViews.ColorResources mColorResources = null;
@@ -125,7 +137,7 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
      */
     public AppWidgetHostView(Context context, InteractionHandler handler) {
         this(context, android.R.anim.fade_in, android.R.anim.fade_out);
-        mInteractionHandler = getHandler(handler);
+        setInteractionHandler(handler);
     }
 
     /**
@@ -146,13 +158,29 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
 
     /**
      * Pass the given handler to RemoteViews when updating this widget. Unless this
-     * is done immediatly after construction, a call to {@link #updateAppWidget(RemoteViews)}
+     * is done immediately after construction, a call to {@link #updateAppWidget(RemoteViews)}
      * should be made.
      *
      * @hide
      */
     public void setInteractionHandler(InteractionHandler handler) {
-        mInteractionHandler = getHandler(handler);
+        if (handler instanceof InteractionLogger logger) {
+            // Nested AppWidgetHostViews should reuse the parent logger instead of wrapping it.
+            mInteractionLogger = logger;
+        } else {
+            mInteractionLogger = new InteractionLogger(handler);
+        }
+    }
+
+    /**
+     * Return the InteractionLogger used by this class.
+     *
+     * @hide
+     */
+    @VisibleForTesting
+    @NonNull
+    public InteractionLogger getInteractionLogger() {
+        return mInteractionLogger;
     }
 
     /**
@@ -325,11 +353,20 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
                             0 /* heightUsed */);
                 }
             }
+            if (changed) {
+                post(mInteractionLogger::onPositionChanged);
+            }
             super.onLayout(changed, left, top, right, bottom);
         } catch (final RuntimeException e) {
             Log.e(TAG, "Remote provider threw runtime exception, using error view instead.", e);
             handleViewError();
         }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        mInteractionLogger.onWindowFocusChanged(hasWindowFocus);
     }
 
     /**
@@ -589,7 +626,7 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
 
             if (!mColorMappingChanged && rvToApply.canRecycleView(mView)) {
                 try {
-                    rvToApply.reapply(mContext, mView, mInteractionHandler, mCurrentSize,
+                    rvToApply.reapply(mContext, mView, mInteractionLogger, mCurrentSize,
                             mColorResources);
                     content = mView;
                     mLastInflatedRemoteViewsId = rvToApply.computeUniqueId(remoteViews);
@@ -603,7 +640,7 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
             // Try normal RemoteView inflation
             if (content == null) {
                 try {
-                    content = rvToApply.apply(mContext, this, mInteractionHandler,
+                    content = rvToApply.apply(mContext, this, mInteractionLogger,
                             mCurrentSize, mColorResources);
                     mLastInflatedRemoteViewsId = rvToApply.computeUniqueId(remoteViews);
                     if (LOGD) Log.d(TAG, "had to inflate new layout");
@@ -661,7 +698,7 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
                         mView,
                         mAsyncExecutor,
                         new ViewApplyListener(remoteViews, layoutId, true),
-                        mInteractionHandler,
+                        mInteractionLogger,
                         mCurrentSize,
                         mColorResources);
             } catch (Exception e) {
@@ -673,7 +710,7 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
                     this,
                     mAsyncExecutor,
                     new ViewApplyListener(remoteViews, layoutId, false),
-                    mInteractionHandler,
+                    mInteractionLogger,
                     mCurrentSize,
                     mColorResources);
         }
@@ -712,7 +749,7 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
                         AppWidgetHostView.this,
                         mAsyncExecutor,
                         new ViewApplyListener(mViews, mLayoutId, false),
-                        mInteractionHandler,
+                        mInteractionLogger,
                         mCurrentSize);
             } else {
                 applyContent(null, false, e);
@@ -753,9 +790,6 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
      */
     protected Context getRemoteContextEnsuringCorrectCachedApkPath() {
         try {
-            ApplicationInfo expectedAppInfo = mInfo.providerInfo.applicationInfo;
-            LoadedApk.checkAndUpdateApkPaths(expectedAppInfo);
-            // Return if cloned successfully, otherwise default
             Context newContext = mContext.createApplicationContext(
                     mInfo.providerInfo.applicationInfo,
                     Context.CONTEXT_RESTRICTED);
@@ -920,21 +954,6 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
         return null;
     }
 
-    private InteractionHandler getHandler(InteractionHandler handler) {
-        return (view, pendingIntent, response) -> {
-            AppWidgetManager manager = AppWidgetManager.getInstance(mContext);
-            if (manager != null) {
-                manager.noteAppWidgetTapped(mAppWidgetId);
-            }
-            if (handler != null) {
-                return handler.onInteraction(view, pendingIntent, response);
-            } else {
-                return RemoteViews.startPendingIntent(view, pendingIntent,
-                        response.getLaunchOptions(view));
-            }
-        };
-    }
-
     /**
      * Set the dynamically overloaded color resources.
      *
@@ -1014,10 +1033,202 @@ public class AppWidgetHostView extends FrameLayout implements AppWidgetHost.AppW
     protected void dispatchDraw(@NonNull Canvas canvas) {
         try {
             super.dispatchDraw(canvas);
+            mInteractionLogger.onDraw();
         } catch (Exception e) {
             // Catch draw exceptions that may be caused by RemoteViews
             Log.e(TAG, "Drawing view failed: " + e);
             post(this::handleViewError);
         }
     }
+
+    /**
+     * This class is used to track user interactions with this widget.
+     * @hide
+     */
+    public class InteractionLogger implements RemoteViews.InteractionHandler {
+        // Max number of clicked and scrolled IDs stored per impression.
+        public static final int MAX_NUM_ITEMS = 10;
+        // Determines the minimum time between calls to updateVisibility().
+        private static final long UPDATE_VISIBILITY_DELAY_MS = 1000L;
+        // Clicked views
+        @NonNull
+        private final Set<Integer> mClickedIds = new ArraySet<>(MAX_NUM_ITEMS);
+        // Scrolled views
+        @NonNull
+        private final Set<Integer> mScrolledIds = new ArraySet<>(MAX_NUM_ITEMS);
+        @Nullable
+        private RemoteViews.InteractionHandler mInteractionHandler = null;
+        // Last position this widget was laid out in
+        @Nullable
+        private Rect mPosition = null;
+        // Total duration for the impression
+        private long mDurationMs = 0L;
+        // Last time the widget became visible in SystemClock.uptimeMillis()
+        private long mVisibilityChangeMs = 0L;
+        private boolean mIsVisible = false;
+        private boolean mUpdateVisibilityScheduled = false;
+
+        InteractionLogger() {
+        }
+
+        InteractionLogger(@Nullable InteractionHandler handler) {
+            mInteractionHandler = handler;
+        }
+
+        @VisibleForTesting
+        @NonNull
+        public Set<Integer> getClickedIds() {
+            return mClickedIds;
+        }
+
+        @VisibleForTesting
+        @NonNull
+        public Set<Integer> getScrolledIds() {
+            return mScrolledIds;
+        }
+
+        @VisibleForTesting
+        public long getDurationMs() {
+            return mDurationMs;
+        }
+
+        @VisibleForTesting
+        @Nullable
+        public Rect getPosition() {
+            return mPosition;
+        }
+
+        @Override
+        public boolean onInteraction(View view, PendingIntent pendingIntent,
+                RemoteViews.RemoteResponse response) {
+            if (engagementMetrics() && mClickedIds.size() < MAX_NUM_ITEMS) {
+                mClickedIds.add(getMetricsId(view));
+            }
+            AppWidgetManager manager = AppWidgetManager.getInstance(mContext);
+            if (manager != null) {
+                manager.noteAppWidgetTapped(mAppWidgetId);
+            }
+
+            if (mInteractionHandler != null) {
+                return mInteractionHandler.onInteraction(view, pendingIntent, response);
+            } else {
+                return RemoteViews.startPendingIntent(view, pendingIntent,
+                        response.getLaunchOptions(view));
+            }
+        }
+
+        @Override
+        public void onScroll(@NonNull AbsListView view) {
+            if (!engagementMetrics()) return;
+
+            if (mScrolledIds.size() < MAX_NUM_ITEMS) {
+                mScrolledIds.add(getMetricsId(view));
+            }
+
+            if (mInteractionHandler != null) {
+                mInteractionHandler.onScroll(view);
+            }
+        }
+
+        @FlaggedApi(FLAG_ENGAGEMENT_METRICS)
+        private int getMetricsId(@NonNull View view) {
+            Object metricsTag = view.getTag(com.android.internal.R.id.remoteViewsMetricsId);
+            if (metricsTag instanceof Integer tag) {
+                return tag;
+            } else {
+                return view.getId();
+            }
+        }
+
+        /**
+         * Invoked when the root view is resized or moved.
+         */
+        private void onPositionChanged() {
+            if (!engagementMetrics()) return;
+            mPosition = new Rect();
+            if (getGlobalVisibleRect(mPosition)) {
+                applyScrollOffset();
+            }
+        }
+
+        /**
+         * Finds the first parent with a scrollX or scrollY offset and applies it to the current
+         * position Rect. This corresponds to the current "page" of this widget on its workspace.
+         */
+        private void applyScrollOffset() {
+            if (mPosition == null) return;
+            int dx = 0;
+            int dy = 0;
+            for (ViewParent parent = getParent(); parent != null; parent = parent.getParent()) {
+                if (parent instanceof View view && (view.getScrollX() != 0
+                        || view.getScrollY() != 0)) {
+                    dx = view.getScrollX();
+                    dy = view.getScrollY();
+                    break;
+                }
+            }
+            mPosition.offset(dx, dy);
+        }
+
+        private void onDraw() {
+            if (!engagementMetrics()) return;
+            if (getParent() instanceof View view && view.isDirty()) {
+                scheduleUpdateVisibility();
+            }
+        }
+
+        private void onWindowFocusChanged(boolean hasWindowFocus) {
+            if (!engagementMetrics()) return;
+            updateVisibility(hasWindowFocus);
+        }
+
+        /**
+         * Schedule a delayed call to updateVisibility. Will skip if a call is already scheduled.
+         */
+        private void scheduleUpdateVisibility() {
+            if (mUpdateVisibilityScheduled) {
+                return;
+            }
+
+            postDelayed(() -> updateVisibility(hasWindowFocus()), UPDATE_VISIBILITY_DELAY_MS);
+            mUpdateVisibilityScheduled = true;
+        }
+
+        /**
+         * Check if this view is currently visible, and update the duration if an impression has
+         * finished.
+         */
+        private void updateVisibility(boolean hasWindowFocus) {
+            boolean wasVisible = mIsVisible;
+            boolean isVisible = hasWindowFocus && testVisibility(AppWidgetHostView.this);
+            if (isVisible) {
+                // Test parent visibility.
+                for (ViewParent parent = getParent(); parent != null && isVisible;
+                        parent = parent.getParent()) {
+                    if (parent instanceof View view) {
+                        isVisible = testVisibility(view);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            if (!wasVisible && isVisible) {
+                // View has become visible, start the tracker.
+                mVisibilityChangeMs = SystemClock.uptimeMillis();
+            } else if (wasVisible && !isVisible) {
+                // View is no longer visible, add duration.
+                mDurationMs += SystemClock.uptimeMillis() - mVisibilityChangeMs;
+            }
+
+            mIsVisible = isVisible;
+            mUpdateVisibilityScheduled = false;
+        }
+
+        private boolean testVisibility(View view) {
+            return view.isAggregatedVisible() && view.getGlobalVisibleRect(new Rect())
+                    && view.getAlpha() != 0;
+        }
+    }
 }
+

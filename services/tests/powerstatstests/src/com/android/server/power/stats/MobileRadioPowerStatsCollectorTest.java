@@ -75,11 +75,6 @@ public class MobileRadioPowerStatsCollectorTest {
     private static final int ISOLATED_UID = 99123;
 
     @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
-    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule =
             new BatteryUsageStatsRule().setPowerStatsThrottlePeriodMillis(
                     BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO, 10000);
@@ -157,6 +152,11 @@ public class MobileRadioPowerStatsCollectorTest {
         @Override
         public LongSupplier getPhoneSignalScanDurationSupplier() {
             return mScanDurationSupplier;
+        }
+
+        @Override
+        public NetworkStats networkStatsDelta(NetworkStats stats, NetworkStats oldStats) {
+            return NetworkStatsTestUtils.networkStatsDelta(stats, oldStats);
         }
     };
 

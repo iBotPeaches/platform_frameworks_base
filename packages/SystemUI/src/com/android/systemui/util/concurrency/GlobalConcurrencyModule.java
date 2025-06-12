@@ -65,15 +65,6 @@ public abstract class GlobalConcurrencyModule {
     }
 
     /**
-     * @deprecated Use @Main Handler.
-     */
-    @Deprecated
-    @Provides
-    public static Handler provideHandler() {
-        return new Handler();
-    }
-
-    /**
      * Provide an Executor specifically for running UI operations on a separate thread.
      *
      * Keep submitted runnables short and to the point, just as with any other UI code.

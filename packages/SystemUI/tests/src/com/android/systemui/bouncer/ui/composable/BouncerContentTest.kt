@@ -33,8 +33,7 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.authentication.data.repository.fakeAuthenticationRepository
 import com.android.systemui.authentication.shared.model.AuthenticationMethodModel
 import com.android.systemui.bouncer.ui.BouncerDialogFactory
-import com.android.systemui.bouncer.ui.helper.BouncerSceneLayout
-import com.android.systemui.bouncer.ui.viewmodel.bouncerSceneContentViewModelFactory
+import com.android.systemui.bouncer.ui.viewmodel.bouncerOverlayContentViewModelFactory
 import com.android.systemui.flags.Flags
 import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.lifecycle.rememberViewModel
@@ -99,9 +98,9 @@ class BouncerContentTest : SysuiTestCase() {
             BouncerContent(
                 viewModel =
                     rememberViewModel("test") {
-                        kosmos.bouncerSceneContentViewModelFactory.create()
+                        kosmos.bouncerOverlayContentViewModelFactory.create()
                     },
-                layout = BouncerSceneLayout.BESIDE_USER_SWITCHER,
+                layout = BouncerOverlayLayout.BESIDE_USER_SWITCHER,
                 modifier = Modifier.fillMaxSize().testTag("BouncerContent"),
                 dialogFactory = bouncerDialogFactory,
             )

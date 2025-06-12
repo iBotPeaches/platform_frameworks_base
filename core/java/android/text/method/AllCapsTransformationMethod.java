@@ -33,6 +33,7 @@ import java.util.Locale;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class AllCapsTransformationMethod implements TransformationMethod2 {
     private static final String TAG = "AllCapsTransformationMethod";
 

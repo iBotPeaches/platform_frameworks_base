@@ -21,6 +21,7 @@ import com.android.systemui.coroutines.newTracingContext
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.dagger.qualifiers.NotifInflation
 import com.android.systemui.dagger.qualifiers.UiBackground
 import com.android.systemui.util.settings.SettingsSingleThreadBackground
 import dagger.Module
@@ -122,5 +123,20 @@ class SysUICoroutinesModule {
         @UiBackground uiBgCoroutineDispatcher: CoroutineDispatcher
     ): CoroutineContext {
         return uiBgCoroutineDispatcher
+    }
+
+    /** Coroutine dispatcher for background notification inflation. */
+    @Provides
+    @NotifInflation
+    @SysUISingleton
+    fun notifInflationCoroutineDispatcher(
+        @NotifInflation notifInflationExecutor: Executor,
+        @Background bgCoroutineDispatcher: CoroutineDispatcher,
+    ): CoroutineDispatcher {
+        if (com.android.systemui.Flags.useNotifInflationThreadForFooter()) {
+            return notifInflationExecutor.asCoroutineDispatcher()
+        } else {
+            return bgCoroutineDispatcher
+        }
     }
 }

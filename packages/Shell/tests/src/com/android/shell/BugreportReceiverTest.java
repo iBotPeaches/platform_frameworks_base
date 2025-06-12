@@ -19,10 +19,6 @@ package com.android.shell;
 import static android.test.MoreAsserts.assertContainsRegex;
 
 import static com.android.shell.ActionSendMultipleConsumerActivity.UI_NAME;
-import static com.android.shell.BugreportPrefs.PREFS_BUGREPORT;
-import static com.android.shell.BugreportPrefs.STATE_HIDE;
-import static com.android.shell.BugreportPrefs.STATE_SHOW;
-import static com.android.shell.BugreportPrefs.STATE_UNKNOWN;
 import static com.android.shell.BugreportPrefs.getWarningState;
 import static com.android.shell.BugreportPrefs.setWarningState;
 import static com.android.shell.BugreportProgressService.INTENT_BUGREPORT_REQUESTED;
@@ -201,8 +197,9 @@ public class BugreportReceiverTest {
             return null;
         }).when(mMockIDumpstate).startBugreport(anyInt(), any(), any(), any(), anyInt(), anyInt(),
                 any(), anyBoolean(), anyBoolean());
-
-        setWarningState(mContext, STATE_HIDE);
+        int bugreportStateHide = mContext.getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_hide);
+        setWarningState(mContext, bugreportStateHide);
 
         mUiBot.turnScreenOn();
     }
@@ -469,22 +466,31 @@ public class BugreportReceiverTest {
 
     @Test
     public void testBugreportFinished_withWarningUnknownState() throws Exception {
-        bugreportFinishedWithWarningTest(STATE_UNKNOWN);
+        int bugreportStateUnknown = mContext.getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_unknown);
+        bugreportFinishedWithWarningTest(bugreportStateUnknown);
     }
 
     @Test
     public void testBugreportFinished_withWarningShowAgain() throws Exception {
-        bugreportFinishedWithWarningTest(STATE_SHOW);
+        int bugreportStateShow = mContext.getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_show);
+        bugreportFinishedWithWarningTest(bugreportStateShow);
     }
 
     private void bugreportFinishedWithWarningTest(Integer propertyState) throws Exception {
+        int bugreportStateUnknown = mContext.getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_unknown);
+        int bugreportStateHide = mContext.getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_hide);
         if (propertyState == null) {
             // Clear properties
-            mContext.getSharedPreferences(PREFS_BUGREPORT, Context.MODE_PRIVATE)
-                    .edit().clear().commit();
+            mContext.getSharedPreferences(
+                    mContext.getResources().getString(com.android.internal.R.string.prefs_bugreport)
+                            , Context.MODE_PRIVATE).edit().clear().commit();
             // Confidence check...
-            assertEquals("Did not reset properties", STATE_UNKNOWN,
-                    getWarningState(mContext, STATE_UNKNOWN));
+            assertEquals("Did not reset properties", bugreportStateUnknown,
+                    getWarningState(mContext, bugreportStateUnknown));
         } else {
             setWarningState(mContext, propertyState);
         }
@@ -501,7 +507,8 @@ public class BugreportReceiverTest {
         // TODO: get ok and dontShowAgain from the dialog reference above
         UiObject dontShowAgain =
                 mUiBot.getVisibleObject(mContext.getString(R.string.bugreport_confirm_dont_repeat));
-        final boolean firstTime = propertyState == null || propertyState == STATE_UNKNOWN;
+        final boolean firstTime =
+                propertyState == null || propertyState == bugreportStateUnknown;
         if (firstTime) {
             if (Build.IS_USER) {
                 assertFalse("Checkbox should NOT be checked by default on user builds",
@@ -524,8 +531,8 @@ public class BugreportReceiverTest {
         assertActionSendMultiple(extras);
 
         // Make sure it's hidden now.
-        int newState = getWarningState(mContext, STATE_UNKNOWN);
-        assertEquals("Didn't change state", STATE_HIDE, newState);
+        int newState = getWarningState(mContext, bugreportStateUnknown);
+        assertEquals("Didn't change state", bugreportStateHide, newState);
     }
 
     @Test

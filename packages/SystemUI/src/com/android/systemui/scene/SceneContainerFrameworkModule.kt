@@ -16,7 +16,6 @@
 
 package com.android.systemui.scene
 
-import androidx.compose.ui.unit.dp
 import com.android.systemui.CoreStartable
 import com.android.systemui.notifications.ui.composable.NotificationsShadeSessionModule
 import com.android.systemui.scene.domain.SceneDomainModule
@@ -30,9 +29,6 @@ import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.SceneContainerConfig
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.ui.composable.SceneContainerTransitions
-import com.android.systemui.scene.ui.viewmodel.SplitEdgeDetector
-import com.android.systemui.shade.domain.interactor.ShadeInteractor
-import com.android.systemui.shade.shared.flag.DualShade
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -43,7 +39,7 @@ import dagger.multibindings.IntoMap
 @Module(
     includes =
         [
-            BouncerSceneModule::class,
+            BouncerOverlayModule::class,
             CommunalSceneModule::class,
             DreamSceneModule::class,
             EmptySceneModule::class,
@@ -102,39 +98,26 @@ interface SceneContainerFrameworkModule {
                         Scenes.Communal,
                         Scenes.Dream,
                         Scenes.Lockscreen,
-                        Scenes.Bouncer,
-                        Scenes.QuickSettings.takeUnless { DualShade.isEnabled },
-                        Scenes.Shade.takeUnless { DualShade.isEnabled },
+                        Scenes.QuickSettings,
+                        Scenes.Shade,
                     ),
                 initialSceneKey = Scenes.Lockscreen,
-                transitions = SceneContainerTransitions,
                 overlayKeys =
                     listOfNotNull(
-                        Overlays.NotificationsShade.takeIf { DualShade.isEnabled },
-                        Overlays.QuickSettingsShade.takeIf { DualShade.isEnabled },
+                        Overlays.NotificationsShade,
+                        Overlays.QuickSettingsShade,
+                        Overlays.Bouncer,
                     ),
                 navigationDistances =
                     mapOf(
-                            Scenes.Gone to 0,
-                            Scenes.Lockscreen to 0,
-                            Scenes.Communal to 1,
-                            Scenes.Dream to 2,
-                            Scenes.Shade to 3.takeUnless { DualShade.isEnabled },
-                            Scenes.QuickSettings to 4.takeUnless { DualShade.isEnabled },
-                            Scenes.Bouncer to 5,
-                        )
-                        .filterValues { it != null }
-                        .mapValues { checkNotNull(it.value) },
-            )
-        }
-
-        @Provides
-        fun splitEdgeDetector(shadeInteractor: ShadeInteractor): SplitEdgeDetector {
-            return SplitEdgeDetector(
-                topEdgeSplitFraction = shadeInteractor::getTopEdgeSplitFraction,
-                // TODO(b/338577208): This should be 60dp at the top in the dual-shade UI. Better to
-                //  replace this constant with dynamic window insets.
-                edgeSize = 40.dp,
+                        Scenes.Gone to 0,
+                        Scenes.Lockscreen to 0,
+                        Scenes.Communal to 1,
+                        Scenes.Dream to 2,
+                        Scenes.Shade to 3,
+                        Scenes.QuickSettings to 4,
+                    ),
+                transitionsBuilder = SceneContainerTransitions(),
             )
         }
     }

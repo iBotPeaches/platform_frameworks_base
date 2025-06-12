@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"ساتھی آلہ مینیجر"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"‏ایپ ‎&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>‎&lt;/strong&gt;‎ کو ‎‎&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;‎ تک رسائی کی اجازت دیں؟"</string>
-    <string name="profile_name_watch" msgid="576290739483672360">"دیکھیں"</string>
-    <string name="chooser_title_non_profile" msgid="6035023914517087400">"‏‎&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;‎ کے ذریعے منتخب کیے جانے کیلئے آلہ منتخب کریں"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"سیٹ اپ کرنے کے لیے <xliff:g id="PROFILE_NAME">%1$s</xliff:g> کا انتخاب کریں"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"یقینی بنائیں کہ اس <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> کا <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> آن ہے اور اپنی <xliff:g id="PROFILE_NAME">%3$s</xliff:g> کو قریب رکھیں۔"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"کوئی آلہ نہیں ملا۔ براہ کرم بعد میں دوبارہ کوشش کریں۔"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"بلوٹوتھ"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"‏بلوٹوتھ اور Wi-Fi"</string>
+    <string name="profile_name_watch" msgid="576290739483672360">"گھڑی"</string>
+    <string name="chooser_title_non_profile" msgid="6035023914517087400">"‏کوئی آلہ منتخب کریں جس کا نظم و نسق &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; کرے"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"سیٹ اپ کرنے کے لیے ایک <xliff:g id="PROFILE_NAME">%1$s</xliff:g> کا انتخاب کریں"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"‫<xliff:g id="PROFILE_NAME">%1$s</xliff:g> کو تلاش کیا جا رہا ہے"</string>
     <string name="summary_watch" msgid="8134580124808507407">"اس ایپ کو آپ کے <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> پر کسی کال کرنے والے کے نام جیسی معلومات کی مطابقت پذیری کرنے اور ان اجازتوں تک رسائی کی اجازت ہوگی"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"‏&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; کو &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; کا نظم کرنے کی اجازت دیں؟"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"آلہ"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"‏&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; کو آپ کے <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> کی ایپس کو <xliff:g id="DEVICE_NAME">%3$s</xliff:g> پر سلسلہ بندی کرنے کی اجازت دیں؟"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"‏<xliff:g id="APP_NAME_0">%1$s</xliff:g> کو <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> پر دکھائی دینے والی یا چلائی جانے والی کسی بھی چیز تک رسائی حاصل ہوگی، بشمول آڈیو، تصاویر، ادائیگی کی معلومات، پاس ورڈز اور پیغامات۔&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> پر اس وقت تک ایپس کی سلسلہ بندی کر سکے گی جب تک آپ اس اجازت تک رسائی کو ہٹا نہیں دیتے۔"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> ایپ <xliff:g id="DEVICE_NAME">%2$s</xliff:g> کی جانب سے آپ کے <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> سے ایپس کی سلسلہ بندی کرنے کی اجازت کی درخواست کر رہی ہے"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"‏آپ کے <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> اور &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; کے درمیان آڈیو اور سسٹم کی خصوصیات کی سلسلہ بندی کرنے کی &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; کو اجازت دیں؟"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"‏‫<xliff:g id="APP_NAME_0">%2$s</xliff:g> کو آپ کے <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> پر چلائی جانے والی کسی بھی چیز تک رسائی حاصل ہوگی۔&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> پر اس وقت تک آڈیو کی سلسلہ بندی کر سکے گی جب تک آپ اس اجازت تک رسائی کو ہٹا نہیں دیتے۔"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"آلہ"</string>
     <string name="summary_generic" msgid="1761976003668044801">"یہ ایپ آپ کے فون اور منتخب کردہ آلے کے درمیان معلومات، جیسے کسی کال کرنے والے کے نام، کی مطابقت پذیری کر سکے گی"</string>
     <string name="consent_yes" msgid="8344487259618762872">"اجازت دیں"</string>
     <string name="consent_no" msgid="2640796915611404382">"اجازت نہ دیں"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"منسوخ کریں"</string>
     <string name="consent_back" msgid="2560683030046918882">"پیچھے"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"فہرست نیچے سکرول کریں"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"نیچے کی طرف تیر کا نشان"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> کو پھیلائیں"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> کو سکیڑیں"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"‏ایپس کو &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; پر وہی اجازتیں دیں جو &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; پر دی گئی ہیں؟"</string>

@@ -18,19 +18,18 @@ package com.android.systemui.qs.tiles.impl.alarm.domain.interactor
 
 import android.content.Intent
 import android.provider.AlarmClock
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.alarm.domain.model.AlarmTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import javax.inject.Inject
 
 /** Handles alarm tile clicks. */
 class AlarmTileUserActionInteractor
 @Inject
-constructor(
-    private val inputHandler: QSTileIntentUserInputHandler,
-) : QSTileUserActionInteractor<AlarmTileModel> {
+constructor(private val inputHandler: QSTileIntentUserInputHandler) :
+    QSTileUserActionInteractor<AlarmTileModel> {
     override suspend fun handleInput(input: QSTileInput<AlarmTileModel>): Unit =
         with(input) {
             when (action) {
@@ -44,7 +43,7 @@ constructor(
                     } else {
                         inputHandler.handle(
                             action.expandable,
-                            Intent(AlarmClock.ACTION_SHOW_ALARMS)
+                            Intent(AlarmClock.ACTION_SHOW_ALARMS),
                         )
                     }
                 }

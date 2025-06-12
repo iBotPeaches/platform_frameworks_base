@@ -45,12 +45,13 @@ constructor(
         tapl.setExpectedRotation(rotation.value)
         ChangeDisplayOrientationRule.setRotation(rotation)
         tapl.enableTransientTaskbar(false)
+        testApp.exit(wmHelper)
     }
 
     @Test
     open fun enterDesktopWithDrag() {
         // By default this method uses drag to desktop
-        testApp.enterDesktopMode(wmHelper, device)
+        testApp.enterDesktopMode(wmHelper, device, shouldUseDragToDesktop = true)
     }
 
     @After

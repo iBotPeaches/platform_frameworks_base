@@ -30,26 +30,25 @@ class ActionClickLogger @Inject constructor(
     @NotifInteractionLog private val buffer: LogBuffer
 ) {
     fun logInitialClick(
-        entry: NotificationEntry?,
+        entry: String?,
         index: Integer?,
         pendingIntent: PendingIntent
     ) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry?.key
-            str2 = entry?.ranking?.channel?.id
+            str1 = entry
             str3 = pendingIntent.toString()
             int1 = index?.toInt() ?: Int.MIN_VALUE
         }, {
-            "ACTION CLICK $str1 (channel=$str2) for pending intent $str3 at index $int1"
+            "ACTION CLICK $str1 for pending intent $str3 at index $int1"
         })
     }
 
     fun logRemoteInputWasHandled(
-        entry: NotificationEntry?,
+        entry: String?,
         index: Int?
     ) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry?.key
+            str1 = entry
             int1 = index ?: Int.MIN_VALUE
         }, {
             "  [Action click] Triggered remote input (for $str1) at index $int1"
@@ -57,12 +56,12 @@ class ActionClickLogger @Inject constructor(
     }
 
     fun logStartingIntentWithDefaultHandler(
-        entry: NotificationEntry?,
+        entry: String?,
         pendingIntent: PendingIntent,
         index: Int?
     ) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry?.key
+            str1 = entry
             str2 = pendingIntent.toString()
             int1 = index ?: Int.MIN_VALUE
         }, {

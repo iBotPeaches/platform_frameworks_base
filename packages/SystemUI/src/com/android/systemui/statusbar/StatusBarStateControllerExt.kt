@@ -16,7 +16,7 @@
 
 package com.android.systemui.statusbar
 
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow

@@ -111,8 +111,8 @@
     <string name="screenrecord_channel_description" msgid="4147077128486138351">"持續顯示螢幕畫面錄製工作階段通知"</string>
     <string name="screenrecord_permission_dialog_title" msgid="7415261783188749730">"要錄製畫面嗎？"</string>
     <string name="screenrecord_permission_dialog_option_text_single_app" msgid="1996450687814647583">"錄製單一應用程式"</string>
-    <string name="screenrecord_permission_dialog_option_text_entire_screen" msgid="2794896384693120020">"錄製整個畫面"</string>
-    <string name="screenrecord_permission_dialog_option_text_entire_screen_for_display" msgid="3754611651558838691">"錄製整個畫面：%s"</string>
+    <string name="screenrecord_permission_dialog_option_text_entire_screen" msgid="4882406311415082016">"錄製這個畫面"</string>
+    <string name="screenrecord_permission_dialog_option_text_entire_screen_for_display" msgid="4169494703993148253">"錄製「%s」畫面"</string>
     <string name="screenrecord_permission_dialog_warning_entire_screen" msgid="1321758636709366068">"錄製整個畫面時，系統會錄下畫面上的所有內容。因此，請謹慎處理密碼、付款資料、訊息、相片和影音內容等資訊。"</string>
     <string name="screenrecord_permission_dialog_warning_single_app" msgid="3738199712880063924">"當你錄製應用程式畫面時，系統會錄下該應用程式顯示或播放的所有內容。因此，請謹慎處理密碼、付款資料、訊息、相片和影音內容等資訊。"</string>
     <string name="screenrecord_permission_dialog_continue_entire_screen" msgid="5557974446773486600">"錄製畫面"</string>
@@ -245,11 +245,17 @@
     <string name="accessibility_bluetooth_connected" msgid="4745196874551115205">"藍牙連線已建立。"</string>
     <string name="accessibility_bluetooth_device_icon" msgid="9163840051642587982">"「藍牙裝置」圖示"</string>
     <string name="accessibility_bluetooth_device_settings_gear" msgid="3314916468105272540">"按一下即可設定裝置詳細資料"</string>
-    <string name="accessibility_bluetooth_device_settings_see_all" msgid="9111952496905423543">"按一下即可查看所有裝置"</string>
-    <string name="accessibility_bluetooth_device_settings_pair_new_device" msgid="2435184865793496966">"按一下即可配對新裝置"</string>
+    <string name="accessibility_bluetooth_device_settings_gear_with_name" msgid="114373701123165491">"<xliff:g id="DEVICE_NAME">%s</xliff:g>。設定裝置詳細資料"</string>
+    <string name="accessibility_bluetooth_device_settings_see_all" msgid="5260390270128256620">"查看所有裝置"</string>
+    <string name="accessibility_bluetooth_device_settings_pair_new_device" msgid="7988547106800504256">"配對新裝置"</string>
     <string name="accessibility_battery_unknown" msgid="1807789554617976440">"電池電量不明。"</string>
     <string name="accessibility_bluetooth_name" msgid="7300973230214067678">"已連線至<xliff:g id="BLUETOOTH">%s</xliff:g>。"</string>
     <string name="accessibility_cast_name" msgid="7344437925388773685">"已連線至 <xliff:g id="CAST">%s</xliff:g>。"</string>
+    <string name="accessibility_expand_group" msgid="521237935987978624">"展開群組。"</string>
+    <string name="accessibility_collapse_group" msgid="1842704016768329517">"收合群組。"</string>
+    <string name="accessibility_add_device_to_group" msgid="5446422960697860806">"將裝置加入群組。"</string>
+    <string name="accessibility_remove_device_from_group" msgid="3114694270949142228">"從群組中移除裝置。"</string>
+    <string name="accessibility_open_application" msgid="1749126077501259712">"開啟應用程式。"</string>
     <string name="accessibility_not_connected" msgid="4061305616351042142">"尚未連線。"</string>
     <string name="data_connection_roaming" msgid="375650836665414797">"漫遊"</string>
     <string name="cell_data_off" msgid="4886198950247099526">"關閉"</string>
@@ -326,7 +332,7 @@
     <string name="quick_settings_bluetooth_secondary_label_input" msgid="3887552721233148132">"輸入"</string>
     <string name="quick_settings_bluetooth_secondary_label_hearing_aids" msgid="5553051568867097111">"助聽器"</string>
     <string name="quick_settings_bluetooth_secondary_label_transient" msgid="3882884317600669650">"開啟中…"</string>
-    <string name="quick_settings_brightness_unable_adjust_msg" msgid="786478497970492300">"無法調整亮度，因為\n目前是由上層應用程式控制亮度"</string>
+    <string name="quick_settings_brightness_unable_adjust_msg" msgid="4124028416057617517">"無法調整亮度，因為目前是由上層應用程式控制亮度"</string>
     <string name="quick_settings_rotation_unlocked_label" msgid="2359922767950346112">"自動旋轉"</string>
     <string name="accessibility_quick_settings_rotation" msgid="4800050198392260738">"自動旋轉螢幕"</string>
     <string name="quick_settings_location_label" msgid="2621868789013389163">"定位"</string>
@@ -414,9 +420,25 @@
     <string name="accessibility_hearing_device_pair_new_device" msgid="8440082580186130090">"按一下即可配對新裝置"</string>
     <string name="hearing_devices_presets_error" msgid="350363093458408536">"無法更新預設設定"</string>
     <string name="hearing_devices_preset_label" msgid="7878267405046232358">"預設"</string>
+    <string name="hearing_devices_input_routing_label" msgid="730396728151232306">"預設通話麥克風"</string>
+  <string-array name="hearing_device_input_routing_options">
+    <item msgid="4582190415045337003">"助聽器麥克風"</item>
+    <item msgid="8501466270452446450">"這支手機的麥克風"</item>
+  </string-array>
     <string name="hearing_devices_spinner_item_selected" msgid="3137083889662762383">"已選取"</string>
+    <string name="hearing_devices_ambient_label" msgid="629440938614895797">"環境"</string>
+    <string name="hearing_devices_ambient_control_left" msgid="3586965448230412600">"左"</string>
+    <string name="hearing_devices_ambient_control_right" msgid="6192137602448918383">"右"</string>
+    <string name="hearing_devices_ambient_control_description" msgid="3663947879732939509">"環境"</string>
+    <string name="hearing_devices_ambient_control_left_description" msgid="4440988622896213511">"左側環境"</string>
+    <string name="hearing_devices_ambient_control_right_description" msgid="2230461103493378003">"右側環境"</string>
+    <string name="hearing_devices_ambient_expand_controls" msgid="2131816068187709200">"展開為左右獨立控制選項"</string>
+    <string name="hearing_devices_ambient_collapse_controls" msgid="2261097656446201581">"收合為統合控制選項"</string>
+    <string name="hearing_devices_ambient_mute" msgid="1836882837647429416">"將環境靜音"</string>
+    <string name="hearing_devices_ambient_unmute" msgid="2187938085943876814">"取消環境靜音"</string>
     <string name="hearing_devices_tools_label" msgid="1929081464316074476">"工具"</string>
     <string name="quick_settings_hearing_devices_live_caption_title" msgid="1054814050932225451">"即時字幕"</string>
+    <string name="hearing_devices_settings_button" msgid="999474385481812222">"設定"</string>
     <string name="quick_settings_notes_label" msgid="1028004078001002623">"筆記"</string>
     <string name="sensor_privacy_start_use_mic_dialog_title" msgid="563796653825944944">"要解除封鎖裝置麥克風嗎？"</string>
     <string name="sensor_privacy_start_use_camera_dialog_title" msgid="8807639852654305227">"解除封鎖裝置相機？"</string>
@@ -525,13 +547,16 @@
     <string name="accessibility_action_label_unselect_widget" msgid="1041811747619468698">"取消選取小工具"</string>
     <string name="accessibility_action_label_shrink_widget" msgid="8259511040536438771">"調低"</string>
     <string name="accessibility_action_label_expand_widget" msgid="9190524260912211759">"調高"</string>
+    <string name="accessibility_action_label_umo_show_next" msgid="8033581654789193281">"顯示下一個"</string>
+    <string name="accessibility_action_label_umo_show_previous" msgid="5935831384525173810">"顯示上一個"</string>
     <string name="communal_widgets_disclaimer_title" msgid="1150954395585308868">"螢幕鎖定小工具"</string>
     <string name="communal_widgets_disclaimer_text" msgid="1423545475160506349">"如要使用小工具開啟應用程式，需先驗證身分。請留意，即使平板電腦已鎖定，所有人都還是能查看小工具。某些小工具可能不適用於螢幕鎖定畫面，新增到此可能會有安全疑慮。"</string>
     <string name="communal_widgets_disclaimer_button" msgid="4423059765740780753">"我知道了"</string>
-    <string name="glanceable_hub_lockscreen_affordance_label" msgid="1461611028615752141">"小工具"</string>
-    <string name="glanceable_hub_lockscreen_affordance_disabled_text" msgid="599170482297578735">"如要新增「小工具」捷徑，請務必前往設定啟用「在螢幕鎖定畫面上顯示小工具」。"</string>
-    <string name="glanceable_hub_lockscreen_affordance_action_button_label" msgid="7636151133344609375">"設定"</string>
     <string name="accessibility_glanceable_hub_to_dream_button" msgid="7552776300297055307">"顯示螢幕保護程式按鈕"</string>
+    <string name="hub_onboarding_bottom_sheet_title" msgid="162092881395529947">"瞭解 Hub 模式"</string>
+    <string name="hub_onboarding_bottom_sheet_text" msgid="8589816797970240544">"在充電時使用喜愛的小工具和螢幕保護程式。"</string>
+    <string name="hub_onboarding_bottom_sheet_action_button" msgid="6161983690157872829">"開始使用"</string>
+    <string name="glanceable_hub_to_dream_button_tooltip" msgid="9018287673822335829">"在充電時顯示你最愛的螢幕保護程式"</string>
     <string name="accessibility_multi_user_switch_switcher" msgid="5330448341251092660">"切換使用者"</string>
     <string name="accessibility_multi_user_list_switcher" msgid="8574105376229857407">"下拉式選單"</string>
     <string name="guest_exit_guest_dialog_message" msgid="8183450985628495709">"這個工作階段中的所有應用程式和資料都會刪除。"</string>
@@ -563,12 +588,13 @@
     <string name="media_projection_entry_app_permission_dialog_warning_single_app" msgid="7094417930857938876">"當你分享應用程式畫面時，「<xliff:g id="APP_SEEKING_PERMISSION">%s</xliff:g>」可存取該應用程式顯示或播放的所有內容。因此，請謹慎處理密碼、付款資料、訊息、相片和影音內容等資訊。"</string>
     <string name="media_projection_entry_app_permission_dialog_continue_entire_screen" msgid="1850848182344377579">"分享畫面"</string>
     <string name="media_projection_entry_app_permission_dialog_single_app_disabled" msgid="8999903044874669995">"「<xliff:g id="APP_NAME">%1$s</xliff:g>」已停用此選項"</string>
+    <string name="media_projection_entry_app_permission_dialog_single_app_not_supported" msgid="4860247304058870233">"應用程式不支援這項功能"</string>
     <string name="media_projection_entry_share_app_selector_title" msgid="1419515119767501822">"選擇要分享的應用程式"</string>
     <string name="media_projection_entry_cast_permission_dialog_title" msgid="752756942658159416">"要投放畫面嗎？"</string>
     <string name="media_projection_entry_cast_permission_dialog_option_text_single_app" msgid="6073353940838561981">"投放一個應用程式"</string>
     <string name="media_projection_entry_cast_permission_dialog_option_text_entire_screen" msgid="8389508187954155307">"投放整個畫面"</string>
     <string name="media_projection_entry_cast_permission_dialog_warning_entire_screen" msgid="4040447861037324017">"當你投放整個畫面時，畫面上的所有內容都會顯示出來。因此，請謹慎處理密碼、付款資料、訊息、相片和影音內容等資訊。"</string>
-    <string name="media_projection_entry_cast_permission_dialog_warning_single_app" msgid="7487834861348460736">"當你投放應用程式畫面時，該應用程式呈現或播放的所有內容都會顯示出來。因此，請謹慎處理密碼、付款資料、訊息、相片和影音內容等資訊。"</string>
+    <string name="media_projection_entry_cast_permission_dialog_warning_single_app" msgid="7487834861348460736">"投放應用程式畫面時，該應用程式呈現或播放的所有內容都會投放出來。因此，請謹慎處理密碼、付款資料、訊息、相片和影音內容等資訊。"</string>
     <string name="media_projection_entry_cast_permission_dialog_continue_entire_screen" msgid="3261124185304676483">"投放螢幕"</string>
     <string name="media_projection_entry_cast_app_selector_title" msgid="6323062146661922387">"選擇要投放的應用程式"</string>
     <string name="media_projection_entry_generic_permission_dialog_title" msgid="4519802931547483628">"要開始分享嗎？"</string>
@@ -743,6 +769,7 @@
     <string name="qr_code_scanner_updating_secondary_label" msgid="8344598017007876352">"更新中"</string>
     <string name="status_bar_work" msgid="5238641949837091056">"工作資料夾"</string>
     <string name="status_bar_airplane" msgid="4848702508684541009">"飛航模式"</string>
+    <string name="status_bar_supervision" msgid="6735015942701134125">"家長監護"</string>
     <string name="zen_alarm_warning" msgid="7844303238486849503">"你不會聽到下一個<xliff:g id="WHEN">%1$s</xliff:g> 的鬧鐘"</string>
     <string name="alarm_template" msgid="2234991538018805736">"於<xliff:g id="WHEN">%1$s</xliff:g>"</string>
     <string name="alarm_template_far" msgid="3561752195856839456">"於<xliff:g id="WHEN">%1$s</xliff:g>"</string>
@@ -752,7 +779,14 @@
     <string name="accessibility_status_bar_satellite_good_connection" msgid="308079391708578704">"衛星，連線品質良好"</string>
     <string name="accessibility_status_bar_satellite_available" msgid="6514855015496916829">"衛星，可連線"</string>
     <string name="satellite_connected_carrier_text" msgid="118524195198532589">"緊急衛星連線"</string>
-    <string name="satellite_emergency_only_carrier_text" msgid="828510231597991206">"緊急電話或緊急求救"</string>
+    <string name="satellite_emergency_only_carrier_text" msgid="9103913890116841786">"僅限緊急電話或需要求救的情況"</string>
+    <string name="accessibility_phone_string_format" msgid="7798841417881811812">"<xliff:g id="CARRIER_NAME">%1$s</xliff:g>，<xliff:g id="SIGNAL_STRENGTH_DESCRIPTION">%2$s</xliff:g>。"</string>
+    <string name="accessibility_no_signal" msgid="7052827511409250167">"沒有訊號"</string>
+    <string name="accessibility_one_bar" msgid="5342012847647834506">"訊號強度一格"</string>
+    <string name="accessibility_two_bars" msgid="122628483354508429">"訊號強度兩格"</string>
+    <string name="accessibility_three_bars" msgid="5143286602926069024">"訊號強度三格"</string>
+    <string name="accessibility_four_bars" msgid="8838495563822541844">"訊號強度四格"</string>
+    <string name="accessibility_signal_full" msgid="1519655809806462972">"訊號滿格"</string>
     <string name="accessibility_managed_profile" msgid="4703836746209377356">"工作資料夾"</string>
     <string name="tuner_warning_title" msgid="7721976098452135267">"有趣與否，見仁見智"</string>
     <string name="tuner_warning" msgid="1861736288458481650">"系統使用者介面調整精靈可讓你透過其他方式，調整及自訂 Android 使用者介面。這些實驗性功能隨著版本更新可能會變更、損壞或消失，執行時請務必謹慎。"</string>
@@ -767,7 +801,7 @@
     <string name="rotation_lock_camera_rotation_on" msgid="789434807790534274">"已開啟 - 依臉部方向旋轉"</string>
     <string name="inline_done_button" msgid="6043094985588909584">"完成"</string>
     <string name="inline_ok_button" msgid="603075490581280343">"套用"</string>
-    <string name="inline_turn_off_notifications" msgid="8543989584403106071">"關閉通知"</string>
+    <string name="inline_turn_off_notifications" msgid="2653064779176881329">"關閉"</string>
     <string name="notification_silence_title" msgid="8608090968400832335">"靜音"</string>
     <string name="notification_alert_title" msgid="3656229781017543655">"預設"</string>
     <string name="notification_automatic_title" msgid="3745465364578762652">"自動"</string>
@@ -786,7 +820,12 @@
     <string name="notification_channel_summary_priority_all" msgid="7151752959650048285">"以對話框的形式顯示在對話通知頂端 (螢幕鎖定時會顯示為個人資料相片)，並會中斷「零打擾」模式"</string>
     <string name="notification_priority_title" msgid="2079708866333537093">"優先"</string>
     <string name="no_shortcut" msgid="8257177117568230126">"「<xliff:g id="APP_NAME">%1$s</xliff:g>」不支援對話功能"</string>
-    <string name="notification_guts_bundle_feedback" msgid="5393570876655201459">"提供套裝組合意見"</string>
+    <string name="notification_guts_bundle_feedback" msgid="7581587973879656500">"意見回饋"</string>
+    <string name="notification_inline_dismiss" msgid="88423586921134258">"關閉"</string>
+    <string name="notification_inline_disable_promotion" msgid="3551682588314376921">"不要顯示在固定的通知中"</string>
+    <string name="notification_inline_disable_promotion_button" msgid="5115790786254916422">"禁止此應用程式顯示最新即時資訊"</string>
+    <string name="live_notifications_title" msgid="1586553354601345379">"顯示最新即時資訊"</string>
+    <string name="live_notifications_desc" msgid="7470787001768372152">"固定的通知會提供應用程式即時資訊，並一律顯示在狀態列和螢幕鎖定畫面上"</string>
     <string name="notification_unblockable_desc" msgid="2073030886006190804">"無法修改這些通知。"</string>
     <string name="notification_unblockable_call_desc" msgid="5907328164696532169">"無法修改來電通知。"</string>
     <string name="notification_multichannel_desc" msgid="7414593090056236179">"無法在這裡設定這個通知群組"</string>
@@ -843,7 +882,6 @@
     <string name="keyboard_shortcut_group_system_back" msgid="1055709713218453863">"返回"</string>
     <string name="keyboard_shortcut_group_system_notifications" msgid="3615971650562485878">"通知"</string>
     <string name="keyboard_shortcut_group_system_shortcuts_helper" msgid="4856808328618265589">"鍵盤快速鍵"</string>
-    <string name="keyboard_shortcut_group_system_switch_input" msgid="952555530383268166">"切換鍵盤配置"</string>
     <string name="keyboard_shortcut_join" msgid="3578314570034512676">"或"</string>
     <string name="keyboard_shortcut_clear_text" msgid="6631051796030377857">"清除搜尋查詢"</string>
     <string name="keyboard_shortcut_search_list_title" msgid="4271769465397671138">"鍵盤快速鍵"</string>
@@ -868,13 +906,14 @@
     <string name="group_system_cycle_back" msgid="8194102916946802902">"向後循環切換最近開啟的應用程式"</string>
     <string name="group_system_access_all_apps_search" msgid="1553588630154197469">"開啟應用程式清單"</string>
     <string name="group_system_access_system_settings" msgid="8731721963449070017">"開啟設定"</string>
-    <string name="group_system_access_google_assistant" msgid="7210074957915968110">"開啟 Google 助理"</string>
+    <string name="group_system_access_google_assistant" msgid="3769929488906534254">"開啟數位助理"</string>
     <string name="group_system_lock_screen" msgid="7391191300363416543">"螢幕鎖定"</string>
     <string name="group_system_quick_memo" msgid="3764560265935722903">"新增記事"</string>
     <string name="keyboard_shortcut_group_system_multitasking" msgid="6967816258924795558">"多工處理"</string>
     <string name="system_multitasking_rhs" msgid="8779289852395243004">"使用分割畫面，並在右側顯示應用程式"</string>
     <string name="system_multitasking_lhs" msgid="7348595296208696452">"使用分割畫面，並在左側顯示應用程式"</string>
-    <string name="system_multitasking_full_screen" msgid="4940465971687159429">"切換至全螢幕模式"</string>
+    <string name="system_multitasking_full_screen" msgid="4221409316059910349">"使用全螢幕模式"</string>
+    <string name="system_multitasking_desktop_view" msgid="8871367687089347180">"使用電腦視窗化模式"</string>
     <string name="system_multitasking_splitscreen_focus_rhs" msgid="3838578650313318508">"使用分割畫面時，切換到右邊或上方的應用程式"</string>
     <string name="system_multitasking_splitscreen_focus_lhs" msgid="3164261844398662518">"使用分割畫面時，切換到左邊或上方的應用程式"</string>
     <string name="system_multitasking_replace" msgid="7410071959803642125">"使用分割畫面期間：更換應用程式"</string>
@@ -898,6 +937,14 @@
     <string name="keyboard_shortcut_group_applications_calendar" msgid="4229602992120154157">"日曆"</string>
     <string name="keyboard_shortcut_group_applications_calculator" msgid="6316043911946540137">"計算機"</string>
     <string name="keyboard_shortcut_group_applications_maps" msgid="7312554713993114342">"地圖"</string>
+    <string name="group_accessibility_toggle_bounce_keys" msgid="4183584952493519179">"切換彈回鍵"</string>
+    <string name="group_accessibility_toggle_mouse_keys" msgid="534757719357514361">"切換滑鼠按鍵"</string>
+    <string name="group_accessibility_toggle_sticky_keys" msgid="7722214637652104184">"切換相黏鍵"</string>
+    <string name="group_accessibility_toggle_slow_keys" msgid="8569881436531795062">"切換延遲感應鍵"</string>
+    <string name="group_accessibility_toggle_voice_access" msgid="5436708239015479017">"切換 Voice Access"</string>
+    <string name="group_accessibility_toggle_talkback" msgid="5017967056006325713">"切換 TalkBack"</string>
+    <string name="group_accessibility_toggle_magnification" msgid="3892267763383743128">"切換放大功能"</string>
+    <string name="group_accessibility_activate_select_to_speak" msgid="9157775915495428592">"啟用隨選朗讀"</string>
     <string name="volume_and_do_not_disturb" msgid="502044092739382832">"零打擾"</string>
     <string name="volume_dnd_silent" msgid="4154597281458298093">"音量鍵快速鍵"</string>
     <string name="battery" msgid="769686279459897127">"電池"</string>
@@ -937,9 +984,11 @@
     <string name="right_icon" msgid="1103955040645237425">"向右圖示"</string>
     <string name="drag_to_add_tiles" msgid="8933270127508303672">"按住並拖曳即可新增設定方塊"</string>
     <string name="drag_to_rearrange_tiles" msgid="2143204300089638620">"按住並拖曳即可重新排列設定方塊"</string>
+    <string name="tap_to_position_tile" msgid="6282815817773342757">"輕觸即可調整設定方塊的位置"</string>
     <string name="drag_to_remove_tiles" msgid="4682194717573850385">"拖曳到這裡即可移除"</string>
     <string name="drag_to_remove_disabled" msgid="933046987838658850">"你至少必須要有 <xliff:g id="MIN_NUM_TILES">%1$d</xliff:g> 個設定方塊"</string>
     <string name="qs_edit" msgid="5583565172803472437">"編輯"</string>
+    <string name="qs_edit_tiles" msgid="2105215324060865035">"編輯設定方塊"</string>
     <string name="tuner_time" msgid="2450785840990529997">"時間"</string>
   <string-array name="clock_options">
     <item msgid="3986445361435142273">"顯示小時、分鐘和秒"</item>
@@ -953,14 +1002,18 @@
   </string-array>
     <string name="tuner_low_priority" msgid="8412666814123009820">"顯示低優先順序通知圖示"</string>
     <string name="other" msgid="429768510980739978">"其他"</string>
+    <string name="accessibility_qs_edit_toggle_tile_size_action" msgid="1485194410119733586">"切換設定方塊大小"</string>
     <string name="accessibility_qs_edit_remove_tile_action" msgid="775511891457193480">"移除圖塊"</string>
-    <string name="accessibility_qs_edit_tile_add_action" msgid="5051211910345301833">"將圖塊加到結尾處"</string>
+    <string name="accessibility_qs_edit_toggle_placement_mode" msgid="3870429389210569610">"切換位置調整模式"</string>
+    <string name="accessibility_qs_edit_toggle_selection" msgid="2201248304072372239">"切換選取項目"</string>
+    <string name="accessibility_qs_edit_tile_add_action" msgid="8311378984458545661">"將設定方塊新增到最後一個位置"</string>
     <string name="accessibility_qs_edit_tile_start_move" msgid="2009373939914517817">"移動圖塊"</string>
-    <string name="accessibility_qs_edit_tile_start_add" msgid="7560798153975555772">"新增圖塊"</string>
+    <string name="accessibility_qs_edit_tile_start_add" msgid="8141710006899065161">"將設定方塊新增到所需位置"</string>
     <string name="accessibility_qs_edit_tile_move_to_position" msgid="5198161544045930556">"移至 <xliff:g id="POSITION">%1$d</xliff:g>"</string>
     <string name="accessibility_qs_edit_tile_add_to_position" msgid="9029163095148274690">"新增到位置 <xliff:g id="POSITION">%1$d</xliff:g>"</string>
     <string name="accessibilit_qs_edit_tile_add_move_invalid_position" msgid="2858467994472624487">"位置無效。"</string>
     <string name="accessibility_qs_edit_position" msgid="4509277359815711830">"位置 <xliff:g id="POSITION">%1$d</xliff:g>"</string>
+    <string name="accessibility_qs_edit_tile_already_added" msgid="5900071201690226752">"已新增過該設定方塊"</string>
     <string name="accessibility_qs_edit_tile_added" msgid="9067146040380836334">"已新增設定方塊"</string>
     <string name="accessibility_qs_edit_tile_removed" msgid="1175925632436612036">"已移除設定方塊"</string>
     <string name="accessibility_desc_quick_settings_edit" msgid="741658939453595297">"快速設定編輯器。"</string>
@@ -972,11 +1025,10 @@
     <string name="accessibility_quick_settings_choose_user_action" msgid="4554388498186576087">"選擇使用者"</string>
     <string name="data_connection_no_internet" msgid="691058178914184544">"沒有網際網路連線"</string>
     <string name="accessibility_quick_settings_open_settings" msgid="536838345505030893">"開啟「<xliff:g id="ID_1">%s</xliff:g>」設定。"</string>
-    <string name="accessibility_quick_settings_edit" msgid="1523745183383815910">"編輯設定順序。"</string>
+    <string name="accessibility_quick_settings_edit" msgid="6544873823850165">"編輯「快速設定」的順序。"</string>
     <string name="accessibility_quick_settings_power_menu" msgid="6820426108301758412">"電源鍵選單"</string>
     <string name="accessibility_quick_settings_page" msgid="7506322631645550961">"第 <xliff:g id="ID_1">%1$d</xliff:g> 頁，共 <xliff:g id="ID_2">%2$d</xliff:g> 頁"</string>
     <string name="tuner_lock_screen" msgid="2267383813241144544">"螢幕鎖定"</string>
-    <string name="finder_active" msgid="7907846989716941952">"即使這支手機關機，仍可透過「尋找我的裝置」找出手機位置"</string>
     <string name="shutdown_progress" msgid="5464239146561542178">"關機中…"</string>
     <string name="thermal_shutdown_dialog_help_text" msgid="6413474593462902901">"查看處理步驟"</string>
     <string name="high_temp_dialog_help_text" msgid="7380171287943345858">"查看處理步驟"</string>
@@ -1162,7 +1214,6 @@
     <string name="controls_media_close_session" msgid="4780485355795635052">"要隱藏「<xliff:g id="APP_NAME">%1$s</xliff:g>」的媒體控制選項嗎？"</string>
     <string name="controls_media_active_session" msgid="3146882316024153337">"無法隱藏目前的媒體工作階段。"</string>
     <string name="controls_media_dismiss_button" msgid="4485675693008031646">"隱藏"</string>
-    <string name="controls_media_resume" msgid="1933520684481586053">"繼續播放"</string>
     <string name="controls_media_settings_button" msgid="5815790345117172504">"設定"</string>
     <string name="controls_media_playing_item_description" msgid="4531853311504359098">"系統正透過「<xliff:g id="APP_LABEL">%3$s</xliff:g>」播放<xliff:g id="ARTIST_NAME">%2$s</xliff:g>的〈<xliff:g id="SONG_NAME">%1$s</xliff:g>〉"</string>
     <string name="controls_media_seekbar_description" msgid="4389621713616214611">"<xliff:g id="ELAPSED_TIME">%1$s</xliff:g>，共 <xliff:g id="TOTAL_TIME">%2$s</xliff:g>"</string>
@@ -1204,12 +1255,13 @@
     <string name="media_output_dialog_disconnected" msgid="7090512852817111185">"(連線中斷)"</string>
     <string name="media_output_dialog_connect_failed" msgid="3080972621975339387">"無法切換，輕觸即可重試。"</string>
     <string name="media_output_dialog_pairing_new" msgid="5098212763195577270">"連接裝置"</string>
-    <string name="media_output_dialog_launch_app_text" msgid="1527413319632586259">"如要投放這個工作階段，請開啟應用程式。"</string>
+    <string name="media_output_dialog_button_connect_device" msgid="2819038239946643550">"連結裝置"</string>
     <string name="media_output_dialog_unknown_launch_app_name" msgid="1084899329829371336">"不明的應用程式"</string>
     <string name="media_output_dialog_button_stop_casting" msgid="6581379537930199189">"停止投放"</string>
     <string name="media_output_dialog_accessibility_title" msgid="4681741064190167888">"可用於輸出音訊的裝置。"</string>
     <string name="media_output_dialog_accessibility_seekbar" msgid="5332843993805568978">"音量"</string>
     <string name="media_output_dialog_volume_percentage" msgid="1613984910585111798">"<xliff:g id="PERCENTAGE">%1$d</xliff:g>%%"</string>
+    <string name="media_output_group_title_connected_speakers" msgid="3413876972919684479">"外接喇叭"</string>
     <string name="media_output_group_title_speakers_and_displays" msgid="7169712332365659820">"喇叭和螢幕"</string>
     <string name="media_output_group_title_suggested_device" msgid="4157186235837903826">"建議的裝置"</string>
     <string name="media_input_group_title" msgid="2057057473860783021">"輸入"</string>
@@ -1278,7 +1330,10 @@
     <string name="accessibility_enter_hint" msgid="2617864063504824834">"進入裝置"</string>
     <string name="keyguard_try_fingerprint" msgid="2825130772993061165">"使用指紋即可開啟"</string>
     <string name="accessibility_fingerprint_bouncer" msgid="7189102492498735519">"需要驗證。輕觸指紋感應器即可進行驗證。"</string>
-    <string name="ongoing_phone_call_content_description" msgid="5332334388483099947">"通話中"</string>
+    <string name="resume_animation" msgid="9148788411429330671">"繼續播放動畫"</string>
+    <string name="pause_animation" msgid="1919705510058107504">"暫停播放動畫"</string>
+    <string name="ongoing_call_content_description" msgid="6394763878322348560">"通話中"</string>
+    <string name="ongoing_notification_extra_content_description" msgid="2098752668861351265">"進行中"</string>
     <string name="mobile_data_settings_title" msgid="3955246641380064901">"行動數據"</string>
     <string name="mobile_data_connection_active" msgid="944490013299018227">"已連線"</string>
     <string name="mobile_data_temp_connection_active" msgid="4590222725908806824">"已暫時建立連線"</string>
@@ -1368,6 +1423,7 @@
     <string name="rear_display_accessibility_folded_animation" msgid="1538121649587978179">"正在展開的折疊式裝置"</string>
     <string name="rear_display_accessibility_unfolded_animation" msgid="1946153682258289040">"正在翻轉折疊式裝置"</string>
     <string name="rear_display_unfolded_front_screen_on" msgid="5946436677205643170">"正面螢幕已開啟"</string>
+    <string name="rear_display_unfolded_front_screen_on_slide_to_cancel" msgid="1455192420423012859">"滑動即可使用內螢幕"</string>
     <string name="quick_settings_rotation_posture_folded" msgid="2430280856312528289">"已摺疊"</string>
     <string name="quick_settings_rotation_posture_unfolded" msgid="6372316273574167114">"已展開"</string>
     <string name="rotation_tile_with_posture_secondary_label_template" msgid="7648496484163318886">"%1$s / %2$s"</string>
@@ -1420,15 +1476,16 @@
     <string name="shortcut_helper_category_system_apps" msgid="6001757545472556810">"系統應用程式"</string>
     <string name="shortcut_helper_category_multitasking" msgid="7413381961404090136">"多工處理"</string>
     <string name="shortcutHelper_category_split_screen" msgid="1159669813444812244">"分割畫面"</string>
+    <string name="shortcutHelper_category_accessibility" msgid="8068337792277570938">"無障礙功能"</string>
     <string name="shortcut_helper_category_input" msgid="8674018654124839566">"輸入"</string>
     <string name="shortcut_helper_category_app_shortcuts" msgid="8010249408308587117">"應用程式捷徑"</string>
     <string name="shortcut_helper_category_current_app_shortcuts" msgid="4017840565974573628">"目前的應用程式"</string>
     <string name="shortcut_helper_category_a11y" msgid="6314444792641773464">"無障礙"</string>
     <string name="shortcut_helper_title" msgid="8567500639300970049">"鍵盤快速鍵"</string>
-    <string name="shortcut_helper_customize_mode_title" msgid="1467657117101096033">"自訂鍵盤快速鍵"</string>
+    <string name="shortcut_helper_customize_mode_title" msgid="8327297960035006036">"自訂快速鍵"</string>
     <string name="shortcut_customize_mode_remove_shortcut_dialog_title" msgid="7106420484940737208">"要移除快速鍵嗎？"</string>
     <string name="shortcut_customize_mode_reset_shortcut_dialog_title" msgid="8131184731313717780">"要重設為預設值嗎？"</string>
-    <string name="shortcut_customize_mode_add_shortcut_description" msgid="6866025005347407696">"按下按鍵即可指派快速鍵"</string>
+    <string name="shortcut_customize_mode_add_shortcut_description" msgid="7636040209946696120">"如要建立這個快速鍵，請同時按下快捷操作鍵和一或多個其他鍵"</string>
     <string name="shortcut_customize_mode_remove_shortcut_description" msgid="6851287900585057128">"這項操作會永久刪除自訂快速鍵。"</string>
     <string name="shortcut_customize_mode_reset_shortcut_description" msgid="2081849715634358684">"這麼做會永久刪除所有快速鍵。"</string>
     <string name="shortcut_helper_search_placeholder" msgid="5488547526269871819">"搜尋快速鍵"</string>
@@ -1450,9 +1507,11 @@
     <string name="shortcut_helper_customize_dialog_reset_button_label" msgid="7645535254306312685">"是，請重設"</string>
     <string name="shortcut_helper_customize_dialog_cancel_button_label" msgid="5595546460431741178">"取消"</string>
     <string name="shortcut_helper_add_shortcut_dialog_placeholder" msgid="9154297849458741995">"按下按鍵"</string>
-    <string name="shortcut_customizer_key_combination_in_use_error_message" msgid="7693234470526626327">"按鍵組合重複，請改用其他按鍵。"</string>
+    <string name="shortcut_customizer_key_combination_in_use_error_message" msgid="3325858369539848162">"按鍵組合重複，請試試其他組合。"</string>
     <string name="shortcut_customizer_generic_error_message" msgid="3128454624049722741">"無法設定捷徑。"</string>
     <string name="shortcut_helper_plus_symbol" msgid="4534843157353732011">"+"</string>
+    <string name="shortcut_helper_add_shortcut_button_label" msgid="7655779534665954910">"新增快速鍵"</string>
+    <string name="shortcut_helper_delete_shortcut_button_label" msgid="3148773472696137052">"刪除快速鍵"</string>
     <string name="launch_keyboard_tutorial_notification_title" msgid="8849933155160522519">"使用鍵盤操作"</string>
     <string name="launch_keyboard_tutorial_notification_content" msgid="2880339951512757918">"學習鍵盤快速鍵"</string>
     <string name="launch_touchpad_tutorial_notification_title" msgid="2243780062772196901">"使用觸控板操作"</string>
@@ -1462,23 +1521,35 @@
     <string name="touchpad_tutorial_back_gesture_button" msgid="3104716365403620315">"返回"</string>
     <string name="touchpad_tutorial_home_gesture_button" msgid="8023973153559885624">"返回主畫面"</string>
     <string name="touchpad_tutorial_recent_apps_gesture_button" msgid="8919227647650347359">"查看最近使用的應用程式"</string>
+    <string name="touchpad_tutorial_switch_apps_gesture_button" msgid="7768255095423767779">"切換應用程式"</string>
     <string name="touchpad_tutorial_done_button" msgid="176168488821755503">"完成"</string>
+    <string name="touchpad_tutorial_next_button" msgid="9169718126626806688">"繼續"</string>
+    <string name="gesture_error_title" msgid="469064941635578511">"請再試一次！"</string>
     <string name="touchpad_back_gesture_action_title" msgid="7199067250654332735">"返回"</string>
     <string name="touchpad_back_gesture_guidance" msgid="5352221087725906542">"在觸控板上用三指向左或向右滑動"</string>
     <string name="touchpad_back_gesture_success_title" msgid="7370719098633023496">"很好！"</string>
     <string name="touchpad_back_gesture_success_body" msgid="2324724953720741719">"你已完成「返回」手勢的教學課程。"</string>
+    <string name="touchpad_back_gesture_error_body" msgid="7112668207481458792">"如要使用觸控板返回，請用三指向左或向右滑動"</string>
     <string name="touchpad_home_gesture_action_title" msgid="8885107349719257882">"返回主畫面"</string>
     <string name="touchpad_home_gesture_guidance" msgid="4178219118381915899">"在觸控板上用三指向上滑動"</string>
     <string name="touchpad_home_gesture_success_title" msgid="3648264553645798470">"太棒了！"</string>
     <string name="touchpad_home_gesture_success_body" msgid="2590690589194027059">"你已完成「返回主畫面」手勢教學課程"</string>
+    <string name="touchpad_home_gesture_error_body" msgid="3810674109999513073">"在觸控板上用三指向上滑動，即可前往主畫面"</string>
     <string name="touchpad_recent_apps_gesture_action_title" msgid="934906836867137906">"查看最近使用的應用程式"</string>
     <string name="touchpad_recent_apps_gesture_guidance" msgid="6304446013842271822">"在觸控板上用三指向上滑動並按住"</string>
     <string name="touchpad_recent_apps_gesture_success_title" msgid="8481920554139332593">"太棒了！"</string>
     <string name="touchpad_recent_apps_gesture_success_body" msgid="4334263906697493273">"你已完成「查看最近使用的應用程式」手勢教學課程。"</string>
+    <string name="touchpad_recent_gesture_error_body" msgid="8695535720378462022">"如要查看最近使用的應用程式，請在觸控板上用三指向上滑動並按住"</string>
+    <string name="touchpad_switch_apps_gesture_action_title" msgid="6835222344612924512">"切換應用程式"</string>
+    <string name="touchpad_switch_apps_gesture_guidance" msgid="2554844933805502538">"在觸控板上用四指向右滑動"</string>
+    <string name="touchpad_switch_apps_gesture_success_title" msgid="4894947244328032458">"太棒了！"</string>
+    <string name="touchpad_switch_apps_gesture_success_body" msgid="8151089866035126312">"你已完成應用程式切換手勢的教學課程。"</string>
+    <string name="touchpad_switch_gesture_error_body" msgid="5895231916964677918">"在觸控板上用四指向右滑動，即可切換應用程式"</string>
     <string name="tutorial_action_key_title" msgid="8172535792469008169">"查看所有應用程式"</string>
     <string name="tutorial_action_key_guidance" msgid="5040613427202799294">"按下鍵盤上的快捷操作鍵"</string>
     <string name="tutorial_action_key_success_title" msgid="2371827347071979571">"非常好！"</string>
     <string name="tutorial_action_key_success_body" msgid="1688986269491357832">"你已完成「查看所有應用程式」手勢教學課程"</string>
+    <string name="touchpad_action_key_error_body" msgid="8685502040091860903">"按下鍵盤上的快捷操作鍵即可查看所有應用程式"</string>
     <string name="tutorial_animation_content_description" msgid="2698816574982370184">"教學課程動畫，按一下即可暫停和繼續播放。"</string>
     <string name="keyboard_backlight_dialog_title" msgid="8273102932345564724">"鍵盤背光"</string>
     <string name="keyboard_backlight_value" msgid="7336398765584393538">"第 %1$d 級，共 %2$d 級"</string>
@@ -1490,7 +1561,8 @@
     <string name="overview_edu_toast_content" msgid="5797030644017804518">"如要查看最近使用的應用程式，請在觸控板上向上滑動並按住"</string>
     <string name="all_apps_edu_toast_content" msgid="8807496014667211562">"如要查看所有應用程式，請按下鍵盤上的快捷操作鍵"</string>
     <string name="redacted_notification_single_line_title" msgid="212019960919261670">"已遮蓋"</string>
-    <string name="redacted_notification_single_line_text" msgid="8684166405005242945">"解鎖即可查看"</string>
+    <string name="public_notification_single_line_text" msgid="3576190291791654933">"解鎖即可查看"</string>
+    <string name="redacted_otp_notification_single_line_text" msgid="5179964116354454118">"解鎖即可查看驗證碼"</string>
     <string name="contextual_education_dialog_title" msgid="4630392552837487324">"內容教學"</string>
     <string name="back_edu_notification_title" msgid="5624780717751357278">"使用觸控板返回"</string>
     <string name="back_edu_notification_content" msgid="2497557451540954068">"用三指向左或向右滑動。輕觸即可進一步瞭解手勢。"</string>
@@ -1513,4 +1585,6 @@
     <string name="qs_edit_mode_category_unknown" msgid="509314252124053550">"不明"</string>
     <string name="qs_edit_mode_reset_dialog_title" msgid="5344853290033761627">"要重設所有設定方塊嗎？"</string>
     <string name="qs_edit_mode_reset_dialog_content" msgid="7474773130622653653">"所有快速設定方塊都會恢復裝置的原始設定"</string>
+    <string name="demote_explain_text" msgid="3942301497888762295">"「<xliff:g id="APPLICATION">%1$s</xliff:g>」將不再顯示最新即時資訊，你隨時可以前往「設定」進行變更。"</string>
+    <string name="volume_slider_disabled_message_template" msgid="1305088816797803460">"<xliff:g id="STREAM_NAME">%1$s</xliff:g>、<xliff:g id="DISABLED_MESSAGE">%2$s</xliff:g>"</string>
 </resources>

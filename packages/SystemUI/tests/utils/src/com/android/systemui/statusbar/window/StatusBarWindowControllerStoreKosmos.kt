@@ -16,9 +16,6 @@
 
 package com.android.systemui.statusbar.window
 
-import android.view.WindowManager
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
-import com.android.app.viewcapture.realCaptureAwareWindowManager
 import com.android.systemui.display.data.repository.displayRepository
 import com.android.systemui.display.data.repository.displayWindowPropertiesRepository
 import com.android.systemui.kosmos.Kosmos
@@ -33,14 +30,6 @@ val Kosmos.multiDisplayStatusBarWindowControllerStore by
             backgroundApplicationScope = applicationCoroutineScope,
             controllerFactory = { _, _, _, _ -> mock() },
             displayWindowPropertiesRepository = displayWindowPropertiesRepository,
-            viewCaptureAwareWindowManagerFactory =
-                object : ViewCaptureAwareWindowManager.Factory {
-                    override fun create(
-                        windowManager: WindowManager
-                    ): ViewCaptureAwareWindowManager {
-                        return realCaptureAwareWindowManager
-                    }
-                },
             statusBarConfigurationControllerStore = statusBarConfigurationControllerStore,
             statusBarContentInsetsProviderStore = statusBarContentInsetsProviderStore,
             displayRepository = displayRepository,

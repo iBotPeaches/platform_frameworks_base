@@ -16,7 +16,44 @@
 
 package com.android.systemui.statusbar.notification.collection.coordinator
 
+import com.android.systemui.communal.domain.interactor.communalSceneInteractor
+import com.android.systemui.concurrency.fakeExecutor
+import com.android.systemui.dump.dumpManager
+import com.android.systemui.keyguard.domain.interactor.keyguardTransitionInteractor
+import com.android.systemui.keyguard.wakefulnessLifecycle
 import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.util.mockito.mock
+import com.android.systemui.kosmos.testScope
+import com.android.systemui.plugins.statusbar.statusBarStateController
+import com.android.systemui.shade.domain.interactor.shadeAnimationInteractor
+import com.android.systemui.shade.domain.interactor.shadeInteractor
+import com.android.systemui.statusbar.notification.collection.provider.visualStabilityProvider
+import com.android.systemui.statusbar.notification.domain.interactor.seenNotificationsInteractor
+import com.android.systemui.statusbar.notification.stack.data.repository.headsUpNotificationRepository
+import com.android.systemui.statusbar.notification.visibilityLocationProvider
+import com.android.systemui.statusbar.policy.keyguardStateController
+import com.android.systemui.util.kotlin.JavaAdapter
+import org.mockito.kotlin.mock
 
-var Kosmos.visualStabilityCoordinator by Kosmos.Fixture { mock<VisualStabilityCoordinator>() }
+var Kosmos.visualStabilityCoordinator: VisualStabilityCoordinator by
+    Kosmos.Fixture {
+        VisualStabilityCoordinator(
+            fakeExecutor,
+            fakeExecutor,
+            dumpManager,
+            headsUpNotificationRepository,
+            shadeAnimationInteractor,
+            JavaAdapter(testScope.backgroundScope),
+            seenNotificationsInteractor,
+            statusBarStateController,
+            visibilityLocationProvider,
+            visualStabilityProvider,
+            wakefulnessLifecycle,
+            communalSceneInteractor,
+            shadeInteractor,
+            keyguardTransitionInteractor,
+            keyguardStateController,
+            visualStabilityCoordinatorLogger,
+        )
+    }
+
+var Kosmos.mockVisualStabilityCoordinator: VisualStabilityCoordinator by Kosmos.Fixture { mock() }

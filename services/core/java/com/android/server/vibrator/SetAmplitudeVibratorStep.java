@@ -20,6 +20,7 @@ import android.annotation.NonNull;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.VibrationEffect;
+import android.os.vibrator.Flags;
 import android.os.vibrator.StepSegment;
 import android.os.vibrator.VibrationEffectSegment;
 import android.util.Slog;
@@ -49,6 +50,10 @@ final class SetAmplitudeVibratorStep extends AbstractComposedVibratorStep {
 
     @Override
     public boolean acceptVibratorCompleteCallback(int vibratorId) {
+        if (Flags.fixVibrationThreadCallbackHandling()) {
+            // TODO: remove this method once flag removed.
+            return super.acceptVibratorCompleteCallback(vibratorId);
+        }
         // Ensure the super method is called and will reset the off timeout and boolean flag.
         // This is true if the vibrator was ON and this callback has the same vibratorId.
         if (!super.acceptVibratorCompleteCallback(vibratorId)) {
@@ -161,7 +166,8 @@ final class SetAmplitudeVibratorStep extends AbstractComposedVibratorStep {
                     "Turning on vibrator " + controller.getVibratorInfo().getId() + " for "
                             + duration + "ms");
         }
-        long vibratorOnResult = controller.on(duration, getVibration().id);
+        int stepId = conductor.nextVibratorCallbackStepId(getVibratorId());
+        long vibratorOnResult = controller.on(duration, getVibration().id, stepId);
         handleVibratorOnResult(vibratorOnResult);
         getVibration().stats.reportVibratorOn(vibratorOnResult);
         return vibratorOnResult;

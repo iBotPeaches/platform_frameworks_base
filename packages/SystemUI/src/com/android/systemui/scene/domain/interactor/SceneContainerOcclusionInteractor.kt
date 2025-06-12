@@ -136,7 +136,7 @@ constructor(
             when (this) {
                 Overlays.NotificationsShade -> false
                 Overlays.QuickSettingsShade -> false
-                Scenes.Bouncer -> false
+                Overlays.Bouncer -> false
                 Scenes.Communal -> true
                 Scenes.Dream -> false
                 Scenes.Gone -> true

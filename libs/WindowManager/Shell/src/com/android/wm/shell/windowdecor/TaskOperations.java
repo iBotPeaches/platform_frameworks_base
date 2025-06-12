@@ -86,14 +86,18 @@ class TaskOperations {
         return null;
     }
 
-    IBinder minimizeTask(WindowContainerToken taskToken) {
-        return minimizeTask(taskToken, new WindowContainerTransaction());
+    IBinder minimizeTask(WindowContainerToken taskToken, int taskId, boolean isLastTask) {
+        return minimizeTask(taskToken, taskId, isLastTask, new WindowContainerTransaction());
     }
 
-    IBinder minimizeTask(WindowContainerToken taskToken, WindowContainerTransaction wct) {
+    IBinder minimizeTask(
+            WindowContainerToken taskToken,
+            int taskId,
+            boolean isLastTask,
+            WindowContainerTransaction wct) {
         wct.reorder(taskToken, false);
         if (Transitions.ENABLE_SHELL_TRANSITIONS) {
-            return mTransitionStarter.startMinimizedModeTransition(wct);
+            return mTransitionStarter.startMinimizedModeTransition(wct, taskId, isLastTask);
         } else {
             mSyncQueue.queue(wct);
             return null;

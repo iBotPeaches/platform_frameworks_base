@@ -18,18 +18,18 @@ package com.android.systemui.statusbar.notification.collection.render
 
 import android.view.textclassifier.Log
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import javax.inject.Inject
 
 /**
- * The ViewBarn is just a map from [ListEntry] to an instance of a [NodeController].
+ * The ViewBarn is just a map from [PipelineEntry] to an instance of a [NodeController].
  */
 @SysUISingleton
 class NotifViewBarn @Inject constructor() {
     private val rowMap = mutableMapOf<String, NotifViewController>()
 
-    fun requireNodeController(entry: ListEntry): NodeController {
+    fun requireNodeController(entry: PipelineEntry): NodeController {
         if (DEBUG) {
             Log.d(TAG, "requireNodeController: ${entry.key}")
         }
@@ -50,14 +50,14 @@ class NotifViewBarn @Inject constructor() {
         return rowMap[entry.key] ?: error("No view has been registered for entry: ${entry.key}")
     }
 
-    fun registerViewForEntry(entry: ListEntry, controller: NotifViewController) {
+    fun registerViewForEntry(entry: PipelineEntry, controller: NotifViewController) {
         if (DEBUG) {
             Log.d(TAG, "registerViewForEntry: ${entry.key}")
         }
         rowMap[entry.key] = controller
     }
 
-    fun removeViewForEntry(entry: ListEntry) {
+    fun removeViewForEntry(entry: PipelineEntry) {
         if (DEBUG) {
             Log.d(TAG, "removeViewForEntry: ${entry.key}")
         }

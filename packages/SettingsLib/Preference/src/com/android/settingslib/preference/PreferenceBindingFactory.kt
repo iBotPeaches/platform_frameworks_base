@@ -60,7 +60,6 @@ open class DefaultPreferenceBindingFactory : PreferenceBindingFactory {
             ?: when (metadata) {
                 is SwitchPreference -> SwitchPreferenceBinding.INSTANCE
                 is PreferenceCategory -> PreferenceCategoryBinding.INSTANCE
-                is PreferenceScreenCreator -> PreferenceScreenBinding.INSTANCE
                 is MainSwitchPreference -> MainSwitchPreferenceBinding.INSTANCE
                 else -> DefaultPreferenceBinding
             }

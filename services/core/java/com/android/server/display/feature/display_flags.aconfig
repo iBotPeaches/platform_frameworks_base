@@ -29,30 +29,6 @@ flag {
 }
 
 flag {
-    name: "enable_connected_display_management"
-    namespace: "display_manager"
-    description: "Feature flag for Connected Display management"
-    bug: "280739508"
-    is_fixed_read_only: true
-}
-
-flag {
-    name: "enable_nbm_controller"
-    namespace: "display_manager"
-    description: "Feature flag for Normal Brightness Mode Controller"
-    bug: "299527549"
-    is_fixed_read_only: true
-}
-
-flag {
-    name: "enable_hdr_clamper"
-    namespace: "display_manager"
-    description: "Feature flag for HDR Clamper"
-    bug: "295100043"
-    is_fixed_read_only: true
-}
-
-flag {
     name: "enable_power_throttling_clamper"
     namespace: "display_manager"
     description: "Feature flag for Power Throttling Clamper"
@@ -104,7 +80,7 @@ flag {
     name: "display_topology"
     namespace: "display_manager"
     description: "Display topology for moving cursors and windows between extended displays"
-    bug: "278199220"
+    bug: "364906028"
     is_fixed_read_only: true
 }
 
@@ -215,14 +191,6 @@ flag {
 }
 
 flag {
-    name: "refresh_rate_voting_telemetry"
-    namespace: "display_manager"
-    description: "Feature flag for enabling telemetry for refresh rate voting in DisplayManager"
-    bug: "310029108"
-    is_fixed_read_only: true
-}
-
-flag {
     name: "enable_pixel_anisotropy_correction"
     namespace: "display_manager"
     description: "Feature flag for enabling display anisotropy correction through LogicalDisplay upscaling"
@@ -284,17 +252,6 @@ flag {
     description: "Feature flag for the parameter specifying whether brightness should be adjusted while dozing."
     bug: "343283838"
     is_fixed_read_only: true
-}
-
-flag {
-    name: "offload_controls_doze_auto_brightness"
-    namespace: "display_manager"
-    description: "Allows the registered DisplayOffloader to control if auto-brightness is used in doze"
-    bug: "327392714"
-    is_fixed_read_only: true
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
 }
 
 flag {
@@ -478,11 +435,18 @@ flag {
 }
 
 flag {
+    name: "enable_hdr_override_plugin_type"
+    namespace: "display_manager"
+    description: "Enable hdr override plugin type"
+    bug: "389873155"
+    is_fixed_read_only: true
+}
+
+flag {
     name: "enable_display_content_mode_management"
     namespace: "lse_desktop_experience"
-    description: "Enable switching the content mode of connected displays between mirroring and extened. Also change the default content mode to extended mode."
+    description: "Enable switching the content mode of connected displays between mirroring and extended. Also change the default content mode to extended mode."
     bug: "378385869"
-    is_fixed_read_only: true
 }
 
 flag {
@@ -490,6 +454,74 @@ flag {
     namespace: "display_manager"
     description: "Enable subscription to granular display change events."
     bug: "379250634"
+    is_fixed_read_only: true
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "base_density_for_external_displays"
+    namespace: "lse_desktop_experience"
+    description: "Feature flag for setting a base density for external displays."
+    bug: "382954433"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "framerate_override_triggers_rr_callbacks"
+    namespace: "display_manager"
+    description: "Feature flag to trigger the RR callbacks when framerate overridding happens."
+    bug: "390113266"
+    is_fixed_read_only: true
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "refresh_rate_event_for_foreground_apps"
+    namespace: "display_manager"
+    description: "Send Refresh Rate events only for the apps in foreground."
+    bug: "390107600"
+    is_fixed_read_only: true
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "display_category_built_in"
+    namespace: "windowing_sdk"
+    description: "Add a new category to get the built in displays."
+    bug: "293651324"
+    is_fixed_read_only: false
+}
+
+flag {
+    name: "committed_state_separate_event"
+    namespace: "display_manager"
+    description: "Move Display committed state into a separate event"
+    bug: "342192387"
+    is_fixed_read_only: true
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+
+flag {
+    name: "separate_timeouts"
+    namespace: "lse_desktop_experience"
+    description: "Allow separate timeouts for different power groups"
+    bug: "402356291"
+}
+
+flag {
+    name: "delay_implicit_rr_registration_until_rr_accessed"
+    namespace: "display_manager"
+    description: "Feature flag for clients to subscribe to RR changes by either explicitly subscribing for refresh rate changes or request for refresh rate data"
+    bug: "391828526"
     is_fixed_read_only: true
     metadata {
       purpose: PURPOSE_BUGFIX

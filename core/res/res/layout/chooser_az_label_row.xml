@@ -16,7 +16,7 @@
   -->
 
 <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
-          android:contentDescription="@string/chooser_all_apps_button_label"
+          android:importantForAccessibility="no"
           android:src="@drawable/chooser_row_layer_list"
           android:paddingTop="16dp"
           android:layout_width="match_parent"

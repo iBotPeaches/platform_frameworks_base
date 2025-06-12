@@ -30,11 +30,13 @@ import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.expansionChanges
+import com.android.systemui.statusbar.notification.collection.GroupEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifFilter
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionListener
+import com.android.systemui.statusbar.notification.collection.notifcollection.UpdateSource
 import com.android.systemui.statusbar.notification.domain.interactor.SeenNotificationsInteractor
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
 import com.android.systemui.statusbar.notification.headsup.headsUpEvents
@@ -273,17 +275,22 @@ constructor(
                 if (
                     keyguardRepository.isKeyguardShowing() || !statusBarStateController.isExpanded
                 ) {
-                    logger.logUnseenAdded(entry.key)
+                    logger.logUnseenAdded(entry.key, entry.sbn.postTime)
                     unseenNotifications.add(entry)
                     unseenEntryAdded.tryEmit(entry)
                 }
             }
 
-            override fun onEntryUpdated(entry: NotificationEntry) {
+            override fun onEntryUpdated(entry: NotificationEntry, source: UpdateSource) {
                 if (
                     keyguardRepository.isKeyguardShowing() || !statusBarStateController.isExpanded
                 ) {
-                    logger.logUnseenUpdated(entry.key)
+                    logger.logUnseenUpdated(entry.key, source, entry.sbn.postTime)
+                    // We are not marking a notif as unseen if it's updated by the SystemServer
+                    // (for example, auto-grouping), or the SystemUi, not the App.
+                    if (source != UpdateSource.App) {
+                        return
+                    }
                     unseenNotifications.add(entry)
                     unseenEntryAdded.tryEmit(entry)
                 }
@@ -313,7 +320,7 @@ constructor(
                     unseenNotifications.contains(entry) -> false
                     // Don't apply the filter to (non-promoted) group summaries
                     //  - summary will be pruned if necessary, depending on if children are filtered
-                    entry.parent?.summary == entry -> false
+                    (entry.parent as? GroupEntry)?.summary == entry -> false
                     // Check that the entry satisfies certain characteristics that would bypass the
                     // filter
                     shouldIgnoreUnseenCheck(entry) -> false

@@ -18,22 +18,27 @@ package com.android.systemui.statusbar.notification.shared
 import com.google.common.truth.Correspondence
 
 val byKey: Correspondence<ActiveNotificationModel, String> =
-    Correspondence.transforming({ it?.key }, "has a key of")
+    Correspondence.transforming({ it.key }, "has a key of")
 val byIsAmbient: Correspondence<ActiveNotificationModel, Boolean> =
-    Correspondence.transforming({ it?.isAmbient }, "has an isAmbient value of")
+    Correspondence.transforming({ it.isAmbient }, "has an isAmbient value of")
 val byIsSuppressedFromStatusBar: Correspondence<ActiveNotificationModel, Boolean> =
     Correspondence.transforming(
-        { it?.isSuppressedFromStatusBar },
+        { it.isSuppressedFromStatusBar },
         "has an isSuppressedFromStatusBar value of",
     )
 val byIsSilent: Correspondence<ActiveNotificationModel, Boolean> =
-    Correspondence.transforming({ it?.isSilent }, "has an isSilent value of")
+    Correspondence.transforming({ it.isSilent }, "has an isSilent value of")
 val byIsRowDismissed: Correspondence<ActiveNotificationModel, Boolean> =
-    Correspondence.transforming({ it?.isRowDismissed }, "has an isRowDismissed value of")
+    Correspondence.transforming({ it.isRowDismissed }, "has an isRowDismissed value of")
 val byIsLastMessageFromReply: Correspondence<ActiveNotificationModel, Boolean> =
     Correspondence.transforming(
-        { it?.isLastMessageFromReply },
-        "has an isLastMessageFromReply value of"
+        { it.isLastMessageFromReply },
+        "has an isLastMessageFromReply value of",
     )
 val byIsPulsing: Correspondence<ActiveNotificationModel, Boolean> =
-    Correspondence.transforming({ it?.isPulsing }, "has an isPulsing value of")
+    Correspondence.transforming({ it.isPulsing }, "has an isPulsing value of")
+val byIsPromoted: Correspondence<ActiveNotificationModel, Boolean> =
+    Correspondence.transforming(
+        { it.promotedContent != null },
+        "has (or doesn't have) a promoted content model",
+    )

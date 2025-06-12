@@ -673,10 +673,22 @@ public final class JobStatus {
 
         this.job = job;
 
-        final String bnNamespace = namespace == null ? "" :  "@" + namespace + "@";
-        this.batteryName = this.sourceTag != null
-                ? bnNamespace + this.sourceTag + ":" + job.getService().getPackageName()
-                : bnNamespace + job.getService().flattenToShortString();
+        StringBuilder batteryName = new StringBuilder();
+        if (com.android.server.job.Flags.includeTraceTagInJobName()) {
+            final String filteredTraceTag = this.getFilteredTraceTag();
+            if (filteredTraceTag != null) {
+                batteryName.append("#").append(filteredTraceTag).append("#");
+            }
+        }
+        if (namespace != null) {
+            batteryName.append("@").append(namespace).append("@");
+        }
+        if (sourceTag != null) {
+            batteryName.append(sourceTag).append(":").append(job.getService().getPackageName());
+        } else {
+            batteryName.append(job.getService().flattenToShortString());
+        }
+        this.batteryName = batteryName.toString();
 
         final String componentPackage = job.getService().getPackageName();
         mIsProxyJob = !this.sourcePackageName.equals(componentPackage);
@@ -1459,7 +1471,12 @@ public final class JobStatus {
     @NonNull
     public String getWakelockTag() {
         if (mWakelockTag == null) {
-            mWakelockTag = "*job*/" + this.batteryName;
+            mWakelockTag = "*job*";
+            if (android.app.job.Flags.addTypeInfoToWakelockTag()) {
+                mWakelockTag += (isRequestedExpeditedJob()
+                    ? "e" : (getJob().isUserInitiated() ? "u" : "r"));
+            }
+            mWakelockTag += "/" + this.batteryName;
         }
         return mWakelockTag;
     }

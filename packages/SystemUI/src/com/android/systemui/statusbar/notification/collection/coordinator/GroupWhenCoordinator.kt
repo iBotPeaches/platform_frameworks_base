@@ -18,7 +18,7 @@ package com.android.systemui.statusbar.notification.collection.coordinator
 import android.util.ArrayMap
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.Invalidator
@@ -52,7 +52,7 @@ constructor(
         pipeline.addPreRenderInvalidator(invalidator)
     }
 
-    private fun onBeforeFinalizeFilterListener(entries: List<ListEntry>) {
+    private fun onBeforeFinalizeFilterListener(entries: List<PipelineEntry>) {
         cancelListInvalidation()
         notificationGroupTimes.clear()
 

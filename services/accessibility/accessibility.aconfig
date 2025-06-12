@@ -11,6 +11,16 @@ flag {
 }
 
 flag {
+    name: "allow_secure_screenshots"
+    namespace: "accessibility"
+    description: "Allow certain AccessibilityServices to take screenshots of FLAG_SECURE screens"
+    bug: "373705911"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "always_allow_observing_touch_events"
     namespace: "accessibility"
     description: "Always allows InputFilter observing SOURCE_TOUCHSCREEN events, even if touch exploration is enabled."
@@ -79,6 +89,13 @@ flag {
 }
 
 flag {
+    name: "enable_autoclick_indicator"
+    namespace: "accessibility"
+    description: "Whether to show autoclick indicator when autoclick feature is enabled."
+    bug: "383901288"
+}
+
+flag {
     name: "enable_a11y_checker_logging"
     namespace: "accessibility"
     description: "Whether to identify and log app a11y issues."
@@ -90,6 +107,13 @@ flag {
     namespace: "accessibility"
     description: "When the user purposely enables the hardware shortcut, preemptively disables the first-time warning message."
     bug: "287065325"
+}
+
+flag {
+    name: "enable_low_vision_generic_feedback"
+    namespace: "accessibility"
+    description: "Use generic feedback for low vision."
+    bug: "393981463"
 }
 
 flag {
@@ -121,13 +145,10 @@ flag {
 }
 
 flag {
-    name: "enable_magnification_follows_mouse_bugfix"
+    name: "enable_magnification_follows_mouse_with_pointer_motion_filter"
     namespace: "accessibility"
-    description: "Whether to enable mouse following for fullscreen magnification"
-    bug: "354696546"
-    metadata {
-      purpose: PURPOSE_BUGFIX
-    }
+    description: "Whether to enable mouse following using pointer motion filter"
+    bug: "361817142"
 }
 
 flag {
@@ -135,6 +156,16 @@ flag {
     namespace: "accessibility"
     description: "Whether to enable keyboard control for magnification"
     bug: "355487062"
+}
+
+flag {
+    name: "event_dispatcher_raw_event"
+    namespace: "accessibility"
+    description: "Fixes EventDispatcher#sendMotionEvent callers to properly provide raw event"
+    bug: "385812366"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -192,6 +223,26 @@ flag {
 }
 
 flag {
+    name: "manager_lifecycle_user_change"
+    namespace: "accessibility"
+    description: "Use A11yManagerService's Lifecycle to change users, instead of listening for user changed events."
+    bug: "393626471"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "motion_event_injector_cancel_fix"
+    namespace: "accessibility"
+    description: "Fix the ACTION_CANCEL logic used in MotionEventInjector to avoid InputDispatcher inconsistency"
+    bug: "384451671"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "package_monitor_dedicated_thread"
     namespace: "accessibility"
     description: "Runs the A11yManagerService PackageMonitor on a dedicated thread"
@@ -216,6 +267,16 @@ flag {
     namespace: "accessibility"
     description: "Whether to set min span of ScaleGestureDetector to zero."
     bug: "295327792"
+}
+
+flag {
+    name: "pointer_up_motion_event_in_touch_exploration"
+    namespace: "accessibility"
+    description: "Allows POINTER_UP motionEvents to trigger during touch exploration."
+    bug: "374930391"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -291,6 +352,16 @@ flag {
     namespace: "accessibility"
     description: "Skip onSomePackageChanged callback if the SwitchUser signal is not received yet."
     bug: "340927041"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "hearing_input_change_when_comm_device"
+    namespace: "accessibility"
+    description: "Listen to the CommunicationDeviceChanged to show hearing device input notification."
+    bug: "394070235"
     metadata {
         purpose: PURPOSE_BUGFIX
     }

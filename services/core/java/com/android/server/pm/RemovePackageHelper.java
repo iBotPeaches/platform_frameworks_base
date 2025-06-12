@@ -30,6 +30,8 @@ import static com.android.server.pm.PackageManagerService.TAG;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeALL;
+import android.annotation.UserIdInt;
 import android.content.pm.PackageManager;
 import android.content.pm.parsing.ApkLiteParseUtils;
 import android.content.pm.parsing.PackageLite;
@@ -256,7 +258,8 @@ final class RemovePackageHelper {
      * Make sure this flag is set for partially installed apps. If not it's meaningless to
      * delete a partially installed application.
      */
-    public void clearPackageStateForUserLIF(PackageSetting ps, int userId, int flags) {
+    public void clearPackageStateForUserLIF(PackageSetting ps, @CanBeALL @UserIdInt int userId,
+            int flags) {
         final String packageName = ps.getPackageName();
         // Step 1: always destroy app profiles except when explicitly preserved
         if ((flags & Installer.FLAG_CLEAR_APP_DATA_KEEP_ART_PROFILES) == 0) {
@@ -370,13 +373,13 @@ final class RemovePackageHelper {
      * This method deletes the package from internal data structures such as mPackages / mSettings.
      *
      * @param targetUserId indicates the target user of the deletion. It equals to
-     *                     {@link UserHandle.USER_ALL} if the deletion was initiated for all users,
+     *                     {@link UserHandle#USER_ALL} if the deletion was initiated for all users,
      *                     otherwise it equals to the specific user id that the deletion was meant
      *                     for.
      */
     @GuardedBy("mPm.mInstallLock")
-    public void removePackageDataLIF(final PackageSetting deletedPs, int targetUserId,
-            @NonNull int[] allUserHandles,
+    public void removePackageDataLIF(final PackageSetting deletedPs,
+            @CanBeALL @UserIdInt int targetUserId, @NonNull int[] allUserHandles,
             @NonNull PackageRemovedInfo outInfo, int flags, boolean writeSettings) {
         String packageName = deletedPs.getPackageName();
         if (DEBUG_REMOVE) Slog.d(TAG, "removePackageDataLI: " + deletedPs);
@@ -482,7 +485,8 @@ final class RemovePackageHelper {
         }
     }
 
-    private static boolean shouldDeletePackageSetting(PackageSetting deletedPs, int userId,
+    private static boolean shouldDeletePackageSetting(PackageSetting deletedPs,
+                                                      @CanBeALL @UserIdInt int userId,
                                                       int[] allUserHandles, int flags) {
         if ((flags & PackageManager.DELETE_KEEP_DATA) != 0) {
             return false;

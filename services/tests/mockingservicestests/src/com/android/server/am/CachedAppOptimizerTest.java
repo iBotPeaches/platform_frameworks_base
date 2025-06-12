@@ -23,18 +23,11 @@ import static com.android.server.am.ActivityManagerService.Injector;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
-import android.app.ActivityManagerInternal;
 import android.app.ActivityManagerInternal.FrozenProcessListener;
 import android.content.ComponentName;
 import android.content.Context;
@@ -44,14 +37,12 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.MessageQueue;
 import android.os.Process;
-import android.os.SystemClock;
 import android.platform.test.annotations.Presubmit;
 import android.provider.DeviceConfig;
 import android.text.TextUtils;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.internal.annotations.GuardedBy;
 import com.android.modules.utils.testing.ExtendedMockitoRule;
 import com.android.modules.utils.testing.TestableDeviceConfig;
 import com.android.server.LocalServices;
@@ -68,11 +59,9 @@ import org.mockito.Mock;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -142,6 +131,9 @@ public final class CachedAppOptimizerTest {
                 }, mProcessDependencies);
         LocalServices.removeServiceForTest(PackageManagerInternal.class);
         LocalServices.addService(PackageManagerInternal.class, mPackageManagerInt);
+
+        mCachedAppOptimizerUnderTest.init();
+        mCachedAppOptimizerUnderTest.mCompactStatsManager.reinit();
     }
 
     @After
@@ -161,14 +153,13 @@ public final class CachedAppOptimizerTest {
         app.info.uid = packageUid;
         // Exact value does not mater, it can be any state for which compaction is allowed.
         app.mState.setSetProcState(PROCESS_STATE_BOUND_FOREGROUND_SERVICE);
-        app.mState.setSetAdj(899);
+        app.mState.setSetAdj(940);
         app.mState.setCurAdj(940);
         return app;
     }
 
     @Test
     public void init_setsDefaults() {
-        mCachedAppOptimizerUnderTest.init();
         synchronized (mCachedAppOptimizerUnderTest.mPhenotypeFlagLock) {
             assertThat(mCachedAppOptimizerUnderTest.useCompaction()).isEqualTo(
                     CachedAppOptimizer.DEFAULT_USE_COMPACTION);
@@ -304,7 +295,6 @@ public final class CachedAppOptimizerTest {
         assertThat(mCachedAppOptimizerUnderTest.useCompaction()).isEqualTo(
                 CachedAppOptimizer.DEFAULT_USE_COMPACTION);
         // When we call init and change some the flag value...
-        mCachedAppOptimizerUnderTest.init();
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
                 CachedAppOptimizer.KEY_USE_COMPACTION, "true", false);
@@ -331,7 +321,6 @@ public final class CachedAppOptimizerTest {
         // The freezer DeviceConfig property is read at boot only
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER_NATIVE_BOOT,
                 CachedAppOptimizer.KEY_USE_FREEZER, "true", false);
-        mCachedAppOptimizerUnderTest.init();
         assertThat(mCachedAppOptimizerUnderTest.useFreezer()).isTrue();
         mCountDown = new CountDownLatch(1);
 
@@ -363,7 +352,6 @@ public final class CachedAppOptimizerTest {
     public void useCompaction_listensToDeviceConfigChangesBadValues() throws InterruptedException {
         assertThat(mCachedAppOptimizerUnderTest.useCompaction()).isEqualTo(
                 CachedAppOptimizer.DEFAULT_USE_COMPACTION);
-        mCachedAppOptimizerUnderTest.init();
 
         // When we push an invalid flag value...
         mCountDown = new CountDownLatch(1);
@@ -392,8 +380,6 @@ public final class CachedAppOptimizerTest {
 
     @Test
     public void compactThrottle_listensToDeviceConfigChanges() throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override new reasonable throttle values after init...
         mCountDown = new CountDownLatch(8);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -440,8 +426,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void compactThrottle_listensToDeviceConfigChangesBadValues()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When one of the throttles is overridden with a bad value...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -526,8 +510,6 @@ public final class CachedAppOptimizerTest {
 
     @Test
     public void statsdSampleRate_listensToDeviceConfigChanges() throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mCompactStatsdSampleRate with a reasonable value ...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -554,8 +536,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void statsdSampleRate_listensToDeviceConfigChangesBadValues()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mCompactStatsdSampleRate with an unreasonable value ...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -580,8 +560,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void statsdSampleRate_listensToDeviceConfigChangesOutOfRangeValues()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mCompactStatsdSampleRate with an value outside of [0..1]...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -624,8 +602,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void fullCompactionRssThrottleKb_listensToDeviceConfigChanges()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mStatsdSampleRate with a reasonable value ...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -641,8 +617,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void fullCompactionRssThrottleKb_listensToDeviceConfigChangesBadValues()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mStatsdSampleRate with an unreasonable value ...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -666,8 +640,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void fullCompactionDeltaRssThrottleKb_listensToDeviceConfigChanges()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mStatsdSampleRate with a reasonable value ...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -684,8 +656,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void fullCompactionDeltaRssThrottleKb_listensToDeviceConfigChangesBadValues()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
-
         // When we override mStatsdSampleRate with an unreasonable value ...
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
@@ -709,7 +679,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void procStateThrottle_listensToDeviceConfigChanges()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
         mCountDown = new CountDownLatch(1);
         DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
                 CachedAppOptimizer.KEY_COMPACT_PROC_STATE_THROTTLE, "1,2,3", false);
@@ -726,7 +695,6 @@ public final class CachedAppOptimizerTest {
     @Test
     public void procStateThrottle_listensToDeviceConfigChangesBadValues()
             throws InterruptedException {
-        mCachedAppOptimizerUnderTest.init();
 
         Set<Integer> expected = new HashSet<>();
         for (String s : TextUtils.split(
@@ -774,7 +742,6 @@ public final class CachedAppOptimizerTest {
     public void processWithDeltaRSSTooSmall_notFullCompacted() throws Exception {
         // Initialize CachedAppOptimizer and set flags to (1) enable compaction, (2) set RSS
         // throttle to 12000.
-        mCachedAppOptimizerUnderTest.init();
         setFlag(CachedAppOptimizer.KEY_USE_COMPACTION, "true", true);
         setFlag(CachedAppOptimizer.KEY_COMPACT_FULL_DELTA_RSS_THROTTLE_KB, "12000", false);
         initActivityManagerService();
@@ -810,9 +777,10 @@ public final class CachedAppOptimizerTest {
                 false);
         waitForHandler();
         // THEN process IS compacted.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNotNull();
-        valuesAfter = mCachedAppOptimizerUnderTest.mLastCompactionStats.get(
-                pid).getRssAfterCompaction();
+        assertThat(mCachedAppOptimizerUnderTest.mCompactStatsManager.getLastCompactionStats(pid))
+                .isNotNull();
+        valuesAfter = mCachedAppOptimizerUnderTest.mCompactStatsManager.getLastCompactionStats(pid)
+                .getRssAfterCompaction();
         assertThat(valuesAfter).isEqualTo(rssAfter1);
 
         // WHEN delta is below threshold (500).
@@ -828,9 +796,10 @@ public final class CachedAppOptimizerTest {
         waitForHandler();
         // THEN process IS NOT compacted - values after compaction for process 1 should remain the
         // same as from the last compaction.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNotNull();
-        valuesAfter = mCachedAppOptimizerUnderTest.mLastCompactionStats.get(
-                pid).getRssAfterCompaction();
+        assertThat(mCachedAppOptimizerUnderTest.mCompactStatsManager.
+                getLastCompactionStats(pid)).isNotNull();
+        valuesAfter = mCachedAppOptimizerUnderTest.mCompactStatsManager.
+                getLastCompactionStats(pid).getRssAfterCompaction();
         assertThat(valuesAfter).isEqualTo(rssAfter1);
 
         // WHEN delta is above threshold (13000).
@@ -845,9 +814,10 @@ public final class CachedAppOptimizerTest {
                 false);
         waitForHandler();
         // THEN process IS compacted - values after compaction for process 1 should be updated.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNotNull();
-        valuesAfter = mCachedAppOptimizerUnderTest.mLastCompactionStats.get(
-                pid).getRssAfterCompaction();
+        assertThat(mCachedAppOptimizerUnderTest.
+                mCompactStatsManager.getLastCompactionStats(pid)).isNotNull();
+        valuesAfter = mCachedAppOptimizerUnderTest.
+                mCompactStatsManager.getLastCompactionStats(pid).getRssAfterCompaction();
         assertThat(valuesAfter).isEqualTo(rssAfter3);
     }
 
@@ -856,7 +826,7 @@ public final class CachedAppOptimizerTest {
     public void processWithAnonRSSTooSmall_notFullCompacted() throws Exception {
         // Initialize CachedAppOptimizer and set flags to (1) enable compaction, (2) set RSS
         // throttle to 8000.
-        mCachedAppOptimizerUnderTest.init();
+
         setFlag(CachedAppOptimizer.KEY_USE_COMPACTION, "true", true);
         setFlag(CachedAppOptimizer.KEY_COMPACT_FULL_RSS_THROTTLE_KB, "8000", false);
         initActivityManagerService();
@@ -888,7 +858,8 @@ public final class CachedAppOptimizerTest {
                 false);
         waitForHandler();
         // THEN process IS NOT compacted.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNull();
+        assertThat(mCachedAppOptimizerUnderTest.
+                mCompactStatsManager.getLastCompactionStats(pid)).isNull();
 
         // GIVEN we simulate RSS memory before above threshold.
         mProcessDependencies.setRss(rssAboveThreshold);
@@ -899,9 +870,10 @@ public final class CachedAppOptimizerTest {
                 false);
         waitForHandler();
         // THEN process IS compacted.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNotNull();
-        long[] valuesAfter = mCachedAppOptimizerUnderTest.mLastCompactionStats.get(
-                pid).getRssAfterCompaction();
+        assertThat(mCachedAppOptimizerUnderTest.
+                mCompactStatsManager.getLastCompactionStats(pid)).isNotNull();
+        long[] valuesAfter = mCachedAppOptimizerUnderTest.mCompactStatsManager.
+                getLastCompactionStats(pid).getRssAfterCompaction();
         assertThat(valuesAfter).isEqualTo(rssAboveThresholdAfter);
     }
 
@@ -910,7 +882,6 @@ public final class CachedAppOptimizerTest {
     public void processWithOomAdjTooSmall_notFullCompacted() throws Exception {
         // Initialize CachedAppOptimizer and set flags to (1) enable compaction, (2) set Min and
         // Max OOM_Adj throttles.
-        mCachedAppOptimizerUnderTest.init();
         setFlag(CachedAppOptimizer.KEY_USE_COMPACTION, "true", true);
         setFlag(CachedAppOptimizer.KEY_COMPACT_THROTTLE_MIN_OOM_ADJ, Long.toString(920), true);
         setFlag(CachedAppOptimizer.KEY_COMPACT_THROTTLE_MAX_OOM_ADJ, Long.toString(950), true);
@@ -934,9 +905,10 @@ public final class CachedAppOptimizerTest {
         mCachedAppOptimizerUnderTest.onProcessFrozen(processRecord);
         waitForHandler();
         // THEN process IS compacted.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNotNull();
-        long[] valuesAfter = mCachedAppOptimizerUnderTest.mLastCompactionStats
-                .get(pid)
+        assertThat(mCachedAppOptimizerUnderTest.mCompactStatsManager
+                .getLastCompactionStats(pid)).isNotNull();
+        long[] valuesAfter = mCachedAppOptimizerUnderTest.mCompactStatsManager
+                .getLastCompactionStats(pid)
                 .getRssAfterCompaction();
         assertThat(valuesAfter).isEqualTo(rssAfter);
     }
@@ -944,7 +916,7 @@ public final class CachedAppOptimizerTest {
     @SuppressWarnings("GuardedBy")
     @Test
     public void process_forceCompacted() throws Exception {
-        mCachedAppOptimizerUnderTest.init();
+
         setFlag(CachedAppOptimizer.KEY_USE_COMPACTION, "true", true);
         setFlag(CachedAppOptimizer.KEY_COMPACT_THROTTLE_MIN_OOM_ADJ, Long.toString(920), true);
         setFlag(CachedAppOptimizer.KEY_COMPACT_THROTTLE_MAX_OOM_ADJ, Long.toString(950), true);
@@ -970,7 +942,8 @@ public final class CachedAppOptimizerTest {
                 false);
         waitForHandler();
         // the process is not compacted
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNull();
+        assertThat(mCachedAppOptimizerUnderTest.mCompactStatsManager.
+                getLastCompactionStats(pid)).isNull();
 
         // Compact process some
         mCachedAppOptimizerUnderTest.compactApp(processRecord,
@@ -978,7 +951,8 @@ public final class CachedAppOptimizerTest {
                 false);
         waitForHandler();
         // the process is not compacted
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNull();
+        assertThat(mCachedAppOptimizerUnderTest.mCompactStatsManager
+                .getLastCompactionStats(pid)).isNull();
 
         processRecord.mState.setSetAdj(100);
         processRecord.mState.setCurAdj(100);
@@ -989,9 +963,10 @@ public final class CachedAppOptimizerTest {
                 true);
         waitForHandler();
         // then process is compacted.
-        assertThat(mCachedAppOptimizerUnderTest.mLastCompactionStats.get(pid)).isNotNull();
+        assertThat(mCachedAppOptimizerUnderTest
+                .mCompactStatsManager.getLastCompactionStats(pid)).isNotNull();
 
-        mCachedAppOptimizerUnderTest.mLastCompactionStats.clear();
+        mCachedAppOptimizerUnderTest.mCompactStatsManager.getLastCompactionStats().clear();
 
         if (CachedAppOptimizer.ENABLE_SHARED_AND_CODE_COMPACT) {
             // We force a some compaction

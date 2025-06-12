@@ -22,6 +22,7 @@ package android.text.format;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TimeMigrationUtils {
 
     private TimeMigrationUtils() {}

@@ -49,9 +49,9 @@ import androidx.test.filters.SmallTest;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.SystemUIInitializerImpl;
 import com.android.systemui.SysuiTestCase;
+import com.android.systemui.media.NotificationMediaManager;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.settings.UserTracker;
-import com.android.systemui.statusbar.NotificationMediaManager;
 import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.phone.DozeParameters;
 import com.android.systemui.statusbar.phone.KeyguardBypassController;
@@ -177,7 +177,8 @@ public class KeyguardSliceProviderTest extends SysuiTestCase {
     @Test
     public void schedulesAlarm12hBefore() {
         long in16Hours = System.currentTimeMillis() + TimeUnit.HOURS.toHours(16);
-        AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(in16Hours, null);
+        AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(in16Hours,
+                null);
         mProvider.onNextAlarmChanged(alarmClockInfo);
 
         long twelveHours = TimeUnit.HOURS.toMillis(KeyguardSliceProvider.ALARM_VISIBILITY_HOURS);
@@ -189,7 +190,8 @@ public class KeyguardSliceProviderTest extends SysuiTestCase {
     @Test
     public void updatingNextAlarmInvalidatesSlice() {
         long in16Hours = System.currentTimeMillis() + TimeUnit.HOURS.toHours(8);
-        AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(in16Hours, null);
+        AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(in16Hours,
+                null);
         mProvider.onNextAlarmChanged(alarmClockInfo);
 
         verify(mContentResolver).notifyChange(eq(mProvider.getUri()), eq(null));
@@ -204,7 +206,7 @@ public class KeyguardSliceProviderTest extends SysuiTestCase {
     @Test
     public void addZenMode_addedToSlice() {
         ListBuilder listBuilder = spy(new ListBuilder(getContext(), mProvider.getUri(),
-            ListBuilder.INFINITY));
+                ListBuilder.INFINITY));
         mProvider.addZenModeLocked(listBuilder);
         verify(listBuilder, never()).addRow(any(ListBuilder.RowBuilder.class));
 

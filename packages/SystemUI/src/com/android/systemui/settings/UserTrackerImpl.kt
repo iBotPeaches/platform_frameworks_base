@@ -31,6 +31,8 @@ import android.os.UserManager
 import android.util.Log
 import androidx.annotation.GuardedBy
 import androidx.annotation.WorkerThread
+import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.app.tracing.traceSection
 import com.android.systemui.Dumpable
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.flags.FeatureFlagsClassic
@@ -49,7 +51,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.sync.Mutex
 
 /**
@@ -150,7 +151,7 @@ internal constructor(
 
         registerUserSwitchObserver()
 
-        dumpManager.registerDumpable(TAG, this)
+        dumpManager.registerNormalDumpable(TAG, this)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -195,8 +196,9 @@ internal constructor(
     private fun registerUserSwitchObserver() {
         iActivityManager.registerUserSwitchObserver(
             object : UserSwitchObserver() {
-                override fun onBeforeUserSwitching(newUserId: Int) {
+                override fun onBeforeUserSwitching(newUserId: Int, reply: IRemoteCallback?) {
                     handleBeforeUserSwitching(newUserId)
+                    reply?.sendResult(null)
                 }
 
                 override fun onUserSwitching(newUserId: Int, reply: IRemoteCallback?) {
@@ -235,8 +237,7 @@ internal constructor(
         setUserIdInternal(newUserId)
 
         notifySubscribers { callback, resultCallback ->
-                callback.onBeforeUserSwitching(newUserId)
-                resultCallback.run()
+                callback.onBeforeUserSwitching(newUserId, resultCallback)
             }
             .await()
     }
@@ -314,7 +315,9 @@ internal constructor(
         list.forEach {
             val callback = it.callback.get()
             if (callback != null) {
-                it.executor.execute { action(callback) { latch.countDown() } }
+                it.executor.execute {
+                    traceSection({ "UserTrackerImpl::$callback" }) { action(callback) { latch.countDown() } }
+                }
             } else {
                 latch.countDown()
             }

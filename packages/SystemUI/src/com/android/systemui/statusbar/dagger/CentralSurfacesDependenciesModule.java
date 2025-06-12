@@ -16,8 +16,6 @@
 
 package com.android.systemui.statusbar.dagger;
 
-import static com.android.systemui.Flags.predictiveBackAnimateDialogs;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.RemoteException;
@@ -28,7 +26,6 @@ import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.animation.ActivityTransitionAnimator;
-import com.android.systemui.animation.AnimationFeatureFlags;
 import com.android.systemui.animation.DialogTransitionAnimator;
 import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor;
 import com.android.systemui.dagger.SysUISingleton;
@@ -36,17 +33,18 @@ import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dump.DumpHandler;
 import com.android.systemui.dump.DumpManager;
+import com.android.systemui.media.NotificationMediaManager;
 import com.android.systemui.media.controls.domain.pipeline.MediaDataManager;
 import com.android.systemui.power.domain.interactor.PowerInteractor;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.settings.DisplayTracker;
 import com.android.systemui.shade.NotificationPanelViewController;
+import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.shade.ShadeSurface;
 import com.android.systemui.shade.ShadeSurfaceImpl;
 import com.android.systemui.shade.carrier.ShadeCarrierGroupController;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.NotificationClickNotifier;
-import com.android.systemui.statusbar.NotificationMediaManager;
 import com.android.systemui.statusbar.NotificationRemoteInputManager;
 import com.android.systemui.statusbar.SmartReplyController;
 import com.android.systemui.statusbar.StatusBarStateControllerImpl;
@@ -63,6 +61,7 @@ import com.android.systemui.statusbar.phone.ui.StatusBarIconController;
 import com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl;
 import com.android.systemui.statusbar.phone.ui.StatusBarIconList;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
+import com.android.wm.shell.shared.ShellTransitions;
 
 import dagger.Binds;
 import dagger.Lazy;
@@ -94,7 +93,7 @@ public interface CentralSurfacesDependenciesModule {
     @SysUISingleton
     @Provides
     static NotificationMediaManager provideNotificationMediaManager(
-            Context context,
+            @ShadeDisplayAware Context context,
             NotificationVisibilityProvider visibilityProvider,
             NotifPipeline notifPipeline,
             NotifCollection notifCollection,
@@ -214,8 +213,8 @@ public interface CentralSurfacesDependenciesModule {
     @Provides
     @SysUISingleton
     static ActivityTransitionAnimator provideActivityTransitionAnimator(
-            @Main Executor mainExecutor) {
-        return new ActivityTransitionAnimator(mainExecutor);
+            @Main Executor mainExecutor, ShellTransitions shellTransitions) {
+        return new ActivityTransitionAnimator(mainExecutor, shellTransitions);
     }
 
     /** */
@@ -225,8 +224,7 @@ public interface CentralSurfacesDependenciesModule {
             IDreamManager dreamManager,
             KeyguardStateController keyguardStateController,
             Lazy<AlternateBouncerInteractor> alternateBouncerInteractor,
-            InteractionJankMonitor interactionJankMonitor,
-            AnimationFeatureFlags animationFeatureFlags) {
+            InteractionJankMonitor interactionJankMonitor) {
         DialogTransitionAnimator.Callback callback = new DialogTransitionAnimator.Callback() {
             @Override
             public boolean isDreaming() {
@@ -248,19 +246,6 @@ public interface CentralSurfacesDependenciesModule {
                 return alternateBouncerInteractor.get().canShowAlternateBouncerForFingerprint();
             }
         };
-        return new DialogTransitionAnimator(
-                mainExecutor, callback, interactionJankMonitor, animationFeatureFlags);
-    }
-
-    /** */
-    @Provides
-    @SysUISingleton
-    static AnimationFeatureFlags provideAnimationFeatureFlags() {
-        return new AnimationFeatureFlags() {
-            @Override
-            public boolean isPredictiveBackQsDialogAnim() {
-                return predictiveBackAnimateDialogs();
-            }
-        };
+        return new DialogTransitionAnimator(mainExecutor, callback, interactionJankMonitor);
     }
 }

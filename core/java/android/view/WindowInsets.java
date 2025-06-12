@@ -1290,7 +1290,8 @@ public final class WindowInsets {
         int newTop = Math.max(0, insets.top - top);
         int newRight = Math.max(0, insets.right - right);
         int newBottom = Math.max(0, insets.bottom - bottom);
-        if (newLeft == left && newTop == top && newRight == right && newBottom == bottom) {
+        if (newLeft == insets.left && newTop == insets.top
+                && newRight == insets.right && newBottom == insets.bottom) {
             return insets;
         }
         return Insets.of(newLeft, newTop, newRight, newBottom);

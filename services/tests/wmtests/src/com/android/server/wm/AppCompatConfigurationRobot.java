@@ -64,6 +64,19 @@ class AppCompatConfigurationRobot {
                 .isCameraCompatTreatmentEnabledAtBuildTime();
     }
 
+    void setCameraCompatAspectRatio(float aspectRatio) {
+        doReturn(aspectRatio).when(mAppCompatConfiguration).getCameraCompatAspectRatio();
+    }
+
+    void enableCameraCompatRefresh(boolean enabled) {
+        doReturn(enabled).when(mAppCompatConfiguration).isCameraCompatRefreshEnabled();
+    }
+
+    void enableCameraCompatRefreshCycleThroughStop(boolean enabled) {
+        doReturn(enabled).when(mAppCompatConfiguration)
+                .isCameraCompatRefreshCycleThroughStopEnabled();
+    }
+
     void enableUserAppAspectRatioFullscreen(boolean enabled) {
         doReturn(enabled).when(mAppCompatConfiguration).isUserAppAspectRatioFullscreenEnabled();
     }

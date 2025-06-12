@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.shelf.domain.interactor
 
 import android.os.PowerManager
@@ -23,53 +21,44 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.keyguard.data.repository.FakeDeviceEntryFaceAuthRepository
-import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
-import com.android.systemui.plugins.statusbar.StatusBarStateController
-import com.android.systemui.power.data.repository.FakePowerRepository
-import com.android.systemui.power.domain.interactor.PowerInteractorFactory
-import com.android.systemui.statusbar.LockscreenShadeTransitionController
-import com.android.systemui.statusbar.phone.ScreenOffAnimationController
-import com.android.systemui.util.mockito.eq
-import com.android.systemui.util.mockito.mock
-import com.android.systemui.util.mockito.whenever
+import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFaceAuthRepository
+import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
+import com.android.systemui.kosmos.testCase
+import com.android.systemui.plugins.statusbar.statusBarStateController
+import com.android.systemui.power.data.repository.fakePowerRepository
+import com.android.systemui.statusbar.lockscreenShadeTransitionController
+import com.android.systemui.statusbar.phone.screenOffAnimationController
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.isNull
 import org.mockito.Mockito.verify
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 @SmallTest
 class NotificationShelfInteractorTest : SysuiTestCase() {
 
-    private val keyguardRepository = FakeKeyguardRepository()
-    private val deviceEntryFaceAuthRepository = FakeDeviceEntryFaceAuthRepository()
-
-    private val screenOffAnimationController =
-        mock<ScreenOffAnimationController>().also {
-            whenever(it.allowWakeUpIfDozing()).thenReturn(true)
+    private val kosmos =
+        testKosmos().apply {
+            testCase = this@NotificationShelfInteractorTest
+            lockscreenShadeTransitionController = mock()
+            screenOffAnimationController = mock()
+            statusBarStateController = mock()
+            whenever(screenOffAnimationController.allowWakeUpIfDozing()).thenReturn(true)
         }
-    private val statusBarStateController: StatusBarStateController = mock()
-    private val powerRepository = FakePowerRepository()
-    private val powerInteractor =
-        PowerInteractorFactory.create(
-                repository = powerRepository,
-                screenOffAnimationController = screenOffAnimationController,
-                statusBarStateController = statusBarStateController,
-            )
-            .powerInteractor
+    private val underTest = kosmos.notificationShelfInteractor
 
-    private val keyguardTransitionController: LockscreenShadeTransitionController = mock()
-    private val underTest =
-        NotificationShelfInteractor(
-            keyguardRepository,
-            deviceEntryFaceAuthRepository,
-            powerInteractor,
-            keyguardTransitionController,
-        )
+    private val keyguardRepository = kosmos.fakeKeyguardRepository
+    private val deviceEntryFaceAuthRepository = kosmos.fakeDeviceEntryFaceAuthRepository
+
+    private val statusBarStateController = kosmos.statusBarStateController
+    private val powerRepository = kosmos.fakePowerRepository
+    private val keyguardTransitionController = kosmos.lockscreenShadeTransitionController
 
     @Test
     fun shelfIsNotStatic_whenKeyguardNotShowing() = runTest {

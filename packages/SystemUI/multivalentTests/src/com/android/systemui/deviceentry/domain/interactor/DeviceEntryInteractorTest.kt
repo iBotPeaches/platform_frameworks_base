@@ -45,11 +45,11 @@ import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticati
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.domain.startable.sceneContainerStartable
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.sysuiStatusBarStateController
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -58,7 +58,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableSceneContainer
@@ -181,7 +180,7 @@ class DeviceEntryInteractorTest : SysuiTestCase() {
             kosmos.fakeDeviceEntryRepository.setLockscreenEnabled(true)
             switchToScene(Scenes.Lockscreen)
             runCurrent()
-            switchToScene(Scenes.Bouncer)
+            showBouncer()
 
             val isDeviceEntered by collectLastValue(underTest.isDeviceEntered)
             assertThat(isDeviceEntered).isFalse()
@@ -377,6 +376,7 @@ class DeviceEntryInteractorTest : SysuiTestCase() {
     fun showOrUnlockDevice_noAlternateBouncer_switchesToBouncerScene() =
         testScope.runTest {
             val currentScene by collectLastValue(sceneInteractor.currentScene)
+            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             switchToScene(Scenes.Lockscreen)
             assertThat(currentScene).isEqualTo(Scenes.Lockscreen)
 
@@ -388,7 +388,7 @@ class DeviceEntryInteractorTest : SysuiTestCase() {
 
             underTest.attemptDeviceEntry()
 
-            assertThat(currentScene).isEqualTo(Scenes.Bouncer)
+            assertThat(currentOverlays).contains(Overlays.Bouncer)
         }
 
     @Test
@@ -439,6 +439,7 @@ class DeviceEntryInteractorTest : SysuiTestCase() {
             assertThat(isDeviceEntered).isFalse()
             assertThat(isDeviceEnteredDirectly).isFalse()
             val currentScene by collectLastValue(sceneInteractor.currentScene)
+            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             assertThat(currentScene).isEqualTo(Scenes.Lockscreen)
 
             // Navigate to shade and bouncer:
@@ -448,8 +449,8 @@ class DeviceEntryInteractorTest : SysuiTestCase() {
             // be shown and successful authentication should take the user back to where they are,
             // the shade scene.
             sysuiStatusBarStateController.setLeaveOpenOnKeyguardHide(true)
-            switchToScene(Scenes.Bouncer)
-            assertThat(currentScene).isEqualTo(Scenes.Bouncer)
+            showBouncer()
+            assertThat(currentOverlays).contains(Overlays.Bouncer)
 
             assertThat(isDeviceEntered).isFalse()
             assertThat(isDeviceEnteredDirectly).isFalse()
@@ -464,6 +465,19 @@ class DeviceEntryInteractorTest : SysuiTestCase() {
     private fun TestScope.switchToScene(sceneKey: SceneKey) {
         sceneInteractor.changeScene(sceneKey, "reason")
         sceneInteractor.setTransitionState(flowOf(ObservableTransitionState.Idle(sceneKey)))
+        runCurrent()
+    }
+
+    private fun TestScope.showBouncer() {
+        sceneInteractor.showOverlay(Overlays.Bouncer, "reason")
+        sceneInteractor.setTransitionState(
+            flowOf(
+                ObservableTransitionState.Idle(
+                    sceneInteractor.currentScene.value,
+                    setOf(Overlays.Bouncer),
+                )
+            )
+        )
         runCurrent()
     }
 

@@ -18,14 +18,19 @@ package com.android.systemui.common.shared.model
 
 import android.annotation.AttrRes
 import android.annotation.ColorInt
+import android.annotation.ColorRes
+import androidx.compose.runtime.Stable
 
 /**
  * Models a color that can be either a specific [Color.Loaded] value or a resolvable theme
  * [Color.Attribute]
  */
+@Stable
 sealed interface Color {
 
     data class Loaded(@ColorInt val color: Int) : Color
 
     data class Attribute(@AttrRes val attribute: Int) : Color
+
+    data class Resource(@ColorRes val colorRes: Int) : Color
 }

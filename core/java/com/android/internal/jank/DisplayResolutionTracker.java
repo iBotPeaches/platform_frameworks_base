@@ -142,14 +142,23 @@ public class DisplayResolutionTracker {
     public interface DisplayInterface {
         /** Reurns an implementation wrapping {@link DisplayManagerGlobal}. */
         static DisplayInterface getDefault(@Nullable Handler handler) {
+            long displayEventsToBeSubscribed;
+            if (com.android.server.display.feature.flags.Flags
+                    .displayListenerPerformanceImprovements()
+                    && com.android.server.display.feature.flags.Flags
+                    .delayImplicitRrRegistrationUntilRrAccessed()) {
+                displayEventsToBeSubscribed = DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED
+                        | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BASIC_CHANGED;
+            } else {
+                displayEventsToBeSubscribed = DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED
+                        | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BASIC_CHANGED
+                        | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE;
+            }
             DisplayManagerGlobal manager = DisplayManagerGlobal.getInstance();
             return new DisplayInterface() {
                 @Override
                 public void registerDisplayListener(DisplayManager.DisplayListener listener) {
-                    manager.registerDisplayListener(listener, handler,
-                            DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED
-                                    | DisplayManagerGlobal
-                                            .INTERNAL_EVENT_FLAG_DISPLAY_CHANGED,
+                    manager.registerDisplayListener(listener, handler, displayEventsToBeSubscribed,
                             ActivityThread.currentPackageName());
                 }
 

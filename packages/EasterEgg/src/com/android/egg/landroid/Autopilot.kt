@@ -41,14 +41,16 @@ class Autopilot(val ship: Spacecraft, val universe: Universe) : Entity {
 
     val telemetry: String
         get() =
-            listOf(
-                    "---- AUTOPILOT ENGAGED ----",
-                    "TGT: " + (target?.name?.uppercase() ?: "SELECTING..."),
-                    "EXE: $strategy" + if (debug.isNotEmpty()) " ($debug)" else "",
-                )
-                .joinToString("\n")
+            if (enabled)
+                listOf(
+                        "---- AUTOPILOT ENGAGED ----",
+                        "TGT: " + (target?.name?.uppercase() ?: "SELECTING..."),
+                        "EXE: $strategy" + if (debug.isNotEmpty()) " ($debug)" else "",
+                    )
+                    .joinToString("\n")
+            else ""
 
-    private var strategy: String = "NONE"
+    var strategy: String = "NONE"
     private var debug: String = ""
 
     override fun update(sim: Simulator, dt: Float) {
@@ -119,7 +121,7 @@ class Autopilot(val ship: Spacecraft, val universe: Universe) : Entity {
                     target.pos +
                         Vec2.makeWithAngleMag(
                             target.velocity.angle(),
-                            min(altitude / 2, target.velocity.mag())
+                            min(altitude / 2, target.velocity.mag()),
                         )
                 leadingVector = leadingPos - ship.pos
 

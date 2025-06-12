@@ -41,7 +41,6 @@ constructor(private val buildNumberInteractor: BuildNumberInteractor) : Exclusiv
     val buildNumber: BuildNumber? by
         hydrator.hydratedStateOf(
             traceName = "buildNumber",
-            initialValue = null,
             source = buildNumberInteractor.buildNumber,
         )
 

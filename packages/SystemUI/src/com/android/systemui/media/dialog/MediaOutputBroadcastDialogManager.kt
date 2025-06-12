@@ -20,6 +20,9 @@ import android.content.Context
 import android.view.View
 import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.broadcast.BroadcastSender
+import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.dagger.qualifiers.Main
+import java.util.concurrent.Executor
 import javax.inject.Inject
 
 /** Manager to create and show a [MediaOutputBroadcastDialog]. */
@@ -29,7 +32,9 @@ constructor(
     private val context: Context,
     private val broadcastSender: BroadcastSender,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
-    private val mediaSwitchingControllerFactory: MediaSwitchingController.Factory
+    private val mediaSwitchingControllerFactory: MediaSwitchingController.Factory,
+    @Main private val mainExecutor: Executor,
+    @Background private val backgroundExecutor: Executor,
 ) {
     var mediaOutputBroadcastDialog: MediaOutputBroadcastDialog? = null
 
@@ -47,7 +52,14 @@ constructor(
                 /* token */ null,
             )
         val dialog =
-            MediaOutputBroadcastDialog(context, aboveStatusBar, broadcastSender, controller)
+            MediaOutputBroadcastDialog(
+                context,
+                aboveStatusBar,
+                broadcastSender,
+                controller,
+                mainExecutor,
+                backgroundExecutor,
+            )
         mediaOutputBroadcastDialog = dialog
 
         // Show the dialog.

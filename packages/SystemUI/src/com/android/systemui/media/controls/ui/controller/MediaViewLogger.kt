@@ -36,7 +36,7 @@ class MediaViewLogger @Inject constructor(@MediaViewLog private val buffer: LogB
                 int1 = width
                 int2 = height
             },
-            { "size ($str1): $int1 x $int2" }
+            { "size ($str1): $int1 x $int2" },
         )
     }
 
@@ -49,11 +49,31 @@ class MediaViewLogger @Inject constructor(@MediaViewLog private val buffer: LogB
                 int1 = startLocation
                 int2 = endLocation
             },
-            { "location ($str1): $int1 -> $int2" }
+            { "location ($str1): $int1 -> $int2" },
         )
     }
 
-    fun logMediaHostAttachment(host: Int) {
-        buffer.log(TAG, LogLevel.DEBUG, { int1 = host }, { "Host (updateHostAttachment): $int1" })
+    fun logMediaHostAttachment(host: Int, visible: Boolean?) {
+        buffer.log(
+            TAG,
+            LogLevel.DEBUG,
+            {
+                int1 = host
+                str1 = visible.toString()
+            },
+            { "Host (updateHostAttachment): $int1 visible $str1" },
+        )
+    }
+
+    fun logUserVisibilityChange(shadeVisible: Boolean, mediaVisible: Boolean) {
+        buffer.log(
+            TAG,
+            LogLevel.DEBUG,
+            {
+                bool1 = shadeVisible
+                bool2 = mediaVisible
+            },
+            { "User visibility shade: $bool1 media: $bool2" },
+        )
     }
 }

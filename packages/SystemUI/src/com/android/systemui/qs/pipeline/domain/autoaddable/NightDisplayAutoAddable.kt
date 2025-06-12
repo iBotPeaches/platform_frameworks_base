@@ -19,7 +19,7 @@ package com.android.systemui.qs.pipeline.domain.autoaddable
 import android.content.Context
 import android.hardware.display.ColorDisplayManager
 import android.hardware.display.NightDisplayListener
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.NightDisplayListenerModule
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.qs.pipeline.domain.model.AutoAddSignal

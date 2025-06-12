@@ -56,6 +56,7 @@ import java.util.Objects;
  * </pre>
  * </p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class MeasuredText {
     private static final String TAG = "MeasuredText";
 

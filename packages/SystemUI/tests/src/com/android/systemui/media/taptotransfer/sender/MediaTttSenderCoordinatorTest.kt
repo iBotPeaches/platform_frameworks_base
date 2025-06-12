@@ -34,7 +34,6 @@ import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.app.viewcapture.ViewCapture
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.logging.testing.UiEventLoggerFake
 import com.android.internal.statusbar.IUndoMediaTransferCallback
 import com.android.systemui.SysuiTestCase
@@ -100,7 +99,6 @@ class MediaTttSenderCoordinatorTest : SysuiTestCase() {
     @Mock private lateinit var windowManager: WindowManager
     @Mock private lateinit var vibratorHelper: VibratorHelper
     @Mock private lateinit var swipeHandler: SwipeChipbarAwayGestureHandler
-    @Mock private lateinit var lazyViewCapture: Lazy<ViewCapture>
     private lateinit var fakeWakeLockBuilder: WakeLockFake.Builder
     private lateinit var fakeWakeLock: WakeLockFake
     private lateinit var chipbarCoordinator: ChipbarCoordinator
@@ -145,11 +143,7 @@ class MediaTttSenderCoordinatorTest : SysuiTestCase() {
             ChipbarCoordinator(
                 context,
                 chipbarLogger,
-                ViewCaptureAwareWindowManager(
-                    windowManager,
-                    lazyViewCapture,
-                    isViewCaptureEnabled = false,
-                ),
+                windowManager,
                 fakeExecutor,
                 accessibilityManager,
                 configurationController,
@@ -1476,7 +1470,7 @@ class MediaTttSenderCoordinatorTest : SysuiTestCase() {
     private fun ViewGroup.getUndoButton(): View = this.requireViewById(R.id.end_button)
 
     private fun ChipStateSender.getExpectedStateText(
-        otherDeviceName: String = OTHER_DEVICE_NAME
+        otherDeviceName: String = OTHER_DEVICE_NAME,
     ): String? {
         return this.getChipTextString(context, otherDeviceName).loadText(context)
     }
@@ -1487,7 +1481,7 @@ class MediaTttSenderCoordinatorTest : SysuiTestCase() {
         commandQueueCallback.updateMediaTapToTransferSenderDisplay(
             StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_TRIGGERED,
             routeInfo,
-            null,
+            null
         )
     }
 
@@ -1497,7 +1491,7 @@ class MediaTttSenderCoordinatorTest : SysuiTestCase() {
         commandQueueCallback.updateMediaTapToTransferSenderDisplay(
             StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_THIS_DEVICE_TRIGGERED,
             routeInfo,
-            null,
+            null
         )
     }
 

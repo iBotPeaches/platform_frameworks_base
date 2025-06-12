@@ -23,12 +23,12 @@ import android.tools.flicker.rules.ChangeDisplayOrientationRule
 import android.tools.traces.parsers.WindowManagerStateHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
-import com.android.internal.R
 import com.android.launcher3.tapl.LauncherInstrumentation
 import com.android.server.wm.flicker.helpers.DesktopModeAppHelper
 import com.android.server.wm.flicker.helpers.SimpleAppHelper
 import com.android.window.flags.Flags
 import com.android.wm.shell.Utils
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
 import org.junit.After
 import org.junit.Assume
 import org.junit.Before
@@ -54,8 +54,8 @@ constructor(private val rotation: Rotation = Rotation.ROTATION_0) {
     fun setup() {
         Assume.assumeTrue(Flags.enableDesktopWindowingMode() && tapl.isTablet)
         // Skip the test when the drag-to-maximize is disabled on this device.
-        Assume.assumeTrue(Flags.enableDragToMaximize() &&
-            instrumentation.context.resources.getBoolean(R.bool.config_dragToMaximizeInDesktopMode))
+        Assume.assumeTrue(
+            DesktopModeStatus.shouldMaximizeWhenDragToTopEdge(instrumentation.context))
         tapl.setEnableRotation(true)
         tapl.setExpectedRotation(rotation.value)
         ChangeDisplayOrientationRule.setRotation(rotation)

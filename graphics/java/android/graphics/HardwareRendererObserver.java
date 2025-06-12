@@ -28,6 +28,7 @@ import java.lang.ref.WeakReference;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class HardwareRendererObserver {
     private final long[] mFrameMetrics;
     private final Handler mHandler;

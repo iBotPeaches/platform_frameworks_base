@@ -126,14 +126,13 @@ public class ApnSetting implements Parcelable {
     /** APN type for ENTERPRISE. */
     public static final int TYPE_ENTERPRISE = ApnTypes.ENTERPRISE;
     /** APN type for RCS (Rich Communication Services). */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final int TYPE_RCS = ApnTypes.RCS;
     /** APN type for OEM_PAID networks (Automotive PANS) */
     @FlaggedApi(Flags.FLAG_OEM_PAID_PRIVATE)
-    public static final int TYPE_OEM_PAID = 1 << 16; // TODO(b/366194627): ApnTypes.OEM_PAID;
+    public static final int TYPE_OEM_PAID = ApnTypes.OEM_PAID;
     /** APN type for OEM_PRIVATE networks (Automotive PANS) */
     @FlaggedApi(Flags.FLAG_OEM_PAID_PRIVATE)
-    public static final int TYPE_OEM_PRIVATE = 1 << 17; // TODO(b/366194627): ApnTypes.OEM_PRIVATE;
+    public static final int TYPE_OEM_PRIVATE = ApnTypes.OEM_PRIVATE;
 
     /** @hide */
     @IntDef(flag = true, prefix = {"TYPE_"}, value = {
@@ -379,7 +378,6 @@ public class ApnSetting implements Parcelable {
      * modem components or carriers. Non-system apps should use the integer variants instead.
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     @SystemApi
     public static final String TYPE_RCS_STRING = "rcs";
 
@@ -994,7 +992,6 @@ public class ApnSetting implements Parcelable {
      *
      * @return True if the PDU session for this APN should always be on and false otherwise
      */
-    @FlaggedApi(Flags.FLAG_APN_SETTING_FIELD_SUPPORT_FLAG)
     public boolean isAlwaysOn() {
         return mAlwaysOn;
     }
@@ -2349,7 +2346,6 @@ public class ApnSetting implements Parcelable {
          *
          * @param alwaysOn the always on status to set for this APN
          */
-        @FlaggedApi(Flags.FLAG_APN_SETTING_FIELD_SUPPORT_FLAG)
         public @NonNull Builder setAlwaysOn(boolean alwaysOn) {
             this.mAlwaysOn = alwaysOn;
             return this;

@@ -17,10 +17,12 @@
 package com.android.settingslib.preference
 
 import android.content.Context
+import android.os.Bundle
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
 import androidx.preference.PreferenceScreen
+import com.android.settingslib.metadata.EXTRA_BINDING_SCREEN_ARGS
 import com.android.settingslib.metadata.PreferenceScreenRegistry
 
 /** Factory to create preference screen. */
@@ -81,8 +83,12 @@ class PreferenceScreenFactory {
      *
      * The screen must be registered in [PreferenceScreenFactory] and provide a complete hierarchy.
      */
-    fun createBindingScreen(screenKey: String?): PreferenceScreen? {
-        val metadata = PreferenceScreenRegistry[screenKey] ?: return null
+    fun createBindingScreen(
+        context: Context,
+        screenKey: String?,
+        args: Bundle?,
+    ): PreferenceScreen? {
+        val metadata = PreferenceScreenRegistry.create(context, screenKey, args) ?: return null
         if (metadata is PreferenceScreenCreator && metadata.hasCompleteHierarchy()) {
             return metadata.createPreferenceScreen(this)
         }
@@ -93,11 +99,13 @@ class PreferenceScreenFactory {
         /** Creates [PreferenceScreen] from [PreferenceScreenRegistry]. */
         @JvmStatic
         fun createBindingScreen(preference: Preference): PreferenceScreen? {
+            val context = preference.context
+            val args = preference.peekExtras()?.getBundle(EXTRA_BINDING_SCREEN_ARGS)
             val preferenceScreenCreator =
-                (PreferenceScreenRegistry[preference.key] as? PreferenceScreenCreator)
-                    ?: return null
+                (PreferenceScreenRegistry.create(context, preference.key, args)
+                    as? PreferenceScreenCreator) ?: return null
             if (!preferenceScreenCreator.hasCompleteHierarchy()) return null
-            val factory = PreferenceScreenFactory(preference.context)
+            val factory = PreferenceScreenFactory(context)
             val preferenceScreen = preferenceScreenCreator.createPreferenceScreen(factory)
             factory.preferenceManager.setPreferences(preferenceScreen)
             return preferenceScreen

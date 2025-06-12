@@ -46,7 +46,7 @@ import android.hardware.display.DisplayManager;
 import android.media.AudioManager;
 import android.os.PowerManager;
 import android.os.UserManager;
-import android.platform.uiautomator_helpers.WaitUtils;
+import android.platform.uiautomatorhelpers.WaitUtils;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Display;

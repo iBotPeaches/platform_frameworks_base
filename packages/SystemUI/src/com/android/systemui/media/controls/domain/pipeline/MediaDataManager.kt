@@ -56,7 +56,7 @@ interface MediaDataManager {
         token: MediaSession.Token,
         appName: String,
         appIntent: PendingIntent,
-        packageName: String
+        packageName: String,
     )
 
     /** Dismiss a media entry. Returns false if the key was not found. */
@@ -67,9 +67,6 @@ interface MediaDataManager {
      * the recommendation card entirely from the carousel.
      */
     fun dismissSmartspaceRecommendation(key: String, delay: Long)
-
-    /** Called when the recommendation card should no longer be visible in QQS or lockscreen */
-    fun setRecommendationInactive(key: String)
 
     /** Invoked when notification is removed. */
     fun onNotificationRemoved(key: String)
@@ -146,6 +143,12 @@ interface MediaDataManager {
          *   place immediately.
          */
         override fun onSmartspaceMediaDataRemoved(key: String, immediately: Boolean) {}
+
+        /**
+         * Called whenever the current active media notification changes. Should only be used if
+         * [SceneContainerFlag] is disabled
+         */
+        override fun onCurrentActiveMediaChanged(key: String?, data: MediaData?) {}
     }
 
     companion object {

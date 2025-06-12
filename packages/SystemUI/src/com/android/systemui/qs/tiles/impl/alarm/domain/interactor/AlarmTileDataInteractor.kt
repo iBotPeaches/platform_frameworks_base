@@ -18,8 +18,8 @@ package com.android.systemui.qs.tiles.impl.alarm.domain.interactor
 
 import android.os.UserHandle
 import com.android.systemui.common.coroutine.ConflatedCallbackFlow
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.alarm.domain.model.AlarmTileModel
 import com.android.systemui.statusbar.policy.NextAlarmController
 import com.android.systemui.util.time.DateFormatUtil
@@ -33,12 +33,12 @@ class AlarmTileDataInteractor
 @Inject
 constructor(
     private val alarmController: NextAlarmController,
-    private val dateFormatUtil: DateFormatUtil
+    private val dateFormatUtil: DateFormatUtil,
 ) : QSTileDataInteractor<AlarmTileModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<AlarmTileModel> =
         ConflatedCallbackFlow.conflatedCallbackFlow {
             val alarmCallback =

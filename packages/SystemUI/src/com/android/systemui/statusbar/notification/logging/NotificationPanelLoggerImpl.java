@@ -19,6 +19,7 @@ package com.android.systemui.statusbar.notification.logging;
 import static com.android.systemui.statusbar.notification.logging.NotificationPanelLogger.NotificationPanelEvent.NOTIFICATION_DRAG;
 
 import com.android.systemui.shared.system.SysUiStatsLog;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.logging.nano.Notifications;
 import com.android.systemui.statusbar.notification.shared.NotificationsLiveDataStoreRefactor;
@@ -56,6 +57,17 @@ public class NotificationPanelLoggerImpl implements NotificationPanelLogger {
     @Override
     public void logNotificationDrag(NotificationEntry draggedNotification) {
         final Notifications.NotificationList proto = NotificationPanelLogger.toNotificationProto(
+                Collections.singletonList(draggedNotification));
+        SysUiStatsLog.write(SysUiStatsLog.NOTIFICATION_PANEL_REPORTED,
+                /* event_id = */ NOTIFICATION_DRAG.getId(),
+                /* num_notifications = */ proto.notifications.length,
+                /* notifications = */ MessageNano.toByteArray(proto));
+    }
+
+    @Override
+    public void logNotificationDrag(EntryAdapter draggedNotification) {
+        final Notifications.NotificationList proto =
+                NotificationPanelLogger.adapterToNotificationProto(
                 Collections.singletonList(draggedNotification));
         SysUiStatsLog.write(SysUiStatsLog.NOTIFICATION_PANEL_REPORTED,
                 /* event_id = */ NOTIFICATION_DRAG.getId(),

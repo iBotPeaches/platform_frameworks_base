@@ -22,14 +22,14 @@ import com.android.systemui.keyguard.data.repository.keyguardBlueprintRepository
 import com.android.systemui.keyguard.data.repository.keyguardSmartspaceSection
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
-import com.android.systemui.shade.domain.interactor.shadeInteractor
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
 
 val Kosmos.keyguardBlueprintInteractor by
     Kosmos.Fixture {
         KeyguardBlueprintInteractor(
             keyguardBlueprintRepository = keyguardBlueprintRepository,
             applicationScope = applicationCoroutineScope,
-            shadeInteractor = shadeInteractor,
+            shadeModeInteractor = shadeModeInteractor,
             configurationInteractor = configurationInteractor,
             fingerprintPropertyInteractor = fingerprintPropertyInteractor,
             smartspaceSection = keyguardSmartspaceSection,

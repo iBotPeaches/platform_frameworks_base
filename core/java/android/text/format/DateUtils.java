@@ -44,6 +44,7 @@ import java.util.TimeZone;
  * This class contains various date-related utilities for creating text for things like
  * elapsed time and date ranges, strings for days of the week and months, and AM/PM text etc.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class DateUtils
 {
     private static final Object sLock = new Object();

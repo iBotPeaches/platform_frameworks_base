@@ -16,11 +16,12 @@
 
 package com.android.systemui.statusbar.notification.collection.coordinator;
 
+import static android.app.NotificationChannel.SYSTEM_RESERVED_IDS;
+
 import androidx.annotation.NonNull;
 
 import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.Pluggable;
-
 /**
  * Interface for registering callbacks to the {@link NotifPipeline}.
  */

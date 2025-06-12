@@ -53,6 +53,7 @@ import java.util.TimeZone;
  * @deprecated Use {@link java.util.GregorianCalendar} instead.
  */
 @Deprecated
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Time {
     private static final String Y_M_D_T_H_M_S_000 = "%Y-%m-%dT%H:%M:%S.000";
     private static final String Y_M_D_T_H_M_S_000_Z = "%Y-%m-%dT%H:%M:%S.000Z";

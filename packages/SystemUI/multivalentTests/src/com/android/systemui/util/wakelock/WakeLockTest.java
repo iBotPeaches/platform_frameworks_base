@@ -19,16 +19,15 @@ package com.android.systemui.util.wakelock;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import android.os.Build;
 import android.os.PowerManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.systemui.SysuiTestCase;
+import com.android.systemui.log.LogAssertKt;
 
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -93,8 +92,7 @@ public class WakeLockTest extends SysuiTestCase {
 
     @Test
     public void prodBuild_wakeLock_releaseWithoutAcquire_noThrow() {
-        Assume.assumeFalse(Build.IS_ENG);
         // shouldn't throw an exception on production builds
-        mWakeLock.release(WHY);
+        LogAssertKt.assertRunnableLogsWtf(() -> mWakeLock.release(WHY));
     }
 }

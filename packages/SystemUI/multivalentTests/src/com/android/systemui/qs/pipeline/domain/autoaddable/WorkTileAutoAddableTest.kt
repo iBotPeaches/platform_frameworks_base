@@ -27,7 +27,6 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.coroutines.collectValues
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.qs.pipeline.data.model.RestoreData
 import com.android.systemui.qs.pipeline.data.model.RestoreProcessor
 import com.android.systemui.qs.pipeline.data.model.workTileRestoreProcessor
@@ -36,20 +35,19 @@ import com.android.systemui.qs.pipeline.domain.model.AutoAddTracking
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.tiles.WorkModeTile
 import com.android.systemui.settings.FakeUserTracker
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class WorkTileAutoAddableTest : SysuiTestCase() {
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
 
     private val restoreProcessor: RestoreProcessor
         get() = kosmos.workTileRestoreProcessor
@@ -64,7 +62,7 @@ class WorkTileAutoAddableTest : SysuiTestCase() {
             FakeUserTracker(
                 _userId = USER_INFO_0.id,
                 _userInfo = USER_INFO_0,
-                _userProfiles = listOf(USER_INFO_0)
+                _userProfiles = listOf(USER_INFO_0),
             )
 
         underTest = WorkTileAutoAddable(userTracker, kosmos.workTileRestoreProcessor)

@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.events
 
+import android.util.Log
 import android.view.Display
 import android.view.DisplayCutout.BOUNDS_POSITION_BOTTOM
 import android.view.DisplayCutout.BOUNDS_POSITION_LEFT
@@ -23,9 +24,10 @@ import android.view.DisplayCutout.BOUNDS_POSITION_RIGHT
 import android.view.DisplayCutout.BOUNDS_POSITION_TOP
 import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
+import android.view.WindowManager.InvalidDisplayException
 import android.view.WindowManager.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.systemui.ScreenDecorations
 import com.android.systemui.ScreenDecorationsThread
 import com.android.systemui.decor.DecorProvider
@@ -52,11 +54,12 @@ class PrivacyDotWindowController
 constructor(
     @Assisted private val displayId: Int,
     @Assisted private val privacyDotViewController: PrivacyDotViewController,
-    @Assisted private val viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
+    @Assisted private val windowManager: WindowManager,
     @Assisted private val inflater: LayoutInflater,
     @ScreenDecorationsThread private val uiExecutor: Executor,
     private val dotFactory: PrivacyDotDecorProviderFactory,
 ) {
+    private val dotViews: MutableSet<View> = mutableSetOf()
 
     fun start() {
         uiExecutor.execute { startOnUiThread() }
@@ -70,10 +73,13 @@ constructor(
         val bottomLeft = providers.inflate(BOUNDS_POSITION_BOTTOM, BOUNDS_POSITION_LEFT)
         val bottomRight = providers.inflate(BOUNDS_POSITION_BOTTOM, BOUNDS_POSITION_RIGHT)
 
-        topLeft.addToWindow(TopLeft)
-        topRight.addToWindow(TopRight)
-        bottomLeft.addToWindow(BottomLeft)
-        bottomRight.addToWindow(BottomRight)
+        listOfNotNull(
+                topLeft.addToWindow(TopLeft),
+                topRight.addToWindow(TopRight),
+                bottomLeft.addToWindow(BottomLeft),
+                bottomRight.addToWindow(BottomRight),
+            )
+            .forEach { dotViews.add(it) }
 
         privacyDotViewController.initialize(topLeft, topRight, bottomLeft, bottomRight)
     }
@@ -85,7 +91,7 @@ constructor(
         return inflater.inflate(/* resource= */ provider.layoutId, /* root= */ null)
     }
 
-    private fun View.addToWindow(corner: PrivacyDotCorner) {
+    private fun View.addToWindow(corner: PrivacyDotCorner): View? {
         val excludeFromScreenshots = displayId == Display.DEFAULT_DISPLAY
         val params =
             ScreenDecorations.getWindowLayoutBaseParams(excludeFromScreenshots).apply {
@@ -97,7 +103,22 @@ constructor(
         // PrivacyDotViewController expects the dot view to have a FrameLayout parent.
         val rootView = FrameLayout(context)
         rootView.addView(this)
-        viewCaptureAwareWindowManager.addView(rootView, params)
+        try {
+            // Wrapping this in a try/catch to avoid crashes when a display is instantly removed
+            // after being added, and initialization hasn't finished yet.
+            windowManager.addView(rootView, params)
+        } catch (e: InvalidDisplayException) {
+            Log.e(
+                TAG,
+                "Unable to add view to WM. Display with id $displayId does not exist anymore",
+                e,
+            )
+        }
+        return rootView
+    }
+
+    fun stop() {
+        dotViews.forEach { windowManager.removeView(it) }
     }
 
     @AssistedFactory
@@ -105,8 +126,12 @@ constructor(
         fun create(
             displayId: Int,
             privacyDotViewController: PrivacyDotViewController,
-            viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
+            windowManager: WindowManager,
             inflater: LayoutInflater,
         ): PrivacyDotWindowController
+    }
+
+    private companion object {
+        const val TAG = "PrivacyDotWindowController"
     }
 }

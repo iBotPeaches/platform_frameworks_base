@@ -92,6 +92,7 @@ import java.lang.annotation.Retention;
         SoftInputShowHideReason.SHOW_INPUT_TARGET_CHANGED,
         SoftInputShowHideReason.HIDE_INPUT_TARGET_CHANGED,
         SoftInputShowHideReason.HIDE_WINDOW_LOST_FOCUS,
+        SoftInputShowHideReason.IME_REQUESTED_CHANGED_LISTENER,
 })
 public @interface SoftInputShowHideReason {
     /** Default, undefined reason. */
@@ -422,4 +423,10 @@ public @interface SoftInputShowHideReason {
 
     /** Hide soft input when the window lost focus. */
     int HIDE_WINDOW_LOST_FOCUS = ImeProtoEnums.REASON_HIDE_WINDOW_LOST_FOCUS;
+
+    /**
+     * Show / Hide soft input by
+     *  {@link com.android.server.wm.WindowManagerInternal.OnImeRequestedChangedListener}
+     */
+    int IME_REQUESTED_CHANGED_LISTENER = ImeProtoEnums.REASON_IME_REQUESTED_CHANGED_LISTENER;
 }

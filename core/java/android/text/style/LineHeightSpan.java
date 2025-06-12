@@ -30,6 +30,7 @@ import com.android.internal.util.Preconditions;
 /**
  * The classes that affect the line height of paragraph should implement this interface.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface LineHeightSpan extends ParagraphStyle, WrapTogetherSpan {
     /**
      * Classes that implement this should define how the height is being calculated.

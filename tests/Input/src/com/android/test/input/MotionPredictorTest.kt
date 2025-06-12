@@ -26,11 +26,10 @@ import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.PointerCoords
 import android.view.MotionEvent.PointerProperties
 import android.view.MotionPredictor
-
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import androidx.test.platform.app.InstrumentationRegistry
-
+import java.time.Duration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -40,14 +39,12 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 
-import java.time.Duration
-
 private fun getStylusMotionEvent(
-        eventTime: Duration,
-        action: Int,
-        x: Float,
-        y: Float,
-        ): MotionEvent{
+    eventTime: Duration,
+    action: Int,
+    x: Float,
+    y: Float,
+): MotionEvent {
     val pointerCount = 1
     val properties = arrayOfNulls<MotionEvent.PointerProperties>(pointerCount)
     val coords = arrayOfNulls<MotionEvent.PointerCoords>(pointerCount)
@@ -61,21 +58,32 @@ private fun getStylusMotionEvent(
         coords[i]!!.y = y
     }
 
-    return MotionEvent.obtain(/*downTime=*/0, eventTime.toMillis(), action, properties.size,
-                properties, coords, /*metaState=*/0, /*buttonState=*/0,
-                /*xPrecision=*/0f, /*yPrecision=*/0f, /*deviceId=*/0, /*edgeFlags=*/0,
-                InputDevice.SOURCE_STYLUS, /*flags=*/0)
+    return MotionEvent.obtain(
+        /*downTime=*/ 0,
+        eventTime.toMillis(),
+        action,
+        properties.size,
+        properties,
+        coords,
+        /*metaState=*/ 0,
+        /*buttonState=*/ 0,
+        /*xPrecision=*/ 0f,
+        /*yPrecision=*/ 0f,
+        /*deviceId=*/ 0,
+        /*edgeFlags=*/ 0,
+        InputDevice.SOURCE_STYLUS,
+        /*flags=*/ 0,
+    )
 }
 
 private fun getPredictionContext(offset: Duration, enablePrediction: Boolean): Context {
     val context = mock(Context::class.java)
     val resources: Resources = mock(Resources::class.java)
     `when`(context.getResources()).thenReturn(resources)
-    `when`(resources.getInteger(
-            com.android.internal.R.integer.config_motionPredictionOffsetNanos)).thenReturn(
-                offset.toNanos().toInt())
-    `when`(resources.getBoolean(
-            com.android.internal.R.bool.config_enableMotionPrediction)).thenReturn(enablePrediction)
+    `when`(resources.getInteger(com.android.internal.R.integer.config_motionPredictionOffsetNanos))
+        .thenReturn(offset.toNanos().toInt())
+    `when`(resources.getBoolean(com.android.internal.R.bool.config_enableMotionPrediction))
+        .thenReturn(enablePrediction)
     return context
 }
 
@@ -88,38 +96,36 @@ class MotionPredictorTest {
     @Before
     fun setUp() {
         instrumentation.uiAutomation.executeShellCommand(
-            "setprop persist.input.enable_motion_prediction true")
+            "setprop persist.input.enable_motion_prediction true"
+        )
     }
 
     @After
     fun tearDown() {
         instrumentation.uiAutomation.executeShellCommand(
-            "setprop persist.input.enable_motion_prediction $initialPropertyValue")
+            "setprop persist.input.enable_motion_prediction $initialPropertyValue"
+        )
     }
 
     /**
-     * In a typical usage, app will send the event to the predictor and then call .predict to draw
-     * a prediction. Here, we send 2 events to the predictor and check the returned event.
-     * Input:
-     * t = 0 x = 0 y = 0
-     * t = 4 x = 10 y = 20
-     * Output (expected):
-     * t = 12 x = 30 y = 60 ± error
+     * In a typical usage, app will send the event to the predictor and then call .predict to draw a
+     * prediction. Here, we send 2 events to the predictor and check the returned event. Input: t =
+     * 0 x = 0 y = 0 t = 4 x = 10 y = 20 Output (expected): t = 12 x = 30 y = 60 ± error
      *
      * Historical data is ignored for simplicity.
      */
     @Test
     fun testPredictedCoordinatesAndTime() {
-        val context = getPredictionContext(
-            /*offset=*/Duration.ofMillis(1), /*enablePrediction=*/true)
+        val context =
+            getPredictionContext(/* offset= */ Duration.ofMillis(1), /* enablePrediction= */ true)
         val predictor = MotionPredictor(context)
         var eventTime = Duration.ofMillis(0)
-        val downEvent = getStylusMotionEvent(eventTime, ACTION_DOWN, /*x=*/0f, /*y=*/0f)
+        val downEvent = getStylusMotionEvent(eventTime, ACTION_DOWN, /* x= */ 0f, /* y= */ 0f)
         // ACTION_DOWN t=0 x=0 y=0
         predictor.record(downEvent)
 
         eventTime += Duration.ofMillis(4)
-        val moveEvent = getStylusMotionEvent(eventTime, ACTION_MOVE, /*x=*/10f, /*y=*/20f)
+        val moveEvent = getStylusMotionEvent(eventTime, ACTION_MOVE, /* x= */ 10f, /* y= */ 20f)
         // ACTION_MOVE t=1 x=1 y=2
         predictor.record(moveEvent)
 
@@ -129,7 +135,7 @@ class MotionPredictorTest {
         // Prediction will happen for t=12 (since it is the next input interval after the requested
         // time, 8, plus the model offset, 1).
         assertEquals(12, predicted!!.eventTime)
-        assertEquals(30f, predicted.x, /*delta=*/10f)
-        assertEquals(60f, predicted.y, /*delta=*/15f)
+        assertEquals(30f, predicted.x, /* delta= */ 10f)
+        assertEquals(60f, predicted.y, /* delta= */ 15f)
     }
 }

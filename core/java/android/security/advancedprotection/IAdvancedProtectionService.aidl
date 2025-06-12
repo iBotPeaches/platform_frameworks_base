@@ -35,4 +35,6 @@ interface IAdvancedProtectionService {
     void setAdvancedProtectionEnabled(boolean enabled);
     @EnforcePermission("MANAGE_ADVANCED_PROTECTION_MODE")
     List<AdvancedProtectionFeature> getAdvancedProtectionFeatures();
+    @EnforcePermission("MANAGE_ADVANCED_PROTECTION_MODE")
+    void logDialogShown(int featureId, int type, boolean learnMoreClicked);
 }

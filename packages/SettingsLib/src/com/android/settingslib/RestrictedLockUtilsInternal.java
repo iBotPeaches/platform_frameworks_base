@@ -77,6 +77,10 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
     private static final String ROLE_DEVICE_LOCK_CONTROLLER =
             "android.app.role.SYSTEM_FINANCED_DEVICE_CONTROLLER";
 
+    //TODO(b/378931989): Switch to android.app.admin.DevicePolicyIdentifiers.MEMORY_TAGGING_POLICY
+    //when the appropriate flag is launched.
+    private static final String MEMORY_TAGGING_POLICY = "memoryTagging";
+
     /**
      * @return drawables for displaying with settings that are locked by a device admin.
      */
@@ -244,14 +248,23 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
      */
     public static EnforcedAdmin checkIfKeyguardFeaturesDisabled(Context context,
             int keyguardFeatures, final @UserIdInt int userId) {
-        final LockSettingCheck check = (dpm, admin, checkUser) -> {
-            int effectiveFeatures = dpm.getKeyguardDisabledFeatures(admin, checkUser);
-            if (checkUser != userId) {
-                effectiveFeatures &= PROFILE_KEYGUARD_FEATURES_AFFECT_OWNER;
-            }
-            return (effectiveFeatures & keyguardFeatures) != KEYGUARD_DISABLE_FEATURES_NONE;
-        };
-        if (UserManager.get(context).getUserInfo(userId).isManagedProfile()) {
+        UserInfo userInfo = UserManager.get(context).getUserInfo(userId);
+        if (userInfo == null) {
+            Log.w(LOG_TAG, "User " + userId + " does not exist");
+            return null;
+        }
+
+        final LockSettingCheck check =
+                (dpm, admin, checkUser) -> {
+                    int effectiveFeatures = dpm.getKeyguardDisabledFeatures(admin, checkUser);
+                    if (checkUser != userId) {
+                        // This case is reached when {@code checkUser} is a managed profile and
+                        // {@code userId} is the parent user.
+                        effectiveFeatures &= PROFILE_KEYGUARD_FEATURES_AFFECT_OWNER;
+                    }
+                    return (effectiveFeatures & keyguardFeatures) != KEYGUARD_DISABLE_FEATURES_NONE;
+                };
+        if (userInfo.isManagedProfile()) {
             DevicePolicyManager dpm =
                     (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
             return findEnforcedAdmin(dpm.getActiveAdminsAsUser(userId), dpm, userId, check);
@@ -838,14 +851,13 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
         if (dpm.getMtePolicy() == MTE_NOT_CONTROLLED_BY_POLICY) {
             return null;
         }
-        EnforcedAdmin admin =
-                RestrictedLockUtils.getProfileOrDeviceOwner(
-                        context, context.getUser());
-        if (admin != null) {
-            return admin;
+        EnforcingAdmin enforcingAdmin = context.getSystemService(DevicePolicyManager.class)
+                .getEnforcingAdmin(context.getUserId(), MEMORY_TAGGING_POLICY);
+        if (enforcingAdmin == null) {
+            Log.w(LOG_TAG, "MTE is controlled by policy but could not find enforcing admin.");
         }
-        int profileId = getManagedProfileId(context, context.getUserId());
-        return RestrictedLockUtils.getProfileOrDeviceOwner(context, UserHandle.of(profileId));
+
+        return EnforcedAdmin.createDefaultEnforcedAdminWithRestriction(MEMORY_TAGGING_POLICY);
     }
 
     /**

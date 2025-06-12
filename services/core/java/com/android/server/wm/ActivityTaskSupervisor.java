@@ -36,6 +36,7 @@ import static android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.Intent.ACTION_VIEW;
@@ -54,6 +55,7 @@ import static android.view.WindowManager.TRANSIT_TO_FRONT;
 
 import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_STATES;
 import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_TASKS;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS;
 import static com.android.server.wm.ActivityRecord.State.PAUSED;
 import static com.android.server.wm.ActivityRecord.State.PAUSING;
 import static com.android.server.wm.ActivityRecord.State.RESTARTING_PROCESS;
@@ -76,6 +78,7 @@ import static com.android.server.wm.ActivityTaskManagerDebugConfig.TAG_WITH_CLAS
 import static com.android.server.wm.ActivityTaskManagerService.ANIMATE;
 import static com.android.server.wm.ActivityTaskManagerService.H.FIRST_SUPERVISOR_TASK_MSG;
 import static com.android.server.wm.ActivityTaskManagerService.RELAUNCH_REASON_NONE;
+import static com.android.server.wm.ActivityTaskManagerService.isPip2ExperimentEnabled;
 import static com.android.server.wm.ClientLifecycleManager.shouldDispatchLaunchActivityItemIndependently;
 import static com.android.server.wm.LockTaskController.LOCK_TASK_AUTH_ALLOWLISTED;
 import static com.android.server.wm.LockTaskController.LOCK_TASK_AUTH_LAUNCHABLE;
@@ -124,6 +127,7 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.DeadObjectException;
 import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
@@ -144,6 +148,8 @@ import android.util.SparseIntArray;
 import android.view.Display;
 import android.webkit.URLUtil;
 import android.window.ActivityWindowInfo;
+import android.window.DesktopExperienceFlags;
+import android.window.DesktopModeFlags;
 
 import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
@@ -160,7 +166,6 @@ import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.pm.SaferIntentUtils;
 import com.android.server.utils.Slogf;
 import com.android.server.wm.ActivityMetricsLogger.LaunchingState;
-import com.android.window.flags.Flags;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -277,7 +282,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
     /** Helper for {@link Task#fillTaskInfo}. */
     final TaskInfoHelper mTaskInfoHelper = new TaskInfoHelper();
 
-    final OpaqueActivityHelper mOpaqueActivityHelper = new OpaqueActivityHelper();
+    final OpaqueContainerHelper mOpaqueContainerHelper = new OpaqueContainerHelper();
 
     private final ActivityTaskSupervisorHandler mHandler;
     final Looper mLooper;
@@ -837,8 +842,6 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         proc.pauseConfigurationDispatch();
 
         try {
-            // schedule launch ticks to collect information about slow apps.
-            r.startLaunchTickingLocked();
             r.lastLaunchTime = SystemClock.uptimeMillis();
             r.setProcess(proc);
 
@@ -897,108 +900,9 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                 lockTaskController.startLockTaskMode(task, false, 0 /* blank UID */);
             }
 
-            try {
-                if (!proc.hasThread()) {
-                    throw new RemoteException();
-                }
-                List<ResultInfo> results = null;
-                List<ReferrerIntent> newIntents = null;
-                if (andResume) {
-                    // We don't need to deliver new intents and/or set results if activity is going
-                    // to pause immediately after launch.
-                    results = r.results;
-                    newIntents = r.newIntents;
-                }
-                if (DEBUG_SWITCH) Slog.v(TAG_SWITCH,
-                        "Launching: " + r + " savedState=" + r.getSavedState()
-                                + " with results=" + results + " newIntents=" + newIntents
-                                + " andResume=" + andResume);
-                EventLogTags.writeWmRestartActivity(r.mUserId, System.identityHashCode(r),
-                        task.mTaskId, r.shortComponentName);
-                updateHomeProcessIfNeeded(r);
-                mService.getPackageManagerInternalLocked().notifyPackageUse(
-                        r.intent.getComponent().getPackageName(), NOTIFY_PACKAGE_USE_ACTIVITY);
-                mService.getAppWarningsLocked().onStartActivity(r);
-
-                final Configuration procConfig = proc.prepareConfigurationForLaunchingActivity();
-                final Configuration overrideConfig = r.getMergedOverrideConfiguration();
-                r.setLastReportedConfiguration(procConfig, overrideConfig);
-
-                final ActivityWindowInfo activityWindowInfo = r.getActivityWindowInfo();
-                r.setLastReportedActivityWindowInfo(activityWindowInfo);
-
-                logIfTransactionTooLarge(r.intent, r.getSavedState());
-
-                final TaskFragment organizedTaskFragment = r.getOrganizedTaskFragment();
-                if (organizedTaskFragment != null) {
-                    // Sending TaskFragmentInfo to client to ensure the info is updated before
-                    // the activity creation.
-                    mService.mTaskFragmentOrganizerController.dispatchPendingInfoChangedEvent(
-                            organizedTaskFragment);
-                }
-
-                // Create activity launch transaction.
-                final boolean isTransitionForward = r.isTransitionForward();
-                final IBinder fragmentToken = r.getTaskFragment().getFragmentToken();
-                final int deviceId = getDeviceIdForDisplayId(r.getDisplayId());
-                final LaunchActivityItem launchActivityItem = new LaunchActivityItem(r.token,
-                        r.intent, System.identityHashCode(r), r.info,
-                        procConfig, overrideConfig, deviceId,
-                        r.getFilteredReferrer(r.launchedFromPackage), task.voiceInteractor,
-                        proc.getReportedProcState(), r.getSavedState(), r.getPersistentSavedState(),
-                        results, newIntents, r.takeSceneTransitionInfo(), isTransitionForward,
-                        proc.createProfilerInfoIfNeeded(), r.assistToken, activityClientController,
-                        r.shareableActivityToken, r.getLaunchedFromBubble(), fragmentToken,
-                        r.initialCallerInfoAccessToken, activityWindowInfo);
-
-                // Set desired final state.
-                final ActivityLifecycleItem lifecycleItem;
-                if (andResume) {
-                    lifecycleItem = new ResumeActivityItem(r.token, isTransitionForward,
-                            r.shouldSendCompatFakeFocus());
-                } else if (r.isVisibleRequested()) {
-                    lifecycleItem = new PauseActivityItem(r.token);
-                } else {
-                    lifecycleItem = new StopActivityItem(r.token);
-                }
-
-                // Schedule transaction.
-                if (shouldDispatchLaunchActivityItemIndependently(r.info.packageName, r.getUid())) {
-                    // LaunchActivityItem has @UnsupportedAppUsage usages.
-                    // Guard with targetSDK on Android 15+.
-                    // To not bundle the transaction, dispatch the pending before schedule new
-                    // transaction.
-                    mService.getLifecycleManager().dispatchPendingTransaction(proc.getThread());
-                }
-                mService.getLifecycleManager().scheduleTransactionItems(
-                        proc.getThread(),
-                        // Immediately dispatch the transaction, so that if it fails, the server can
-                        // restart the process and retry now.
-                        true /* shouldDispatchImmediately */,
-                        launchActivityItem, lifecycleItem);
-
-                if (procConfig.seq > mRootWindowContainer.getConfiguration().seq) {
-                    // If the seq is increased, there should be something changed (e.g. registered
-                    // activity configuration).
-                    proc.setLastReportedConfiguration(procConfig);
-                }
-                if ((proc.mInfo.privateFlags & ApplicationInfo.PRIVATE_FLAG_CANT_SAVE_STATE) != 0
-                        && mService.mHasHeavyWeightFeature) {
-                    // This may be a heavy-weight process! Note that the package manager will ensure
-                    // that only activity can run in the main process of the .apk, which is the only
-                    // thing that will be considered heavy-weight.
-                    if (proc.mName.equals(proc.mInfo.packageName)) {
-                        if (mService.mHeavyWeightProcess != null
-                                && mService.mHeavyWeightProcess != proc) {
-                            Slog.w(TAG, "Starting new heavy weight process " + proc
-                                    + " when already running "
-                                    + mService.mHeavyWeightProcess);
-                        }
-                        mService.setHeavyWeightProcess(r);
-                    }
-                }
-
-            } catch (RemoteException e) {
+            final RemoteException e = tryRealStartActivityInner(
+                    task, r, proc, activityClientController, andResume);
+            if (e != null) {
                 if (r.launchFailed) {
                     // This is the second time we failed -- finish activity and give up.
                     Slog.e(TAG, "Second failure launching "
@@ -1021,7 +925,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
         r.launchFailed = false;
 
-        // TODO(lifecycler): Resume or pause requests are done as part of launch transaction,
+        // Resume or pause requests are done as part of launch transaction,
         // so updating the state should be done accordingly.
         if (andResume && readyToResume()) {
             // As part of the process of launching, ActivityThread also performs
@@ -1059,6 +963,129 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
 
         return true;
+    }
+
+    /** @return {@link RemoteException} if the app process failed to handle the activity start. */
+    @Nullable
+    private RemoteException tryRealStartActivityInner(
+            @NonNull Task task,
+            @NonNull ActivityRecord r,
+            @NonNull WindowProcessController proc,
+            @Nullable IActivityClientController activityClientController,
+            boolean andResume) {
+        if (!proc.hasThread()) {
+            return new RemoteException();
+        }
+        List<ResultInfo> results = null;
+        List<ReferrerIntent> newIntents = null;
+        if (andResume) {
+            // We don't need to deliver new intents and/or set results if activity is going
+            // to pause immediately after launch.
+            results = r.results;
+            newIntents = r.newIntents;
+        }
+        if (DEBUG_SWITCH) {
+            Slog.v(TAG_SWITCH,
+                    "Launching: " + r + " savedState=" + r.getSavedState()
+                            + " with results=" + results + " newIntents=" + newIntents
+                            + " andResume=" + andResume);
+        }
+        EventLogTags.writeWmRestartActivity(r.mUserId, System.identityHashCode(r),
+                task.mTaskId, r.shortComponentName);
+        updateHomeProcessIfNeeded(r);
+        mService.getPackageManagerInternalLocked().notifyPackageUse(
+                r.intent.getComponent().getPackageName(), NOTIFY_PACKAGE_USE_ACTIVITY);
+        mService.getAppWarningsLocked().onStartActivity(r);
+
+        final Configuration procConfig = proc.prepareConfigurationForLaunchingActivity();
+        final Configuration overrideConfig = r.getMergedOverrideConfiguration();
+        r.setLastReportedConfiguration(procConfig, overrideConfig);
+
+        final ActivityWindowInfo activityWindowInfo = r.getActivityWindowInfo();
+        r.setLastReportedActivityWindowInfo(activityWindowInfo);
+
+        logIfTransactionTooLarge(r.intent, r.getSavedState());
+
+        final TaskFragment organizedTaskFragment = r.getOrganizedTaskFragment();
+        if (organizedTaskFragment != null) {
+            // Sending TaskFragmentInfo to client to ensure the info is updated before
+            // the activity creation.
+            mService.mTaskFragmentOrganizerController.dispatchPendingInfoChangedEvent(
+                    organizedTaskFragment);
+        }
+
+        // Create activity launch transaction.
+        final boolean isTransitionForward = r.isTransitionForward();
+        final IBinder fragmentToken = r.getTaskFragment().getFragmentToken();
+        final int deviceId = getDeviceIdForDisplayId(r.getDisplayId());
+        final LaunchActivityItem launchActivityItem = new LaunchActivityItem(r.token,
+                r.intent, System.identityHashCode(r), r.info,
+                procConfig, overrideConfig, deviceId,
+                r.getFilteredReferrer(r.launchedFromPackage), task.voiceInteractor,
+                proc.getReportedProcState(), r.getSavedState(), r.getPersistentSavedState(),
+                results, newIntents, r.takeSceneTransitionInfo(), isTransitionForward,
+                proc.createProfilerInfoIfNeeded(), r.assistToken, activityClientController,
+                r.shareableActivityToken, r.getLaunchedFromBubble(), fragmentToken,
+                r.initialCallerInfoAccessToken, activityWindowInfo);
+
+        // Set desired final state.
+        final ActivityLifecycleItem lifecycleItem;
+        if (andResume) {
+            lifecycleItem = new ResumeActivityItem(r.token, isTransitionForward,
+                    r.shouldSendCompatFakeFocus());
+        } else if (r.isVisibleRequested()) {
+            lifecycleItem = new PauseActivityItem(r.token);
+        } else {
+            lifecycleItem = new StopActivityItem(r.token);
+        }
+
+        // Schedule transaction.
+        if (shouldDispatchLaunchActivityItemIndependently(r.info.packageName, r.getUid())) {
+            // LaunchActivityItem has @UnsupportedAppUsage usages.
+            // Guard with targetSDK on Android 15+.
+            // To not bundle the transaction, dispatch the pending before schedule new
+            // transaction.
+            mService.getLifecycleManager().dispatchPendingTransaction(proc.getThread());
+        }
+        final boolean isSuccessful;
+        try {
+            isSuccessful = mService.getLifecycleManager().scheduleTransactionItems(
+                    proc.getThread(),
+                    // Immediately dispatch the transaction, so that if it fails, the server can
+                    // restart the process and retry now.
+                    true /* shouldDispatchImmediately */,
+                    launchActivityItem, lifecycleItem);
+        } catch (RemoteException e) {
+            // TODO(b/323801078): remove Exception when cleanup
+            return e;
+        }
+        if (com.android.window.flags.Flags.cleanupDispatchPendingTransactionsRemoteException()
+                && !isSuccessful) {
+            return new DeadObjectException("Failed to dispatch the ClientTransaction to dead"
+                    + " process. See earlier log for more details.");
+        }
+
+        if (procConfig.seq > mRootWindowContainer.getConfiguration().seq) {
+            // If the seq is increased, there should be something changed (e.g. registered
+            // activity configuration).
+            proc.setLastReportedConfiguration(procConfig);
+        }
+        if ((proc.mInfo.privateFlags & ApplicationInfo.PRIVATE_FLAG_CANT_SAVE_STATE) != 0
+                && mService.mHasHeavyWeightFeature) {
+            // This may be a heavy-weight process! Note that the package manager will ensure
+            // that only activity can run in the main process of the .apk, which is the only
+            // thing that will be considered heavy-weight.
+            if (proc.mName.equals(proc.mInfo.packageName)) {
+                if (mService.mHeavyWeightProcess != null
+                        && mService.mHeavyWeightProcess != proc) {
+                    Slog.w(TAG, "Starting new heavy weight process " + proc
+                            + " when already running "
+                            + mService.mHeavyWeightProcess);
+                }
+                mService.setHeavyWeightProcess(r);
+            }
+        }
+        return null;
     }
 
     void updateHomeProcessIfNeeded(@NonNull ActivityRecord r) {
@@ -1268,7 +1295,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
             // Checks if the caller can be shown in the given public display.
             int userId = UserHandle.getUserId(callingUid);
             int displayId = display.getDisplayId();
-            boolean allowed = mWindowManager.mUmInternal.isUserVisible(userId, displayId);
+            boolean allowed = userId == UserHandle.USER_SYSTEM
+                    || mWindowManager.mUmInternal.isUserVisible(userId, displayId);
             ProtoLog.d(WM_DEBUG_TASKS,
                     "Launch on display check: %s launch for userId=%d on displayId=%d",
                     (allowed ? "allow" : "disallow"), userId, displayId);
@@ -1464,7 +1492,6 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
             if (DEBUG_IDLE) Slog.d(TAG_IDLE, "activityIdleInternal: Callers="
                     + Debug.getCallers(4));
             mHandler.removeMessages(IDLE_TIMEOUT_MSG, r);
-            r.finishLaunchTickingLocked();
             if (fromTimeout) {
                 reportActivityLaunched(fromTimeout, r, INVALID_DELAY, -1 /* launchState */);
             }
@@ -1609,16 +1636,19 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
     }
 
-    private void moveHomeRootTaskToFrontIfNeeded(int flags, TaskDisplayArea taskDisplayArea,
+    @VisibleForTesting
+    void moveHomeRootTaskToFrontIfNeeded(int flags, TaskDisplayArea taskDisplayArea,
             String reason) {
         final Task focusedRootTask = taskDisplayArea.getFocusedRootTask();
 
         if ((taskDisplayArea.getWindowingMode() == WINDOWING_MODE_FULLSCREEN
                 && (flags & ActivityManager.MOVE_TASK_WITH_HOME) != 0)
-                || (focusedRootTask != null && focusedRootTask.isActivityTypeRecents())) {
+                || (focusedRootTask != null && focusedRootTask.isActivityTypeRecents()
+                && focusedRootTask.getWindowingMode() != WINDOWING_MODE_MULTI_WINDOW)) {
             // We move root home task to front when we are on a fullscreen display area and
             // caller has requested the home activity to move with it. Or the previous root task
-            // is recents.
+            // is recents and we are not on multi-window mode.
+
             taskDisplayArea.moveHomeRootTaskToFront(reason);
         }
     }
@@ -1658,9 +1688,13 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
          */
         rootTask.cancelAnimation();
         rootTask.setForceHidden(FLAG_FORCE_HIDDEN_FOR_PINNED_TASK, true /* set */);
-        rootTask.ensureActivitiesVisible(null /* starting */);
-        activityIdleInternal(null /* idleActivity */, false /* fromTimeout */,
-                true /* processPausingActivities */, null /* configuration */);
+        if (!isPip2ExperimentEnabled()) {
+            // In PiP2, as the transition finishes the lifecycle updates will be sent to the app
+            // along with the configuration changes as a part of the transition lifecycle.
+            rootTask.ensureActivitiesVisible(null /* starting */);
+            activityIdleInternal(null /* idleActivity */, false /* fromTimeout */,
+                    true /* processPausingActivities */, null /* configuration */);
+        }
 
         if (rootTask.getParent() == null) {
             // The activities in the task may already be finishing. Then the task could be removed
@@ -2530,9 +2564,6 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         task.forAllActivities(r -> {
             if (!r.attachedToProcess()) return;
             mPipModeChangedActivities.add(r);
-            // If we are scheduling pip change, then remove this activity from multi-window
-            // change list as the processing of pip change will make sure multi-window changed
-            // message is processed in the right order relative to pip changed.
             mMultiWindowModeChangedActivities.remove(r);
         });
 
@@ -2545,7 +2576,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
     void wakeUp(int displayId, String reason) {
         mPowerManager.wakeUp(SystemClock.uptimeMillis(), PowerManager.WAKE_REASON_APPLICATION,
-                "android.server.am:TURN_ON:" + reason, displayId);
+                "android.server.wm:TURN_ON:" + reason, displayId);
     }
 
     /** Starts a batch of visibility updates. */
@@ -2624,9 +2655,13 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
      */
     void endDeferResume() {
         mDeferResumeCount--;
-        if (readyToResume() && mLastReportedTopResumedActivity != null
-                && mTopResumedActivity != mLastReportedTopResumedActivity) {
-            scheduleTopResumedActivityStateLossIfNeeded();
+        if (readyToResume()) {
+            if (mLastReportedTopResumedActivity != null
+                    && mTopResumedActivity != mLastReportedTopResumedActivity) {
+                scheduleTopResumedActivityStateLossIfNeeded();
+            } else if (mLastReportedTopResumedActivity == null) {
+                scheduleTopResumedActivityStateIfNeeded();
+            }
         }
     }
 
@@ -2748,10 +2783,6 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                 case TOP_RESUMED_STATE_LOSS_TIMEOUT_MSG: {
                     final ActivityRecord r = (ActivityRecord) msg.obj;
                     Slog.w(TAG, "Activity top resumed state loss timeout for " + r);
-                    if (r.hasProcess()) {
-                        mService.logAppTooSlow(r.app, r.topResumedStateLossTime,
-                                "top state loss for " + r);
-                    }
                     handleTopResumedStateReleased(true /* timeout */);
                 } break;
                 default:
@@ -2812,6 +2843,13 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                             "startActivityFromRecents: Task " + taskId + " not found.");
                 }
 
+
+                if (task.getRootTask() != null
+                        && task.getRootTask().getWindowingMode() == WINDOWING_MODE_MULTI_WINDOW) {
+                    // Don't move home forward if task is in multi window mode
+                    moveHomeTaskForward = false;
+                }
+
                 if (moveHomeTaskForward) {
                     // We always want to return to the home activity instead of the recents
                     // activity from whatever is started from the recents activity, so move
@@ -2848,6 +2886,10 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                         targetActivity.applyOptionsAnimation();
                         if (activityOptions != null && activityOptions.getLaunchCookie() != null) {
                             targetActivity.mLaunchCookie = activityOptions.getLaunchCookie();
+                            ProtoLog.v(WM_DEBUG_WINDOW_TRANSITIONS,
+                                    "Updating launch cookie=%s for start from recents act=%s(%d)",
+                                    targetActivity.mLaunchCookie, targetActivity.packageName,
+                                    System.identityHashCode(targetActivity));
                         }
                     } finally {
                         mActivityMetricsLogger.notifyActivityLaunched(launchingState,
@@ -2910,41 +2952,87 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
     }
 
-    /** The helper to get the top opaque activity of a container. */
-    static class OpaqueActivityHelper implements Predicate<ActivityRecord> {
+    /** The helper to calculate whether a container is opaque. */
+    static class OpaqueContainerHelper implements Predicate<ActivityRecord> {
+        private final boolean mEnableMultipleDesktopsBackend =
+                DesktopExperienceFlags.ENABLE_MULTIPLE_DESKTOPS_BACKEND.isTrue();
         private ActivityRecord mStarting;
-        private boolean mIncludeInvisibleAndFinishing;
+        private boolean mIgnoringInvisibleActivity;
         private boolean mIgnoringKeyguard;
 
-        ActivityRecord getOpaqueActivity(@NonNull WindowContainer<?> container) {
-            mIncludeInvisibleAndFinishing = true;
-            mIgnoringKeyguard = true;
-            return container.getActivity(this,
-                    true /* traverseTopToBottom */, null /* boundary */);
+        /** Whether the container is opaque. */
+        boolean isOpaque(@NonNull WindowContainer<?> container) {
+            return isOpaque(container, null /* starting */, true /* ignoringKeyguard */,
+                    false /* ignoringInvisibleActivity */);
         }
 
-        ActivityRecord getVisibleOpaqueActivity(
+        /**
+         * Whether the container is opaque, but only including visible activities in its
+         * calculation.
+         */
+        boolean isOpaque(
                 @NonNull WindowContainer<?> container, @Nullable ActivityRecord starting,
-                boolean ignoringKeyguard) {
+                boolean ignoringKeyguard,  boolean ignoringInvisibleActivity) {
             mStarting = starting;
-            mIncludeInvisibleAndFinishing = false;
+            mIgnoringInvisibleActivity = ignoringInvisibleActivity;
             mIgnoringKeyguard = ignoringKeyguard;
-            final ActivityRecord opaque = container.getActivity(this,
-                    true /* traverseTopToBottom */, null /* boundary */);
+
+            final boolean isOpaque;
+            if (!mEnableMultipleDesktopsBackend) {
+                isOpaque = container.getActivity(this,
+                        true /* traverseTopToBottom */, null /* boundary */) != null;
+            } else {
+                isOpaque = isOpaqueInner(container);
+            }
             mStarting = null;
-            return opaque;
+            return isOpaque;
+        }
+
+        private boolean isOpaqueInner(@NonNull WindowContainer<?> container) {
+            final boolean isActivity = container.asActivityRecord() != null;
+            final boolean isLeafTaskFragment = container.asTaskFragment() != null
+                    && ((TaskFragment) container).isLeafTaskFragment();
+            if (isActivity || isLeafTaskFragment) {
+                // When it is an activity or leaf task fragment, then opacity is calculated based
+                // on itself or its activities.
+                return container.getActivity(this,
+                        true /* traverseTopToBottom */, null /* boundary */) != null;
+            }
+            // Otherwise, it's considered opaque if any of its opaque children fill this
+            // container, unless the children are adjacent fragments, in which case as long as they
+            // are all opaque then |container| is also considered opaque, even if the adjacent
+            // task fragment aren't filling.
+            for (int i = 0; i < container.getChildCount(); i++) {
+                final WindowContainer<?> child = container.getChildAt(i);
+                if (child.fillsParent() && isOpaque(child)) {
+                    return true;
+                }
+
+                if (child.asTaskFragment() != null
+                        && child.asTaskFragment().hasAdjacentTaskFragment()) {
+                    final boolean isAnyTranslucent = !isOpaque(child)
+                            || child.asTaskFragment().forOtherAdjacentTaskFragments(
+                                    tf -> !isOpaque(tf));
+                    if (!isAnyTranslucent) {
+                        // This task fragment and all its adjacent task fragments are opaque,
+                        // consider it opaque even if it doesn't fill its parent.
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         @Override
         public boolean test(ActivityRecord r) {
-            if (!mIncludeInvisibleAndFinishing && r != mStarting
+            if (mIgnoringInvisibleActivity && r != mStarting
                     && ((mIgnoringKeyguard && !r.visibleIgnoringKeyguard)
                     || (!mIgnoringKeyguard && !r.isVisible()))) {
                 // Ignore invisible activities that are not the currently starting activity
                 // (about to be visible).
                 return false;
             }
-            return r.occludesParent(mIncludeInvisibleAndFinishing /* includingFinishing */);
+            return r.occludesParent(!mIgnoringInvisibleActivity /* includingFinishing */);
         }
     }
 
@@ -2971,7 +3059,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
         @Override
         public void accept(ActivityRecord r) {
-            if (Flags.enableDesktopWindowingAppToWeb() && mInfo.capturedLink == null) {
+            if (DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_APP_TO_WEB.isTrue()
+                    && mInfo.capturedLink == null) {
                 setCapturedLink(r);
             }
             if (r.mLaunchCookie != null) {

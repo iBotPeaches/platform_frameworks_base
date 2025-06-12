@@ -20,6 +20,7 @@ import android.annotation.ColorInt;
 import android.annotation.ColorLong;
 import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.util.ArrayMap;
 import android.view.Window;
 
@@ -76,6 +77,7 @@ import libcore.util.NativeAllocationRegistry;
  * Additionally, if the shader is invoked by another using {@link #setInputShader(String, Shader)},
  * then that parent shader may modify the input coordinates arbitrarily.</p>
  *
+ * <a id="agsl-and-color-spaces"/>
  * <h3>AGSL and Color Spaces</h3>
  * <p>Android Graphics and by extension {@link RuntimeShader} are color managed.  The working
  * {@link ColorSpace} for an AGSL shader is defined to be the color space of the destination, which
@@ -246,6 +248,7 @@ import libcore.util.NativeAllocationRegistry;
  * the bitmap), remember that the coordinates are local to the canvas.</p>
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class RuntimeShader extends Shader {
 
     private static class NoImagePreloadHolder {
@@ -267,6 +270,8 @@ public class RuntimeShader extends Shader {
     private ArrayMap<String, ColorFilter> mColorFilterUniforms = new ArrayMap<>();
     private ArrayMap<String, RuntimeXfermode> mXfermodeUniforms = new ArrayMap<>();
 
+    private ColorSpace mWorkingColorSpace = null;
+
 
     /**
      * Creates a new RuntimeShader.
@@ -283,6 +288,35 @@ public class RuntimeShader extends Shader {
         mNativeInstanceRuntimeShaderBuilder = nativeCreateBuilder(shader);
         NoImagePreloadHolder.sRegistry.registerNativeAllocation(
                 this, mNativeInstanceRuntimeShaderBuilder);
+    }
+
+    /**
+     * Sets the working color space for this shader. That is, the shader will be evaluated
+     * in the given colorspace before being converted to the output destination's colorspace.
+     *
+     * <p>By default the RuntimeShader is evaluated in the context of the
+     * <a href="#agsl-and-color-spaces">destination colorspace</a>. By calling this method
+     * that can be overridden to force the shader to be evaluated in the given colorspace first
+     * before then being color converted to the destination colorspace.</p>
+     *
+     * @param colorSpace The ColorSpace to evaluate in. Must be an {@link ColorSpace#getModel() RGB}
+     *                   ColorSpace. Passing null restores default behavior of working in the
+     *                   destination colorspace.
+     * @throws IllegalArgumentException If the colorspace is not RGB
+     */
+    @FlaggedApi(Flags.FLAG_SHADER_COLOR_SPACE)
+    public void setWorkingColorSpace(@Nullable ColorSpace colorSpace) {
+        if (colorSpace != null && colorSpace.getModel() != ColorSpace.Model.RGB) {
+            throw new IllegalArgumentException("ColorSpace must be RGB, given " + colorSpace);
+        }
+        if (mWorkingColorSpace != colorSpace) {
+            mWorkingColorSpace = colorSpace;
+            if (mWorkingColorSpace != null) {
+                // Just to enforce this can be resolved instead of erroring out later
+                mWorkingColorSpace.getNativeInstance();
+            }
+            discardNativeInstance();
+        }
     }
 
     /**
@@ -578,7 +612,8 @@ public class RuntimeShader extends Shader {
     /** @hide */
     @Override
     protected long createNativeInstance(long nativeMatrix, boolean filterFromPaint) {
-        return nativeCreateShader(mNativeInstanceRuntimeShaderBuilder, nativeMatrix);
+        return nativeCreateShader(mNativeInstanceRuntimeShaderBuilder, nativeMatrix,
+                mWorkingColorSpace != null ? mWorkingColorSpace.getNativeInstance() : 0);
     }
 
     /** @hide */
@@ -589,6 +624,8 @@ public class RuntimeShader extends Shader {
     private static native long nativeGetFinalizer();
     private static native long nativeCreateBuilder(String agsl);
     private static native long nativeCreateShader(long shaderBuilder, long matrix);
+    private static native long nativeCreateShader(long shaderBuilder, long matrix,
+            long colorSpacePtr);
     private static native void nativeUpdateUniforms(
             long shaderBuilder, String uniformName, float[] uniforms, boolean isColor);
     private static native void nativeUpdateUniforms(

@@ -16,12 +16,12 @@
 package com.android.systemui.biometrics
 
 import android.app.ActivityTaskManager
-import android.app.admin.DevicePolicyManager
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.biometrics.BiometricAuthenticator
 import android.hardware.biometrics.BiometricConstants
 import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.hardware.biometrics.PromptContentViewWithMoreOptionsButton
 import android.hardware.biometrics.PromptInfo
 import android.hardware.biometrics.PromptVerticalListContentView
@@ -36,13 +36,15 @@ import android.testing.ViewUtils
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityManager
 import android.widget.ScrollView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.app.viewcapture.ViewCapture
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.widget.LockPatternUtils
+import com.android.internal.widget.LockPatternUtils.CREDENTIAL_TYPE_PATTERN
+import com.android.internal.widget.LockPatternUtils.CREDENTIAL_TYPE_PIN
 import com.android.launcher3.icons.IconProvider
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.biometrics.data.repository.FakeBiometricStatusRepository
@@ -112,7 +114,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
     @Mock lateinit var selectedUserInteractor: SelectedUserInteractor
     @Mock private lateinit var packageManager: PackageManager
     @Mock private lateinit var activityTaskManager: ActivityTaskManager
-    @Mock private lateinit var lazyViewCapture: Lazy<ViewCapture>
+    @Mock private lateinit var accessibilityManager: AccessibilityManager
 
     private lateinit var displayRepository: FakeDisplayRepository
     private lateinit var displayStateInteractor: DisplayStateInteractor
@@ -289,7 +291,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
         verify(callback)
             .onDismissed(
-                eq(AuthDialogCallback.DISMISSED_BIOMETRIC_AUTHENTICATED),
+                eq(BiometricPrompt.DISMISSED_REASON_BIOMETRIC_CONFIRM_NOT_REQUIRED),
                 eq<ByteArray?>(null), /* credentialAttestation */
                 eq(authContainer?.requestId ?: 0L),
             )
@@ -309,7 +311,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
             )
         verify(callback)
             .onDismissed(
-                eq(AuthDialogCallback.DISMISSED_USER_CANCELED),
+                eq(BiometricPrompt.DISMISSED_REASON_USER_CANCEL),
                 eq<ByteArray?>(null), /* credentialAttestation */
                 eq(authContainer?.requestId ?: 0L),
             )
@@ -324,7 +326,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
         verify(callback)
             .onDismissed(
-                eq(AuthDialogCallback.DISMISSED_BUTTON_NEGATIVE),
+                eq(BiometricPrompt.DISMISSED_REASON_NEGATIVE),
                 eq<ByteArray?>(null), /* credentialAttestation */
                 eq(authContainer?.requestId ?: 0L),
             )
@@ -351,7 +353,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
         verify(callback)
             .onDismissed(
-                eq(AuthDialogCallback.DISMISSED_ERROR),
+                eq(BiometricPrompt.DISMISSED_REASON_ERROR),
                 eq<ByteArray?>(null), /* credentialAttestation */
                 eq(authContainer?.requestId ?: 0L),
             )
@@ -432,8 +434,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
                 .setMoreOptionsButtonListener(fakeExecutor) { _, _ -> isButtonClicked = true }
                 .build()
 
-        val container =
-            initializeFingerprintContainer(contentViewWithMoreOptionsButton = contentView)
+        val container = initializeFingerprintContainer()
 
         waitForIdleSync()
 
@@ -488,8 +489,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
                 .build()
         val container =
             initializeFingerprintContainer(
-                authenticators = BiometricManager.Authenticators.DEVICE_CREDENTIAL,
-                contentViewWithMoreOptionsButton = contentView,
+                authenticators = BiometricManager.Authenticators.DEVICE_CREDENTIAL
             )
         waitForIdleSync()
 
@@ -500,8 +500,8 @@ open class AuthContainerViewTest : SysuiTestCase() {
     @Test
     fun testCredentialViewUsesEffectiveUserId() {
         whenever(userManager.getCredentialOwnerProfile(anyInt())).thenReturn(200)
-        whenever(lockPatternUtils.getKeyguardStoredPasswordQuality(eq(200)))
-            .thenReturn(DevicePolicyManager.PASSWORD_QUALITY_SOMETHING)
+        whenever(lockPatternUtils.getCredentialTypeForUser(eq(200)))
+            .thenReturn(CREDENTIAL_TYPE_PATTERN)
 
         val container =
             initializeFingerprintContainer(
@@ -529,20 +529,23 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
     @Test
     fun testLayoutParams_hasSecureWindowFlag() {
-        val layoutParams = AuthContainerView.getLayoutParams(windowToken, "")
+        val layoutParams =
+            AuthContainerView.getLayoutParams(windowToken, "", false /* isCredentialView */)
         assertThat((layoutParams.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0).isTrue()
     }
 
     @Test
     fun testLayoutParams_hasShowWhenLockedFlag() {
-        val layoutParams = AuthContainerView.getLayoutParams(windowToken, "")
+        val layoutParams =
+            AuthContainerView.getLayoutParams(windowToken, "", false /* isCredentialView */)
         assertThat((layoutParams.flags and WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED) != 0)
             .isTrue()
     }
 
     @Test
     fun testLayoutParams_hasDimbehindWindowFlag() {
-        val layoutParams = AuthContainerView.getLayoutParams(windowToken, "")
+        val layoutParams =
+            AuthContainerView.getLayoutParams(windowToken, "", false /* isCredentialView */)
         val lpFlags = layoutParams.flags
         val lpDimAmount = layoutParams.dimAmount
 
@@ -552,7 +555,8 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
     @Test
     fun testLayoutParams_excludesImeInsets() {
-        val layoutParams = AuthContainerView.getLayoutParams(windowToken, "")
+        val layoutParams =
+            AuthContainerView.getLayoutParams(windowToken, "", false /* isCredentialView */)
         assertThat((layoutParams.fitInsetsTypes and WindowInsets.Type.ime()) == 0).isTrue()
     }
 
@@ -578,8 +582,7 @@ open class AuthContainerViewTest : SysuiTestCase() {
         addToView: Boolean = true
     ): TestAuthContainerView {
         whenever(userManager.getCredentialOwnerProfile(anyInt())).thenReturn(20)
-        whenever(lockPatternUtils.getKeyguardStoredPasswordQuality(eq(20)))
-            .thenReturn(DevicePolicyManager.PASSWORD_QUALITY_NUMERIC)
+        whenever(lockPatternUtils.getCredentialTypeForUser(eq(20))).thenReturn(CREDENTIAL_TYPE_PIN)
 
         // In the credential view, clicking on the background (to cancel authentication) is not
         // valid. Thus, the listener should be null, and it should not be in the accessibility
@@ -599,7 +602,6 @@ open class AuthContainerViewTest : SysuiTestCase() {
         authenticators: Int = BiometricManager.Authenticators.BIOMETRIC_WEAK,
         addToView: Boolean = true,
         verticalListContentView: PromptVerticalListContentView? = null,
-        contentViewWithMoreOptionsButton: PromptContentViewWithMoreOptionsButton? = null,
     ) =
         initializeContainer(
             TestAuthContainerView(
@@ -680,11 +682,11 @@ open class AuthContainerViewTest : SysuiTestCase() {
                 udfpsUtils,
                 iconProvider,
                 activityTaskManager,
+                accessibilityManager,
             ),
             { credentialViewModel },
             fakeExecutor,
             vibrator,
-            lazyViewCapture,
             msdlPlayer,
         ) {
         override fun postOnAnimation(runnable: Runnable) {
@@ -705,7 +707,8 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
     @Test
     fun testLayoutParams_hasCutoutModeAlwaysFlag() {
-        val layoutParams = AuthContainerView.getLayoutParams(windowToken, "")
+        val layoutParams =
+            AuthContainerView.getLayoutParams(windowToken, "", false /* isCredentialView */)
         val lpFlags = layoutParams.flags
 
         assertThat(
@@ -716,7 +719,8 @@ open class AuthContainerViewTest : SysuiTestCase() {
 
     @Test
     fun testLayoutParams_excludesSystemBarInsets() {
-        val layoutParams = AuthContainerView.getLayoutParams(windowToken, "")
+        val layoutParams =
+            AuthContainerView.getLayoutParams(windowToken, "", false /* isCredentialView */)
         assertThat((layoutParams.fitInsetsTypes and WindowInsets.Type.systemBars()) == 0).isTrue()
     }
 }

@@ -37,7 +37,7 @@ public final class LogNullabilityTest {
         Log.i(null, "");
         Log.w(null, "");
         Log.e(null, "");
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             Log.wtf(null, "");
             Log.wtfStack(null, "");
         }
@@ -53,7 +53,7 @@ public final class LogNullabilityTest {
         Log.i(null, "", new Throwable());
         Log.w(null, "", new Throwable());
         Log.e(null, "", new Throwable());
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             Log.wtf(null, "", new Throwable());
         }
         Log.printlns(Log.LOG_ID_MAIN, Log.INFO, null, "", new Throwable());
@@ -90,7 +90,7 @@ public final class LogNullabilityTest {
         } catch (NullPointerException expected) {
         }
 
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             Log.wtf("", (String) null);
             Log.wtfStack("", (String) null);
         }
@@ -111,7 +111,7 @@ public final class LogNullabilityTest {
         Log.i("", null, new Throwable());
         Log.w("", null, new Throwable());
         Log.e("", null, new Throwable());
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             Log.wtf("", null, new Throwable());
         }
         Log.printlns(Log.LOG_ID_MAIN, Log.INFO, "", null, new Throwable());
@@ -124,7 +124,7 @@ public final class LogNullabilityTest {
         Log.i("", "", null);
         Log.w("", "", null);
         Log.e("", "", null);
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             Log.wtf("", "", null);
         }
 
@@ -136,7 +136,7 @@ public final class LogNullabilityTest {
         // Implicit assertions of not crashing.
 
         // WTF has its own (String, Throwable) overload with different behavior.
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             try {
                 Log.wtf("", (Throwable) null);
                 fail();
@@ -152,7 +152,7 @@ public final class LogNullabilityTest {
         Log.i("", null, null);
         Log.w("", null, null);
         Log.e("", null, null);
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             Log.wtf("", null, null);
         }
         Log.printlns(Log.LOG_ID_MAIN, Log.INFO, "", null, null);

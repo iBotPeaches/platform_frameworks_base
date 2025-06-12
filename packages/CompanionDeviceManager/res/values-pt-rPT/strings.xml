@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Gestor de dispositivos associados"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Permitir que a app &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aceda ao &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Certifique-se de que este <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> tem o <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> ativado e mantenha o <xliff:g id="PROFILE_NAME">%3$s</xliff:g> próximo."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nenhum dispositivo encontrado. Tente mais tarde."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth e Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"relógio"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Escolha um dispositivo para ser gerido pela app &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Escolha um perfil de <xliff:g id="PROFILE_NAME">%1$s</xliff:g> para configurar"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"À procura de um <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Esta app vai poder sincronizar informações, como o nome do autor de uma chamada, e aceder a estas autorizações no seu <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Permita que a app &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; faça a gestão do dispositivo &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"dispositivo"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Permitir que a app &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; faça stream das apps do seu <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> para o dispositivo &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"A app <xliff:g id="APP_NAME_0">%1$s</xliff:g> vai ter acesso a tudo o que seja visível ou reproduzido no dispositivo <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, incluindo áudio, fotos, informações de pagamento, palavras-passe e mensagens.&lt;br/&gt;&lt;br/&gt;A app <xliff:g id="APP_NAME_2">%1$s</xliff:g> vai poder fazer stream de apps para o dispositivo <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> até remover o acesso a esta autorização."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"A app <xliff:g id="APP_NAME">%1$s</xliff:g> está a pedir autorização em nome do dispositivo <xliff:g id="DEVICE_NAME">%2$s</xliff:g> para fazer stream de apps do seu <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Permitir que a app &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; faça stream de áudio e funcionalidades do sistema entre o seu <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> e o &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"A app <xliff:g id="APP_NAME_0">%2$s</xliff:g> vai ter acesso a tudo o que for reproduzido no <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;A app <xliff:g id="APP_NAME_2">%2$s</xliff:g> vai poder fazer stream de áudio para o <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> até remover o acesso a esta autorização."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"dispositivo"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Esta app vai poder sincronizar informações, como o nome do autor de uma chamada, entre o telemóvel e o dispositivo escolhido"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Permitir"</string>
     <string name="consent_no" msgid="2640796915611404382">"Não permitir"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Cancelar"</string>
     <string name="consent_back" msgid="2560683030046918882">"Voltar"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Deslocar para baixo na lista"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Seta para baixo"</string>
     <string name="permission_expand" msgid="893185038020887411">"Expandir <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Reduzir <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Dar às apps no dispositivo &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; as mesmas autorizações de &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

@@ -25,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.app.iUriGrantsManager
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.biometrics.ui.viewmodel.iconProvider
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.runCurrent
 import com.android.systemui.kosmos.runTest
@@ -32,6 +33,8 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.qs.external.TileData
+import com.android.systemui.qs.panels.ui.viewmodel.IconProvider
+import com.android.systemui.qs.panels.ui.viewmodel.toIconProvider
 import com.android.systemui.qs.panels.ui.viewmodel.toUiState
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tileimpl.QSTileImpl.ResourceIcon
@@ -80,28 +83,32 @@ class TileRequestDialogViewModelTest : SysuiTestCase() {
     @Test
     fun uiState_beforeActivation_hasDefaultIcon_andCorrectData() =
         kosmos.runTest {
-            val expectedState =
-                baseResultLegacyState.apply { icon = defaultIcon }.toUiState(mainResources)
+            val state = baseResultLegacyState.apply { icon = defaultIcon }
+
+            val expectedState = state.toUiState(mainResources)
+            val expectedIconProvider = state.toIconProvider()
 
             with(underTest.uiState) {
                 expect.that(label).isEqualTo(TEST_LABEL)
                 expect.that(secondaryLabel).isEmpty()
-                expect.that(state).isEqualTo(expectedState.state)
+                expect.that(this.state).isEqualTo(expectedState.state)
                 expect.that(handlesLongClick).isFalse()
                 expect.that(handlesSecondaryClick).isFalse()
-                expect.that(icon.get()).isEqualTo(defaultIcon)
                 expect.that(sideDrawable).isNull()
                 expect.that(accessibilityUiState).isEqualTo(expectedState.accessibilityUiState)
             }
+
+            expect.that(underTest.iconProvider).isEqualTo(expectedIconProvider)
         }
 
     @Test
     fun uiState_afterActivation_hasCorrectIcon_andCorrectData() =
         kosmos.runTest {
-            val expectedState =
-                baseResultLegacyState
-                    .apply { icon = QSTileImpl.DrawableIcon(loadedDrawable) }
-                    .toUiState(mainResources)
+            val state =
+                baseResultLegacyState.apply { icon = QSTileImpl.DrawableIcon(loadedDrawable) }
+
+            val expectedState = state.toUiState(mainResources)
+            val expectedIconProvider = state.toIconProvider()
 
             underTest.activateIn(testScope)
             runCurrent()
@@ -109,13 +116,13 @@ class TileRequestDialogViewModelTest : SysuiTestCase() {
             with(underTest.uiState) {
                 expect.that(label).isEqualTo(TEST_LABEL)
                 expect.that(secondaryLabel).isEmpty()
-                expect.that(state).isEqualTo(expectedState.state)
+                expect.that(this.state).isEqualTo(expectedState.state)
                 expect.that(handlesLongClick).isFalse()
                 expect.that(handlesSecondaryClick).isFalse()
-                expect.that(icon.get()).isEqualTo(QSTileImpl.DrawableIcon(loadedDrawable))
                 expect.that(sideDrawable).isNull()
                 expect.that(accessibilityUiState).isEqualTo(expectedState.accessibilityUiState)
             }
+            expect.that(underTest.iconProvider).isEqualTo(expectedIconProvider)
         }
 
     @Test
@@ -135,7 +142,7 @@ class TileRequestDialogViewModelTest : SysuiTestCase() {
             underTest.activateIn(testScope)
             runCurrent()
 
-            assertThat(underTest.uiState.icon.get()).isEqualTo(defaultIcon)
+            assertThat(underTest.iconProvider).isEqualTo(IconProvider.ConstantIcon(defaultIcon))
         }
 
     companion object {

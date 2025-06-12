@@ -33,7 +33,7 @@ import java.util.Optional
 
 val Kosmos.notificationListViewBinder by Fixture {
     NotificationListViewBinder(
-        backgroundDispatcher = testDispatcher,
+        inflationDispatcher = testDispatcher,
         hiderTracker = displaySwitchNotificationsHiderTracker,
         configuration = configurationState,
         falsingManager = falsingManager,

@@ -25,7 +25,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.hardware.Sensor;
@@ -396,7 +396,7 @@ public final class DisplayPowerProximityStateControllerTest {
         assertTrue(mDisplayPowerProximityStateController.isProximitySensorEnabled());
         assertFalse(mDisplayPowerProximityStateController.shouldIgnoreProximityUntilChanged());
         assertFalse(mDisplayPowerProximityStateController.isScreenOffBecauseOfProximity());
-        verifyZeroInteractions(mWakelockController);
+        verifyNoMoreInteractions(mWakelockController);
     }
 
     private void setScreenOffBecauseOfPositiveProximityState() {

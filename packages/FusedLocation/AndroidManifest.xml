@@ -30,6 +30,9 @@
     <uses-permission android:name="android.permission.UPDATE_APP_OPS_STATS" />
     <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
 
+    <attribution android:tag="FusedOverlayService" android:label="@string/fused_overlay_service"/>
+    <attribution android:tag="GnssOverlayService" android:label="@string/gnss_overlay_service"/>
+
     <application
             android:label="@string/app_label"
             android:process="system"

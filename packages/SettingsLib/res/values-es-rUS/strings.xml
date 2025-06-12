@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Activo (solo izquierdo)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Activo (solo derecho)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Activos (izquierdo y derecho)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"No se pudo actualizar el sonido envolvente"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Activado (solo para contenido multimedia). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Activo (solo para contenido multimedia); I: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>; D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Dispositivo de invitado. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Dispositivo de invitado. I: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>; D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Dispositivo de invitado (solo para contenido multimedia). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Dispositivo de invitado (solo para contenido multimedia). I: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>; D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Conectado (admite el uso compartido de audio); <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Conectado (admite el uso compartido de audio); I: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>; D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Conectado (admite el uso compartido de audio). Izquierdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Conectado (admite el uso compartido de audio). Derecho: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Conectado (admite el uso compartido de audio)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Dispositivo de invitado (admite el uso compartido de audio). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Dispositivo de invitado (admite el uso compartido de audio). I: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>; D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Dispositivo de invitado (admite el uso compartido de audio)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Activo (solo para contenido multimedia)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Dispositivo de invitado"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Dispositivo de invitado (solo para contenido multimedia)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Admite el uso compartido de audio"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Dispositivo de invitado. Admite el uso compartido de audio"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Activo (solo para contenido multimedia); solo izquierdo"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Activo (solo para contenido multimedia); solo derecho"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Activo (solo para contenido multimedia); izquierdo y derecho"</string>
@@ -248,9 +259,9 @@
     <string name="apn_settings_not_available" msgid="1147111671403342300">"La configuración del nombre de punto de acceso no está disponible para este usuario."</string>
     <string name="enable_adb" msgid="8072776357237289039">"Depuración por USB"</string>
     <string name="enable_adb_summary" msgid="3711526030096574316">"Modo de depuración cuando se conecta el USB"</string>
-    <string name="clear_adb_keys" msgid="3010148733140369917">"Revocar autorizaciones de depur. USB"</string>
+    <string name="clear_adb_keys" msgid="3010148733140369917">"Revocar autorizaciones de depuración por USB"</string>
     <string name="enable_adb_wireless" msgid="6973226350963971018">"Depuración inalámbrica"</string>
-    <string name="enable_adb_wireless_summary" msgid="7344391423657093011">"Modo de depuración cuando la conexión Wi‑Fi está activada"</string>
+    <string name="enable_adb_wireless_summary" msgid="7344391423657093011">"Modo de depuración cuando haya conexión Wi‑Fi"</string>
     <string name="adb_wireless_error" msgid="721958772149779856">"Error"</string>
     <string name="adb_wireless_settings" msgid="2295017847215680229">"Depuración inalámbrica"</string>
     <string name="adb_wireless_list_empty_off" msgid="1713707973837255490">"Para ver y usar los dispositivos disponibles, activa la depuración inalámbrica"</string>
@@ -287,7 +298,7 @@
     <string name="oem_unlock_enable_summary" msgid="5857388174390953829">"Permitir que el cargador de inicio se desbloquee"</string>
     <string name="confirm_enable_oem_unlock_title" msgid="8249318129774367535">"¿Permitir desbloqueo de OEM?"</string>
     <string name="confirm_enable_oem_unlock_text" msgid="854131050791011970">"ADVERTENCIA: Las funciones de protección de dispositivos no funcionarán en este dispositivo mientras esta configuración esté activada."</string>
-    <string name="mock_location_app" msgid="6269380172542248304">"Seleccionar aplicación de ubicación de prueba"</string>
+    <string name="mock_location_app" msgid="6269380172542248304">"Seleccionar app de ubicación ficticia"</string>
     <string name="mock_location_app_not_set" msgid="6972032787262831155">"No se configuró aplicación de ubicación de prueba."</string>
     <string name="mock_location_app_set" msgid="4706722469342913843">"Aplicación de ubicación de prueba: <xliff:g id="APP_NAME">%1$s</xliff:g>"</string>
     <string name="debug_networking_category" msgid="6829757985772659599">"Redes"</string>
@@ -300,10 +311,10 @@
     <string name="bluetooth_show_devices_without_names" msgid="923584526471885819">"Mostrar dispositivos Bluetooth sin nombre"</string>
     <string name="bluetooth_disable_absolute_volume" msgid="1452342324349203434">"Inhabilitar volumen absoluto"</string>
     <string name="bluetooth_enable_gabeldorsche" msgid="9131730396242883416">"Habilitar Gabeldorsche"</string>
-    <string name="bluetooth_select_avrcp_version_string" msgid="1710571610177659127">"Versión de AVRCP del Bluetooth"</string>
-    <string name="bluetooth_select_avrcp_version_dialog_title" msgid="7846922290083709633">"Selecciona la versión de AVRCP del Bluetooth"</string>
-    <string name="bluetooth_select_map_version_string" msgid="526308145174175327">"Versión de MAP de Bluetooth"</string>
-    <string name="bluetooth_select_map_version_dialog_title" msgid="7085934373987428460">"Seleccionar versión de MAP de Bluetooth"</string>
+    <string name="bluetooth_select_avrcp_version_string" msgid="1710571610177659127">"Versión AVRCP del Bluetooth"</string>
+    <string name="bluetooth_select_avrcp_version_dialog_title" msgid="7846922290083709633">"Selecciona la versión AVRCP del Bluetooth"</string>
+    <string name="bluetooth_select_map_version_string" msgid="526308145174175327">"Versión MAP del Bluetooth"</string>
+    <string name="bluetooth_select_map_version_dialog_title" msgid="7085934373987428460">"Seleccionar versión MAP del Bluetooth"</string>
     <string name="bluetooth_select_a2dp_codec_type" msgid="952001408455456494">"Códec del audio Bluetooth"</string>
     <string name="bluetooth_select_a2dp_codec_type_dialog_title" msgid="7510542404227225545">"Activar el códec de audio por Bluetooth\nSelección"</string>
     <string name="bluetooth_select_a2dp_codec_sample_rate" msgid="1638623076480928191">"Frecuencia de muestreo del audio Bluetooth"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Renderización acelerada por hardware"</string>
     <string name="media_category" msgid="8122076702526144053">"Multimedia"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Supervisión"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Administración de ventanas"</string>
     <string name="strict_mode" msgid="889864762140862437">"Modo estricto"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Parpadear si aplicaciones tardan en proceso principal"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Ubicación del puntero"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Escala de animación de transición"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Escala de duración de animador"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simular pantallas secundarias"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Posición del panel en la pantalla"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplicaciones"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Eliminar actividades"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Descartar todas las actividades en cuanto el usuario las abandona"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Implementación de WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Configurar la implementación de WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Esta opción ya no es válida. Vuelve a intentarlo."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Herramientas para desarrolladores de WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"No se encontró el paquete WebView."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"No se pudieron iniciar las Herramientas para desarrolladores."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Modo de color de la imagen"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Usa sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Inhabilitado"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Carga rápida"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Controlada por el administrador"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Función controlada por configuración restringida"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"No disponible durante llamadas"</string>
     <string name="disabled" msgid="8017887509554714950">"Inhabilitada"</string>
+    <string name="enabled" msgid="3997122818554810678">"Habilitada"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Con permiso"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"No permitida"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instalar apps desconocidas"</string>
@@ -609,11 +627,12 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Bocina integrada"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Audio de la TV"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Error al establecer la conexión. Apaga el dispositivo y vuelve a encenderlo."</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"No se puede establecer la conexión"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Dispositivo de audio con cable"</string>
     <string name="help_label" msgid="3528360748637781274">"Ayuda y comentarios"</string>
     <string name="storage_category" msgid="2287342585424631813">"Almacenamiento"</string>
     <string name="shared_data_title" msgid="1017034836800864953">"Datos compartidos"</string>
-    <string name="shared_data_summary" msgid="5516326713822885652">"Ver y modificar los datos compartidos"</string>
+    <string name="shared_data_summary" msgid="5516326713822885652">"Consulta y modifica los datos compartidos"</string>
     <string name="shared_data_no_blobs_text" msgid="3108114670341737434">"No hay datos compartidos para este usuario."</string>
     <string name="shared_data_query_failure_text" msgid="3489828881998773687">"Se produjo un error al recuperar los datos compartidos. Vuelve a intentarlo."</string>
     <string name="blob_id_text" msgid="8680078988996308061">"ID de datos compartidos: <xliff:g id="BLOB_ID">%d</xliff:g>"</string>
@@ -636,7 +655,7 @@
     <string name="user_grant_admin_message" msgid="1673791931033486709">"Los administradores tienen privilegios especiales que no tienen otros usuarios. Un administrador puede administrar a todos los usuarios, actualizar o restablecer el dispositivo, modificar parámetros de configuración, ver todas las apps instaladas y otorgar o revocar privilegios de administrador de otros usuarios."</string>
     <string name="user_grant_admin_button" msgid="5441486731331725756">"Convertir en administrador"</string>
     <string name="user_setup_dialog_title" msgid="8037342066381939995">"¿Configurar el usuario ahora?"</string>
-    <string name="user_setup_dialog_message" msgid="269931619868102841">"Asegúrate de que la persona pueda acceder al dispositivo y configurar su espacio."</string>
+    <string name="user_setup_dialog_message" msgid="269931619868102841">"Asegúrate de que la persona pueda acceder al dispositivo y configurar su espacio"</string>
     <string name="user_setup_profile_dialog_message" msgid="4788197052296962620">"¿Quieres configurar tu perfil ahora?"</string>
     <string name="user_setup_button_setup_now" msgid="1708269547187760639">"Configurar ahora"</string>
     <string name="user_setup_button_setup_later" msgid="8712980133555493516">"Ahora no"</string>
@@ -679,7 +698,7 @@
     <string name="guest_exit_quick_settings_button" msgid="1912362095913765471">"Salir del modo de invitado"</string>
     <string name="guest_notification_ephemeral" msgid="7263252466950923871">"Cuando salgas, se borrará toda la actividad"</string>
     <string name="guest_notification_non_ephemeral" msgid="6843799963012259330">"Puedes guardar o borrar la actividad cuando salgas"</string>
-    <string name="guest_notification_non_ephemeral_non_first_login" msgid="8009307983766934876">"Restablece la sesión para eliminar la actividad ahora; o guarda o borra la actividad cuando salgas"</string>
+    <string name="guest_notification_non_ephemeral_non_first_login" msgid="8009307983766934876">"Restablece la sesión para eliminar la actividad ahora, o guarda o borra la actividad cuando salgas"</string>
     <string name="user_image_photo_selector" msgid="433658323306627093">"Seleccionar foto"</string>
     <string name="failed_attempts_now_wiping_device" msgid="4016329172216428897">"Hubo demasiados intentos incorrectos. Se borrarán los datos de este dispositivo."</string>
     <string name="failed_attempts_now_wiping_user" msgid="469060411789668050">"Hubo demasiados intentos incorrectos. Se borrará este usuario."</string>

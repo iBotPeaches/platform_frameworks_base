@@ -26,6 +26,7 @@ import android.compat.annotation.UnsupportedAppUsage;
  *
  * Consider using {@link BlendMode} instead as it provides a wider variety of tinting options
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PorterDuff {
     /**
      * {@usesMathJax}

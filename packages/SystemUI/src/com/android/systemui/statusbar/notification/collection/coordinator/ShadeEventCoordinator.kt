@@ -19,7 +19,7 @@ package com.android.systemui.statusbar.notification.collection.coordinator
 import android.service.notification.NotificationListenerService
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionListener
@@ -67,7 +67,7 @@ class ShadeEventCoordinator @Inject internal constructor(
         mShadeEmptiedCallback = callback
     }
 
-    private fun onBeforeRenderList(entries: List<ListEntry>) {
+    private fun onBeforeRenderList(entries: List<PipelineEntry>) {
         if (mEntryRemoved && entries.isEmpty()) {
             mLogger.logShadeEmptied()
             // TODO(b/206023518): This was bad. Do not copy this.

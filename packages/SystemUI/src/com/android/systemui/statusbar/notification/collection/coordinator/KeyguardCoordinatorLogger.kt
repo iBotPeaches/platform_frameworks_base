@@ -20,15 +20,14 @@ import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.log.dagger.UnseenNotificationLog
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
+import com.android.systemui.statusbar.notification.collection.notifcollection.UpdateSource
 import javax.inject.Inject
 
 private const val TAG = "KeyguardCoordinator"
 
 class KeyguardCoordinatorLogger
 @Inject
-constructor(
-    @UnseenNotificationLog private val buffer: LogBuffer,
-) {
+constructor(@UnseenNotificationLog private val buffer: LogBuffer) {
     fun logSeenOnLockscreen(entry: NotificationEntry) =
         buffer.log(
             TAG,
@@ -47,10 +46,7 @@ constructor(
             messagePrinter = { "${if (bool1) "Start" else "Stop"} tracking unseen notifications." },
         )
 
-    fun logAllMarkedSeenOnUnlock(
-        seenCount: Int,
-        remainingUnseenCount: Int,
-    ) =
+    fun logAllMarkedSeenOnUnlock(seenCount: Int, remainingUnseenCount: Int) =
         buffer.log(
             TAG,
             LogLevel.DEBUG,
@@ -68,23 +64,30 @@ constructor(
         buffer.log(
             TAG,
             LogLevel.DEBUG,
-            "Notifications have been marked as seen due to shade expansion."
+            "Notifications have been marked as seen due to shade expansion.",
         )
 
-    fun logUnseenAdded(key: String) =
+    fun logUnseenAdded(key: String, postTime: Long) =
         buffer.log(
             TAG,
             LogLevel.DEBUG,
-            messageInitializer = { str1 = key },
-            messagePrinter = { "Unseen notif added: $str1" },
+            messageInitializer = {
+                str1 = key
+                long1 = postTime
+            },
+            messagePrinter = { "Unseen notif added: $str1, postTime: $long1" },
         )
 
-    fun logUnseenUpdated(key: String) =
+    fun logUnseenUpdated(key: String, source: UpdateSource, postTime: Long) =
         buffer.log(
             TAG,
             LogLevel.DEBUG,
-            messageInitializer = { str1 = key },
-            messagePrinter = { "Unseen notif updated: $str1" },
+            messageInitializer = {
+                str1 = key
+                str2 = source.toString()
+                long1 = postTime
+            },
+            messagePrinter = { "Unseen notif updated: $str1, source: $str2, postTime: $long1" },
         )
 
     fun logUnseenRemoved(key: String) =

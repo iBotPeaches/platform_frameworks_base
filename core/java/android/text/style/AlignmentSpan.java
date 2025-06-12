@@ -25,6 +25,7 @@ import android.text.TextUtils;
 /**
  * Span that allows defining the alignment of text at the paragraph level.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface AlignmentSpan extends ParagraphStyle {
 
     /**

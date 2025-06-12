@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
+import kotlin.test.assertEquals
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -85,6 +86,18 @@ class BundleCoordinatorTest : SysuiTestCase() {
             .isTrue()
         assertThat(coordinator.promoSectioner.isInSection(makeEntryOfChannelType("promo"))).
         isFalse()
+    }
+
+    @Test
+    fun testBundler_getBundleIdOrNull_returnBundleId() {
+        val classifiedEntry = makeEntryOfChannelType(PROMOTIONS_ID)
+        assertEquals(coordinator.bundler.getBundleIdOrNull(classifiedEntry), PROMOTIONS_ID)
+    }
+
+    @Test
+    fun testBundler_getBundleIdOrNull_returnNull() {
+        val unclassifiedEntry = makeEntryOfChannelType("not system channel")
+        assertEquals(coordinator.bundler.getBundleIdOrNull(unclassifiedEntry), null)
     }
 
     private fun makeEntryOfChannelType(

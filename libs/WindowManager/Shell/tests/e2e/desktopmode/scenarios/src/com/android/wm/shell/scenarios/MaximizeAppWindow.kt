@@ -21,10 +21,12 @@ import android.tools.NavBar
 import android.tools.Rotation
 import android.tools.flicker.rules.ChangeDisplayOrientationRule
 import android.tools.traces.parsers.WindowManagerStateHelper
+import android.window.DesktopModeFlags
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import com.android.launcher3.tapl.LauncherInstrumentation
 import com.android.server.wm.flicker.helpers.DesktopModeAppHelper
+import com.android.server.wm.flicker.helpers.DesktopModeAppHelper.MaximizeDesktopAppTrigger
 import com.android.server.wm.flicker.helpers.NonResizeableAppHelper
 import com.android.server.wm.flicker.helpers.SimpleAppHelper
 import com.android.window.flags.Flags
@@ -37,9 +39,11 @@ import org.junit.Rule
 import org.junit.Test
 
 @Ignore("Test Base Class")
-abstract class MaximizeAppWindow
-constructor(private val rotation: Rotation = Rotation.ROTATION_0, isResizable: Boolean = true) {
-
+abstract class MaximizeAppWindow(
+    private val rotation: Rotation = Rotation.ROTATION_0,
+    isResizable: Boolean = true,
+    private val trigger: MaximizeDesktopAppTrigger = MaximizeDesktopAppTrigger.MAXIMIZE_MENU,
+) {
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
     private val tapl = LauncherInstrumentation()
     private val wmHelper = WindowManagerStateHelper(instrumentation)
@@ -55,6 +59,9 @@ constructor(private val rotation: Rotation = Rotation.ROTATION_0, isResizable: B
     @Before
     fun setup() {
         Assume.assumeTrue(Flags.enableDesktopWindowingMode() && tapl.isTablet)
+        if (trigger == MaximizeDesktopAppTrigger.KEYBOARD_SHORTCUT) {
+            Assume.assumeTrue(DesktopModeFlags.ENABLE_TASK_RESIZING_KEYBOARD_SHORTCUTS.isTrue)
+        }
         tapl.setEnableRotation(true)
         tapl.setExpectedRotation(rotation.value)
         ChangeDisplayOrientationRule.setRotation(rotation)
@@ -63,7 +70,7 @@ constructor(private val rotation: Rotation = Rotation.ROTATION_0, isResizable: B
 
     @Test
     open fun maximizeAppWindow() {
-        testApp.maximiseDesktopApp(wmHelper, device)
+        testApp.maximiseDesktopApp(wmHelper, device, trigger)
     }
 
     @After

@@ -16,6 +16,9 @@
 
 package android.media;
 
+import static android.annotation.SystemApi.Client.MODULE_LIBRARIES;
+import static android.media.audio.Flags.FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT;
+
 import static com.android.media.flags.Flags.FLAG_ENABLE_AUDIO_INPUT_DEVICE_ROUTING_AND_VOLUME_CONTROL;
 
 import android.Manifest;
@@ -26,6 +29,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
+import android.annotation.TestApi;
 import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -48,6 +52,127 @@ import java.util.concurrent.Executor;
 public class AudioDeviceVolumeManager {
 
     private static final String TAG = "AudioDeviceVolumeManager";
+
+    /**
+     * @hide
+     * Volume behavior for an audio device that has no particular volume behavior set. Invalid as
+     * an argument to {@link #setDeviceVolumeBehavior(AudioDeviceAttributes, int)} and should not
+     * be returned by {@link #getDeviceVolumeBehavior(AudioDeviceAttributes)}.
+     */
+    public static final int DEVICE_VOLUME_BEHAVIOR_UNSET = -1;
+    /**
+     * @hide
+     * Volume behavior for an audio device where a software attenuation is applied
+     * @see #setDeviceVolumeBehavior(AudioDeviceAttributes, int)
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public static final int DEVICE_VOLUME_BEHAVIOR_VARIABLE = 0;
+    /**
+     * @hide
+     * Volume behavior for an audio device where the volume is always set to provide no attenuation
+     *     nor gain (e.g. unit gain).
+     * @see #setDeviceVolumeBehavior(AudioDeviceAttributes, int)
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public static final int DEVICE_VOLUME_BEHAVIOR_FULL = 1;
+    /**
+     * @hide
+     * Volume behavior for an audio device where the volume is either set to muted, or to provide
+     *     no attenuation nor gain (e.g. unit gain).
+     * @see #setDeviceVolumeBehavior(AudioDeviceAttributes, int)
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public static final int DEVICE_VOLUME_BEHAVIOR_FIXED = 2;
+    /**
+     * @hide
+     * Volume behavior for an audio device where no software attenuation is applied, and
+     *     the volume is kept synchronized between the host and the device itself through a
+     *     device-specific protocol such as BT AVRCP.
+     * @see #setDeviceVolumeBehavior(AudioDeviceAttributes, int)
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public static final int DEVICE_VOLUME_BEHAVIOR_ABSOLUTE = 3;
+    /**
+     * @hide
+     * Volume behavior for an audio device where no software attenuation is applied, and
+     *     the volume is kept synchronized between the host and the device itself through a
+     *     device-specific protocol (such as for hearing aids), based on the audio mode (e.g.
+     *     normal vs in phone call).
+     * @see AudioManager#setMode(int)
+     * @see #setDeviceVolumeBehavior(AudioDeviceAttributes, int)
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public static final int DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE = 4;
+
+    /**
+     * @hide
+     * A variant of {@link #DEVICE_VOLUME_BEHAVIOR_ABSOLUTE} where the host cannot reliably set
+     * the volume percentage of the audio device. Specifically, {@link AudioManager#setStreamVolume}
+     * will have no effect, or an unreliable effect.
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public static final int DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY = 5;
+
+    /** @hide */
+    @IntDef({
+            DEVICE_VOLUME_BEHAVIOR_VARIABLE,
+            DEVICE_VOLUME_BEHAVIOR_FULL,
+            DEVICE_VOLUME_BEHAVIOR_FIXED,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface DeviceVolumeBehavior {}
+
+    /** @hide */
+    @IntDef({
+            DEVICE_VOLUME_BEHAVIOR_UNSET,
+            DEVICE_VOLUME_BEHAVIOR_VARIABLE,
+            DEVICE_VOLUME_BEHAVIOR_FULL,
+            DEVICE_VOLUME_BEHAVIOR_FIXED,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface DeviceVolumeBehaviorState {}
+
+    /**
+     * Variants of absolute volume behavior that are set in for absolute volume management.
+     * @hide
+     */
+    @IntDef({
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE,
+            DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface AbsoluteDeviceVolumeBehavior {}
+
+    /**
+     * @hide
+     * Throws IAE on an invalid volume behavior value
+     * @param volumeBehavior behavior value to check
+     */
+    public static void enforceValidVolumeBehavior(int volumeBehavior) {
+        switch (volumeBehavior) {
+            case DEVICE_VOLUME_BEHAVIOR_VARIABLE:
+            case DEVICE_VOLUME_BEHAVIOR_FULL:
+            case DEVICE_VOLUME_BEHAVIOR_FIXED:
+            case DEVICE_VOLUME_BEHAVIOR_ABSOLUTE:
+            case DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE:
+            case DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY:
+                return;
+            default:
+                throw new IllegalArgumentException("Illegal volume behavior " + volumeBehavior);
+        }
+    }
 
     /** @hide
      * Indicates no special treatment in the handling of the volume adjustment */
@@ -86,11 +211,13 @@ public class AudioDeviceVolumeManager {
     /**
      * @hide
      * Interface to receive volume changes on a device that behaves in absolute volume mode.
-     * @see #setDeviceAbsoluteMultiVolumeBehavior(AudioDeviceAttributes, List, Executor,
-     *         OnAudioDeviceVolumeChangeListener)
-     * @see #setDeviceAbsoluteVolumeBehavior(AudioDeviceAttributes, VolumeInfo, Executor,
-     *         OnAudioDeviceVolumeChangeListener)
+     * @see #setDeviceAbsoluteMultiVolumeBehavior(AudioDeviceAttributes, List, boolean, Executor,
+     *          OnAudioDeviceVolumeChangedListener)
+     * @see #setDeviceAbsoluteVolumeBehavior(AudioDeviceAttributes, VolumeInfo, boolean, Executor,
+     *          OnAudioDeviceVolumeChangedListener)
      */
+    @SystemApi(client = MODULE_LIBRARIES)
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
     public interface OnAudioDeviceVolumeChangedListener {
         /**
          * Called the device for the given audio device has changed.
@@ -153,7 +280,7 @@ public class AudioDeviceVolumeManager {
                 android.Manifest.permission.BLUETOOTH_PRIVILEGED })
         public void register(boolean register, @NonNull AudioDeviceAttributes device,
                 @NonNull List<VolumeInfo> volumes, boolean handlesVolumeAdjustment,
-                @AudioManager.AbsoluteDeviceVolumeBehavior int behavior) {
+                @AbsoluteDeviceVolumeBehavior int behavior) {
             try {
                 getService().registerDeviceVolumeDispatcherForAbsoluteVolume(register,
                         this, mPackageName,
@@ -199,6 +326,94 @@ public class AudioDeviceVolumeManager {
 
     /**
      * @hide
+     * Sets the volume behavior for an audio output device.
+     * @see #DEVICE_VOLUME_BEHAVIOR_VARIABLE
+     * @see #DEVICE_VOLUME_BEHAVIOR_FULL
+     * @see #DEVICE_VOLUME_BEHAVIOR_FIXED
+     * @see #DEVICE_VOLUME_BEHAVIOR_ABSOLUTE
+     * @see #DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE
+     * @param device the device to be affected
+     * @param deviceVolumeBehavior one of the device behaviors
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {
+            Manifest.permission.MODIFY_AUDIO_ROUTING,
+            Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED
+    })
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public void setDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device,
+            @DeviceVolumeBehavior int deviceVolumeBehavior) {
+        // verify arguments (validity of device type is enforced in server)
+        Objects.requireNonNull(device);
+        enforceValidVolumeBehavior(deviceVolumeBehavior);
+        // communicate with service
+        final IAudioService service = getService();
+        try {
+            service.setDeviceVolumeBehavior(device, deviceVolumeBehavior, mPackageName);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * @hide
+     * Returns the volume device behavior for the given audio device
+     * @param device the audio device
+     * @return the volume behavior for the device
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {
+            Manifest.permission.MODIFY_AUDIO_ROUTING,
+            Manifest.permission.QUERY_AUDIO_STATE,
+            Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED
+    })
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
+    public @DeviceVolumeBehavior int getDeviceVolumeBehavior(
+            @NonNull AudioDeviceAttributes device) {
+        // verify arguments (validity of device type is enforced in server)
+        Objects.requireNonNull(device);
+        // communicate with service
+        final IAudioService service = getService();
+        try {
+            return service.getDeviceVolumeBehavior(device);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * @hide
+     * Returns {@code true} if the volume device behavior is {@link #DEVICE_VOLUME_BEHAVIOR_FULL}.
+     */
+    @TestApi
+    @RequiresPermission(anyOf = {
+            Manifest.permission.MODIFY_AUDIO_ROUTING,
+            Manifest.permission.QUERY_AUDIO_STATE,
+            Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED
+    })
+    @SuppressWarnings("UnflaggedApi")  // @TestApi without associated feature.
+    public boolean isFullVolumeDevice() {
+        final AudioAttributes attributes = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .build();
+        List<AudioDeviceAttributes> devices;
+        final IAudioService service = getService();
+        try {
+            devices = service.getDevicesForAttributes(attributes);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+
+        for (AudioDeviceAttributes device : devices) {
+            if (getDeviceVolumeBehavior(device) == DEVICE_VOLUME_BEHAVIOR_FULL) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @hide
      * Configures a device to use absolute volume model, and registers a listener for receiving
      * volume updates to apply on that device
      * @param device the audio device set to absolute volume mode
@@ -206,18 +421,45 @@ public class AudioDeviceVolumeManager {
      * @param executor the Executor used for receiving volume updates through the listener
      * @param vclistener the callback for volume updates
      */
+    @SystemApi(client = MODULE_LIBRARIES)
     @RequiresPermission(anyOf = { android.Manifest.permission.MODIFY_AUDIO_ROUTING,
-            android.Manifest.permission.BLUETOOTH_PRIVILEGED })
+            android.Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED,
+            android.Manifest.permission.BLUETOOTH_PRIVILEGED,
+            android.Manifest.permission.BLUETOOTH_STACK})
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
     public void setDeviceAbsoluteVolumeBehavior(
             @NonNull AudioDeviceAttributes device,
             @NonNull VolumeInfo volume,
             @NonNull @CallbackExecutor Executor executor,
-            @NonNull OnAudioDeviceVolumeChangedListener vclistener,
-            boolean handlesVolumeAdjustment) {
+            @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
+        setDeviceAbsoluteVolumeBehavior(device, volume, /*handlesVolumeAdjustment=*/false, executor,
+                vclistener);
+    }
+
+    /**
+     * @hide
+     * Configures a device to use absolute volume model, and registers a listener for receiving
+     * volume updates to apply on that device
+     * @param device the audio device set to absolute volume mode
+     * @param volume the type of volume this device responds to
+     * @param handlesVolumeAdjustment whether the controller handles volume adjustments separately
+     * from volume changes. If true, adjustments from {@link AudioManager#adjustStreamVolume}
+     * will be sent via {@link OnAudioDeviceVolumeChangedListener#onAudioDeviceVolumeAdjusted}.
+     * @param executor the Executor used for receiving volume updates through the listener
+     * @param vclistener the callback for volume updates
+     */
+    @RequiresPermission(anyOf = { android.Manifest.permission.MODIFY_AUDIO_ROUTING,
+            android.Manifest.permission.BLUETOOTH_PRIVILEGED})
+    public void setDeviceAbsoluteVolumeBehavior(
+            @NonNull AudioDeviceAttributes device,
+            @NonNull VolumeInfo volume,
+            boolean handlesVolumeAdjustment,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
         final ArrayList<VolumeInfo> volumes = new ArrayList<>(1);
         volumes.add(volume);
-        setDeviceAbsoluteMultiVolumeBehavior(device, volumes, executor, vclistener,
-                handlesVolumeAdjustment);
+        setDeviceAbsoluteMultiVolumeBehavior(device, volumes, handlesVolumeAdjustment, executor,
+                vclistener);
     }
 
     /**
@@ -228,20 +470,44 @@ public class AudioDeviceVolumeManager {
      * @param volumes the list of volumes the given device responds to
      * @param executor the Executor used for receiving volume updates through the listener
      * @param vclistener the callback for volume updates
-     * @param handlesVolumeAdjustment whether the controller handles volume adjustments separately
-     *  from volume changes. If true, adjustments from {@link AudioManager#adjustStreamVolume}
-     *  will be sent via {@link OnAudioDeviceVolumeChangedListener#onAudioDeviceVolumeAdjusted}.
      */
+    @SystemApi(client = MODULE_LIBRARIES)
     @RequiresPermission(anyOf = { android.Manifest.permission.MODIFY_AUDIO_ROUTING,
-            android.Manifest.permission.BLUETOOTH_PRIVILEGED })
+            android.Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED,
+            android.Manifest.permission.BLUETOOTH_PRIVILEGED,
+            android.Manifest.permission.BLUETOOTH_STACK})
+    @FlaggedApi(FLAG_UNIFY_ABSOLUTE_VOLUME_MANAGEMENT)
     public void setDeviceAbsoluteMultiVolumeBehavior(
             @NonNull AudioDeviceAttributes device,
             @NonNull List<VolumeInfo> volumes,
             @NonNull @CallbackExecutor Executor executor,
-            @NonNull OnAudioDeviceVolumeChangedListener vclistener,
-            boolean handlesVolumeAdjustment) {
+            @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
+        setDeviceAbsoluteMultiVolumeBehavior(device, volumes, /*handlesVolumeAdjustment=*/false,
+                executor, vclistener);
+    }
+
+    /**
+     * @hide
+     * Configures a device to use absolute volume model applied to different volume types, and
+     * registers a listener for receiving volume updates to apply on that device
+     * @param device the audio device set to absolute multi-volume mode
+     * @param volumes the list of volumes the given device responds to
+     * @param handlesVolumeAdjustment whether the controller handles volume adjustments separately
+     * from volume changes. If true, adjustments from {@link AudioManager#adjustStreamVolume}
+     * will be sent via {@link OnAudioDeviceVolumeChangedListener#onAudioDeviceVolumeAdjusted}.
+     * @param executor the Executor used for receiving volume updates through the listener
+     * @param vclistener the callback for volume updates
+     */
+    @RequiresPermission(anyOf = { android.Manifest.permission.MODIFY_AUDIO_ROUTING,
+            android.Manifest.permission.BLUETOOTH_PRIVILEGED})
+    public void setDeviceAbsoluteMultiVolumeBehavior(
+            @NonNull AudioDeviceAttributes device,
+            @NonNull List<VolumeInfo> volumes,
+            boolean handlesVolumeAdjustment,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
         baseSetDeviceAbsoluteMultiVolumeBehavior(device, volumes, executor, vclistener,
-                handlesVolumeAdjustment, AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE);
+                handlesVolumeAdjustment, DEVICE_VOLUME_BEHAVIOR_ABSOLUTE);
     }
 
     /**
@@ -249,11 +515,14 @@ public class AudioDeviceVolumeManager {
      * Configures a device to use absolute volume model, and registers a listener for receiving
      * volume updates to apply on that device.
      *
-     * Should be used instead of {@link #setDeviceAbsoluteVolumeBehavior} when there is no reliable
-     * way to set the device's volume to a percentage.
+     * <p>Should be used instead of {@link #setDeviceAbsoluteVolumeBehavior} when there is no
+     * reliable way to set the device's volume to a percentage.
      *
      * @param device the audio device set to absolute volume mode
      * @param volume the type of volume this device responds to
+     * @param handlesVolumeAdjustment whether the controller handles volume adjustments separately
+     * from volume changes. If true, adjustments from {@link AudioManager#adjustStreamVolume}
+     * will be sent via {@link OnAudioDeviceVolumeChangedListener#onAudioDeviceVolumeAdjusted}.
      * @param executor the Executor used for receiving volume updates through the listener
      * @param vclistener the callback for volume updates
      */
@@ -262,13 +531,13 @@ public class AudioDeviceVolumeManager {
     public void setDeviceAbsoluteVolumeAdjustOnlyBehavior(
             @NonNull AudioDeviceAttributes device,
             @NonNull VolumeInfo volume,
+            boolean handlesVolumeAdjustment,
             @NonNull @CallbackExecutor Executor executor,
-            @NonNull OnAudioDeviceVolumeChangedListener vclistener,
-            boolean handlesVolumeAdjustment) {
+            @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
         final ArrayList<VolumeInfo> volumes = new ArrayList<>(1);
         volumes.add(volume);
-        setDeviceAbsoluteMultiVolumeAdjustOnlyBehavior(device, volumes, executor, vclistener,
-                handlesVolumeAdjustment);
+        setDeviceAbsoluteMultiVolumeAdjustOnlyBehavior(device, volumes, handlesVolumeAdjustment,
+                executor, vclistener);
     }
 
     /**
@@ -276,11 +545,14 @@ public class AudioDeviceVolumeManager {
      * Configures a device to use absolute volume model applied to different volume types, and
      * registers a listener for receiving volume updates to apply on that device.
      *
-     * Should be used instead of {@link #setDeviceAbsoluteMultiVolumeBehavior} when there is
+     * <p>Should be used instead of {@link #setDeviceAbsoluteMultiVolumeBehavior} when there is
      * no reliable way to set the device's volume to a percentage.
      *
      * @param device the audio device set to absolute multi-volume mode
      * @param volumes the list of volumes the given device responds to
+     * @param handlesVolumeAdjustment whether the controller handles volume adjustments separately
+     * from volume changes. If true, adjustments from {@link AudioManager#adjustStreamVolume}
+     * will be sent via {@link OnAudioDeviceVolumeChangedListener#onAudioDeviceVolumeAdjusted}.
      * @param executor the Executor used for receiving volume updates through the listener
      * @param vclistener the callback for volume updates
      */
@@ -289,16 +561,16 @@ public class AudioDeviceVolumeManager {
     public void setDeviceAbsoluteMultiVolumeAdjustOnlyBehavior(
             @NonNull AudioDeviceAttributes device,
             @NonNull List<VolumeInfo> volumes,
+            boolean handlesVolumeAdjustment,
             @NonNull @CallbackExecutor Executor executor,
-            @NonNull OnAudioDeviceVolumeChangedListener vclistener,
-            boolean handlesVolumeAdjustment) {
+            @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
         baseSetDeviceAbsoluteMultiVolumeBehavior(device, volumes, executor, vclistener,
-                handlesVolumeAdjustment, AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY);
+                handlesVolumeAdjustment, DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY);
     }
 
     /**
      * Base method for configuring a device to use absolute volume behavior, or one of its variants.
-     * See {@link AudioManager#AbsoluteDeviceVolumeBehavior} for a list of allowed behaviors.
+     * See {@link AbsoluteDeviceVolumeBehavior} for a list of allowed behaviors.
      *
      * @param behavior the variant of absolute device volume behavior to adopt
      */
@@ -310,7 +582,7 @@ public class AudioDeviceVolumeManager {
             @NonNull @CallbackExecutor Executor executor,
             @NonNull OnAudioDeviceVolumeChangedListener vclistener,
             boolean handlesVolumeAdjustment,
-            @AudioManager.AbsoluteDeviceVolumeBehavior int behavior) {
+            @AbsoluteDeviceVolumeBehavior int behavior) {
         Objects.requireNonNull(device);
         Objects.requireNonNull(volumes);
         Objects.requireNonNull(executor);
@@ -355,7 +627,7 @@ public class AudioDeviceVolumeManager {
          */
         void onDeviceVolumeBehaviorChanged(
                 @NonNull AudioDeviceAttributes device,
-                @AudioManager.DeviceVolumeBehavior int volumeBehavior);
+                @DeviceVolumeBehavior int volumeBehavior);
     }
 
     /**
@@ -518,19 +790,19 @@ public class AudioDeviceVolumeManager {
      * @param behavior one of the volume behaviors defined in AudioManager
      * @return a string for the given behavior
      */
-    public static String volumeBehaviorName(@AudioManager.DeviceVolumeBehavior int behavior) {
+    public static String volumeBehaviorName(@DeviceVolumeBehavior int behavior) {
         switch (behavior) {
-            case AudioManager.DEVICE_VOLUME_BEHAVIOR_VARIABLE:
+            case DEVICE_VOLUME_BEHAVIOR_VARIABLE:
                 return "DEVICE_VOLUME_BEHAVIOR_VARIABLE";
-            case AudioManager.DEVICE_VOLUME_BEHAVIOR_FULL:
+            case DEVICE_VOLUME_BEHAVIOR_FULL:
                 return "DEVICE_VOLUME_BEHAVIOR_FULL";
-            case AudioManager.DEVICE_VOLUME_BEHAVIOR_FIXED:
+            case DEVICE_VOLUME_BEHAVIOR_FIXED:
                 return "DEVICE_VOLUME_BEHAVIOR_FIXED";
-            case AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE:
+            case DEVICE_VOLUME_BEHAVIOR_ABSOLUTE:
                 return "DEVICE_VOLUME_BEHAVIOR_ABSOLUTE";
-            case AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE:
+            case DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE:
                 return "DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_MULTI_MODE";
-            case AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY:
+            case DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY:
                 return "DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY";
             default:
                 return "invalid volume behavior " + behavior;
@@ -549,7 +821,7 @@ public class AudioDeviceVolumeManager {
 
         @Override
         public void dispatchDeviceVolumeBehaviorChanged(@NonNull AudioDeviceAttributes device,
-                @AudioManager.DeviceVolumeBehavior int volumeBehavior) {
+                @DeviceVolumeBehavior int volumeBehavior) {
             mDeviceVolumeBehaviorChangedListenerMgr.callListeners((listener) ->
                     listener.onDeviceVolumeBehaviorChanged(device, volumeBehavior));
         }

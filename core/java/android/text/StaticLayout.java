@@ -55,6 +55,7 @@ import java.util.Arrays;
  * float, float, android.graphics.Paint)
  * Canvas.drawText()} directly.</p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class StaticLayout extends Layout {
     /*
      * The break iteration is done in native code. The protocol for using the native code is as
@@ -121,6 +122,7 @@ public class StaticLayout extends Layout {
             b.mHyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE;
             b.mJustificationMode = Layout.JUSTIFICATION_MODE_NONE;
             b.mLineBreakConfig = LineBreakConfig.NONE;
+            b.mUseBoundsForWidth = false;
             b.mMinimumFontMetrics = null;
             return b;
         }

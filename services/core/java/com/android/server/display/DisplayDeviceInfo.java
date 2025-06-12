@@ -122,8 +122,8 @@ final class DisplayDeviceInfo {
     public static final int FLAG_MASK_DISPLAY_CUTOUT = 1 << 11;
 
     /**
-     * Flag: This flag identifies secondary displays that should show system decorations, such as
-     * navigation bar, home activity or wallpaper.
+     * Flag: This flag identifies secondary displays that should always show system decorations,
+     * such as navigation bar, home activity or wallpaper.
      * <p>Note that this flag doesn't work without {@link #FLAG_TRUSTED}</p>
      * @hide
      */
@@ -189,6 +189,19 @@ final class DisplayDeviceInfo {
      * @hide
      */
     public static final int FLAG_STEAL_TOP_FOCUS_DISABLED = 1 << 19;
+
+    /**
+     * Flag: Indicates that the display is allowed to switch the content mode between
+     * projected/extended and mirroring. This allows the display to dynamically add or remove the
+     * home and system decorations.
+     *
+     * Note that this flag should not be enabled with any of {@link #FLAG_PRIVATE},
+     * {@link #FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS}, or {@link #FLAG_OWN_CONTENT_ONLY} at the
+     * same time; otherwise it will be ignored.
+     *
+     * @hide
+     */
+    public static final int FLAG_ALLOWS_CONTENT_MODE_SWITCH = 1 << 20;
 
     /**
      * Touch attachment: Display does not receive touch.

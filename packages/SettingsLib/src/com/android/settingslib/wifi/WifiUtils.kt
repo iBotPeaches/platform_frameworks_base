@@ -27,6 +27,7 @@ import android.net.wifi.WifiManager
 import android.net.wifi.sharedconnectivity.app.NetworkProviderInfo
 import android.os.Bundle
 import android.os.SystemClock
+import android.security.advancedprotection.AdvancedProtectionManager
 import android.util.Log
 import android.view.WindowManager
 import androidx.annotation.VisibleForTesting
@@ -118,12 +119,16 @@ open class WifiUtils {
 
         private fun getIconsBasedOnFlag(): IntArray {
             return if (newStatusBarIcons()) {
+                // TODO(b/396664075):
+                // The new wifi icons only define a range of [0, 3]. Since this array is indexed on
+                // level, we can simulate the range squash by mapping both level 3 to drawn-level 2,
+                // and level 4 to drawn-level 3
                 intArrayOf(
                     R.drawable.ic_wifi_0,
                     R.drawable.ic_wifi_1,
                     R.drawable.ic_wifi_2,
+                    R.drawable.ic_wifi_2,
                     R.drawable.ic_wifi_3,
-                    R.drawable.ic_wifi_4
                 )
             } else {
                 intArrayOf(
@@ -140,12 +145,13 @@ open class WifiUtils {
 
         private fun getErrorIconsBasedOnFlag(): IntArray {
             return if (newStatusBarIcons()) {
+                // See above note, new wifi icons only have 3 bars, so levels 2 and 3 are the same
                 intArrayOf(
                     R.drawable.ic_wifi_0_error,
                     R.drawable.ic_wifi_1_error,
                     R.drawable.ic_wifi_2_error,
+                    R.drawable.ic_wifi_2_error,
                     R.drawable.ic_wifi_3_error,
-                    R.drawable.ic_wifi_4_error
                 )
             } else {
                 intArrayOf(
@@ -481,7 +487,7 @@ open class WifiUtils {
                 context,
                 lifecycleOwner.lifecycleScope,
                 ssid,
-                WindowManager.LayoutParams.FIRST_APPLICATION_WINDOW,
+                WindowManager.LayoutParams.TYPE_APPLICATION,
                 { intent -> context.startActivity(intent) },
                 onAllowed
             )
@@ -495,11 +501,19 @@ open class WifiUtils {
             dialogWindowType: Int,
             onStartActivity: (intent: Intent) -> Unit,
             onAllowed: () -> Unit,
+            onStartAapmActivity: (intent: Intent) -> Unit = onStartActivity,
         ): Job =
             coroutineScope.launch {
                 val wifiManager = context.getSystemService(WifiManager::class.java) ?: return@launch
-                if (wifiManager.isWepSupported == true && wifiManager.queryWepAllowed()) {
-                    onAllowed()
+                val aapmManager = context.getSystemService(AdvancedProtectionManager::class.java)
+                if (isAdvancedProtectionEnabled(aapmManager)) {
+                    val intent = AdvancedProtectionManager.createSupportIntent(
+                        AdvancedProtectionManager.FEATURE_ID_DISALLOW_WEP,
+                        AdvancedProtectionManager.SUPPORT_DIALOG_TYPE_BLOCKED_INTERACTION)
+                    intent.putExtra(DIALOG_WINDOW_TYPE, dialogWindowType)
+                    withContext(Dispatchers.Main) { onStartAapmActivity(intent) }
+                } else if (wifiManager.isWepSupported == true && wifiManager.queryWepAllowed()) {
+                    withContext(Dispatchers.Main) { onAllowed() }
                 } else {
                     val intent = Intent(Intent.ACTION_MAIN).apply {
                         component = ComponentName(
@@ -509,7 +523,7 @@ open class WifiUtils {
                         putExtra(DIALOG_WINDOW_TYPE, dialogWindowType)
                         putExtra(SSID, ssid)
                     }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    onStartActivity(intent)
+                    withContext(Dispatchers.Main) { onStartActivity(intent) }
                 }
             }
 
@@ -520,6 +534,18 @@ open class WifiUtils {
                         continuation.resume(it)
                     }
                 }
+            }
+
+        private suspend fun isAdvancedProtectionEnabled(
+            aapmManager: AdvancedProtectionManager?
+        ): Boolean =
+            if (android.security.Flags.aapmApi() &&
+                    com.android.wifi.flags.Flags.wepDisabledInApm() &&
+                    aapmManager != null
+            ) {
+                withContext(Dispatchers.Default) { aapmManager.isAdvancedProtectionEnabled() }
+            } else {
+                false
             }
 
         const val SSID = "ssid"

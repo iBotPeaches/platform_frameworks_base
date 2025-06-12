@@ -59,6 +59,17 @@ constructor(
             }
         }
 
+    /** Input box accessibility description for text based credential views */
+    val inputBoxContentDescription: Flow<Int?> =
+        credentialInteractor.prompt.map {
+            when (it) {
+                is BiometricPromptRequest.Credential.Pin -> R.string.keyguard_accessibility_pin_area
+                is BiometricPromptRequest.Credential.Password ->
+                    R.string.keyguard_accessibility_password
+                else -> null
+            }
+        }
+
     /** If stealth mode is active (hide user credential input). */
     val stealthMode: Flow<Boolean> =
         credentialInteractor.prompt.map {

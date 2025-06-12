@@ -28,6 +28,7 @@ import com.android.systemui.keyguard.shared.model.KeyguardState.GLANCEABLE_HUB
 import com.android.systemui.keyguard.shared.model.KeyguardState.OCCLUDED
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.util.kotlin.BooleanFlowOperators.any
 import com.android.systemui.util.kotlin.sample
@@ -92,7 +93,7 @@ constructor(
     val isBouncerShowing: Flow<Boolean> =
         when {
             SceneContainerFlag.isEnabled -> {
-                sceneInteractor.get().transitionState.map { it.isIdle(Scenes.Bouncer) }
+                sceneInteractor.get().transitionState.map { it.isIdle(Overlays.Bouncer) }
             }
             ComposeBouncerFlags.isOnlyComposeBouncerEnabled() -> primaryBouncerInteractor.isShowing
             else ->

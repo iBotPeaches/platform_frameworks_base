@@ -14,33 +14,35 @@
 // limitations under the License.
 //
 
-soong_namespace {
-}
-
 package {
     default_applicable_licenses: ["frameworks_base_packages_SystemUI_license"],
 }
 
 java_library {
-    name: "api",
+    name: "com.android.systemui.retail.domain-api",
     srcs: ["interactor/*.kt"],
+    defaults: [
+        "SystemUI_pod_defaults",
+    ],
     visibility: [
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail:__pkg__",
     ],
 }
 
 java_library {
-    name: "impl",
+    name: "com.android.systemui.retail.domain-impl",
     srcs: ["interactor/impl/*.kt"],
     libs: [
-        "jsr330",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/dagger:api",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/data:api",
+        "com.android.systemui.dagger-api",
+        "com.android.systemui.retail.data-api",
     ],
     static_libs: [
-        "api",
+        "com.android.systemui.retail.domain-api",
+    ],
+    defaults: [
+        "SystemUI_pod_defaults",
     ],
     visibility: [
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail:__pkg__",
     ],
 }

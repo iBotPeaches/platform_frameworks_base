@@ -34,6 +34,7 @@ import android.widget.FrameLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.systemui.Flags;
 import com.android.systemui.compose.ComposeInitializer;
 import com.android.systemui.statusbar.core.StatusBarRootModernization;
 import com.android.systemui.statusbar.data.repository.StatusBarConfigurationController;
@@ -117,9 +118,15 @@ public class StatusBarWindowView extends FrameLayout {
      * bound of the status bar view, in order for the touch event to be correctly dispatched down,
      * we jot down the position Y of the initial touch down event, offset it to 0 in the y-axis,
      * and calculate the movement based on first touch down position.
+     *
+     * TODO(b/391894499): Remove this doc once Flags.statusBarWindowNoCustomTouch() is rolled out.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (Flags.statusBarWindowNoCustomTouch()) {
+            return super.dispatchTouchEvent(ev);
+        }
+
         if (ev.getAction() == ACTION_DOWN && ev.getRawY() > getHeight()) {
             mTouchDownY = ev.getRawY();
             ev.setLocation(ev.getRawX(), mTopInset);

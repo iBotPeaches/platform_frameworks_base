@@ -40,6 +40,16 @@ interface HeadsUpRepository {
     /** Set of currently active top-level heads up rows to be displayed. */
     val activeHeadsUpRows: Flow<Set<HeadsUpRowRepository>>
 
+    /** Whether the user is swiping on a heads up row */
+    val isTrackingHeadsUp: Flow<Boolean>
+
+    /** @return true if the actively managed heads up notifications contain an entry for this key */
+    fun isHeadsUpEntry(key: String): Boolean
+
+    /**
+     * set whether a HUN is currently animation out, to keep its view container visible during the
+     * animation
+     */
     fun setHeadsUpAnimatingAway(animatingAway: Boolean)
 
     /** Snooze the currently pinned HUN. */

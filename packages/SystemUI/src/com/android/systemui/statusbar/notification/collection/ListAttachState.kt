@@ -21,18 +21,18 @@ import com.android.systemui.statusbar.notification.collection.listbuilder.plugga
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifPromoter
 
 /**
- * Stores the state that [ShadeListBuilder] assigns to this [ListEntry]
+ * Stores the state that [ShadeListBuilder] assigns to this [PipelineEntry]
  */
 data class ListAttachState private constructor(
     /**
      * Null if not attached to the current shade list. If top-level, then the shade list root. If
      * part of a group, then that group's GroupEntry.
      */
-    var parent: GroupEntry?,
+    var parent: PipelineEntry?,
 
     /**
-     * The section that this ListEntry was sorted into. If the child of the group, this will be the
-     * parent's section. Null if not attached to the list.
+     * The section that this PipelineEntry was sorted into. If the child of the group, this will be
+     * the parent's section. Null if not attached to the list.
      */
     var section: NotifSection?,
 

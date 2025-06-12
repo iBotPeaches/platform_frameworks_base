@@ -133,4 +133,15 @@ class DisplayWindowListenerController {
         }
         mDisplayListeners.finishBroadcast();
     }
+
+    void dispatchDesktopModeEligibleChanged(int displayId) {
+        int count = mDisplayListeners.beginBroadcast();
+        for (int i = 0; i < count; ++i) {
+            try {
+                mDisplayListeners.getBroadcastItem(i).onDesktopModeEligibleChanged(displayId);
+            } catch (RemoteException e) {
+            }
+        }
+        mDisplayListeners.finishBroadcast();
+    }
 }

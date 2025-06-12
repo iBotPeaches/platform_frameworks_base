@@ -23,7 +23,6 @@ import com.android.systemui.dump.dumpManager
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.media.controls.domain.resume.MediaResumeListener
 import com.android.systemui.media.controls.domain.resume.resumeMediaBrowserFactory
-import com.android.systemui.media.controls.util.mediaFlags
 import com.android.systemui.settings.userTracker
 import com.android.systemui.tuner.TunerService
 import com.android.systemui.util.mockito.mock
@@ -41,6 +40,5 @@ val Kosmos.mediaResumeListener by
             mediaBrowserFactory = resumeMediaBrowserFactory,
             dumpManager = dumpManager,
             systemClock = systemClock,
-            mediaFlags = mediaFlags,
         )
     }

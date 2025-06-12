@@ -34,16 +34,17 @@
         android:id="@+id/notification_media_content"
         >
 
+        <!-- Note: the top margin is being set in code based on the estimated space needed for
+        the header text. -->
         <LinearLayout
             android:id="@+id/notification_main_column"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/notification_content_margin_top"
             android:layout_marginStart="@dimen/notification_2025_content_margin_start"
-            android:layout_marginEnd="@dimen/notification_content_margin_end"
+            android:layout_marginEnd="@dimen/notification_2025_margin"
             android:orientation="vertical"
             >
-            <include layout="@layout/notification_template_part_line1"/>
+            <include layout="@layout/notification_2025_title"/>
             <include layout="@layout/notification_template_text"/>
         </LinearLayout>
 
@@ -52,7 +53,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/notification_2025_media_actions_margin_start"
-            android:minHeight="@dimen/notification_content_margin"
+            android:minHeight="@dimen/notification_2025_margin"
             >
 
             <!-- Nesting in FrameLayout is required to ensure that the marginStart actually applies
@@ -98,6 +99,6 @@
 
     </LinearLayout>
 
-    <include layout="@layout/notification_template_right_icon" />
+    <include layout="@layout/notification_2025_right_icon" />
 
 </com.android.internal.widget.MediaNotificationView>

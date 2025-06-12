@@ -16,6 +16,7 @@
 package com.android.wm.shell.windowdecor.tiling
 
 import android.content.Context
+import android.content.res.Resources
 import android.graphics.Rect
 import android.testing.AndroidTestingRunner
 import androidx.test.filters.SmallTest
@@ -23,16 +24,23 @@ import com.android.wm.shell.RootTaskDisplayAreaOrganizer
 import com.android.wm.shell.ShellTaskOrganizer
 import com.android.wm.shell.ShellTestCase
 import com.android.wm.shell.common.DisplayController
+import com.android.wm.shell.common.DisplayLayout
+import com.android.wm.shell.common.ShellExecutor
 import com.android.wm.shell.common.SyncTransactionQueue
 import com.android.wm.shell.desktopmode.DesktopModeEventLogger
-import com.android.wm.shell.desktopmode.DesktopUserRepositories
+import com.android.wm.shell.desktopmode.DesktopRepository
 import com.android.wm.shell.desktopmode.DesktopTasksController
 import com.android.wm.shell.desktopmode.DesktopTestHelpers.createFreeformTask
+import com.android.wm.shell.desktopmode.DesktopUserRepositories
 import com.android.wm.shell.desktopmode.ReturnToDragStartAnimator
 import com.android.wm.shell.desktopmode.ToggleResizeDesktopTaskTransitionHandler
+import com.android.wm.shell.transition.FocusTransitionObserver
 import com.android.wm.shell.transition.Transitions
 import com.android.wm.shell.windowdecor.DesktopModeWindowDecoration
+import com.android.wm.shell.windowdecor.common.WindowDecorTaskResourceLoader
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainCoroutineDispatcher
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,12 +55,16 @@ import org.mockito.kotlin.whenever
 @RunWith(AndroidTestingRunner::class)
 class DesktopTilingDecorViewModelTest : ShellTestCase() {
     private val contextMock: Context = mock()
+    private val resourcesMock: Resources = mock()
+    private val mainDispatcher: MainCoroutineDispatcher = mock()
+    private val bgScope: CoroutineScope = mock()
     private val displayControllerMock: DisplayController = mock()
     private val rootTdaOrganizerMock: RootTaskDisplayAreaOrganizer = mock()
     private val syncQueueMock: SyncTransactionQueue = mock()
     private val transitionsMock: Transitions = mock()
     private val shellTaskOrganizerMock: ShellTaskOrganizer = mock()
     private val userRepositories: DesktopUserRepositories = mock()
+    private val desktopRepository: DesktopRepository = mock()
     private val desktopModeEventLogger: DesktopModeEventLogger = mock()
     private val toggleResizeDesktopTaskTransitionHandlerMock:
         ToggleResizeDesktopTaskTransitionHandler =
@@ -61,6 +73,10 @@ class DesktopTilingDecorViewModelTest : ShellTestCase() {
 
     private val desktopModeWindowDecorationMock: DesktopModeWindowDecoration = mock()
     private val desktopTilingDecoration: DesktopTilingWindowDecoration = mock()
+    private val taskResourceLoader: WindowDecorTaskResourceLoader = mock()
+    private val focusTransitionObserver: FocusTransitionObserver = mock()
+    private val displayLayout: DisplayLayout = mock()
+    private val mainExecutor: ShellExecutor = mock()
     private lateinit var desktopTilingDecorViewModel: DesktopTilingDecorViewModel
 
     @Before
@@ -68,6 +84,8 @@ class DesktopTilingDecorViewModelTest : ShellTestCase() {
         desktopTilingDecorViewModel =
             DesktopTilingDecorViewModel(
                 contextMock,
+                mainDispatcher,
+                bgScope,
                 displayControllerMock,
                 rootTdaOrganizerMock,
                 syncQueueMock,
@@ -77,8 +95,19 @@ class DesktopTilingDecorViewModelTest : ShellTestCase() {
                 returnToDragStartAnimatorMock,
                 userRepositories,
                 desktopModeEventLogger,
+                taskResourceLoader,
+                focusTransitionObserver,
+                mainExecutor,
             )
         whenever(contextMock.createContextAsUser(any(), any())).thenReturn(contextMock)
+        whenever(displayControllerMock.getDisplayLayout(any())).thenReturn(displayLayout)
+        whenever(displayLayout.getStableBounds(any())).thenAnswer { i ->
+            (i.arguments.first() as Rect).set(STABLE_BOUNDS)
+        }
+        whenever(contextMock.createContextAsUser(any(), any())).thenReturn(context)
+        whenever(contextMock.resources).thenReturn(resourcesMock)
+        whenever(resourcesMock.getDimensionPixelSize(any())).thenReturn(10)
+        whenever(userRepositories.current).thenReturn(desktopRepository)
     }
 
     @Test
@@ -131,7 +160,7 @@ class DesktopTilingDecorViewModelTest : ShellTestCase() {
         desktopTilingDecorViewModel.moveTaskToFrontIfTiled(task1)
 
         verify(desktopTilingDecoration, times(1))
-            .moveTiledPairToFront(any(), isTaskFocused = eq(true))
+            .moveTiledPairToFront(any(), isFocusedOnDisplay = eq(true))
     }
 
     @Test
@@ -187,7 +216,21 @@ class DesktopTilingDecorViewModelTest : ShellTestCase() {
         verify(desktopTilingDecoration, times(1)).resetTilingSession()
     }
 
+    @Test
+    fun getTiledAppBounds_NoTilingTransitionHandlerObject() {
+        // Right bound of the left app here represents default 8 / 2 - 2 ( {Right bound} / 2 -
+        // {divider pixel size})
+        assertThat(desktopTilingDecorViewModel.getLeftSnapBoundsIfTiled(1))
+            .isEqualTo(Rect(6, 7, 2, 9))
+
+        // Left bound of the right app here represents default 8 / 2 + 6 + 2 ( {Left bound} +
+        // {width}/ 2 + {divider pixel size})
+        assertThat(desktopTilingDecorViewModel.getRightSnapBoundsIfTiled(1))
+            .isEqualTo(Rect(12, 7, 8, 9))
+    }
+
     companion object {
         private val BOUNDS = Rect(1, 2, 3, 4)
+        private val STABLE_BOUNDS = Rect(6, 7, 8, 9)
     }
 }

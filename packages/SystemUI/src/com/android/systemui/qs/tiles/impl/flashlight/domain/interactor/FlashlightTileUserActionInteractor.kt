@@ -17,19 +17,18 @@
 package com.android.systemui.qs.tiles.impl.flashlight.domain.interactor
 
 import android.app.ActivityManager
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.flashlight.domain.model.FlashlightTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import com.android.systemui.statusbar.policy.FlashlightController
 import javax.inject.Inject
 
 /** Handles flashlight tile clicks. */
 class FlashlightTileUserActionInteractor
 @Inject
-constructor(
-    private val flashlightController: FlashlightController,
-) : QSTileUserActionInteractor<FlashlightTileModel> {
+constructor(private val flashlightController: FlashlightController) :
+    QSTileUserActionInteractor<FlashlightTileModel> {
 
     override suspend fun handleInput(input: QSTileInput<FlashlightTileModel>) =
         with(input) {

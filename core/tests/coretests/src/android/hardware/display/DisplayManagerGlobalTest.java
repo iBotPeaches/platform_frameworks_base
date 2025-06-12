@@ -33,6 +33,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.RemoteException;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.annotations.RequiresFlagsDisabled;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
@@ -55,6 +56,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -73,9 +75,13 @@ public class DisplayManagerGlobalTest {
     public final CheckFlagsRule mCheckFlagsRule =
             DeviceFlagsValueProvider.createCheckFlagsRule();
 
+    private static final long DISPLAY_CHANGE_EVENTS =
+            DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BASIC_CHANGED
+            | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE;
+
     private static final long ALL_DISPLAY_EVENTS =
             DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED
-            | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_CHANGED
+            | DISPLAY_CHANGE_EVENTS
             | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REMOVED;
 
     @Mock
@@ -111,7 +117,8 @@ public class DisplayManagerGlobalTest {
     @Test
     public void testDisplayListenerIsCalled_WhenDisplayEventOccurs() throws RemoteException {
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
-                ALL_DISPLAY_EVENTS, /* packageName= */ null);
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ true);
         Mockito.verify(mDisplayManager)
                 .registerCallbackWithEventMask(mCallbackCaptor.capture(), anyLong());
         IDisplayManagerCallback callback = mCallbackCaptor.getValue();
@@ -127,7 +134,7 @@ public class DisplayManagerGlobalTest {
         final DisplayInfo newDisplayInfo = new DisplayInfo();
         newDisplayInfo.rotation++;
         doReturn(newDisplayInfo).when(mDisplayManager).getDisplayInfo(displayId);
-        callback.onDisplayEvent(displayId, DisplayManagerGlobal.EVENT_DISPLAY_CHANGED);
+        callback.onDisplayEvent(displayId, DisplayManagerGlobal.EVENT_DISPLAY_BASIC_CHANGED);
         waitForHandler();
         Mockito.verify(mDisplayListener).onDisplayChanged(eq(displayId));
         Mockito.verifyNoMoreInteractions(mDisplayListener);
@@ -146,7 +153,7 @@ public class DisplayManagerGlobalTest {
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
                 INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE
                         | INTERNAL_EVENT_FLAG_DISPLAY_STATE,
-                null);
+                null, /* isEventFilterExplicit */ true);
         Mockito.verify(mDisplayManager)
                 .registerCallbackWithEventMask(mCallbackCaptor.capture(), anyLong());
         IDisplayManagerCallback callback = mCallbackCaptor.getValue();
@@ -167,11 +174,85 @@ public class DisplayManagerGlobalTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(Flags.FLAG_DELAY_IMPLICIT_RR_REGISTRATION_UNTIL_RR_ACCESSED)
+    public void test_refreshRateRegistration_implicitRRCallbacksEnabled()
+            throws RemoteException {
+        DisplayManager.DisplayListener displayListener1 =
+                Mockito.mock(DisplayManager.DisplayListener.class);
+        // Subscription without supplied events doesn't subscribe to RR events
+        mDisplayManagerGlobal.registerDisplayListener(displayListener1, mHandler,
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ false);
+        Mockito.verify(mDisplayManager)
+                .registerCallbackWithEventMask(mCallbackCaptor.capture(), eq(ALL_DISPLAY_EVENTS));
+
+        // After registering to refresh rate changes, subscription without supplied events subscribe
+        // to RR events
+        mDisplayManagerGlobal.registerForRefreshRateChanges();
+        DisplayManager.DisplayListener displayListener2 =
+                Mockito.mock(DisplayManager.DisplayListener.class);
+        mDisplayManagerGlobal.registerDisplayListener(displayListener2, mHandler,
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ false);
+        Mockito.verify(mDisplayManager)
+                .registerCallbackWithEventMask(mCallbackCaptor.capture(), eq(ALL_DISPLAY_EVENTS
+                        | INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE));
+
+        // Assert all the existing listeners are also subscribed to RR events
+        CopyOnWriteArrayList<DisplayManagerGlobal.DisplayListenerDelegate> delegates =
+                mDisplayManagerGlobal.getDisplayListeners();
+        for (DisplayManagerGlobal.DisplayListenerDelegate delegate: delegates) {
+            assertEquals(ALL_DISPLAY_EVENTS | INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE,
+                    delegate.mInternalEventFlagsMask);
+        }
+
+        // Subscription to RR when events are supplied doesn't happen
+        DisplayManager.DisplayListener displayListener3 =
+                Mockito.mock(DisplayManager.DisplayListener.class);
+        mDisplayManagerGlobal.registerDisplayListener(displayListener3, mHandler,
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ true);
+        Mockito.verify(mDisplayManager)
+                .registerCallbackWithEventMask(mCallbackCaptor.capture(), eq(ALL_DISPLAY_EVENTS));
+
+        // Assert one listeners are not subscribed to RR events
+        delegates =  mDisplayManagerGlobal.getDisplayListeners();
+        int subscribedListenersCount = 0;
+        int nonSubscribedListenersCount = 0;
+        for (DisplayManagerGlobal.DisplayListenerDelegate delegate: delegates) {
+            if (delegate.isEventFilterExplicit()) {
+                assertEquals(ALL_DISPLAY_EVENTS, delegate.mInternalEventFlagsMask);
+                nonSubscribedListenersCount++;
+            } else {
+                assertEquals(ALL_DISPLAY_EVENTS | INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE,
+                        delegate.mInternalEventFlagsMask);
+                subscribedListenersCount++;
+            }
+        }
+
+        assertEquals(2, subscribedListenersCount);
+        assertEquals(1, nonSubscribedListenersCount);
+    }
+
+    @Test
+    @RequiresFlagsDisabled(Flags.FLAG_DELAY_IMPLICIT_RR_REGISTRATION_UNTIL_RR_ACCESSED)
+    public void test_refreshRateRegistration_implicitRRCallbacksDisabled()
+            throws RemoteException {
+        mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ false);
+        Mockito.verify(mDisplayManager)
+                .registerCallbackWithEventMask(mCallbackCaptor.capture(), eq(ALL_DISPLAY_EVENTS
+                        | INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE));
+    }
+
+    @Test
     public void testDisplayListenerIsNotCalled_WhenClientIsNotSubscribed() throws RemoteException {
         // First we subscribe to all events in order to test that the subsequent calls to
         // registerDisplayListener will update the event mask.
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
-                ALL_DISPLAY_EVENTS, /* packageName= */ null);
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ true);
         Mockito.verify(mDisplayManager)
                 .registerCallbackWithEventMask(mCallbackCaptor.capture(), anyLong());
         IDisplayManagerCallback callback = mCallbackCaptor.getValue();
@@ -179,24 +260,27 @@ public class DisplayManagerGlobalTest {
         int displayId = 1;
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
                 ALL_DISPLAY_EVENTS
-                        & ~DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED, null);
+                        & ~DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED, null,
+                        /* isEventFilterExplicit */ true);
         callback.onDisplayEvent(displayId, DisplayManagerGlobal.EVENT_DISPLAY_ADDED);
         waitForHandler();
-        Mockito.verifyZeroInteractions(mDisplayListener);
+        Mockito.verifyNoMoreInteractions(mDisplayListener);
 
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
                 ALL_DISPLAY_EVENTS
-                        & ~DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_CHANGED, null);
-        callback.onDisplayEvent(displayId, DisplayManagerGlobal.EVENT_DISPLAY_CHANGED);
+                        & ~DISPLAY_CHANGE_EVENTS, null,
+                        /* isEventFilterExplicit */ true);
+        callback.onDisplayEvent(displayId, DisplayManagerGlobal.EVENT_DISPLAY_BASIC_CHANGED);
         waitForHandler();
-        Mockito.verifyZeroInteractions(mDisplayListener);
+        Mockito.verifyNoMoreInteractions(mDisplayListener);
 
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
                 ALL_DISPLAY_EVENTS
-                        & ~DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REMOVED, null);
+                        & ~DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REMOVED, null,
+                        /* isEventFilterExplicit */ true);
         callback.onDisplayEvent(displayId, DisplayManagerGlobal.EVENT_DISPLAY_REMOVED);
         waitForHandler();
-        Mockito.verifyZeroInteractions(mDisplayListener);
+        Mockito.verifyNoMoreInteractions(mDisplayListener);
     }
 
     @Test
@@ -213,11 +297,34 @@ public class DisplayManagerGlobalTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(Flags.FLAG_DELAY_IMPLICIT_RR_REGISTRATION_UNTIL_RR_ACCESSED)
+    public void test_registerNativeRefreshRateCallbacks_enablesRRImplicitRegistrations()
+            throws RemoteException {
+        // Registering the display listener without supplied events doesn't subscribe to RR events
+        mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ false);
+        Mockito.verify(mDisplayManager)
+                .registerCallbackWithEventMask(mCallbackCaptor.capture(), eq(ALL_DISPLAY_EVENTS));
+
+        // Native subscription for refresh rates is done
+        mDisplayManagerGlobal.registerNativeChoreographerForRefreshRateCallbacks();
+
+        // Registering the display listener without supplied events subscribe to RR events
+        mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
+                ALL_DISPLAY_EVENTS, /* packageName= */ null,
+                /* isEventFilterExplicit */ false);
+        Mockito.verify(mDisplayManager)
+                .registerCallbackWithEventMask(mCallbackCaptor.capture(), eq(ALL_DISPLAY_EVENTS
+                        | INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE));
+    }
+
+    @Test
     public void testDisplayManagerGlobalRegistersWithDisplayManager_WhenThereAreListeners()
             throws RemoteException {
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
                 DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BRIGHTNESS_CHANGED,
-                null);
+                null, /* isEventFilterExplicit */ true);
         InOrder inOrder = Mockito.inOrder(mDisplayManager);
 
         inOrder.verify(mDisplayManager)
@@ -255,10 +362,10 @@ public class DisplayManagerGlobalTest {
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener, mHandler,
                 DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED
                         | DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REMOVED,
-                null /* packageName */);
+                null /* packageName */, /* isEventFilterExplicit */ true);
         mDisplayManagerGlobal.registerDisplayListener(mDisplayListener2, mHandler,
-                DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_CHANGED,
-                null /* packageName */);
+                DISPLAY_CHANGE_EVENTS, null /* packageName */,
+                /* isEventFilterExplicit */ true);
 
         mDisplayManagerGlobal.handleDisplayChangeFromWindowManager(321);
         waitForHandler();
@@ -299,49 +406,70 @@ public class DisplayManagerGlobalTest {
 
     @Test
     @RequiresFlagsEnabled(Flags.FLAG_DISPLAY_LISTENER_PERFORMANCE_IMPROVEMENTS)
-    public void testMapFlagsToInternalEventFlag() {
+    public void testMapFiltersToInternalEventFlag() {
         // Test public flags mapping
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_ADDED,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(DisplayManager.EVENT_FLAG_DISPLAY_ADDED, 0));
-        assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_CHANGED,
+                        .mapFiltersToInternalEventFlag(DisplayManager.EVENT_TYPE_DISPLAY_ADDED, 0));
+        assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BASIC_CHANGED,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(DisplayManager.EVENT_FLAG_DISPLAY_CHANGED, 0));
+                        .mapFiltersToInternalEventFlag(DisplayManager.EVENT_TYPE_DISPLAY_CHANGED,
+                                0));
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_REMOVED,
-                mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(DisplayManager.EVENT_FLAG_DISPLAY_REMOVED, 0));
+                mDisplayManagerGlobal.mapFiltersToInternalEventFlag(
+                        DisplayManager.EVENT_TYPE_DISPLAY_REMOVED, 0));
         assertEquals(INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(
-                                DisplayManager.EVENT_FLAG_DISPLAY_REFRESH_RATE,
+                        .mapFiltersToInternalEventFlag(
+                                DisplayManager.EVENT_TYPE_DISPLAY_REFRESH_RATE,
                                 0));
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_STATE,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(
-                                DisplayManager.EVENT_FLAG_DISPLAY_STATE,
+                        .mapFiltersToInternalEventFlag(
+                                DisplayManager.EVENT_TYPE_DISPLAY_STATE,
                                 0));
 
         // test private flags mapping
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_CONNECTION_CHANGED,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(0,
-                                DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_CONNECTION_CHANGED));
+                        .mapFiltersToInternalEventFlag(0,
+                                DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_CONNECTION_CHANGED));
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_HDR_SDR_RATIO_CHANGED,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(0,
-                                DisplayManager.PRIVATE_EVENT_FLAG_HDR_SDR_RATIO_CHANGED));
+                        .mapFiltersToInternalEventFlag(0,
+                                DisplayManager.PRIVATE_EVENT_TYPE_HDR_SDR_RATIO_CHANGED));
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BRIGHTNESS_CHANGED,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(0,
-                                DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_BRIGHTNESS));
+                        .mapFiltersToInternalEventFlag(0,
+                                DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_BRIGHTNESS));
 
         // Test both public and private flags mapping
         assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_BRIGHTNESS_CHANGED
                         | INTERNAL_EVENT_FLAG_DISPLAY_REFRESH_RATE,
                 mDisplayManagerGlobal
-                        .mapFlagsToInternalEventFlag(
-                                DisplayManager.EVENT_FLAG_DISPLAY_REFRESH_RATE,
-                                DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_BRIGHTNESS));
+                        .mapFiltersToInternalEventFlag(
+                                DisplayManager.EVENT_TYPE_DISPLAY_REFRESH_RATE,
+                                DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_BRIGHTNESS));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_COMMITTED_STATE_SEPARATE_EVENT)
+    public void test_mapPrivateEventCommittedStateChanged_flagEnabled() {
+        // Test public flags mapping
+        assertEquals(DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_COMMITTED_STATE_CHANGED,
+                mDisplayManagerGlobal
+                        .mapFiltersToInternalEventFlag(0,
+                                DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_COMMITTED_STATE_CHANGED));
+    }
+
+    @Test
+    @RequiresFlagsDisabled(Flags.FLAG_COMMITTED_STATE_SEPARATE_EVENT)
+    public void test_mapPrivateEventCommittedStateChanged_flagDisabled() {
+        // Test public flags mapping
+        assertEquals(0,
+                mDisplayManagerGlobal
+                        .mapFiltersToInternalEventFlag(0,
+                                DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_COMMITTED_STATE_CHANGED));
     }
 
     private void waitForHandler() {

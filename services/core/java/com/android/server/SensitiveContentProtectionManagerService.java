@@ -31,6 +31,8 @@ import static com.android.server.wm.WindowManagerInternal.OnWindowRemovedListene
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.app.role.RoleManager;
+import android.companion.AssociationRequest;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -80,6 +82,8 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
     private MediaProjectionSession mMediaProjectionSession;
 
     private PackageManagerInternal mPackageManagerInternal;
+
+    private RoleManager mRoleManager;
 
     @Nullable
     private WindowManagerInternal mWindowManager;
@@ -225,7 +229,8 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
     }
 
     @Override
-    public void onStart() {}
+    public void onStart() {
+    }
 
     @Override
     public void onBootPhase(int phase) {
@@ -237,6 +242,7 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
         init(getContext().getSystemService(MediaProjectionManager.class),
                 LocalServices.getService(WindowManagerInternal.class),
                 LocalServices.getService(PackageManagerInternal.class),
+                getContext().getSystemService(RoleManager.class),
                 getExemptedPackages()
         );
         if (sensitiveContentAppProtection()) {
@@ -247,7 +253,8 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
 
     @VisibleForTesting
     void init(MediaProjectionManager projectionManager, WindowManagerInternal windowManager,
-            PackageManagerInternal packageManagerInternal, ArraySet<String> exemptedPackages) {
+            PackageManagerInternal packageManagerInternal, RoleManager roleManager,
+            ArraySet<String> exemptedPackages) {
         if (DEBUG) Log.d(TAG, "init");
 
         Objects.requireNonNull(projectionManager);
@@ -256,6 +263,7 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
         mProjectionManager = projectionManager;
         mWindowManager = windowManager;
         mPackageManagerInternal = packageManagerInternal;
+        mRoleManager = roleManager;
         mExemptedPackages = exemptedPackages;
 
         // TODO(b/317250444): use MediaProjectionManagerService directly, reduces unnecessary
@@ -312,8 +320,10 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
         boolean isPackageExempted = (mExemptedPackages != null && mExemptedPackages.contains(
                 projectionInfo.getPackageName()))
                 || canRecordSensitiveContent(projectionInfo.getPackageName())
+                || holdsAppStreamingRole(projectionInfo.getPackageName(),
+                projectionInfo.getUserHandle())
                 || isAutofillServiceRecorderPackage(projectionInfo.getUserHandle().getIdentifier(),
-                        projectionInfo.getPackageName());
+                projectionInfo.getPackageName());
         // TODO(b/324447419): move GlobalSettings lookup to background thread
         boolean isFeatureDisabled = Settings.Global.getInt(getContext().getContentResolver(),
                 DISABLE_SCREEN_SHARE_PROTECTIONS_FOR_APPS_AND_NOTIFICATIONS, 0) != 0;
@@ -346,6 +356,11 @@ public final class SensitiveContentProtectionManagerService extends SystemServic
                 mWindowManager.addBlockScreenCaptureForApps(mPackagesShowingSensitiveContent);
             }
         }
+    }
+
+    private boolean holdsAppStreamingRole(String packageName, UserHandle userHandle) {
+        return mRoleManager.getRoleHoldersAsUser(
+                AssociationRequest.DEVICE_PROFILE_APP_STREAMING, userHandle).contains(packageName);
     }
 
     private void onProjectionEnd() {

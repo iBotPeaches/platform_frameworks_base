@@ -24,7 +24,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.ravenwood.RavenwoodRule;
 
@@ -45,7 +45,7 @@ import org.junit.runner.RunWith;
 @LargeTest
 @Presubmit
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ActivityManager.class)
+@DisabledOnRavenwood(blockedBy = ActivityManager.class)
 public class BinderWorkSourceTest {
     private static Context sContext;
     private static final int UID = 100;

@@ -25,7 +25,7 @@
     android:foreground="?android:attr/selectableItemBackground"
     app:cardCornerRadius="28dp"
     app:cardElevation="0dp"
-    app:cardBackgroundColor="?androidprv:attr/materialColorSurfaceBright">
+    app:cardBackgroundColor="@androidprv:color/materialColorSurfaceBright">
     <LinearLayout
         android:orientation="vertical"
         android:layout_width="match_parent"
@@ -77,6 +77,7 @@
         </LinearLayout>
         <LinearLayout
             android:id="@+id/privacy_dialog_item_header_expanded_layout"
+            android:importantForAccessibility="no"
             android:orientation="vertical"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

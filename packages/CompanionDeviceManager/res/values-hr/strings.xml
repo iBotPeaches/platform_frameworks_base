@@ -18,10 +18,16 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Upravitelj popratnih uređaja"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Želite li dopustiti aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; da pristupa &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Provjerite je li na uređaju <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> uključen <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> i držite <xliff:g id="PROFILE_NAME">%3$s</xliff:g> u blizini."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nije pronađen nijedan uređaj. Pokušajte ponovo kasnije."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth i Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"satom"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Odaberite uređaj kojim će upravljati aplikacija &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Odaberite profil <xliff:g id="PROFILE_NAME">%1$s</xliff:g> koji želite postaviti"</string>
-    <string name="summary_watch" msgid="8134580124808507407">"Aplikacija će moći sinkronizirati podatke kao što je ime pozivatelja i pristupiti tim dopuštenjima na vašem uređaju <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Traži se <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="summary_watch" msgid="8134580124808507407">"Aplikacija će moći sinkronizirati podatke kao što je ime pozivatelja i pristupiti tim dopuštenjima na vašem <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Dopustiti aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; da upravlja uređajem &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"uređaj"</string>
     <string name="summary_glasses" msgid="5469208629679579157">"Aplikacija će moći pristupati ovim dopuštenjima na vašem uređaju <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Želite li dopustiti aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; da streama aplikacije uređaja <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> na uređaj &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Aplikacija <xliff:g id="APP_NAME_0">%1$s</xliff:g> imat će pristup svemu što je vidljivo ili se reproducira na uređaju <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, uključujući zvuk, fotografije, podatke o plaćanju, zaporke i poruke.&lt;br/&gt;&lt;br/&gt;Aplikacija <xliff:g id="APP_NAME_2">%1$s</xliff:g> moći će streamati aplikacije na uređaj <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> dok ne uklonite pristup za to dopuštenje."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Aplikacija <xliff:g id="APP_NAME">%1$s</xliff:g> zahtijeva dopuštenje u ime uređaja <xliff:g id="DEVICE_NAME">%2$s</xliff:g> za streaming aplikacija s vašeg uređaja <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Želite li aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; dopustiti streaming zvuka i značajki sustava između uređaja <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> i &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Aplikacija <xliff:g id="APP_NAME_0">%2$s</xliff:g> imat će pristup svemu što se reproducira na uređaju <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;Aplikacija <xliff:g id="APP_NAME_2">%2$s</xliff:g> moći će emitirati zvuk na uređaju <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> dok ne uklonite pristup za to dopuštenje."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"uređaj"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ta će aplikacija moći sinkronizirati podatke između vašeg telefona i odabranog uređaja, primjerice ime pozivatelja"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Dopusti"</string>
     <string name="consent_no" msgid="2640796915611404382">"Nemoj dopustiti"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Odustani"</string>
     <string name="consent_back" msgid="2560683030046918882">"Natrag"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Pomicanje po popisu"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Strelica prema dolje"</string>
     <string name="permission_expand" msgid="893185038020887411">"Proširi <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Sažmi <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Dati jednaka dopuštenja aplikacijama na uređaju &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; kao i na uređaju &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

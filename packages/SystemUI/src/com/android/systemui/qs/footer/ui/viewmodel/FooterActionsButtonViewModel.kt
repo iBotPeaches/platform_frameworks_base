@@ -18,6 +18,7 @@ package com.android.systemui.qs.footer.ui.viewmodel
 
 import android.annotation.AttrRes
 import android.annotation.ColorInt
+import androidx.compose.runtime.Stable
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.shared.model.Icon
 
@@ -25,6 +26,7 @@ import com.android.systemui.common.shared.model.Icon
  * A ViewModel for a simple footer actions button. This is used for the user switcher, settings and
  * power buttons.
  */
+@Stable
 data class FooterActionsButtonViewModel(
     val id: Int,
     val icon: Icon,

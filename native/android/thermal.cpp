@@ -139,7 +139,12 @@ AThermalManager::~AThermalManager() {
         mStatusListeners.clear();
         if (mServiceStatusListener != nullptr) {
             bool success = false;
-            mThermalSvc->unregisterThermalStatusListener(mServiceStatusListener, &success);
+            auto ret =
+                    mThermalSvc->unregisterThermalStatusListener(mServiceStatusListener, &success);
+            if (!success || !ret.isOk()) {
+                ALOGE("Failed in unregisterThermalStatusListener when AThermalManager is being "
+                      "destroyed %d", success);
+            }
             mServiceStatusListener = nullptr;
         }
     }
@@ -148,7 +153,12 @@ AThermalManager::~AThermalManager() {
         mHeadroomListeners.clear();
         if (mServiceHeadroomListener != nullptr) {
             bool success = false;
-            mThermalSvc->unregisterThermalHeadroomListener(mServiceHeadroomListener, &success);
+            auto ret = mThermalSvc->unregisterThermalHeadroomListener(mServiceHeadroomListener,
+                                                                      &success);
+            if (!success || !ret.isOk()) {
+                ALOGE("Failed in unregisterThermalHeadroomListener when AThermalManager is being "
+                      "destroyed %d", success);
+            }
             mServiceHeadroomListener = nullptr;
         }
     }

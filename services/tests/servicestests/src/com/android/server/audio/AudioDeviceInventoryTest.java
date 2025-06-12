@@ -103,7 +103,7 @@ public class AudioDeviceInventoryTest {
         // NOTE: for now this is only when flag asDeviceConnectionFailure is true
         if (asDeviceConnectionFailure()) {
             when(mSpyAudioSystem.setDeviceConnectionState(ada, AudioSystem.DEVICE_STATE_AVAILABLE,
-                    AudioSystem.AUDIO_FORMAT_DEFAULT))
+                    AudioSystem.AUDIO_FORMAT_DEFAULT, false /*deviceSwitch*/))
                     .thenReturn(AudioSystem.AUDIO_STATUS_ERROR);
             runWithBluetoothPrivilegedPermission(
                     () ->  mDevInventory.onSetBtActiveDevice(/*btInfo*/ btInfo,
@@ -115,7 +115,7 @@ public class AudioDeviceInventoryTest {
         // test that the device is added when AudioSystem returns AUDIO_STATUS_OK
         // when setDeviceConnectionState is called for the connection
         when(mSpyAudioSystem.setDeviceConnectionState(ada, AudioSystem.DEVICE_STATE_AVAILABLE,
-                AudioSystem.AUDIO_FORMAT_DEFAULT))
+                AudioSystem.AUDIO_FORMAT_DEFAULT, false /*deviceSwitch*/))
                 .thenReturn(AudioSystem.AUDIO_STATUS_OK);
         runWithBluetoothPrivilegedPermission(
                 () ->  mDevInventory.onSetBtActiveDevice(/*btInfo*/ btInfo,

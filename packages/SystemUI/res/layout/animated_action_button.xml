@@ -1,0 +1,17 @@
+<com.android.systemui.statusbar.notification.row.AnimatedActionButton
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@android:style/Widget.Material.Button"
+    android:layout_width="wrap_content"
+    android:layout_height="@dimen/animated_action_button_touch_target_height"
+    android:background="@drawable/animated_action_button_background"
+    android:drawablePadding="@dimen/animated_action_button_drawable_padding"
+    android:ellipsize="none"
+    android:fontFamily="google-sans-flex-medium"
+    android:gravity="center"
+    android:minWidth="0dp"
+    android:paddingHorizontal="@dimen/animated_action_button_padding_horizontal"
+    android:paddingVertical="@dimen/animated_action_button_inset_vertical"
+    android:stateListAnimator="@null"
+    android:textColor="@color/animated_action_button_text_color"
+    android:textSize="@dimen/animated_action_button_font_size"
+    android:textStyle="normal" />

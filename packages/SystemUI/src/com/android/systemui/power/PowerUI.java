@@ -16,8 +16,6 @@
 
 package com.android.systemui.power;
 
-import static com.android.systemui.util.ConvenienceExtensionsKt.toKotlinLazy;
-
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -42,11 +40,11 @@ import android.service.vr.IVrStateCallbacks;
 import android.text.format.DateUtils;
 import android.util.Log;
 import android.util.Slog;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.android.app.viewcapture.ViewCapture;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.settingslib.fuelgauge.Estimate;
 import com.android.settingslib.utils.ThreadUtils;
@@ -58,8 +56,6 @@ import com.android.systemui.res.R;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.policy.ConfigurationController;
-
-import kotlin.Lazy;
 
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -120,9 +116,9 @@ public class PowerUI implements
     private IThermalEventListener mSkinThermalEventListener;
     private IThermalEventListener mUsbThermalEventListener;
     private final Context mContext;
+    private final WindowManager mWindowManager;
     private final BroadcastDispatcher mBroadcastDispatcher;
     private final CommandQueue mCommandQueue;
-    private final Lazy<ViewCapture> mLazyViewCapture;
     @Nullable
     private final IVrManager mVrManager;
     private final WakefulnessLifecycle.Observer mWakefulnessObserver =
@@ -164,7 +160,7 @@ public class PowerUI implements
             WakefulnessLifecycle wakefulnessLifecycle,
             PowerManager powerManager,
             UserTracker userTracker,
-            dagger.Lazy<ViewCapture> daggerLazyViewCapture) {
+            WindowManager windowManager) {
         mContext = context;
         mBroadcastDispatcher = broadcastDispatcher;
         mCommandQueue = commandQueue;
@@ -174,7 +170,7 @@ public class PowerUI implements
         mPowerManager = powerManager;
         mWakefulnessLifecycle = wakefulnessLifecycle;
         mUserTracker = userTracker;
-        mLazyViewCapture = toKotlinLazy(daggerLazyViewCapture);
+        mWindowManager = windowManager;
     }
 
     public void start() {
@@ -649,7 +645,7 @@ public class PowerUI implements
     @Override
     public void showInattentiveSleepWarning() {
         if (mOverlayView == null) {
-            mOverlayView = new InattentiveSleepWarningView(mContext, mLazyViewCapture);
+            mOverlayView = new InattentiveSleepWarningView(mContext, mWindowManager);
         }
 
         mOverlayView.show();

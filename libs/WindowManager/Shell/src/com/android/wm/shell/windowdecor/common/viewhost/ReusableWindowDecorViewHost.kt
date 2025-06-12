@@ -24,7 +24,6 @@ import android.view.SurfaceControl
 import android.view.View
 import android.view.WindowManager
 import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-import android.view.WindowManager.LayoutParams.FLAG_SPLIT_TOUCH
 import android.view.WindowManager.LayoutParams.TYPE_APPLICATION
 import android.widget.FrameLayout
 import androidx.tracing.Trace
@@ -51,9 +50,8 @@ class ReusableWindowDecorViewHost(
     @VisibleForTesting
     val viewHostAdapter: SurfaceControlViewHostAdapter =
         SurfaceControlViewHostAdapter(context, display),
+    private val rootView: FrameLayout = FrameLayout(context)
 ) : WindowDecorViewHost, Warmable {
-    @VisibleForTesting val rootView = FrameLayout(context)
-
     private var currentUpdateJob: Job? = null
 
     override val surfaceControl: SurfaceControl
@@ -72,7 +70,7 @@ class ReusableWindowDecorViewHost(
                     0 /* width*/,
                     0 /* height */,
                     TYPE_APPLICATION,
-                    FLAG_NOT_FOCUSABLE or FLAG_SPLIT_TOUCH,
+                    FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSPARENT,
                 )
                 .apply {
@@ -132,8 +130,10 @@ class ReusableWindowDecorViewHost(
         Trace.beginSection("ReusableWindowDecorViewHost#updateViewHost")
         viewHostAdapter.prepareViewHost(configuration, touchableRegion)
         onDrawTransaction?.let { viewHostAdapter.applyTransactionOnDraw(it) }
-        rootView.removeAllViews()
-        rootView.addView(view)
+        if (view.parent != rootView) {
+            rootView.removeAllViews()
+            rootView.addView(view)
+        }
         viewHostAdapter.updateView(rootView, attrs)
         Trace.endSection()
     }

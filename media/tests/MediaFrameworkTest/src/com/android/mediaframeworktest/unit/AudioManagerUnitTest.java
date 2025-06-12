@@ -28,7 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.companion.virtual.VirtualDeviceManager;
@@ -56,7 +56,7 @@ public class AudioManagerUnitTest {
         audioManager.playSoundEffect(FX_KEY_CLICK);
 
         // We expect no interactions with VDM when running on default device.
-        verifyZeroInteractions(mockVdm);
+        verifyNoMoreInteractions(mockVdm);
     }
 
     @Test

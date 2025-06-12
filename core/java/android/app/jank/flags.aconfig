@@ -15,3 +15,13 @@ flag {
   description: "Controls whether the system will log frame metrics related to app jank"
   bug: "366265225"
 }
+
+flag {
+  name: "viewroot_choreographer"
+  namespace: "system_performance"
+  description: "when enabled janktracker will get the instance of choreographer from viewrootimpl"
+  bug: "377960907"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}

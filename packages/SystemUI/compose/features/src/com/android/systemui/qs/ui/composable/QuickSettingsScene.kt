@@ -16,7 +16,6 @@
 
 package com.android.systemui.qs.ui.composable
 
-import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
@@ -68,16 +67,15 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.animation.scene.SceneScope
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
 import com.android.compose.animation.scene.animateSceneDpAsState
 import com.android.compose.animation.scene.animateSceneFloatAsState
 import com.android.compose.animation.scene.content.state.TransitionState
-import com.android.compose.modifiers.padding
 import com.android.compose.modifiers.thenIf
 import com.android.compose.windowsizeclass.LocalWindowSizeClass
-import com.android.systemui.battery.BatteryMeterViewController
+import com.android.internal.jank.InteractionJankMonitor
 import com.android.systemui.common.ui.compose.windowinsets.CutoutLocation
 import com.android.systemui.common.ui.compose.windowinsets.LocalDisplayCutout
 import com.android.systemui.compose.modifiers.sysuiResTag
@@ -87,7 +85,9 @@ import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.media.controls.ui.composable.MediaCarousel
 import com.android.systemui.media.controls.ui.composable.isLandscape
 import com.android.systemui.media.controls.ui.controller.MediaCarouselController
+import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager
 import com.android.systemui.media.controls.ui.view.MediaHost
+import com.android.systemui.media.controls.ui.view.MediaHostState.Companion.EXPANDED
 import com.android.systemui.media.dagger.MediaModule
 import com.android.systemui.notifications.ui.composable.HeadsUpNotificationSpace
 import com.android.systemui.notifications.ui.composable.NotificationScrollingStack
@@ -101,15 +101,14 @@ import com.android.systemui.res.R
 import com.android.systemui.scene.session.ui.composable.SaveableSession
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.ui.composable.Scene
+import com.android.systemui.settings.brightness.ui.viewModel.BrightnessMirrorViewModel
 import com.android.systemui.shade.ui.composable.CollapsedShadeHeader
 import com.android.systemui.shade.ui.composable.ExpandedShadeHeader
 import com.android.systemui.shade.ui.composable.Shade
 import com.android.systemui.shade.ui.composable.ShadeHeader
+import com.android.systemui.shade.ui.viewmodel.ShadeHeaderViewModel
 import com.android.systemui.statusbar.notification.stack.ui.view.NotificationScrollView
 import com.android.systemui.statusbar.notification.stack.ui.viewmodel.NotificationsPlaceholderViewModel
-import com.android.systemui.statusbar.phone.StatusBarLocation
-import com.android.systemui.statusbar.phone.ui.StatusBarIconController
-import com.android.systemui.statusbar.phone.ui.TintedIconManager
 import dagger.Lazy
 import javax.inject.Inject
 import javax.inject.Named
@@ -126,11 +125,9 @@ constructor(
     private val notificationsPlaceholderViewModelFactory: NotificationsPlaceholderViewModel.Factory,
     private val actionsViewModelFactory: QuickSettingsUserActionsViewModel.Factory,
     private val contentViewModelFactory: QuickSettingsSceneContentViewModel.Factory,
-    private val tintedIconManagerFactory: TintedIconManager.Factory,
-    private val batteryMeterViewControllerFactory: BatteryMeterViewController.Factory,
-    private val statusBarIconController: StatusBarIconController,
     private val mediaCarouselController: MediaCarouselController,
     @Named(MediaModule.QS_PANEL) private val mediaHost: MediaHost,
+    private val jankMonitor: InteractionJankMonitor,
 ) : ExclusiveActivatable(), Scene {
     override val key = Scenes.QuickSettings
 
@@ -145,45 +142,56 @@ constructor(
     }
 
     @Composable
-    override fun SceneScope.Content(modifier: Modifier) {
+    override fun ContentScope.Content(modifier: Modifier) {
+        val viewModel =
+            rememberViewModel("QuickSettingsScene-viewModel") { contentViewModelFactory.create() }
+        val headerViewModel =
+            rememberViewModel("QuickSettingsScene-headerViewModel") {
+                viewModel.shadeHeaderViewModelFactory.create()
+            }
+        val brightnessMirrorViewModel =
+            rememberViewModel("QuickSettingsScene-brightnessMirrorViewModel") {
+                viewModel.brightnessMirrorViewModelFactory.create()
+            }
+        val notificationsPlaceholderViewModel =
+            rememberViewModel("QuickSettingsScene-notifPlaceholderViewModel") {
+                notificationsPlaceholderViewModelFactory.create()
+            }
         QuickSettingsScene(
             notificationStackScrollView = notificationStackScrollView.get(),
-            viewModelFactory = contentViewModelFactory,
-            notificationsPlaceholderViewModel =
-                rememberViewModel("QuickSettingsScene-notifPlaceholderViewModel") {
-                    notificationsPlaceholderViewModelFactory.create()
-                },
-            createTintedIconManager = tintedIconManagerFactory::create,
-            createBatteryMeterViewController = batteryMeterViewControllerFactory::create,
-            statusBarIconController = statusBarIconController,
+            viewModel = viewModel,
+            headerViewModel = headerViewModel,
+            brightnessMirrorViewModel = brightnessMirrorViewModel,
+            notificationsPlaceholderViewModel = notificationsPlaceholderViewModel,
             mediaCarouselController = mediaCarouselController,
             mediaHost = mediaHost,
             modifier = modifier,
             shadeSession = shadeSession,
+            jankMonitor = jankMonitor,
         )
+    }
+
+    init {
+        mediaHost.expansion = EXPANDED
+        mediaHost.showsOnlyActiveMedia = false
+        mediaHost.init(MediaHierarchyManager.LOCATION_QS)
     }
 }
 
 @Composable
-private fun SceneScope.QuickSettingsScene(
+private fun ContentScope.QuickSettingsScene(
     notificationStackScrollView: NotificationScrollView,
-    viewModelFactory: QuickSettingsSceneContentViewModel.Factory,
+    viewModel: QuickSettingsSceneContentViewModel,
+    headerViewModel: ShadeHeaderViewModel,
+    brightnessMirrorViewModel: BrightnessMirrorViewModel,
     notificationsPlaceholderViewModel: NotificationsPlaceholderViewModel,
-    createTintedIconManager: (ViewGroup, StatusBarLocation) -> TintedIconManager,
-    createBatteryMeterViewController: (ViewGroup, StatusBarLocation) -> BatteryMeterViewController,
-    statusBarIconController: StatusBarIconController,
     mediaCarouselController: MediaCarouselController,
     mediaHost: MediaHost,
     modifier: Modifier = Modifier,
     shadeSession: SaveableSession,
+    jankMonitor: InteractionJankMonitor,
 ) {
     val cutoutLocation = LocalDisplayCutout.current.location
-
-    val viewModel = rememberViewModel("QuickSettingsScene-viewModel") { viewModelFactory.create() }
-    val brightnessMirrorViewModel =
-        rememberViewModel("QuickSettingsScene-brightnessMirrorViewModel") {
-            viewModel.brightnessMirrorViewModelFactory.create()
-        }
     val brightnessMirrorShowing by brightnessMirrorViewModel.isShowing.collectAsStateWithLifecycle()
     val contentAlpha by
         animateFloatAsState(
@@ -223,8 +231,7 @@ private fun SceneScope.QuickSettingsScene(
                 .graphicsLayer { alpha = contentAlpha }
                 .thenIf(shouldPunchHoleBehindScrim) {
                     // Render the scene to an offscreen buffer so that BlendMode.DstOut only clears
-                    // this
-                    // scene (and not the one under it) during a scene transition.
+                    // this scene (and not the one under it) during a scene transition.
                     Modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
                 }
                 .thenIf(cutoutLocation != CutoutLocation.CENTER) { Modifier.displayCutoutPadding() }
@@ -349,21 +356,12 @@ private fun SceneScope.QuickSettingsScene(
                                         fadeOut(tween(customizingAnimationDuration)),
                             ) {
                                 ExpandedShadeHeader(
-                                    viewModelFactory = viewModel.shadeHeaderViewModelFactory,
-                                    createTintedIconManager = createTintedIconManager,
-                                    createBatteryMeterViewController =
-                                        createBatteryMeterViewController,
-                                    statusBarIconController = statusBarIconController,
+                                    viewModel = headerViewModel,
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                 )
                             }
                         else ->
-                            CollapsedShadeHeader(
-                                viewModelFactory = viewModel.shadeHeaderViewModelFactory,
-                                createTintedIconManager = createTintedIconManager,
-                                createBatteryMeterViewController = createBatteryMeterViewController,
-                                statusBarIconController = statusBarIconController,
-                            )
+                            CollapsedShadeHeader(viewModel = headerViewModel, isSplitShade = false)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     // This view has its own horizontal padding
@@ -433,12 +431,16 @@ private fun SceneScope.QuickSettingsScene(
         // A 1 pixel is added to compensate for any kind of rounding errors to make sure 100% that
         // the notification stack is entirely "below" the entire screen.
         val minNotificationStackTop = screenHeight.roundToInt() + 1
+        val notificationStackPadding = dimensionResource(id = R.dimen.notification_side_paddings)
         NotificationScrollingStack(
             shadeSession = shadeSession,
             stackScrollView = notificationStackScrollView,
             viewModel = notificationsPlaceholderViewModel,
+            jankMonitor = jankMonitor,
             maxScrimTop = { minNotificationStackTop.toFloat() },
             shouldPunchHoleBehindScrim = shouldPunchHoleBehindScrim,
+            stackTopPadding = notificationStackPadding,
+            stackBottomPadding = navBarBottomHeight,
             shouldIncludeHeadsUpSpace = false,
             supportNestedScrolling = true,
             modifier =
@@ -453,7 +455,12 @@ private fun SceneScope.QuickSettingsScene(
                 Modifier.align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .offset { IntOffset(x = 0, y = minNotificationStackTop) }
-                    .padding(horizontal = shadeHorizontalPadding),
+                    .padding(
+                        start = shadeHorizontalPadding,
+                        top = 0.dp,
+                        end = shadeHorizontalPadding,
+                        bottom = navBarBottomHeight,
+                    ),
         )
     }
 }

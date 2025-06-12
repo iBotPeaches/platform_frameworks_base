@@ -43,6 +43,8 @@ import android.media.AudioManagerInternal;
 import android.media.permission.Identity;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.IRemoteCallback;
 import android.os.ParcelFileDescriptor;
@@ -837,6 +839,13 @@ final class HotwordDetectionConnection {
         private final int mBindingFlags;
         private final int mInstanceNumber;
 
+        private static final HandlerThread mHandler;
+
+        static {
+            mHandler = new HandlerThread("Sandbox detection connector");
+            mHandler.start();
+        }
+
         private boolean mRespectServiceConnectionStatusChanged = true;
         private boolean mIsBound = false;
         private boolean mIsLoggedFirstConnect = false;
@@ -881,6 +890,11 @@ final class HotwordDetectionConnection {
                     }
                 }
             }
+        }
+
+        @Override // from ServiceConnector.Impl
+        protected Handler getJobHandler() {
+            return mHandler.getThreadHandler();
         }
 
         @Override
@@ -1151,14 +1165,12 @@ final class HotwordDetectionConnection {
     }
 
     private void updateServiceIdentity(ServiceConnection connection) {
-        connection.run(service -> service.ping(new IRemoteCallback.Stub() {
+        connection.run(service -> service.ping(new ISandboxedDetectionService.IPingMe.Stub() {
             @Override
-            public void sendResult(Bundle bundle) throws RemoteException {
+            public void onPing() throws RemoteException {
                 // TODO: Exit if the service has been unbound already (though there's a very low
                 // chance this happens).
-                if (DEBUG) {
-                    Slog.d(TAG, "updating hotword UID " + Binder.getCallingUid());
-                }
+                Slog.d(TAG, "updating hotword UID " + Binder.getCallingUid());
                 // TODO: Have the provider point to the current state stored in
                 // VoiceInteractionManagerServiceImpl.
                 final int uid = Binder.getCallingUid();

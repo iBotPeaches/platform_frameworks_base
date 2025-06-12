@@ -20,15 +20,19 @@ import android.app.NotificationChannel.NEWS_ID
 import android.app.NotificationChannel.PROMOTIONS_ID
 import android.app.NotificationChannel.RECS_ID
 import android.app.NotificationChannel.SOCIAL_MEDIA_ID
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import android.app.NotificationChannel.SYSTEM_RESERVED_IDS
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
+import com.android.systemui.statusbar.notification.collection.NotificationEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
+import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifBundler
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifSectioner
 import com.android.systemui.statusbar.notification.collection.render.NodeController
 import com.android.systemui.statusbar.notification.dagger.NewsHeader
 import com.android.systemui.statusbar.notification.dagger.PromoHeader
 import com.android.systemui.statusbar.notification.dagger.RecsHeader
 import com.android.systemui.statusbar.notification.dagger.SocialHeader
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.notification.stack.BUCKET_NEWS
 import com.android.systemui.statusbar.notification.stack.BUCKET_PROMO
 import com.android.systemui.statusbar.notification.stack.BUCKET_RECS
@@ -48,7 +52,7 @@ class BundleCoordinator @Inject constructor(
 
     val newsSectioner =
             object : NotifSectioner("News", BUCKET_NEWS) {
-                override fun isInSection(entry: ListEntry): Boolean {
+                override fun isInSection(entry: PipelineEntry): Boolean {
                     return entry.representativeEntry?.channel?.id == NEWS_ID
                 }
 
@@ -59,7 +63,7 @@ class BundleCoordinator @Inject constructor(
 
     val socialSectioner =
         object : NotifSectioner("Social", BUCKET_SOCIAL) {
-            override fun isInSection(entry: ListEntry): Boolean {
+            override fun isInSection(entry: PipelineEntry): Boolean {
                 return entry.representativeEntry?.channel?.id == SOCIAL_MEDIA_ID
             }
 
@@ -70,7 +74,7 @@ class BundleCoordinator @Inject constructor(
 
     val recsSectioner =
         object : NotifSectioner("Recommendations", BUCKET_RECS) {
-            override fun isInSection(entry: ListEntry): Boolean {
+            override fun isInSection(entry: PipelineEntry): Boolean {
                 return entry.representativeEntry?.channel?.id == RECS_ID
             }
 
@@ -81,7 +85,7 @@ class BundleCoordinator @Inject constructor(
 
     val promoSectioner =
         object : NotifSectioner("Promotions", BUCKET_PROMO) {
-            override fun isInSection(entry: ListEntry): Boolean {
+            override fun isInSection(entry: PipelineEntry): Boolean {
                 return entry.representativeEntry?.channel?.id == PROMOTIONS_ID
             }
 
@@ -90,6 +94,30 @@ class BundleCoordinator @Inject constructor(
             }
         }
 
+    val bundler =
+        object : NotifBundler("NotifBundler") {
+
+            // Use list instead of set to keep fixed order
+            override val bundleIds: List<String> =
+                if (debugBundleUi) SYSTEM_RESERVED_IDS + "notify"
+                else SYSTEM_RESERVED_IDS
+
+            override fun getBundleIdOrNull(entry: NotificationEntry?): String? {
+                if (debugBundleUi && entry?.key?.contains("notify") == true) {
+                    return "notify"
+                }
+                return entry?.representativeEntry?.channel?.id?.takeIf { it in this.bundleIds }
+            }
+        }
+
     override fun attach(pipeline: NotifPipeline) {
+        if (NotificationBundleUi.isEnabled) {
+            pipeline.setNotifBundler(bundler)
+        }
+    }
+
+    companion object {
+        @kotlin.jvm.JvmField
+        var debugBundleUi: Boolean = true
     }
 }

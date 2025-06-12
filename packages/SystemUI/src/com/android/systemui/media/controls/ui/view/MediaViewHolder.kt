@@ -16,6 +16,7 @@
 
 package com.android.systemui.media.controls.ui.view
 
+import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -25,6 +26,10 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.constraintlayout.widget.Barrier
 import com.android.internal.widget.CachingIconView
+import com.android.systemui.FontStyles.GSF_HEADLINE_SMALL
+import com.android.systemui.FontStyles.GSF_LABEL_LARGE
+import com.android.systemui.FontStyles.GSF_LABEL_MEDIUM
+import com.android.systemui.FontStyles.GSF_TITLE_MEDIUM
 import com.android.systemui.res.R
 import com.android.systemui.surfaceeffects.loadingeffect.LoadingEffectView
 import com.android.systemui.surfaceeffects.ripple.MultiRippleView
@@ -139,7 +144,7 @@ class MediaViewHolder constructor(itemView: View) {
                 R.id.action4,
                 R.id.icon,
                 R.id.media_scrubbing_elapsed_time,
-                R.id.media_scrubbing_total_time
+                R.id.media_scrubbing_total_time,
             )
 
         // Buttons used for notification-based actions
@@ -175,5 +180,10 @@ class MediaViewHolder constructor(itemView: View) {
                 R.id.loading_effect_view,
                 R.id.touch_ripple_view,
             )
+
+        val headlineSmallTF: Typeface = Typeface.create(GSF_HEADLINE_SMALL, Typeface.NORMAL)
+        val titleMediumTF: Typeface = Typeface.create(GSF_TITLE_MEDIUM, Typeface.NORMAL)
+        val labelMediumTF: Typeface = Typeface.create(GSF_LABEL_MEDIUM, Typeface.NORMAL)
+        val labelLargeTF: Typeface = Typeface.create(GSF_LABEL_LARGE, Typeface.NORMAL)
     }
 }

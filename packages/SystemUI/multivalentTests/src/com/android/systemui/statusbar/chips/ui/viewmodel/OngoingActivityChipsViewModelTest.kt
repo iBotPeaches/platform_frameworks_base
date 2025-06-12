@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.chips.ui.viewmodel
 
+import android.content.Context
 import android.content.DialogInterface
 import android.content.packageManager
 import android.content.pm.PackageManager
@@ -26,35 +27,39 @@ import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.animation.Expandable
+import com.android.systemui.common.shared.model.ContentDescription.Companion.loadContentDescription
 import com.android.systemui.common.shared.model.Icon
-import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.mediaprojection.data.model.MediaProjectionState
 import com.android.systemui.mediaprojection.data.repository.fakeMediaProjectionRepository
 import com.android.systemui.mediaprojection.taskswitcher.FakeActivityTaskManager.Companion.createTask
 import com.android.systemui.res.R
 import com.android.systemui.screenrecord.data.model.ScreenRecordModel
 import com.android.systemui.screenrecord.data.repository.screenRecordRepository
+import com.android.systemui.statusbar.chips.call.ui.viewmodel.CallChipViewModel
 import com.android.systemui.statusbar.chips.mediaprojection.domain.interactor.MediaProjectionChipInteractorTest.Companion.NORMAL_PACKAGE
 import com.android.systemui.statusbar.chips.mediaprojection.domain.interactor.MediaProjectionChipInteractorTest.Companion.setUpPackageManagerForMediaProjection
-import com.android.systemui.statusbar.chips.notification.demo.ui.viewmodel.demoNotifChipViewModel
 import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips
+import com.android.systemui.statusbar.chips.screenrecord.ui.viewmodel.ScreenRecordChipViewModel
+import com.android.systemui.statusbar.chips.sharetoapp.ui.viewmodel.ShareToAppChipViewModel
 import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
 import com.android.systemui.statusbar.chips.ui.view.ChipBackgroundContainer
+import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.phone.mockSystemUIDialogFactory
-import com.android.systemui.statusbar.phone.ongoingcall.data.repository.ongoingCallRepository
-import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallModel
-import com.android.systemui.statusbar.phone.ongoingcall.shared.model.inCallModel
+import com.android.systemui.statusbar.phone.ongoingcall.StatusBarChipsModernization
+import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallTestHelper.addOngoingCallState
+import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallTestHelper.removeOngoingCallState
 import com.android.systemui.testKosmos
 import com.android.systemui.util.time.fakeSystemClock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -69,16 +74,13 @@ import org.mockito.kotlin.whenever
 /** Tests for [OngoingActivityChipsViewModel] when the [StatusBarNotifChips] flag is disabled. */
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 @DisableFlags(StatusBarNotifChips.FLAG_NAME)
 class OngoingActivityChipsViewModelTest : SysuiTestCase() {
-    private val kosmos = testKosmos()
-    private val testScope = kosmos.testScope
+    private val kosmos = testKosmos().useUnconfinedTestDispatcher()
     private val systemClock = kosmos.fakeSystemClock
 
     private val screenRecordState = kosmos.screenRecordRepository.screenRecordState
     private val mediaProjectionState = kosmos.fakeMediaProjectionRepository.mediaProjectionState
-    private val callRepo = kosmos.ongoingCallRepository
 
     private val mockSystemUIDialog = mock<SystemUIDialog>()
     private val chipBackgroundView = mock<ChipBackgroundContainer>()
@@ -91,13 +93,14 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
                 )
                 .thenReturn(chipBackgroundView)
         }
+    private val mockExpandable: Expandable =
+        mock<Expandable>().apply { whenever(dialogTransitionController(any())).thenReturn(mock()) }
 
-    private val underTest = kosmos.ongoingActivityChipsViewModel
+    private val Kosmos.underTest by Kosmos.Fixture { ongoingActivityChipsViewModel }
 
     @Before
     fun setUp() {
         setUpPackageManagerForMediaProjection(kosmos)
-        kosmos.demoNotifChipViewModel.start()
         val icon =
             BitmapDrawable(
                 context.resources,
@@ -108,22 +111,22 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
     @Test
     fun primaryChip_allHidden_hidden() =
-        testScope.runTest {
+        kosmos.runTest {
             screenRecordState.value = ScreenRecordModel.DoingNothing
             mediaProjectionState.value = MediaProjectionState.NotProjecting
-            callRepo.setOngoingCallState(OngoingCallModel.NoCall)
+            removeOngoingCallState("testKey")
 
             val latest by collectLastValue(underTest.primaryChip)
 
-            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Hidden::class.java)
+            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Inactive::class.java)
         }
 
     @Test
     fun primaryChip_screenRecordShow_restHidden_screenRecordShown() =
-        testScope.runTest {
+        kosmos.runTest {
             screenRecordState.value = ScreenRecordModel.Recording
             mediaProjectionState.value = MediaProjectionState.NotProjecting
-            callRepo.setOngoingCallState(OngoingCallModel.NoCall)
+            removeOngoingCallState("testKey")
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -132,10 +135,10 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
     @Test
     fun primaryChip_screenRecordShowAndCallShow_screenRecordShown() =
-        testScope.runTest {
+        kosmos.runTest {
             screenRecordState.value = ScreenRecordModel.Recording
 
-            callRepo.setOngoingCallState(inCallModel(startTimeMs = 34))
+            addOngoingCallState(isAppVisible = false)
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -144,11 +147,11 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
     @Test
     fun primaryChip_screenRecordShowAndShareToAppShow_screenRecordShown() =
-        testScope.runTest {
+        kosmos.runTest {
             screenRecordState.value = ScreenRecordModel.Recording
             mediaProjectionState.value =
                 MediaProjectionState.Projecting.EntireScreen(NORMAL_PACKAGE)
-            callRepo.setOngoingCallState(OngoingCallModel.NoCall)
+            removeOngoingCallState("testKey")
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -157,11 +160,11 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
     @Test
     fun primaryChip_shareToAppShowAndCallShow_shareToAppShown() =
-        testScope.runTest {
+        kosmos.runTest {
             screenRecordState.value = ScreenRecordModel.DoingNothing
             mediaProjectionState.value =
                 MediaProjectionState.Projecting.EntireScreen(NORMAL_PACKAGE)
-            callRepo.setOngoingCallState(inCallModel(startTimeMs = 34))
+            addOngoingCallState(isAppVisible = false)
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -170,30 +173,32 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
     @Test
     fun primaryChip_screenRecordAndShareToAppAndCastToOtherHideAndCallShown_callShown() =
-        testScope.runTest {
+        kosmos.runTest {
+            val notificationKey = "call"
             screenRecordState.value = ScreenRecordModel.DoingNothing
             // MediaProjection covers both share-to-app and cast-to-other-device
             mediaProjectionState.value = MediaProjectionState.NotProjecting
 
-            callRepo.setOngoingCallState(inCallModel(startTimeMs = 34))
+            addOngoingCallState(key = notificationKey, isAppVisible = false)
 
             val latest by collectLastValue(underTest.primaryChip)
 
-            assertIsCallChip(latest)
+            assertIsCallChip(latest, notificationKey, context)
         }
 
     @Test
     fun primaryChip_higherPriorityChipAdded_lowerPriorityChipReplaced() =
-        testScope.runTest {
+        kosmos.runTest {
             // Start with just the lowest priority chip shown
-            callRepo.setOngoingCallState(inCallModel(startTimeMs = 34))
+            val callNotificationKey = "call"
+            addOngoingCallState(key = callNotificationKey, isAppVisible = false)
             // And everything else hidden
             mediaProjectionState.value = MediaProjectionState.NotProjecting
             screenRecordState.value = ScreenRecordModel.DoingNothing
 
             val latest by collectLastValue(underTest.primaryChip)
 
-            assertIsCallChip(latest)
+            assertIsCallChip(latest, callNotificationKey, context)
 
             // WHEN the higher priority media projection chip is added
             mediaProjectionState.value =
@@ -215,12 +220,13 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
     @Test
     fun primaryChip_highestPriorityChipRemoved_showsNextPriorityChip() =
-        testScope.runTest {
+        kosmos.runTest {
             // WHEN all chips are active
             screenRecordState.value = ScreenRecordModel.Recording
             mediaProjectionState.value =
                 MediaProjectionState.Projecting.EntireScreen(NORMAL_PACKAGE)
-            callRepo.setOngoingCallState(inCallModel(startTimeMs = 34))
+            val callNotificationKey = "call"
+            addOngoingCallState(key = callNotificationKey, isAppVisible = false)
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -237,24 +243,23 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
             mediaProjectionState.value = MediaProjectionState.NotProjecting
 
             // THEN the lower priority call is used
-            assertIsCallChip(latest)
+            assertIsCallChip(latest, callNotificationKey, context)
         }
 
     /** Regression test for b/347726238. */
     @Test
     fun primaryChip_timerDoesNotResetAfterSubscribersRestart() =
-        testScope.runTest {
+        kosmos.runTest {
             var latest: OngoingActivityChipModel? = null
 
-            val job1 = underTest.primaryChip.onEach { latest = it }.launchIn(this)
+            val job1 = underTest.primaryChip.onEach { latest = it }.launchIn(kosmos.testScope)
 
             // Start a chip with a timer
             systemClock.setElapsedRealtime(1234)
             screenRecordState.value = ScreenRecordModel.Recording
 
-            runCurrent()
-
-            assertThat((latest as OngoingActivityChipModel.Shown.Timer).startTimeMs).isEqualTo(1234)
+            assertThat((latest as OngoingActivityChipModel.Active.Timer).startTimeMs)
+                .isEqualTo(1234)
 
             // Stop subscribing to the chip flow
             job1.cancel()
@@ -263,22 +268,25 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
             systemClock.setElapsedRealtime(5678)
 
             // WHEN we re-subscribe to the chip flow
-            val job2 = underTest.primaryChip.onEach { latest = it }.launchIn(this)
-
-            runCurrent()
+            val job2 = underTest.primaryChip.onEach { latest = it }.launchIn(kosmos.testScope)
 
             // THEN the old start time is still used
-            assertThat((latest as OngoingActivityChipModel.Shown.Timer).startTimeMs).isEqualTo(1234)
+            assertThat((latest as OngoingActivityChipModel.Active.Timer).startTimeMs)
+                .isEqualTo(1234)
 
             job2.cancel()
         }
 
     @Test
     fun primaryChip_screenRecordStoppedViaDialog_chipHiddenWithoutAnimation() =
-        testScope.runTest {
+        kosmos.runTest {
             screenRecordState.value = ScreenRecordModel.Recording
-            mediaProjectionState.value = MediaProjectionState.NotProjecting
-            callRepo.setOngoingCallState(OngoingCallModel.NoCall)
+            mediaProjectionState.value =
+                MediaProjectionState.Projecting.EntireScreen(
+                    NORMAL_PACKAGE,
+                    hostDeviceName = "Recording Display",
+                )
+            removeOngoingCallState("testKey")
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -286,20 +294,26 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
             // WHEN screen record gets stopped via dialog
             val dialogStopAction =
-                getStopActionFromDialog(latest, chipView, mockSystemUIDialog, kosmos)
+                getStopActionFromDialog(
+                    latest,
+                    chipView,
+                    mockExpandable,
+                    mockSystemUIDialog,
+                    kosmos,
+                )
             dialogStopAction.onClick(mock<DialogInterface>(), 0)
 
             // THEN the chip is immediately hidden with no animation
-            assertThat(latest).isEqualTo(OngoingActivityChipModel.Hidden(shouldAnimate = false))
+            assertThat(latest).isEqualTo(OngoingActivityChipModel.Inactive(shouldAnimate = false))
         }
 
     @Test
     fun primaryChip_projectionStoppedViaDialog_chipHiddenWithoutAnimation() =
-        testScope.runTest {
+        kosmos.runTest {
             mediaProjectionState.value =
                 MediaProjectionState.Projecting.EntireScreen(NORMAL_PACKAGE)
             screenRecordState.value = ScreenRecordModel.DoingNothing
-            callRepo.setOngoingCallState(OngoingCallModel.NoCall)
+            removeOngoingCallState("testKey")
 
             val latest by collectLastValue(underTest.primaryChip)
 
@@ -307,11 +321,17 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
 
             // WHEN media projection gets stopped via dialog
             val dialogStopAction =
-                getStopActionFromDialog(latest, chipView, mockSystemUIDialog, kosmos)
+                getStopActionFromDialog(
+                    latest,
+                    chipView,
+                    mockExpandable,
+                    mockSystemUIDialog,
+                    kosmos,
+                )
             dialogStopAction.onClick(mock<DialogInterface>(), 0)
 
             // THEN the chip is immediately hidden with no animation
-            assertThat(latest).isEqualTo(OngoingActivityChipModel.Hidden(shouldAnimate = false))
+            assertThat(latest).isEqualTo(OngoingActivityChipModel.Inactive(shouldAnimate = false))
         }
 
     companion object {
@@ -322,6 +342,7 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
         fun getStopActionFromDialog(
             latest: OngoingActivityChipModel?,
             chipView: View,
+            expandable: Expandable,
             dialog: SystemUIDialog,
             kosmos: Kosmos,
         ): DialogInterface.OnClickListener {
@@ -341,38 +362,75 @@ class OngoingActivityChipsViewModelTest : SysuiTestCase() {
                 .create(any<SystemUIDialog.Delegate>())
             whenever(kosmos.packageManager.getApplicationInfo(eq(NORMAL_PACKAGE), any<Int>()))
                 .thenThrow(PackageManager.NameNotFoundException())
-            // Click the chip so that we open the dialog and we fill in [dialogStopAction]
-            val clickListener = ((latest as OngoingActivityChipModel.Shown).onClickListener)
-            clickListener!!.onClick(chipView)
+
+            if (StatusBarChipsModernization.isEnabled) {
+                val clickBehavior = (latest as OngoingActivityChipModel.Active).clickBehavior
+                (clickBehavior as OngoingActivityChipModel.ClickBehavior.ExpandAction).onClick(
+                    expandable
+                )
+            } else {
+                val clickListener =
+                    ((latest as OngoingActivityChipModel.Active).onClickListenerLegacy)
+                clickListener!!.onClick(chipView)
+            }
 
             return dialogStopAction
         }
 
         fun assertIsScreenRecordChip(latest: OngoingActivityChipModel?) {
-            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Shown::class.java)
+            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Active::class.java)
+            assertThat((latest as OngoingActivityChipModel.Active).key)
+                .isEqualTo(ScreenRecordChipViewModel.KEY)
             val icon =
-                (((latest as OngoingActivityChipModel.Shown).icon)
-                        as OngoingActivityChipModel.ChipIcon.SingleColorIcon)
-                    .impl as Icon.Resource
+                ((latest.icon) as OngoingActivityChipModel.ChipIcon.SingleColorIcon).impl
+                    as Icon.Resource
             assertThat(icon.res).isEqualTo(R.drawable.ic_screenrecord)
         }
 
         fun assertIsShareToAppChip(latest: OngoingActivityChipModel?) {
-            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Shown::class.java)
+            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Active::class.java)
+            assertThat((latest as OngoingActivityChipModel.Active).key)
+                .isEqualTo(ShareToAppChipViewModel.KEY)
             val icon =
-                (((latest as OngoingActivityChipModel.Shown).icon)
-                        as OngoingActivityChipModel.ChipIcon.SingleColorIcon)
-                    .impl as Icon.Resource
+                ((latest.icon) as OngoingActivityChipModel.ChipIcon.SingleColorIcon).impl
+                    as Icon.Resource
             assertThat(icon.res).isEqualTo(R.drawable.ic_present_to_all)
         }
 
-        fun assertIsCallChip(latest: OngoingActivityChipModel?) {
-            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Shown::class.java)
-            val icon =
-                (((latest as OngoingActivityChipModel.Shown).icon)
-                        as OngoingActivityChipModel.ChipIcon.SingleColorIcon)
-                    .impl as Icon.Resource
-            assertThat(icon.res).isEqualTo(com.android.internal.R.drawable.ic_phone)
+        fun assertIsCallChip(
+            latest: OngoingActivityChipModel?,
+            notificationKey: String,
+            context: Context,
+        ) {
+            assertThat(latest).isInstanceOf(OngoingActivityChipModel.Active::class.java)
+            assertThat((latest as OngoingActivityChipModel.Active).key)
+                .isEqualTo("${CallChipViewModel.KEY_PREFIX}$notificationKey")
+
+            if (StatusBarConnectedDisplays.isEnabled) {
+                assertNotificationIcon(latest, notificationKey)
+            } else {
+                val contentDescription =
+                    if (latest.icon is OngoingActivityChipModel.ChipIcon.SingleColorIcon) {
+                        ((latest.icon) as OngoingActivityChipModel.ChipIcon.SingleColorIcon)
+                            .impl
+                            .contentDescription
+                    } else {
+                        (latest.icon as OngoingActivityChipModel.ChipIcon.StatusBarView)
+                            .contentDescription
+                    }
+                assertThat(contentDescription.loadContentDescription(context))
+                    .contains(context.getString(R.string.ongoing_call_content_description))
+            }
+        }
+
+        private fun assertNotificationIcon(
+            latest: OngoingActivityChipModel?,
+            notificationKey: String,
+        ) {
+            val active = latest as OngoingActivityChipModel.Active
+            val notificationIcon =
+                active.icon as OngoingActivityChipModel.ChipIcon.StatusBarNotificationIcon
+            assertThat(notificationIcon.notificationKey).isEqualTo(notificationKey)
         }
     }
 }

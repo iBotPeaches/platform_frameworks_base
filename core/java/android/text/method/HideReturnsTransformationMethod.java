@@ -24,6 +24,7 @@ import android.os.Build;
  * to be hidden by displaying them as zero-width non-breaking space
  * characters (\uFEFF).
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class HideReturnsTransformationMethod
 extends ReplacementTransformationMethod {
     private static char[] ORIGINAL = new char[] { '\r' };

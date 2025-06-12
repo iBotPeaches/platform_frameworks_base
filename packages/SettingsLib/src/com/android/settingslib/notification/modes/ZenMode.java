@@ -35,6 +35,7 @@ import static java.util.Objects.requireNonNull;
 import android.annotation.SuppressLint;
 import android.app.AutomaticZenRule;
 import android.app.NotificationManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Parcel;
@@ -117,6 +118,14 @@ public class ZenMode implements Parcelable {
         DISABLED_BY_OTHER
     }
 
+    /**
+     * Information about the owner of a {@link ZenMode}. {@link #packageName()} is
+     * {@link SystemZenRules#PACKAGE_ANDROID} if the mode is system-owned; it may also be
+     * {@code null}, but only as an artifact of very old modes.
+     */
+    public record Owner(@Nullable String packageName, @Nullable ComponentName configurationActivity,
+                           @Nullable ComponentName conditionProvider) { }
+
     private final String mId;
     private final AutomaticZenRule mRule;
     private final Kind mKind;
@@ -198,13 +207,17 @@ public class ZenMode implements Parcelable {
     }
 
     @NonNull
-    public AutomaticZenRule getRule() {
+    AutomaticZenRule getRule() {
         return mRule;
     }
 
     @NonNull
     public String getName() {
         return Strings.nullToEmpty(mRule.getName());
+    }
+
+    public void setName(@NonNull String name) {
+        mRule.setName(name);
     }
 
     @NonNull
@@ -215,6 +228,17 @@ public class ZenMode implements Parcelable {
     @NonNull
     public Status getStatus() {
         return mStatus;
+    }
+
+    @NonNull
+    public Owner getOwner() {
+        return new Owner(mRule.getPackageName(), mRule.getConfigurationActivity(),
+                mRule.getOwner());
+    }
+
+    @Nullable
+    public String getOwnerPackage() {
+        return getOwner().packageName();
     }
 
     @AutomaticZenRule.Type
@@ -255,6 +279,26 @@ public class ZenMode implements Parcelable {
                 return ZenIconKeys.forType(getType());
             }
         }
+    }
+
+    /**
+     * Returns the resource id of the icon for this mode. Note that this is the <em>stored</em>
+     * resource id, and thus can be different from the value in {@link #getIconKey()} -- in
+     * particular, for modes without a custom icon set, this method returns {@code 0} whereas
+     * {@link #getIconKey()} will return a default icon based on other mode properties.
+     *
+     * <p>Most callers are interested in {@link #getIconKey()}, unless they are editing the icon.
+     */
+    public int getIconResId() {
+        return mRule.getIconResId();
+    }
+
+    /**
+     * Sets the resource id of the icon for this mode.
+     * @see #getIconResId()
+     */
+    public void setIconResId(@DrawableRes int iconResId) {
+        mRule.setIconResId(iconResId);
     }
 
     /** Returns the interruption filter of the mode. */
@@ -443,6 +487,10 @@ public class ZenMode implements Parcelable {
 
     public boolean isActive() {
         return mStatus == Status.ENABLED_AND_ACTIVE;
+    }
+
+    public boolean isManualInvocationAllowed() {
+        return mRule.isManualInvocationAllowed();
     }
 
     public boolean isSystemOwned() {

@@ -18,8 +18,9 @@ android_library {
     resource_dirs: ["res"],
 
     static_libs: [
-        "androidx.annotation_annotation",
         "SettingsLibTile",
+        "androidx.annotation_annotation",
+        "androidx.core_core",
     ],
 
     min_sdk_version: "21",

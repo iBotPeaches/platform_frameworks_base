@@ -16,7 +16,7 @@
 
 package com.android.systemui.notifications.ui.viewmodel
 
-import android.platform.test.annotations.EnableFlags
+import android.app.StatusBarManager.DISABLE2_QUICK_SETTINGS
 import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
@@ -26,8 +26,11 @@ import com.android.systemui.authentication.domain.interactor.AuthenticationResul
 import com.android.systemui.authentication.domain.interactor.authenticationInteractor
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.EnableSceneContainer
+import com.android.systemui.kosmos.runCurrent
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
+import com.android.systemui.media.controls.data.repository.mediaFilterRepository
+import com.android.systemui.media.controls.shared.model.MediaData
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAwakeForTest
 import com.android.systemui.power.domain.interactor.powerInteractor
@@ -35,15 +38,14 @@ import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.domain.startable.sceneContainerStartable
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.shade.data.repository.shadeRepository
+import com.android.systemui.shade.domain.interactor.enableDualShade
 import com.android.systemui.shade.domain.interactor.shadeInteractor
-import com.android.systemui.shade.shared.flag.DualShade
 import com.android.systemui.shade.ui.viewmodel.notificationsShadeOverlayContentViewModel
-import com.android.systemui.statusbar.notification.data.repository.activeNotificationListRepository
-import com.android.systemui.statusbar.notification.data.repository.setActiveNotifs
+import com.android.systemui.statusbar.disableflags.data.repository.fakeDisableFlagsRepository
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -56,18 +58,18 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper
 @EnableSceneContainer
-@EnableFlags(DualShade.FLAG_NAME)
 class NotificationsShadeOverlayContentViewModelTest : SysuiTestCase() {
 
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
-    private val sceneInteractor = kosmos.sceneInteractor
-
+    private val sceneInteractor by lazy { kosmos.sceneInteractor }
     private val underTest by lazy { kosmos.notificationsShadeOverlayContentViewModel }
 
     @Before
     fun setUp() {
         kosmos.sceneContainerStartable.start()
+        kosmos.enableDualShade()
+        kosmos.runCurrent()
         underTest.activateIn(testScope)
     }
 
@@ -97,20 +99,6 @@ class NotificationsShadeOverlayContentViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    fun bouncerShown_hidesShade() =
-        testScope.runTest {
-            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
-            lockDevice()
-            sceneInteractor.showOverlay(Overlays.NotificationsShade, "test")
-            assertThat(currentOverlays).contains(Overlays.NotificationsShade)
-
-            sceneInteractor.changeScene(Scenes.Bouncer, "test")
-            runCurrent()
-
-            assertThat(currentOverlays).doesNotContain(Overlays.NotificationsShade)
-        }
-
-    @Test
     fun shadeNotTouchable_hidesShade() =
         testScope.runTest {
             val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
@@ -125,35 +113,43 @@ class NotificationsShadeOverlayContentViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    fun showHeader_showsOnNarrowScreen() =
+    fun showMedia_activeMedia_true() =
         testScope.runTest {
-            kosmos.shadeRepository.setShadeLayoutWide(false)
-
-            // Shown when notifications are present.
-            kosmos.activeNotificationListRepository.setActiveNotifs(1)
+            kosmos.mediaFilterRepository.addSelectedUserMediaEntry(MediaData(active = true))
             runCurrent()
-            assertThat(underTest.showHeader).isTrue()
 
-            // Hidden when notifications are not present.
-            kosmos.activeNotificationListRepository.setActiveNotifs(0)
-            runCurrent()
-            assertThat(underTest.showHeader).isFalse()
+            assertThat(underTest.showMedia).isTrue()
         }
 
     @Test
-    fun showHeader_hidesOnWideScreen() =
+    fun showMedia_InactiveMedia_false() =
         testScope.runTest {
-            kosmos.shadeRepository.setShadeLayoutWide(true)
-
-            // Hidden when notifications are present.
-            kosmos.activeNotificationListRepository.setActiveNotifs(1)
+            kosmos.mediaFilterRepository.addSelectedUserMediaEntry(MediaData(active = false))
             runCurrent()
-            assertThat(underTest.showHeader).isFalse()
 
-            // Hidden when notifications are not present.
-            kosmos.activeNotificationListRepository.setActiveNotifs(0)
+            assertThat(underTest.showMedia).isFalse()
+        }
+
+    @Test
+    fun showMedia_noMedia_false() =
+        testScope.runTest {
+            kosmos.mediaFilterRepository.addSelectedUserMediaEntry(MediaData(active = true))
+            kosmos.mediaFilterRepository.clearSelectedUserMedia()
             runCurrent()
-            assertThat(underTest.showHeader).isFalse()
+
+            assertThat(underTest.showMedia).isFalse()
+        }
+
+    @Test
+    fun showMedia_qsDisabled_false() =
+        testScope.runTest {
+            kosmos.mediaFilterRepository.addSelectedUserMediaEntry(MediaData(active = true))
+            kosmos.fakeDisableFlagsRepository.disableFlags.update {
+                it.copy(disable2 = DISABLE2_QUICK_SETTINGS)
+            }
+            runCurrent()
+
+            assertThat(underTest.showMedia).isFalse()
         }
 
     private fun TestScope.lockDevice() {

@@ -52,6 +52,7 @@ import com.android.internal.jank.Cuj
 import com.android.internal.policy.ScreenDecorationsUtils
 import com.android.internal.policy.SystemBarUtils
 import com.android.internal.protolog.ProtoLog
+import com.android.window.flags.Flags.enableMultidisplayTrackpadBackGesture
 import com.android.window.flags.Flags.predictiveBackTimestampApi
 import com.android.wm.shell.R
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer
@@ -210,7 +211,8 @@ abstract class CrossActivityBackAnimation(
                 statusbarHeight,
                 if (closingTarget!!.windowConfiguration.tasksAreFloating())
                     closingTarget!!.localBounds else null,
-                cornerRadius
+                cornerRadius,
+                closingTarget!!.taskInfo.getDisplayId()
         )
         ensureScrimLayer()
         if (isLetterboxed && enteringHasSameLetterbox) {
@@ -409,7 +411,12 @@ abstract class CrossActivityBackAnimation(
                 .setOpaque(false)
                 .setHidden(false)
 
-        rootTaskDisplayAreaOrganizer.attachToDisplayArea(Display.DEFAULT_DISPLAY, scrimBuilder)
+        if (enableMultidisplayTrackpadBackGesture()) {
+            rootTaskDisplayAreaOrganizer.attachToDisplayArea(
+                closingTarget!!.taskInfo.getDisplayId(), scrimBuilder)
+        } else {
+            rootTaskDisplayAreaOrganizer.attachToDisplayArea(Display.DEFAULT_DISPLAY, scrimBuilder)
+        }
         scrimLayer = scrimBuilder.build()
         val colorComponents = floatArrayOf(0f, 0f, 0f)
         maxScrimAlpha = if (isDarkTheme) MAX_SCRIM_ALPHA_DARK else MAX_SCRIM_ALPHA_LIGHT
@@ -473,7 +480,13 @@ abstract class CrossActivityBackAnimation(
                 .setOpaque(true)
                 .setHidden(false)
 
-        rootTaskDisplayAreaOrganizer.attachToDisplayArea(Display.DEFAULT_DISPLAY, letterboxBuilder)
+        if (enableMultidisplayTrackpadBackGesture()) {
+            rootTaskDisplayAreaOrganizer.attachToDisplayArea(
+                closingTarget!!.taskInfo.getDisplayId(), letterboxBuilder)
+        } else {
+            rootTaskDisplayAreaOrganizer.attachToDisplayArea(
+                Display.DEFAULT_DISPLAY, letterboxBuilder)
+        }
         val layer = letterboxBuilder.build()
         val colorComponents =
             floatArrayOf(

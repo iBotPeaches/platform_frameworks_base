@@ -288,4 +288,22 @@
     <item msgid="3753634915787796632">"2"</item>
     <item msgid="4779928470672877922">"3"</item>
   </string-array>
+  <string-array name="shade_display_awareness_entries">
+    <item msgid="816770658383209617">"सिर्फ़ डिवाइस का डिसप्ले (डिफ़ॉल्ट)"</item>
+    <item msgid="9161645858025071955">"बाहरी डिसप्ले पर"</item>
+    <item msgid="23651860565814477">"हाल ही में स्टेटस बार को टच किया गया"</item>
+    <item msgid="7521112827893653392">"फ़ोकस के हिसाब से"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_summaries">
+    <item msgid="2964753205732912921">"सिर्फ़ डिवाइस के डिसप्ले पर शेड दिखाएं"</item>
+    <item msgid="1955398604822147783">"किसी एक बाहरी डिसप्ले पर शेड दिखाएं"</item>
+    <item msgid="391477482416751568">"उस डिसप्ले पर शेड दिखाएं जिसकी स्टेटस बार के साथ पिछली बार इंटरैक्शन किया गया था"</item>
+    <item msgid="1746820128097981528">"उस डिसप्ले पर शेड दिखाएं जिस पर आखिरी बार फ़ोकस किया गया था"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_values">
+    <item msgid="3055776101992426514">"default_display"</item>
+    <item msgid="774789415968826925">"any_external_display"</item>
+    <item msgid="7880769915418638436">"status_bar_latest_touch"</item>
+    <item msgid="4313165186636015195">"focused_display"</item>
+  </string-array>
 </resources>

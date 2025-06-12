@@ -60,8 +60,6 @@ public class SurfaceAnimator {
     @VisibleForTesting
     SurfaceControl mLeash;
     @VisibleForTesting
-    SurfaceFreezer.Snapshot mSnapshot;
-    @VisibleForTesting
     final Animatable mAnimatable;
     @VisibleForTesting
     final OnAnimationFinishedCallback mInnerAnimationFinishedCallback;
@@ -134,10 +132,7 @@ public class SurfaceAnimator {
                         animationFinishCallback.onAnimationFinished(type, anim);
                     }
                 };
-                // If both the Animatable and AnimationAdapter requests to be deferred, only the
-                // first one will be called.
-                if (!(mAnimatable.shouldDeferAnimationFinish(resetAndInvokeFinish)
-                        || anim.shouldDeferAnimationFinish(resetAndInvokeFinish))) {
+                if (!anim.shouldDeferAnimationFinish(resetAndInvokeFinish)) {
                     resetAndInvokeFinish.run();
                 }
                 mAnimationFinished = true;
@@ -165,7 +160,7 @@ public class SurfaceAnimator {
             @AnimationType int type,
             @Nullable OnAnimationFinishedCallback animationFinishedCallback,
             @Nullable Runnable animationCancelledCallback,
-            @Nullable AnimationAdapter snapshotAnim, @Nullable SurfaceFreezer freezer) {
+            @Nullable AnimationAdapter snapshotAnim) {
         cancelAnimation(t, true /* restarting */, true /* forwardCancel */);
         mAnimation = anim;
         mAnimationType = type;
@@ -177,7 +172,6 @@ public class SurfaceAnimator {
             cancelAnimation();
             return;
         }
-        mLeash = freezer != null ? freezer.takeLeashForAnimation() : null;
         if (mLeash == null) {
             mLeash = createAnimationLeash(mAnimatable, surface, t, type,
                     mAnimatable.getSurfaceWidth(), mAnimatable.getSurfaceHeight(), 0 /* x */,
@@ -192,20 +186,21 @@ public class SurfaceAnimator {
             mAnimation.dump(pw, "");
             ProtoLog.d(WM_DEBUG_ANIM, "Animation start for %s, anim=%s", mAnimatable, sw);
         }
-        if (snapshotAnim != null) {
-            mSnapshot = freezer.takeSnapshotForAnimation();
-            if (mSnapshot == null) {
-                Slog.e(TAG, "No snapshot target to start animation on for " + mAnimatable);
-                return;
-            }
-            mSnapshot.startAnimation(t, snapshotAnim, type);
-        }
+        setAnimatorPendingState(t);
     }
 
     void startAnimation(Transaction t, AnimationAdapter anim, boolean hidden,
             @AnimationType int type) {
         startAnimation(t, anim, hidden, type, null /* animationFinishedCallback */,
-                null /* animationCancelledCallback */, null /* snapshotAnim */, null /* freezer */);
+                null /* animationCancelledCallback */, null /* snapshotAnim */);
+    }
+
+    /** Indicates that there are surface operations in the pending transaction. */
+    private void setAnimatorPendingState(Transaction t) {
+        if (mService.mAnimator.mPendingState == WindowAnimator.PENDING_STATE_NONE
+                && t == mAnimatable.getPendingTransaction()) {
+            mService.mAnimator.mPendingState = WindowAnimator.PENDING_STATE_HAS_CHANGES;
+        }
     }
 
     /** Returns whether it is currently running an animation. */
@@ -308,7 +303,6 @@ public class SurfaceAnimator {
         final OnAnimationFinishedCallback animationFinishedCallback =
                 mSurfaceAnimationFinishedCallback;
         final Runnable animationCancelledCallback = mAnimationCancelledCallback;
-        final SurfaceFreezer.Snapshot snapshot = mSnapshot;
         reset(t, false);
         if (animation != null) {
             if (forwardCancel) {
@@ -328,9 +322,6 @@ public class SurfaceAnimator {
         }
 
         if (forwardCancel) {
-            if (snapshot != null) {
-                snapshot.cancelAnimation(t, false /* restarting */);
-            }
             if (leash != null) {
                 t.remove(leash);
                 mService.scheduleAnimationLocked();
@@ -343,12 +334,6 @@ public class SurfaceAnimator {
         mAnimation = null;
         mSurfaceAnimationFinishedCallback = null;
         mAnimationType = ANIMATION_TYPE_NONE;
-        final SurfaceFreezer.Snapshot snapshot = mSnapshot;
-        mSnapshot = null;
-        if (snapshot != null) {
-            // Reset the mSnapshot reference before calling the callback to prevent circular reset.
-            snapshot.cancelAnimation(t, !destroyLeash);
-        }
         if (mLeash == null) {
             return;
         }
@@ -357,6 +342,7 @@ public class SurfaceAnimator {
         final boolean scheduleAnim = removeLeash(t, mAnimatable, leash, destroyLeash);
         mAnimationFinished = false;
         if (scheduleAnim) {
+            setAnimatorPendingState(t);
             mService.scheduleAnimationLocked();
         }
     }
@@ -587,8 +573,7 @@ public class SurfaceAnimator {
         void commitPendingTransaction();
 
         /**
-         * Called when the animation leash is created. Note that this is also called by
-         * {@link SurfaceFreezer}, so this doesn't mean we're about to start animating.
+         * Called when the animation leash is created.
          *
          * @param t The transaction to use to apply any necessary changes.
          * @param leash The leash that was created.
@@ -651,23 +636,5 @@ public class SurfaceAnimator {
          * @return The height of the surface to be animated.
          */
         int getSurfaceHeight();
-
-        /**
-         * Gets called when the animation is about to finish and gives the client the opportunity to
-         * defer finishing the animation, i.e. it keeps the leash around until the client calls
-         * {@link #cancelAnimation}.
-         * <p>
-         * {@link AnimationAdapter} has a similar method which is called only if this method returns
-         * false. This mean that if both this {@link Animatable} and the {@link AnimationAdapter}
-         * request to be deferred, this method is the sole responsible to call
-         * endDeferFinishCallback. On the other hand, the animation finish might still be deferred
-         * if this method return false and the one from the {@link AnimationAdapter} returns true.
-         *
-         * @param endDeferFinishCallback The callback to call when defer finishing should be ended.
-         * @return Whether the client would like to defer the animation finish.
-         */
-        default boolean shouldDeferAnimationFinish(Runnable endDeferFinishCallback) {
-            return false;
-        }
     }
 }

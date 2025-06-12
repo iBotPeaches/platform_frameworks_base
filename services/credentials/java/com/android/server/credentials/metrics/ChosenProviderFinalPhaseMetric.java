@@ -83,10 +83,22 @@ public class ChosenProviderFinalPhaseMetric {
     // Indicates if this chosen provider was the primary provider, false by default
     private boolean mIsPrimary = false;
 
+    private String mChosenClassType = "";
+
 
     public ChosenProviderFinalPhaseMetric(int sessionIdCaller, int sessionIdProvider) {
         mSessionIdCaller = sessionIdCaller;
         mSessionIdProvider = sessionIdProvider;
+    }
+
+    /* ------------------- Chosen Credential ------------------- */
+
+    public void setChosenClassType(String clickedClassType) {
+        mChosenClassType = clickedClassType;
+    }
+
+    public String getChosenClassType() {
+        return mChosenClassType;
     }
 
     /* ------------------- UID ------------------- */

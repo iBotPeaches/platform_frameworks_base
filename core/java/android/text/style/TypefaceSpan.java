@@ -50,6 +50,7 @@ import android.text.TextUtils;
  * <figcaption>Text with <code>TypefaceSpan</code>s constructed based on a font from resource and
  * from a font family.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TypefaceSpan extends MetricAffectingSpan implements ParcelableSpan {
 
     @Nullable

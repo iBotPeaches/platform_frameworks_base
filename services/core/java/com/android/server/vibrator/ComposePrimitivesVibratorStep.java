@@ -73,7 +73,8 @@ final class ComposePrimitivesVibratorStep extends AbstractComposedVibratorStep {
 
             PrimitiveSegment[] primitivesArray =
                     primitives.toArray(new PrimitiveSegment[primitives.size()]);
-            long vibratorOnResult = controller.on(primitivesArray, getVibration().id);
+            int stepId = conductor.nextVibratorCallbackStepId(getVibratorId());
+            long vibratorOnResult = controller.on(primitivesArray, getVibration().id, stepId);
             handleVibratorOnResult(vibratorOnResult);
             getVibration().stats.reportComposePrimitives(vibratorOnResult, primitivesArray);
 

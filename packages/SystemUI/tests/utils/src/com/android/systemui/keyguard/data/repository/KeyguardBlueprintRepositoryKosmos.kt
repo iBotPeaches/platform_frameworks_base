@@ -29,6 +29,7 @@ import com.android.systemui.keyguard.ui.viewmodel.keyguardClockViewModel
 import com.android.systemui.keyguard.ui.viewmodel.keyguardRootViewModel
 import com.android.systemui.keyguard.ui.viewmodel.keyguardSmartspaceViewModel
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.shade.LargeScreenHeaderHelper
 import java.util.Optional
 import org.mockito.Mockito.spy
@@ -59,12 +60,11 @@ val Kosmos.defaultKeyguardBlueprint by
             defaultShortcutsSection = mock(),
             defaultAmbientIndicationAreaSection = Optional.of(mock()),
             defaultSettingsPopupMenuSection = mock(),
-            defaultStatusViewSection = mock(),
             defaultStatusBarSection = mock(),
             defaultNotificationStackScrollLayoutSection = mock(),
+            aodPromotedNotificationSection = mock(),
             aodNotificationIconsSection = mock(),
             aodBurnInSection = mock(),
-            communalTutorialIndicatorSection = mock(),
             clockSection = keyguardClockSection,
             smartspaceSection = keyguardSmartspaceSection,
             keyguardSliceViewSection = mock(),
@@ -81,13 +81,12 @@ val Kosmos.splitShadeBlueprint by
             defaultShortcutsSection = mock(),
             defaultAmbientIndicationAreaSection = Optional.of(mock()),
             defaultSettingsPopupMenuSection = mock(),
-            defaultStatusViewSection = mock(),
             defaultStatusBarSection = mock(),
             splitShadeNotificationStackScrollLayoutSection = mock(),
             splitShadeGuidelines = mock(),
+            aodPromotedNotificationSection = mock(),
             aodNotificationIconsSection = mock(),
             aodBurnInSection = mock(),
-            communalTutorialIndicatorSection = mock(),
             clockSection = keyguardClockSection,
             smartspaceSection = keyguardSmartspaceSection,
             mediaSection = mock(),
@@ -102,6 +101,7 @@ val Kosmos.keyguardBlueprintRepository by
                 blueprints = setOf(defaultKeyguardBlueprint, splitShadeBlueprint),
                 handler = fakeExecutorHandler,
                 assert = mock(),
+                log = logcatLogBuffer("blueprints"),
             )
         )
     }

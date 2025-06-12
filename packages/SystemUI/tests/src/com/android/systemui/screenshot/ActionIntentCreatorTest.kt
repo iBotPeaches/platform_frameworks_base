@@ -19,29 +19,47 @@ package com.android.systemui.screenshot
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.ext.truth.content.IntentSubject.assertThat as assertThatIntent
 import androidx.test.filters.SmallTest
-import com.android.systemui.res.R
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.res.R
+import com.android.systemui.shared.Flags
 import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.mock
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.Mockito.`when` as whenever
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class ActionIntentCreatorTest : SysuiTestCase() {
+    private val scheduler = TestCoroutineScheduler()
+    private val mainDispatcher = UnconfinedTestDispatcher(scheduler)
+    private val testScope = TestScope(mainDispatcher)
+    val context = mock<Context>()
+    val packageManager = mock<PackageManager>()
+    private val actionIntentCreator =
+        ActionIntentCreator(context, packageManager, testScope.backgroundScope, mainDispatcher)
 
     @Test
     fun testCreateShare() {
         val uri = Uri.parse("content://fake")
 
-        val output = ActionIntentCreator.createShare(uri)
+        val output = actionIntentCreator.createShare(uri)
 
         assertThatIntent(output).hasAction(Intent.ACTION_CHOOSER)
         assertThatIntent(output)
@@ -66,7 +84,7 @@ class ActionIntentCreatorTest : SysuiTestCase() {
     fun testCreateShare_embeddedUserIdRemoved() {
         val uri = Uri.parse("content://555@fake")
 
-        val output = ActionIntentCreator.createShare(uri)
+        val output = actionIntentCreator.createShare(uri)
 
         assertThatIntent(output.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java))
             .hasData(Uri.parse("content://fake"))
@@ -77,7 +95,7 @@ class ActionIntentCreatorTest : SysuiTestCase() {
         val uri = Uri.parse("content://fake")
         val subject = "Example subject"
 
-        val output = ActionIntentCreator.createShareWithSubject(uri, subject)
+        val output = actionIntentCreator.createShareWithSubject(uri, subject)
 
         assertThatIntent(output).hasAction(Intent.ACTION_CHOOSER)
         assertThatIntent(output)
@@ -101,7 +119,7 @@ class ActionIntentCreatorTest : SysuiTestCase() {
         val uri = Uri.parse("content://fake")
         val extraText = "Extra text"
 
-        val output = ActionIntentCreator.createShareWithText(uri, extraText)
+        val output = actionIntentCreator.createShareWithText(uri, extraText)
 
         assertThatIntent(output).hasAction(Intent.ACTION_CHOOSER)
         assertThatIntent(output)
@@ -121,13 +139,13 @@ class ActionIntentCreatorTest : SysuiTestCase() {
     }
 
     @Test
-    fun testCreateEdit() {
+    @DisableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEditLegacy() = runTest {
         val uri = Uri.parse("content://fake")
-        val context = mock<Context>()
 
         whenever(context.getString(eq(R.string.config_screenshotEditor))).thenReturn("")
 
-        val output = ActionIntentCreator.createEdit(uri, context)
+        val output = actionIntentCreator.createEdit(uri)
 
         assertThatIntent(output).hasAction(Intent.ACTION_EDIT)
         assertThatIntent(output).hasData(uri)
@@ -144,26 +162,126 @@ class ActionIntentCreatorTest : SysuiTestCase() {
     }
 
     @Test
-    fun testCreateEdit_embeddedUserIdRemoved() {
+    @DisableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEditLegacy_embeddedUserIdRemoved() = runTest {
         val uri = Uri.parse("content://555@fake")
-        val context = mock<Context>()
         whenever(context.getString(eq(R.string.config_screenshotEditor))).thenReturn("")
 
-        val output = ActionIntentCreator.createEdit(uri, context)
+        val output = actionIntentCreator.createEdit(uri)
 
         assertThatIntent(output).hasData(Uri.parse("content://fake"))
     }
 
     @Test
-    fun testCreateEdit_withEditor() {
+    @DisableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEditLegacy_withEditor() = runTest {
         val uri = Uri.parse("content://fake")
-        val context = mock<Context>()
         val component = ComponentName("com.android.foo", "com.android.foo.Something")
 
         whenever(context.getString(eq(R.string.config_screenshotEditor)))
             .thenReturn(component.flattenToString())
 
-        val output = ActionIntentCreator.createEdit(uri, context)
+        val output = actionIntentCreator.createEdit(uri)
+
+        assertThatIntent(output).hasComponent(component)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEdit() = runTest {
+        val uri = Uri.parse("content://fake")
+
+        whenever(context.getString(eq(R.string.config_screenshotEditor))).thenReturn("")
+
+        val output = actionIntentCreator.createEdit(uri)
+
+        assertThatIntent(output).hasAction(Intent.ACTION_EDIT)
+        assertThatIntent(output).hasData(uri)
+        assertThatIntent(output).hasType("image/png")
+        assertWithMessage("getComponent()").that(output.component).isNull()
+        assertThat(output.getStringExtra("edit_source")).isEqualTo("screenshot")
+        assertThatIntent(output)
+            .hasFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TASK
+            )
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEdit_embeddedUserIdRemoved() = runTest {
+        val uri = Uri.parse("content://555@fake")
+        whenever(context.getString(eq(R.string.config_screenshotEditor))).thenReturn("")
+
+        val output = actionIntentCreator.createEdit(uri)
+
+        assertThatIntent(output).hasData(Uri.parse("content://fake"))
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEdit_withPreferredEditorEnabled() = runTest {
+        val uri = Uri.parse("content://fake")
+        val fallbackComponent = ComponentName("com.android.foo", "com.android.foo.Something")
+        val preferredComponent = ComponentName("com.android.bar", "com.android.bar.Something")
+
+        val packageInfo =
+            PackageInfo().apply {
+                activities =
+                    arrayOf(
+                        ActivityInfo().apply {
+                            packageName = preferredComponent.packageName
+                            name = preferredComponent.className
+                        }
+                    )
+            }
+        whenever(packageManager.getPackageInfo(eq(preferredComponent.packageName), anyInt()))
+            .thenReturn(packageInfo)
+        whenever(context.getString(eq(R.string.config_screenshotEditor)))
+            .thenReturn(fallbackComponent.flattenToString())
+        whenever(context.getString(eq(R.string.config_preferredScreenshotEditor)))
+            .thenReturn(preferredComponent.flattenToString())
+
+        val output = actionIntentCreator.createEdit(uri)
+
+        assertThatIntent(output).hasComponent(preferredComponent)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEdit_withPreferredEditorDisabled() = runTest {
+        val uri = Uri.parse("content://fake")
+        val fallbackComponent = ComponentName("com.android.foo", "com.android.foo.Something")
+        val preferredComponent = ComponentName("com.android.bar", "com.android.bar.Something")
+
+        val packageInfo =
+            PackageInfo().apply {
+                activities = arrayOf() // no activities
+            }
+        whenever(packageManager.getPackageInfo(eq(preferredComponent.packageName), anyInt()))
+            .thenReturn(packageInfo)
+        whenever(context.getString(eq(R.string.config_screenshotEditor)))
+            .thenReturn(fallbackComponent.flattenToString())
+        whenever(context.getString(eq(R.string.config_preferredScreenshotEditor)))
+            .thenReturn(preferredComponent.flattenToString())
+
+        val output = actionIntentCreator.createEdit(uri)
+
+        assertThatIntent(output).hasComponent(fallbackComponent)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_USE_PREFERRED_IMAGE_EDITOR)
+    fun testCreateEdit_withFallbackEditor() = runTest {
+        val uri = Uri.parse("content://fake")
+        val component = ComponentName("com.android.foo", "com.android.foo.Something")
+
+        whenever(context.getString(eq(R.string.config_screenshotEditor)))
+            .thenReturn(component.flattenToString())
+
+        val output = actionIntentCreator.createEdit(uri)
 
         assertThatIntent(output).hasComponent(component)
     }

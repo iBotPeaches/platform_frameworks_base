@@ -87,6 +87,7 @@ import android.service.quicksettings.TileService;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.IndentingPrintWriter;
+import android.util.IntArray;
 import android.util.Pair;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -95,7 +96,6 @@ import android.view.WindowInsets;
 import android.view.WindowInsets.Type.InsetsType;
 import android.view.WindowInsetsController.Appearance;
 import android.view.WindowInsetsController.Behavior;
-import android.view.accessibility.Flags;
 
 import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
@@ -103,6 +103,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
 import com.android.internal.logging.InstanceId;
 import com.android.internal.os.TransferPipe;
+import com.android.internal.statusbar.DisableStates;
 import com.android.internal.statusbar.IAddTileResultCallback;
 import com.android.internal.statusbar.ISessionListener;
 import com.android.internal.statusbar.IStatusBar;
@@ -125,6 +126,7 @@ import com.android.server.policy.GlobalActionsProvider;
 import com.android.server.power.ShutdownCheckPoints;
 import com.android.server.power.ShutdownThread;
 import com.android.server.wm.ActivityTaskManagerInternal;
+import com.android.systemui.shared.Flags;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -358,11 +360,9 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
     public void onDisplayChanged(int displayId) {}
 
     /**
-     * Private API used by NotificationManagerService.
+     * Private API used by NotificationManagerService and other system services.
      */
     private final StatusBarManagerInternal mInternalService = new StatusBarManagerInternal() {
-        private boolean mNotificationLightOn;
-
         @Override
         public void setNotificationDelegate(NotificationDelegate delegate) {
             mNotificationDelegate = delegate;
@@ -414,6 +414,17 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
             if (bar != null) {
                 try {
                     bar.onCameraLaunchGestureDetected(source);
+                } catch (RemoteException e) {
+                }
+            }
+        }
+
+        @Override
+        public void onWalletLaunchGestureDetected() {
+            IStatusBar bar = mBar;
+            if (bar != null) {
+                try {
+                    bar.onWalletLaunchGestureDetected();
                 } catch (RemoteException e) {
                 }
             }
@@ -724,7 +735,7 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
 
         @Override
         public void immersiveModeChanged(int displayId, int rootDisplayAreaId,
-                boolean isImmersiveMode) {
+                boolean isImmersiveMode, int windowType) {
             if (mBar == null) {
                 return;
             }
@@ -738,7 +749,7 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
             if (!CLIENT_TRANSIENT) {
                 // Only call from here when the client transient is not enabled.
                 try {
-                    mBar.immersiveModeChanged(rootDisplayAreaId, isImmersiveMode);
+                    mBar.immersiveModeChanged(rootDisplayAreaId, isImmersiveMode, windowType);
                 } catch (RemoteException ex) {
                 }
             }
@@ -762,10 +773,11 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         }
 
         @Override
-        public void onDisplayReady(int displayId) {
+        public void onDisplayAddSystemDecorations(int displayId) {
             if (isVisibleBackgroundUserOnDisplay(displayId)) {
                 if (SPEW) {
-                    Slog.d(TAG, "Skipping onDisplayReady for visible background user "
+                    Slog.d(TAG, "Skipping onDisplayAddSystemDecorations for visible background "
+                            + "user "
                             + mUserManagerInternal.getUserAssignedToDisplay(displayId));
                 }
                 return;
@@ -773,7 +785,27 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
             IStatusBar bar = mBar;
             if (bar != null) {
                 try {
-                    bar.onDisplayReady(displayId);
+                    bar.onDisplayAddSystemDecorations(displayId);
+                } catch (RemoteException ex) {}
+            }
+        }
+
+        @Override
+        public void onDisplayRemoveSystemDecorations(int displayId) {
+            if (isVisibleBackgroundUserOnDisplay(displayId)) {
+                if (SPEW) {
+                    Slog.d(TAG,
+                            "Skipping onDisplayRemoveSystemDecorations for visible background "
+                                    + "user "
+                                    + mUserManagerInternal.getUserAssignedToDisplay(displayId));
+                }
+                return;
+            }
+
+            IStatusBar bar = mBar;
+            if (bar != null) {
+                try {
+                    bar.onDisplayRemoveSystemDecorations(displayId);
                 } catch (RemoteException ex) {}
             }
         }
@@ -970,16 +1002,17 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
 
         @Override
         public void addQsTileToFrontOrEnd(ComponentName tile, boolean end) {
-            if (Flags.a11yQsShortcut()) {
-                StatusBarManagerService.this.addQsTileToFrontOrEnd(tile, end);
-            }
+            StatusBarManagerService.this.addQsTileToFrontOrEnd(tile, end);
         }
 
         @Override
         public void removeQsTile(ComponentName tile) {
-            if (Flags.a11yQsShortcut()) {
-                StatusBarManagerService.this.remTile(tile);
-            }
+            StatusBarManagerService.this.remTile(tile);
+        }
+
+        @Override
+        public void passThroughShellCommand(String[] args, FileDescriptor fd) {
+            StatusBarManagerService.this.passThroughShellCommand(args, fd);
         }
     };
 
@@ -1087,19 +1120,7 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
     }
 
     public void addTile(ComponentName component) {
-        if (Flags.a11yQsShortcut()) {
-            addQsTileToFrontOrEnd(component, false);
-        } else {
-            enforceStatusBarOrShell();
-            enforceValidCallingUser();
-
-            if (mBar != null) {
-                try {
-                    mBar.addQsTile(component);
-                } catch (RemoteException ex) {
-                }
-            }
-        }
+        addQsTileToFrontOrEnd(component, false);
     }
 
     private void addQsTileToFrontOrEnd(ComponentName tile, boolean end) {
@@ -1326,48 +1347,76 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         return mTracingEnabled;
     }
 
-    // TODO(b/117478341): make it aware of multi-display if needed.
+    /**
+     * Disable status bar features. Pass the bitwise-or of the {@code #DISABLE_*} flags.
+     * To re-enable everything, pass {@code #DISABLE_NONE}.
+     *
+     * Warning: Only pass {@code #DISABLE_*} flags into this function, do not use
+     * {@code #DISABLE2_*} flags.
+     */
     @Override
     public void disable(int what, IBinder token, String pkg) {
         disableForUser(what, token, pkg, mCurrentUserId);
     }
 
-    // TODO(b/117478341): make it aware of multi-display if needed.
+    /**
+     * Disable status bar features for a given user. Pass the bitwise-or of the
+     * {@code #DISABLE_*} flags. To re-enable everything, pass {@code #DISABLE_NONE}.
+     *
+     * Warning: Only pass {@code #DISABLE_*} flags into this function, do not use
+     * {@code #DISABLE2_*} flags.
+     */
     @Override
     public void disableForUser(int what, IBinder token, String pkg, int userId) {
         enforceStatusBar();
         enforceValidCallingUser();
 
         synchronized (mLock) {
-            disableLocked(DEFAULT_DISPLAY, userId, what, token, pkg, 1);
+            if (Flags.statusBarConnectedDisplays()) {
+                IntArray displayIds = new IntArray();
+                for (int i = 0; i < mDisplayUiState.size(); i++) {
+                    displayIds.add(mDisplayUiState.keyAt(i));
+                }
+                disableAllDisplaysLocked(displayIds, userId, what, token, pkg, /* whichFlag= */ 1);
+            } else {
+                disableLocked(DEFAULT_DISPLAY, userId, what, token, pkg, /* whichFlag= */ 1);
+            }
         }
     }
 
-    // TODO(b/117478341): make it aware of multi-display if needed.
     /**
-     * Disable additional status bar features. Pass the bitwise-or of the DISABLE2_* flags.
-     * To re-enable everything, pass {@link #DISABLE2_NONE}.
+     * Disable additional status bar features. Pass the bitwise-or of the {@code #DISABLE2_*} flags.
+     * To re-enable everything, pass {@code #DISABLE2_NONE}.
      *
-     * Warning: Only pass DISABLE2_* flags into this function, do not use DISABLE_* flags.
+     * Warning: Only pass {@code #DISABLE2_*} flags into this function, do not use
+     * {@code #DISABLE_*} flags.
      */
     @Override
     public void disable2(int what, IBinder token, String pkg) {
         disable2ForUser(what, token, pkg, mCurrentUserId);
     }
 
-    // TODO(b/117478341): make it aware of multi-display if needed.
     /**
-     * Disable additional status bar features for a given user. Pass the bitwise-or of the
-     * DISABLE2_* flags. To re-enable everything, pass {@link #DISABLE_NONE}.
+     * Disable additional status bar features for a given user. Pass the bitwise-or
+     * of the {@code #DISABLE2_*} flags. To re-enable everything, pass {@code #DISABLE2_NONE}.
      *
-     * Warning: Only pass DISABLE2_* flags into this function, do not use DISABLE_* flags.
+     * Warning: Only pass {@code #DISABLE2_*} flags into this function, do not use
+     * {@code #DISABLE_*}  flags.
      */
     @Override
     public void disable2ForUser(int what, IBinder token, String pkg, int userId) {
         enforceStatusBar();
 
         synchronized (mLock) {
-            disableLocked(DEFAULT_DISPLAY, userId, what, token, pkg, 2);
+            if (Flags.statusBarConnectedDisplays()) {
+                IntArray displayIds = new IntArray();
+                for (int i = 0; i < mDisplayUiState.size(); i++) {
+                    displayIds.add(mDisplayUiState.keyAt(i));
+                }
+                disableAllDisplaysLocked(displayIds, userId, what, token, pkg, /* whichFlag= */ 2);
+            } else {
+                disableLocked(DEFAULT_DISPLAY, userId, what, token, pkg, /* whichFlag= */ 2);
+            }
         }
     }
 
@@ -1393,6 +1442,42 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
                 } catch (RemoteException ex) {
                 }
             }
+        }
+    }
+
+    // This method batches disable state across all displays into a single remote call
+    // (IStatusBar#disableForAllDisplays) for efficiency and calls
+    // NotificationDelegate#onSetDisabled only if any display's disable state changes.
+    private void disableAllDisplaysLocked(IntArray displayIds, int userId, int what, IBinder token,
+            String pkg, int whichFlag) {
+        // It's important that the the callback and the call to mBar get done
+        // in the same order when multiple threads are calling this function
+        // so they are paired correctly.  The messages on the handler will be
+        // handled in the order they were enqueued, but will be outside the lock.
+        manageDisableListLocked(userId, what, token, pkg, whichFlag);
+
+        // Ensure state for the current user is applied, even if passed a non-current user.
+        final int net1 = gatherDisableActionsLocked(mCurrentUserId, 1);
+        final int net2 = gatherDisableActionsLocked(mCurrentUserId, 2);
+
+        IStatusBar bar = mBar;
+        Map<Integer, Pair<Integer, Integer>> displaysWithNewDisableStates = new HashMap<>();
+        for (int displayId : displayIds.toArray()) {
+            final UiState state = getUiState(displayId);
+            if (!state.disableEquals(net1, net2)) {
+                state.setDisabled(net1, net2);
+                displaysWithNewDisableStates.put(displayId, new Pair(net1, net2));
+            }
+        }
+        if (bar != null) {
+            try {
+                bar.disableForAllDisplays(new DisableStates(displaysWithNewDisableStates));
+            } catch (RemoteException ex) {
+                Slog.e(TAG, "Unable to disable Status bar.", ex);
+            }
+        }
+        if (!displaysWithNewDisableStates.isEmpty()) {
+            mHandler.post(() -> mNotificationDelegate.onSetDisabled(net1));
         }
     }
 
@@ -2177,7 +2262,6 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
             Binder.restoreCallingIdentity(identity);
         }
     }
-
 
     @Override
     public void onShellCommand(FileDescriptor in, FileDescriptor out, FileDescriptor err,

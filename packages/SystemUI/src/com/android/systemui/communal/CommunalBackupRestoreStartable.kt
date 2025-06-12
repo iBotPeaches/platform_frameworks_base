@@ -29,6 +29,7 @@ import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
 import com.android.systemui.communal.widgets.CommunalWidgetModule
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.Logger
 import com.android.systemui.log.dagger.CommunalLog
@@ -43,7 +44,7 @@ constructor(
     private val communalInteractor: CommunalInteractor,
     @CommunalLog logBuffer: LogBuffer,
     private val secureSettings: SecureSettings,
-    handler: Handler,
+    @Main handler: Handler,
 ) : CoreStartable, BroadcastReceiver() {
 
     private val logger = Logger(logBuffer, TAG)

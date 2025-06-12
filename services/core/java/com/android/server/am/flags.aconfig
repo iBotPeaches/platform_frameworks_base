@@ -205,13 +205,6 @@ flag {
 }
 
 flag {
-    name: "reset_on_fork_enabled"
-    namespace: "system_performance"
-    description: "Set reset_on_fork flag."
-    bug: "370988407"
-}
-
-flag {
     name: "push_global_state_to_oomadjuster"
     namespace: "backstage_power"
     description: "Migrate OomAdjuster pulled device state to a push model"
@@ -270,6 +263,16 @@ flag {
 }
 
 flag {
+    name: "prototype_aggressive_freezing"
+    namespace: "backstage_power"
+    description: "Grant PROCESS_CAPABILITY_CPU_TIME to as many valid states and aggressively freeze other states"
+    bug: "370798593"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "add_modify_raw_oom_adj_service_level"
     namespace: "backstage_power"
     description: "Add a SERVICE_ADJ level to the modifyRawOomAdj method"
@@ -284,6 +287,45 @@ flag {
     namespace: "system_performance"
     description: "Adjust handling of isolated process records to be discarded."
     bug: "374032823"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "perceptible_tasks"
+    namespace: "system_performance"
+    description: "Boost the oom_score_adj of activities in perceptible tasks"
+    bug: "370890207"
+}
+
+flag {
+    name: "expedite_activity_launch_on_cold_start"
+    namespace: "system_performance"
+    description: "Notify ActivityTaskManager of cold starts early to fix app launch behavior."
+    bug: "319519089"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "raise_bound_ui_service_threshold"
+    namespace: "backstage_power"
+    is_fixed_read_only: true
+    description: "Raise the threshold OomAdjuster will drop a service with UI to cached."
+    bug: "391691057"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "lower_sms_oom_importance"
+    namespace: "backstage_power"
+    description: "Lower messaging app process oom importance to PERCEPTIBLE_APP_ADJ + 1."
+    bug: "372511805"
+    is_fixed_read_only: true
     metadata {
         purpose: PURPOSE_BUGFIX
     }

@@ -2,4 +2,8 @@
 <resources>
     <!-- Name of the application. [CHAR LIMIT=35] -->
     <string name="app_label">Fused Location</string>
+    <!-- Attribution for Fused Overlay Service. [CHAR LIMIT=NONE]-->
+    <string name="fused_overlay_service">Fused Overlay Service</string>
+    <!-- Attribution for GNSS Overlay Service. [CHAR LIMIT=NONE]-->
+    <string name="gnss_overlay_service">GNSS Overlay Service</string>
 </resources>

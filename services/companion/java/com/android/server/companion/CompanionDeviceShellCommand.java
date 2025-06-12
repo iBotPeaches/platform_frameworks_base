@@ -18,6 +18,8 @@ package com.android.server.companion;
 
 import static android.companion.CompanionDeviceManager.MESSAGE_REQUEST_CONTEXT_SYNC;
 
+import static com.android.server.companion.association.DisassociationProcessor.REASON_SHELL;
+
 import android.companion.AssociationInfo;
 import android.companion.ContextSyncMessage;
 import android.companion.Flags;
@@ -106,8 +108,9 @@ class CompanionDeviceShellCommand extends ShellCommand {
                     boolean selfManaged = getNextBooleanArg();
                     final MacAddress macAddress = MacAddress.fromString(address);
                     mAssociationRequestsProcessor.createAssociation(userId, packageName, macAddress,
-                            deviceProfile, deviceProfile, /* associatedDevice */ null, false,
-                            /* callback */ null, /* resultReceiver */ null, /* deviceIcon */ null);
+                            deviceProfile, deviceProfile, /* associatedDevice= */ null, selfManaged,
+                            /* callback= */ null, /* resultReceiver= */ null,
+                            /* deviceIcon= */ null, /* skipRoleGrant= */ false);
                 }
                 break;
 
@@ -121,7 +124,7 @@ class CompanionDeviceShellCommand extends ShellCommand {
                     if (association == null) {
                         out.println("Association doesn't exist.");
                     } else {
-                        mDisassociationProcessor.disassociate(association.getId());
+                        mDisassociationProcessor.disassociate(association.getId(), REASON_SHELL);
                     }
                 }
                 break;
@@ -131,7 +134,7 @@ class CompanionDeviceShellCommand extends ShellCommand {
                     final List<AssociationInfo> userAssociations =
                             mAssociationStore.getAssociationsByUser(userId);
                     for (AssociationInfo association : userAssociations) {
-                        mDisassociationProcessor.disassociate(association.getId());
+                        mDisassociationProcessor.disassociate(association.getId(), REASON_SHELL);
                     }
                 }
                 break;

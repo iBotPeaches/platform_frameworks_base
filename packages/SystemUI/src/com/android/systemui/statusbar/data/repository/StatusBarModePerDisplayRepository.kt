@@ -33,10 +33,11 @@ import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.statusbar.core.StatusBarInitializer.OnStatusBarViewInitializedListener
 import com.android.systemui.statusbar.data.model.StatusBarAppearance
 import com.android.systemui.statusbar.data.model.StatusBarMode
-import com.android.systemui.statusbar.phone.BoundsPair
-import com.android.systemui.statusbar.phone.LetterboxAppearanceCalculator
-import com.android.systemui.statusbar.phone.StatusBarBoundsProvider
+import com.android.systemui.statusbar.layout.BoundsPair
+import com.android.systemui.statusbar.layout.LetterboxAppearanceCalculator
+import com.android.systemui.statusbar.layout.StatusBarBoundsProvider
 import com.android.systemui.statusbar.phone.fragment.dagger.HomeStatusBarComponent
+import com.android.systemui.statusbar.phone.ongoingcall.StatusBarChipsModernization
 import com.android.systemui.statusbar.phone.ongoingcall.data.repository.OngoingCallRepository
 import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallModel
 import dagger.assisted.Assisted
@@ -89,6 +90,9 @@ interface StatusBarModePerDisplayRepository : OnStatusBarViewInitializedListener
     /** The current mode of the status bar. */
     val statusBarMode: StateFlow<StatusBarMode>
 
+    /** Whether the status bar is forced to be visible because of an ongoing call */
+    val ongoingProcessRequiresStatusBarVisible: StateFlow<Boolean>
+
     /**
      * Requests for the status bar to be shown transiently.
      *
@@ -110,6 +114,12 @@ interface StatusBarModePerDisplayRepository : OnStatusBarViewInitializedListener
      * if needed.
      */
     fun stop()
+
+    /**
+     * Called when an ongoing process needs to prevent the status bar from being hidden in any
+     * state.
+     */
+    fun setOngoingProcessRequiresStatusBarVisible(requiredVisible: Boolean)
 }
 
 class StatusBarModePerDisplayRepositoryImpl
@@ -195,6 +205,14 @@ constructor(
         statusBarBoundsProvider.addChangeListener(listener)
     }
 
+    private val _ongoingProcessRequiresStatusBarVisible = MutableStateFlow(false)
+    override val ongoingProcessRequiresStatusBarVisible =
+        _ongoingProcessRequiresStatusBarVisible.asStateFlow()
+
+    override fun setOngoingProcessRequiresStatusBarVisible(requiredVisible: Boolean) {
+        _ongoingProcessRequiresStatusBarVisible.value = requiredVisible
+    }
+
     override val isInFullscreenMode: StateFlow<Boolean> =
         _originalStatusBarAttributes
             .map { params ->
@@ -235,16 +253,29 @@ constructor(
                 isTransientShown,
                 isInFullscreenMode,
                 ongoingCallRepository.ongoingCallState,
-            ) { modifiedAttributes, isTransientShown, isInFullscreenMode, ongoingCallState ->
+                _ongoingProcessRequiresStatusBarVisible,
+            ) {
+                modifiedAttributes,
+                isTransientShown,
+                isInFullscreenMode,
+                ongoingCallStateLegacy,
+                ongoingProcessRequiresStatusBarVisible ->
                 if (modifiedAttributes == null) {
                     null
                 } else {
+                    val hasOngoingCall =
+                        if (StatusBarChipsModernization.isEnabled) {
+                            ongoingProcessRequiresStatusBarVisible
+                        } else {
+                            ongoingCallStateLegacy is OngoingCallModel.InCall &&
+                                !ongoingCallStateLegacy.isAppVisible
+                        }
                     val statusBarMode =
                         toBarMode(
                             modifiedAttributes.appearance,
                             isTransientShown,
                             isInFullscreenMode,
-                            hasOngoingCall = ongoingCallState is OngoingCallModel.InCall,
+                            hasOngoingCall,
                         )
                     StatusBarAppearance(
                         statusBarMode,

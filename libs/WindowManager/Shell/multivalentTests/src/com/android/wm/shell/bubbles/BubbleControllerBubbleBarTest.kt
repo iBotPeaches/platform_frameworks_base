@@ -34,23 +34,24 @@ import com.android.internal.protolog.ProtoLog
 import com.android.internal.statusbar.IStatusBarService
 import com.android.wm.shell.Flags
 import com.android.wm.shell.ShellTaskOrganizer
-import com.android.wm.shell.TestShellExecutor
-import com.android.wm.shell.WindowManagerShellWrapper
 import com.android.wm.shell.bubbles.Bubbles.SysuiProxy
-import com.android.wm.shell.bubbles.properties.ProdBubbleProperties
 import com.android.wm.shell.bubbles.storage.BubblePersistentRepository
 import com.android.wm.shell.common.DisplayController
+import com.android.wm.shell.common.DisplayImeController
 import com.android.wm.shell.common.DisplayInsetsController
 import com.android.wm.shell.common.FloatingContentCoordinator
 import com.android.wm.shell.common.SyncTransactionQueue
 import com.android.wm.shell.common.TaskStackListenerImpl
+import com.android.wm.shell.common.TestShellExecutor
 import com.android.wm.shell.draganddrop.DragAndDropController
 import com.android.wm.shell.shared.TransactionPool
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.android.wm.shell.shared.bubbles.BubbleBarUpdate
+import com.android.wm.shell.shared.bubbles.DeviceConfig
 import com.android.wm.shell.sysui.ShellCommandHandler
 import com.android.wm.shell.sysui.ShellController
 import com.android.wm.shell.sysui.ShellInit
+import com.android.wm.shell.taskview.TaskViewRepository
 import com.android.wm.shell.taskview.TaskViewTransitions
 import com.android.wm.shell.transition.Transitions
 import com.google.common.truth.Truth.assertThat
@@ -60,7 +61,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import java.util.Optional
@@ -132,7 +132,7 @@ class BubbleControllerBubbleBarTest {
                 mainExecutor,
                 bgExecutor,
             )
-        bubbleController.asBubbles().setSysuiProxy(Mockito.mock(SysuiProxy::class.java))
+        bubbleController.asBubbles().setSysuiProxy(mock<SysuiProxy>())
 
         shellInit.init()
 
@@ -268,7 +268,8 @@ class BubbleControllerBubbleBarTest {
             bubbleDataRepository,
             mock<IStatusBarService>(),
             mock<WindowManager>(),
-            WindowManagerShellWrapper(mainExecutor),
+            mock<DisplayInsetsController>(),
+            mock<DisplayImeController>(),
             mock<UserManager>(),
             mock<LauncherApps>(),
             bubbleLogger,
@@ -281,11 +282,12 @@ class BubbleControllerBubbleBarTest {
             mainExecutor,
             mock<Handler>(),
             bgExecutor,
+            mock<TaskViewRepository>(),
             mock<TaskViewTransitions>(),
             mock<Transitions>(),
             SyncTransactionQueue(TransactionPool(), mainExecutor),
             mock<IWindowManager>(),
-            ProdBubbleProperties,
+            BubbleResizabilityChecker()
         )
     }
 
@@ -293,5 +295,9 @@ class BubbleControllerBubbleBarTest {
         override fun onBubbleStateChange(update: BubbleBarUpdate?) {}
 
         override fun animateBubbleBarLocation(location: BubbleBarLocation?) {}
+
+        override fun onDragItemOverBubbleBarDragZone(location: BubbleBarLocation) {}
+
+        override fun onItemDraggedOutsideBubbleBarDropZone() {}
     }
 }

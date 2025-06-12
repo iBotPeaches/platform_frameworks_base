@@ -30,6 +30,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -203,7 +204,7 @@ public class OverlayManagerServiceImplRebootTests extends OverlayManagerServiceI
 
         // Overlay priority changing between reboots should not affect enable state of mutable
         // overlays.
-        impl.setEnabled(IDENTIFIER, true, USER);
+        impl.setEnabled(IDENTIFIER, true, USER, Collections.emptyList() /* constraints */);
 
         // Reorder the overlays
         configureSystemOverlay(OVERLAY, ConfigState.MUTABLE_DISABLED, 1 /* priority */);

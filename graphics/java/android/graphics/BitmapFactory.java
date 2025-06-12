@@ -41,6 +41,7 @@ import java.io.InputStream;
  * Creates Bitmap objects from various sources, including files, streams,
  * and byte-arrays.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class BitmapFactory {
     private static final int DECODE_BUFFER_SIZE = 16 * 1024;
 

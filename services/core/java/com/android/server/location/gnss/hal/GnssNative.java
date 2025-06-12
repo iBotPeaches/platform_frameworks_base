@@ -23,6 +23,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.location.GnssAntennaInfo;
+import android.location.GnssAssistance;
 import android.location.GnssCapabilities;
 import android.location.GnssMeasurementCorrections;
 import android.location.GnssMeasurementsEvent;
@@ -30,6 +31,7 @@ import android.location.GnssNavigationMessage;
 import android.location.GnssSignalType;
 import android.location.GnssStatus;
 import android.location.Location;
+import android.location.flags.Flags;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -275,6 +277,12 @@ public class GnssNative {
         void onRequestPsdsDownload(int psdsType);
     }
 
+    /** Callbacks for HAL requesting GNSS assistance. */
+    public interface GnssAssistanceCallbacks {
+        /** On request GnssAssistance injection. */
+        void onRequestGnssAssistanceInject();
+    }
+
     /** Callbacks for AGPS functionality. */
     public interface AGpsCallbacks {
 
@@ -400,6 +408,7 @@ public class GnssNative {
     private TimeCallbacks mTimeCallbacks;
     private LocationRequestCallbacks mLocationRequestCallbacks;
     private PsdsCallbacks mPsdsCallbacks;
+    private @Nullable GnssAssistanceCallbacks mGnssAssistanceCallbacks;
     private AGpsCallbacks mAGpsCallbacks;
     private NotificationCallbacks mNotificationCallbacks;
 
@@ -502,6 +511,15 @@ public class GnssNative {
         Preconditions.checkState(!mRegistered);
         Preconditions.checkState(mNotificationCallbacks == null);
         mNotificationCallbacks = Objects.requireNonNull(callbacks);
+    }
+
+    /** Sets GnssAssistanceCallbacks. */
+    public void setGnssAssistanceCallbacks(GnssAssistanceCallbacks callbacks) {
+        if (!Flags.gnssAssistanceInterfaceJni()) {
+            return;
+        }
+        Preconditions.checkState(mGnssAssistanceCallbacks == null);
+        mGnssAssistanceCallbacks = Objects.requireNonNull(callbacks);
     }
 
     /**
@@ -1053,6 +1071,17 @@ public class GnssNative {
         mGnssHal.injectNiSuplMessageData(data, length, slotIndex);
     }
 
+    /**
+     * Injects GNSS assistance data into the GNSS HAL.
+     */
+    public void injectGnssAssistance(GnssAssistance assistance) {
+        if (!Flags.gnssAssistanceInterfaceJni()) {
+            return;
+        }
+        Preconditions.checkState(mRegistered);
+        mGnssHal.injectGnssAssistance(assistance);
+    }
+
     @NativeEntryPoint
     void reportGnssServiceDied() {
         // Not necessary to clear (and restore) binder identity since it runs on another thread.
@@ -1266,6 +1295,15 @@ public class GnssNative {
     @NativeEntryPoint
     void psdsDownloadRequest(int psdsType) {
         Binder.withCleanCallingIdentity(() -> mPsdsCallbacks.onRequestPsdsDownload(psdsType));
+    }
+
+    @NativeEntryPoint
+    void gnssAssistanceInjectRequest() {
+        if (!Flags.gnssAssistanceInterfaceJni() || mGnssAssistanceCallbacks == null) {
+            return;
+        }
+        Binder.withCleanCallingIdentity(
+                () -> mGnssAssistanceCallbacks.onRequestGnssAssistanceInject());
     }
 
     @NativeEntryPoint
@@ -1569,6 +1607,10 @@ public class GnssNative {
         protected void injectNiSuplMessageData(byte[] data, int length, int slotIndex) {
             native_inject_ni_supl_message_data(data, length, slotIndex);
         }
+
+        protected void injectGnssAssistance(GnssAssistance gnssAssistance) {
+            native_inject_gnss_assistance(gnssAssistance);
+        }
     }
 
     // basic APIs
@@ -1718,4 +1760,7 @@ public class GnssNative {
     private static native boolean native_supports_psds();
 
     private static native void native_inject_psds_data(byte[] data, int length, int psdsType);
+
+    // GNSS Assistance APIs
+    private static native void native_inject_gnss_assistance(GnssAssistance gnssAssistance);
 }

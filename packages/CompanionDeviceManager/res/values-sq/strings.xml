@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Menaxheri i pajisjes shoqëruese"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"T\'i lejohet aplikacionit &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; qasja te &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
-    <string name="profile_name_watch" msgid="576290739483672360">"ora inteligjente"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Sigurohu që ky <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> të ketë të aktivizuar <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> dhe kjo <xliff:g id="PROFILE_NAME">%3$s</xliff:g> të mbahet pranë."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nuk u gjet asnjë pajisje. Provo përsëri më vonë."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth-in"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth-in dhe Wi-Fi"</string>
+    <string name="profile_name_watch" msgid="576290739483672360">"orë inteligjente"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Zgjidh një pajisje që do të menaxhohet nga &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Zgjidh një <xliff:g id="PROFILE_NAME">%1$s</xliff:g> për konfigurimin"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Po kërkon për një <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Këtij aplikacioni do t\'i lejohet të sinkronizojë informacione, si p.sh. emrin e dikujt që po telefonon, si dhe të ketë qasje në këto leje te <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Të lejohet që &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; të menaxhojë &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"pajisje"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Të lejohet që &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; të transmetojë aplikacionet nga <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> te &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> do të ketë qasje te çdo gjë që është e dukshme ose që luhet te <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, duke përfshirë audion, fotografitë, informacionet për pagesën, fjalëkalimet dhe mesazhet.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> do të mund t\'i transmetojë aplikacionet në <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> derisa ta heqësh qasjen për këtë leje."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> po kërkon leje në emër të <xliff:g id="DEVICE_NAME">%2$s</xliff:g> për të transmetuar aplikacione nga <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
-    <string name="profile_name_generic" msgid="6851028682723034988">"pajisja"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Të lejohet që &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; të transmetojë audion dhe veçoritë e sistemit mes <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> dhe &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> do të ketë qasje në çdo gjë që luhet në <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> do të mund të transmetojë audion në <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> derisa të heqësh qasjen për këtë leje."</string>
+    <string name="profile_name_generic" msgid="6851028682723034988">"pajisje"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ky aplikacion do të mund të sinkronizojë informacione, si p.sh emrin e dikujt që po telefonon, mes telefonit tënd dhe pajisjes së zgjedhur."</string>
     <string name="consent_yes" msgid="8344487259618762872">"Lejo"</string>
     <string name="consent_no" msgid="2640796915611404382">"Mos lejo"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Anulo"</string>
     <string name="consent_back" msgid="2560683030046918882">"Pas"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Lëviz poshtë në listë"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Shigjeta poshtë"</string>
     <string name="permission_expand" msgid="893185038020887411">"Zgjero: <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Palos: <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"T\'i jepen aplikacioneve në &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; të njëjtat leje si në &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

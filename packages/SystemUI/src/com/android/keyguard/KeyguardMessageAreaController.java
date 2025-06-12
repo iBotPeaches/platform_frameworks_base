@@ -20,21 +20,15 @@ import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.hardware.biometrics.BiometricSourceType;
 import android.os.SystemClock;
-import android.text.Editable;
-import android.text.TextUtils;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.util.Pair;
 import android.view.View;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
 import com.android.systemui.util.ViewController;
-
-import java.lang.ref.WeakReference;
 
 import javax.inject.Inject;
 
@@ -54,39 +48,8 @@ public class KeyguardMessageAreaController<T extends KeyguardMessageArea>
     private Pair<BiometricSourceType, Long> mMessageBiometricSource = null;
     private static final Long SKIP_SHOWING_FACE_MESSAGE_AFTER_FP_MESSAGE_MS = 3500L;
 
-    /**
-     * Delay before speaking an accessibility announcement. Used to prevent
-     * lift-to-type from interrupting itself.
-     */
-    private static final long ANNOUNCEMENT_DELAY = 250;
     private final KeyguardUpdateMonitor mKeyguardUpdateMonitor;
     private final ConfigurationController mConfigurationController;
-    private final AnnounceRunnable mAnnounceRunnable;
-    private final TextWatcher mTextWatcher = new TextWatcher() {
-        @Override
-        public void afterTextChanged(Editable editable) {
-            CharSequence msg = editable;
-            if (!TextUtils.isEmpty(msg)) {
-                mView.removeCallbacks(mAnnounceRunnable);
-                mAnnounceRunnable.setTextToAnnounce(msg);
-                mView.postDelayed(() -> {
-                    if (msg == mView.getText()) {
-                        mAnnounceRunnable.run();
-                    }
-                }, ANNOUNCEMENT_DELAY);
-            }
-        }
-
-        @Override
-        public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            /* no-op */
-        }
-
-        @Override
-        public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            /* no-op */
-        }
-    };
 
     private KeyguardUpdateMonitorCallback mInfoCallback = new KeyguardUpdateMonitorCallback() {
         public void onFinishedGoingToSleep(int why) {
@@ -122,7 +85,6 @@ public class KeyguardMessageAreaController<T extends KeyguardMessageArea>
 
         mKeyguardUpdateMonitor = keyguardUpdateMonitor;
         mConfigurationController = configurationController;
-        mAnnounceRunnable = new AnnounceRunnable(mView);
     }
 
     @Override
@@ -131,14 +93,12 @@ public class KeyguardMessageAreaController<T extends KeyguardMessageArea>
         mKeyguardUpdateMonitor.registerCallback(mInfoCallback);
         mView.setSelected(mKeyguardUpdateMonitor.isDeviceInteractive());
         mView.onThemeChanged();
-        mView.addTextChangedListener(mTextWatcher);
     }
 
     @Override
     protected void onViewDetached() {
         mConfigurationController.removeCallback(mConfigurationListener);
         mKeyguardUpdateMonitor.removeCallback(mInfoCallback);
-        mView.removeTextChangedListener(mTextWatcher);
     }
 
     /**
@@ -230,32 +190,6 @@ public class KeyguardMessageAreaController<T extends KeyguardMessageArea>
         public KeyguardMessageAreaController create(KeyguardMessageArea view) {
             return new KeyguardMessageAreaController(
                     view, mKeyguardUpdateMonitor, mConfigurationController);
-        }
-    }
-
-    /**
-     * Runnable used to delay accessibility announcements.
-     */
-    @VisibleForTesting
-    public static class AnnounceRunnable implements Runnable {
-        private final WeakReference<View> mHost;
-        private CharSequence mTextToAnnounce;
-
-        AnnounceRunnable(View host) {
-            mHost = new WeakReference<>(host);
-        }
-
-        /** Sets the text to announce. */
-        public void setTextToAnnounce(CharSequence textToAnnounce) {
-            mTextToAnnounce = textToAnnounce;
-        }
-
-        @Override
-        public void run() {
-            final View host = mHost.get();
-            if (host != null && host.isVisibleToUser()) {
-                host.announceForAccessibility(mTextToAnnounce);
-            }
         }
     }
 }

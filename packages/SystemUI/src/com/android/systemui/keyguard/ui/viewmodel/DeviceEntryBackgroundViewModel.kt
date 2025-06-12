@@ -25,7 +25,6 @@ import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInterac
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -35,7 +34,6 @@ import kotlinx.coroutines.flow.onStart
 
 /** Models the UI state for the device entry icon background view. */
 @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-@ExperimentalCoroutinesApi
 @SysUISingleton
 class DeviceEntryBackgroundViewModel
 @Inject
@@ -62,6 +60,8 @@ constructor(
     primaryBouncerToDozingTransitionViewModel: PrimaryBouncerToDozingTransitionViewModel,
     primaryBouncerToLockscreenTransitionViewModel: PrimaryBouncerToLockscreenTransitionViewModel,
     lockscreenToDozingTransitionViewModel: LockscreenToDozingTransitionViewModel,
+    glanceableHubToAodTransitionViewModel: GlanceableHubToAodTransitionViewModel,
+    glanceableHubToLockscreenTransitionViewModel: GlanceableHubToLockscreenTransitionViewModel,
 ) {
     val color: Flow<Int> =
         deviceEntryIconViewModel.useBackgroundProtection.flatMapLatest { useBackground ->
@@ -108,6 +108,8 @@ constructor(
                         primaryBouncerToLockscreenTransitionViewModel
                             .deviceEntryBackgroundViewAlpha,
                         lockscreenToDozingTransitionViewModel.deviceEntryBackgroundViewAlpha,
+                        glanceableHubToAodTransitionViewModel.deviceEntryBackgroundViewAlpha,
+                        glanceableHubToLockscreenTransitionViewModel.deviceEntryBackgroundViewAlpha,
                     )
                     .merge()
                     .onStart {

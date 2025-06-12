@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,6 +55,7 @@ import java.util.Set;
 /**
  * A font class can be used for creating FontFamily.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class Font {
     private static final String TAG = "Font";
 
@@ -293,7 +295,14 @@ public final class Font {
                 int capacity = assetStream.available();
                 ByteBuffer buffer = ByteBuffer.allocateDirect(capacity);
                 buffer.order(ByteOrder.nativeOrder());
-                assetStream.read(buffer.array(), buffer.arrayOffset(), assetStream.available());
+                if (buffer.hasArray()) {
+                    assetStream.read(buffer.array(), buffer.arrayOffset(), assetStream.available());
+                } else {
+                    // Direct buffer does not have a backing array on Ravenwood,
+                    // wrap it with a channel and read from it
+                    var ch = Channels.newChannel(assetStream);
+                    ch.read(buffer.duplicate());
+                }
 
                 if (assetStream.read() != -1) {
                     throw new IOException("Unable to access full contents of " + path);

@@ -69,6 +69,7 @@ final class OverlayDisplayWindow implements DumpUtils.Dump {
     private int mDensityDpi;
     private final int mGravity;
     private final boolean mSecure;
+    private final boolean mDisableWindowInteraction;
     private final Listener mListener;
     private String mTitle;
 
@@ -96,15 +97,15 @@ final class OverlayDisplayWindow implements DumpUtils.Dump {
     private float mLiveTranslationY;
     private float mLiveScale = 1.0f;
 
-    public OverlayDisplayWindow(Context context, String name,
-            int width, int height, int densityDpi, int gravity, boolean secure,
-            Listener listener) {
+    OverlayDisplayWindow(Context context, String name, int width, int height, int densityDpi,
+            int gravity, boolean secure, boolean disableWindowInteraction, Listener listener) {
         // Workaround device freeze (b/38372997)
         ThreadedRenderer.disableVsync();
         mContext = context;
         mName = name;
         mGravity = gravity;
         mSecure = secure;
+        mDisableWindowInteraction = disableWindowInteraction;
         mListener = listener;
 
         mDisplayManager = (DisplayManager)context.getSystemService(
@@ -226,8 +227,10 @@ final class OverlayDisplayWindow implements DumpUtils.Dump {
         if (mSecure) {
             mWindowParams.flags |= WindowManager.LayoutParams.FLAG_SECURE;
         }
-        if (DISABLE_MOVE_AND_RESIZE) {
+        if (DISABLE_MOVE_AND_RESIZE || mDisableWindowInteraction) {
             mWindowParams.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+            mWindowParams.privateFlags |=
+                    WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERLAY;
         }
         mWindowParams.privateFlags |=
                 WindowManager.LayoutParams.PRIVATE_FLAG_FORCE_HARDWARE_ACCELERATED;

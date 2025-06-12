@@ -19,4 +19,4 @@ package com.android.systemui.statusbar.pipeline.wifi.data.repository
 import com.android.systemui.kosmos.Kosmos
 
 val Kosmos.fakeWifiRepository: FakeWifiRepository by Kosmos.Fixture { FakeWifiRepository() }
-val Kosmos.wifiRepository: WifiRepository by Kosmos.Fixture { fakeWifiRepository }
+var Kosmos.wifiRepository: WifiRepository by Kosmos.Fixture { fakeWifiRepository }

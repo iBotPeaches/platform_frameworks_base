@@ -43,21 +43,23 @@ final class ClientController {
     @GuardedBy("ImfLock.class")
     private final List<ClientControllerCallback> mCallbacks = new ArrayList<>();
 
+    @NonNull
     private final PackageManagerInternal mPackageManagerInternal;
 
     interface ClientControllerCallback {
 
-        void onClientRemoved(ClientState client);
+        void onClientRemoved(@NonNull ClientState client);
     }
 
-    ClientController(PackageManagerInternal packageManagerInternal) {
+    ClientController(@NonNull PackageManagerInternal packageManagerInternal) {
         mPackageManagerInternal = packageManagerInternal;
     }
 
     @GuardedBy("ImfLock.class")
-    ClientState addClient(IInputMethodClientInvoker clientInvoker,
-            IRemoteInputConnection inputConnection, int selfReportedDisplayId, int callerUid,
-            int callerPid) {
+    @NonNull
+    ClientState addClient(@NonNull IInputMethodClientInvoker clientInvoker,
+            @NonNull IRemoteInputConnection fallbackInputConnection, int selfReportedDisplayId,
+            int callerUid, int callerPid) {
         final IBinder.DeathRecipient deathRecipient = () -> {
             // Exceptionally holding ImfLock here since this is a internal lambda expression.
             synchronized (ImfLock.class) {
@@ -90,15 +92,15 @@ final class ClientController {
         // have the client crash.  Thus we do not verify the display ID at all here.  Instead we
         // later check the display ID every time the client needs to interact with the specified
         // display.
-        final ClientState cs = new ClientState(clientInvoker, inputConnection,
-                callerUid, callerPid, selfReportedDisplayId, deathRecipient);
+        final var cs = new ClientState(clientInvoker, fallbackInputConnection, callerUid, callerPid,
+                selfReportedDisplayId, deathRecipient);
         mClients.put(clientInvoker.asBinder(), cs);
         return cs;
     }
 
     @VisibleForTesting
     @GuardedBy("ImfLock.class")
-    boolean removeClient(IInputMethodClient client) {
+    boolean removeClient(@NonNull IInputMethodClient client) {
         return removeClientAsBinder(client.asBinder());
     }
 
@@ -116,7 +118,7 @@ final class ClientController {
     }
 
     @GuardedBy("ImfLock.class")
-    void addClientControllerCallback(ClientControllerCallback callback) {
+    void addClientControllerCallback(@NonNull ClientControllerCallback callback) {
         mCallbacks.add(callback);
     }
 
@@ -127,15 +129,15 @@ final class ClientController {
     }
 
     @GuardedBy("ImfLock.class")
-    void forAllClients(Consumer<ClientState> consumer) {
+    void forAllClients(@NonNull Consumer<ClientState> consumer) {
         for (int i = 0; i < mClients.size(); i++) {
             consumer.accept(mClients.valueAt(i));
         }
     }
 
     @GuardedBy("ImfLock.class")
-    boolean verifyClientAndPackageMatch(
-            @NonNull IInputMethodClient client, @NonNull String packageName) {
+    boolean verifyClientAndPackageMatch(@NonNull IInputMethodClient client,
+            @NonNull String packageName) {
         final ClientState cs = mClients.get(client.asBinder());
         if (cs == null) {
             throw new IllegalArgumentException("unknown client " + client.asBinder());

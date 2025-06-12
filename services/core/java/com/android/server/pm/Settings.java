@@ -35,6 +35,7 @@ import static com.android.server.pm.SharedUidMigration.BEST_EFFORT;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeALL;
 import android.annotation.UserIdInt;
 import android.app.compat.ChangeIdStateCache;
 import android.content.ComponentName;
@@ -6639,7 +6640,7 @@ public final class Settings implements Watchable, Snappable, ResilientAtomicFile
 
     /** This method takes a specific user id as well as UserHandle.USER_ALL. */
     void clearPackagePreferredActivities(String packageName,
-            @NonNull SparseBooleanArray outUserChanged, int userId) {
+            @NonNull SparseBooleanArray outUserChanged, @CanBeALL @UserIdInt int userId) {
         boolean changed = false;
         ArrayList<PreferredActivity> removed = null;
         for (int i = 0; i < mPreferredActivities.size(); i++) {

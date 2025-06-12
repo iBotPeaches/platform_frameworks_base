@@ -23,17 +23,20 @@ import android.animation.recordMotion
 import android.graphics.Color
 import android.graphics.PointF
 import android.graphics.drawable.GradientDrawable
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import android.platform.test.annotations.MotionTest
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.filters.SmallTest
+import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.activity.EmptyTestActivity
 import com.android.systemui.concurrency.fakeExecutor
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.runOnMainThreadAndWaitForIdleSync
+import com.android.systemui.testKosmos
 import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -45,33 +48,74 @@ import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 import platform.test.screenshot.GoldenPathManager
 import platform.test.screenshot.PathConfig
+import platform.test.screenshot.PathElementNoContext
 
 @SmallTest
 @MotionTest
 @RunWith(ParameterizedAndroidJunit4::class)
 class TransitionAnimatorTest(
     private val fadeWindowBackgroundLayer: Boolean,
+    private val drawHole: Boolean,
     private val isLaunching: Boolean,
     private val useSpring: Boolean,
 ) : SysuiTestCase() {
     companion object {
         private const val GOLDENS_PATH = "frameworks/base/packages/SystemUI/tests/goldens"
 
-        @get:Parameters(name = "fadeBackground={0}, isLaunching={1}, useSpring={2}")
+        @get:Parameters(name = "fadeBackground={0}, drawHole={1}, isLaunching={2}, useSpring={3}")
         @JvmStatic
         val parameterValues = buildList {
             booleanArrayOf(true, false).forEach { fadeBackground ->
-                booleanArrayOf(true, false).forEach { isLaunching ->
-                    booleanArrayOf(true, false).forEach { useSpring ->
-                        add(arrayOf(fadeBackground, isLaunching, useSpring))
+                booleanArrayOf(true, false).forEach { drawHole ->
+                    booleanArrayOf(true, false).forEach { isLaunching ->
+                        booleanArrayOf(true, false).forEach { useSpring ->
+                            add(arrayOf(fadeBackground, drawHole, isLaunching, useSpring))
+                        }
                     }
                 }
             }
         }
     }
 
-    private val kosmos = Kosmos()
-    private val pathManager = GoldenPathManager(context, GOLDENS_PATH, pathConfig = PathConfig())
+    private val kosmos = testKosmos()
+    private val pathManager =
+        GoldenPathManager(
+            context,
+            GOLDENS_PATH,
+            pathConfig =
+                PathConfig(
+                    PathElementNoContext("base", isDir = true) { "animations" },
+                    PathElementNoContext("fade", isDir = false) {
+                        if (fadeWindowBackgroundLayer) {
+                            "withFade"
+                        } else {
+                            "withoutFade"
+                        }
+                    },
+                    PathElementNoContext("hole", isDir = false) {
+                        if (drawHole) {
+                            "withHole"
+                        } else {
+                            "withoutHole"
+                        }
+                    },
+                    PathElementNoContext("direction", isDir = false) {
+                        if (isLaunching) {
+                            "whenLaunching"
+                        } else {
+                            "whenReturning"
+                        }
+                    },
+                    PathElementNoContext("mode", isDir = false) {
+                        if (useSpring) {
+                            "withSpring"
+                        } else {
+                            "withAnimator"
+                        }
+                    },
+                ),
+        )
+
     private val transitionAnimator =
         TransitionAnimator(
             kosmos.fakeExecutor,
@@ -80,24 +124,6 @@ class TransitionAnimatorTest(
             ActivityTransitionAnimator.SPRING_TIMINGS,
             ActivityTransitionAnimator.SPRING_INTERPOLATORS,
         )
-    private val fade =
-        if (fadeWindowBackgroundLayer) {
-            "withFade"
-        } else {
-            "withoutFade"
-        }
-    private val direction =
-        if (isLaunching) {
-            "whenLaunching"
-        } else {
-            "whenReturning"
-        }
-    private val mode =
-        if (useSpring) {
-            "withSpring"
-        } else {
-            "withAnimator"
-        }
 
     @get:Rule(order = 1) val activityRule = ActivityScenarioRule(EmptyTestActivity::class.java)
     @get:Rule(order = 2) val animatorTestRule = android.animation.AnimatorTestRule(this)
@@ -108,6 +134,7 @@ class TransitionAnimatorTest(
             pathManager,
         )
 
+    @DisableFlags(Flags.FLAG_MOVE_TRANSITION_ANIMATION_LAYER)
     @Test
     fun backgroundAnimationTimeSeries() {
         val transitionContainer = createScene()
@@ -118,7 +145,21 @@ class TransitionAnimatorTest(
 
         motionRule
             .assertThat(recordedMotion)
-            .timeSeriesMatchesGolden("backgroundAnimationTimeSeries_${fade}_${direction}_$mode")
+            .timeSeriesMatchesGolden("backgroundAnimationTimeSeries")
+    }
+
+    @EnableFlags(Flags.FLAG_MOVE_TRANSITION_ANIMATION_LAYER)
+    @Test
+    fun backgroundAnimationTimeSeries_drawHoleAfterFadeout() {
+        val transitionContainer = createScene()
+        val backgroundLayer = createBackgroundLayer()
+        val animation = createAnimation(transitionContainer, backgroundLayer)
+
+        val recordedMotion = record(backgroundLayer, animation)
+
+        motionRule
+            .assertThat(recordedMotion)
+            .timeSeriesMatchesGolden("backgroundAnimationTimeSeries_drawHoleAfterFadeout")
     }
 
     private fun createScene(): ViewGroup {
@@ -169,6 +210,7 @@ class TransitionAnimatorTest(
                 endState,
                 backgroundLayer,
                 fadeWindowBackgroundLayer,
+                drawHole,
                 startVelocity = startVelocity,
             )
             .apply { runOnMainThreadAndWaitForIdleSync { start() } }

@@ -266,4 +266,25 @@ public class WindowTokenClientControllerTest {
 
         verify(mWindowTokenClient).onWindowTokenRemoved();
     }
+
+    @Test
+    public void testOnWindowConfigurationChanged_propagatedToCorrectToken() throws RemoteException {
+        doReturn(mWindowContextInfo).when(mWindowManagerService)
+                .attachWindowContextToDisplayContent(any(), any(), anyInt());
+
+        mController.onWindowConfigurationChanged(mWindowTokenClient, mConfiguration,
+                DEFAULT_DISPLAY + 1);
+
+        // Not propagated before attaching
+        verify(mWindowTokenClient, never()).onConfigurationChanged(mConfiguration,
+                DEFAULT_DISPLAY + 1);
+
+        assertTrue(mController.attachToDisplayContent(mWindowTokenClient, DEFAULT_DISPLAY));
+
+        mController.onWindowConfigurationChanged(mWindowTokenClient, mConfiguration,
+                DEFAULT_DISPLAY + 1);
+
+        // Now that's attached, propagating it.
+        verify(mWindowTokenClient).postOnConfigurationChanged(mConfiguration, DEFAULT_DISPLAY + 1);
+    }
 }

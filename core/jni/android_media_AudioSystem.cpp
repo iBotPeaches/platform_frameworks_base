@@ -20,16 +20,17 @@
 
 #include <atomic>
 #define LOG_TAG "AudioSystem-JNI"
+#include <android-base/properties.h>
 #include <android/binder_ibinder_jni.h>
 #include <android/binder_libbinder.h>
 #include <android/media/AudioVibratorInfo.h>
+#include <android/media/INativeAudioVolumeGroupCallback.h>
 #include <android/media/INativeSpatializerCallback.h>
 #include <android/media/ISpatializer.h>
 #include <android/media/audio/common/AudioConfigBase.h>
 #include <android_media_audiopolicy.h>
 #include <android_os_Parcel.h>
 #include <audiomanager/AudioManager.h>
-#include <android-base/properties.h>
 #include <binder/IBinder.h>
 #include <jni.h>
 #include <media/AidlConversion.h>
@@ -41,14 +42,14 @@
 #include <nativehelper/ScopedLocalRef.h>
 #include <nativehelper/ScopedPrimitiveArray.h>
 #include <nativehelper/jni_macros.h>
+#include <sys/system_properties.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
-#include <sys/system_properties.h>
 #include <utils/Log.h>
 
+#include <memory>
 #include <optional>
 #include <sstream>
-#include <memory>
 #include <vector>
 
 #include "android_media_AudioAttributes.h"
@@ -59,8 +60,8 @@
 #include "android_media_AudioFormat.h"
 #include "android_media_AudioMixerAttributes.h"
 #include "android_media_AudioProfile.h"
-#include "android_media_MicrophoneInfo.h"
 #include "android_media_JNIUtils.h"
+#include "android_media_MicrophoneInfo.h"
 #include "android_util_Binder.h"
 #include "core_jni_helpers.h"
 
@@ -664,14 +665,16 @@ static void android_media_AudioSystem_vol_range_init_req_callback()
 
 static jint android_media_AudioSystem_setDeviceConnectionState(JNIEnv *env, jobject thiz,
                                                                jint state, jobject jParcel,
-                                                               jint codec) {
+                                                               jint codec, jboolean deviceSwitch) {
     int status;
     if (Parcel *parcel = parcelForJavaObject(env, jParcel); parcel != nullptr) {
         android::media::audio::common::AudioPort port{};
         if (status_t statusOfParcel = port.readFromParcel(parcel); statusOfParcel == OK) {
-        status = check_AudioSystem_Command(
-                AudioSystem::setDeviceConnectionState(static_cast<audio_policy_dev_state_t>(state),
-                                                      port, static_cast<audio_format_t>(codec)));
+            status = check_AudioSystem_Command(
+                    AudioSystem::setDeviceConnectionState(static_cast<audio_policy_dev_state_t>(
+                                                                  state),
+                                                          port, static_cast<audio_format_t>(codec),
+                                                          deviceSwitch));
         } else {
             ALOGE("Failed to read from parcel: %s", statusToString(statusOfParcel).c_str());
             status = kAudioStatusError;
@@ -3440,6 +3443,21 @@ static void android_media_AudioSystem_triggerSystemPropertyUpdate(JNIEnv *env,  
     }
 }
 
+static int android_media_AudioSystem_registerAudioVolumeGroupCallback(
+        JNIEnv *env, jobject thiz, jobject jIAudioVolumeGroupCallback) {
+    sp<media::INativeAudioVolumeGroupCallback> nIAudioVolumeGroupCallback =
+            interface_cast<media::INativeAudioVolumeGroupCallback>(
+                    ibinderForJavaObject(env, jIAudioVolumeGroupCallback));
+    return AudioSystem::addAudioVolumeGroupCallback(nIAudioVolumeGroupCallback);
+}
+
+static int android_media_AudioSystem_unregisterAudioVolumeGroupCallback(
+        JNIEnv *env, jobject thiz, jobject jIAudioVolumeGroupCallback) {
+    sp<media::INativeAudioVolumeGroupCallback> nIAudioVolumeGroupCallback =
+            interface_cast<media::INativeAudioVolumeGroupCallback>(
+                    ibinderForJavaObject(env, jIAudioVolumeGroupCallback));
+    return AudioSystem::removeAudioVolumeGroupCallback(nIAudioVolumeGroupCallback);
+}
 
 // ----------------------------------------------------------------------------
 
@@ -3457,7 +3475,7 @@ static const JNINativeMethod gMethods[] = {
         MAKE_AUDIO_SYSTEM_METHOD(newAudioSessionId),
         MAKE_AUDIO_SYSTEM_METHOD(newAudioPlayerId),
         MAKE_AUDIO_SYSTEM_METHOD(newAudioRecorderId),
-        MAKE_JNI_NATIVE_METHOD("setDeviceConnectionState", "(ILandroid/os/Parcel;I)I",
+        MAKE_JNI_NATIVE_METHOD("setDeviceConnectionState", "(ILandroid/os/Parcel;IZ)I",
                                android_media_AudioSystem_setDeviceConnectionState),
         MAKE_AUDIO_SYSTEM_METHOD(getDeviceConnectionState),
         MAKE_AUDIO_SYSTEM_METHOD(handleDeviceConfigChange),
@@ -3610,6 +3628,12 @@ static const JNINativeMethod gMethods[] = {
         MAKE_JNI_NATIVE_METHOD("clearPreferredMixerAttributes",
                                "(Landroid/media/AudioAttributes;II)I",
                                android_media_AudioSystem_clearPreferredMixerAttributes),
+        MAKE_JNI_NATIVE_METHOD("registerAudioVolumeGroupCallback",
+                               "(Landroid/media/INativeAudioVolumeGroupCallback;)I",
+                               android_media_AudioSystem_registerAudioVolumeGroupCallback),
+        MAKE_JNI_NATIVE_METHOD("unregisterAudioVolumeGroupCallback",
+                               "(Landroid/media/INativeAudioVolumeGroupCallback;)I",
+                               android_media_AudioSystem_unregisterAudioVolumeGroupCallback),
         MAKE_AUDIO_SYSTEM_METHOD(supportsBluetoothVariableLatency),
         MAKE_AUDIO_SYSTEM_METHOD(setBluetoothVariableLatencyEnabled),
         MAKE_AUDIO_SYSTEM_METHOD(isBluetoothVariableLatencyEnabled),

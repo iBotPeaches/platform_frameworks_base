@@ -234,6 +234,7 @@ public class LocalDisplayAdapterTest {
 
         doReturn(true).when(mFlags).isDisplayOffloadEnabled();
         doReturn(true).when(mFlags).isEvenDimmerEnabled();
+        doReturn(true).when(mFlags).isDisplayContentModeManagementEnabled();
         initDisplayOffloadSession();
     }
 
@@ -519,8 +520,9 @@ public class LocalDisplayAdapterTest {
      * Confirm that external display uses physical density.
      */
     @Test
-    public void testDpiValues() throws Exception {
+    public void testDpiValues_baseDensityForExternalDisplaysDisabled() throws Exception {
         // needs default one always
+        doReturn(false).when(mFlags).isBaseDensityForExternalDisplaysEnabled();
         setUpDisplay(new FakeDisplay(PORT_A));
         setUpDisplay(new FakeDisplay(PORT_B));
         updateAvailableDisplays();
@@ -534,6 +536,25 @@ public class LocalDisplayAdapterTest {
         assertDisplayDpi(
                 mListener.addedDisplays.get(1).getDisplayDeviceInfoLocked(), PORT_B, 100, 100,
                 16000);
+    }
+
+    @Test
+    public void testDpiValues_baseDensityForExternalDisplaysEnabled() throws Exception {
+        // needs default one always
+        doReturn(true).when(mFlags).isBaseDensityForExternalDisplaysEnabled();
+        setUpDisplay(new FakeDisplay(PORT_A));
+        setUpDisplay(new FakeDisplay(PORT_B));
+        updateAvailableDisplays();
+        mAdapter.registerLocked();
+
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        assertDisplayDpi(
+                mListener.addedDisplays.get(0).getDisplayDeviceInfoLocked(), PORT_A, 100, 100,
+                136);
+        assertDisplayDpi(
+                mListener.addedDisplays.get(1).getDisplayDeviceInfoLocked(), PORT_B, 100, 100,
+                136);
     }
 
     private static class DisplayModeWrapper {
@@ -1446,6 +1467,103 @@ public class LocalDisplayAdapterTest {
 
         verify(mDisplayOffloader).stopOffload();
         assertFalse(mDisplayOffloadSession.isActive());
+    }
+
+    @Test
+    public void testAllowsContentSwitch_firstDisplay() throws Exception {
+        // Set up a first display
+        setUpDisplay(new FakeDisplay(PORT_A));
+        updateAvailableDisplays();
+        mAdapter.registerLocked();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // The first display should be allowed to use the content mode switch
+        DisplayDevice firstDisplayDevice = mListener.addedDisplays.get(0);
+        assertTrue((firstDisplayDevice.getDisplayDeviceInfoLocked().flags
+                & DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH) != 0);
+    }
+
+    @Test
+    public void testAllowsContentSwitch_secondaryDisplayPublicAndNotShouldShowOwnContent()
+            throws Exception {
+        // Set up a first display and a secondary display
+        setUpDisplay(new FakeDisplay(PORT_A));
+        setUpDisplay(new FakeDisplay(PORT_B));
+        updateAvailableDisplays();
+
+        // Set the secondary display to be a public display
+        doReturn(new int[0]).when(mMockedResources)
+                .getIntArray(com.android.internal.R.array.config_localPrivateDisplayPorts);
+        // Disable FLAG_OWN_CONTENT_ONLY for the secondary display
+        doReturn(true).when(mMockedResources)
+                .getBoolean(com.android.internal.R.bool.config_localDisplaysMirrorContent);
+        mAdapter.registerLocked();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // This secondary display should be allowed to use the content mode switch
+        DisplayDevice secondaryDisplayDevice = mListener.addedDisplays.get(1);
+        assertTrue((secondaryDisplayDevice.getDisplayDeviceInfoLocked().flags
+                & DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH) != 0);
+    }
+
+    @Test
+    public void testAllowsContentSwitch_privateDisplay() throws Exception {
+        // Set up a first display and a secondary display
+        setUpDisplay(new FakeDisplay(PORT_A));
+        setUpDisplay(new FakeDisplay(PORT_B));
+        updateAvailableDisplays();
+
+        // Set the secondary display to be a private display
+        doReturn(new int[]{ PORT_B }).when(mMockedResources)
+                .getIntArray(com.android.internal.R.array.config_localPrivateDisplayPorts);
+        mAdapter.registerLocked();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // The private display should not be allowed to use the content mode switch
+        DisplayDevice secondaryDisplayDevice = mListener.addedDisplays.get(1);
+        assertTrue((secondaryDisplayDevice.getDisplayDeviceInfoLocked().flags
+                & DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH) == 0);
+    }
+
+    @Test
+    public void testAllowsContentSwitch_ownContentOnlyDisplay() throws Exception {
+        // Set up a first display and a secondary display
+        setUpDisplay(new FakeDisplay(PORT_A));
+        setUpDisplay(new FakeDisplay(PORT_B));
+        updateAvailableDisplays();
+
+        // Enable FLAG_OWN_CONTENT_ONLY for the secondary display
+        doReturn(false).when(mMockedResources)
+                .getBoolean(com.android.internal.R.bool.config_localDisplaysMirrorContent);
+        mAdapter.registerLocked();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // The secondary display with FLAG_OWN_CONTENT_ONLY enabled should not be allowed to use the
+        // content mode switch
+        DisplayDevice secondaryDisplayDevice = mListener.addedDisplays.get(1);
+        assertTrue((secondaryDisplayDevice.getDisplayDeviceInfoLocked().flags
+                & DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH) == 0);
+    }
+
+    @Test
+    public void testAllowsContentSwitch_flagShouldShowSystemDecorations() throws Exception {
+        // Set up a display
+        FakeDisplay display = new FakeDisplay(PORT_A);
+        setUpDisplay(display);
+        updateAvailableDisplays();
+
+        mAdapter.registerLocked();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // Display with FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS enabled should not be allowed to use the
+        // content mode switch
+        DisplayDevice displayDevice = mListener.addedDisplays.get(0);
+        int flags = displayDevice.getDisplayDeviceInfoLocked().flags;
+        boolean allowsContentModeSwitch =
+                ((flags & DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH) != 0);
+        boolean shouldShowSystemDecorations =
+                ((flags & DisplayDeviceInfo.FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS) != 0);
+        assertFalse(allowsContentModeSwitch && shouldShowSystemDecorations);
     }
 
     private void initDisplayOffloadSession() {

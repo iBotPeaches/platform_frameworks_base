@@ -20,15 +20,18 @@ import com.android.systemui.battery.BatteryMeterViewController;
 import com.android.systemui.dagger.qualifiers.DisplaySpecific;
 import com.android.systemui.dagger.qualifiers.RootView;
 import com.android.systemui.plugins.DarkIconDispatcher;
+import com.android.systemui.statusbar.core.NewStatusBarIcons;
+import com.android.systemui.statusbar.data.repository.StatusBarConfigurationController;
+import com.android.systemui.statusbar.layout.StatusBarBoundsProvider;
 import com.android.systemui.statusbar.notification.shared.NotificationsLiveDataStoreRefactor;
 import com.android.systemui.statusbar.phone.HeadsUpAppearanceController;
 import com.android.systemui.statusbar.phone.LegacyLightsOutNotifController;
 import com.android.systemui.statusbar.phone.PhoneStatusBarTransitions;
 import com.android.systemui.statusbar.phone.PhoneStatusBarView;
 import com.android.systemui.statusbar.phone.PhoneStatusBarViewController;
-import com.android.systemui.statusbar.phone.StatusBarBoundsProvider;
 import com.android.systemui.statusbar.phone.StatusBarDemoMode;
 import com.android.systemui.statusbar.phone.fragment.CollapsedStatusBarFragment;
+import com.android.systemui.statusbar.window.StatusBarWindowController;
 
 import dagger.BindsInstance;
 import dagger.Subcomponent;
@@ -57,7 +60,10 @@ public interface HomeStatusBarComponent {
     interface Factory {
         /** */
         HomeStatusBarComponent create(
-                @BindsInstance @RootView PhoneStatusBarView phoneStatusBarView);
+                @BindsInstance @RootView PhoneStatusBarView phoneStatusBarView,
+                @BindsInstance StatusBarConfigurationController configurationController,
+                @BindsInstance StatusBarWindowController statusBarWindowController,
+                @BindsInstance @DisplaySpecific DarkIconDispatcher darkIconDispatcher);
     }
 
     /**
@@ -80,7 +86,9 @@ public interface HomeStatusBarComponent {
     default void init() {
         // No one accesses these controllers, so we need to make sure we reference them here so they
         // do get initialized.
-        getBatteryMeterViewController().init();
+        if (!NewStatusBarIcons.isEnabled()) {
+            getBatteryMeterViewController().init();
+        }
         getHeadsUpAppearanceController().init();
         getPhoneStatusBarViewController().init();
         if (!NotificationsLiveDataStoreRefactor.isEnabled()) {

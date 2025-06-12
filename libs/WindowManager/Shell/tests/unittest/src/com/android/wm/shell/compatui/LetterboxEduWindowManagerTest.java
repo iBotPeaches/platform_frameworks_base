@@ -46,9 +46,6 @@ import android.graphics.Rect;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
-import android.platform.test.flag.junit.SetFlagsRule;
 import android.testing.AndroidTestingRunner;
 import android.util.Pair;
 import android.view.DisplayCutout;
@@ -75,7 +72,6 @@ import com.android.wm.shell.transition.Transitions;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -128,17 +124,10 @@ public class LetterboxEduWindowManagerTest extends ShellTestCase {
     @Mock private Consumer<Pair<TaskInfo, ShellTaskOrganizer.TaskListener>> mOnDismissCallback;
     @Mock private DockStateReader mDockStateReader;
 
-    @Rule
-    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
-
     private CompatUIConfiguration mCompatUIConfiguration;
     private TestShellExecutor mExecutor;
     private FakeCompatUIStatusManagerTest mCompatUIStatus;
     private CompatUIStatusManager mCompatUIStatusManager;
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule =
-            DeviceFlagsValueProvider.createCheckFlagsRule();
 
     @Before
     public void setUp() {

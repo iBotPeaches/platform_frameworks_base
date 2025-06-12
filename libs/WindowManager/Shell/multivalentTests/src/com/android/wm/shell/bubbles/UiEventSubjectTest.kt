@@ -29,7 +29,8 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /** Test for [UiEventSubject] */
@@ -130,10 +131,10 @@ class UiEventSubjectTest {
     }
 
     private fun createBubble(appUid: Int, packageName: String, instanceId: InstanceId): Bubble {
-        return mock(Bubble::class.java).apply {
-            whenever(getAppUid()).thenReturn(appUid)
-            whenever(getPackageName()).thenReturn(packageName)
-            whenever(getInstanceId()).thenReturn(instanceId)
+        return mock<Bubble>() {
+            on { getAppUid() } doReturn appUid
+            on { getPackageName() } doReturn packageName
+            on { getInstanceId() } doReturn instanceId
         }
     }
 

@@ -48,7 +48,7 @@ import com.android.wm.shell.shared.bubbles.DismissView
  *
  * @note [setup] method should be called after initialisation
  */
-class DragToInteractView(context: Context) : FrameLayout(context) {
+class DragToInteractView(context: Context, windowManager: WindowManager) : FrameLayout(context) {
     /**
      * The configuration is used to provide module specific resource ids
      *
@@ -86,8 +86,7 @@ class DragToInteractView(context: Context) : FrameLayout(context) {
 
     private val spring = PhysicsAnimator.SpringConfig(STIFFNESS_LOW, DAMPING_RATIO_LOW_BOUNCY)
     private val INTERACT_SCRIM_FADE_MS = 200L
-    private var wm: WindowManager =
-        context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private var wm: WindowManager = windowManager
     private var gradientDrawable: GradientDrawable? = null
 
     private val GRADIENT_ALPHA: IntProperty<GradientDrawable> =

@@ -77,6 +77,19 @@ public abstract class ViewStructure {
             "android.view.ViewStructure.extra.FIRST_ACTIVE_POSITION";
 
     /**
+     * Key used for confirming whether the view draws graphics containing secure layers.
+     *
+     * <p>Secure layers cannot be read back into main memory and will show up as blank regions
+     * in assist screenshots.
+     *
+     * @see android.view.SurfaceControl#SECURE
+     *
+     * @hide
+     */
+    public static final String EXTRA_CONTAINS_SECURE_LAYERS =
+            "android.view.ViewStructure.extra.CONTAINS_SECURE_LAYERS";
+
+    /**
      * Key used for writing the type of the view that generated the virtual structure of its
      * children.
      *

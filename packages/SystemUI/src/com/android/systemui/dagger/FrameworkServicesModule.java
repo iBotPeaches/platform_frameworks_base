@@ -16,9 +16,6 @@
 
 package com.android.systemui.dagger;
 
-import static com.android.systemui.Flags.enableViewCaptureTracing;
-import static com.android.systemui.util.ConvenienceExtensionsKt.toKotlinLazy;
-
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
@@ -41,6 +38,7 @@ import android.app.ambientcontext.AmbientContextManager;
 import android.app.job.JobScheduler;
 import android.app.role.RoleManager;
 import android.app.smartspace.SmartspaceManager;
+import android.app.supervision.SupervisionManager;
 import android.app.trust.TrustManager;
 import android.app.usage.UsageStatsManager;
 import android.appwidget.AppWidgetManager;
@@ -71,6 +69,7 @@ import android.hardware.display.DisplayManager;
 import android.hardware.face.FaceManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.hardware.input.InputManager;
+import android.hardware.location.ContextHubManager;
 import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.IAudioService;
@@ -101,7 +100,6 @@ import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.satellite.SatelliteManager;
-import android.view.Choreographer;
 import android.view.CrossWindowBlurListeners;
 import android.view.IWindowManager;
 import android.view.LayoutInflater;
@@ -113,13 +111,9 @@ import android.view.accessibility.CaptioningManager;
 import android.view.inputmethod.InputMethodManager;
 import android.view.textclassifier.TextClassificationManager;
 
-import androidx.annotation.NonNull;
 import androidx.asynclayoutinflater.view.AsyncLayoutInflater;
 import androidx.core.app.NotificationManagerCompat;
 
-import com.android.app.viewcapture.ViewCapture;
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
-import com.android.app.viewcapture.ViewCaptureFactory;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.appwidget.IAppWidgetService;
 import com.android.internal.jank.InteractionJankMonitor;
@@ -133,8 +127,9 @@ import com.android.systemui.dagger.qualifiers.TestHarness;
 import com.android.systemui.shared.system.PackageManagerWrapper;
 import com.android.systemui.user.utils.UserScopedService;
 import com.android.systemui.user.utils.UserScopedServiceImpl;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
+import com.android.systemui.utils.windowmanager.WindowManagerProviderImpl;
 
-import dagger.Lazy;
 import dagger.Module;
 import dagger.Provides;
 
@@ -210,13 +205,6 @@ public class FrameworkServicesModule {
         return new UserScopedServiceImpl<>(context, CaptioningManager.class);
     }
 
-    /** */
-    @Provides
-    @Singleton
-    public Choreographer providesChoreographer() {
-        return Choreographer.getInstance();
-    }
-
     @Provides
     @Singleton
     static ColorDisplayManager provideColorDisplayManager(Context context) {
@@ -233,6 +221,13 @@ public class FrameworkServicesModule {
     @Singleton
     static ContentResolver provideContentResolver(Context context) {
         return context.getContentResolver();
+    }
+
+    @Provides
+    @Singleton
+    @Nullable
+    static ContextHubManager provideContextHubManager(Context context) {
+        return context.getSystemService(ContextHubManager.class);
     }
 
     @Provides
@@ -267,6 +262,7 @@ public class FrameworkServicesModule {
     }
 
     @Provides
+    @Nullable
     @Singleton
     static VirtualDeviceManager provideVirtualDeviceManager(Context context) {
         return context.getSystemService(VirtualDeviceManager.class);
@@ -425,6 +421,12 @@ public class FrameworkServicesModule {
     @Singleton
     static KeyguardManager provideKeyguardManager(Context context) {
         return context.getSystemService(KeyguardManager.class);
+    }
+
+    @Provides
+    @Singleton
+    static UserScopedService<KeyguardManager> provideKeyguardManagerUserScoped(Context context) {
+        return new UserScopedServiceImpl<>(context, KeyguardManager.class);
     }
 
     @Provides
@@ -704,30 +706,23 @@ public class FrameworkServicesModule {
 
     @Provides
     @Singleton
-    static WindowManager provideWindowManager(Context context) {
-        return context.getSystemService(WindowManager.class);
+    static WindowManagerProvider provideWindowManagerProvider() {
+        return new WindowManagerProviderImpl();
     }
 
     @Provides
     @Singleton
-    static ViewCaptureAwareWindowManager provideViewCaptureAwareWindowManager(
-            WindowManager windowManager, Lazy<ViewCapture> daggerLazyViewCapture) {
-        return new ViewCaptureAwareWindowManager(windowManager,
-                /* lazyViewCapture= */ toKotlinLazy(daggerLazyViewCapture),
-                /* isViewCaptureEnabled= */ enableViewCaptureTracing());
+    static WindowManager provideWindowManager(Context context,
+            WindowManagerProvider windowManagerProvider) {
+        return windowManagerProvider.getWindowManager(context);
     }
 
+    /** A window manager working for the default display only. */
     @Provides
     @Singleton
-    static ViewCaptureAwareWindowManager.Factory viewCaptureAwareWindowManagerFactory(
-            Lazy<ViewCapture> daggerLazyViewCapture) {
-        return new ViewCaptureAwareWindowManager.Factory() {
-            @NonNull
-            @Override
-            public ViewCaptureAwareWindowManager create(@NonNull WindowManager windowManager) {
-                return provideViewCaptureAwareWindowManager(windowManager, daggerLazyViewCapture);
-            }
-        };
+    @Main
+    static WindowManager provideMainWindowManager(WindowManager windowManager) {
+        return windowManager;
     }
 
     @Provides
@@ -818,7 +813,8 @@ public class FrameworkServicesModule {
 
     @Provides
     @Singleton
-    static ViewCapture provideViewCapture(Context context) {
-        return ViewCaptureFactory.getInstance(context);
+    @Nullable
+    static SupervisionManager provideSupervisionManager(Context context) {
+        return (SupervisionManager) context.getSystemService(Context.SUPERVISION_SERVICE);
     }
 }

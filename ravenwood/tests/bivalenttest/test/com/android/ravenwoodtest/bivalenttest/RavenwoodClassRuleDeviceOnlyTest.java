@@ -16,13 +16,11 @@
 package com.android.ravenwoodtest.bivalenttest;
 
 import android.platform.test.annotations.DisabledOnRavenwood;
-import android.platform.test.ravenwood.RavenwoodClassRule;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Assert;
-import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -33,9 +31,6 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 @DisabledOnRavenwood
 public class RavenwoodClassRuleDeviceOnlyTest {
-    @ClassRule
-    public static final RavenwoodClassRule sRavenwood = new RavenwoodClassRule();
-
     @Test
     public void testDeviceOnly() {
         Assert.assertFalse(RavenwoodRule.isOnRavenwood());

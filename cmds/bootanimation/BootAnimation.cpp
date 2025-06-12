@@ -207,7 +207,7 @@ BootAnimation::BootAnimation(sp<Callbacks> callbacks)
         : Thread(false), mLooper(new Looper(false)), mClockEnabled(true), mTimeIsAccurate(false),
         mTimeFormat12Hour(false), mTimeCheckThread(nullptr), mCallbacks(callbacks) {
     ATRACE_CALL();
-    mSession = new SurfaceComposerClient();
+    mSession = sp<SurfaceComposerClient>::make();
 
     std::string powerCtl = android::base::GetProperty("sys.powerctl", "");
     if (powerCtl.empty()) {
@@ -441,7 +441,7 @@ public:
             numEvents = mBootAnimation->mDisplayEventReceiver->getEvents(buffer, kBufferSize);
             for (size_t i = 0; i < static_cast<size_t>(numEvents); i++) {
                 const auto& event = buffer[i];
-                if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG) {
+                if (event.header.type == DisplayEventType::DISPLAY_EVENT_HOTPLUG) {
                     SLOGV("Hotplug received");
 
                     if (!event.hotplug.connected) {

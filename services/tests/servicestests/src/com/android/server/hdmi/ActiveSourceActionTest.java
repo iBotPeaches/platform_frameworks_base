@@ -16,12 +16,15 @@
 
 package com.android.server.hdmi;
 
+import static android.content.pm.PackageManager.FEATURE_HDMI_CEC;
+
 import static com.android.server.SystemService.PHASE_SYSTEM_SERVICES_READY;
 import static com.android.server.hdmi.Constants.ADDR_TV;
 import static com.android.server.hdmi.HdmiControlService.INITIATED_BY_ENABLE_CEC;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.Mockito.spy;
 
 import android.annotation.RequiresPermission;
@@ -57,17 +60,22 @@ public class ActiveSourceActionTest {
     private TestLooper mTestLooper = new TestLooper();
     private ArrayList<HdmiCecLocalDevice> mLocalDevices = new ArrayList<>();
     private int mPhysicalAddress;
+    private boolean mIsPowerStandby;
 
     @Before
     public void setUp() throws Exception {
+        assumeTrue("Test requires FEATURE_HDMI_CEC",
+                InstrumentationRegistry.getTargetContext().getPackageManager()
+                        .hasSystemFeature(FEATURE_HDMI_CEC));
         mContextSpy = spy(new ContextWrapper(InstrumentationRegistry.getTargetContext()));
 
+        mIsPowerStandby = false;
         FakeAudioFramework audioFramework = new FakeAudioFramework();
         mHdmiControlService = new HdmiControlService(mContextSpy, Collections.emptyList(),
                 audioFramework.getAudioManager(), audioFramework.getAudioDeviceVolumeManager()) {
             @Override
             boolean isPowerStandby() {
-                return false;
+                return mIsPowerStandby;
             }
 
             @Override
@@ -144,5 +152,42 @@ public class ActiveSourceActionTest {
                 .isEqualTo(playbackDevice.getDeviceInfo().getLogicalAddress());
         assertThat(playbackDevice.getActiveSource().physicalAddress).isEqualTo(mPhysicalAddress);
         assertThat(playbackDevice.isActiveSource()).isTrue();
+    }
+
+    @Test
+    public void onActiveSourceLost_removePendingActiveSourceAction() {
+        HdmiCecLocalDevicePlayback playbackDevice = new HdmiCecLocalDevicePlayback(
+                mHdmiControlService);
+        playbackDevice.init();
+        mLocalDevices.add(playbackDevice);
+        mHdmiControlService.allocateLogicalAddress(mLocalDevices, INITIATED_BY_ENABLE_CEC);
+        mIsPowerStandby = true;
+        mTestLooper.dispatchAll();
+
+        mNativeWrapper.clearResultMessages();
+        mTestLooper.dispatchAll();
+
+        int otherPlaybackLogicalAddress = playbackDevice.getDeviceInfo().getLogicalAddress()
+                == Constants.ADDR_PLAYBACK_2
+                ? Constants.ADDR_PLAYBACK_1 : Constants.ADDR_PLAYBACK_2;
+        HdmiCecMessage activeSourceFromOtherDevice =
+                HdmiCecMessageBuilder.buildActiveSource(
+                        otherPlaybackLogicalAddress, 0x2200);
+        HdmiCecMessage activeSourceFromDevice =
+                HdmiCecMessageBuilder.buildActiveSource(
+                        playbackDevice.getDeviceInfo().getLogicalAddress(), mPhysicalAddress);
+
+        HdmiCecFeatureAction action = new com.android.server.hdmi.ActiveSourceAction(
+                playbackDevice, ADDR_TV);
+        playbackDevice.addAndStartAction(action);
+        mTestLooper.dispatchAll();
+
+        assertThat(playbackDevice.getActions(ActiveSourceAction.class)).hasSize(1);
+        playbackDevice.handleActiveSource(activeSourceFromOtherDevice);
+        mTestLooper.dispatchAll();
+
+        // Action is removed
+        assertThat(playbackDevice.getActions(ActiveSourceAction.class)).hasSize(0);
+        assertThat(mNativeWrapper.getResultMessages()).doesNotContain(activeSourceFromDevice);
     }
 }

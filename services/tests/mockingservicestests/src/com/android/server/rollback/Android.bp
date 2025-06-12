@@ -30,18 +30,18 @@ android_test {
 
     static_libs: [
         "androidx.test.runner",
+        "flag-junit",
         "mockito-target-extended-minus-junit4",
         "services.core",
         "truth",
-        "flag-junit",
     ] + select(soong_config_variable("ANDROID", "release_crashrecovery_module"), {
         "true": ["service-crashrecovery-pre-jarjar"],
         default: [],
     }),
 
     libs: [
-        "android.test.mock.stubs.system",
         "android.test.base.stubs.system",
+        "android.test.mock.stubs.system",
         "android.test.runner.stubs.system",
     ],
 
@@ -53,9 +53,15 @@ android_test {
     certificate: "platform",
     platform_apis: true,
     test_suites: [
-        "device-tests",
         "automotive-tests",
+        "device-tests",
+        "mts-crashrecovery",
     ],
+    min_sdk_version: "36",
+
+    // Test coverage system runs on different devices. Need to
+    // compile for all architecture.
+    compile_multilib: "both",
 }
 
 test_module_config {

@@ -23,6 +23,7 @@ import android.annotation.Nullable;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.os.Build;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SweepGradient extends Shader {
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     private float mCx;

@@ -42,8 +42,12 @@ android_library {
         "androidx.compose.material3_material3",
 
         "PlatformComposeCore",
+        "mechanics",
     ],
 
-    kotlincflags: ["-Xjvm-default=all"],
+    kotlincflags: [
+        "-Xjvm-default=all",
+        "-P plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
+    ],
     use_resource_processor: true,
 }

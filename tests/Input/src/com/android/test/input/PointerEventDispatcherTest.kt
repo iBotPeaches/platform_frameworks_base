@@ -21,11 +21,10 @@ import android.view.InputChannel
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.WindowManagerPolicyConstants.PointerEventListener
-
 import com.android.server.UiThread
 import com.android.server.wm.PointerEventDispatcher
-import org.junit.Assert.assertEquals
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 
@@ -39,6 +38,7 @@ class PointerEventDispatcherTest {
     companion object {
         private const val TAG = "PointerEventDispatcherTest"
     }
+
     private val mHandlerThread = HandlerThread("Process input events")
     private lateinit var mSender: SpyInputEventSender
     private lateinit var mPointerEventDispatcher: PointerEventDispatcher
@@ -75,8 +75,15 @@ class PointerEventDispatcherTest {
         // The MotionEvent properties aren't important for this test, as long as the event
         // is a pointer event, so that it gets processed by CrashingPointerEventListener
         val downTime = 0L
-        val motionEvent = MotionEvent.obtain(downTime, downTime,
-                MotionEvent.ACTION_DOWN, 0f /* x */, 0f /* y */, 0 /* metaState */)
+        val motionEvent =
+            MotionEvent.obtain(
+                downTime,
+                downTime,
+                MotionEvent.ACTION_DOWN,
+                0f /* x */,
+                0f /* y */,
+                0, /* metaState */
+            )
         motionEvent.source = InputDevice.SOURCE_TOUCHSCREEN
         val seq = 10
         mSender.sendInputEvent(seq, motionEvent)

@@ -663,6 +663,7 @@ bool ResourceTable::AddResource(NewResource&& res, android::IDiagnostics* diag) 
     if (!config_value->value) {
       // Resource does not exist, add it now.
       config_value->value = std::move(res.value);
+      config_value->uses_readwrite_feature_flags = res.uses_readwrite_feature_flags;
     } else {
       // When validation is enabled, ensure that a resource cannot have multiple values defined for
       // the same configuration unless protected by flags.
@@ -680,12 +681,14 @@ bool ResourceTable::AddResource(NewResource&& res, android::IDiagnostics* diag) 
                                ConfigKey{&res.config, res.product}, lt_config_key_ref()),
               util::make_unique<ResourceConfigValue>(res.config, res.product));
           (*it)->value = std::move(res.value);
+          (*it)->uses_readwrite_feature_flags = res.uses_readwrite_feature_flags;
           break;
         }
 
         case CollisionResult::kTakeNew:
           // Take the incoming value.
           config_value->value = std::move(res.value);
+          config_value->uses_readwrite_feature_flags = res.uses_readwrite_feature_flags;
           break;
 
         case CollisionResult::kConflict:
@@ -839,6 +842,12 @@ NewResourceBuilder& NewResourceBuilder::SetStagedId(StagedId staged_alias) {
 
 NewResourceBuilder& NewResourceBuilder::SetAllowMangled(bool allow_mangled) {
   res_.allow_mangled = allow_mangled;
+  return *this;
+}
+
+NewResourceBuilder& NewResourceBuilder::SetUsesReadWriteFeatureFlags(
+    bool uses_readwrite_feature_flags) {
+  res_.uses_readwrite_feature_flags = uses_readwrite_feature_flags;
   return *this;
 }
 

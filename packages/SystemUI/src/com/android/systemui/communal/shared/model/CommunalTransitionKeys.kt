@@ -25,9 +25,14 @@ import com.android.compose.animation.scene.TransitionKey
  */
 object CommunalTransitionKeys {
     /** Fades the glanceable hub without any translation */
+    @Deprecated("No longer supported as all hub transitions will be fades.")
     val SimpleFade = TransitionKey("SimpleFade")
     /** Transition from the glanceable hub before entering edit mode */
     val ToEditMode = TransitionKey("ToEditMode")
     /** Transition to the glanceable hub after exiting edit mode */
     val FromEditMode = TransitionKey("FromEditMode")
+    /** Swipes the glanceable hub in/out of view */
+    val Swipe = TransitionKey("Swipe")
+    /** Swipes out of glanceable hub in landscape orientation */
+    val SwipeInLandscape = TransitionKey("SwipeInLandscape")
 }

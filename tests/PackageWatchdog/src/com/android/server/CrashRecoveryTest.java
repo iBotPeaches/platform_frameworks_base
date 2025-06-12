@@ -48,8 +48,6 @@ import android.net.ConnectivityModuleConnector.ConnectivityModuleHealthListener;
 import android.os.Handler;
 import android.os.SystemProperties;
 import android.os.test.TestLooper;
-import android.platform.test.annotations.DisableFlags;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.DeviceConfig;
 import android.util.AtomicFile;
@@ -135,7 +133,6 @@ public class CrashRecoveryTest {
 
     @Before
     public void setUp() throws Exception {
-        mSetFlagsRule.enableFlags(Flags.FLAG_RECOVERABILITY_DETECTION);
         MockitoAnnotations.initMocks(this);
         new File(InstrumentationRegistry.getContext().getFilesDir(),
                 "package-watchdog.xml").delete();
@@ -305,90 +302,6 @@ public class CrashRecoveryTest {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_DEPRECATE_FLAGS_AND_SETTINGS_RESETS)
-    public void testBootLoopWithRescuePartyAndRollbackObserver() throws Exception {
-        PackageWatchdog watchdog = createWatchdog();
-        RescuePartyObserver rescuePartyObserver = setUpRescuePartyObserver(watchdog);
-        RollbackPackageHealthObserver rollbackObserver =
-                setUpRollbackPackageHealthObserver(watchdog);
-
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(1);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(1);
-        for (int i = 0; i < PackageWatchdog.DEFAULT_BOOT_LOOP_TRIGGER_COUNT; i++) {
-            watchdog.noteBoot();
-        }
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(1);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(2);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(1);
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(2);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(3);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(2);
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(3);
-        verify(rollbackObserver).onExecuteBootLoopMitigation(1);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(2);
-        // Update the list of available rollbacks after executing bootloop mitigation once
-        when(mRollbackManager.getAvailableRollbacks()).thenReturn(List.of(ROLLBACK_INFO_HIGH,
-                ROLLBACK_INFO_MANUAL));
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(3);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(4);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(2);
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(4);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(5);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(2);
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(5);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(6);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(2);
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(6);
-        verify(rollbackObserver).onExecuteBootLoopMitigation(2);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(3);
-        // Update the list of available rollbacks after executing bootloop mitigation
-        when(mRollbackManager.getAvailableRollbacks()).thenReturn(List.of(ROLLBACK_INFO_MANUAL));
-
-        watchdog.noteBoot();
-
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(6);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(7);
-        verify(rollbackObserver, never()).onExecuteBootLoopMitigation(3);
-
-        moveTimeForwardAndDispatch(PackageWatchdog.DEFAULT_DEESCALATION_WINDOW_MS + 1);
-        Mockito.reset(rescuePartyObserver);
-
-        for (int i = 0; i < PackageWatchdog.DEFAULT_BOOT_LOOP_TRIGGER_COUNT; i++) {
-            watchdog.noteBoot();
-        }
-        mTestLooper.dispatchAll();
-        verify(rescuePartyObserver).onExecuteBootLoopMitigation(1);
-        verify(rescuePartyObserver, never()).onExecuteBootLoopMitigation(2);
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_DEPRECATE_FLAGS_AND_SETTINGS_RESETS)
     public void testBootLoopWithRescuePartyAndRollbackObserverNoFlags() throws Exception {
         PackageWatchdog watchdog = createWatchdog();
         RescuePartyObserver rescuePartyObserver = setUpRescuePartyObserver(watchdog);
@@ -443,80 +356,6 @@ public class CrashRecoveryTest {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_DEPRECATE_FLAGS_AND_SETTINGS_RESETS)
-    public void testCrashLoopWithRescuePartyAndRollbackObserver() throws Exception {
-        PackageWatchdog watchdog = createWatchdog();
-        RescuePartyObserver rescuePartyObserver = setUpRescuePartyObserver(watchdog);
-        RollbackPackageHealthObserver rollbackObserver =
-                setUpRollbackPackageHealthObserver(watchdog);
-        VersionedPackage versionedPackageA = new VersionedPackage(APP_A, VERSION_CODE);
-
-        when(mMockPackageManager.getApplicationInfo(anyString(), anyInt())).then(inv -> {
-            ApplicationInfo info = new ApplicationInfo();
-            info.flags |= ApplicationInfo.FLAG_PERSISTENT
-                    | ApplicationInfo.FLAG_SYSTEM;
-            return info;
-        });
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageA), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: SCOPED_DEVICE_CONFIG_RESET
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageA), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: ALL_DEVICE_CONFIG_RESET
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 3);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageA), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: WARM_REBOOT
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 3);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 4);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageA), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: Low impact rollback
-        verify(rollbackObserver).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 4);
-
-        // update available rollbacks to mock rollbacks being applied after the call to
-        // rollbackObserver.onExecuteHealthCheckMitigation
-        when(mRollbackManager.getAvailableRollbacks()).thenReturn(
-                List.of(ROLLBACK_INFO_HIGH, ROLLBACK_INFO_MANUAL));
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageA), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // DEFAULT_MAJOR_USER_IMPACT_LEVEL_THRESHOLD reached. No more mitigations applied
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 4);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageA,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_DEPRECATE_FLAGS_AND_SETTINGS_RESETS)
     public void testCrashLoopWithRescuePartyAndRollbackObserverEnableDeprecateFlagReset()
             throws Exception {
         PackageWatchdog watchdog = createWatchdog();
@@ -569,123 +408,6 @@ public class CrashRecoveryTest {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_DEPRECATE_FLAGS_AND_SETTINGS_RESETS)
-    public void testCrashLoopSystemUIWithRescuePartyAndRollbackObserver() throws Exception {
-        PackageWatchdog watchdog = createWatchdog();
-        RescuePartyObserver rescuePartyObserver = setUpRescuePartyObserver(watchdog);
-        RollbackPackageHealthObserver rollbackObserver =
-                setUpRollbackPackageHealthObserver(watchdog);
-        String systemUi = "com.android.systemui";
-        VersionedPackage versionedPackageUi = new VersionedPackage(
-                systemUi, VERSION_CODE);
-        RollbackInfo rollbackInfoUi = getRollbackInfo(systemUi, VERSION_CODE, 1,
-                PackageManager.ROLLBACK_USER_IMPACT_LOW);
-        when(mRollbackManager.getAvailableRollbacks()).thenReturn(List.of(ROLLBACK_INFO_LOW,
-                ROLLBACK_INFO_HIGH, ROLLBACK_INFO_MANUAL, rollbackInfoUi));
-
-        when(mMockPackageManager.getApplicationInfo(anyString(), anyInt())).then(inv -> {
-            ApplicationInfo info = new ApplicationInfo();
-            info.flags |= ApplicationInfo.FLAG_PERSISTENT
-                    | ApplicationInfo.FLAG_SYSTEM;
-            return info;
-        });
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: SCOPED_DEVICE_CONFIG_RESET
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: ALL_DEVICE_CONFIG_RESET
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 3);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: WARM_REBOOT
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 3);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 4);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: Low impact rollback
-        verify(rollbackObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 1);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 4);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-
-        // update available rollbacks to mock rollbacks being applied after the call to
-        // rollbackObserver.onExecuteHealthCheckMitigation
-        when(mRollbackManager.getAvailableRollbacks()).thenReturn(
-                List.of(ROLLBACK_INFO_HIGH, ROLLBACK_INFO_MANUAL));
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: RESET_SETTINGS_UNTRUSTED_DEFAULTS
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 4);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 5);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: RESET_SETTINGS_UNTRUSTED_CHANGES
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 5);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 6);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: RESET_SETTINGS_TRUSTED_DEFAULTS
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 6);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 7);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-
-        raiseFatalFailureAndDispatch(watchdog,
-                Arrays.asList(versionedPackageUi), PackageWatchdog.FAILURE_REASON_APP_CRASH);
-
-        // Mitigation: Factory reset. High impact rollbacks are performed only for boot loops.
-        verify(rescuePartyObserver).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 7);
-        verify(rescuePartyObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 8);
-        verify(rollbackObserver, never()).onExecuteHealthCheckMitigation(versionedPackageUi,
-                PackageWatchdog.FAILURE_REASON_APP_CRASH, 2);
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_DEPRECATE_FLAGS_AND_SETTINGS_RESETS)
     public void testCrashLoopSystemUIWithRescuePartyAndRollbackObserverEnableDeprecateFlagReset()
             throws Exception {
         PackageWatchdog watchdog = createWatchdog();
@@ -765,14 +487,14 @@ public class CrashRecoveryTest {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException(e);
         }
-        watchdog.registerHealthObserver(rollbackObserver, mTestExecutor);
+        watchdog.registerHealthObserver(mTestExecutor, rollbackObserver);
         return rollbackObserver;
     }
     RescuePartyObserver setUpRescuePartyObserver(PackageWatchdog watchdog) {
         setCrashRecoveryPropRescueBootCount(0);
         RescuePartyObserver rescuePartyObserver = spy(RescuePartyObserver.getInstance(mSpyContext));
         assertFalse(RescueParty.isRebootPropertySet());
-        watchdog.registerHealthObserver(rescuePartyObserver, mTestExecutor);
+        watchdog.registerHealthObserver(mTestExecutor, rescuePartyObserver);
         return rescuePartyObserver;
     }
 
@@ -1043,8 +765,6 @@ public class CrashRecoveryTest {
             watchdog.notifyPackageFailure(packages, failureReason);
         }
         mTestLooper.dispatchAll();
-        if (Flags.recoverabilityDetection()) {
-            moveTimeForwardAndDispatch(watchdog.DEFAULT_MITIGATION_WINDOW_MS);
-        }
+        moveTimeForwardAndDispatch(watchdog.DEFAULT_MITIGATION_WINDOW_MS);
     }
 }

@@ -17,6 +17,9 @@
 package com.android.systemui.statusbar.notification.row;
 
 import static com.android.systemui.Flags.notificationColorUpdateLogger;
+import static com.android.systemui.Flags.physicalNotificationMovement;
+
+import static java.lang.Math.abs;
 
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
@@ -24,23 +27,31 @@ import android.content.res.Configuration;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
+import android.util.FloatProperty;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.dynamicanimation.animation.DynamicAnimation;
+import androidx.dynamicanimation.animation.SpringAnimation;
+import androidx.dynamicanimation.animation.SpringForce;
 
 import com.android.app.animation.Interpolators;
 import com.android.systemui.Dumpable;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.StatusBarIconView;
+import com.android.systemui.statusbar.notification.PhysicsProperty;
 import com.android.systemui.statusbar.notification.Roundable;
 import com.android.systemui.statusbar.notification.RoundableState;
+import com.android.systemui.statusbar.notification.headsup.PinnedStatus;
 import com.android.systemui.statusbar.notification.stack.ExpandableViewState;
+import com.android.systemui.statusbar.notification.stack.MagneticRowListener;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
 import com.android.systemui.util.Compile;
 import com.android.systemui.util.DumpUtilsKt;
@@ -53,6 +64,20 @@ import java.util.List;
  * An abstract view for expandable views.
  */
 public abstract class ExpandableView extends FrameLayout implements Dumpable, Roundable {
+    public static final int TAG_ANIMATOR_HEIGHT = R.id.height_animator_tag;
+    public static final PhysicsProperty HEIGHT_PROPERTY = new PhysicsProperty(TAG_ANIMATOR_HEIGHT,
+            new FloatProperty<>("ActualHeight") {
+
+                @Override
+                public Float get(View view) {
+                    return (float) ((ExpandableView) view).getActualHeight();
+                }
+
+                @Override
+                public void setValue(@NonNull View view, float value) {
+                    ((ExpandableView) view).setActualHeight((int) value);
+                }
+            });
     private static final String TAG = "ExpandableView";
     /** whether the dump() for this class should include verbose details */
     protected static final boolean DUMP_VERBOSE = Compile.IS_DEBUG
@@ -79,10 +104,77 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
     protected float mContentTransformationAmount;
     protected boolean mIsLastChild;
     protected int mContentShift;
-    @NonNull private final ExpandableViewState mViewState;
+    @NonNull
+    private final ExpandableViewState mViewState;
     private float mContentTranslation;
     protected boolean mLastInSection;
     protected boolean mFirstInSection;
+
+    protected SpringAnimation mMagneticAnimator = new SpringAnimation(
+            this /* object */, DynamicAnimation.TRANSLATION_X);
+
+    private int mTouchSlop;
+
+    protected MagneticRowListener mMagneticRowListener = new MagneticRowListener() {
+
+        @Override
+        public void setMagneticTranslation(float translation, boolean trackEagerly) {
+            if (!mMagneticAnimator.isRunning()) {
+                setTranslation(translation);
+                return;
+            }
+
+            if (trackEagerly) {
+                float delta = abs(getTranslation() - translation);
+                if (delta > mTouchSlop) {
+                    mMagneticAnimator.animateToFinalPosition(translation);
+                } else {
+                    mMagneticAnimator.cancel();
+                    setTranslation(translation);
+                }
+            } else {
+                mMagneticAnimator.animateToFinalPosition(translation);
+            }
+        }
+
+        @Override
+        public void triggerMagneticForce(float endTranslation, @NonNull SpringForce springForce,
+                float startVelocity) {
+            cancelTranslationAnimations();
+            mMagneticAnimator.setSpring(springForce);
+            mMagneticAnimator.setStartVelocity(startVelocity);
+            mMagneticAnimator.animateToFinalPosition(endTranslation);
+        }
+
+        @Override
+        public void cancelMagneticAnimations() {
+            mMagneticAnimator.cancel();
+        }
+
+        @Override
+        public void cancelTranslationAnimations() {
+            ExpandableView.this.cancelTranslationAnimations();
+        }
+
+        @Override
+        public boolean canRowBeDismissed() {
+            return canExpandableViewBeDismissed();
+        }
+    };
+
+    /**
+     * @return true if the ExpandableView can be dismissed. False otherwise.
+     */
+    public boolean canExpandableViewBeDismissed() {
+        return false;
+    }
+
+    /** Cancel any trailing animations on the translation of the view */
+    protected void cancelTranslationAnimations(){}
+
+    public MagneticRowListener getMagneticRowListener() {
+        return mMagneticRowListener;
+    }
 
     public ExpandableView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -107,6 +199,7 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
     private void initDimens() {
         mContentShift = getResources().getDimensionPixelSize(
                 R.dimen.shelf_transform_content_shift);
+        mTouchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
     }
 
     @Override
@@ -147,7 +240,7 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
                             MeasureSpec.EXACTLY);
                 }
                 child.measure(getChildMeasureSpec(
-                        widthMeasureSpec, viewHorizontalPadding, layoutParams.width),
+                                widthMeasureSpec, viewHorizontalPadding, layoutParams.width),
                         childHeightSpec);
                 int childHeight = child.getMeasuredHeight();
                 maxChildHeight = Math.max(maxChildHeight, childHeight);
@@ -165,7 +258,7 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
         // Now that we know our own height, measure the children that are MATCH_PARENT
         for (View child : mMatchParentViews) {
             child.measure(getChildMeasureSpec(
-                    widthMeasureSpec, viewHorizontalPadding, child.getLayoutParams().width),
+                            widthMeasureSpec, viewHorizontalPadding, child.getLayoutParams().width),
                     exactlyOwnHeightSpec);
         }
         mMatchParentViews.clear();
@@ -201,17 +294,39 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
         return false;
     }
 
+    @NonNull
+    public PinnedStatus getPinnedStatus() {
+        return PinnedStatus.NotPinned;
+    }
+
     public boolean isHeadsUpAnimatingAway() {
         return false;
     }
 
     /**
+     * Sets the final value of the actual height, which is to be applied immediately without
+     * animation. This may be different than the current value if we're animating away an offset.
+     */
+    public void setFinalActualHeight(int childHeight) {
+        if (physicalNotificationMovement()) {
+            HEIGHT_PROPERTY.setFinalValue(this, childHeight);
+        } else {
+            setActualHeight(childHeight);
+        }
+    }
+
+    /**
+     * Once the physical notification movement flag is enabled, don't use
+     * this directly as a public method since it may not update the property values and misbehave
+     * during animations. Use #setFinalActualHeight instead.
+     *
      * Sets the actual height of this notification. This is different than the laid out
      * {@link View#getHeight()}, as we want to avoid layouting during scrolling and expanding.
      *
-     * @param actualHeight The height of this notification.
+     * @param actualHeight    The height of this notification.
      * @param notifyListeners Whether the listener should be informed about the change.
      */
+    @Deprecated
     public void setActualHeight(int actualHeight, boolean notifyListeners) {
         if (mActualHeight != actualHeight) {
             mActualHeight = actualHeight;
@@ -222,7 +337,7 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
         }
     }
 
-    public void setActualHeight(int actualHeight) {
+    protected void setActualHeight(int actualHeight) {
         setActualHeight(actualHeight, true /* notifyListeners */);
     }
 
@@ -369,7 +484,8 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
      *                             remove animation should be performed upwards,
      *                             such that the  child appears to be going away to the top. 1
      *                             Should mean the opposite.
-     * @param isHeadsUpAnimation   Is this a headsUp animation.
+     * @param isHeadsUpAnimation   Is this a headsUp animation
+     * @param isHeadsUpCycling     Is this the cycling heads up animation
      * @param onFinishedRunnable   A runnable which should be run when the animation is finished.
      * @param animationListener    An animation listener to add to the animation.
      * @return The additional delay, in milliseconds, that this view needs to add before the
@@ -377,7 +493,7 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
      */
     public abstract long performRemoveAnimation(long duration,
             long delay, float translationDirection, boolean isHeadsUpAnimation,
-            Runnable onStartedRunnable,
+            boolean isHeadsUpCycling, Runnable onStartedRunnable,
             Runnable onFinishedRunnable,
             AnimatorListenerAdapter animationListener, ClipSide clipSide);
 
@@ -387,11 +503,12 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
     }
 
     public void performAddAnimation(long delay, long duration, boolean isHeadsUpAppear) {
-        performAddAnimation(delay, duration, isHeadsUpAppear, null);
+        performAddAnimation(delay, duration, isHeadsUpAppear, false /* isHeadsUpCycling */,
+                null);
     }
 
     public abstract void performAddAnimation(long delay, long duration, boolean isHeadsUpAppear,
-            Runnable onEndRunnable);
+            boolean isHeadsUpCycling, Runnable onEndRunnable);
 
     public int getPinnedHeadsUpHeight() {
         return getIntrinsicHeight();
@@ -685,7 +802,8 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
      *
      * @return the ExpandableView's view state.
      */
-    @NonNull public ExpandableViewState getViewState() {
+    @NonNull
+    public ExpandableViewState getViewState() {
         return mViewState;
     }
 
@@ -777,9 +895,10 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
      * Set how much this notification is transformed into the shelf.
      *
      * @param contentTransformationAmount A value from 0 to 1 indicating how much we are transformed
-     *                                 to the content away
-     * @param isLastChild is this the last child in the list. If true, then the transformation is
-     *                    different since its content fades out.
+     *                                    to the content away
+     * @param isLastChild                 is this the last child in the list. If true, then the
+     *                                    transformation is
+     *                                    different since its content fades out.
      */
     public void setContentTransformationAmount(float contentTransformationAmount,
             boolean isLastChild) {
@@ -908,8 +1027,9 @@ public abstract class ExpandableView extends FrameLayout implements Dumpable, Ro
     public interface OnHeightChangedListener {
 
         /**
-         * @param view the view for which the height changed, or {@code null} if just the top
-         *             padding or the padding between the elements changed
+         * @param view           the view for which the height changed, or {@code null} if just the
+         *                       top
+         *                       padding or the padding between the elements changed
          * @param needsAnimation whether the view height needs to be animated
          */
         void onHeightChanged(ExpandableView view, boolean needsAnimation);

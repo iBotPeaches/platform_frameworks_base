@@ -86,8 +86,7 @@ public class ConversationLayout extends FrameLayout
     public static final Interpolator FAST_OUT_LINEAR_IN = new PathInterpolator(0.4f, 0f, 1f, 1f);
     public static final Interpolator FAST_OUT_SLOW_IN = new PathInterpolator(0.4f, 0f, 0.2f, 1f);
     public static final Interpolator OVERSHOOT = new PathInterpolator(0.4f, 0f, 0.2f, 1.4f);
-    public static final OnLayoutChangeListener MESSAGING_PROPERTY_ANIMATOR
-            = new MessagingPropertyAnimator();
+    private static final int MAX_SUMMARIZATION_LINES = 3;
     public static final int IMPORTANCE_ANIM_GROW_DURATION = 250;
     public static final int IMPORTANCE_ANIM_SHRINK_DURATION = 200;
     public static final int IMPORTANCE_ANIM_SHRINK_DELAY = 25;
@@ -96,15 +95,16 @@ public class ConversationLayout extends FrameLayout
     private List<MessagingMessage> mHistoricMessages = new ArrayList<>();
     private MessagingLinearLayout mMessagingLinearLayout;
     private boolean mShowHistoricMessages;
-    private ArrayList<MessagingGroup> mGroups = new ArrayList<>();
+    private final ArrayList<MessagingGroup> mGroups = new ArrayList<>();
     private int mLayoutColor;
     private int mSenderTextColor;
     private int mMessageTextColor;
     private Icon mAvatarReplacement;
     private boolean mIsOneToOne;
-    private ArrayList<MessagingGroup> mAddedGroups = new ArrayList<>();
+    private final ArrayList<MessagingGroup> mAddedGroups = new ArrayList<>();
     private Person mUser;
     private CharSequence mNameReplacement;
+    private CharSequence mSummarizedContent;
     private boolean mIsCollapsed;
     private ImageResolver mImageResolver;
     private CachingIconView mConversationIconView;
@@ -162,8 +162,8 @@ public class ConversationLayout extends FrameLayout
     private Icon mConversationIcon;
     private Icon mShortcutIcon;
     private View mAppNameDivider;
-    private TouchDelegateComposite mTouchDelegate = new TouchDelegateComposite(this);
-    private ArrayList<MessagingLinearLayout.MessagingChild> mToRecycle = new ArrayList<>();
+    private final TouchDelegateComposite mTouchDelegate = new TouchDelegateComposite(this);
+    private final ArrayList<MessagingLinearLayout.MessagingChild> mToRecycle = new ArrayList<>();
     private boolean mPrecomputedTextEnabled = false;
     @Nullable
     private ConversationHeaderData mConversationHeaderData;
@@ -251,7 +251,8 @@ public class ConversationLayout extends FrameLayout
             mPeopleHelper.animateViewForceHidden(mImportanceRingView, forceHidden);
             mPeopleHelper.animateViewForceHidden(mIcon, forceHidden);
         });
-        mConversationText = findViewById(R.id.conversation_text);
+        mConversationText = findViewById(notificationsRedesignTemplates()
+                ? R.id.title : R.id.conversation_text);
         mExpandButtonContainer = findViewById(R.id.expand_button_container);
         mExpandButtonContainerA11yContainer =
                 findViewById(R.id.expand_button_a11y_container);
@@ -397,12 +398,33 @@ public class ConversationLayout extends FrameLayout
      *
      * @param isCollapsed is it collapsed
      */
-    @RemotableViewMethod
+    @RemotableViewMethod(asyncImpl = "setIsCollapsedAsync")
     public void setIsCollapsed(boolean isCollapsed) {
         mIsCollapsed = isCollapsed;
-        mMessagingLinearLayout.setMaxDisplayedLines(isCollapsed ? 1 : Integer.MAX_VALUE);
+        int maxLines = Integer.MAX_VALUE;
+        if (isCollapsed) {
+            if (!TextUtils.isEmpty(mSummarizedContent)) {
+                maxLines = MAX_SUMMARIZATION_LINES;
+            } else {
+                if (android.app.Flags.nmCollapsedLines()) {
+                    maxLines = 2;
+                } else {
+                    maxLines = 1;
+                }
+            }
+        }
+        mMessagingLinearLayout.setMaxDisplayedLines(maxLines);
         updateExpandButton();
         updateContentEndPaddings();
+    }
+
+    /**
+     * setDataAsync needs to do different stuff for the collapsed vs expanded view, so store the
+     * collapsed state early.
+     */
+    public Runnable setIsCollapsedAsync(boolean isCollapsed) {
+        mIsCollapsed = isCollapsed;
+        return () -> setIsCollapsed(isCollapsed);
     }
 
     /**
@@ -430,17 +452,24 @@ public class ConversationLayout extends FrameLayout
         // mUser now set (would be nice to avoid the side effect but WHATEVER)
         final Person user = extras.getParcelable(Notification.EXTRA_MESSAGING_PERSON, Person.class);
         // Append remote input history to newMessages (again, side effect is lame but WHATEVS)
-        RemoteInputHistoryItem[] history = (RemoteInputHistoryItem[])
-                extras.getParcelableArray(Notification.EXTRA_REMOTE_INPUT_HISTORY_ITEMS,
-                        RemoteInputHistoryItem.class);
+        RemoteInputHistoryItem[] history = extras.getParcelableArray(
+                Notification.EXTRA_REMOTE_INPUT_HISTORY_ITEMS, RemoteInputHistoryItem.class);
         addRemoteInputHistoryToMessages(newMessages, history);
 
         boolean showSpinner =
                 extras.getBoolean(Notification.EXTRA_SHOW_REMOTE_INPUT_SPINNER, false);
         int unreadCount = extras.getInt(Notification.EXTRA_CONVERSATION_UNREAD_MESSAGE_COUNT);
 
-        final List<MessagingMessage> newMessagingMessages =
-                createMessages(newMessages, /* isHistoric= */false, usePrecomputedText);
+        List<MessagingMessage> newMessagingMessages;
+        mSummarizedContent = extras.getCharSequence(Notification.EXTRA_SUMMARIZED_CONTENT);
+        if (!TextUtils.isEmpty(mSummarizedContent) && mIsCollapsed) {
+            Notification.MessagingStyle.Message summary =
+                    new Notification.MessagingStyle.Message(mSummarizedContent,  0, "");
+            newMessagingMessages = createMessages(List.of(summary), false, usePrecomputedText);
+        } else {
+            newMessagingMessages =
+                    createMessages(newMessages, /* isHistoric= */false, usePrecomputedText);
+        }
         final List<MessagingMessage> newHistoricMessagingMessages =
                 createMessages(newHistoricMessages, /* isHistoric= */true, usePrecomputedText);
 
@@ -463,7 +492,7 @@ public class ConversationLayout extends FrameLayout
 
         return new MessagingData(user, showSpinner, unreadCount,
                 newHistoricMessagingMessages, newMessagingMessages, groups, senders,
-                conversationHeaderData);
+                conversationHeaderData, mSummarizedContent);
     }
 
     /**
@@ -529,7 +558,7 @@ public class ConversationLayout extends FrameLayout
         for (int i = remoteInputHistory.length - 1; i >= 0; i--) {
             RemoteInputHistoryItem historyMessage = remoteInputHistory[i];
             Notification.MessagingStyle.Message message = new Notification.MessagingStyle.Message(
-                    historyMessage.getText(), 0, (Person) null, true /* remoteHistory */);
+                    historyMessage.getText(), 0, null, true /* remoteHistory */);
             if (historyMessage.getUri() != null) {
                 message.setData(historyMessage.getMimeType(), historyMessage.getUri());
             }
@@ -699,17 +728,10 @@ public class ConversationLayout extends FrameLayout
     }
 
     private void updateImageMessages() {
-        View newMessage = null;
-        if (mIsCollapsed && mGroups.size() > 0) {
-
-            // When collapsed, we're displaying the image message in a dedicated container
-            // on the right of the layout instead of inline. Let's add the isolated image there
-            MessagingGroup messagingGroup = mGroups.get(mGroups.size() - 1);
-            MessagingImageMessage isolatedMessage = messagingGroup.getIsolatedMessage();
-            if (isolatedMessage != null) {
-                newMessage = isolatedMessage.getView();
-            }
+        if (mImageMessageContainer == null) {
+            return;
         }
+        View newMessage = getNewImageMessage();
         // Remove all messages that don't belong into the image layout
         View previousMessage = mImageMessageContainer.getChildAt(0);
         if (previousMessage != newMessage) {
@@ -719,6 +741,20 @@ public class ConversationLayout extends FrameLayout
             }
         }
         mImageMessageContainer.setVisibility(newMessage != null ? VISIBLE : GONE);
+    }
+
+    @Nullable
+    private View getNewImageMessage() {
+        if (mIsCollapsed && !mGroups.isEmpty()) {
+            // When collapsed, we're displaying the image message in a dedicated container
+            // on the right of the layout instead of inline. Let's add the isolated image there
+            MessagingGroup messagingGroup = mGroups.getLast();
+            MessagingImageMessage isolatedMessage = messagingGroup.getIsolatedMessage();
+            if (isolatedMessage != null) {
+                return isolatedMessage.getView();
+            }
+        }
+        return null;
     }
 
     public void bindFacePile(ImageView bottomBackground, ImageView bottomView, ImageView topView) {
@@ -824,6 +860,10 @@ public class ConversationLayout extends FrameLayout
     }
 
     private void updateAppName() {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
+
         mAppName.setVisibility(mIsCollapsed ? GONE : VISIBLE);
     }
 
@@ -1147,7 +1187,10 @@ public class ConversationLayout extends FrameLayout
                 nameOverride = mNameReplacement;
             }
             newGroup.setShowingAvatar(!mIsOneToOne && !mIsCollapsed);
-            newGroup.setSingleLine(mIsCollapsed);
+            newGroup.setSingleLine(mIsCollapsed
+                    ? !android.app.Flags.nmCollapsedLines() && TextUtils.isEmpty(mSummarizedContent)
+                    : false);
+            newGroup.setIsCollapsed(mIsCollapsed);
             newGroup.setSender(sender, nameOverride);
             newGroup.setSending(groupIndex == (groups.size() - 1) && showSpinner);
             mGroups.add(newGroup);
@@ -1158,6 +1201,12 @@ public class ConversationLayout extends FrameLayout
                 mMessagingLinearLayout.addView(newGroup, groupIndex);
             }
             newGroup.setMessages(group);
+        }
+
+        if (Flags.dropNonExistingMessages()) {
+            // remove groups from mAddedGroups when they are no longer in mGroups.
+            mAddedGroups.removeIf(
+                    messagingGroup -> !mGroups.contains(messagingGroup));
         }
     }
 
@@ -1216,7 +1265,7 @@ public class ConversationLayout extends FrameLayout
                 final Person sender = message.getSenderPerson();
                 final CharSequence senderKey = getKey(sender);
                 if ((sender != null && senderKey != userKey) || i == 0) {
-                    if (conversationText == null || conversationText.length() == 0) {
+                    if (conversationText == null || conversationText.isEmpty()) {
                         conversationText = sender != null ? sender.getName() : "";
                     }
                     if (conversationIcon == null) {
@@ -1447,7 +1496,6 @@ public class ConversationLayout extends FrameLayout
                 maxHeight = Math.max(maxHeight,
                         child.getMeasuredHeight() + lp.topMargin + lp.bottomMargin);
             }
-
             maxHeight = Math.max(maxHeight, getSuggestedMinimumHeight());
             if (maxHeight != getMeasuredHeight()) {
                 setMeasuredDimension(getMeasuredWidth(), maxHeight);
@@ -1517,6 +1565,10 @@ public class ConversationLayout extends FrameLayout
     }
 
     private void updateExpandButton() {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
+
         int buttonGravity;
         ViewGroup newContainer;
         if (mIsCollapsed) {
@@ -1549,6 +1601,10 @@ public class ConversationLayout extends FrameLayout
     }
 
     private void updateContentEndPaddings() {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
+
         // Let's make sure the conversation header can't run into the expand button when we're
         // collapsed and update the paddings of the content
         int headerPaddingEnd;
@@ -1577,6 +1633,10 @@ public class ConversationLayout extends FrameLayout
     }
 
     private void onAppNameVisibilityChanged() {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
+
         boolean appNameGone = mAppName.getVisibility() == GONE;
         if (appNameGone != mAppNameGone) {
             mAppNameGone = appNameGone;
@@ -1585,10 +1645,18 @@ public class ConversationLayout extends FrameLayout
     }
 
     private void updateAppNameDividerVisibility() {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
+
         mAppNameDivider.setVisibility(mAppNameGone ? GONE : VISIBLE);
     }
 
     public void updateExpandability(boolean expandable, @Nullable OnClickListener onClickListener) {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
+
         mExpandable = expandable;
         if (expandable) {
             mExpandButtonContainer.setVisibility(VISIBLE);
@@ -1622,6 +1690,9 @@ public class ConversationLayout extends FrameLayout
 
     @Nullable
     public CharSequence getConversationText() {
+        if (mSummarizedContent != null) {
+            return mSummarizedContent;
+        }
         if (mMessages.isEmpty()) {
             return null;
         }

@@ -19,7 +19,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.EnabledOnRavenwood;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
 
 import org.junit.runner.Description;
 
@@ -51,8 +50,6 @@ public class RavenwoodEnablementChecker {
                 result = true;
             } else if (description.getAnnotation(DisabledOnRavenwood.class) != null) {
                 result = false;
-            } else if (description.getAnnotation(IgnoreUnderRavenwood.class) != null) {
-                result = false;
             }
             if (result != null) {
                 if (takeIntoAccountRunDisabledTestsFlag
@@ -77,8 +74,6 @@ public class RavenwoodEnablementChecker {
         if (testClass.getAnnotation(EnabledOnRavenwood.class) != null) {
             result = true;
         } else if (testClass.getAnnotation(DisabledOnRavenwood.class) != null) {
-            result = false;
-        } else if (testClass.getAnnotation(IgnoreUnderRavenwood.class) != null) {
             result = false;
         }
         if (!result) {

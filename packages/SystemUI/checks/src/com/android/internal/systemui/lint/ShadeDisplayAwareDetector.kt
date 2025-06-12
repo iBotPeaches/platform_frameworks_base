@@ -29,6 +29,14 @@ import com.intellij.psi.PsiParameter
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.getContainingUFile
 
+/**
+ * Lint check to ensure that when including a Context or Context-dependent argument in
+ * shade-relevant packages, the argument has the @ShadeDisplayAware annotation.
+ *
+ * This is to ensure that Context-dependent components correctly handle Configuration changes when
+ * the shade is moved to a different display. @ShadeDisplayAware-annotated components will update
+ * accordingly to reflect the new display.
+ */
 class ShadeDisplayAwareDetector : Detector(), SourceCodeScanner {
     override fun getApplicableUastTypes() = listOf(UClass::class.java)
 
@@ -38,8 +46,8 @@ class ShadeDisplayAwareDetector : Detector(), SourceCodeScanner {
                 for (constructor in node.constructors) {
                     // Visit all injected constructors in shade-relevant packages
                     if (!constructor.hasAnnotation(INJECT_ANNOTATION)) continue
-                    if (!isInRelevantShadePackage(node)) continue
-                    if (IGNORED_PACKAGES.contains(node.qualifiedName)) continue
+                    if (!isInRelevantShadePackage(node.getContainingUFile()?.packageName)) continue
+                    if (IGNORED_CLASSES.contains(node.qualifiedName)) continue
 
                     for (parameter in constructor.parameterList.parameters) {
                         if (parameter.shouldReport()) {
@@ -59,9 +67,9 @@ class ShadeDisplayAwareDetector : Detector(), SourceCodeScanner {
         private const val INJECT_ANNOTATION = "javax.inject.Inject"
         private const val APPLICATION_ANNOTATION =
             "com.android.systemui.dagger.qualifiers.Application"
-        private const val GLOBAL_CONFIG_ANNOTATION = "com.android.systemui.common.ui.GlobalConfig"
         private const val SHADE_DISPLAY_AWARE_ANNOTATION =
             "com.android.systemui.shade.ShadeDisplayAware"
+        private const val MAIN_ANNOTATION = "com.android.systemui.dagger.qualifiers.Main"
 
         private const val CONTEXT = "android.content.Context"
         private const val WINDOW_MANAGER = "android.view.WindowManager"
@@ -84,43 +92,34 @@ class ShadeDisplayAwareDetector : Detector(), SourceCodeScanner {
                 CONFIG_INTERACTOR,
             )
 
-        private val CONFIG_CLASSES = setOf(CONFIG_STATE, CONFIG_CONTROLLER, CONFIG_INTERACTOR)
-
         private val SHADE_WINDOW_PACKAGES =
             listOf(
                 "com.android.systemui.biometrics",
                 "com.android.systemui.bouncer",
                 "com.android.systemui.keyboard.docking.ui.viewmodel",
+                "com.android.systemui.media.controls.ui.controller",
                 "com.android.systemui.qs",
                 "com.android.systemui.shade",
-                "com.android.systemui.statusbar.notification",
+                "com.android.systemui.statusbar.lockscreen",
                 "com.android.systemui.unfold.domain.interactor",
             )
 
-        private val IGNORED_PACKAGES =
-            setOf(
-                "com.android.systemui.biometrics.UdfpsController",
-                "com.android.systemui.qs.customize.TileAdapter",
-            )
+        private val IGNORED_CLASSES = setOf("com.android.systemui.statusbar.phone.SystemUIDialog")
 
         private fun PsiParameter.shouldReport(): Boolean {
             val className = type.canonicalText
 
             // check if the parameter is a context-dependent class relevant to shade
             if (className !in CONTEXT_DEPENDENT_SHADE_CLASSES) return false
-            // check if it has @ShadeDisplayAware
-            if (hasAnnotation(SHADE_DISPLAY_AWARE_ANNOTATION)) return false
+            if (hasAnnotation(SHADE_DISPLAY_AWARE_ANNOTATION) || hasAnnotation(MAIN_ANNOTATION))
+                return false
             // check if its a @Application-annotated Context
             if (className == CONTEXT && hasAnnotation(APPLICATION_ANNOTATION)) return false
-            // check if its a @GlobalConfig-annotated ConfigurationState, ConfigurationController
-            // or ConfigurationInteractor
-            if (className in CONFIG_CLASSES && hasAnnotation(GLOBAL_CONFIG_ANNOTATION)) return false
 
             return true
         }
 
-        private fun isInRelevantShadePackage(node: UClass): Boolean {
-            val packageName = node.getContainingUFile()?.packageName
+        fun isInRelevantShadePackage(packageName: String?): Boolean {
             if (packageName.isNullOrBlank()) return false
             return SHADE_WINDOW_PACKAGES.any { relevantPackage ->
                 packageName.startsWith(relevantPackage)

@@ -34,6 +34,7 @@
 #include "AGnss.h"
 #include "AGnssRil.h"
 #include "GnssAntennaInfo.h"
+#include "GnssAssistance.h"
 #include "GnssBatching.h"
 #include "GnssCallback.h"
 #include "GnssConfiguration.h"
@@ -115,6 +116,7 @@ public:
     std::unique_ptr<GnssVisibilityControlInterface> getGnssVisibilityControlInterface();
     std::unique_ptr<GnssAntennaInfoInterface> getGnssAntennaInfoInterface();
     std::unique_ptr<GnssPsdsInterface> getGnssPsdsInterface();
+    std::unique_ptr<GnssAssistanceInterface> getGnssAssistanceInterface();
 
     sp<hardware::gnss::IGnssPowerIndication> getGnssPowerIndicationInterface();
     sp<hardware::gnss::V1_0::IGnssNi> getGnssNiInterface();

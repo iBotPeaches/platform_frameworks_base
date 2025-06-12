@@ -32,6 +32,7 @@ import java.io.OutputStream;
  * To compress a rectangle region in the YUV data, users have to specify the
  * region by left, top, width and height.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class YuvImage {
 
     /**

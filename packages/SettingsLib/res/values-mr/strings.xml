@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"अ‍ॅक्टिव्ह आहे (फक्त डावे)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"अ‍ॅक्टिव्ह आहे (फक्त उजवे)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"अ‍ॅक्टिव्ह आहे (डावे आणि उजवे)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"जवळपासचे आवाज अपडेट करता आले नाहीत"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"अ‍ॅक्टिव्ह आहे (फक्त मीडिया). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"ॲक्टिव्ह आहे (फक्त मीडिया). डावीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> बॅटरी, उजवीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> बॅटरी."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"अतिथी डिव्हाइस. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"अतिथी डिव्हाइस. डावीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, उजवीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> बॅटरी."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"अतिथी डिव्हाइस (फक्त मीडिया). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"अतिथी डिव्हाइस (फक्त मीडिया). डावीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, उजवीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> बॅटरी."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"कनेक्ट केले आहे (ऑडिओ शेअरिंगला सपोर्ट करते). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"कनेक्ट केले आहे (ऑडिओ शेअरिंगला सपोर्ट करते). डावीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, उजवीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> बॅटरी."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"कनेक्ट केले आहे (ऑडिओ शेअरिंगला सपोर्ट करते). डावीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"कनेक्ट केले आहे (ऑडिओ शेअरिंगला सपोर्ट करते). उजवीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"कनेक्ट केले आहे (ऑडिओ शेअरिंगला सपोर्ट करते)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"अतिथी डिव्हाइस (ऑडिओ शेअरिंगला सपोर्ट करते). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> बॅटरी."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"अतिथी डिव्हाइस (ऑडिओ शेअरिंगला सपोर्ट करते). डावीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, उजवीकडे: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> बॅटरी."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"अतिथी डिव्हाइस (ऑडिओ शेअरिंगला सपोर्ट करते)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"अ‍ॅक्टिव्ह आहे (फक्त मीडिया)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"अतिथी डिव्हाइस"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"अतिथी डिव्हाइस (फक्त मीडिया)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"ऑडिओ शेअरिंगला सपोर्ट करते"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"अतिथी डिव्हाइस. ऑडिओ शेअरिंगला सपोर्ट करते"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"अ‍ॅक्टिव्ह आहे (फक्त मीडिया), फक्त डावे"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"अ‍ॅक्टिव्ह आहे (फक्त मीडिया), फक्त उजवे"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"अ‍ॅक्टिव्ह आहे (फक्त मीडिया), डावे आणि उजवे"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"हार्डवेअर अ‍ॅक्सिलरेटेड रेंडरिंग"</string>
     <string name="media_category" msgid="8122076702526144053">"मीडिया"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"परीक्षण"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"विंडो व्यवस्थापन"</string>
     <string name="strict_mode" msgid="889864762140862437">"कठोर मोड सुरू"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"मुख्य थ्रेडवर अ‍ॅप्स मोठी कार्ये करतात तेव्हा स्क्रीन फ्लॅश करा"</string>
     <string name="pointer_location" msgid="7516929526199520173">"पॉइंटर स्थान"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"ट्रांझिशन ॲनिमेशन स्केल"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"ॲनिमेटर कालावधी स्केल"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"दुय्यम डिस्प्ले सिम्युलेट करा"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"शेड डिस्प्लेशी संबंधित स्थिती"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"अ‍ॅप्स"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"ॲक्टिव्हिटी ठेवू नका"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"वापरकर्त्याने प्रत्येक ॲक्टिव्हिटी सोडताच ती नष्ट करा"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"वेबदृश्य अंमलबजावणी"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"वेबदृश्य अंमलबजावणी सेट करा"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"ही निवड यापुढे वैध असणार नाही. पुन्हा प्रयत्न करा."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView पॅकेज आढळले नाही."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevTools लाँच करता आले नाही."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"चित्र रंग मोड"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGB वापरा"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"बंद केले"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"फास्ट चार्जिंग"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"प्रशासकाने नियंत्रित केलेले"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"प्रतिबंधित केलेल्या सेटिंग द्वारे नियंत्रित"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"कॉल दरम्‍यान उपलब्ध नाही"</string>
     <string name="disabled" msgid="8017887509554714950">"अक्षम"</string>
+    <string name="enabled" msgid="3997122818554810678">"सुरू केले आहे"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"अनुमती आहे"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"अनुमती नाही"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"अज्ञात अ‍ॅप्स इंस्टॉल करा"</string>
@@ -544,7 +562,7 @@
     <string name="retail_demo_reset_next" msgid="3688129033843885362">"पुढील"</string>
     <string name="retail_demo_reset_title" msgid="1866911701095959800">"पासवर्ड आवश्यक"</string>
     <string name="active_input_method_subtypes" msgid="4232680535471633046">"सक्रिय इनपुट पद्धती"</string>
-    <string name="use_system_language_to_select_input_method_subtypes" msgid="4865195835541387040">"सिस्टम भाषा वापरा"</string>
+    <string name="use_system_language_to_select_input_method_subtypes" msgid="4865195835541387040">"सिस्टीम भाषा वापरा"</string>
     <string name="failed_to_open_app_settings_toast" msgid="764897252657692092">"<xliff:g id="SPELL_APPLICATION_NAME">%1$s</xliff:g> साठी सेटिंग्ज उघडण्यात अयशस्वी"</string>
     <string name="ime_security_warning" msgid="6547562217880551450">"ही इनपुट पद्धत पासवर्ड आणि क्रेडिट कार्ड नंबर यासह, तुम्ही टाइप करता तो सर्व मजकूर संकलित करण्यात सक्षम होऊ शकते. ही <xliff:g id="IME_APPLICATION_NAME">%1$s</xliff:g> ॲपवरून येते. ही इनपुट पद्धत वापरायची?"</string>
     <string name="direct_boot_unaware_dialog_message" msgid="7845398276735021548">"टीप: रीबूट केल्यानंतर, तुम्ही तुमचा फोन अनलॉक करेपर्यंत हे अ‍ॅप सुरू होऊ शकत नाही"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"बिल्ट-इन स्पीकर"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"टीव्ही ऑडिओ"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"कनेक्‍ट करण्‍यात समस्‍या आली. डिव्हाइस बंद करा आणि नंतर सुरू करा"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"कनेक्ट करू शकत नाही"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"वायर असलेले ऑडिओ डिव्हाइस"</string>
     <string name="help_label" msgid="3528360748637781274">"मदत आणि फीडबॅक"</string>
     <string name="storage_category" msgid="2287342585424631813">"स्टोरेज"</string>
@@ -664,14 +683,14 @@
     <string name="guest_remove_guest_confirm_button" msgid="7858123434954143879">"काढून टाका"</string>
     <string name="guest_resetting" msgid="7822120170191509566">"अतिथीला रीसेट करत आहे…"</string>
     <string name="guest_reset_and_restart_dialog_title" msgid="3396657008451616041">"अतिथी सत्र रीसेट करायचे का?"</string>
-    <string name="guest_reset_and_restart_dialog_message" msgid="2764425635305200790">"हे नवीन अतिथी सत्र सुरू करेल आणि सध्याच्या सत्रातील सर्व अ‍ॅप्स व डेटा हटवेल"</string>
+    <string name="guest_reset_and_restart_dialog_message" msgid="2764425635305200790">"हे नवीन अतिथी सत्र सुरू करेल आणि सद्य सत्रातील सर्व अ‍ॅप्स व डेटा हटवेल"</string>
     <string name="guest_exit_dialog_title" msgid="1846494656849381804">"अतिथी मोडमधून बाहेर पडायचे का?"</string>
     <string name="guest_exit_dialog_message" msgid="1743218864242719783">"हे सध्याच्या अतिथी सत्रातील अ‍ॅप्स आणि डेटा हटवेल"</string>
     <string name="grant_admin" msgid="4323199171790522574">"होय, त्यांना ॲडमिन करा"</string>
     <string name="not_grant_admin" msgid="3557849576157702485">"नाही, त्यांना ॲडमिन करू नका"</string>
     <string name="guest_exit_dialog_button" msgid="1736401897067442044">"बाहेर पडा"</string>
     <string name="guest_exit_dialog_title_non_ephemeral" msgid="7675327443743162986">"अतिथी अ‍ॅक्टिव्हिटी सेव्ह करायची का?"</string>
-    <string name="guest_exit_dialog_message_non_ephemeral" msgid="223385323235719442">"सध्याच्या सत्रातील अ‍ॅक्टिव्हिटी सेव्ह करू किंवा सर्व अ‍ॅप्स व डेटा हटवू शकता"</string>
+    <string name="guest_exit_dialog_message_non_ephemeral" msgid="223385323235719442">"सद्य सत्रातील अ‍ॅक्टिव्हिटी सेव्ह करू शकता किंवा सर्व अ‍ॅप्स व डेटा हटवू शकता"</string>
     <string name="guest_exit_clear_data_button" msgid="3425812652180679014">"हटवा"</string>
     <string name="guest_exit_save_data_button" msgid="3690974510644963547">"सेव्ह करा"</string>
     <string name="guest_exit_button" msgid="5774985819191803960">"अतिथी मोडमधून बाहेर पडा"</string>
@@ -725,7 +744,7 @@
     <string name="accessibility_ethernet_disconnected" msgid="2832501530856497489">"इथरनेट डिस्कनेक्ट केले."</string>
     <string name="accessibility_ethernet_connected" msgid="6175942685957461563">"इथरनेट."</string>
     <string name="accessibility_no_calling" msgid="3540827068323895748">"कॉलिंग उपलब्ध नाही."</string>
-    <string name="physical_keyboard_title" msgid="4811935435315835220">"वास्तविक कीबोर्ड"</string>
+    <string name="physical_keyboard_title" msgid="4811935435315835220">"प्रत्यक्ष कीबोर्ड"</string>
     <string name="keyboard_layout_dialog_title" msgid="3927180147005616290">"किबोर्ड लेआउट निवडा"</string>
     <string name="keyboard_layout_default_label" msgid="1997292217218546957">"डीफॉल्ट"</string>
     <string name="turn_screen_on_title" msgid="2662312432042116026">"स्क्रीन सुरू करण्यासंबंधित नियंत्रण"</string>

@@ -18,6 +18,8 @@ package com.android.systemui.statusbar.policy
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
-import com.android.systemui.util.mockito.mock
 
-val Kosmos.batteryController: BatteryController by Fixture { mock<BatteryController>() }
+val Kosmos.batteryController: BatteryController by Fixture { FakeBatteryControllerImpl() }
+
+val BatteryController.fake
+    get() = this as FakeBatteryControllerImpl

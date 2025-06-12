@@ -16,6 +16,7 @@
 
 package com.android.systemui.shade.shared.flag
 
+import android.window.DesktopExperienceFlags
 import com.android.systemui.Flags
 import com.android.systemui.flags.FlagToken
 import com.android.systemui.flags.RefactorFlagUtils
@@ -30,10 +31,26 @@ object ShadeWindowGoesAround {
     val token: FlagToken
         get() = FlagToken(FLAG_NAME, isEnabled)
 
+    /**
+     * This is defined as [DesktopExperienceFlags] to make it possible to enable it together with
+     * all the other desktop experience flags from the dev settings.
+     *
+     * Alternatively, using adb:
+     * ```bash
+     * adb shell aflags enable com.android.window.flags.show_desktop_experience_dev_option && \
+     *   adb shell setprop persist.wm.debug.desktop_experience_devopts 1
+     * ```
+     */
+    val FLAG =
+        DesktopExperienceFlags.DesktopExperienceFlag(
+            Flags::shadeWindowGoesAround,
+            /* shouldOverrideByDevOption= */ true,
+        )
+
     /** Is the refactor enabled */
     @JvmStatic
     inline val isEnabled: Boolean
-        get() = Flags.shadeWindowGoesAround()
+        get() = FLAG.isTrue
 
     /**
      * Called to ensure code is only run when the flag is enabled. This protects users from the
@@ -50,7 +67,9 @@ object ShadeWindowGoesAround {
      * Caution!! Using this check incorrectly will cause crashes in nextfood builds!
      */
     @JvmStatic
-    inline fun assertInNewMode() = RefactorFlagUtils.assertInNewMode(isEnabled, FLAG_NAME)
+    @Deprecated("Avoid crashing.", ReplaceWith("if (this.isUnexpectedlyInLegacyMode()) return"))
+    inline fun unsafeAssertInNewMode() =
+        RefactorFlagUtils.unsafeAssertInNewMode(isEnabled, FLAG_NAME)
 
     /**
      * Called to ensure code is only run when the flag is disabled. This will throw an exception if

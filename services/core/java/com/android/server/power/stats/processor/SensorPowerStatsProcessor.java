@@ -21,6 +21,7 @@ import android.hardware.SensorManager;
 import android.os.BatteryConsumer;
 import android.os.BatteryStats;
 import android.os.PersistableBundle;
+import android.util.IntArray;
 import android.util.Slog;
 import android.util.SparseArray;
 
@@ -28,7 +29,6 @@ import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.format.PowerStatsLayout;
 import com.android.server.power.stats.format.SensorPowerStatsLayout;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
@@ -207,11 +207,11 @@ class SensorPowerStatsProcessor extends PowerStatsProcessor {
             mPlan = new PowerEstimationPlan(stats.getConfig());
         }
 
-        List<Integer> uids = new ArrayList<>();
-        stats.collectUids(uids);
-
-        computeUidPowerEstimates(stats, uids);
-        computeDevicePowerEstimates(stats);
+        IntArray uids = stats.getActiveUids();
+        if (uids.size() != 0) {
+            computeUidPowerEstimates(stats, uids);
+            computeDevicePowerEstimates(stats);
+        }
 
         mPlan.resetIntermediates();
     }
@@ -239,9 +239,7 @@ class SensorPowerStatsProcessor extends PowerStatsProcessor {
         mLastUpdateTimestamp = timestamp;
     }
 
-    private void computeUidPowerEstimates(
-            PowerComponentAggregatedPowerStats stats,
-            List<Integer> uids) {
+    private void computeUidPowerEstimates(PowerComponentAggregatedPowerStats stats, IntArray uids) {
         List<Sensor> sensorList = mSensorManager.getSensorList(Sensor.TYPE_ALL);
         int[] uidSensorDurationPositions = new int[sensorList.size()];
         double[] sensorPower = new double[sensorList.size()];
@@ -292,8 +290,7 @@ class SensorPowerStatsProcessor extends PowerStatsProcessor {
         }
     }
 
-    private void computeDevicePowerEstimates(
-            PowerComponentAggregatedPowerStats stats) {
+    private void computeDevicePowerEstimates(PowerComponentAggregatedPowerStats stats) {
         for (int i = mPlan.combinedDeviceStateEstimations.size() - 1; i >= 0; i--) {
             CombinedDeviceStateEstimate estimation =
                     mPlan.combinedDeviceStateEstimations.get(i);
@@ -301,12 +298,16 @@ class SensorPowerStatsProcessor extends PowerStatsProcessor {
                 continue;
             }
 
-            if (!stats.getDeviceStats(mTmpDeviceStatsArray, estimation.stateValues)) {
+            double power = ((Intermediates) estimation.intermediates).power;
+            if (power == 0) {
                 continue;
             }
 
-            mStatsLayout.setDevicePowerEstimate(mTmpDeviceStatsArray,
-                    ((Intermediates) estimation.intermediates).power);
+            if (!stats.getDeviceStats(mTmpDeviceStatsArray, estimation.stateValues)) {
+                Arrays.fill(mTmpDeviceStatsArray, 0);
+            }
+
+            mStatsLayout.setDevicePowerEstimate(mTmpDeviceStatsArray, power);
             stats.setDeviceStats(estimation.stateValues, mTmpDeviceStatsArray);
         }
     }

@@ -32,6 +32,7 @@ import android.text.TextUtils;
  * <img src="{@docRoot}reference/android/images/text/style/absolutesizespan.png" />
  * <figcaption>Text with text size updated.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class AbsoluteSizeSpan extends MetricAffectingSpan implements ParcelableSpan {
 
     private final int mSize;

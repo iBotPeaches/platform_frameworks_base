@@ -55,6 +55,7 @@ import java.util.function.Consumer;
  * HardwareBufferRenderer will never clear contents before each draw invocation so previous contents
  * in the {@link HardwareBuffer} target will be preserved across renders.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class HardwareBufferRenderer implements AutoCloseable {
 
     private static final ColorSpace DEFAULT_COLORSPACE = ColorSpace.get(Named.SRGB);

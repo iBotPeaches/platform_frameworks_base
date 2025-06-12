@@ -24,12 +24,15 @@ import android.os.UserHandle
 import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.internal.logging.UiEventLogger
-import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.screenshot.ui.viewmodel.PreviewAction
+import com.android.systemui.shared.Flags
 import com.google.common.truth.Truth.assertThat
 import java.util.UUID
 import kotlin.test.Test
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.runner.RunWith
 import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.kotlin.any
@@ -43,9 +46,19 @@ import org.mockito.kotlin.verify
 
 @RunWith(AndroidJUnit4::class)
 class DefaultScreenshotActionsProviderTest : SysuiTestCase() {
+    private val scheduler = TestCoroutineScheduler()
+    private val mainDispatcher = UnconfinedTestDispatcher(scheduler)
+    private val testScope = TestScope(mainDispatcher)
     private val actionExecutor = mock<ActionExecutor>()
     private val uiEventLogger = mock<UiEventLogger>()
     private val actionsCallback = mock<ScreenshotActionsController.ActionsCallback>()
+    private val actionIntentCreator =
+        ActionIntentCreator(
+            context,
+            context.packageManager,
+            testScope.backgroundScope,
+            mainDispatcher,
+        )
 
     private val request = ScreenshotData.forTesting(userHandle = UserHandle.OWNER)
     private val validResult = ScreenshotSavedResult(Uri.EMPTY, Process.myUserHandle(), 0)
@@ -196,6 +209,8 @@ class DefaultScreenshotActionsProviderTest : SysuiTestCase() {
         return DefaultScreenshotActionsProvider(
             context,
             uiEventLogger,
+            actionIntentCreator,
+            testScope,
             UUID.randomUUID(),
             request,
             actionExecutor,

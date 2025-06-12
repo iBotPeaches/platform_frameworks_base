@@ -30,6 +30,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.graphics.Rect;
@@ -39,6 +40,7 @@ import android.view.DisplayCutout;
 import android.view.DisplayInfo;
 
 import com.android.server.wm.DisplayWindowSettings.SettingsProvider.SettingsEntry;
+import com.android.window.flags.Flags;
 
 class TestDisplayContent extends DisplayContent {
 
@@ -78,6 +80,13 @@ class TestDisplayContent extends DisplayContent {
         final InsetsPolicy insetsPolicy = getInsetsPolicy();
         WindowTestsBase.suppressInsetsAnimation(insetsPolicy.getPermanentControlTarget());
         WindowTestsBase.suppressInsetsAnimation(insetsPolicy.getTransientControlTarget());
+
+        if (Flags.trackSystemUiContextBeforeWms()) {
+            final Context uiContext = getDisplayUiContext();
+            spyOn(uiContext);
+            doNothing().when(uiContext).registerComponentCallbacks(any());
+            doNothing().when(uiContext).unregisterComponentCallbacks(any());
+        }
 
         // For devices that set the sysprop ro.bootanim.set_orientation_<display_id>
         // See DisplayRotation#readDefaultDisplayRotation for context.

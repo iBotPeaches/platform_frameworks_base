@@ -36,6 +36,7 @@ import static com.android.server.wm.ActivityRecord.State.PAUSED;
 import static com.android.server.wm.ActivityRecord.State.PAUSING;
 import static com.android.server.wm.ActivityRecord.State.RESUMED;
 import static com.android.server.wm.ActivityRecord.State.STARTED;
+import static com.android.server.wm.ActivityRecord.State.STOPPED;
 import static com.android.server.wm.ActivityRecord.State.STOPPING;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.DEBUG_RELEASE;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.POSTFIX_CONFIGURATION;
@@ -68,7 +69,6 @@ import android.content.pm.ServiceInfo;
 import android.content.res.Configuration;
 import android.os.Binder;
 import android.os.Build;
-import android.os.DeadObjectException;
 import android.os.FactoryTest;
 import android.os.LocaleList;
 import android.os.Message;
@@ -337,12 +337,23 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
     public static final int ACTIVITY_STATE_FLAG_VISIBLE_MULTI_WINDOW_MODE = 1 << 25;
     public static final int ACTIVITY_STATE_FLAG_MASK_MIN_TASK_LAYER = 0x0000ffff;
 
+    private static final int ACTIVITY_STATE_VISIBLE =
+            com.android.window.flags.Flags.useVisibleRequestedForProcessTracker()
+                    ? ACTIVITY_STATE_FLAG_IS_VISIBLE
+                    : ACTIVITY_STATE_FLAG_IS_VISIBLE | ACTIVITY_STATE_FLAG_IS_WINDOW_VISIBLE;
+
     /**
      * The state for oom-adjustment calculation. The higher 16 bits are the activity states, and the
      * lower 16 bits are the task layer rank (see {@link Task#mLayerRank}). This field is written by
      * window manager and read by activity manager.
      */
     private volatile int mActivityStateFlags = ACTIVITY_STATE_FLAG_MASK_MIN_TASK_LAYER;
+
+    /**
+     * The most recent timestamp of when one of this process's stopped activities in a
+     * perceptible task became stopped. Written by window manager and read by activity manager.
+     */
+    private volatile long mPerceptibleTaskStoppedTimeMillis = Long.MIN_VALUE;
 
     public WindowProcessController(@NonNull ActivityTaskManagerService atm,
             @NonNull ApplicationInfo info, String name, int uid, int userId, Object owner,
@@ -451,6 +462,7 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
                 mAtm.getLifecycleManager().scheduleTransactionItemNow(
                         thread, configurationChangeItem);
             } catch (Exception e) {
+                // TODO(b/323801078): remove Exception when cleanup
                 Slog.e(TAG_CONFIGURATION, "Failed to schedule ConfigurationChangeItem="
                         + configurationChangeItem + " owner=" + mOwner, e);
             }
@@ -465,17 +477,23 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
         mCrashing = crashing;
     }
 
-    void handleAppCrash() {
+    boolean handleAppCrash() {
+        boolean hasVisibleActivity = false;
         ArrayList<ActivityRecord> activities = new ArrayList<>(mActivities);
         for (int i = activities.size() - 1; i >= 0; --i) {
             final ActivityRecord r = activities.get(i);
             Slog.w(TAG, "  Force finishing activity "
                     + r.mActivityComponent.flattenToShortString());
             r.detachFromProcess();
-            r.mDisplayContent.requestTransitionAndLegacyPrepare(TRANSIT_CLOSE,
-                    TRANSIT_FLAG_APP_CRASHED);
+            if (r.isVisibleRequested()) {
+                hasVisibleActivity = true;
+                Task finishingTask = r.getTask();
+                r.mDisplayContent.requestTransitionAndLegacyPrepare(TRANSIT_CLOSE,
+                        TRANSIT_FLAG_APP_CRASHED, finishingTask);
+            }
             r.destroyIfPossible("handleAppCrashed");
         }
+        return hasVisibleActivity;
     }
 
     boolean isCrashing() {
@@ -964,14 +982,8 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
         return canUpdate;
     }
 
+    // TODO(365884835): remove this method with external callers.
     public void stopFreezingActivities() {
-        synchronized (mAtm.mGlobalLock) {
-            int i = mActivities.size();
-            while (i > 0) {
-                i--;
-                mActivities.get(i).stopFreezingScreen(true /* unfreezeNow */, true /* force */);
-            }
-        }
     }
 
     void finishActivities() {
@@ -1229,6 +1241,17 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
         return mActivityStateFlags;
     }
 
+    /**
+     * Returns the most recent timestamp when one of this process's stopped activities in a
+     * perceptible task became stopped. It should only be called if {@link #hasActivities}
+     * returns {@code true} and {@link #getActivityStateFlags} does not have any of
+     * the ACTIVITY_STATE_FLAG_IS_(VISIBLE|PAUSING_OR_PAUSED|STOPPING) bit set.
+     */
+    @HotPath(caller = HotPath.OOM_ADJUSTMENT)
+    public long getPerceptibleTaskStoppedTimeMillis() {
+        return mPerceptibleTaskStoppedTimeMillis;
+    }
+
     void computeProcessActivityState() {
         // Since there could be more than one activities in a process record, we don't need to
         // compute the OomAdj with each of them, just need to find out the activity with the
@@ -1240,9 +1263,9 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
         int minTaskLayer = Integer.MAX_VALUE;
         int stateFlags = 0;
         int nonOccludedRatio = 0;
+        long perceptibleTaskStoppedTimeMillis = Long.MIN_VALUE;
         final boolean wasResumed = hasResumedActivity();
-        final boolean wasAnyVisible = (mActivityStateFlags
-                & (ACTIVITY_STATE_FLAG_IS_VISIBLE | ACTIVITY_STATE_FLAG_IS_WINDOW_VISIBLE)) != 0;
+        final boolean wasAnyVisible = (mActivityStateFlags & ACTIVITY_STATE_VISIBLE) != 0;
         for (int i = mActivities.size() - 1; i >= 0; i--) {
             final ActivityRecord r = mActivities.get(i);
             if (r.isVisible()) {
@@ -1256,14 +1279,15 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
             if (task.mLayerRank != Task.LAYER_RANK_INVISIBLE) {
                 stateFlags |= ACTIVITY_STATE_FLAG_HAS_ACTIVITY_IN_VISIBLE_TASK;
             }
+            final ActivityRecord.State state = r.getState();
             if (r.isVisibleRequested()) {
-                if (r.isState(RESUMED)) {
+                if (state == RESUMED) {
                     stateFlags |= ACTIVITY_STATE_FLAG_HAS_RESUMED;
                     final int windowingMode = r.getWindowingMode();
                     if (windowingMode == WINDOWING_MODE_MULTI_WINDOW
                             && com.android.window.flags.Flags
                                     .processPriorityPolicyForMultiWindowMode()
-                            && task.getAdjacentTask() != null) {
+                            && task.hasAdjacentTask()) {
                         stateFlags |= ACTIVITY_STATE_FLAG_RESUMED_SPLIT_SCREEN;
                     } else if (windowingMode == WINDOWING_MODE_FREEFORM) {
                         hasResumedFreeform = true;
@@ -1282,12 +1306,25 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
                 // this process, we'd find out the one with the minimal layer, thus it'll
                 // get a higher adj score.
             } else if (!visible && bestInvisibleState != PAUSING) {
-                if (r.isState(PAUSING, PAUSED)) {
+                if (state == PAUSING) {
                     bestInvisibleState = PAUSING;
-                } else if (r.isState(STOPPING)) {
+                    // Treat PAUSING as visible in case the next activity in the same process has
+                    // not yet been set as visible-requested.
+                    if (com.android.window.flags.Flags.useVisibleRequestedForProcessTracker()
+                            && r.isVisible()) {
+                        stateFlags |= ACTIVITY_STATE_FLAG_IS_VISIBLE;
+                    }
+                } else if (state == PAUSED) {
+                    bestInvisibleState = PAUSED;
+                } else if (state == STOPPING) {
                     bestInvisibleState = STOPPING;
                     // Not "finishing" if any of activity isn't finishing.
                     allStoppingFinishing &= r.finishing;
+                } else if (bestInvisibleState == DESTROYED && state == STOPPED) {
+                    if (task.mIsPerceptible) {
+                        perceptibleTaskStoppedTimeMillis =
+                                Long.max(r.mStoppedTime, perceptibleTaskStoppedTimeMillis);
+                    }
                 }
             }
         }
@@ -1316,7 +1353,7 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
         stateFlags |= minTaskLayer & ACTIVITY_STATE_FLAG_MASK_MIN_TASK_LAYER;
         if (visible) {
             stateFlags |= ACTIVITY_STATE_FLAG_IS_VISIBLE;
-        } else if (bestInvisibleState == PAUSING) {
+        } else if (bestInvisibleState == PAUSING || bestInvisibleState == PAUSED) {
             stateFlags |= ACTIVITY_STATE_FLAG_IS_PAUSING_OR_PAUSED;
         } else if (bestInvisibleState == STOPPING) {
             stateFlags |= ACTIVITY_STATE_FLAG_IS_STOPPING;
@@ -1325,9 +1362,9 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
             }
         }
         mActivityStateFlags = stateFlags;
+        mPerceptibleTaskStoppedTimeMillis = perceptibleTaskStoppedTimeMillis;
 
-        final boolean anyVisible = (stateFlags
-                & (ACTIVITY_STATE_FLAG_IS_VISIBLE | ACTIVITY_STATE_FLAG_IS_WINDOW_VISIBLE)) != 0;
+        final boolean anyVisible = (stateFlags & ACTIVITY_STATE_VISIBLE) != 0;
         if (!wasAnyVisible && anyVisible) {
             mAtm.mVisibleActivityProcessTracker.onAnyActivityVisible(this);
             mAtm.mWindowManager.onProcessActivityVisibilityChanged(mUid, true /*visible*/);
@@ -1768,13 +1805,11 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
                 // Non-UI process can handle the change directly.
                 mAtm.getLifecycleManager().scheduleTransactionItemNow(thread, transactionItem);
             }
-        } catch (DeadObjectException e) {
+        } catch (RemoteException e) {
+            // TODO(b/323801078): remove Exception when cleanup
             // Expected if the process has been killed.
             Slog.w(TAG_CONFIGURATION, "Failed for dead process. ClientTransactionItem="
                     + transactionItem + " owner=" + mOwner);
-        } catch (Exception e) {
-            Slog.e(TAG_CONFIGURATION, "Failed to schedule ClientTransactionItem="
-                    + transactionItem + " owner=" + mOwner, e);
         }
     }
 

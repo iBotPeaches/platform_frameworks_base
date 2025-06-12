@@ -16,8 +16,8 @@
 
 package com.android.egg.landroid
 
-import android.content.res.Resources
 import com.android.egg.R
+import android.content.res.Resources
 import kotlin.random.Random
 
 const val SUFFIX_PROB = 0.75f
@@ -58,7 +58,7 @@ class Namer(resources: Resources) {
             1f to "*",
             1f to "^",
             1f to "#",
-            0.1f to "(^*!%@##!!"
+            0.1f to "(^*!%@##!!",
         )
 
     private var activities = Bag(resources.getStringArray(R.array.activities))
@@ -101,26 +101,26 @@ class Namer(resources: Resources) {
     fun floraPlural(rng: Random): String {
         return floraGenericPlurals.pull(rng)
     }
+
     fun faunaPlural(rng: Random): String {
         return faunaGenericPlurals.pull(rng)
     }
+
     fun atmoPlural(rng: Random): String {
         return atmoGenericPlurals.pull(rng)
     }
 
     val TEMPLATE_REGEX = Regex("""\{(flora|fauna|planet|atmo)\}""")
+
     fun describeActivity(rng: Random, target: Planet?): String {
-        return activities
-            .pull(rng)
-            .replace(TEMPLATE_REGEX) {
-                when (it.groupValues[1]) {
-                    "flora" -> (target?.flora ?: "SOME") + " " + floraPlural(rng)
-                    "fauna" -> (target?.fauna ?: "SOME") + " " + faunaPlural(rng)
-                    "atmo" -> (target?.atmosphere ?: "SOME") + " " + atmoPlural(rng)
-                    "planet" -> (target?.description ?: "SOME BODY") // once told me
-                    else -> "unknown template tag: ${it.groupValues[0]}"
-                }
+        return activities.pull(rng).replace(TEMPLATE_REGEX) {
+            when (it.groupValues[1]) {
+                "flora" -> (target?.flora ?: "SOME") + " " + floraPlural(rng)
+                "fauna" -> (target?.fauna ?: "SOME") + " " + faunaPlural(rng)
+                "atmo" -> (target?.atmosphere ?: "SOME") + " " + atmoPlural(rng)
+                "planet" -> (target?.description ?: "SOME BODY") // once told me
+                else -> "unknown template tag: ${it.groupValues[0]}"
             }
-            .uppercase()
+        }
     }
 }

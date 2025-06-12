@@ -66,17 +66,6 @@ interface IWindowOrganizerController {
     void startTransition(IBinder transitionToken, in @nullable WindowContainerTransaction t);
 
     /**
-     * Starts a legacy transition.
-     * @param type The transition type.
-     * @param adapter The animation to use.
-     * @param syncCallback A sync callback for the contents of `t`
-     * @param t Operations that are part of the transition.
-     * @return sync-id or -1 if this no-op'd because a transition is already running.
-     */
-    int startLegacyTransition(int type, in RemoteAnimationAdapter adapter,
-            in IWindowContainerTransactionCallback syncCallback, in WindowContainerTransaction t);
-
-    /**
      * Finishes a transition. This must be called for all created transitions.
      * @param transitionToken Which transition to finish
      * @param t Changes to make before finishing but in the same SF Transaction. Can be null.

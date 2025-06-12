@@ -51,6 +51,7 @@ android_library {
         ":wm_shell-shared-aidls",
     ],
     static_libs: [
+        "com.android.systemui.dagger-api",
         "BiometricsSharedLib",
         "PlatformAnimationLib",
         "PluginCoreLib",
@@ -71,6 +72,7 @@ android_library {
         "//frameworks/libs/systemui:com_android_systemui_shared_flags_lib",
         "//frameworks/libs/systemui:msdl",
         "//frameworks/libs/systemui:view_capture",
+        "am_flags_lib",
     ],
     resource_dirs: [
         "res",

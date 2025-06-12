@@ -27,6 +27,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
  * @hide
  */
 @SuppressWarnings("ParcelableCreator")
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class AccessibilityURLSpan extends URLSpan implements Parcelable {
     final AccessibilityClickableSpan mAccessibilityClickableSpan;
 

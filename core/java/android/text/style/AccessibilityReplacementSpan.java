@@ -31,6 +31,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class AccessibilityReplacementSpan extends ReplacementSpan
         implements ParcelableSpan {
 

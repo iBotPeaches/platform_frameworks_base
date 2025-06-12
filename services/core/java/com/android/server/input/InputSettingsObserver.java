@@ -69,6 +69,13 @@ class InputSettingsObserver extends ContentObserver {
                 Map.entry(Settings.System.getUriFor(
                                 Settings.System.MOUSE_SWAP_PRIMARY_BUTTON),
                         (reason) -> updateMouseSwapPrimaryButton()),
+                Map.entry(Settings.System.getUriFor(Settings.System.MOUSE_SCROLLING_ACCELERATION),
+                        (reason) -> updateMouseScrollingAcceleration()),
+                Map.entry(Settings.System.getUriFor(
+                                Settings.System.MOUSE_POINTER_ACCELERATION_ENABLED),
+                        (reason) -> updateMouseAccelerationEnabled()),
+                Map.entry(Settings.System.getUriFor(Settings.System.MOUSE_SCROLLING_SPEED),
+                        (reason) -> updateMouseScrollingSpeed()),
                 Map.entry(Settings.System.getUriFor(Settings.System.TOUCHPAD_POINTER_SPEED),
                         (reason) -> updateTouchpadPointerSpeed()),
                 Map.entry(Settings.System.getUriFor(Settings.System.TOUCHPAD_NATURAL_SCROLLING),
@@ -83,6 +90,8 @@ class InputSettingsObserver extends ContentObserver {
                         (reason) -> updateTouchpadRightClickZoneEnabled()),
                 Map.entry(Settings.System.getUriFor(Settings.System.TOUCHPAD_SYSTEM_GESTURES),
                         (reason) -> updateTouchpadSystemGesturesEnabled()),
+                Map.entry(Settings.System.getUriFor(Settings.System.TOUCHPAD_ACCELERATION_ENABLED),
+                        (reason) -> updateTouchpadAccelerationEnabled()),
                 Map.entry(Settings.System.getUriFor(Settings.System.SHOW_TOUCHES),
                         (reason) -> updateShowTouches()),
                 Map.entry(Settings.System.getUriFor(Settings.System.POINTER_LOCATION),
@@ -184,6 +193,21 @@ class InputSettingsObserver extends ContentObserver {
                 InputSettings.isMouseSwapPrimaryButtonEnabled(mContext));
     }
 
+    private void updateMouseScrollingAcceleration() {
+        mNative.setMouseScrollingAccelerationEnabled(
+                InputSettings.isMouseScrollingAccelerationEnabled(mContext));
+    }
+
+    private void updateMouseAccelerationEnabled() {
+        mNative.setMouseAccelerationEnabled(
+                InputSettings.isMousePointerAccelerationEnabled(mContext));
+    }
+
+    private void updateMouseScrollingSpeed() {
+        mNative.setMouseScrollingSpeed(
+                constrainPointerSpeedValue(InputSettings.getMouseScrollingSpeed(mContext)));
+    }
+
     private void updateTouchpadPointerSpeed() {
         mNative.setTouchpadPointerSpeed(
                 constrainPointerSpeedValue(InputSettings.getTouchpadPointerSpeed(mContext)));
@@ -217,6 +241,11 @@ class InputSettingsObserver extends ContentObserver {
 
     private void updateTouchpadSystemGesturesEnabled() {
         mNative.setTouchpadSystemGesturesEnabled(InputSettings.useTouchpadSystemGestures(mContext));
+    }
+
+    private void updateTouchpadAccelerationEnabled() {
+        mNative.setTouchpadAccelerationEnabled(
+                InputSettings.isTouchpadAccelerationEnabled(mContext));
     }
 
     private void updateShowTouches() {

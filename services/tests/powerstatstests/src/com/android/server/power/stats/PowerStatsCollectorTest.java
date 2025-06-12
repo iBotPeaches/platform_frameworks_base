@@ -32,7 +32,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.PersistableBundle;
 import android.platform.test.annotations.DisabledOnRavenwood;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.power.PowerStatsInternal;
 
 import androidx.test.filters.SmallTest;
@@ -41,7 +40,6 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.internal.os.PowerStats;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -51,11 +49,6 @@ import java.util.concurrent.TimeUnit;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class PowerStatsCollectorTest {
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private final MockClock mMockClock = new MockClock();
     private final HandlerThread mHandlerThread = new HandlerThread("test");
     private Handler mHandler;

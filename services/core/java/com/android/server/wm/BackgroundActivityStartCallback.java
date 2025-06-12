@@ -24,6 +24,16 @@ import java.util.Collection;
  * Callback to decide activity starts and related operations based on originating tokens.
  */
 public interface BackgroundActivityStartCallback {
+    BackgroundActivityStartCallbackResult RESULT_FALSE =
+            new BackgroundActivityStartCallbackResult(false, null);
+    BackgroundActivityStartCallbackResult RESULT_TRUE =
+            new BackgroundActivityStartCallbackResult(true, null);
+
+    record BackgroundActivityStartCallbackResult(
+            boolean allowed,
+            IBinder token
+    ) {}
+
     /**
      * Returns true if the background activity start originating from {@code tokens} should be
      * allowed or not.
@@ -34,7 +44,8 @@ public interface BackgroundActivityStartCallback {
      * This will be called holding the WM and local lock, don't do anything costly or invoke AM/WM
      * methods here directly.
      */
-    boolean isActivityStartAllowed(Collection<IBinder> tokens, int uid, String packageName);
+    BackgroundActivityStartCallbackResult isActivityStartAllowed(Collection<IBinder> tokens,
+            int uid, String packageName);
 
     /**
      * Returns whether {@code uid} can send {@link android.content.Intent

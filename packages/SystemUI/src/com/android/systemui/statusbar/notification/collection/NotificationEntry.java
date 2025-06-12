@@ -30,10 +30,11 @@ import static android.app.NotificationManager.Policy.SUPPRESSED_EFFECT_PEEK;
 import static android.app.NotificationManager.Policy.SUPPRESSED_EFFECT_STATUS_BAR;
 
 import static com.android.systemui.statusbar.notification.collection.NotifCollection.REASON_NOT_CANCELED;
-import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_ALERTING;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.FlaggedApi;
+import android.app.Flags;
 import android.app.Notification;
 import android.app.Notification.MessagingStyle.Message;
 import android.app.NotificationChannel;
@@ -64,26 +65,26 @@ import com.android.systemui.statusbar.notification.collection.listbuilder.plugga
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifPromoter;
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifDismissInterceptor;
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifLifetimeExtender;
-import com.android.systemui.statusbar.notification.collection.render.GroupMembershipManager;
 import com.android.systemui.statusbar.notification.headsup.PinnedStatus;
 import com.android.systemui.statusbar.notification.icon.IconPack;
 import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel;
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModels;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRowController;
 import com.android.systemui.statusbar.notification.row.NotificationGuts;
 import com.android.systemui.statusbar.notification.row.shared.HeadsUpStatusBarModel;
 import com.android.systemui.statusbar.notification.row.shared.NotificationContentModel;
 import com.android.systemui.statusbar.notification.row.shared.NotificationRowContentBinderRefactor;
-import com.android.systemui.statusbar.notification.stack.PriorityBucket;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 import com.android.systemui.util.ListenerSet;
-
-import kotlinx.coroutines.flow.MutableStateFlow;
-import kotlinx.coroutines.flow.StateFlow;
-import kotlinx.coroutines.flow.StateFlowKt;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import kotlinx.coroutines.flow.MutableStateFlow;
+import kotlinx.coroutines.flow.StateFlow;
+import kotlinx.coroutines.flow.StateFlowKt;
 
 /**
  * Represents a notification that the system UI knows about
@@ -177,7 +178,6 @@ public final class NotificationEntry extends ListEntry {
             new ListenerSet<>();
 
     private boolean mPulseSupressed;
-    private int mBucket = BUCKET_ALERTING;
     private boolean mIsMarkedForUserTriggeredMovement;
     private boolean mIsHeadsUpEntry;
 
@@ -199,7 +199,7 @@ public final class NotificationEntry extends ListEntry {
 
     // TODO(b/377565433): Move into NotificationContentModel during/after
     //  NotificationRowContentBinderRefactor.
-    private PromotedNotificationContentModel mPromotedNotificationContentModel;
+    private PromotedNotificationContentModels mPromotedNotificationContentModels;
 
     /**
      * True if both
@@ -252,7 +252,7 @@ public final class NotificationEntry extends ListEntry {
     /**
      * @param sbn the StatusBarNotification from system server
      * @param ranking also from system server
-     * @param creationTime SystemClock.uptimeMillis of when we were created
+     * @param creationTime SystemClock.elapsedRealtime of when we were created
      */
     public NotificationEntry(
             @NonNull StatusBarNotification sbn,
@@ -469,15 +469,6 @@ public final class NotificationEntry extends ListEntry {
         return wasBubble != isBubble();
     }
 
-    @PriorityBucket
-    public int getBucket() {
-        return mBucket;
-    }
-
-    public void setBucket(@PriorityBucket int bucket) {
-        mBucket = bucket;
-    }
-
     public ExpandableNotificationRow getRow() {
         return row;
     }
@@ -498,25 +489,46 @@ public final class NotificationEntry extends ListEntry {
     /**
      * Get the children that are actually attached to this notification's row.
      *
-     * TODO: Seems like most callers here should probably be using
-     * {@link GroupMembershipManager#getChildren(ListEntry)}
+     * TODO: Seems like most callers here should be asking a PipelineEntry, not a NotificationEntry
      */
     public @Nullable List<NotificationEntry> getAttachedNotifChildren() {
-        if (row == null) {
-            return null;
+        if (NotificationBundleUi.isEnabled()) {
+            if (isGroupSummary()) {
+                GroupEntry parent = (GroupEntry) getParent();
+                return parent != null ? new ArrayList<>(parent.getChildren()) : null;
+            }
+        } else {
+            if (row == null) {
+                return null;
+            }
+
+            List<ExpandableNotificationRow> rowChildren = row.getAttachedChildren();
+            if (rowChildren == null) {
+                return null;
+            }
+
+            ArrayList<NotificationEntry> children = new ArrayList<>();
+            for (ExpandableNotificationRow child : rowChildren) {
+                children.add(child.getEntryLegacy());
+            }
+
+            return children;
+        }
+        return null;
+    }
+
+    private boolean isGroupSummary() {
+        if (getParent() == null) {
+            // The entry is not attached, so it doesn't count.
+            return false;
+        }
+        PipelineEntry pipelineEntry = getParent();
+        if (!(pipelineEntry instanceof GroupEntry groupEntry)) {
+            return false;
         }
 
-        List<ExpandableNotificationRow> rowChildren = row.getAttachedChildren();
-        if (rowChildren == null) {
-            return null;
-        }
-
-        ArrayList<NotificationEntry> children = new ArrayList<>();
-        for (ExpandableNotificationRow child : rowChildren) {
-            children.add(child.getEntry());
-        }
-
-        return children;
+        // If entry is a summary, its parent is a GroupEntry with summary = entry.
+        return groupEntry.getSummary() == this;
     }
 
     public void notifyFullScreenIntentLaunched() {
@@ -533,6 +545,7 @@ public final class NotificationEntry extends ListEntry {
     }
 
     public boolean hasFinishedInitialization() {
+        NotificationBundleUi.assertInLegacyMode();
         return initializationTime != -1
                 && SystemClock.elapsedRealtime() > initializationTime + INITIALIZATION_DELAY;
     }
@@ -616,10 +629,12 @@ public final class NotificationEntry extends ListEntry {
     }
 
     public void resetInitializationTime() {
+        NotificationBundleUi.assertInLegacyMode();
         initializationTime = -1;
     }
 
     public void setInitializationTime(long time) {
+        NotificationBundleUi.assertInLegacyMode();
         if (initializationTime == -1) {
             initializationTime = time;
         }
@@ -636,9 +651,17 @@ public final class NotificationEntry extends ListEntry {
      * @return {@code true} if we are a media notification
      */
     public boolean isMediaNotification() {
-        if (row == null) return false;
+        if (NotificationBundleUi.isEnabled()) {
+            return getSbn().getNotification().isMediaNotification();
+        } else {
+            if (row == null) return false;
 
-        return row.isMediaRow();
+            return row.isMediaRow();
+        }
+    }
+
+    public boolean containsCustomViews() {
+        return getSbn().getNotification().containsCustomViews();
     }
 
     public void resetUserExpansion() {
@@ -666,7 +689,16 @@ public final class NotificationEntry extends ListEntry {
     }
 
     public boolean isRowPinned() {
-        return row != null && row.isPinned();
+        return getPinnedStatus().isPinned();
+    }
+
+    /** Returns this notification's current pinned status. */
+    public PinnedStatus getPinnedStatus() {
+        if (row != null) {
+            return row.getPinnedStatus();
+        } else {
+            return PinnedStatus.NotPinned;
+        }
     }
 
     /**
@@ -801,11 +833,6 @@ public final class NotificationEntry extends ListEntry {
         return !mSbn.isOngoing() || !isLocked;
     }
 
-    public boolean canViewBeDismissed() {
-        if (row == null) return true;
-        return row.canViewBeDismissed();
-    }
-
     @VisibleForTesting
     boolean isExemptFromDndVisualSuppression() {
         if (isNotificationBlockedByPolicy(mSbn.getNotification())) {
@@ -822,6 +849,14 @@ public final class NotificationEntry extends ListEntry {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Returns whether the NotificationEntry is promoted ongoing.
+     */
+    @FlaggedApi(Flags.FLAG_API_RICH_ONGOING)
+    public boolean isOngoingPromoted() {
+        return mSbn.getNotification().isPromotedOngoing();
     }
 
     /**
@@ -995,7 +1030,7 @@ public final class NotificationEntry extends ListEntry {
     }
 
     /**
-     * Mark this entry for movement triggered by a user action (ex: changing the priorirty of a
+     * Mark this entry for movement triggered by a user action (ex: changing the priority of a
      * conversation). This can then be used for custom animations.
      */
     public void markForUserTriggeredMovement(boolean marked) {
@@ -1072,9 +1107,9 @@ public final class NotificationEntry extends ListEntry {
      * Gets the content needed to render this notification as a promoted notification on various
      * surfaces (like status bar chips and AOD).
      */
-    public PromotedNotificationContentModel getPromotedNotificationContentModel() {
+    public PromotedNotificationContentModels getPromotedNotificationContentModels() {
         if (PromotedNotificationContentModel.featureFlagEnabled()) {
-            return mPromotedNotificationContentModel;
+            return mPromotedNotificationContentModels;
         } else {
             Log.wtf(TAG, "getting promoted content without feature flag enabled", new Throwable());
             return null;
@@ -1082,13 +1117,21 @@ public final class NotificationEntry extends ListEntry {
     }
 
     /**
+     * Returns whether the NotificationEntry is promoted ongoing.
+     */
+    @FlaggedApi(Flags.FLAG_API_RICH_ONGOING)
+    public boolean isPromotedOngoing() {
+        return PromotedNotificationContentModel.isPromotedForStatusBarChip(mSbn.getNotification());
+    }
+
+    /**
      * Sets the content needed to render this notification as a promoted notification on various
      * surfaces (like status bar chips and AOD).
      */
-    public void setPromotedNotificationContentModel(
-            @Nullable PromotedNotificationContentModel promotedNotificationContentModel) {
+    public void setPromotedNotificationContentModels(
+            @Nullable PromotedNotificationContentModels promotedNotificationContentModels) {
         if (PromotedNotificationContentModel.featureFlagEnabled()) {
-            this.mPromotedNotificationContentModel = promotedNotificationContentModel;
+            this.mPromotedNotificationContentModels = promotedNotificationContentModels;
         } else {
             Log.wtf(TAG, "setting promoted content without feature flag enabled", new Throwable());
         }

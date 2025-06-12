@@ -216,12 +216,12 @@ final class DefaultPermissionGrantPolicy {
 
     private static final Set<String> SENSORS_PERMISSIONS = new ArraySet<>();
     static {
+        SENSORS_PERMISSIONS.add(Manifest.permission.BODY_SENSORS);
+        SENSORS_PERMISSIONS.add(Manifest.permission.BODY_SENSORS_BACKGROUND);
+
         if (Flags.replaceBodySensorPermissionEnabled()) {
             SENSORS_PERMISSIONS.add(HealthPermissions.READ_HEART_RATE);
             SENSORS_PERMISSIONS.add(HealthPermissions.READ_HEALTH_DATA_IN_BACKGROUND);
-        } else {
-            SENSORS_PERMISSIONS.add(Manifest.permission.BODY_SENSORS);
-            SENSORS_PERMISSIONS.add(Manifest.permission.BODY_SENSORS_BACKGROUND);
         }
     }
 
@@ -897,7 +897,7 @@ final class DefaultPermissionGrantPolicy {
                     SearchManager.INTENT_ACTION_GLOBAL_SEARCH, userId);
             grantPermissionsToSystemPackage(pm, voiceSearchPackage,
                     userId, PHONE_PERMISSIONS, CALENDAR_PERMISSIONS, NEARBY_DEVICES_PERMISSIONS,
-                    COARSE_BACKGROUND_LOCATION_PERMISSIONS);
+                    COARSE_BACKGROUND_LOCATION_PERMISSIONS, CONTACTS_PERMISSIONS);
             revokeRuntimePermissions(pm, voiceSearchPackage,
                 FINE_LOCATION_PERMISSIONS, false, userId);
         }

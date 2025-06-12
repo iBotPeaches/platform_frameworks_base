@@ -231,9 +231,9 @@ public final class ApplicationStartInfo implements Parcelable {
     public static final int START_COMPONENT_OTHER = 5;
 
     /**
-     * @see #getMonoticCreationTimeMs
+     * @see #getMonotonicCreationTimeMs
      */
-    private long mMonoticCreationTimeMs;
+    private long mMonotonicCreationTimeMs;
 
     /**
      * @see #getStartupState
@@ -545,8 +545,8 @@ public final class ApplicationStartInfo implements Parcelable {
      *
      * @hide
      */
-    public long getMonoticCreationTimeMs() {
-        return mMonoticCreationTimeMs;
+    public long getMonotonicCreationTimeMs() {
+        return mMonotonicCreationTimeMs;
     }
 
     /**
@@ -729,6 +729,7 @@ public final class ApplicationStartInfo implements Parcelable {
         return 0;
     }
 
+    // LINT.IfChange(write_parcel)
     @Override
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         dest.writeInt(mStartupState);
@@ -750,13 +751,14 @@ public final class ApplicationStartInfo implements Parcelable {
         dest.writeParcelable(mStartIntent, flags);
         dest.writeInt(mLaunchMode);
         dest.writeBoolean(mWasForceStopped);
-        dest.writeLong(mMonoticCreationTimeMs);
+        dest.writeLong(mMonotonicCreationTimeMs);
         dest.writeInt(mStartComponent);
     }
+    // LINT.ThenChange(:read_parcel)
 
     /** @hide */
     public ApplicationStartInfo(long monotonicCreationTimeMs) {
-        mMonoticCreationTimeMs = monotonicCreationTimeMs;
+        mMonotonicCreationTimeMs = monotonicCreationTimeMs;
     }
 
     /** @hide */
@@ -774,11 +776,12 @@ public final class ApplicationStartInfo implements Parcelable {
         mStartIntent = other.mStartIntent;
         mLaunchMode = other.mLaunchMode;
         mWasForceStopped = other.mWasForceStopped;
-        mMonoticCreationTimeMs = other.mMonoticCreationTimeMs;
+        mMonotonicCreationTimeMs = other.mMonotonicCreationTimeMs;
         mStartComponent = other.mStartComponent;
     }
 
     /** @hide */
+    // LINT.IfChange(read_parcel)
     @VisibleForTesting
     public ApplicationStartInfo(@NonNull Parcel in) {
         mStartupState = in.readInt();
@@ -800,9 +803,10 @@ public final class ApplicationStartInfo implements Parcelable {
                 in.readParcelable(Intent.class.getClassLoader(), android.content.Intent.class);
         mLaunchMode = in.readInt();
         mWasForceStopped = in.readBoolean();
-        mMonoticCreationTimeMs = in.readLong();
+        mMonotonicCreationTimeMs = in.readLong();
         mStartComponent = in.readInt();
     }
+    // LINT.ThenChange(:write_parcel)
 
     private static String intern(@Nullable String source) {
         return source != null ? source.intern() : null;
@@ -835,7 +839,10 @@ public final class ApplicationStartInfo implements Parcelable {
      * @param fieldId Field Id of the ApplicationStartInfo as defined in the parent message
      * @hide
      */
-    public void writeToProto(ProtoOutputStream proto, long fieldId) throws IOException {
+    // LINT.IfChange(write_proto)
+    public void writeToProto(ProtoOutputStream proto, long fieldId,
+            ByteArrayOutputStream byteArrayOutputStream, ObjectOutputStream objectOutputStream,
+            TypedXmlSerializer typedXmlSerializer) throws IOException {
         final long token = proto.start(fieldId);
         proto.write(ApplicationStartInfoProto.PID, mPid);
         proto.write(ApplicationStartInfoProto.REAL_UID, mRealUid);
@@ -845,45 +852,46 @@ public final class ApplicationStartInfo implements Parcelable {
         proto.write(ApplicationStartInfoProto.STARTUP_STATE, mStartupState);
         proto.write(ApplicationStartInfoProto.REASON, mReason);
         if (mStartupTimestampsNs != null && mStartupTimestampsNs.size() > 0) {
-            ByteArrayOutputStream timestampsBytes = new ByteArrayOutputStream();
-            ObjectOutputStream timestampsOut = new ObjectOutputStream(timestampsBytes);
-            TypedXmlSerializer serializer = Xml.resolveSerializer(timestampsOut);
-            serializer.startDocument(null, true);
-            serializer.startTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMPS);
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            typedXmlSerializer = Xml.resolveSerializer(objectOutputStream);
+            typedXmlSerializer.startDocument(null, true);
+            typedXmlSerializer.startTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMPS);
             for (int i = 0; i < mStartupTimestampsNs.size(); i++) {
-                serializer.startTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMP);
-                serializer.attributeInt(null, PROTO_SERIALIZER_ATTRIBUTE_KEY,
+                typedXmlSerializer.startTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMP);
+                typedXmlSerializer.attributeInt(null, PROTO_SERIALIZER_ATTRIBUTE_KEY,
                         mStartupTimestampsNs.keyAt(i));
-                serializer.attributeLong(null, PROTO_SERIALIZER_ATTRIBUTE_TS,
+                typedXmlSerializer.attributeLong(null, PROTO_SERIALIZER_ATTRIBUTE_TS,
                         mStartupTimestampsNs.valueAt(i));
-                serializer.endTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMP);
+                typedXmlSerializer.endTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMP);
             }
-            serializer.endTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMPS);
-            serializer.endDocument();
+            typedXmlSerializer.endTag(null, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMPS);
+            typedXmlSerializer.endDocument();
             proto.write(ApplicationStartInfoProto.STARTUP_TIMESTAMPS,
-                    timestampsBytes.toByteArray());
-            timestampsOut.close();
+                    byteArrayOutputStream.toByteArray());
+            objectOutputStream.close();
         }
         proto.write(ApplicationStartInfoProto.START_TYPE, mStartType);
         if (mStartIntent != null) {
-            ByteArrayOutputStream intentBytes = new ByteArrayOutputStream();
-            ObjectOutputStream intentOut = new ObjectOutputStream(intentBytes);
-            TypedXmlSerializer serializer = Xml.resolveSerializer(intentOut);
-            serializer.startDocument(null, true);
-            serializer.startTag(null, PROTO_SERIALIZER_ATTRIBUTE_INTENT);
-            mStartIntent.saveToXml(serializer);
-            serializer.endTag(null, PROTO_SERIALIZER_ATTRIBUTE_INTENT);
-            serializer.endDocument();
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            typedXmlSerializer = Xml.resolveSerializer(objectOutputStream);
+            typedXmlSerializer.startDocument(null, true);
+            typedXmlSerializer.startTag(null, PROTO_SERIALIZER_ATTRIBUTE_INTENT);
+            mStartIntent.saveToXml(typedXmlSerializer);
+            typedXmlSerializer.endTag(null, PROTO_SERIALIZER_ATTRIBUTE_INTENT);
+            typedXmlSerializer.endDocument();
             proto.write(ApplicationStartInfoProto.START_INTENT,
-                    intentBytes.toByteArray());
-            intentOut.close();
+                    byteArrayOutputStream.toByteArray());
+            objectOutputStream.close();
         }
         proto.write(ApplicationStartInfoProto.LAUNCH_MODE, mLaunchMode);
         proto.write(ApplicationStartInfoProto.WAS_FORCE_STOPPED, mWasForceStopped);
-        proto.write(ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS, mMonoticCreationTimeMs);
+        proto.write(ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS, mMonotonicCreationTimeMs);
         proto.write(ApplicationStartInfoProto.START_COMPONENT, mStartComponent);
         proto.end(token);
     }
+    // LINT.ThenChange(:read_proto)
 
     /**
      * Read from a protocol buffer input stream. Protocol buffer message definition at {@link
@@ -893,7 +901,10 @@ public final class ApplicationStartInfo implements Parcelable {
      * @param fieldId Field Id of the ApplicationStartInfo as defined in the parent message
      * @hide
      */
-    public void readFromProto(ProtoInputStream proto, long fieldId)
+    // LINT.IfChange(read_proto)
+    public void readFromProto(ProtoInputStream proto, long fieldId,
+            ByteArrayInputStream byteArrayInputStream, ObjectInputStream objectInputStream,
+            TypedXmlPullParser typedXmlPullParser)
             throws IOException, WireTypeMismatchException, ClassNotFoundException {
         final long token = proto.start(fieldId);
         while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
@@ -920,19 +931,21 @@ public final class ApplicationStartInfo implements Parcelable {
                     mReason = proto.readInt(ApplicationStartInfoProto.REASON);
                     break;
                 case (int) ApplicationStartInfoProto.STARTUP_TIMESTAMPS:
-                    ByteArrayInputStream timestampsBytes = new ByteArrayInputStream(proto.readBytes(
+                    byteArrayInputStream = new ByteArrayInputStream(proto.readBytes(
                             ApplicationStartInfoProto.STARTUP_TIMESTAMPS));
-                    ObjectInputStream timestampsIn = new ObjectInputStream(timestampsBytes);
+                    objectInputStream = new ObjectInputStream(byteArrayInputStream);
                     mStartupTimestampsNs = new ArrayMap<Integer, Long>();
                     try {
-                        TypedXmlPullParser parser = Xml.resolvePullParser(timestampsIn);
-                        XmlUtils.beginDocument(parser, PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMPS);
-                        int depth = parser.getDepth();
-                        while (XmlUtils.nextElementWithin(parser, depth)) {
-                            if (PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMP.equals(parser.getName())) {
-                                int key = parser.getAttributeInt(null,
+                        typedXmlPullParser = Xml.resolvePullParser(objectInputStream);
+                        XmlUtils.beginDocument(typedXmlPullParser,
+                                PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMPS);
+                        int depth = typedXmlPullParser.getDepth();
+                        while (XmlUtils.nextElementWithin(typedXmlPullParser, depth)) {
+                            if (PROTO_SERIALIZER_ATTRIBUTE_TIMESTAMP.equals(
+                                    typedXmlPullParser.getName())) {
+                                int key = typedXmlPullParser.getAttributeInt(null,
                                         PROTO_SERIALIZER_ATTRIBUTE_KEY);
-                                long ts = parser.getAttributeLong(null,
+                                long ts = typedXmlPullParser.getAttributeLong(null,
                                         PROTO_SERIALIZER_ATTRIBUTE_TS);
                                 mStartupTimestampsNs.put(key, ts);
                             }
@@ -940,23 +953,24 @@ public final class ApplicationStartInfo implements Parcelable {
                     } catch (XmlPullParserException e) {
                         // Timestamps lost
                     }
-                    timestampsIn.close();
+                    objectInputStream.close();
                     break;
                 case (int) ApplicationStartInfoProto.START_TYPE:
                     mStartType = proto.readInt(ApplicationStartInfoProto.START_TYPE);
                     break;
                 case (int) ApplicationStartInfoProto.START_INTENT:
-                    ByteArrayInputStream intentBytes = new ByteArrayInputStream(proto.readBytes(
+                    byteArrayInputStream = new ByteArrayInputStream(proto.readBytes(
                             ApplicationStartInfoProto.START_INTENT));
-                    ObjectInputStream intentIn = new ObjectInputStream(intentBytes);
+                    objectInputStream = new ObjectInputStream(byteArrayInputStream);
                     try {
-                        TypedXmlPullParser parser = Xml.resolvePullParser(intentIn);
-                        XmlUtils.beginDocument(parser, PROTO_SERIALIZER_ATTRIBUTE_INTENT);
-                        mStartIntent = Intent.restoreFromXml(parser);
+                        typedXmlPullParser = Xml.resolvePullParser(objectInputStream);
+                        XmlUtils.beginDocument(typedXmlPullParser,
+                                PROTO_SERIALIZER_ATTRIBUTE_INTENT);
+                        mStartIntent = Intent.restoreFromXml(typedXmlPullParser);
                     } catch (XmlPullParserException e) {
                         // Intent lost
                     }
-                    intentIn.close();
+                    objectInputStream.close();
                     break;
                 case (int) ApplicationStartInfoProto.LAUNCH_MODE:
                     mLaunchMode = proto.readInt(ApplicationStartInfoProto.LAUNCH_MODE);
@@ -966,7 +980,7 @@ public final class ApplicationStartInfo implements Parcelable {
                             ApplicationStartInfoProto.WAS_FORCE_STOPPED);
                     break;
                 case (int) ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS:
-                    mMonoticCreationTimeMs = proto.readLong(
+                    mMonotonicCreationTimeMs = proto.readLong(
                             ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS);
                     break;
                 case (int) ApplicationStartInfoProto.START_COMPONENT:
@@ -976,6 +990,7 @@ public final class ApplicationStartInfo implements Parcelable {
         }
         proto.end(token);
     }
+    // LINT.ThenChange(:write_proto)
 
     /** @hide */
     public void dump(@NonNull PrintWriter pw, @Nullable String prefix, @Nullable String seqSuffix,
@@ -984,7 +999,7 @@ public final class ApplicationStartInfo implements Parcelable {
         sb.append(prefix)
                 .append("ApplicationStartInfo ").append(seqSuffix).append(':')
                 .append('\n')
-                .append(" monotonicCreationTimeMs=").append(mMonoticCreationTimeMs)
+                .append(" monotonicCreationTimeMs=").append(mMonotonicCreationTimeMs)
                 .append('\n')
                 .append(" pid=").append(mPid)
                 .append(" realUid=").append(mRealUid)
@@ -1067,6 +1082,15 @@ public final class ApplicationStartInfo implements Parcelable {
 
         final ApplicationStartInfo o = (ApplicationStartInfo) other;
 
+        boolean intentEquals = true;
+        if (android.content.flags.Flags.intentSaveToXmlPackage()) {
+            if (mStartIntent == null) {
+                intentEquals = o.mStartIntent == null;
+            } else {
+                intentEquals = mStartIntent.filterEquals(o.mStartIntent);
+            }
+        }
+
         return mPid == o.mPid
                 && mRealUid == o.mRealUid
                 && mPackageUid == o.mPackageUid
@@ -1079,15 +1103,17 @@ public final class ApplicationStartInfo implements Parcelable {
                 && TextUtils.equals(mProcessName, o.mProcessName)
                 && timestampsEquals(o)
                 && mWasForceStopped == o.mWasForceStopped
-                && mMonoticCreationTimeMs == o.mMonoticCreationTimeMs
-                && mStartComponent == o.mStartComponent;
+                && mMonotonicCreationTimeMs == o.mMonotonicCreationTimeMs
+                && mStartComponent == o.mStartComponent
+                && intentEquals;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(mPid, mRealUid, mPackageUid, mDefiningUid, mReason, mStartupState,
                 mStartType, mLaunchMode, mPackageName, mProcessName, mStartupTimestampsNs,
-                mMonoticCreationTimeMs, mStartComponent);
+                mMonotonicCreationTimeMs, mStartComponent,
+                android.content.flags.Flags.intentSaveToXmlPackage() ? mStartIntent : null);
     }
 
     private boolean timestampsEquals(@NonNull ApplicationStartInfo other) {

@@ -54,8 +54,7 @@ import org.mockito.junit.MockitoJUnit
 /**
  * Tests for {@link AmbientKeyboardBacklightController}.
  *
- * Build/Install/Run:
- * atest InputTests:AmbientKeyboardBacklightControllerTests
+ * Build/Install/Run: atest InputTests:AmbientKeyboardBacklightControllerTests
  */
 @Presubmit
 class AmbientKeyboardBacklightControllerTests {
@@ -66,24 +65,19 @@ class AmbientKeyboardBacklightControllerTests {
         const val SENSOR_TYPE = "test_sensor_type"
     }
 
-    @get:Rule
-    val rule = MockitoJUnit.rule()!!
+    @get:Rule val rule = MockitoJUnit.rule()!!
 
     private lateinit var context: Context
     private lateinit var testLooper: TestLooper
     private lateinit var ambientController: AmbientKeyboardBacklightController
 
-    @Mock
-    private lateinit var resources: Resources
+    @Mock private lateinit var resources: Resources
 
-    @Mock
-    private lateinit var lightSensorInfo: InputSensorInfo
+    @Mock private lateinit var lightSensorInfo: InputSensorInfo
 
-    @Mock
-    private lateinit var sensorManager: SensorManager
+    @Mock private lateinit var sensorManager: SensorManager
 
-    @Mock
-    private lateinit var displayManagerInternal: DisplayManagerInternal
+    @Mock private lateinit var displayManagerInternal: DisplayManagerInternal
     private lateinit var lightSensor: Sensor
 
     private var currentDisplayInfo = DisplayInfo()
@@ -114,26 +108,26 @@ class AmbientKeyboardBacklightControllerTests {
         `when`(resources.getIntArray(R.array.config_autoKeyboardBacklightIncreaseLuxThreshold))
             .thenReturn(increaseThresholds)
         `when`(
-            resources.getValue(
-                eq(R.dimen.config_autoKeyboardBrightnessSmoothingConstant),
-                any(TypedValue::class.java),
-                anyBoolean()
+                resources.getValue(
+                    eq(R.dimen.config_autoKeyboardBrightnessSmoothingConstant),
+                    any(TypedValue::class.java),
+                    anyBoolean(),
+                )
             )
-        ).then {
-            val args = it.arguments
-            val outValue = args[1] as TypedValue
-            outValue.data = java.lang.Float.floatToRawIntBits(1.0f)
-            Unit
-        }
+            .then {
+                val args = it.arguments
+                val outValue = args[1] as TypedValue
+                outValue.data = java.lang.Float.floatToRawIntBits(1.0f)
+                Unit
+            }
     }
 
     private fun setupSensor() {
         LocalServices.removeServiceForTest(DisplayManagerInternal::class.java)
         LocalServices.addService(DisplayManagerInternal::class.java, displayManagerInternal)
         currentDisplayInfo.uniqueId = DEFAULT_DISPLAY_UNIQUE_ID
-        `when`(displayManagerInternal.getDisplayInfo(Display.DEFAULT_DISPLAY)).thenReturn(
-            currentDisplayInfo
-        )
+        `when`(displayManagerInternal.getDisplayInfo(Display.DEFAULT_DISPLAY))
+            .thenReturn(currentDisplayInfo)
         val sensorData = DisplayManagerInternal.AmbientLightSensorData(SENSOR_NAME, SENSOR_TYPE)
         `when`(displayManagerInternal.getAmbientLightSensorData(Display.DEFAULT_DISPLAY))
             .thenReturn(sensorData)
@@ -144,26 +138,28 @@ class AmbientKeyboardBacklightControllerTests {
         `when`(context.getSystemService(eq(Context.SENSOR_SERVICE))).thenReturn(sensorManager)
         `when`(sensorManager.getSensorList(anyInt())).thenReturn(listOf(lightSensor))
         `when`(
-            sensorManager.registerListener(
-                any(),
-                eq(lightSensor),
-                anyInt(),
-                any(Handler::class.java)
+                sensorManager.registerListener(
+                    any(),
+                    eq(lightSensor),
+                    anyInt(),
+                    any(Handler::class.java),
+                )
             )
-        ).then {
-            listenerRegistered = true
-            listenerRegistrationCount++
-            true
-        }
+            .then {
+                listenerRegistered = true
+                listenerRegistrationCount++
+                true
+            }
         `when`(
-            sensorManager.unregisterListener(
-                any(SensorEventListener::class.java),
-                eq(lightSensor)
+                sensorManager.unregisterListener(
+                    any(SensorEventListener::class.java),
+                    eq(lightSensor),
+                )
             )
-        ).then {
-            listenerRegistered = false
-            Unit
-        }
+            .then {
+                listenerRegistered = false
+                Unit
+            }
     }
 
     private fun setupSensorWithInitialLux(luxValue: Float) {
@@ -181,7 +177,7 @@ class AmbientKeyboardBacklightControllerTests {
         assertEquals(
             "Should receive immediate callback for first lux change",
             100,
-            lastBrightnessCallback
+            lastBrightnessCallback,
         )
     }
 
@@ -190,15 +186,13 @@ class AmbientKeyboardBacklightControllerTests {
         setupSensorWithInitialLux(500F)
 
         // Current state: Step 1 [value = 100, increaseThreshold = 1000, decreaseThreshold = -1]
-        repeat(HYSTERESIS_THRESHOLD) {
-            sendAmbientLuxValue(1500F)
-        }
+        repeat(HYSTERESIS_THRESHOLD) { sendAmbientLuxValue(1500F) }
         testLooper.dispatchAll()
 
         assertEquals(
             "Should receive brightness change callback for increasing lux change",
             200,
-            lastBrightnessCallback
+            lastBrightnessCallback,
         )
     }
 
@@ -207,39 +201,31 @@ class AmbientKeyboardBacklightControllerTests {
         setupSensorWithInitialLux(1500F)
 
         // Current state: Step 2 [value = 200, increaseThreshold = 2000, decreaseThreshold = 900]
-        repeat(HYSTERESIS_THRESHOLD) {
-            sendAmbientLuxValue(500F)
-        }
+        repeat(HYSTERESIS_THRESHOLD) { sendAmbientLuxValue(500F) }
         testLooper.dispatchAll()
 
         assertEquals(
             "Should receive brightness change callback for decreasing lux change",
             100,
-            lastBrightnessCallback
+            lastBrightnessCallback,
         )
     }
 
     @Test
     fun testRegisterAmbientListener_throwsExceptionOnRegisteringDuplicate() {
-        val ambientListener =
-            AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener { }
+        val ambientListener = AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener {}
         ambientController.registerAmbientBacklightListener(ambientListener)
 
         assertThrows(IllegalStateException::class.java) {
-            ambientController.registerAmbientBacklightListener(
-                ambientListener
-            )
+            ambientController.registerAmbientBacklightListener(ambientListener)
         }
     }
 
     @Test
     fun testUnregisterAmbientListener_throwsExceptionOnUnregisteringNonExistent() {
-        val ambientListener =
-            AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener { }
+        val ambientListener = AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener {}
         assertThrows(IllegalStateException::class.java) {
-            ambientController.unregisterAmbientBacklightListener(
-                ambientListener
-            )
+            ambientController.unregisterAmbientBacklightListener(ambientListener)
         }
     }
 
@@ -248,25 +234,23 @@ class AmbientKeyboardBacklightControllerTests {
         assertEquals(
             "Should not have a sensor listener registered at init",
             0,
-            listenerRegistrationCount
+            listenerRegistrationCount,
         )
         assertFalse("Should not have a sensor listener registered at init", listenerRegistered)
 
         val ambientListener1 =
-            AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener { }
+            AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener {}
         ambientController.registerAmbientBacklightListener(ambientListener1)
-        assertEquals(
-            "Should register a new sensor listener", 1, listenerRegistrationCount
-        )
+        assertEquals("Should register a new sensor listener", 1, listenerRegistrationCount)
         assertTrue("Should have sensor listener registered", listenerRegistered)
 
         val ambientListener2 =
-            AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener { }
+            AmbientKeyboardBacklightController.AmbientKeyboardBacklightListener {}
         ambientController.registerAmbientBacklightListener(ambientListener2)
         assertEquals(
             "Should not register a new sensor listener when adding a second ambient listener",
             1,
-            listenerRegistrationCount
+            listenerRegistrationCount,
         )
         assertTrue("Should have sensor listener registered", listenerRegistered)
 
@@ -276,7 +260,7 @@ class AmbientKeyboardBacklightControllerTests {
         ambientController.unregisterAmbientBacklightListener(ambientListener2)
         assertFalse(
             "Should not have sensor listener registered if there are no ambient listeners",
-            listenerRegistered
+            listenerRegistered,
         )
     }
 
@@ -291,7 +275,7 @@ class AmbientKeyboardBacklightControllerTests {
         assertEquals(
             "Should not re-register listener on display change if unique is same",
             count,
-            listenerRegistrationCount
+            listenerRegistrationCount,
         )
     }
 
@@ -307,7 +291,7 @@ class AmbientKeyboardBacklightControllerTests {
         assertEquals(
             "Should re-register listener on display change if unique id changed",
             count + 1,
-            listenerRegistrationCount
+            listenerRegistrationCount,
         )
     }
 
@@ -318,15 +302,13 @@ class AmbientKeyboardBacklightControllerTests {
         // Previous state: Step 1 [value = 100, increaseThreshold = 1000, decreaseThreshold = -1]
         // Current state: Step 2 [value = 200, increaseThreshold = 2000, decreaseThreshold = 900]
         lastBrightnessCallback = -1
-        repeat(HYSTERESIS_THRESHOLD) {
-            sendAmbientLuxValue(999F)
-        }
+        repeat(HYSTERESIS_THRESHOLD) { sendAmbientLuxValue(999F) }
         testLooper.dispatchAll()
 
         assertEquals(
             "Should not receive any callback for brightness change",
             -1,
-            lastBrightnessCallback
+            lastBrightnessCallback,
         )
     }
 
@@ -337,15 +319,13 @@ class AmbientKeyboardBacklightControllerTests {
         // Previous state: Step 1 [value = 100, increaseThreshold = 1000, decreaseThreshold = -1]
         // Current state: Step 2 [value = 200, increaseThreshold = 2000, decreaseThreshold = 900]
         lastBrightnessCallback = -1
-        repeat(HYSTERESIS_THRESHOLD - 1) {
-            sendAmbientLuxValue(2001F)
-        }
+        repeat(HYSTERESIS_THRESHOLD - 1) { sendAmbientLuxValue(2001F) }
         testLooper.dispatchAll()
 
         assertEquals(
             "Should not receive any callback for brightness change",
             -1,
-            lastBrightnessCallback
+            lastBrightnessCallback,
         )
     }
 

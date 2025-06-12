@@ -43,6 +43,9 @@ public final class KeyGestureEvent {
     private static final int LOG_EVENT_UNSPECIFIED =
             FrameworkStatsLog.KEYBOARD_SYSTEMS_EVENT_REPORTED__KEYBOARD_SYSTEM_EVENT__UNSPECIFIED;
 
+    // Used as a placeholder to identify if a gesture is reserved for system
+    public static final int KEY_GESTURE_TYPE_SYSTEM_RESERVED = -1;
+
     // These values should not change and values should not be re-used as this data is persisted to
     // long term storage and must be kept backwards compatible.
     public static final int KEY_GESTURE_TYPE_UNSPECIFIED = 0;
@@ -69,7 +72,8 @@ public final class KeyGestureEvent {
     public static final int KEY_GESTURE_TYPE_ALL_APPS = 21;
     public static final int KEY_GESTURE_TYPE_LAUNCH_SEARCH = 22;
     public static final int KEY_GESTURE_TYPE_LANGUAGE_SWITCH = 23;
-    public static final int KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS = 24;
+    @Deprecated
+    public static final int DEPRECATED_KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS = 24;
     public static final int KEY_GESTURE_TYPE_TOGGLE_CAPS_LOCK = 25;
     public static final int KEY_GESTURE_TYPE_SYSTEM_MUTE = 26;
     public static final int KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_LEFT = 27;
@@ -105,7 +109,8 @@ public final class KeyGestureEvent {
     public static final int KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT_CHORD = 55;
     public static final int KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD = 56;
     public static final int KEY_GESTURE_TYPE_GLOBAL_ACTIONS = 57;
-    public static final int KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD = 58;
+    @Deprecated
+    public static final int DEPRECATED_KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD = 58;
     public static final int KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT = 59;
     public static final int KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT = 60;
     public static final int KEY_GESTURE_TYPE_CLOSE_ALL_DIALOGS = 61;
@@ -119,12 +124,11 @@ public final class KeyGestureEvent {
     public static final int KEY_GESTURE_TYPE_SNAP_RIGHT_FREEFORM_WINDOW = 69;
     public static final int KEY_GESTURE_TYPE_MINIMIZE_FREEFORM_WINDOW = 70;
     public static final int KEY_GESTURE_TYPE_TOGGLE_MAXIMIZE_FREEFORM_WINDOW = 71;
-    public static final int KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN = 72;
-    public static final int KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT = 73;
-    public static final int KEY_GESTURE_TYPE_TOGGLE_MAGNIFICATION = 74;
-    public static final int KEY_GESTURE_TYPE_ACTIVATE_SELECT_TO_SPEAK = 75;
-    public static final int KEY_GESTURE_TYPE_MAXIMIZE_FREEFORM_WINDOW = 76;
-
+    public static final int KEY_GESTURE_TYPE_TOGGLE_MAGNIFICATION = 72;
+    public static final int KEY_GESTURE_TYPE_ACTIVATE_SELECT_TO_SPEAK = 73;
+    public static final int KEY_GESTURE_TYPE_MAXIMIZE_FREEFORM_WINDOW = 74;
+    public static final int KEY_GESTURE_TYPE_TOGGLE_DO_NOT_DISTURB = 75;
+    public static final int KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS = 76;
 
     public static final int FLAG_CANCELLED = 1;
 
@@ -139,6 +143,7 @@ public final class KeyGestureEvent {
     public static final int ACTION_GESTURE_COMPLETE = 2;
 
     @IntDef(prefix = "KEY_GESTURE_TYPE_", value = {
+            KEY_GESTURE_TYPE_SYSTEM_RESERVED,
             KEY_GESTURE_TYPE_UNSPECIFIED,
             KEY_GESTURE_TYPE_HOME,
             KEY_GESTURE_TYPE_RECENT_APPS,
@@ -163,7 +168,6 @@ public final class KeyGestureEvent {
             KEY_GESTURE_TYPE_ALL_APPS,
             KEY_GESTURE_TYPE_LAUNCH_SEARCH,
             KEY_GESTURE_TYPE_LANGUAGE_SWITCH,
-            KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS,
             KEY_GESTURE_TYPE_TOGGLE_CAPS_LOCK,
             KEY_GESTURE_TYPE_SYSTEM_MUTE,
             KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_LEFT,
@@ -197,7 +201,6 @@ public final class KeyGestureEvent {
             KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT_CHORD,
             KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD,
             KEY_GESTURE_TYPE_GLOBAL_ACTIONS,
-            KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD,
             KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT,
             KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT,
             KEY_GESTURE_TYPE_CLOSE_ALL_DIALOGS,
@@ -211,14 +214,34 @@ public final class KeyGestureEvent {
             KEY_GESTURE_TYPE_SNAP_RIGHT_FREEFORM_WINDOW,
             KEY_GESTURE_TYPE_MINIMIZE_FREEFORM_WINDOW,
             KEY_GESTURE_TYPE_TOGGLE_MAXIMIZE_FREEFORM_WINDOW,
-            KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN,
-            KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT,
             KEY_GESTURE_TYPE_TOGGLE_MAGNIFICATION,
             KEY_GESTURE_TYPE_ACTIVATE_SELECT_TO_SPEAK,
-            KEY_GESTURE_TYPE_MAXIMIZE_FREEFORM_WINDOW
+            KEY_GESTURE_TYPE_MAXIMIZE_FREEFORM_WINDOW,
+            KEY_GESTURE_TYPE_TOGGLE_DO_NOT_DISTURB,
+            KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface KeyGestureType {
+    }
+
+    /**
+     * Returns whether the key gesture type passed as argument is allowed for visible background
+     * users.
+     *
+     * @hide
+     */
+    public static boolean isVisibleBackgrounduserAllowedGesture(int keyGestureType) {
+        switch (keyGestureType) {
+            case KEY_GESTURE_TYPE_SLEEP:
+            case KEY_GESTURE_TYPE_WAKEUP:
+            case KEY_GESTURE_TYPE_LAUNCH_ASSISTANT:
+            case KEY_GESTURE_TYPE_LAUNCH_VOICE_ASSISTANT:
+            case KEY_GESTURE_TYPE_VOLUME_MUTE:
+            case KEY_GESTURE_TYPE_RECENT_APPS:
+            case KEY_GESTURE_TYPE_APP_SWITCH:
+                return false;
+        }
+        return true;
     }
 
     public KeyGestureEvent(@NonNull AidlKeyGestureEvent keyGestureEvent) {
@@ -502,8 +525,6 @@ public final class KeyGestureEvent {
                 return FrameworkStatsLog.KEYBOARD_SYSTEMS_EVENT_REPORTED__KEYBOARD_SYSTEM_EVENT__LAUNCH_SEARCH;
             case KEY_GESTURE_TYPE_LANGUAGE_SWITCH:
                 return FrameworkStatsLog.KEYBOARD_SYSTEMS_EVENT_REPORTED__KEYBOARD_SYSTEM_EVENT__LANGUAGE_SWITCH;
-            case KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS:
-                return FrameworkStatsLog.KEYBOARD_SYSTEMS_EVENT_REPORTED__KEYBOARD_SYSTEM_EVENT__ACCESSIBILITY_ALL_APPS;
             case KEY_GESTURE_TYPE_TOGGLE_CAPS_LOCK:
                 return FrameworkStatsLog.KEYBOARD_SYSTEMS_EVENT_REPORTED__KEYBOARD_SYSTEM_EVENT__TOGGLE_CAPS_LOCK;
             case KEY_GESTURE_TYPE_SYSTEM_MUTE:
@@ -634,6 +655,8 @@ public final class KeyGestureEvent {
 
     private static String keyGestureTypeToString(@KeyGestureType int value) {
         switch (value) {
+            case KEY_GESTURE_TYPE_SYSTEM_RESERVED:
+                return "KEY_GESTURE_TYPE_SYSTEM_RESERVED";
             case KEY_GESTURE_TYPE_UNSPECIFIED:
                 return "KEY_GESTURE_TYPE_UNSPECIFIED";
             case KEY_GESTURE_TYPE_HOME:
@@ -682,8 +705,6 @@ public final class KeyGestureEvent {
                 return "KEY_GESTURE_TYPE_LAUNCH_SEARCH";
             case KEY_GESTURE_TYPE_LANGUAGE_SWITCH:
                 return "KEY_GESTURE_TYPE_LANGUAGE_SWITCH";
-            case KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS:
-                return "KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS";
             case KEY_GESTURE_TYPE_TOGGLE_CAPS_LOCK:
                 return "KEY_GESTURE_TYPE_TOGGLE_CAPS_LOCK";
             case KEY_GESTURE_TYPE_SYSTEM_MUTE:
@@ -752,8 +773,6 @@ public final class KeyGestureEvent {
                 return "KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD";
             case KEY_GESTURE_TYPE_GLOBAL_ACTIONS:
                 return "KEY_GESTURE_TYPE_GLOBAL_ACTIONS";
-            case KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD:
-                return "KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD";
             case KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT:
                 return "KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT";
             case KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT:
@@ -778,16 +797,16 @@ public final class KeyGestureEvent {
                 return "KEY_GESTURE_TYPE_MINIMIZE_FREEFORM_WINDOW";
             case KEY_GESTURE_TYPE_TOGGLE_MAXIMIZE_FREEFORM_WINDOW:
                 return "KEY_GESTURE_TYPE_TOGGLE_MAXIMIZE_FREEFORM_WINDOW";
-            case KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN:
-                return "KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN";
-            case KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT:
-                return "KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT";
             case KEY_GESTURE_TYPE_TOGGLE_MAGNIFICATION:
                 return "KEY_GESTURE_TYPE_TOGGLE_MAGNIFICATION";
             case KEY_GESTURE_TYPE_ACTIVATE_SELECT_TO_SPEAK:
                 return "KEY_GESTURE_TYPE_ACTIVATE_SELECT_TO_SPEAK";
             case KEY_GESTURE_TYPE_MAXIMIZE_FREEFORM_WINDOW:
                 return "KEY_GESTURE_TYPE_MAXIMIZE_FREEFORM_WINDOW";
+            case KEY_GESTURE_TYPE_TOGGLE_DO_NOT_DISTURB:
+                return "KEY_GESTURE_TYPE_TOGGLE_DO_NOT_DISTURB";
+            case KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS:
+                return "KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS";
             default:
                 return Integer.toHexString(value);
         }

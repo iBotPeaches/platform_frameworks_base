@@ -105,7 +105,7 @@ interface IInputMethodManager {
             in @nullable EditorInfo editorInfo, in @nullable IRemoteInputConnection inputConnection,
             in @nullable IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
             int unverifiedTargetSdkVersion, int userId,
-            in ImeOnBackInvokedDispatcher imeDispatcher);
+            in ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible);
 
     // If windowToken is null, this just does startInput().  Otherwise this reports that a window
     // has gained focus, and if 'editorInfo' is non-null then also does startInput.
@@ -120,8 +120,8 @@ interface IInputMethodManager {
             in @nullable EditorInfo editorInfo, in @nullable IRemoteInputConnection inputConnection,
             in @nullable IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
             int unverifiedTargetSdkVersion, int userId,
-            in ImeOnBackInvokedDispatcher imeDispatcher, int startInputSeq,
-            boolean useAsyncShowHideMethod);
+            in ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible,
+            int startInputSeq, boolean useAsyncShowHideMethod);
 
     void showInputMethodPickerFromClient(in IInputMethodClient client,
             int auxiliarySubtypeMode);
@@ -148,6 +148,15 @@ interface IInputMethodManager {
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(allOf = {android.Manifest."
     + "permission.WRITE_SECURE_SETTINGS, android.Manifest.permission.INTERACT_ACROSS_USERS_FULL})")
     oneway void onImeSwitchButtonClickFromSystem(int displayId);
+
+    /**
+     * A test API for CTS to check whether the IME Switcher button should be shown when the IME
+     * is shown.
+     */
+    @EnforcePermission("TEST_INPUT_METHOD")
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
+            + "android.Manifest.permission.TEST_INPUT_METHOD)")
+    boolean shouldShowImeSwitcherButtonForTest();
 
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
             + "android.Manifest.permission.INTERACT_ACROSS_USERS_FULL, conditional = true)")
@@ -215,7 +224,7 @@ interface IInputMethodManager {
      *  async **/
     oneway void acceptStylusHandwritingDelegationAsync(in IInputMethodClient client, in int userId,
             in String delegatePackageName, in String delegatorPackageName, int flags,
-            in IBooleanListener callback);
+                in IBooleanListener callback);
 
     /** Returns {@code true} if currently selected IME supports Stylus handwriting. */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "

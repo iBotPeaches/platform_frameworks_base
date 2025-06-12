@@ -35,6 +35,7 @@ import com.android.systemui.statusbar.notification.dagger.SilentHeader
 import com.android.systemui.statusbar.notification.dagger.SocialHeader
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.ExpandableView
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.notification.stack.PriorityBucket
 import com.android.systemui.statusbar.notification.stack.StackScrollAlgorithm.SectionProvider
 import com.android.systemui.statusbar.policy.ConfigurationController
@@ -164,7 +165,9 @@ internal constructor(
             view === socialHeaderView -> BUCKET_SOCIAL
             view === recsHeaderView -> BUCKET_RECS
             view === promoHeaderView -> BUCKET_PROMO
-            view is ExpandableNotificationRow -> view.entry.bucket
+            view is ExpandableNotificationRow ->
+                if (NotificationBundleUi.isEnabled) view.entryAdapter?.sectionBucket
+                else view.entryLegacy.bucket
             else -> null
         }
 
@@ -278,13 +281,13 @@ internal constructor(
             val fs =
                 when (val first = s.firstVisibleChild) {
                     null -> "(null)"
-                    is ExpandableNotificationRow -> first.entry.key
+                    is ExpandableNotificationRow -> first.loggingKey
                     else -> Integer.toHexString(System.identityHashCode(first))
                 }
             val ls =
                 when (val last = s.lastVisibleChild) {
                     null -> "(null)"
-                    is ExpandableNotificationRow -> last.entry.key
+                    is ExpandableNotificationRow -> last.loggingKey
                     else -> Integer.toHexString(System.identityHashCode(last))
                 }
             Log.d(TAG, "updateSections: f=$fs s=$i")

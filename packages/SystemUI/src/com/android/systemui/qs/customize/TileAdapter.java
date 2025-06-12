@@ -14,15 +14,12 @@
 
 package com.android.systemui.qs.customize;
 
-import static com.android.systemui.Flags.gsfQuickSettings;
-
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Rect;
-import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.view.LayoutInflater;
@@ -312,10 +309,6 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
         if (viewType == TYPE_HEADER) {
             View v = inflater.inflate(R.layout.qs_customize_header, parent, false);
             v.setMinimumHeight(calculateHeaderMinHeight(context));
-            if (gsfQuickSettings()) {
-                ((TextView) v.findViewById(android.R.id.title)).setTypeface(
-                        Typeface.create("gsf-label-large", Typeface.NORMAL));
-            }
             return new Holder(v);
         }
         if (viewType == TYPE_DIVIDER) {
@@ -674,17 +667,11 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
         }
 
         private void add() {
-            if (addFromPosition(getLayoutPosition())) {
-                itemView.announceForAccessibility(
-                        itemView.getContext().getText(R.string.accessibility_qs_edit_tile_added));
-            }
+            addFromPosition(getLayoutPosition());
         }
 
         private void remove() {
-            if (removeFromPosition(getLayoutPosition())) {
-                itemView.announceForAccessibility(
-                        itemView.getContext().getText(R.string.accessibility_qs_edit_tile_removed));
-            }
+            removeFromPosition(getLayoutPosition());
         }
 
         boolean isCurrentTile() {

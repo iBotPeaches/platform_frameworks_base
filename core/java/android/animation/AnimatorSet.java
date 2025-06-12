@@ -423,8 +423,19 @@ public final class AnimatorSet extends Animator implements AnimationHandler.Anim
             notifyListeners(AnimatorCaller.ON_CANCEL, false);
             callOnPlayingSet(Animator::cancel);
             mPlayingSet.clear();
-            endAnimation();
+            endAnimationAndNotifyEndListenersImmediately();
         }
+    }
+
+    private void endAnimationAndNotifyEndListenersImmediately() {
+        // If the end callback is pending, invoke the end callbacks of the animator nodes before
+        // ending this set. Pass notifyListeners=false because endAnimation will do that.
+        if (consumePendingEndListeners(false /* notifyListeners */)) {
+            for (int i = mNodeMap.size() - 1; i >= 0; i--) {
+                mNodeMap.keyAt(i).consumePendingEndListeners(true /* notifyListeners */);
+            }
+        }
+        endAnimation();
     }
 
     /**
@@ -522,7 +533,7 @@ public final class AnimatorSet extends Animator implements AnimationHandler.Anim
                 }
             }
         }
-        endAnimation();
+        endAnimationAndNotifyEndListenersImmediately();
     }
 
     /**
@@ -1448,8 +1459,6 @@ public final class AnimatorSet extends Animator implements AnimationHandler.Anim
     private void endAnimation(boolean fromLastFrame) {
         final boolean postNotifyEndListener = sPostNotifyEndListenerEnabled && mListeners != null
                 && fromLastFrame && mTotalDuration > 0;
-        mStarted = false;
-        mLastFrameTime = -1;
         mFirstFrame = -1;
         mLastEventId = -1;
         mPaused = false;
@@ -1459,11 +1468,18 @@ public final class AnimatorSet extends Animator implements AnimationHandler.Anim
 
         // No longer receive callbacks
         removeAnimationCallback();
+        // If postNotifyEndListener is false (most cases), then it is the same as calling
+        // completeEndAnimation directly.
         notifyEndListenersFromEndAnimation(mReversing, postNotifyEndListener);
     }
 
     @Override
     void completeEndAnimation(boolean isReversing, String notifyListenerTraceName) {
+        // The mStarted and mLastFrameTime are reset here because isStarted() and isRunning()
+        // can be true before notifying the end listeners. When notifying the end listeners,
+        // isStarted() and isRunning() should be false.
+        mStarted = false;
+        mLastFrameTime = -1;
         super.completeEndAnimation(isReversing, notifyListenerTraceName);
         removeAnimationEndListener();
         mSelfPulse = true;

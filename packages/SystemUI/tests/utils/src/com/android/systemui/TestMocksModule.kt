@@ -47,6 +47,7 @@ import com.android.systemui.log.dagger.BiometricLog
 import com.android.systemui.log.dagger.BroadcastDispatcherLog
 import com.android.systemui.log.dagger.FaceAuthLog
 import com.android.systemui.log.dagger.SceneFrameworkLog
+import com.android.systemui.media.NotificationMediaManager
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager
 import com.android.systemui.model.SysUiState
 import com.android.systemui.plugins.ActivityStarter
@@ -57,7 +58,6 @@ import com.android.systemui.shared.system.ActivityManagerWrapper
 import com.android.systemui.statusbar.LockscreenShadeTransitionController
 import com.android.systemui.statusbar.NotificationListener
 import com.android.systemui.statusbar.NotificationLockscreenUserManager
-import com.android.systemui.statusbar.NotificationMediaManager
 import com.android.systemui.statusbar.NotificationShadeDepthController
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.notification.NotificationWakeUpCoordinator

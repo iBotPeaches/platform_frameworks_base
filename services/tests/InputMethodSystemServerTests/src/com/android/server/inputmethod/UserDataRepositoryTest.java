@@ -18,16 +18,15 @@ package com.android.server.inputmethod;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.WindowManagerInternal;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -41,12 +40,11 @@ public final class UserDataRepositoryTest {
 
     private static final int ANY_USER_ID = 1;
 
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true).build();
-
     @Mock
     private InputMethodManagerService mMockInputMethodManagerService;
+
+    @Mock
+    private UserManagerInternal mMockUserManagerInternal;
 
     @Mock
     private WindowManagerInternal mMockWindowManagerInternal;
@@ -68,6 +66,12 @@ public final class UserDataRepositoryTest {
         mVisibilityStateComputerFactory = userId -> new ImeVisibilityStateComputer(
                 mMockInputMethodManagerService,
                 new ImeVisibilityStateComputer.Injector() {
+                    @NonNull
+                    @Override
+                    public UserManagerInternal getUserManagerService() {
+                        return mMockUserManagerInternal;
+                    }
+
                     @NonNull
                     @Override
                     public WindowManagerInternal getWmService() {

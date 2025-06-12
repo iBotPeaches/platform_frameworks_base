@@ -48,6 +48,7 @@ import java.util.regex.Pattern;
  * Parser for font config files.
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class FontListParser {
     private static final String TAG = "FontListParser";
 

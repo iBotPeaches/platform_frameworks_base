@@ -35,12 +35,12 @@ class AppCompatRoundedCorners {
     @NonNull
     private final ActivityRecord mActivityRecord;
     @NonNull
-    private final Predicate<WindowState> mIsLetterboxedNotForDisplayCutout;
+    private final Predicate<WindowState> mRoundedCornersWindowCondition;
 
     AppCompatRoundedCorners(@NonNull ActivityRecord  activityRecord,
-            @NonNull Predicate<WindowState> isLetterboxedNotForDisplayCutout) {
+            @NonNull Predicate<WindowState> roundedCornersWindowCondition) {
         mActivityRecord = activityRecord;
-        mIsLetterboxedNotForDisplayCutout = isLetterboxedNotForDisplayCutout;
+        mRoundedCornersWindowCondition = roundedCornersWindowCondition;
     }
 
     void updateRoundedCornersIfNeeded(@NonNull final WindowState mainWindow) {
@@ -58,7 +58,7 @@ class AppCompatRoundedCorners {
     @VisibleForTesting
     @Nullable
     Rect getCropBoundsIfNeeded(@NonNull final WindowState mainWindow) {
-        if (!requiresRoundedCorners(mainWindow) || mActivityRecord.isInLetterboxAnimation()) {
+        if (!requiresRoundedCorners(mainWindow)) {
             // We don't want corner radius on the window.
             // In the case the ActivityRecord requires a letterboxed animation we never want
             // rounded corners on the window because rounded corners are applied at the
@@ -112,7 +112,7 @@ class AppCompatRoundedCorners {
             return 0;
         }
         final AppCompatLetterboxOverrides letterboxOverrides = mActivityRecord
-                .mAppCompatController.getAppCompatLetterboxOverrides();
+                .mAppCompatController.getLetterboxOverrides();
         final int radius;
         if (letterboxOverrides.getLetterboxActivityCornersRadius() >= 0) {
             radius = letterboxOverrides.getLetterboxActivityCornersRadius();
@@ -135,8 +135,8 @@ class AppCompatRoundedCorners {
 
     private boolean requiresRoundedCorners(@NonNull final WindowState mainWindow) {
         final AppCompatLetterboxOverrides letterboxOverrides = mActivityRecord
-                .mAppCompatController.getAppCompatLetterboxOverrides();
-        return mIsLetterboxedNotForDisplayCutout.test(mainWindow)
+                .mAppCompatController.getLetterboxOverrides();
+        return mRoundedCornersWindowCondition.test(mainWindow)
                 && letterboxOverrides.isLetterboxActivityCornersRounded();
     }
 

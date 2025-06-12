@@ -51,51 +51,52 @@ public class PackageParsingPerfTest {
         private const val QUEUE_POLL_TIMEOUT_SECONDS = 5L
 
         // TODO: Replace this with core version of SYSTEM_PARTITIONS
-        val FOLDERS_TO_TEST = listOf(
-            Environment.getRootDirectory(),
-            Environment.getVendorDirectory(),
-            Environment.getOdmDirectory(),
-            Environment.getOemDirectory(),
-            Environment.getOemDirectory(),
-            Environment.getSystemExtDirectory()
-        )
+        val FOLDERS_TO_TEST =
+            listOf(
+                Environment.getRootDirectory(),
+                Environment.getVendorDirectory(),
+                Environment.getOdmDirectory(),
+                Environment.getOemDirectory(),
+                Environment.getOemDirectory(),
+                Environment.getSystemExtDirectory(),
+            )
 
         @JvmStatic
         @Parameterized.Parameters(name = "{0}")
         fun parameters(): Array<Params> {
-            val apks = FOLDERS_TO_TEST
-                .filter(File::exists)
-                .map(File::walkTopDown)
-                .flatMap(Sequence<File>::asIterable)
-                .filter { it.name.endsWith(".apk") }
+            val apks =
+                FOLDERS_TO_TEST.filter(File::exists)
+                    .map(File::walkTopDown)
+                    .flatMap(Sequence<File>::asIterable)
+                    .filter { it.name.endsWith(".apk") }
 
             return arrayOf(
                 Params(1, apks) { ParallelParser1(it?.let(::PackageCacher1)) },
-                Params(2, apks) { ParallelParser2(it?.let(::PackageCacher2)) }
+                Params(2, apks) { ParallelParser2(it?.let(::PackageCacher2)) },
             )
         }
 
         data class Params(
             val version: Int,
             val apks: List<File>,
-            val cacheDirToParser: (File?) -> ParallelParser<*>
+            val cacheDirToParser: (File?) -> ParallelParser<*>,
         ) {
             // For test name formatting
             override fun toString() = "v$version"
         }
     }
 
-    @get:Rule
-    var perfStatusReporter = PerfStatusReporter()
+    @get:Rule var perfStatusReporter = PerfStatusReporter()
 
-    @get:Rule
-    var testFolder = TemporaryFolder()
+    @get:Rule var testFolder = TemporaryFolder()
 
-    @Parameterized.Parameter(0)
-    lateinit var params: Params
+    @Parameterized.Parameter(0) lateinit var params: Params
 
-    private val state: BenchmarkState get() = perfStatusReporter.benchmarkState
-    private val apks: List<File> get() = params.apks
+    private val state: BenchmarkState
+        get() = perfStatusReporter.benchmarkState
+
+    private val apks: List<File>
+        get() = params.apks
 
     private fun safeParse(parser: ParallelParser<*>, file: File) {
         try {
@@ -109,9 +110,7 @@ public class PackageParsingPerfTest {
     fun sequentialNoCache() {
         params.cacheDirToParser(null).use { parser ->
             while (state.keepRunning()) {
-                apks.forEach {
-                    safeParse(parser, it)
-                }
+                apks.forEach { safeParse(parser, it) }
             }
         }
     }
@@ -155,18 +154,21 @@ public class PackageParsingPerfTest {
         private val cacher: PackageCacher<PackageType>? = null
     ) : AutoCloseable {
         private val queue = ArrayBlockingQueue<Any>(PARALLEL_QUEUE_CAPACITY)
-        private val service = ConcurrentUtils.newFixedThreadPool(
-            PARALLEL_MAX_THREADS, "package-parsing-test",
-            Process.THREAD_PRIORITY_FOREGROUND)
+        private val service =
+            ConcurrentUtils.newFixedThreadPool(
+                PARALLEL_MAX_THREADS,
+                "package-parsing-test",
+                Process.THREAD_PRIORITY_FOREGROUND,
+            )
 
         fun submit(file: File) {
-                service.submit {
-                    try {
-                        queue.put(parse(file))
-                    } catch (e: Exception) {
-                        queue.put(e)
-                    }
+            service.submit {
+                try {
+                    queue.put(parse(file))
+                } catch (e: Exception) {
+                    queue.put(e)
                 }
+            }
         }
 
         fun take() = queue.poll(QUEUE_POLL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -175,57 +177,51 @@ public class PackageParsingPerfTest {
             service.shutdownNow()
         }
 
-        fun parse(file: File) = cacher?.getCachedResult(file)
-            ?: parseImpl(file).also { cacher?.cacheResult(file, it) }
+        fun parse(file: File) =
+            cacher?.getCachedResult(file) ?: parseImpl(file).also { cacher?.cacheResult(file, it) }
 
         protected abstract fun parseImpl(file: File): PackageType
     }
 
     class ParallelParser1(private val cacher: PackageCacher1? = null) :
         ParallelParser<PackageParser.Package>(cacher) {
-        val parser = PackageParser().apply {
-            setCallback { true }
-        }
+        val parser = PackageParser().apply { setCallback { true } }
 
         override fun parseImpl(file: File) = parser.parsePackage(file, 0, cacher != null)
     }
 
-    class ParallelParser2(cacher: PackageCacher2? = null) :
-        ParallelParser<PackageImpl>(cacher) {
-        val input = ThreadLocal.withInitial {
-            // For testing, just disable enforcement to avoid hooking up to compat framework
-            ParseTypeImpl(ParseInput.Callback { _, _, _ -> false })
-        }
-        val parser = ParsingPackageUtils(null,
-            null,
-            emptyList(),
-            object :
-                ParsingPackageUtils.Callback {
-                override fun hasFeature(feature: String) = true
+    class ParallelParser2(cacher: PackageCacher2? = null) : ParallelParser<PackageImpl>(cacher) {
+        val input =
+            ThreadLocal.withInitial {
+                // For testing, just disable enforcement to avoid hooking up to compat framework
+                ParseTypeImpl(ParseInput.Callback { _, _, _ -> false })
+            }
+        val parser =
+            ParsingPackageUtils(
+                null,
+                null,
+                emptyList(),
+                object : ParsingPackageUtils.Callback {
+                    override fun hasFeature(feature: String) = true
 
-                override fun startParsingPackage(
-                    packageName: String,
-                    baseApkPath: String,
-                    path: String,
-                    manifestArray: TypedArray,
-                    isCoreApp: Boolean
-                ) = PackageImpl(
-                    packageName,
-                    baseApkPath,
-                    path,
-                    manifestArray,
-                    isCoreApp,
-                    this,
-                )
-                override fun getHiddenApiWhitelistedApps() =
+                    override fun startParsingPackage(
+                        packageName: String,
+                        baseApkPath: String,
+                        path: String,
+                        manifestArray: TypedArray,
+                        isCoreApp: Boolean,
+                    ) = PackageImpl(packageName, baseApkPath, path, manifestArray, isCoreApp, this)
+
+                    override fun getHiddenApiWhitelistedApps() =
                         SystemConfig.getInstance().hiddenApiWhitelistedApps
-                override fun getInstallConstraintsAllowlist() =
+
+                    override fun getInstallConstraintsAllowlist() =
                         SystemConfig.getInstance().installConstraintsAllowlist
-            })
+                },
+            )
 
         override fun parseImpl(file: File) =
-                parser.parsePackage(input.get()!!.reset(), file, 0).result
-                        as PackageImpl
+            parser.parsePackage(input.get()!!.reset(), file, 0).result as PackageImpl
     }
 
     abstract class PackageCacher<PackageType : Parcelable>(private val cacheDir: File) {
@@ -237,14 +233,13 @@ public class PackageParsingPerfTest {
             }
 
             val bytes = IoUtils.readFileAsByteArray(cacheFile.absolutePath)
-            val parcel = Parcel.obtain().apply {
-                unmarshall(bytes, 0, bytes.size)
-                setDataPosition(0)
-            }
+            val parcel =
+                Parcel.obtain().apply {
+                    unmarshall(bytes, 0, bytes.size)
+                    setDataPosition(0)
+                }
             ReadHelper(parcel).apply { startAndInstall() }
-            return fromParcel(parcel).also {
-                parcel.recycle()
-            }
+            return fromParcel(parcel).also { parcel.recycle() }
         }
 
         fun cacheResult(file: File, parsed: Parcelable) {
@@ -263,26 +258,19 @@ public class PackageParsingPerfTest {
             val helper = WriteHelper(parcel)
             pkg.writeToParcel(parcel, 0 /* flags */)
             helper.finishAndUninstall()
-            return parcel.marshall().also {
-                parcel.recycle()
-            }
+            return parcel.marshall().also { parcel.recycle() }
         }
 
         protected abstract fun fromParcel(parcel: Parcel): PackageType
     }
 
-    /**
-     * Re-implementation of v1's cache, since that's gone in R+.
-     */
+    /** Re-implementation of v1's cache, since that's gone in R+. */
     class PackageCacher1(cacheDir: File) : PackageCacher<PackageParser.Package>(cacheDir) {
         override fun fromParcel(parcel: Parcel) = PackageParser.Package(parcel)
     }
 
-    /**
-     * Re-implementation of the server side PackageCacher, as it's inaccessible here.
-     */
+    /** Re-implementation of the server side PackageCacher, as it's inaccessible here. */
     class PackageCacher2(cacheDir: File) : PackageCacher<PackageImpl>(cacheDir) {
-        override fun fromParcel(parcel: Parcel) =
-            PackageImpl(parcel)
+        override fun fromParcel(parcel: Parcel) = PackageImpl(parcel)
     }
 }

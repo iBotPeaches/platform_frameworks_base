@@ -23,7 +23,6 @@ import static org.mockito.Mockito.mock;
 import android.content.Context;
 import android.os.BatteryManager;
 import android.os.BatteryUsageStats;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -38,19 +37,15 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class BatteryChargeCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
                     .setAveragePower(PowerProfile.POWER_BATTERY_CAPACITY, 4000.0);
 
     @Before
     public void setup() {
+        mStatsRule.getBatteryStats().setNoAutoReset(true);
         mStatsRule.getBatteryStats().onSystemReady(mock(Context.class));
     }
 
@@ -83,8 +78,8 @@ public class BatteryChargeCalculatorTest {
                 .isWithin(PRECISION).of(360.0);
         assertThat(batteryUsageStats.getDischargedPowerRange().getUpper())
                 .isWithin(PRECISION).of(400.0);
-        // 5_000_000 (current time) - 1_000_000 (started discharging)
-        assertThat(batteryUsageStats.getDischargeDurationMs()).isEqualTo(4_000_000);
+        // 5_000_000 (current time) - 0 (started discharging, see BatteryUsageStatsRule)
+        assertThat(batteryUsageStats.getDischargeDurationMs()).isEqualTo(5_000_000);
         assertThat(batteryUsageStats.getBatteryTimeRemainingMs()).isEqualTo(8_000_000);
         assertThat(batteryUsageStats.getChargeTimeRemainingMs()).isEqualTo(-1);
 

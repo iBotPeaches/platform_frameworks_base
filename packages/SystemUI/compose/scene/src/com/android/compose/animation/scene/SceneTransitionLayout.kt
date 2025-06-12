@@ -17,7 +17,12 @@
 package com.android.compose.animation.scene
 
 import androidx.annotation.FloatRange
+import androidx.compose.animation.rememberSplineBasedDecay
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.OverscrollFactory
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
@@ -26,17 +31,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
-import com.android.compose.animation.scene.effect.ContentOverscrollEffect
+import com.android.compose.gesture.NestedScrollableBound
 
 /**
  * [SceneTransitionLayout] is a container that automatically animates its content whenever its state
@@ -61,7 +66,9 @@ fun SceneTransitionLayout(
     swipeSourceDetector: SwipeSourceDetector = DefaultEdgeDetector,
     swipeDetector: SwipeDetector = DefaultSwipeDetector,
     @FloatRange(from = 0.0, to = 0.5) transitionInterceptionThreshold: Float = 0.05f,
-    builder: SceneTransitionLayoutScope.() -> Unit,
+    // TODO(b/240432457) Remove this once test utils can access the internal STLForTesting().
+    implicitTestTags: Boolean = false,
+    builder: SceneTransitionLayoutScope<ContentScope>.() -> Unit,
 ) {
     SceneTransitionLayoutForTesting(
         state,
@@ -69,17 +76,24 @@ fun SceneTransitionLayout(
         swipeSourceDetector,
         swipeDetector,
         transitionInterceptionThreshold,
+        implicitTestTags = implicitTestTags,
         onLayoutImpl = null,
         builder = builder,
     )
 }
 
-interface SceneTransitionLayoutScope {
+interface SceneTransitionLayoutScope<out CS : ContentScope> {
     /**
      * Add a scene to this layout, identified by [key].
      *
      * You can configure [userActions] so that swiping on this layout or navigating back will
      * transition to a different scene.
+     *
+     * By default, [verticalOverscrollEffect][ContentScope.verticalOverscrollEffect] and
+     * [horizontalOverscrollEffect][ContentScope.horizontalOverscrollEffect] of this scene will be
+     * created using [LocalOverscrollFactory]. You can specify a non-null [effectFactory] to set up
+     * a custom factory that will be used by this scene and by any calls to
+     * rememberOverscrollEffect() inside the scene.
      *
      * Important: scene order along the z-axis follows call order. Calling scene(A) followed by
      * scene(B) will mean that scene B renders after/above scene A.
@@ -87,7 +101,9 @@ interface SceneTransitionLayoutScope {
     fun scene(
         key: SceneKey,
         userActions: Map<UserAction, UserActionResult> = emptyMap(),
-        content: @Composable ContentScope.() -> Unit,
+        effectFactory: OverscrollFactory? = null,
+        alwaysCompose: Boolean = false,
+        content: @Composable CS.() -> Unit,
     )
 
     /**
@@ -107,6 +123,12 @@ interface SceneTransitionLayoutScope {
      * to prevent swipes from reaching other scenes or overlays behind this one. Clicking this
      * protective layer will close the overlay.
      *
+     * By default, [verticalOverscrollEffect][ContentScope.verticalOverscrollEffect] and
+     * [horizontalOverscrollEffect][ContentScope.horizontalOverscrollEffect] of this overlay will be
+     * created using [LocalOverscrollFactory]. You can specify a non-null [effectFactory] to set up
+     * a custom factory that will be used by this content and by any calls to
+     * rememberOverscrollEffect() inside the content.
+     *
      * Important: overlays must be defined after all scenes. Overlay order along the z-axis follows
      * call order. Calling overlay(A) followed by overlay(B) will mean that overlay B renders
      * after/above overlay A.
@@ -117,7 +139,8 @@ interface SceneTransitionLayoutScope {
             mapOf(Back to UserActionResult.HideOverlay(key)),
         alignment: Alignment = Alignment.Center,
         isModal: Boolean = true,
-        content: @Composable ContentScope.() -> Unit,
+        effectFactory: OverscrollFactory? = null,
+        content: @Composable CS.() -> Unit,
     )
 }
 
@@ -135,6 +158,13 @@ interface ElementStateScope {
      * (yet).
      */
     fun ElementKey.targetSize(content: ContentKey): IntSize?
+
+    /**
+     * Return the *approaching* size of [this] element in the given [content], i.e. thethe size the
+     * element when is transitioning, or `null` if the element is not composed and measured in that
+     * content (yet).
+     */
+    fun ElementKey.approachSize(content: ContentKey): IntSize?
 
     /**
      * Return the *target* offset of [this] element in the given [content], i.e. the size of the
@@ -158,6 +188,9 @@ interface BaseContentScope : ElementStateScope {
     /** The state of the [SceneTransitionLayout] in which this content is contained. */
     val layoutState: SceneTransitionLayoutState
 
+    /** The [LookaheadScope] used by the [SceneTransitionLayout]. */
+    val lookaheadScope: LookaheadScope
+
     /**
      * Tag an element identified by [key].
      *
@@ -167,7 +200,7 @@ interface BaseContentScope : ElementStateScope {
      * Additionally, this [key] will be used to detect elements that are shared between contents to
      * automatically interpolate their size and offset. If you need to animate shared element values
      * (i.e. values associated to this element that change depending on which content it is composed
-     * in), use [Element] instead.
+     * in), use [ElementWithValues] instead.
      *
      * Note that shared elements tagged using this function will be duplicated in each content they
      * are part of, so any **internal** state (e.g. state created using `remember {
@@ -175,9 +208,12 @@ interface BaseContentScope : ElementStateScope {
      * [MovableElement] instead.
      *
      * @see Element
+     * @see ElementWithValues
      * @see MovableElement
      */
-    fun Modifier.element(key: ElementKey): Modifier
+    // TODO(b/389985793): Does replacing this by Element have a noticeable impact on performance and
+    // should we deprecate it?
+    @Stable fun Modifier.element(key: ElementKey): Modifier
 
     /**
      * Create an element identified by [key].
@@ -186,17 +222,29 @@ interface BaseContentScope : ElementStateScope {
      * in multiple contents and that can be transformed during transitions, the same way that
      * [element] does.
      *
-     * The only difference with [element] is that the provided [ElementScope] allows you to
-     * [animate element values][ElementScope.animateElementValueAsState] or specify its
-     * [movable content][Element.movableContent] that will be "moved" and composed only once during
-     * transitions (as opposed to [element] that duplicates shared elements) so that any internal
-     * state is preserved during and after the transition.
+     * The only difference with [element] is that [Element] introduces its own recomposition scope
+     * and layout node, which can be helpful to avoid expensive recompositions when a transition is
+     * started or finished (see b/389985793#comment103 for details).
      *
      * @see element
+     * @see ElementWithValues
      * @see MovableElement
      */
     @Composable
-    fun Element(
+    fun Element(key: ElementKey, modifier: Modifier, content: @Composable BoxScope.() -> Unit)
+
+    /**
+     * Create an element identified by [key].
+     *
+     * The only difference with [Element] is that the provided [ElementScope] allows you to
+     * [animate element values][ElementScope.animateElementValueAsState].
+     *
+     * @see element
+     * @see Element
+     * @see MovableElement
+     */
+    @Composable
+    fun ElementWithValues(
         key: ElementKey,
         modifier: Modifier,
 
@@ -209,17 +257,19 @@ interface BaseContentScope : ElementStateScope {
     /**
      * Create a *movable* element identified by [key].
      *
-     * Similar to [Element], this creates an element that will be automatically shared when present
-     * in multiple contents and that can be transformed during transitions, and you can also use the
-     * provided [ElementScope] to [animate element values][ElementScope.animateElementValueAsState].
+     * Similar to [ElementWithValues], this creates an element that will be automatically shared
+     * when present in multiple contents and that can be transformed during transitions, and you can
+     * also use the provided [ElementScope] to
+     * [animate element values][ElementScope.animateElementValueAsState].
      *
-     * The important difference with [element] and [Element] is that this element
-     * [content][ElementScope.content] will be "moved" and composed only once during transitions, as
-     * opposed to [element] and [Element] that duplicates shared elements, so that any internal
-     * state is preserved during and after the transition.
+     * The important difference with [element], [Element] and [ElementWithValues] is that this
+     * element [content][ElementScope.content] will be "moved" and composed only once during
+     * transitions, as opposed to [element], [Element] and [ElementWithValues] that duplicates
+     * shared elements, so that any internal state is preserved during and after the transition.
      *
      * @see element
      * @see Element
+     * @see ElementWithValues
      */
     @Composable
     fun MovableElement(
@@ -233,52 +283,23 @@ interface BaseContentScope : ElementStateScope {
     )
 
     /**
-     * Adds a [NestedScrollConnection] to intercept scroll events not handled by the scrollable
-     * component.
-     *
-     * @param leftBehavior when we should perform the overscroll animation at the left.
-     * @param rightBehavior when we should perform the overscroll animation at the right.
-     */
-    fun Modifier.horizontalNestedScrollToScene(
-        leftBehavior: NestedScrollBehavior = NestedScrollBehavior.Default,
-        rightBehavior: NestedScrollBehavior = NestedScrollBehavior.Default,
-        isExternalOverscrollGesture: () -> Boolean = { false },
-    ): Modifier
-
-    /**
-     * Adds a [NestedScrollConnection] to intercept scroll events not handled by the scrollable
-     * component.
-     *
-     * @param topBehavior when we should perform the overscroll animation at the top.
-     * @param bottomBehavior when we should perform the overscroll animation at the bottom.
-     */
-    fun Modifier.verticalNestedScrollToScene(
-        topBehavior: NestedScrollBehavior = NestedScrollBehavior.Default,
-        bottomBehavior: NestedScrollBehavior = NestedScrollBehavior.Default,
-        isExternalOverscrollGesture: () -> Boolean = { false },
-    ): Modifier
-
-    /**
      * Don't resize during transitions. This can for instance be used to make sure that scrollable
      * lists keep a constant size during transitions even if its elements are growing/shrinking.
      */
     fun Modifier.noResizeDuringTransitions(): Modifier
 
     /**
-     * A [NestedSceneTransitionLayout] will share its elements with its ancestor STLs therefore
-     * enabling sharedElement transitions between them.
+     * Temporarily disable this content swipe actions when any scrollable below this modifier has
+     * consumed any amount of scroll delta, until the scroll gesture is finished.
+     *
+     * This can for instance be used to ensure that a scrollable list is overscrolled once it
+     * reached its bounds instead of directly starting a scene transition from the same scroll
+     * gesture.
      */
-    // TODO(b/380070506): Add more parameters when default params are supported in Kotlin 2.0.21
-    @Composable
-    fun NestedSceneTransitionLayout(
-        state: SceneTransitionLayoutState,
-        modifier: Modifier,
-        builder: SceneTransitionLayoutScope.() -> Unit,
-    )
+    fun Modifier.disableSwipesWhenScrolling(
+        bounds: NestedScrollableBound = NestedScrollableBound.Any
+    ): Modifier
 }
-
-@Deprecated("Use ContentScope instead", ReplaceWith("ContentScope"))
-typealias SceneScope = ContentScope
 
 @Stable
 @ElementDsl
@@ -287,7 +308,7 @@ interface ContentScope : BaseContentScope {
      * The overscroll effect applied to the content in the vertical direction. This can be used to
      * customize how the content behaves when the scene is over scrolled.
      *
-     * For example, you can use it with the `Modifier.overscroll()` modifier:
+     * You should use this effect exactly once with the `Modifier.overscroll()` modifier:
      * ```kotlin
      * @Composable
      * fun ContentScope.MyScene() {
@@ -301,26 +322,9 @@ interface ContentScope : BaseContentScope {
      * }
      * ```
      *
-     * Or you can read the `overscrollDistance` value directly, if you need some custom overscroll
-     * behavior:
-     * ```kotlin
-     * @Composable
-     * fun ContentScope.MyScene() {
-     *     Box(
-     *         modifier = Modifier
-     *             .graphicsLayer {
-     *                 // Translate half of the overscroll
-     *                 translationY = verticalOverscrollEffect.overscrollDistance * 0.5f
-     *             }
-     *     ) {
-     *         // ... your content ...
-     *     }
-     * }
-     * ```
-     *
      * @see horizontalOverscrollEffect
      */
-    val verticalOverscrollEffect: ContentOverscrollEffect
+    val verticalOverscrollEffect: OverscrollEffect
 
     /**
      * The overscroll effect applied to the content in the horizontal direction. This can be used to
@@ -328,7 +332,7 @@ interface ContentScope : BaseContentScope {
      *
      * @see verticalOverscrollEffect
      */
-    val horizontalOverscrollEffect: ContentOverscrollEffect
+    val horizontalOverscrollEffect: OverscrollEffect
 
     /**
      * Animate some value at the content level.
@@ -350,6 +354,29 @@ interface ContentScope : BaseContentScope {
         type: SharedValueType<T, *>,
         canOverflow: Boolean,
     ): AnimatedState<T>
+
+    /**
+     * A [NestedSceneTransitionLayout] will share its elements with its ancestor STLs therefore
+     * enabling sharedElement transitions between them.
+     */
+    // TODO(b/380070506): Add more parameters when default params are supported in Kotlin 2.0.21
+    @Composable
+    fun NestedSceneTransitionLayout(
+        state: SceneTransitionLayoutState,
+        modifier: Modifier,
+        builder: SceneTransitionLayoutScope<ContentScope>.() -> Unit,
+    )
+}
+
+internal interface InternalContentScope : ContentScope {
+
+    @Composable
+    fun NestedSceneTransitionLayoutForTesting(
+        state: SceneTransitionLayoutState,
+        modifier: Modifier,
+        onLayoutImpl: ((SceneTransitionLayoutImpl) -> Unit)?,
+        builder: SceneTransitionLayoutScope<InternalContentScope>.() -> Unit,
+    )
 }
 
 /**
@@ -417,7 +444,7 @@ interface ElementScope<ContentScope> {
  *
  * We can't reuse BoxScope directly because of the @LayoutScopeMarker annotation on it, which would
  * prevent us from calling Modifier.element() and other methods of [ContentScope] inside any Box {}
- * in the [content][ElementScope.content] of a [ContentScope.Element] or a
+ * in the [content][ElementScope.content] of a [ContentScope.ElementWithValues] or a
  * [ContentScope.MovableElement].
  */
 @Stable
@@ -449,7 +476,7 @@ sealed class UserAction {
     }
 
     infix fun to(overlay: OverlayKey): Pair<UserAction, UserActionResult> {
-        return this to UserActionResult(toOverlay = overlay)
+        return this to UserActionResult.ShowOverlay(overlay)
     }
 
     /** Resolve this into a [Resolved] user action given [layoutDirection]. */
@@ -471,7 +498,7 @@ data class Swipe
 private constructor(
     val direction: SwipeDirection,
     val pointerCount: Int = 1,
-    val pointersType: PointerType? = null,
+    val pointerType: PointerType? = null,
     val fromSource: SwipeSource? = null,
 ) : UserAction() {
     companion object {
@@ -484,46 +511,46 @@ private constructor(
 
         fun Left(
             pointerCount: Int = 1,
-            pointersType: PointerType? = null,
+            pointerType: PointerType? = null,
             fromSource: SwipeSource? = null,
-        ) = Swipe(SwipeDirection.Left, pointerCount, pointersType, fromSource)
+        ) = Swipe(SwipeDirection.Left, pointerCount, pointerType, fromSource)
 
         fun Up(
             pointerCount: Int = 1,
-            pointersType: PointerType? = null,
+            pointerType: PointerType? = null,
             fromSource: SwipeSource? = null,
-        ) = Swipe(SwipeDirection.Up, pointerCount, pointersType, fromSource)
+        ) = Swipe(SwipeDirection.Up, pointerCount, pointerType, fromSource)
 
         fun Right(
             pointerCount: Int = 1,
-            pointersType: PointerType? = null,
+            pointerType: PointerType? = null,
             fromSource: SwipeSource? = null,
-        ) = Swipe(SwipeDirection.Right, pointerCount, pointersType, fromSource)
+        ) = Swipe(SwipeDirection.Right, pointerCount, pointerType, fromSource)
 
         fun Down(
             pointerCount: Int = 1,
-            pointersType: PointerType? = null,
+            pointerType: PointerType? = null,
             fromSource: SwipeSource? = null,
-        ) = Swipe(SwipeDirection.Down, pointerCount, pointersType, fromSource)
+        ) = Swipe(SwipeDirection.Down, pointerCount, pointerType, fromSource)
 
         fun Start(
             pointerCount: Int = 1,
-            pointersType: PointerType? = null,
+            pointerType: PointerType? = null,
             fromSource: SwipeSource? = null,
-        ) = Swipe(SwipeDirection.Start, pointerCount, pointersType, fromSource)
+        ) = Swipe(SwipeDirection.Start, pointerCount, pointerType, fromSource)
 
         fun End(
             pointerCount: Int = 1,
-            pointersType: PointerType? = null,
+            pointerType: PointerType? = null,
             fromSource: SwipeSource? = null,
-        ) = Swipe(SwipeDirection.End, pointerCount, pointersType, fromSource)
+        ) = Swipe(SwipeDirection.End, pointerCount, pointerType, fromSource)
     }
 
     override fun resolve(layoutDirection: LayoutDirection): UserAction.Resolved {
         return Resolved(
             direction = direction.resolve(layoutDirection),
             pointerCount = pointerCount,
-            pointersType = pointersType,
+            pointerType = pointerType,
             fromSource = fromSource?.resolve(layoutDirection),
         )
     }
@@ -533,7 +560,7 @@ private constructor(
         val direction: SwipeDirection.Resolved,
         val pointerCount: Int,
         val fromSource: SwipeSource.Resolved?,
-        val pointersType: PointerType?,
+        val pointerType: PointerType?,
     ) : UserAction.Resolved()
 }
 
@@ -620,8 +647,24 @@ sealed class UserActionResult(
         val overlay: OverlayKey,
         override val transitionKey: TransitionKey? = null,
         override val requiresFullDistanceSwipe: Boolean = false,
+
+        /** Specify which overlays (if any) should be hidden when this user action is started. */
+        val hideCurrentOverlays: HideCurrentOverlays = HideCurrentOverlays.None,
     ) : UserActionResult(transitionKey, requiresFullDistanceSwipe) {
         override fun toContent(currentScene: SceneKey): ContentKey = overlay
+
+        sealed class HideCurrentOverlays {
+            /** Hide none of the current overlays. */
+            object None : HideCurrentOverlays()
+
+            /** Hide all current overlays. */
+            object All : HideCurrentOverlays()
+
+            /** Hide [overlays], for those in that set that are currently shown. */
+            class Some(val overlays: Set<OverlayKey>) : HideCurrentOverlays() {
+                constructor(vararg overlays: OverlayKey) : this(overlays.toSet())
+            }
+        }
     }
 
     /** A [UserActionResult] that hides [overlay]. */
@@ -663,22 +706,6 @@ sealed class UserActionResult(
              */
             requiresFullDistanceSwipe: Boolean = false,
         ): UserActionResult = ChangeScene(toScene, transitionKey, requiresFullDistanceSwipe)
-
-        /** A [UserActionResult] that shows [toOverlay]. */
-        operator fun invoke(
-            /** The overlay we should be transitioning to during the [UserAction]. */
-            toOverlay: OverlayKey,
-
-            /** The key of the transition that should be used. */
-            transitionKey: TransitionKey? = null,
-
-            /**
-             * If `true`, the swipe will be committed if only if the user swiped at least the swipe
-             * distance, i.e. the transition progress was already equal to or bigger than 100% when
-             * the user released their finger.
-             */
-            requiresFullDistanceSwipe: Boolean = false,
-        ): UserActionResult = ShowOverlay(toOverlay, transitionKey, requiresFullDistanceSwipe)
     }
 }
 
@@ -711,10 +738,8 @@ class FixedDistance(private val distance: Dp) : UserActionDistance {
 }
 
 /**
- * An internal version of [SceneTransitionLayout] to be used for tests.
- *
- * Important: You should use this only in tests and if you need to access the underlying
- * [SceneTransitionLayoutImpl]. In other cases, you should use [SceneTransitionLayout].
+ * An internal version of [SceneTransitionLayout] to be used for tests, that provides access to the
+ * internal [SceneTransitionLayoutImpl] and implicitly tags all scenes and elements.
  */
 @Composable
 internal fun SceneTransitionLayoutForTesting(
@@ -725,32 +750,41 @@ internal fun SceneTransitionLayoutForTesting(
     transitionInterceptionThreshold: Float = 0f,
     onLayoutImpl: ((SceneTransitionLayoutImpl) -> Unit)? = null,
     sharedElementMap: MutableMap<ElementKey, Element> = remember { mutableMapOf() },
-    ancestorContentKeys: List<ContentKey> = emptyList(),
+    ancestors: List<Ancestor> = remember { emptyList() },
     lookaheadScope: LookaheadScope? = null,
-    builder: SceneTransitionLayoutScope.() -> Unit,
+    implicitTestTags: Boolean = true,
+    builder: SceneTransitionLayoutScope<InternalContentScope>.() -> Unit,
 ) {
     val density = LocalDensity.current
+    val directionChangeSlop = LocalViewConfiguration.current.touchSlop
     val layoutDirection = LocalLayoutDirection.current
+    val defaultEffectFactory = checkNotNull(LocalOverscrollFactory.current)
     val animationScope = rememberCoroutineScope()
+    val decayAnimationSpec = rememberSplineBasedDecay<Float>()
     val layoutImpl = remember {
         SceneTransitionLayoutImpl(
                 state = state as MutableSceneTransitionLayoutStateImpl,
                 density = density,
                 layoutDirection = layoutDirection,
                 swipeSourceDetector = swipeSourceDetector,
+                swipeDetector = swipeDetector,
                 transitionInterceptionThreshold = transitionInterceptionThreshold,
                 builder = builder,
                 animationScope = animationScope,
                 elements = sharedElementMap,
-                ancestorContentKeys = ancestorContentKeys,
+                ancestors = ancestors,
                 lookaheadScope = lookaheadScope,
+                directionChangeSlop = directionChangeSlop,
+                defaultEffectFactory = defaultEffectFactory,
+                decayAnimationSpec = decayAnimationSpec,
+                implicitTestTags = implicitTestTags,
             )
             .also { onLayoutImpl?.invoke(it) }
     }
 
     // TODO(b/317014852): Move this into the SideEffect {} again once STLImpl.scenes is not a
     // SnapshotStateMap anymore.
-    layoutImpl.updateContents(builder, layoutDirection)
+    layoutImpl.updateContents(builder, layoutDirection, defaultEffectFactory)
 
     SideEffect {
         if (state != layoutImpl.state) {
@@ -765,9 +799,9 @@ internal fun SceneTransitionLayoutForTesting(
                     "when creating it, which is not supported"
             )
         }
-        if (layoutImpl.ancestorContentKeys != ancestorContentKeys) {
+        if (layoutImpl.ancestors != ancestors) {
             error(
-                "This SceneTransitionLayout was bound to a different ancestorContents that was " +
+                "This SceneTransitionLayout was bound to a different ancestors that was " +
                     "used when creating it, which is not supported"
             )
         }
@@ -781,8 +815,10 @@ internal fun SceneTransitionLayoutForTesting(
         layoutImpl.density = density
         layoutImpl.layoutDirection = layoutDirection
         layoutImpl.swipeSourceDetector = swipeSourceDetector
+        layoutImpl.swipeDetector = swipeDetector
         layoutImpl.transitionInterceptionThreshold = transitionInterceptionThreshold
+        layoutImpl.decayAnimationSpec = decayAnimationSpec
     }
 
-    layoutImpl.Content(modifier, swipeDetector)
+    layoutImpl.Content(modifier)
 }

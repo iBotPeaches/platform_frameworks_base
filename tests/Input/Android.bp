@@ -15,6 +15,7 @@ android_test {
         "modules-utils-testable-device-config-defaults",
     ],
     srcs: [
+        "src/**/*.aidl",
         "src/**/*.java",
         "src/**/*.kt",
     ],

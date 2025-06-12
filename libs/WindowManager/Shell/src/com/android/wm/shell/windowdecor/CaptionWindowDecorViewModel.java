@@ -284,6 +284,10 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
     }
 
     private boolean shouldShowWindowDecor(RunningTaskInfo taskInfo) {
+        if (mDisplayController.getDisplay(taskInfo.displayId) == null) {
+            // If DisplayController doesn't have it tracked, it could be a private/managed display.
+            return false;
+        }
         if (taskInfo.getWindowingMode() == WINDOWING_MODE_FREEFORM) {
             return true;
         }
@@ -335,6 +339,7 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
                         taskInfo,
                         taskSurface,
                         mMainHandler,
+                        mMainExecutor,
                         mBgExecutor,
                         mMainChoreographer,
                         mSyncQueue,
@@ -385,7 +390,9 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
             } else if (id == R.id.back_button) {
                 mTaskOperations.injectBackKey(mDisplayId);
             } else if (id == R.id.minimize_window) {
-                mTaskOperations.minimizeTask(mTaskToken);
+                // This minimize button uses the same effect for any minimization. The last argument
+                // doesn't matter.
+                mTaskOperations.minimizeTask(mTaskToken, mTaskId, /* isLastTask= */ false);
             } else if (id == R.id.maximize_window) {
                 RunningTaskInfo taskInfo = mTaskOrganizer.getRunningTaskInfo(mTaskId);
                 final DisplayAreaInfo rootDisplayAreaInfo =
@@ -468,7 +475,7 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
                 case MotionEvent.ACTION_DOWN: {
                     mDragPointerId = e.getPointerId(0);
                     mDragPositioningCallback.onDragPositioningStart(
-                            0 /* ctrlType */, e.getRawX(0), e.getRawY(0));
+                            0 /* ctrlType */, e.getDisplayId(), e.getRawX(0), e.getRawY(0));
                     mIsDragging = false;
                     return false;
                 }
@@ -481,6 +488,7 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
                     if (decoration.isHandlingDragResize()) break;
                     final int dragPointerIdx = e.findPointerIndex(mDragPointerId);
                     mDragPositioningCallback.onDragPositioningMove(
+                            e.getDisplayId(),
                             e.getRawX(dragPointerIdx), e.getRawY(dragPointerIdx));
                     mIsDragging = true;
                     return true;
@@ -492,6 +500,7 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
                     }
                     final int dragPointerIdx = e.findPointerIndex(mDragPointerId);
                     final Rect newTaskBounds = mDragPositioningCallback.onDragPositioningEnd(
+                            e.getDisplayId(),
                             e.getRawX(dragPointerIdx), e.getRawY(dragPointerIdx));
                     DragPositioningCallbackUtility.snapTaskBoundsIfNecessary(newTaskBounds,
                             mWindowDecorByTaskId.get(mTaskId).calculateValidDragArea());

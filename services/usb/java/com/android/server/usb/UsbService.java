@@ -27,7 +27,10 @@ import static android.hardware.usb.UsbPortStatus.MODE_UFP;
 import static android.hardware.usb.UsbPortStatus.POWER_ROLE_SINK;
 import static android.hardware.usb.UsbPortStatus.POWER_ROLE_SOURCE;
 
+import android.hardware.usb.IUsbManagerInternal;
+
 import android.annotation.NonNull;
+import android.annotation.IntDef;
 import android.annotation.UserIdInt;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
@@ -52,6 +55,7 @@ import android.os.Bundle;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.service.usb.UsbServiceDumpProto;
@@ -79,11 +83,15 @@ import dalvik.annotation.optimization.NeverCompile;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * UsbService manages all USB related state, including both host and device support.
@@ -91,6 +99,15 @@ import java.util.concurrent.CompletableFuture;
  * support is delegated to UsbDeviceManager.
  */
 public class UsbService extends IUsbManager.Stub {
+
+    public static final int OS_USB_DISABLE_REASON_AAPM = 0;
+    public static final int OS_USB_DISABLE_REASON_LOCKDOWN_MODE = 1;
+
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(value = {OS_USB_DISABLE_REASON_AAPM,
+        OS_USB_DISABLE_REASON_LOCKDOWN_MODE})
+    public @interface OsUsbDisableReason {
+    }
 
     public static class Lifecycle extends SystemService {
         private UsbService mUsbService;
@@ -226,7 +243,7 @@ public class UsbService extends IUsbManager.Stub {
         filter.addAction(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
         mContext.registerReceiverAsUser(receiver, UserHandle.ALL, filter, null, null);
         if(android.hardware.usb.flags.Flags.enableUsbDataSignalStakingInternal()) {
-            LocalServices.addService(UsbManagerInternal.class, new UsbManagerInternalImpl());
+            LocalServices.addService(IUsbManagerInternal.class, new UsbManagerInternalImpl());
         }
     }
 
@@ -245,7 +262,7 @@ public class UsbService extends IUsbManager.Stub {
         mPermissionManager = new UsbPermissionManager(context, this);
 
         if(android.hardware.usb.flags.Flags.enableUsbDataSignalStakingInternal()) {
-            LocalServices.addService(UsbManagerInternal.class, new UsbManagerInternalImpl());
+            LocalServices.addService(IUsbManagerInternal.class, new UsbManagerInternalImpl());
         }
     }
 
@@ -692,6 +709,11 @@ public class UsbService extends IUsbManager.Stub {
     @Override
     public boolean isFunctionEnabled(String function) {
         return (getCurrentFunctions() & UsbManager.usbFunctionsFromString(function)) != 0;
+    }
+
+    @Override
+    public boolean isUvcGadgetSupportEnabled() {
+        return SystemProperties.getBoolean("ro.usb.uvc.enabled", false);
     }
 
     @android.annotation.EnforcePermission(android.Manifest.permission.MANAGE_USB)
@@ -1530,24 +1552,30 @@ public class UsbService extends IUsbManager.Stub {
                 enableUsbDataInternal(port.getId(), !lockDownTriggeredByUser,
                     STRONG_AUTH_OPERATION_ID,
                     new IUsbOperationInternal.Default(),
-                    UsbManagerInternal.OS_USB_DISABLE_REASON_LOCKDOWN_MODE,
+                    OS_USB_DISABLE_REASON_LOCKDOWN_MODE,
                     true);
             }
         }
     }
 
-    private class UsbManagerInternalImpl extends UsbManagerInternal {
-        @Override
-        public boolean enableUsbData(String portId, boolean enable,
-                int operationId, IUsbOperationInternal callback,
-            @OsUsbDisableReason int disableReason) {
-            return enableUsbDataInternal(portId, enable, operationId, callback,
-                disableReason, true);
-        }
+    private class UsbManagerInternalImpl extends IUsbManagerInternal.Stub {
+        private static final AtomicInteger sUsbOperationCount = new AtomicInteger();
 
         @Override
-        public UsbPort[] getPorts() {
-            return mPortManager.getPorts();
+        public boolean enableUsbDataSignal(boolean enable,
+                @OsUsbDisableReason int disableReason) {
+                boolean result = true;
+                int operationId = sUsbOperationCount.incrementAndGet() + disableReason;
+                for (UsbPort port : mPortManager.getPorts()) {
+                    boolean success = enableUsbDataInternal(port.getId(), enable, operationId,
+                        new IUsbOperationInternal.Default(), disableReason, true);
+                    if(!success) {
+                        Slog.e(TAG, "enableUsbDataInternal failed to change USB port "
+                            + port.getId() + "state to " + enable);
+                    }
+                    result &= success;
+                }
+                return result;
         }
     }
 }

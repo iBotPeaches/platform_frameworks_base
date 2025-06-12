@@ -16,6 +16,9 @@
 
 package android.text;
 
+import static android.text.Layout.HIGH_CONTRAST_TEXT_BACKGROUND_CORNER_RADIUS_FACTOR;
+import static android.text.Layout.HIGH_CONTRAST_TEXT_BACKGROUND_CORNER_RADIUS_MIN_DP;
+
 import static com.android.graphics.hwui.flags.Flags.FLAG_HIGH_CONTRAST_TEXT_SMALL_TEXT_RECT;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -1024,6 +1027,82 @@ public class LayoutTest {
         expect.that(backgroundCommands.size()).isEqualTo(backgroundRectsDrawn);
     }
 
+    @Test
+    @RequiresFlagsEnabled(FLAG_HIGH_CONTRAST_TEXT_SMALL_TEXT_RECT)
+    public void highContrastTextEnabled_testWhiteSpaceWithinText_drawsSameBackgroundswithText() {
+        SpannableString spannedText = new SpannableString("Hello\tWorld !");
+        testSpannableStringAppliesAllColorsCorrectly(spannedText);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_HIGH_CONTRAST_TEXT_SMALL_TEXT_RECT)
+    public void highContrastTextEnabled_testWhiteSpaceAtStart_drawsCorrectBackgroundsOnText() {
+        SpannableString spannedText = new SpannableString(" HelloWorld!");
+        testSpannableStringAppliesAllColorsCorrectly(spannedText);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_HIGH_CONTRAST_TEXT_SMALL_TEXT_RECT)
+    public void highContrastTextEnabled_testRoundedRectSize_belowMinimum_usesMinimumValue() {
+        mTextPaint.setColor(Color.BLACK);
+        mTextPaint.setTextSize(8); // Value chosen so that N * RADIUS_FACTOR < RADIUS_MIN_DP
+        Layout layout = new StaticLayout("Test text", mTextPaint, mWidth,
+                mAlign, mSpacingMult, mSpacingAdd, /* includePad= */ false);
+
+        MockCanvas c = new MockCanvas(/* width= */ 256, /* height= */ 256);
+        c.setHighContrastTextEnabled(true);
+        layout.draw(
+                c,
+                /* highlightPaths= */ null,
+                /* highlightPaints= */ null,
+                /* selectionPath= */ null,
+                /* selectionPaint= */ null,
+                /* cursorOffsetVertical= */ 0
+        );
+
+        final float expectedRoundedRectSize =
+                mTextPaint.density * HIGH_CONTRAST_TEXT_BACKGROUND_CORNER_RADIUS_MIN_DP;
+        List<MockCanvas.DrawCommand> drawCommands = c.getDrawCommands();
+        for (int i = 0; i < drawCommands.size(); i++) {
+            MockCanvas.DrawCommand drawCommand = drawCommands.get(i);
+            if (drawCommand.rect != null) {
+                expect.that(drawCommand.rX).isEqualTo(expectedRoundedRectSize);
+                expect.that(drawCommand.rY).isEqualTo(expectedRoundedRectSize);
+            }
+        }
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_HIGH_CONTRAST_TEXT_SMALL_TEXT_RECT)
+    public void highContrastTextEnabled_testRoundedRectSize_aboveMinimum_usesScaledValue() {
+        mTextPaint.setColor(Color.BLACK);
+        mTextPaint.setTextSize(50); // Value chosen so that N * RADIUS_FACTOR > RADIUS_MIN_DP
+        Layout layout = new StaticLayout("Test text", mTextPaint, mWidth,
+                mAlign, mSpacingMult, mSpacingAdd, /* includePad= */ false);
+
+        MockCanvas c = new MockCanvas(/* width= */ 256, /* height= */ 256);
+        c.setHighContrastTextEnabled(true);
+        layout.draw(
+                c,
+                /* highlightPaths= */ null,
+                /* highlightPaints= */ null,
+                /* selectionPath= */ null,
+                /* selectionPaint= */ null,
+                /* cursorOffsetVertical= */ 0
+        );
+
+        final float expectedRoundedRectSize =
+                mTextPaint.getTextSize() * HIGH_CONTRAST_TEXT_BACKGROUND_CORNER_RADIUS_FACTOR;
+        List<MockCanvas.DrawCommand> drawCommands = c.getDrawCommands();
+        for (int i = 0; i < drawCommands.size(); i++) {
+            MockCanvas.DrawCommand drawCommand = drawCommands.get(i);
+            if (drawCommand.rect != null) {
+                expect.that(drawCommand.rX).isEqualTo(expectedRoundedRectSize);
+                expect.that(drawCommand.rY).isEqualTo(expectedRoundedRectSize);
+            }
+        }
+    }
+
     private int removeAlpha(int color) {
         return Color.rgb(
                 Color.red(color),
@@ -1038,6 +1117,8 @@ public class LayoutTest {
             public final String text;
             public final float x;
             public final float y;
+            public final float rX;
+            public final float rY;
             public final Path path;
             public final RectF rect;
             public final Paint paint;
@@ -1049,6 +1130,8 @@ public class LayoutTest {
                 this.paint = new Paint(paint);
                 path = null;
                 rect = null;
+                this.rX = 0;
+                this.rY = 0;
             }
 
             DrawCommand(Path path, Paint paint) {
@@ -1058,15 +1141,19 @@ public class LayoutTest {
                 x = 0;
                 text = null;
                 rect = null;
+                this.rX = 0;
+                this.rY = 0;
             }
 
-            DrawCommand(RectF rect, Paint paint) {
+            DrawCommand(RectF rect, Paint paint, float rX, float rY) {
                 this.rect = new RectF(rect);
                 this.paint = new Paint(paint);
                 path = null;
                 y = 0;
                 x = 0;
                 text = null;
+                this.rX = rX;
+                this.rY = rY;
             }
 
             @Override
@@ -1140,12 +1227,12 @@ public class LayoutTest {
 
         @Override
         public void drawRect(RectF rect, Paint p) {
-            mDrawCommands.add(new DrawCommand(rect, p));
+            mDrawCommands.add(new DrawCommand(rect, p, 0, 0));
         }
 
         @Override
         public void drawRoundRect(@NonNull RectF rect, float rx, float ry, @NonNull Paint paint) {
-            mDrawCommands.add(new DrawCommand(rect, paint));
+            mDrawCommands.add(new DrawCommand(rect, paint, rx, ry));
         }
 
         List<DrawCommand> getDrawCommands() {
@@ -1208,6 +1295,55 @@ public class LayoutTest {
         assertPrimaryIsTrailingPrevious(
                 "",
                 new boolean[]{false});
+    }
+
+    private void testSpannableStringAppliesAllColorsCorrectly(SpannableString spannedText) {
+        for (int textColor : new int[] {Color.WHITE, Color.BLACK}) {
+            final int contrastingColor = textColor == Color.WHITE ? Color.BLACK : Color.WHITE;
+            // Set the paint color to the contrasting color to verify the high contrast text
+            // background rect color is correct.
+            mTextPaint.setColor(contrastingColor);
+
+            // Set the entire text to test color initially
+            spannedText.setSpan(
+                    new ForegroundColorSpan(textColor),
+                    /* start= */ 0,
+                    /* end= */ spannedText.length(),
+                    Spanned.SPAN_INCLUSIVE_EXCLUSIVE
+            );
+
+            Layout layout = new StaticLayout(spannedText, mTextPaint, mWidth,
+                    mAlign, mSpacingMult, mSpacingAdd, /* includePad= */ false);
+
+            MockCanvas c = new MockCanvas(/* width= */ 256, /* height= */ 256);
+            c.setHighContrastTextEnabled(true);
+            layout.draw(
+                    c,
+                    /* highlightPaths= */ null,
+                    /* highlightPaints= */ null,
+                    /* selectionPath= */ null,
+                    /* selectionPaint= */ null,
+                    /* cursorOffsetVertical= */ 0
+            );
+
+            int numBackgroundsFound = 0;
+            List<MockCanvas.DrawCommand> drawCommands = c.getDrawCommands();
+            for (int i = 0; i < drawCommands.size(); i++) {
+                MockCanvas.DrawCommand drawCommand = drawCommands.get(i);
+
+                if (drawCommand.rect != null) {
+                    numBackgroundsFound++;
+                    // Verifies the background color of the high-contrast rectangle drawn behind
+                    // the text. In high-contrast mode, the background color should contrast with
+                    // the text color. 'contrastingColor' represents the expected background color,
+                    // which is the inverse of the text color (e.g., if text is white, background
+                    // is black, and vice versa).
+                    expect.that(removeAlpha(drawCommand.paint.getColor()))
+                            .isEqualTo(contrastingColor);
+                }
+            }
+            expect.that(numBackgroundsFound).isLessThan(spannedText.length());
+        }
     }
 }
 

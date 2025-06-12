@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification
 
 import android.testing.TestableLooper.RunWithLooper
@@ -33,6 +31,8 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.shared.model.fakeSceneDataSource
+import com.android.systemui.shade.domain.interactor.enableDualShade
+import com.android.systemui.shade.domain.interactor.enableSingleShade
 import com.android.systemui.statusbar.notification.stack.shared.model.ShadeScrimBounds
 import com.android.systemui.statusbar.notification.stack.shared.model.ShadeScrimShape
 import com.android.systemui.statusbar.notification.stack.ui.viewmodel.NotificationTransitionThresholds.EXPANSION_FOR_DELAYED_STACK_FADE_IN
@@ -41,7 +41,6 @@ import com.android.systemui.statusbar.notification.stack.ui.viewmodel.notificati
 import com.android.systemui.statusbar.notification.stack.ui.viewmodel.notificationsPlaceholderViewModel
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
@@ -72,9 +71,11 @@ class NotificationStackAppearanceIntegrationTest : SysuiTestCase() {
     @Test
     fun updateBounds() =
         testScope.runTest {
+            kosmos.enableSingleShade()
             val radius = MutableStateFlow(32)
             val leftOffset = MutableStateFlow(0)
-            val shape by collectLastValue(scrollViewModel.shadeScrimShape(radius, leftOffset))
+            val shape by
+                collectLastValue(scrollViewModel.notificationScrimShape(radius, leftOffset))
 
             // When: receive scrim bounds
             placeholderViewModel.onScrimBoundsChanged(
@@ -87,7 +88,7 @@ class NotificationStackAppearanceIntegrationTest : SysuiTestCase() {
                         bounds =
                             ShadeScrimBounds(left = 0f, top = 200f, right = 100f, bottom = 550f),
                         topRadius = 32,
-                        bottomRadius = 0
+                        bottomRadius = 0,
                     )
                 )
 
@@ -104,11 +105,11 @@ class NotificationStackAppearanceIntegrationTest : SysuiTestCase() {
                         bounds =
                             ShadeScrimBounds(left = 10f, top = 200f, right = 100f, bottom = 550f),
                         topRadius = 24,
-                        bottomRadius = 0
+                        bottomRadius = 0,
                     )
                 )
 
-            // When: QuickSettings shows up full screen
+            // When: QuickSettings shows up full screen on single shade.
             fakeKeyguardRepository.setStatusBarState(StatusBarState.SHADE)
             val transitionState =
                 MutableStateFlow<ObservableTransitionState>(
@@ -117,6 +118,10 @@ class NotificationStackAppearanceIntegrationTest : SysuiTestCase() {
             sceneInteractor.setTransitionState(transitionState)
             // Then: shape is null
             assertThat(shape).isNull()
+
+            // Same scenario on Dual Shade, shape should have clipping bounds
+            kosmos.enableDualShade()
+            assertThat(shape).isNotNull()
         }
 
     @Test

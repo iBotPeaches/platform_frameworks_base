@@ -149,16 +149,22 @@ class WindowWakeUpPolicy {
      * @param displayId the id of the display to wake.
      * @param eventTime the timestamp of the event in {@link SystemClock#uptimeMillis()}.
      * @param isDown {@code true} if the event's action is {@link MotionEvent#ACTION_DOWN}.
+     * @param deviceGoingToSleep {@code true} if the device is in the middle of going to sleep. This
+     *      will be {@code false} if the device is currently fully awake or is fully asleep
+     *      (i.e. not trying to go to sleep)
      * @return {@code true} if the policy allows the requested wake up and the request has been
      *      executed; {@code false} otherwise.
      */
-    boolean wakeUpFromMotion(int displayId, long eventTime, int source, boolean isDown) {
+    boolean wakeUpFromMotion(
+            int displayId, long eventTime, int source, boolean isDown,
+            boolean deviceGoingToSleep) {
         if (!canWakeUp(mAllowTheaterModeWakeFromMotion)) {
             if (DEBUG) Slog.d(TAG, "Unable to wake up from motion.");
             return false;
         }
         if (mInputWakeUpDelegate != null
-                && mInputWakeUpDelegate.wakeUpFromMotion(eventTime, source, isDown)) {
+                && mInputWakeUpDelegate.wakeUpFromMotion(
+                        eventTime, source, isDown, deviceGoingToSleep)) {
             return true;
         }
         if (perDisplayWakeByTouch()) {

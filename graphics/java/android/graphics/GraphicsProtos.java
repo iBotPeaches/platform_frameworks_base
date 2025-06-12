@@ -24,6 +24,7 @@ import android.util.proto.ProtoOutputStream;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class GraphicsProtos {
     /** GraphicsProtos can never be an instance */
     private GraphicsProtos() {}

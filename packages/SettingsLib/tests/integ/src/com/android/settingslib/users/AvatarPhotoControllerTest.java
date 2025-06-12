@@ -22,7 +22,7 @@ import static com.android.settingslib.avatarpicker.AvatarPhotoController.REQUEST
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.never;

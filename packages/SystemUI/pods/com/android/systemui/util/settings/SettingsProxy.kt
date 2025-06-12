@@ -19,17 +19,17 @@ import android.annotation.UserIdInt
 import android.content.ContentResolver
 import android.database.ContentObserver
 import android.net.Uri
+import android.provider.Settings
 import android.provider.Settings.SettingNotFoundException
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import com.android.app.tracing.TraceUtils.trace
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.app.tracing.coroutines.nameCoroutine
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
+import com.android.app.tracing.coroutines.withContextTraced as withContext
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
 
 /**
  * Used to interact with mainly with Settings.Global, but can also be used for Settings.System and
@@ -45,17 +45,24 @@ import kotlinx.coroutines.withContext
  * This class also provides [.registerContentObserver] methods, normally found on [ContentResolver]
  * instances, unifying setting related actions in one place.
  */
-interface SettingsProxy {
+public interface SettingsProxy {
     /** Returns the [ContentResolver] this instance was constructed with. */
-    fun getContentResolver(): ContentResolver
+    public fun getContentResolver(): ContentResolver
 
     /** Returns the [CoroutineScope] that the async APIs will use. */
-    val settingsScope: CoroutineScope
+    public val settingsScope: CoroutineScope
 
     @OptIn(ExperimentalStdlibApi::class)
-    fun settingsDispatcherContext(name: String): CoroutineContext {
-        return (settingsScope.coroutineContext[CoroutineDispatcher] ?: EmptyCoroutineContext) +
-            nameCoroutine(name)
+    public suspend fun executeOnSettingsScopeDispatcher(name: String, block: () -> Unit) {
+        val settingsDispatcher = settingsScope.coroutineContext[CoroutineDispatcher]
+        if (
+            settingsDispatcher != null &&
+                settingsDispatcher != coroutineContext[CoroutineDispatcher]
+        ) {
+            withContext(name, settingsDispatcher) { block() }
+        } else {
+            trace(name) { block() }
+        }
     }
 
     /**
@@ -65,7 +72,7 @@ interface SettingsProxy {
      * @param name to look up in the table
      * @return the corresponding content URI, or null if not present
      */
-    @AnyThread fun getUriFor(name: String): Uri
+    @AnyThread public fun getUriFor(name: String): Uri
 
     /**
      * Registers listener for a given content observer <b>while blocking the current thread</b>.
@@ -75,7 +82,7 @@ interface SettingsProxy {
      * [registerContentObserverAsync] instead.
      */
     @WorkerThread
-    fun registerContentObserverSync(name: String, settingsObserver: ContentObserver) {
+    public fun registerContentObserverSync(name: String, settingsObserver: ContentObserver) {
         registerContentObserverSync(getUriFor(name), settingsObserver)
     }
 
@@ -86,8 +93,8 @@ interface SettingsProxy {
      * registration happens on a worker thread. Caller may wrap the API in an async block if they
      * wish to synchronize execution.
      */
-    suspend fun registerContentObserver(name: String, settingsObserver: ContentObserver) {
-        withContext(settingsDispatcherContext("registerContentObserver-A")) {
+    public suspend fun registerContentObserver(name: String, settingsObserver: ContentObserver) {
+        executeOnSettingsScopeDispatcher("registerContentObserver-A") {
             registerContentObserverSync(getUriFor(name), settingsObserver)
         }
     }
@@ -98,7 +105,7 @@ interface SettingsProxy {
      * API corresponding to [registerContentObserver] for Java usage.
      */
     @AnyThread
-    fun registerContentObserverAsync(name: String, settingsObserver: ContentObserver) =
+    public fun registerContentObserverAsync(name: String, settingsObserver: ContentObserver): Job =
         settingsScope.launch("registerContentObserverAsync-A") {
             registerContentObserverSync(getUriFor(name), settingsObserver)
         }
@@ -111,11 +118,11 @@ interface SettingsProxy {
      * value.
      */
     @AnyThread
-    fun registerContentObserverAsync(
+    public fun registerContentObserverAsync(
         name: String,
         settingsObserver: ContentObserver,
         @WorkerThread registered: Runnable,
-    ) =
+    ): Job =
         settingsScope.launch("registerContentObserverAsync-B") {
             registerContentObserverSync(getUriFor(name), settingsObserver)
             registered.run()
@@ -128,8 +135,9 @@ interface SettingsProxy {
      * [registerContentObserverAsync] instead.
      */
     @WorkerThread
-    fun registerContentObserverSync(uri: Uri, settingsObserver: ContentObserver) =
+    public fun registerContentObserverSync(uri: Uri, settingsObserver: ContentObserver) {
         registerContentObserverSync(uri, false, settingsObserver)
+    }
 
     /**
      * Convenience wrapper around [ContentResolver.registerContentObserver].'
@@ -138,8 +146,8 @@ interface SettingsProxy {
      * registration happens on a worker thread. Caller may wrap the API in an async block if they
      * wish to synchronize execution.
      */
-    suspend fun registerContentObserver(uri: Uri, settingsObserver: ContentObserver) {
-        withContext(settingsDispatcherContext("registerContentObserver-B")) {
+    public suspend fun registerContentObserver(uri: Uri, settingsObserver: ContentObserver) {
+        executeOnSettingsScopeDispatcher("registerContentObserver-B") {
             registerContentObserverSync(uri, settingsObserver)
         }
     }
@@ -150,7 +158,7 @@ interface SettingsProxy {
      * API corresponding to [registerContentObserver] for Java usage.
      */
     @AnyThread
-    fun registerContentObserverAsync(uri: Uri, settingsObserver: ContentObserver) =
+    public fun registerContentObserverAsync(uri: Uri, settingsObserver: ContentObserver): Job =
         settingsScope.launch("registerContentObserverAsync-C") {
             registerContentObserverSync(uri, settingsObserver)
         }
@@ -163,11 +171,11 @@ interface SettingsProxy {
      * value.
      */
     @AnyThread
-    fun registerContentObserverAsync(
+    public fun registerContentObserverAsync(
         uri: Uri,
         settingsObserver: ContentObserver,
         @WorkerThread registered: Runnable,
-    ) =
+    ): Job =
         settingsScope.launch("registerContentObserverAsync-D") {
             registerContentObserverSync(uri, settingsObserver)
             registered.run()
@@ -179,11 +187,13 @@ interface SettingsProxy {
      * Implicitly calls [getUriFor] on the passed in name.
      */
     @WorkerThread
-    fun registerContentObserverSync(
+    public fun registerContentObserverSync(
         name: String,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
-    ) = registerContentObserverSync(getUriFor(name), notifyForDescendants, settingsObserver)
+    ) {
+        registerContentObserverSync(getUriFor(name), notifyForDescendants, settingsObserver)
+    }
 
     /**
      * Convenience wrapper around [ContentResolver.registerContentObserver].'
@@ -192,12 +202,12 @@ interface SettingsProxy {
      * registration happens on a worker thread. Caller may wrap the API in an async block if they
      * wish to synchronize execution.
      */
-    suspend fun registerContentObserver(
+    public suspend fun registerContentObserver(
         name: String,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
     ) {
-        withContext(settingsDispatcherContext("registerContentObserver-C")) {
+        executeOnSettingsScopeDispatcher("registerContentObserver-C") {
             registerContentObserverSync(getUriFor(name), notifyForDescendants, settingsObserver)
         }
     }
@@ -208,11 +218,11 @@ interface SettingsProxy {
      * API corresponding to [registerContentObserver] for Java usage.
      */
     @AnyThread
-    fun registerContentObserverAsync(
+    public fun registerContentObserverAsync(
         name: String,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
-    ) =
+    ): Job =
         settingsScope.launch("registerContentObserverAsync-E") {
             registerContentObserverSync(getUriFor(name), notifyForDescendants, settingsObserver)
         }
@@ -225,12 +235,12 @@ interface SettingsProxy {
      * value.
      */
     @AnyThread
-    fun registerContentObserverAsync(
+    public fun registerContentObserverAsync(
         name: String,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
         @WorkerThread registered: Runnable,
-    ) =
+    ): Job =
         settingsScope.launch("registerContentObserverAsync-F") {
             registerContentObserverSync(getUriFor(name), notifyForDescendants, settingsObserver)
             registered.run()
@@ -243,7 +253,7 @@ interface SettingsProxy {
      * [registerContentObserverAsync] instead.
      */
     @WorkerThread
-    fun registerContentObserverSync(
+    public fun registerContentObserverSync(
         uri: Uri,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
@@ -261,12 +271,12 @@ interface SettingsProxy {
      * registration happens on a worker thread. Caller may wrap the API in an async block if they
      * wish to synchronize execution.
      */
-    suspend fun registerContentObserver(
+    public suspend fun registerContentObserver(
         uri: Uri,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
     ) {
-        withContext(settingsDispatcherContext("registerContentObserver-D")) {
+        executeOnSettingsScopeDispatcher("registerContentObserver-D") {
             registerContentObserverSync(uri, notifyForDescendants, settingsObserver)
         }
     }
@@ -277,11 +287,11 @@ interface SettingsProxy {
      * API corresponding to [registerContentObserver] for Java usage.
      */
     @AnyThread
-    fun registerContentObserverAsync(
+    public fun registerContentObserverAsync(
         uri: Uri,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
-    ) =
+    ): Job =
         settingsScope.launch("registerContentObserverAsync-G") {
             registerContentObserverSync(uri, notifyForDescendants, settingsObserver)
         }
@@ -294,12 +304,12 @@ interface SettingsProxy {
      * value.
      */
     @AnyThread
-    fun registerContentObserverAsync(
+    public fun registerContentObserverAsync(
         uri: Uri,
         notifyForDescendants: Boolean,
         settingsObserver: ContentObserver,
         @WorkerThread registered: Runnable,
-    ) =
+    ): Job =
         settingsScope.launch("registerContentObserverAsync-H") {
             registerContentObserverSync(uri, notifyForDescendants, settingsObserver)
             registered.run()
@@ -312,7 +322,7 @@ interface SettingsProxy {
      * [unregisterContentObserverAsync] instead.
      */
     @WorkerThread
-    fun unregisterContentObserverSync(settingsObserver: ContentObserver) {
+    public fun unregisterContentObserverSync(settingsObserver: ContentObserver) {
         trace({ "SP#unregisterObserver" }) {
             getContentResolver().unregisterContentObserver(settingsObserver)
         }
@@ -325,8 +335,8 @@ interface SettingsProxy {
      * [ContentObserver] un-registration happens on a worker thread. Caller may wrap the API in an
      * async block if they wish to synchronize execution.
      */
-    suspend fun unregisterContentObserver(settingsObserver: ContentObserver) {
-        withContext(settingsDispatcherContext("unregisterContentObserver")) {
+    public suspend fun unregisterContentObserver(settingsObserver: ContentObserver) {
+        executeOnSettingsScopeDispatcher("unregisterContentObserver") {
             unregisterContentObserverSync(settingsObserver)
         }
     }
@@ -338,7 +348,7 @@ interface SettingsProxy {
      * [ContentObserver] registration happens on a worker thread.
      */
     @AnyThread
-    fun unregisterContentObserverAsync(settingsObserver: ContentObserver) =
+    public fun unregisterContentObserverAsync(settingsObserver: ContentObserver): Job =
         settingsScope.launch("unregisterContentObserverAsync") {
             unregisterContentObserver(settingsObserver)
         }
@@ -349,7 +359,7 @@ interface SettingsProxy {
      * @param name to look up in the table
      * @return the corresponding value, or null if not present
      */
-    fun getString(name: String): String?
+    public fun getString(name: String): String?
 
     /**
      * Store a name/value pair into the database.
@@ -358,7 +368,7 @@ interface SettingsProxy {
      * @param value to associate with the name
      * @return true if the value was set, false on database errors
      */
-    fun putString(name: String, value: String?): Boolean
+    public fun putString(name: String, value: String?): Boolean
 
     /**
      * Store a name/value pair into the database.
@@ -389,7 +399,7 @@ interface SettingsProxy {
      * @return true if the value was set, false on database errors.
      * @see .resetToDefaults
      */
-    fun putString(name: String, value: String?, tag: String?, makeDefault: Boolean): Boolean
+    public fun putString(name: String, value: String?, tag: String?, makeDefault: Boolean): Boolean
 
     /**
      * Convenience function for retrieving a single secure settings value as an integer. Note that
@@ -401,7 +411,7 @@ interface SettingsProxy {
      * @param default Value to return if the setting is not defined.
      * @return The setting's current value, or default if it is not defined or not a valid integer.
      */
-    fun getInt(name: String, default: Int): Int {
+    public fun getInt(name: String, default: Int): Int {
         val v = getString(name)
         return try {
             v?.toInt() ?: default
@@ -424,7 +434,7 @@ interface SettingsProxy {
      *   found or the setting value is not an integer.
      */
     @Throws(SettingNotFoundException::class)
-    fun getInt(name: String): Int {
+    public fun getInt(name: String): Int {
         val v = getString(name) ?: throw SettingNotFoundException(name)
         return try {
             v.toInt()
@@ -443,7 +453,7 @@ interface SettingsProxy {
      * @param value The new value for the setting.
      * @return true if the value was set, false on database errors
      */
-    fun putInt(name: String, value: Int): Boolean {
+    public fun putInt(name: String, value: Int): Boolean {
         return putString(name, value.toString())
     }
 
@@ -457,7 +467,7 @@ interface SettingsProxy {
      * @param default Value to return if the setting is not defined.
      * @return The setting's current value, or default if it is not defined or not a valid boolean.
      */
-    fun getBool(name: String, default: Boolean): Boolean {
+    public fun getBool(name: String, default: Boolean): Boolean {
         return getInt(name, if (default) 1 else 0) != 0
     }
 
@@ -475,7 +485,7 @@ interface SettingsProxy {
      *   found or the setting value is not a boolean.
      */
     @Throws(SettingNotFoundException::class)
-    fun getBool(name: String): Boolean {
+    public fun getBool(name: String): Boolean {
         return getInt(name) != 0
     }
 
@@ -489,7 +499,7 @@ interface SettingsProxy {
      * @param value The new value for the setting.
      * @return true if the value was set, false on database errors
      */
-    fun putBool(name: String, value: Boolean): Boolean {
+    public fun putBool(name: String, value: Boolean): Boolean {
         return putInt(name, if (value) 1 else 0)
     }
 
@@ -503,7 +513,7 @@ interface SettingsProxy {
      * @param def Value to return if the setting is not defined.
      * @return The setting's current value, or 'def' if it is not defined or not a valid `long`.
      */
-    fun getLong(name: String, def: Long): Long {
+    public fun getLong(name: String, def: Long): Long {
         val valString = getString(name)
         return parseLongOrUseDefault(valString, def)
     }
@@ -522,7 +532,7 @@ interface SettingsProxy {
      *   found or the setting value is not an integer.
      */
     @Throws(SettingNotFoundException::class)
-    fun getLong(name: String): Long {
+    public fun getLong(name: String): Long {
         val valString = getString(name)
         return parseLongOrThrow(name, valString)
     }
@@ -537,7 +547,7 @@ interface SettingsProxy {
      * @param value The new value for the setting.
      * @return true if the value was set, false on database errors
      */
-    fun putLong(name: String, value: Long): Boolean {
+    public fun putLong(name: String, value: Long): Boolean {
         return putString(name, value.toString())
     }
 
@@ -551,7 +561,7 @@ interface SettingsProxy {
      * @param def Value to return if the setting is not defined.
      * @return The setting's current value, or 'def' if it is not defined or not a valid float.
      */
-    fun getFloat(name: String, def: Float): Float {
+    public fun getFloat(name: String, def: Float): Float {
         val v = getString(name)
         return parseFloat(v, def)
     }
@@ -570,7 +580,7 @@ interface SettingsProxy {
      *   found or the setting value is not a float.
      */
     @Throws(SettingNotFoundException::class)
-    fun getFloat(name: String): Float {
+    public fun getFloat(name: String): Float {
         val v = getString(name)
         return parseFloatOrThrow(name, v)
     }
@@ -585,14 +595,14 @@ interface SettingsProxy {
      * @param value The new value for the setting.
      * @return true if the value was set, false on database errors
      */
-    fun putFloat(name: String, value: Float): Boolean {
+    public fun putFloat(name: String, value: Float): Boolean {
         return putString(name, value.toString())
     }
 
-    companion object {
+    public companion object {
         /** Convert a string to a long, or uses a default if the string is malformed or null */
         @JvmStatic
-        fun parseLongOrUseDefault(valString: String?, default: Long): Long {
+        public fun parseLongOrUseDefault(valString: String?, default: Long): Long {
             val value: Long =
                 try {
                     valString?.toLong() ?: default
@@ -605,7 +615,7 @@ interface SettingsProxy {
         /** Convert a string to a long, or throws an exception if the string is malformed or null */
         @JvmStatic
         @Throws(SettingNotFoundException::class)
-        fun parseLongOrThrow(name: String, valString: String?): Long {
+        public fun parseLongOrThrow(name: String, valString: String?): Long {
             if (valString == null) {
                 throw SettingNotFoundException(name)
             }
@@ -618,7 +628,7 @@ interface SettingsProxy {
 
         /** Convert a string to a float, or uses a default if the string is malformed or null */
         @JvmStatic
-        fun parseFloat(v: String?, def: Float): Float {
+        public fun parseFloat(v: String?, def: Float): Float {
             return try {
                 v?.toFloat() ?: def
             } catch (e: NumberFormatException) {
@@ -631,7 +641,7 @@ interface SettingsProxy {
          */
         @JvmStatic
         @Throws(SettingNotFoundException::class)
-        fun parseFloatOrThrow(name: String, v: String?): Float {
+        public fun parseFloatOrThrow(name: String, v: String?): Float {
             if (v == null) {
                 throw SettingNotFoundException(name)
             }
@@ -643,7 +653,7 @@ interface SettingsProxy {
         }
     }
 
-    fun interface CurrentUserIdProvider {
-        @UserIdInt fun getUserId(): Int
+    public fun interface CurrentUserIdProvider {
+        @UserIdInt public fun getUserId(): Int
     }
 }

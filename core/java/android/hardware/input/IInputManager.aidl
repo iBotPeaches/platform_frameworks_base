@@ -34,6 +34,7 @@ import android.hardware.input.KeyboardLayoutSelectionResult;
 import android.hardware.input.TouchCalibration;
 import android.os.CombinedVibration;
 import android.hardware.input.IInputSensorEventListener;
+import android.hardware.input.IKeyEventActivityListener;
 import android.hardware.input.InputSensorInfo;
 import android.hardware.input.KeyGlyphMap;
 import android.hardware.lights.Light;
@@ -102,6 +103,12 @@ interface IInputManager {
     KeyboardLayoutSelectionResult getKeyboardLayoutForInputDevice(
             in InputDeviceIdentifier identifier, int userId, in InputMethodInfo imeInfo,
             in InputMethodSubtype imeSubtype);
+
+    @EnforcePermission("SET_KEYBOARD_LAYOUT")
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
+            + "android.Manifest.permission.SET_KEYBOARD_LAYOUT)")
+    void setKeyboardLayoutOverrideForInputDevice(in InputDeviceIdentifier identifier,
+            String keyboardLayoutDescriptor);
 
     @EnforcePermission("SET_KEYBOARD_LAYOUT")
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
@@ -207,6 +214,16 @@ interface IInputManager {
 
     void unregisterBatteryListener(int deviceId, IInputDeviceBatteryListener listener);
 
+    @EnforcePermission("LISTEN_FOR_KEY_ACTIVITY")
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
+            + "android.Manifest.permission.LISTEN_FOR_KEY_ACTIVITY)")
+    boolean registerKeyEventActivityListener(IKeyEventActivityListener listener);
+
+    @EnforcePermission("LISTEN_FOR_KEY_ACTIVITY")
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
+            + "android.Manifest.permission.LISTEN_FOR_KEY_ACTIVITY)")
+    boolean unregisterKeyEventActivityListener(IKeyEventActivityListener listener);
+
     // Get the bluetooth address of an input device if known, returning null if it either is not
     // connected via bluetooth or if the address cannot be determined.
     @EnforcePermission("BLUETOOTH")
@@ -256,12 +273,17 @@ interface IInputManager {
     @PermissionManuallyEnforced
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
             + "android.Manifest.permission.MANAGE_KEY_GESTURES)")
-    void registerKeyGestureHandler(IKeyGestureHandler handler);
+    void registerKeyGestureHandler(in int[] keyGesturesToHandle, IKeyGestureHandler handler);
 
     @PermissionManuallyEnforced
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
             + "android.Manifest.permission.MANAGE_KEY_GESTURES)")
     void unregisterKeyGestureHandler(IKeyGestureHandler handler);
+
+    @PermissionManuallyEnforced
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "
+            + "android.Manifest.permission.MANAGE_KEY_GESTURES)")
+    AidlInputGestureData getInputGesture(int userId, in AidlInputGestureData.Trigger trigger);
 
     @PermissionManuallyEnforced
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(value = "

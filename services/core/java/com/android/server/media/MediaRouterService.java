@@ -49,6 +49,7 @@ import android.media.RemoteDisplayState.RemoteDisplayInfo;
 import android.media.RouteDiscoveryPreference;
 import android.media.RouteListingPreference;
 import android.media.RoutingSessionInfo;
+import android.media.SuggestedDeviceInfo;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -80,6 +81,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -302,7 +304,9 @@ public final class MediaRouterService extends IMediaRouterService.Stub
 
         final long token = Binder.clearCallingIdentity();
         try {
-            mAudioService.setBluetoothA2dpOn(on);
+            if (!Flags.disableSetBluetoothAd2pOnCalls()) {
+                mAudioService.setBluetoothA2dpOn(on);
+            }
         } catch (RemoteException ex) {
             Slog.w(TAG, "RemoteException while calling setBluetoothA2dpOn. on=" + on);
         } finally {
@@ -524,6 +528,21 @@ public final class MediaRouterService extends IMediaRouterService.Stub
 
     // Binder call
     @Override
+    public void setDeviceSuggestionsWithRouter2(
+            IMediaRouter2 router, @Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo) {
+        mService2.setDeviceSuggestionsWithRouter2(router, suggestedDeviceInfo);
+    }
+
+    // Binder call
+    @Override
+    @Nullable
+    public Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestionsWithRouter2(
+            IMediaRouter2 router) {
+        return mService2.getDeviceSuggestionsWithRouter2(router);
+    }
+
+    // Binder call
+    @Override
     public List<RoutingSessionInfo> getRemoteSessions(IMediaRouter2Manager manager) {
         return mService2.getRemoteSessions(manager);
     }
@@ -664,6 +683,22 @@ public final class MediaRouterService extends IMediaRouterService.Stub
         return mService2.showMediaOutputSwitcherWithProxyRouter(proxyRouter);
     }
 
+    // Binder call
+    @Override
+    public void setDeviceSuggestionsWithManager(
+            @NonNull IMediaRouter2Manager manager,
+            @Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo) {
+        mService2.setDeviceSuggestionsWithManager(manager, suggestedDeviceInfo);
+    }
+
+    // Binder call
+    @Override
+    @Nullable
+    public Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestionsWithManager(
+            IMediaRouter2Manager manager) {
+        return mService2.getDeviceSuggestionsWithManager(manager);
+    }
+
     void restoreBluetoothA2dp() {
         try {
             boolean a2dpOn;
@@ -677,7 +712,9 @@ public final class MediaRouterService extends IMediaRouterService.Stub
                 if (DEBUG) {
                     Slog.d(TAG, "restoreBluetoothA2dp(" + a2dpOn + ")");
                 }
-                mAudioService.setBluetoothA2dpOn(a2dpOn);
+                if (!Flags.disableSetBluetoothAd2pOnCalls()) {
+                    mAudioService.setBluetoothA2dpOn(a2dpOn);
+                }
             }
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException while calling setBluetoothA2dpOn.");

@@ -16,6 +16,7 @@
 
 #include "WebViewFunctorManager.h"
 
+#include <gui/SurfaceComposerClient.h>
 #include <log/log.h>
 #include <private/hwui/WebViewFunctor.h>
 #include <utils/Trace.h>
@@ -43,7 +44,7 @@ public:
 
     static ASurfaceControl* getSurfaceControl() {
         ALOG_ASSERT(sCurrentFunctor);
-        return sCurrentFunctor->getSurfaceControl();
+        return reinterpret_cast<ASurfaceControl*>(sCurrentFunctor->getSurfaceControl());
     }
     static void mergeTransaction(ASurfaceTransaction* transaction) {
         ALOG_ASSERT(sCurrentFunctor);
@@ -129,12 +130,12 @@ bool WebViewFunctor::prepareRootSurfaceControl() {
     renderthread::CanvasContext* activeContext = renderthread::CanvasContext::getActiveContext();
     if (!activeContext) return false;
 
-    ASurfaceControl* rootSurfaceControl = activeContext->getSurfaceControl();
+    sp<SurfaceControl> rootSurfaceControl = activeContext->getSurfaceControl();
     if (!rootSurfaceControl) return false;
 
     int32_t rgid = activeContext->getSurfaceControlGenerationId();
     if (mParentSurfaceControlGenerationId != rgid) {
-        reparentSurfaceControl(rootSurfaceControl);
+        reparentSurfaceControl(reinterpret_cast<ASurfaceControl*>(rootSurfaceControl.get()));
         mParentSurfaceControlGenerationId = rgid;
     }
 
@@ -210,33 +211,35 @@ void WebViewFunctor::removeOverlays() {
     mCallbacks.removeOverlays(mFunctor, mData, currentFunctor.mergeTransaction);
     if (mSurfaceControl) {
         reparentSurfaceControl(nullptr);
-        auto funcs = renderthread::RenderThread::getInstance().getASurfaceControlFunctions();
-        funcs.releaseFunc(mSurfaceControl);
         mSurfaceControl = nullptr;
     }
 }
 
 ASurfaceControl* WebViewFunctor::getSurfaceControl() {
     ATRACE_NAME("WebViewFunctor::getSurfaceControl");
-    if (mSurfaceControl != nullptr) return mSurfaceControl;
+    if (mSurfaceControl != nullptr) {
+        return reinterpret_cast<ASurfaceControl*>(mSurfaceControl.get());
+    }
 
     renderthread::CanvasContext* activeContext = renderthread::CanvasContext::getActiveContext();
     LOG_ALWAYS_FATAL_IF(activeContext == nullptr, "Null active canvas context!");
 
-    ASurfaceControl* rootSurfaceControl = activeContext->getSurfaceControl();
+    sp<SurfaceControl> rootSurfaceControl = activeContext->getSurfaceControl();
     LOG_ALWAYS_FATAL_IF(rootSurfaceControl == nullptr, "Null root surface control!");
 
-    auto funcs = renderthread::RenderThread::getInstance().getASurfaceControlFunctions();
     mParentSurfaceControlGenerationId = activeContext->getSurfaceControlGenerationId();
-    mSurfaceControl = funcs.createFunc(rootSurfaceControl, "Webview Overlay SurfaceControl");
-    ASurfaceTransaction* transaction = funcs.transactionCreateFunc();
+
+    SurfaceComposerClient* client = rootSurfaceControl->getClient().get();
+    mSurfaceControl = client->createSurface(
+            String8("Webview Overlay SurfaceControl"), 0 /* width */, 0 /* height */,
+            // Format is only relevant for buffer queue layers.
+            PIXEL_FORMAT_UNKNOWN /* format */, ISurfaceComposerClient::eFXSurfaceBufferState,
+            rootSurfaceControl->getHandle());
+
     activeContext->prepareSurfaceControlForWebview();
-    funcs.transactionSetZOrderFunc(transaction, mSurfaceControl, -1);
-    funcs.transactionSetVisibilityFunc(transaction, mSurfaceControl,
-                                       ASURFACE_TRANSACTION_VISIBILITY_SHOW);
-    funcs.transactionApplyFunc(transaction);
-    funcs.transactionDeleteFunc(transaction);
-    return mSurfaceControl;
+    SurfaceComposerClient::Transaction transaction;
+    transaction.setLayer(mSurfaceControl, -1).show(mSurfaceControl).apply();
+    return reinterpret_cast<ASurfaceControl*>(mSurfaceControl.get());
 }
 
 void WebViewFunctor::mergeTransaction(ASurfaceTransaction* transaction) {
@@ -249,8 +252,7 @@ void WebViewFunctor::mergeTransaction(ASurfaceTransaction* transaction) {
         done = activeContext->mergeTransaction(transaction, mSurfaceControl);
     }
     if (!done) {
-        auto funcs = renderthread::RenderThread::getInstance().getASurfaceControlFunctions();
-        funcs.transactionApplyFunc(transaction);
+        reinterpret_cast<SurfaceComposerClient::Transaction*>(transaction)->apply();
     }
 }
 
@@ -258,11 +260,10 @@ void WebViewFunctor::reparentSurfaceControl(ASurfaceControl* parent) {
     ATRACE_NAME("WebViewFunctor::reparentSurfaceControl");
     if (mSurfaceControl == nullptr) return;
 
-    auto funcs = renderthread::RenderThread::getInstance().getASurfaceControlFunctions();
-    ASurfaceTransaction* transaction = funcs.transactionCreateFunc();
-    funcs.transactionReparentFunc(transaction, mSurfaceControl, parent);
-    mergeTransaction(transaction);
-    funcs.transactionDeleteFunc(transaction);
+    SurfaceComposerClient::Transaction transaction;
+    transaction.reparent(mSurfaceControl, sp<SurfaceControl>::fromExisting(
+                                                  reinterpret_cast<SurfaceControl*>(parent)));
+    mergeTransaction(reinterpret_cast<ASurfaceTransaction*>(&transaction));
 }
 
 void WebViewFunctor::reportRenderingThreads(const pid_t* thread_ids, size_t size) {

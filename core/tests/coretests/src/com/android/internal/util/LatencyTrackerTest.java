@@ -25,7 +25,7 @@ import static com.android.internal.util.LatencyTracker.STATSD_ACTION;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.provider.DeviceConfig;
 
@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = DeviceConfig.class)
+@DisabledOnRavenwood(blockedBy = DeviceConfig.class)
 public class LatencyTrackerTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

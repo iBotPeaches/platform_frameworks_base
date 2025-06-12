@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktivní (pouze levé)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktivní (pouze pravé)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktivní (levé a pravé)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Okolí se nepodařilo aktualizovat"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktivní (pouze média). Baterie: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktivní (pouze média), baterie: L <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Zařízení hosta. Baterie: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Zařízení hosta. Baterie: L <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Zařízení hosta (jen média). Baterie: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Zařízení hosta (jen média). Baterie: L <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Připojeno (podporuje sdílení zvuku), baterie: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Připojeno (podporuje sdílení zvuku), baterie: L <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Připojeno (podporuje sdílení zvuku). Levá strana: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterie"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Připojeno (podporuje sdílení zvuku). Pravá strana: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterie."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Připojeno (podporuje sdílení zvuku)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Zařízení hosta (podporuje sdílení zvuku). Baterie: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Zařízení hosta (podporuje sdílení zvuku). Baterie: L <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Zařízení hosta (podporuje sdílení zvuku)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktivní (pouze média)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Zařízení hosta"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Zařízení hosta (jen média)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Podporuje sdílení zvuku"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Zařízení hosta. Podporuje sdílení zvuku"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktivní (pouze média), pouze levé"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktivní (pouze média), pouze pravé"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktivní (pouze média), levé a pravé"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Hardwarově urychlené vykreslování"</string>
     <string name="media_category" msgid="8122076702526144053">"Média"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Sledování"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Správa oken"</string>
     <string name="strict_mode" msgid="889864762140862437">"Přísný režim aktivován"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Rozblikat obrazovku při dlouhých operacích hlavního vlákna"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Umístění ukazatele"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Měřítko animace přeměny"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Měřítko délky animace"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simulovat sekundární obrazovky"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Pozice panelu"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplikace"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Neukládat aktivity"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Rušit všechny činnosti, jakmile je uživatel zavře"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Implementace WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Nastavte implementaci WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Tato volba již není platná. Zkuste to znovu."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Nástroje pro vývojáře WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Balíček WebView nebyl nalezen."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Nástroje pro vývojáře nelze spustit."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Režim barev obrázku"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Použije se barevný prostor sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Vypnuto"</string>
@@ -476,7 +492,7 @@
     <string name="daltonizer_mode_protanomaly" msgid="7805583306666608440">"Protanomálie (červená a zelená)"</string>
     <string name="daltonizer_mode_tritanomaly" msgid="7135266249220732267">"Tritanomálie (modrá a žlutá)"</string>
     <string name="accessibility_display_daltonizer_preference_title" msgid="1810693571332381974">"Korekce barev"</string>
-    <string name="accessibility_display_daltonizer_preference_subtitle" msgid="1522101114585266455">"Korekce barev se může hodit, když chcete:&lt;br/&gt; &lt;ol&gt; &lt;li&gt;&amp;nbsp;Vidět barvy přesněji.&lt;/li&gt; &lt;li&gt;&amp;nbsp;Odstranit barvy kvůli zlepšení soustředění.&lt;/li&gt; &lt;/ol&gt;"</string>
+    <string name="accessibility_display_daltonizer_preference_subtitle" msgid="1522101114585266455">"Korekce barev se může hodit, když chcete:&lt;br/&gt; &lt;ol&gt; &lt;li&gt;&amp;nbsp;Vidět barvy přesněji.&lt;/li&gt; &lt;li&gt;&amp;nbsp;Odstranit barvy kvůli lepšímu soustředění.&lt;/li&gt; &lt;/ol&gt;"</string>
     <string name="daltonizer_type_overridden" msgid="4509604753672535721">"Přepsáno nastavením <xliff:g id="TITLE">%1$s</xliff:g>"</string>
     <string name="power_remaining_settings_home_page" msgid="4885165789445462557">"<xliff:g id="PERCENTAGE">%1$s</xliff:g> – <xliff:g id="TIME_STRING">%2$s</xliff:g>"</string>
     <string name="power_charging_on_hold_settings_home_page" msgid="7690464049464805856">"<xliff:g id="LEVEL">%1$s</xliff:g> – Nabíjení je pozastaveno za účelem ochrany baterie"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Rychlé nabíjení"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Spravováno administrátorem"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Spravováno omezeným nastavením"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Při volání nedostupné"</string>
     <string name="disabled" msgid="8017887509554714950">"Deaktivováno"</string>
+    <string name="enabled" msgid="3997122818554810678">"Zapnuto"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Povoleno"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Není povoleno"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instalace neznámých aplikací"</string>
@@ -592,7 +610,7 @@
     <string name="media_transfer_default_device_name" msgid="4315604017399871828">"Připojené zařízení"</string>
     <string name="media_transfer_this_phone" msgid="7194341457812151531">"Tento telefon"</string>
     <string name="media_transfer_digital_line_name" msgid="312091711951124301">"S/PDIF"</string>
-    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Analogové"</string>
+    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Analogový výstup"</string>
     <string name="media_transfer_aux_line_name" msgid="894135835967856689">"AUX"</string>
     <string name="media_output_status_unknown_error" msgid="5098565887497902222">"V zařízení nelze přehrávat"</string>
     <string name="media_output_status_require_premium" msgid="8411255800047014822">"Účet je třeba upgradovat"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Vestavěný reproduktor"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Zvuk televize"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Problém s připojením. Vypněte zařízení a znovu jej zapněte"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Nelze se připojit"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Kabelové audiozařízení"</string>
     <string name="help_label" msgid="3528360748637781274">"Nápověda a zpětná vazba"</string>
     <string name="storage_category" msgid="2287342585424631813">"Úložiště"</string>

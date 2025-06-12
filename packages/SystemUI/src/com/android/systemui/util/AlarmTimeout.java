@@ -26,7 +26,6 @@ import android.os.SystemClock;
  */
 public class AlarmTimeout implements AlarmManager.OnAlarmListener {
 
-    public static final int MODE_CRASH_IF_SCHEDULED = 0;
     public static final int MODE_IGNORE_IF_SCHEDULED = 1;
     public static final int MODE_RESCHEDULE_IF_SCHEDULED = 2;
 
@@ -48,17 +47,11 @@ public class AlarmTimeout implements AlarmManager.OnAlarmListener {
      * Schedules an alarm in {@code timeout} milliseconds in the future.
      *
      * @param timeout How long to wait from now.
-     * @param mode {@link #MODE_CRASH_IF_SCHEDULED}, {@link #MODE_IGNORE_IF_SCHEDULED} or
-     *             {@link #MODE_RESCHEDULE_IF_SCHEDULED}.
+     * @param mode {@link #MODE_IGNORE_IF_SCHEDULED} or {@link #MODE_RESCHEDULE_IF_SCHEDULED}.
      * @return {@code true} when scheduled successfully, {@code false} otherwise.
      */
     public boolean schedule(long timeout, int mode) {
         switch (mode) {
-            case MODE_CRASH_IF_SCHEDULED:
-                if (mScheduled) {
-                    throw new IllegalStateException(mTag + " timeout is already scheduled");
-                }
-                break;
             case MODE_IGNORE_IF_SCHEDULED:
                 if (mScheduled) {
                     return false;

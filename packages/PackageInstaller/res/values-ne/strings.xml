@@ -17,7 +17,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="7488448184431507488">"प्याकेज स्थापनाकर्ता"</string>
-    <string name="install" msgid="711829760615509273">"स्थापना गर्नु…"</string>
+    <string name="install" msgid="711829760615509273">"इन्स्टल"</string>
     <string name="update" msgid="3932142540719227615">"अपडेट गर्नुहोस्"</string>
     <string name="done" msgid="6632441120016885253">"सम्पन्न भयो"</string>
     <string name="cancel" msgid="1018267193425558088">"रद्द गर्नुहोस्"</string>

@@ -41,6 +41,7 @@ import android.app.NotificationChannel;
 import android.os.Handler;
 import android.os.UserHandle;
 import android.provider.DeviceConfig;
+import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.testing.TestableLooper;
 
@@ -51,8 +52,10 @@ import com.android.internal.config.sysui.SystemUiDeviceConfigFlags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.NotificationEntryBuilder;
+import com.android.systemui.statusbar.notification.people.NotificationPersonExtractor;
 import com.android.systemui.util.DeviceConfigProxyFake;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -99,52 +102,53 @@ public class AssistantFeedbackControllerTest extends SysuiTestCase {
         switchFlag("false");
         // test flag disables logic with default values
         assertEquals(STATUS_UNCHANGED, mAssistantFeedbackController.getFeedbackStatus(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED).getRanking()));
         assertNull(mAssistantFeedbackController.getFeedbackIcon(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED).getRanking()));
         // test that the flag disables logic with values that otherwise would return a value
         assertEquals(STATUS_UNCHANGED, mAssistantFeedbackController.getFeedbackStatus(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_PROMOTED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_PROMOTED).getRanking()));
         assertNull(mAssistantFeedbackController.getFeedbackIcon(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_PROMOTED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_PROMOTED).getRanking()));
     }
 
     @Test
     public void testFeedback_noChange() {
         switchFlag("true");
         assertEquals(STATUS_UNCHANGED, mAssistantFeedbackController.getFeedbackStatus(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED).getRanking()));
         assertNull(mAssistantFeedbackController.getFeedbackIcon(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_UNCHANGED).getRanking()));
     }
 
     @Test
     public void testFeedback_changedImportance() {
         switchFlag("true");
-        NotificationEntry entry = getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_UNCHANGED);
-        assertEquals(STATUS_PROMOTED, mAssistantFeedbackController.getFeedbackStatus(entry));
-        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(entry));
+        NotificationListenerService.Ranking ranking =
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_UNCHANGED).getRanking();
+        assertEquals(STATUS_PROMOTED, mAssistantFeedbackController.getFeedbackStatus(ranking));
+        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(ranking));
 
-        entry = getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_LOW, RANKING_UNCHANGED);
-        assertEquals(STATUS_SILENCED, mAssistantFeedbackController.getFeedbackStatus(entry));
-        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(entry));
+        ranking = getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_LOW, RANKING_UNCHANGED).getRanking();
+        assertEquals(STATUS_SILENCED, mAssistantFeedbackController.getFeedbackStatus(ranking));
+        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(ranking));
 
-        entry = getEntry(IMPORTANCE_LOW, IMPORTANCE_MIN, RANKING_UNCHANGED);
-        assertEquals(STATUS_DEMOTED, mAssistantFeedbackController.getFeedbackStatus(entry));
-        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(entry));
+        ranking = getEntry(IMPORTANCE_LOW, IMPORTANCE_MIN, RANKING_UNCHANGED).getRanking();
+        assertEquals(STATUS_DEMOTED, mAssistantFeedbackController.getFeedbackStatus(ranking));
+        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(ranking));
     }
 
     @Test
     public void testFeedback_changedRanking() {
         switchFlag("true");
-        NotificationEntry entry =
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_PROMOTED);
-        assertEquals(STATUS_PROMOTED, mAssistantFeedbackController.getFeedbackStatus(entry));
-        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(entry));
+        NotificationListenerService.Ranking ranking =
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_PROMOTED).getRanking();
+        assertEquals(STATUS_PROMOTED, mAssistantFeedbackController.getFeedbackStatus(ranking));
+        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(ranking));
 
-        entry = getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_DEMOTED);
-        assertEquals(STATUS_DEMOTED, mAssistantFeedbackController.getFeedbackStatus(entry));
-        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(entry));
+        ranking = getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_DEFAULT, RANKING_DEMOTED).getRanking();
+        assertEquals(STATUS_DEMOTED, mAssistantFeedbackController.getFeedbackStatus(ranking));
+        assertNotNull(mAssistantFeedbackController.getFeedbackIcon(ranking));
     }
 
     @Test
@@ -153,7 +157,7 @@ public class AssistantFeedbackControllerTest extends SysuiTestCase {
         FeedbackIcon expected = new FeedbackIcon(com.android.internal.R.drawable.ic_feedback_uprank,
                 com.android.internal.R.string.notification_feedback_indicator_promoted);
         assertEquals(expected, mAssistantFeedbackController.getFeedbackIcon(
-                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_PROMOTED)));
+                getEntry(IMPORTANCE_DEFAULT, IMPORTANCE_HIGH, RANKING_PROMOTED).getRanking()));
     }
 
     private NotificationEntry getEntry(int oldImportance, int newImportance,

@@ -16,18 +16,12 @@
 
 package com.android.systemui.media.controls.data.repository
 
-import android.R
-import android.graphics.drawable.Icon
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.flags.Flags
-import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.media.controls.MediaTestHelper
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.shared.model.SmartspaceMediaData
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
@@ -42,17 +36,6 @@ class MediaDataRepositoryTest : SysuiTestCase() {
     private val testScope = kosmos.testScope
 
     private val underTest: MediaDataRepository = kosmos.mediaDataRepository
-
-    @Test
-    fun setRecommendation() =
-        testScope.runTest {
-            val smartspaceData by collectLastValue(underTest.smartspaceMediaData)
-            val recommendation = SmartspaceMediaData(isActive = true)
-
-            underTest.setRecommendation(recommendation)
-
-            assertThat(smartspaceData).isEqualTo(recommendation)
-        }
 
     @Test
     fun addAndRemoveMediaData() =
@@ -77,52 +60,4 @@ class MediaDataRepositoryTest : SysuiTestCase() {
             assertThat(entries!!.size).isEqualTo(1)
             assertThat(entries!![secondKey]).isEqualTo(secondData)
         }
-
-    @Test
-    fun setRecommendationInactive() =
-        testScope.runTest {
-            kosmos.fakeFeatureFlagsClassic.set(Flags.MEDIA_RETAIN_RECOMMENDATIONS, true)
-            val smartspaceData by collectLastValue(underTest.smartspaceMediaData)
-            val icon = Icon.createWithResource(context, R.drawable.ic_media_play)
-            val recommendation =
-                SmartspaceMediaData(
-                    targetId = KEY_MEDIA_SMARTSPACE,
-                    isActive = true,
-                    recommendations = MediaTestHelper.getValidRecommendationList(icon),
-                )
-
-            underTest.setRecommendation(recommendation)
-
-            assertThat(smartspaceData).isEqualTo(recommendation)
-
-            underTest.setRecommendationInactive(KEY_MEDIA_SMARTSPACE)
-
-            assertThat(smartspaceData).isNotEqualTo(recommendation)
-            assertThat(smartspaceData!!.isActive).isFalse()
-        }
-
-    @Test
-    fun dismissRecommendation() =
-        testScope.runTest {
-            val smartspaceData by collectLastValue(underTest.smartspaceMediaData)
-            val icon = Icon.createWithResource(context, R.drawable.ic_media_play)
-            val recommendation =
-                SmartspaceMediaData(
-                    targetId = KEY_MEDIA_SMARTSPACE,
-                    isActive = true,
-                    recommendations = MediaTestHelper.getValidRecommendationList(icon),
-                )
-
-            underTest.setRecommendation(recommendation)
-
-            assertThat(smartspaceData).isEqualTo(recommendation)
-
-            underTest.dismissSmartspaceRecommendation(KEY_MEDIA_SMARTSPACE)
-
-            assertThat(smartspaceData!!.isActive).isFalse()
-        }
-
-    companion object {
-        private const val KEY_MEDIA_SMARTSPACE = "MEDIA_SMARTSPACE_ID"
-    }
 }

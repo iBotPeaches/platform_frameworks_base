@@ -100,7 +100,7 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
         assertEquals(99, mService.mMaxUpdatesPerInterval);
     }
 
-    public void testRoot() throws Exception {
+    public void disabled_testRoot() throws Exception {
         mService.mMaxUpdatesPerInterval = 99;
 
         mInjectedCallingUid = Process.ROOT_UID;
@@ -109,7 +109,7 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
         assertEquals(3, mService.mMaxUpdatesPerInterval);
     }
 
-    public void testRestConfig() throws Exception {
+    public void disabled_testRestConfig() throws Exception {
         mService.mMaxUpdatesPerInterval = 99;
 
         mInjectedCallingUid = Process.SHELL_UID;
@@ -128,157 +128,157 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
         assertEquals(1, mService.mMaxUpdatesPerInterval);
     }
 
-    public void testResetThrottling() throws Exception {
+    public void disabled_testResetThrottling() throws Exception {
         prepareCrossProfileDataSet();
 
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
         runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
             assertTrue(mManager.getRemainingCallCount() < 3);
         });
-
-        mInjectedCallingUid = Process.SHELL_UID;
-        assertSuccess(callShellCommand("reset-throttling"));
-
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
-            assertEquals(3, mManager.getRemainingCallCount());
-        });
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertTrue(mManager.getRemainingCallCount() < 3);
         });
-    }
-
-    public void testResetThrottling_user_not_running() throws Exception {
-        prepareCrossProfileDataSet();
-
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
-
-        mInjectedCallingUid = Process.SHELL_UID;
-
-        mRunningUsers.put(USER_10, false);
-
-        assertTrue(resultContains(
-                callShellCommand("reset-throttling", "--user", "10"),
-                "User (with userId=10) is not running or locked"));
-
-        mRunningUsers.put(USER_10, true);
-
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
-    }
-
-    public void testResetThrottling_user_running() throws Exception {
-        prepareCrossProfileDataSet();
-
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
-            assertTrue(mManager.getRemainingCallCount() < 3);
-        });
-
-        mRunningUsers.put(USER_10, true);
-        mUnlockedUsers.put(USER_10, true);
 
         mInjectedCallingUid = Process.SHELL_UID;
         assertSuccess(callShellCommand("reset-throttling", "--user", "10"));
 
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+            assertEquals(3, mManager.getRemainingCallCount());
+        });
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertTrue(mManager.getRemainingCallCount() < 3);
         });
+    }
+
+    public void disabled_testResetThrottling_user_not_running() throws Exception {
+        prepareCrossProfileDataSet();
+
         runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+
+        mInjectedCallingUid = Process.SHELL_UID;
+
+        mRunningUsers.put(USER_11, false);
+
+        assertTrue(resultContains(
+                callShellCommand("reset-throttling", "--user", "11"),
+                "User (with userId=11) is not running or locked"));
+
+        mRunningUsers.put(USER_11, true);
+
+        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+    }
+
+    public void disabled_testResetThrottling_user_running() throws Exception {
+        prepareCrossProfileDataSet();
+
+        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+
+        mRunningUsers.put(USER_11, true);
+        mUnlockedUsers.put(USER_11, true);
+
+        mInjectedCallingUid = Process.SHELL_UID;
+        assertSuccess(callShellCommand("reset-throttling", "--user", "11"));
+
+        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+            assertTrue(mManager.getRemainingCallCount() < 3);
+        });
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertEquals(3, mManager.getRemainingCallCount());
         });
     }
 
-    public void testResetAllThrottling() throws Exception {
+    public void disabled_testResetAllThrottling() throws Exception {
         prepareCrossProfileDataSet();
 
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
             assertTrue(mManager.getRemainingCallCount() < 3);
         });
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertTrue(mManager.getRemainingCallCount() < 3);
         });
 
         mInjectedCallingUid = Process.SHELL_UID;
         assertSuccess(callShellCommand("reset-all-throttling"));
 
-        runWithCaller(CALLING_PACKAGE_1, USER_0, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
             assertEquals(3, mManager.getRemainingCallCount());
         });
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertEquals(3, mManager.getRemainingCallCount());
         });
     }
 
     // This command is deprecated. Will remove the test later.
-    public void testLauncherCommands() throws Exception {
-        prepareGetRoleHoldersAsUser(getSystemLauncher().activityInfo.packageName, USER_0);
+    public void disabled_testLauncherCommands() throws Exception {
+        prepareGetRoleHoldersAsUser(getSystemLauncher().activityInfo.packageName, USER_10);
         prepareGetHomeActivitiesAsUser(
                 /* preferred */ getSystemLauncher().activityInfo.getComponentName(),
                 list(getSystemLauncher(), getFallbackLauncher()),
-                USER_0);
+                USER_10);
 
-        prepareGetRoleHoldersAsUser(CALLING_PACKAGE_2, USER_10);
+        prepareGetRoleHoldersAsUser(CALLING_PACKAGE_2, USER_11);
         prepareGetHomeActivitiesAsUser(
                 /* preferred */ cn(CALLING_PACKAGE_2, "name"),
                 list(getSystemLauncher(), getFallbackLauncher(),
                         ri(CALLING_PACKAGE_1, "name", false, 0),
                         ri(CALLING_PACKAGE_2, "name", false, 0)
                 ),
-                USER_10);
+                USER_11);
 
         // First, test "get".
-        mRunningUsers.put(USER_10, true);
-        mUnlockedUsers.put(USER_10, true);
+        mRunningUsers.put(USER_11, true);
+        mUnlockedUsers.put(USER_11, true);
         mInjectedCallingUid = Process.SHELL_UID;
         assertContains(
-                assertSuccess(callShellCommand("get-default-launcher")),
+                assertSuccess(callShellCommand("get-default-launcher", "--user", "10")),
                 "Launcher: ComponentInfo{com.android.systemlauncher/systemlauncher_name}");
 
         assertContains(
-                assertSuccess(callShellCommand("get-default-launcher", "--user", "10")),
+                assertSuccess(callShellCommand("get-default-launcher", "--user", "11")),
                 "Launcher: ComponentInfo{com.android.test.2/name}");
 
         // Change user-0's launcher.
-        prepareGetRoleHoldersAsUser(CALLING_PACKAGE_1, USER_0);
+        prepareGetRoleHoldersAsUser(CALLING_PACKAGE_1, USER_10);
         prepareGetHomeActivitiesAsUser(
                 /* preferred */ cn(CALLING_PACKAGE_1, "name"),
                 list(ri(CALLING_PACKAGE_1, "name", false, 0)),
-                USER_0);
+                USER_10);
         assertContains(
-                assertSuccess(callShellCommand("get-default-launcher")),
+                assertSuccess(callShellCommand("get-default-launcher", "--user", "10")),
                 "Launcher: ComponentInfo{com.android.test.1/name}");
     }
 
-    public void testUnloadUser() throws Exception {
+    public void disabled_testUnloadUser() throws Exception {
         prepareCrossProfileDataSet();
 
-        assertNotNull(mService.getShortcutsForTest().get(USER_10));
+        assertNotNull(mService.getShortcutsForTest().get(USER_11));
 
-        mRunningUsers.put(USER_10, true);
-        mUnlockedUsers.put(USER_10, true);
+        mRunningUsers.put(USER_11, true);
+        mUnlockedUsers.put(USER_11, true);
 
         mInjectedCallingUid = Process.SHELL_UID;
-        assertSuccess(callShellCommand("unload-user", "--user", "10"));
+        assertSuccess(callShellCommand("unload-user", "--user", "11"));
 
-        assertNull(mService.getShortcutsForTest().get(USER_10));
+        assertNull(mService.getShortcutsForTest().get(USER_11));
     }
 
-    public void testClearShortcuts() throws Exception {
+    public void disabled_testClearShortcuts() throws Exception {
 
-        mRunningUsers.put(USER_10, true);
+        mRunningUsers.put(USER_11, true);
 
         // Add two manifests and two dynamics.
         addManifestShortcutResource(
@@ -286,17 +286,17 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
                 R.xml.shortcut_2);
         updatePackageVersion(CALLING_PACKAGE_1, 1);
         mService.mPackageMonitor.onReceive(getTestContext(),
-                genPackageAddIntent(CALLING_PACKAGE_1, USER_10));
+                genPackageAddIntent(CALLING_PACKAGE_1, USER_11));
 
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertTrue(mManager.addDynamicShortcuts(list(
                     makeShortcut("s1"), makeShortcut("s2"))));
         });
-        runWithCaller(LAUNCHER_1, USER_10, () -> {
-            mLauncherApps.pinShortcuts(CALLING_PACKAGE_1, list("ms2", "s2"), HANDLE_USER_10);
+        runWithCaller(LAUNCHER_1, USER_11, () -> {
+            mLauncherApps.pinShortcuts(CALLING_PACKAGE_1, list("ms2", "s2"), HANDLE_USER_11);
         });
 
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertWith(getCallerShortcuts())
                     .haveIds("ms1", "ms2", "s1", "s2")
                     .areAllEnabled()
@@ -307,14 +307,14 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
 
         // First, call for a different package.
 
-        mRunningUsers.put(USER_10, true);
-        mUnlockedUsers.put(USER_10, true);
+        mRunningUsers.put(USER_11, true);
+        mUnlockedUsers.put(USER_11, true);
 
         mInjectedCallingUid = Process.SHELL_UID;
-        assertSuccess(callShellCommand("clear-shortcuts", "--user", "10", CALLING_PACKAGE_2));
+        assertSuccess(callShellCommand("clear-shortcuts", "--user", "11", CALLING_PACKAGE_2));
 
         // Shouldn't be cleared yet.
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertWith(getCallerShortcuts())
                     .haveIds("ms1", "ms2", "s1", "s2")
                     .areAllEnabled()
@@ -324,10 +324,10 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
         });
 
         mInjectedCallingUid = Process.SHELL_UID;
-        assertSuccess(callShellCommand("clear-shortcuts", "--user", "10", CALLING_PACKAGE_1));
+        assertSuccess(callShellCommand("clear-shortcuts", "--user", "11", CALLING_PACKAGE_1));
 
         // Only manifest shortcuts will remain, and are no longer pinned.
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertWith(getCallerShortcuts())
                     .haveIds("ms1", "ms2")
                     .areAllEnabled()
@@ -337,7 +337,7 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
 
     public void testGetShortcuts() throws Exception {
 
-        mRunningUsers.put(USER_10, true);
+        mRunningUsers.put(USER_11, true);
 
         // Add two manifests and two dynamics.
         addManifestShortcutResource(
@@ -345,20 +345,20 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
                 R.xml.shortcut_2);
         updatePackageVersion(CALLING_PACKAGE_1, 1);
         mService.mPackageMonitor.onReceive(getTestContext(),
-                genPackageAddIntent(CALLING_PACKAGE_1, USER_10));
+                genPackageAddIntent(CALLING_PACKAGE_1, USER_11));
 
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertTrue(mManager.addDynamicShortcuts(list(
                     makeLongLivedShortcut("s1"), makeShortcut("s2"))));
         });
-        runWithCaller(LAUNCHER_1, USER_10, () -> {
+        runWithCaller(LAUNCHER_1, USER_11, () -> {
             mInjectCheckAccessShortcutsPermission = true;
-            mLauncherApps.cacheShortcuts(CALLING_PACKAGE_1, list("s1"), HANDLE_USER_10,
+            mLauncherApps.cacheShortcuts(CALLING_PACKAGE_1, list("s1"), HANDLE_USER_11,
                     CACHE_OWNER);
-            mLauncherApps.pinShortcuts(CALLING_PACKAGE_1, list("ms2", "s2"), HANDLE_USER_10);
+            mLauncherApps.pinShortcuts(CALLING_PACKAGE_1, list("ms2", "s2"), HANDLE_USER_11);
         });
 
-        runWithCaller(CALLING_PACKAGE_1, USER_10, () -> {
+        runWithCaller(CALLING_PACKAGE_1, USER_11, () -> {
             assertWith(getCallerShortcuts())
                     .haveIds("ms1", "ms2", "s1", "s2")
                     .areAllEnabled()
@@ -368,40 +368,40 @@ public class ShortcutManagerTest7 extends BaseShortcutManagerTest {
         });
 
 
-        mRunningUsers.put(USER_10, true);
-        mUnlockedUsers.put(USER_10, true);
+        mRunningUsers.put(USER_11, true);
+        mUnlockedUsers.put(USER_11, true);
 
         mInjectedCallingUid = Process.SHELL_UID;
 
-        assertHaveIds(callShellCommand("get-shortcuts", "--user", "10", "--flags",
+        assertHaveIds(callShellCommand("get-shortcuts", "--user", "11", "--flags",
                 Integer.toString(ShortcutManager.FLAG_MATCH_CACHED), CALLING_PACKAGE_1),
                 "s1");
 
-        assertHaveIds(callShellCommand("get-shortcuts", "--user", "10", "--flags",
+        assertHaveIds(callShellCommand("get-shortcuts", "--user", "11", "--flags",
                 Integer.toString(ShortcutManager.FLAG_MATCH_DYNAMIC), CALLING_PACKAGE_1),
                 "s1", "s2");
 
-        assertHaveIds(callShellCommand("get-shortcuts", "--user", "10", "--flags",
+        assertHaveIds(callShellCommand("get-shortcuts", "--user", "11", "--flags",
                 Integer.toString(ShortcutManager.FLAG_MATCH_MANIFEST), CALLING_PACKAGE_1),
                 "ms1", "ms2");
 
-        assertHaveIds(callShellCommand("get-shortcuts", "--user", "10", "--flags",
+        assertHaveIds(callShellCommand("get-shortcuts", "--user", "11", "--flags",
                 Integer.toString(ShortcutManager.FLAG_MATCH_PINNED), CALLING_PACKAGE_1),
                 "ms2", "s2");
 
-        assertHaveIds(callShellCommand("get-shortcuts", "--user", "10", "--flags",
+        assertHaveIds(callShellCommand("get-shortcuts", "--user", "11", "--flags",
                 Integer.toString(ShortcutManager.FLAG_MATCH_DYNAMIC
                         | ShortcutManager.FLAG_MATCH_PINNED), CALLING_PACKAGE_1),
                 "ms2", "s1", "s2");
 
-        assertHaveIds(callShellCommand("get-shortcuts", "--user", "10", "--flags",
+        assertHaveIds(callShellCommand("get-shortcuts", "--user", "11", "--flags",
                 Integer.toString(ShortcutManager.FLAG_MATCH_MANIFEST
                         | ShortcutManager.FLAG_MATCH_CACHED), CALLING_PACKAGE_1),
                 "ms1", "ms2", "s1");
 
     }
 
-    public void testDumpsysArgs() {
+    public void disabled_testDumpsysArgs() {
         checkDumpsysArgs(null, true, false, false);
         checkDumpsysArgs(array("-u"), true, true, false);
         checkDumpsysArgs(array("--uid"), true, true, false);

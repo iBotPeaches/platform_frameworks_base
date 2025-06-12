@@ -1084,7 +1084,7 @@ public class DisplayRotationTests {
         final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
         attrs.rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS;
 
-        doReturn(attrs).when(win).getAttrs();
+        WindowTestsBase.setFieldValue(win, "mAttrs", attrs);
         doReturn(true).when(mMockDisplayPolicy).navigationBarCanMove();
         doReturn(win).when(mMockDisplayPolicy).getTopFullscreenOpaqueWindow();
         mMockDisplayContent.mCurrentFocus = win;

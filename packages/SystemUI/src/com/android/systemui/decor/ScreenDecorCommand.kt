@@ -53,6 +53,14 @@ class ScreenDecorCommand(
     val roundedBottom: RoundedCornerSubCommand? by
         subCommand(RoundedCornerSubCommand("rounded-bottom"))
 
+    val faceAuthScreen: Int? by
+        param(
+            longName = "faceAuthScreen",
+            description =
+                "Specify a screen to show face auth animation. 0:outer(default screen), 1:inner",
+            valueParser = Type.Int,
+        )
+
     override fun execute(pw: PrintWriter) {
         callback.onExecute(this, pw)
     }
@@ -61,6 +69,7 @@ class ScreenDecorCommand(
         return "ScreenDecorCommand(" +
             "debug=$debug, " +
             "color=$color, " +
+            "faceAuthScreen=$faceAuthScreen, " +
             "roundedTop=$roundedTop, " +
             "roundedBottom=$roundedBottom)"
     }

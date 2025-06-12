@@ -16,10 +16,14 @@
 
 package com.android.server.om;
 
+import static android.content.Context.DEVICE_ID_DEFAULT;
+import static android.content.om.OverlayConstraint.TYPE_DEVICE_ID;
+import static android.content.om.OverlayConstraint.TYPE_DISPLAY_ID;
 import static android.content.om.OverlayInfo.STATE_DISABLED;
 import static android.content.om.OverlayInfo.STATE_ENABLED;
 import static android.content.om.OverlayInfo.STATE_MISSING_TARGET;
 import static android.os.OverlayablePolicy.CONFIG_SIGNATURE;
+import static android.view.Display.DEFAULT_DISPLAY;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -27,21 +31,30 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.testng.Assert.assertThrows;
 
+import android.content.om.OverlayConstraint;
 import android.content.om.OverlayIdentifier;
 import android.content.om.OverlayInfo;
 import android.content.pm.UserPackage;
+import android.content.res.Flags;
+import android.platform.test.annotations.RequiresFlagsDisabled;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
-import androidx.test.runner.AndroidJUnit4;
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
 
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-@RunWith(AndroidJUnit4.class)
+@RunWith(JUnitParamsRunner.class)
 public class OverlayManagerServiceImplTests extends OverlayManagerServiceImplTestsBase {
 
     private static final String OVERLAY = "com.test.overlay";
@@ -61,6 +74,9 @@ public class OverlayManagerServiceImplTests extends OverlayManagerServiceImplTes
     private static final String CONFIG_SIGNATURE_REFERENCE_PKG = "com.test.ref";
     private static final String CERT_CONFIG_OK = "config_certificate_ok";
     private static final String CERT_CONFIG_NOK = "config_certificate_nok";
+
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     @Test
     public void testGetOverlayInfo() throws Exception {
@@ -176,7 +192,8 @@ public class OverlayManagerServiceImplTests extends OverlayManagerServiceImplTes
                 Set.of(UserPackage.of(USER, TARGET)));
         assertState(STATE_DISABLED, IDENTIFIER, USER);
 
-        assertEquals(impl.setEnabled(IDENTIFIER, true, USER),
+        assertEquals(impl.setEnabled(IDENTIFIER, true /* enable */, USER,
+                        Collections.emptyList() /* constraints */),
                 Set.of(UserPackage.of(USER, TARGET)));
         assertState(STATE_ENABLED, IDENTIFIER, USER);
 
@@ -213,22 +230,17 @@ public class OverlayManagerServiceImplTests extends OverlayManagerServiceImplTes
     }
 
     @Test
+    @RequiresFlagsDisabled(Flags.FLAG_RRO_CONSTRAINTS)
     public void testSetEnabledAtVariousConditions() throws Exception {
-        final OverlayManagerServiceImpl impl = getImpl();
-        assertThrows(OverlayManagerServiceImpl.OperationFailedException.class,
-                () -> impl.setEnabled(IDENTIFIER, true, USER));
+        testSetEnabledAtVariousConditions(Collections.emptyList());
+    }
 
-        // request succeeded, and there was a change that needs to be
-        // propagated to the rest of the system
-        installAndAssert(target(TARGET), USER,
-                Set.of(UserPackage.of(USER, TARGET)));
-        installAndAssert(overlay(OVERLAY, TARGET), USER,
-                Set.of(UserPackage.of(USER, OVERLAY), UserPackage.of(USER, TARGET)));
-        assertEquals(Set.of(UserPackage.of(USER, TARGET)),
-                impl.setEnabled(IDENTIFIER, true, USER));
-
-        // request succeeded, but nothing changed
-        assertEquals(Set.of(), impl.setEnabled(IDENTIFIER, true, USER));
+    @Test
+    @Parameters(method = "getConstraintLists")
+    @RequiresFlagsEnabled(Flags.FLAG_RRO_CONSTRAINTS)
+    public void testSetEnabledAtVariousConditionsWithConstraints(
+            List<OverlayConstraint> constraints) throws Exception {
+        testSetEnabledAtVariousConditions(constraints);
     }
 
     @Test
@@ -337,5 +349,34 @@ public class OverlayManagerServiceImplTests extends OverlayManagerServiceImplTes
         downgradeAndAssert(target(TARGET), USER,
                 Set.of(UserPackage.of(USER, TARGET)),
                 Set.of(UserPackage.of(USER, TARGET)));
+    }
+
+    private void testSetEnabledAtVariousConditions(final List<OverlayConstraint> constraints)
+            throws Exception {
+        final OverlayManagerServiceImpl impl = getImpl();
+        assertThrows(OverlayManagerServiceImpl.OperationFailedException.class,
+                () -> impl.setEnabled(IDENTIFIER, true /* enable */, USER, constraints));
+
+        // request succeeded, and there was a change that needs to be
+        // propagated to the rest of the system
+        installAndAssert(target(TARGET), USER,
+                Set.of(UserPackage.of(USER, TARGET)));
+        installAndAssert(overlay(OVERLAY, TARGET), USER,
+                Set.of(UserPackage.of(USER, OVERLAY), UserPackage.of(USER, TARGET)));
+        assertEquals(Set.of(UserPackage.of(USER, TARGET)),
+                impl.setEnabled(IDENTIFIER, true /* enable */, USER, constraints));
+
+        // request succeeded, but nothing changed
+        assertEquals(Set.of(), impl.setEnabled(IDENTIFIER, true /* enable */, USER, constraints));
+    }
+
+    private static List<OverlayConstraint>[] getConstraintLists() {
+        return new List[]{
+                Collections.emptyList(),
+                List.of(new OverlayConstraint(TYPE_DISPLAY_ID, DEFAULT_DISPLAY)),
+                List.of(new OverlayConstraint(TYPE_DEVICE_ID, DEVICE_ID_DEFAULT)),
+                List.of(new OverlayConstraint(TYPE_DEVICE_ID, DEVICE_ID_DEFAULT),
+                        new OverlayConstraint(TYPE_DEVICE_ID, DEVICE_ID_DEFAULT))
+        };
     }
 }

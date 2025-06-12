@@ -21,7 +21,7 @@ import android.hardware.input.InputManager.StickyModifierStateListener
 import android.hardware.input.StickyModifierState
 import android.provider.Settings
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.keyboard.stickykeys.StickyKeysLogger

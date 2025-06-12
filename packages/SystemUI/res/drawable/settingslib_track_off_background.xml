@@ -23,4 +23,5 @@
              android:right="@dimen/settingslib_switch_thumb_margin"/>
     <solid android:color="@color/settingslib_track_off_color"/>
     <corners android:radius="@dimen/settingslib_switch_track_radius"/>
+    <stroke android:width="2dp" android:color="@color/settingslib_track_online_color"/>
 </shape>

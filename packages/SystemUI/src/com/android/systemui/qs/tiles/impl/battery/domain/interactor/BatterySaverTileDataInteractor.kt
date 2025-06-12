@@ -18,11 +18,10 @@ package com.android.systemui.qs.tiles.impl.battery.domain.interactor
 
 import android.os.UserHandle
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.battery.domain.model.BatterySaverTileModel
 import com.android.systemui.statusbar.policy.BatteryController
-import com.android.systemui.util.kotlin.combine
 import com.android.systemui.util.kotlin.getBatteryLevel
 import com.android.systemui.util.kotlin.isBatteryPowerSaveEnabled
 import com.android.systemui.util.kotlin.isDevicePluggedIn
@@ -44,7 +43,7 @@ constructor(
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<BatterySaverTileModel> =
         combine(
             batteryController.isDevicePluggedIn().distinctUntilChanged().flowOn(bgCoroutineContext),
@@ -56,8 +55,8 @@ constructor(
         ) {
             isPluggedIn: Boolean,
             isPowerSaverEnabled: Boolean,
-            _, // we are only interested in battery level change, not the actual level
-            ->
+            _ // we are only interested in battery level change, not the actual level
+             ->
             BatterySaverTileModel.Standard(isPluggedIn, isPowerSaverEnabled)
         }
 

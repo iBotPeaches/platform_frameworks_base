@@ -53,6 +53,7 @@ import java.util.ArrayList;
  * @hide
  */
 @VisibleForTesting(visibility = VisibleForTesting.Visibility.PACKAGE)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TextLine {
     private static final boolean DEBUG = false;
 

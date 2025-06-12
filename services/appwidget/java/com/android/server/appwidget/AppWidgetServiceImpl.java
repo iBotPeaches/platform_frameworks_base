@@ -16,7 +16,6 @@
 
 package com.android.server.appwidget;
 
-import static android.appwidget.flags.Flags.checkRemoteViewsUriPermission;
 import static android.appwidget.flags.Flags.remoteAdapterConversion;
 import static android.appwidget.flags.Flags.remoteViewsProto;
 import static android.appwidget.flags.Flags.removeAppWidgetServiceIoFromCriticalPath;
@@ -51,6 +50,7 @@ import android.app.IApplicationThread;
 import android.app.IServiceConnection;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
+import android.app.StatsManager;
 import android.app.admin.DevicePolicyManagerInternal;
 import android.app.admin.DevicePolicyManagerInternal.OnCrossProfileWidgetProvidersChangeListener;
 import android.app.usage.Flags;
@@ -125,6 +125,7 @@ import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
 import android.util.SparseLongArray;
+import android.util.StatsEvent;
 import android.util.TypedValue;
 import android.util.Xml;
 import android.util.proto.ProtoInputStream;
@@ -146,6 +147,7 @@ import com.android.internal.os.BackgroundThread;
 import com.android.internal.os.SomeArgs;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.DumpUtils;
+import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.widget.IRemoteViewsFactory;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
@@ -434,6 +436,44 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
         mActivityManagerInternal = LocalServices.getService(ActivityManagerInternal.class);
         mAppOpsManagerInternal = LocalServices.getService(AppOpsManagerInternal.class);
         mUsageStatsManagerInternal = LocalServices.getService(UsageStatsManagerInternal.class);
+        registerPullCallbacks();
+    }
+
+    /**
+     * Register callbacks for pull atoms.
+     */
+    private void registerPullCallbacks() {
+        final StatsManager manager = mContext.getSystemService(StatsManager.class);
+        manager.setPullAtomCallback(FrameworkStatsLog.WIDGET_MEMORY_STATS,
+                new StatsManager.PullAtomMetadata.Builder().build(),
+                new HandlerExecutor(mCallbackHandler), this::onPullAtom);
+    }
+
+    /**
+     * Callback from StatsManager to log events indicated by the atomTag. This function will add
+     * the relevant events to the data list.
+     *
+     * @return PULL_SUCCESS if the pull was successful and events should be used, else PULL_SKIP.
+     */
+    private int onPullAtom(int atomTag, @NonNull List<StatsEvent> data) {
+        if (atomTag == FrameworkStatsLog.WIDGET_MEMORY_STATS) {
+            synchronized (mLock) {
+                for (Widget widget : mWidgets) {
+                    if (widget.views != null) {
+                        final int uid = widget.provider.id.uid;
+                        final int appWidgetId = widget.appWidgetId;
+                        final long bitmapMemoryUsage =
+                                widget.views.estimateTotalBitmapMemoryUsage();
+                        StatsEvent event = FrameworkStatsLog.buildStatsEvent(
+                                FrameworkStatsLog.WIDGET_MEMORY_STATS, uid, appWidgetId,
+                                bitmapMemoryUsage);
+                        data.add(event);
+                    }
+                }
+            }
+            return StatsManager.PULL_SUCCESS;
+        }
+        return StatsManager.PULL_SKIP;
     }
 
     /**
@@ -1094,6 +1134,10 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                 widget.options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0));
             proto.write(WidgetProto.MAX_HEIGHT,
                 widget.options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0));
+        }
+        if (widget.views != null) {
+            proto.write(WidgetProto.VIEWS_BITMAP_MEMORY,
+                    widget.views.estimateTotalBitmapMemoryUsage());
         }
         proto.end(token);
     }
@@ -2556,9 +2600,7 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
         // Make sure the package runs under the caller uid.
         mSecurityPolicy.enforceCallFromPackage(callingPackage);
         // Make sure RemoteViews do not contain URIs that the caller cannot access.
-        if (checkRemoteViewsUriPermission()) {
-            checkRemoteViewsUris(views);
-        }
+        checkRemoteViewsUris(views);
         synchronized (mLock) {
             ensureGroupStateLoadedLocked(userId);
 
@@ -2846,7 +2888,7 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                 // For a full update we replace the RemoteViews completely.
                 widget.views = views;
             }
-            int memoryUsage;
+            long memoryUsage;
             if ((UserHandle.getAppId(Binder.getCallingUid()) != Process.SYSTEM_UID) &&
                     (widget.views != null) &&
                     ((memoryUsage = widget.views.estimateMemoryUsage()) > mMaxWidgetBitmapMemory)) {
@@ -3503,6 +3545,8 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
         }
         if (widget.views != null) {
             pw.print("    views="); pw.println(widget.views);
+            pw.print("    views_bitmap_memory=");
+            pw.println(widget.views.estimateTotalBitmapMemoryUsage());
         }
     }
 
@@ -4667,12 +4711,6 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                         keep.add(providerId);
                         // Use the new AppWidgetProviderInfo.
                         provider.setPartialInfoLocked(info);
-                        // Clear old previews
-                        if (remoteViewsProto()) {
-                            clearGeneratedPreviewsAsync(provider);
-                        } else {
-                            provider.clearGeneratedPreviewsLocked();
-                        }
                         // If it's enabled
                         final int M = provider.widgets.size();
                         if (M > 0) {
@@ -5098,6 +5136,10 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
         AndroidFuture<RemoteViews> result = new AndroidFuture<>();
         mSavePreviewsHandler.post(() -> {
             SparseArray<RemoteViews> previews = loadGeneratedPreviews(provider);
+            if (previews.size() == 0 && provider.info.generatedPreviewCategories != 0) {
+                // Failed to read previews from file, clear the file and update providers.
+                saveGeneratedPreviews(provider, previews, /* notify= */ true);
+            }
             for (int i = 0; i < previews.size(); i++) {
                 if ((widgetCategory & previews.keyAt(i)) != 0) {
                     result.complete(previews.valueAt(i));
@@ -5190,7 +5232,7 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                 }
             }
             return singleCategoryKeyedEntries;
-        } catch (IOException e) {
+        } catch (Exception e) {
             Slog.e(TAG, "Failed to load generated previews for " + provider, e);
             return new SparseArray<>();
         }
@@ -5216,8 +5258,14 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                 continue;
             }
             ProtoInputStream input = new ProtoInputStream(previewsFile.readFully());
-            provider.info.generatedPreviewCategories = readGeneratedPreviewCategoriesFromProto(
-                    input);
+            try {
+                provider.info.generatedPreviewCategories = readGeneratedPreviewCategoriesFromProto(
+                        input);
+            } catch (Exception e) {
+                Slog.e(TAG, "Failed to read generated previews from file for " + provider, e);
+                previewsFile.delete();
+                provider.info.generatedPreviewCategories = 0;
+            }
             if (DEBUG) {
                 Slog.i(TAG, TextUtils.formatSimple(
                         "loadGeneratedPreviewCategoriesLocked %d %s categories %d", profileId,
@@ -5266,7 +5314,7 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                     scheduleNotifyGroupHostsForProvidersChangedLocked(provider.getUserId());
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             if (file != null && stream != null) {
                 file.failWrite(stream);
             }
@@ -5666,6 +5714,16 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
         }
 
         public boolean canAccessAppWidget(Widget widget, int uid, String packageName) {
+            if (packageName != null
+                    && widget.provider != null
+                    && isDifferentPackageFromProvider(widget.provider, packageName)
+                    && widget.host != null
+                    && isDifferentPackageFromHost(widget.host, packageName)) {
+                // An AppWidget can only be accessed by either
+                // 1. The package that provides the AppWidget.
+                // 2. The package that hosts the AppWidget.
+                return false;
+            }
             if (isHostInPackageForUid(widget.host, uid, packageName)) {
                 // Apps hosting the AppWidget have access to it.
                 return true;
@@ -5766,6 +5824,22 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
             // The host creates a package context to bind to remote views service in the provider.
             return host.id.uid == uid && provider != null
                     && provider.id.componentName.getPackageName().equals(packageName);
+        }
+
+        private boolean isDifferentPackageFromHost(
+                @NonNull final Host host, @NonNull final String packageName) {
+            if (host.id == null || host.id.packageName == null) {
+                return true;
+            }
+            return !packageName.equals(host.id.packageName);
+        }
+
+        private boolean isDifferentPackageFromProvider(
+                @NonNull final Provider provider, @NonNull final String packageName) {
+            if (provider.id == null || provider.id.componentName == null) {
+                return true;
+            }
+            return !packageName.equals(provider.id.componentName.getPackageName());
         }
 
         private boolean isProfileEnabled(int profileId) {

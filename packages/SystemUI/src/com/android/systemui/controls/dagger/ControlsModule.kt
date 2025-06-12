@@ -51,8 +51,9 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.DeviceControlsTile
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.res.R
 import dagger.Binds
 import dagger.BindsOptionalOf
 import dagger.Module
@@ -91,8 +92,8 @@ abstract class ControlsModule {
                 tileSpec = TileSpec.create(DEVICE_CONTROLS_SPEC),
                 uiConfig =
                     QSTileUIConfig.Resource(
-                        iconRes = com.android.systemui.res.R.drawable.controls_icon,
-                        labelRes = com.android.systemui.res.R.string.quick_controls_title
+                        iconRes = R.drawable.controls_icon,
+                        labelRes = R.string.quick_controls_title,
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.UTILITIES,

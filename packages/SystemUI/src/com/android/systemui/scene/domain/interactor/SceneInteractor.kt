@@ -16,6 +16,7 @@
 
 package com.android.systemui.scene.domain.interactor
 
+import com.android.app.tracing.coroutines.flow.stateInTraced
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.OverlayKey
@@ -27,15 +28,22 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.deviceentry.domain.interactor.DeviceUnlockedInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardEnabledInteractor
+import com.android.systemui.log.table.Diffable
+import com.android.systemui.log.table.TableLogBuffer
+import com.android.systemui.log.table.TableRowLogger
 import com.android.systemui.scene.data.repository.SceneContainerRepository
 import com.android.systemui.scene.domain.resolver.SceneResolver
 import com.android.systemui.scene.shared.logger.SceneLogger
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.SceneFamilies
 import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
+import com.android.systemui.util.kotlin.pairwise
 import dagger.Lazy
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +54,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * Generic business logic and app state accessors for the scene framework.
@@ -55,7 +64,6 @@ import kotlinx.coroutines.flow.stateIn
  * other feature modules should depend on and call into this class when their parts of the
  * application state change.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class SceneInteractor
 @Inject
@@ -67,6 +75,7 @@ constructor(
     private val deviceUnlockedInteractor: Lazy<DeviceUnlockedInteractor>,
     private val keyguardEnabledInteractor: Lazy<KeyguardEnabledInteractor>,
     private val disabledContentInteractor: DisabledContentInteractor,
+    private val shadeModeInteractor: ShadeModeInteractor,
 ) {
 
     interface OnSceneAboutToChangeListener {
@@ -116,7 +125,8 @@ constructor(
     val transitionState: StateFlow<ObservableTransitionState> =
         repository.transitionState
             .onEach { logger.logSceneTransition(it) }
-            .stateIn(
+            .stateInTraced(
+                name = "transitionState",
                 scope = applicationScope,
                 started = SharingStarted.Eagerly,
                 initialValue = repository.transitionState.value,
@@ -137,7 +147,8 @@ constructor(
                     is ObservableTransitionState.Transition -> state.toContent
                 }
             }
-            .stateIn(
+            .stateInTraced(
+                name = "transitioningTo",
                 scope = applicationScope,
                 started = SharingStarted.WhileSubscribed(),
                 initialValue = null,
@@ -148,7 +159,6 @@ constructor(
      * their finger to transition between scenes, this value will be true while their finger is on
      * the screen, then false for the rest of the transition.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     val isTransitionUserInputOngoing: StateFlow<Boolean> =
         transitionState
             .flatMapLatest {
@@ -157,7 +167,8 @@ constructor(
                     is ObservableTransitionState.Idle -> flowOf(false)
                 }
             }
-            .stateIn(
+            .stateInTraced(
+                name = "isTransitionUserInputOngoing",
                 scope = applicationScope,
                 started = SharingStarted.WhileSubscribed(),
                 initialValue = false,
@@ -165,15 +176,19 @@ constructor(
 
     /** Whether the scene container is visible. */
     val isVisible: StateFlow<Boolean> =
-        combine(repository.isVisible, repository.isRemoteUserInputOngoing) {
-                isVisible,
-                isRemoteUserInteractionOngoing ->
+        combine(
+                repository.isVisible,
+                repository.isRemoteUserInputOngoing,
+                repository.activeTransitionAnimationCount,
+            ) { isVisible, isRemoteUserInteractionOngoing, activeTransitionAnimationCount ->
                 isVisibleInternal(
                     raw = isVisible,
                     isRemoteUserInputOngoing = isRemoteUserInteractionOngoing,
+                    activeTransitionAnimationCount = activeTransitionAnimationCount,
                 )
             }
-            .stateIn(
+            .stateInTraced(
+                name = "isVisible",
                 scope = applicationScope,
                 started = SharingStarted.WhileSubscribed(),
                 initialValue = isVisibleInternal(),
@@ -189,20 +204,30 @@ constructor(
         repository.isSceneContainerUserInputOngoing
 
     /**
-     * The amount of transition into or out of the given [scene].
+     * The amount of transition into or out of the given [content].
      *
      * The value will be `0` if not in this scene or `1` when fully in the given scene.
      */
-    fun transitionProgress(scene: SceneKey): Flow<Float> {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun transitionProgress(content: ContentKey): Flow<Float> {
         return transitionState.flatMapLatest { transition ->
             when (transition) {
                 is ObservableTransitionState.Idle -> {
-                    flowOf(if (transition.currentScene == scene) 1f else 0f)
+                    flowOf(
+                        if (
+                            transition.currentScene == content ||
+                                content in transition.currentOverlays
+                        ) {
+                            1f
+                        } else {
+                            0f
+                        }
+                    )
                 }
                 is ObservableTransitionState.Transition -> {
                     when {
-                        transition.toContent == scene -> transition.progress
-                        transition.fromContent == scene -> transition.progress.map { 1f - it }
+                        transition.toContent == content -> transition.progress
+                        transition.fromContent == content -> transition.progress.map { 1f - it }
                         else -> flowOf(0f)
                     }
                 }
@@ -220,6 +245,13 @@ constructor(
      * The change is animated. Therefore, it will be some time before the UI will switch to the
      * desired scene. Once enough of the transition has occurred, the [currentScene] will become
      * [toScene] (unless the transition is canceled by user action or another call to this method).
+     *
+     * If [forceSettleToTargetScene] is `true` and the target scene is the same as the current
+     * scene, any current transition will be canceled and an animation to the target scene will be
+     * started.
+     *
+     * If [Overlays.Bouncer] is showing, we trigger an instant scene change as it will not be user-
+     * visible, and trigger a transition to hide the bouncer.
      */
     @JvmOverloads
     fun changeScene(
@@ -227,9 +259,20 @@ constructor(
         loggingReason: String,
         transitionKey: TransitionKey? = null,
         sceneState: Any? = null,
+        forceSettleToTargetScene: Boolean = false,
     ) {
         val currentSceneKey = currentScene.value
         val resolvedScene = sceneFamilyResolvers.get()[toScene]?.resolvedScene?.value ?: toScene
+        val bouncerShowing = Overlays.Bouncer in currentOverlays.value
+
+        if (resolvedScene == currentSceneKey && forceSettleToTargetScene) {
+            logger.logSceneChangeCancellation(scene = resolvedScene, sceneState = sceneState)
+            onSceneAboutToChangeListener.forEach {
+                it.onSceneAboutToChange(resolvedScene, sceneState)
+            }
+            repository.freezeAndAnimateToCurrentState()
+        }
+
         if (
             !validateSceneChange(
                 from = currentSceneKey,
@@ -237,6 +280,12 @@ constructor(
                 loggingReason = loggingReason,
             )
         ) {
+            if (bouncerShowing) {
+                hideOverlay(
+                    Overlays.Bouncer,
+                    "Scene change cancelled but hiding bouncer for: ($loggingReason)",
+                )
+            }
             return
         }
 
@@ -245,18 +294,25 @@ constructor(
         logger.logSceneChanged(
             from = currentSceneKey,
             to = resolvedScene,
+            sceneState = sceneState,
             reason = loggingReason,
             isInstant = false,
         )
 
-        repository.changeScene(resolvedScene, transitionKey)
+        if (bouncerShowing) {
+            repository.snapToScene(resolvedScene)
+            hideOverlay(Overlays.Bouncer, "Hiding on changeScene for: ($loggingReason)")
+        } else {
+            repository.changeScene(resolvedScene, transitionKey)
+        }
     }
 
     /**
      * Requests a scene change to the given scene.
      *
      * The change is instantaneous and not animated; it will be observable in the next frame and
-     * there will be no transition animation.
+     * there will be no transition animation. If [Overlays.Bouncer] is showing, it will instantly be
+     * hidden.
      */
     fun snapToScene(toScene: SceneKey, loggingReason: String) {
         val currentSceneKey = currentScene.value
@@ -281,11 +337,13 @@ constructor(
         logger.logSceneChanged(
             from = currentSceneKey,
             to = resolvedScene,
+            sceneState = null,
             reason = loggingReason,
             isInstant = true,
         )
 
         repository.snapToScene(resolvedScene)
+        instantlyHideOverlay(Overlays.Bouncer, "Hiding on snapToScene for: ($loggingReason)")
     }
 
     /**
@@ -338,6 +396,38 @@ constructor(
         logger.logOverlayChangeRequested(from = overlay, reason = loggingReason)
 
         repository.hideOverlay(overlay = overlay, transitionKey = transitionKey)
+    }
+
+    /**
+     * Instantly shows [overlay].
+     *
+     * The change is instantaneous and not animated; it will be observable in the next frame and
+     * there will be no transition animation.
+     */
+    fun instantlyShowOverlay(overlay: OverlayKey, loggingReason: String) {
+        if (!validateOverlayChange(to = overlay, loggingReason = loggingReason)) {
+            return
+        }
+
+        logger.logOverlayChangeRequested(to = overlay, reason = loggingReason)
+
+        repository.instantlyShowOverlay(overlay)
+    }
+
+    /**
+     * Instantly hides [overlay].
+     *
+     * The change is instantaneous and not animated; it will be observable in the next frame and
+     * there will be no transition animation.
+     */
+    fun instantlyHideOverlay(overlay: OverlayKey, loggingReason: String) {
+        if (!validateOverlayChange(from = overlay, loggingReason = loggingReason)) {
+            return
+        }
+
+        logger.logOverlayChangeRequested(from = overlay, reason = loggingReason)
+
+        repository.instantlyHideOverlay(overlay)
     }
 
     /**
@@ -448,8 +538,9 @@ constructor(
     private fun isVisibleInternal(
         raw: Boolean = repository.isVisible.value,
         isRemoteUserInputOngoing: Boolean = repository.isRemoteUserInputOngoing.value,
+        activeTransitionAnimationCount: Int = repository.activeTransitionAnimationCount.value,
     ): Boolean {
-        return raw || isRemoteUserInputOngoing
+        return raw || isRemoteUserInputOngoing || activeTransitionAnimationCount > 0
     }
 
     /**
@@ -464,11 +555,42 @@ constructor(
      * @return `true` if the scene change is valid; `false` if it shouldn't happen
      */
     private fun validateSceneChange(from: SceneKey, to: SceneKey, loggingReason: String): Boolean {
+        check(
+            !shadeModeInteractor.isDualShade || (to != Scenes.Shade && to != Scenes.QuickSettings)
+        ) {
+            "Can't change scene to ${to.debugName} when dual shade is on!"
+        }
+        check(!shadeModeInteractor.isSplitShade || (to != Scenes.QuickSettings)) {
+            "Can't change scene to ${to.debugName} in split shade mode!"
+        }
+
+        if (from == to) {
+            logger.logSceneChangeRejection(
+                from = from,
+                to = to,
+                originalChangeReason = loggingReason,
+                rejectionReason = "${from.debugName} is the same as ${to.debugName}",
+            )
+            return false
+        }
+
         if (to !in repository.allContentKeys) {
+            logger.logSceneChangeRejection(
+                from = from,
+                to = to,
+                originalChangeReason = loggingReason,
+                rejectionReason = "${to.debugName} isn't present in allContentKeys",
+            )
             return false
         }
 
         if (disabledContentInteractor.isDisabled(to)) {
+            logger.logSceneChangeRejection(
+                from = from,
+                to = to,
+                originalChangeReason = loggingReason,
+                rejectionReason = "${to.debugName} is currently disabled",
+            )
             return false
         }
 
@@ -486,7 +608,7 @@ constructor(
                 " Logging reason for scene change was: $loggingReason"
         }
 
-        return from != to
+        return true
     }
 
     /**
@@ -510,15 +632,76 @@ constructor(
                 " Logging reason for overlay change was: $loggingReason"
         }
 
+        check(
+            shadeModeInteractor.isDualShade ||
+                (to != Overlays.NotificationsShade && to != Overlays.QuickSettingsShade)
+        ) {
+            "Can't show overlay ${to?.debugName} when dual shade is off!"
+        }
+
         if (to != null && disabledContentInteractor.isDisabled(to)) {
+            logger.logSceneChangeRejection(
+                from = from,
+                to = to,
+                originalChangeReason = loggingReason,
+                rejectionReason = "${to.debugName} is currently disabled",
+            )
             return false
         }
 
-        val isFromValid = (from == null) || (from in currentOverlays.value)
-        val isToValid =
-            (to == null) || (to !in currentOverlays.value && to in repository.allContentKeys)
+        return when {
+            to != null && from != null && to == from -> {
+                logger.logSceneChangeRejection(
+                    from = from,
+                    to = to,
+                    originalChangeReason = loggingReason,
+                    rejectionReason = "${from.debugName} is the same as ${to.debugName}",
+                )
+                false
+            }
 
-        return isFromValid && isToValid && from != to
+            to != null && to !in repository.allContentKeys -> {
+                logger.logSceneChangeRejection(
+                    from = from,
+                    to = to,
+                    originalChangeReason = loggingReason,
+                    rejectionReason = "${to.debugName} is not in allContentKeys",
+                )
+                false
+            }
+
+            from != null && from !in currentOverlays.value -> {
+                logger.logSceneChangeRejection(
+                    from = from,
+                    to = to,
+                    originalChangeReason = loggingReason,
+                    rejectionReason = "${from.debugName} is not a current overlay",
+                )
+                false
+            }
+
+            to != null && to in currentOverlays.value -> {
+                logger.logSceneChangeRejection(
+                    from = from,
+                    to = to,
+                    originalChangeReason = loggingReason,
+                    rejectionReason = "${to.debugName} is already a current overlay",
+                )
+                false
+            }
+
+            to == Overlays.Bouncer && currentScene.value == Scenes.Gone -> {
+                logger.logSceneChangeRejection(
+                    from = from,
+                    to = to,
+                    originalChangeReason = loggingReason,
+                    rejectionReason = "Cannot show Bouncer over Gone scene",
+                )
+                false
+            }
+
+            else -> true
+        }
     }
 
     /** Returns a flow indicating if the currently visible scene can be resolved from [family]. */
@@ -538,4 +721,125 @@ constructor(
     ): Flow<Map<UserAction, UserActionResult>> {
         return disabledContentInteractor.filteredUserActions(unfiltered)
     }
+
+    /**
+     * Notifies that a transition animation has started.
+     *
+     * The scene container will remain visible while any transition animation is running within it.
+     */
+    fun onTransitionAnimationStart() {
+        repository.activeTransitionAnimationCount.update { current ->
+            (current + 1).also {
+                check(it < 10) {
+                    "Number of active transition animations is too high. Something must be" +
+                        " calling onTransitionAnimationStart too many times!"
+                }
+            }
+        }
+    }
+
+    /**
+     * Notifies that a transition animation has ended.
+     *
+     * The scene container will remain visible while any transition animation is running within it.
+     */
+    fun onTransitionAnimationEnd() {
+        decrementActiveTransitionAnimationCount()
+    }
+
+    /**
+     * Notifies that a transition animation has been canceled.
+     *
+     * The scene container will remain visible while any transition animation is running within it.
+     */
+    fun onTransitionAnimationCancelled() {
+        decrementActiveTransitionAnimationCount()
+    }
+
+    suspend fun hydrateTableLogBuffer(tableLogBuffer: TableLogBuffer) {
+        coroutineScope {
+            launch {
+                currentScene
+                    .map { sceneKey -> DiffableSceneKey(key = sceneKey) }
+                    .pairwise()
+                    .collect { (prev, current) ->
+                        tableLogBuffer.logDiffs(prevVal = prev, newVal = current)
+                    }
+            }
+
+            launch {
+                currentOverlays
+                    .map { overlayKeys -> DiffableOverlayKeys(keys = overlayKeys) }
+                    .pairwise()
+                    .collect { (prev, current) ->
+                        tableLogBuffer.logDiffs(prevVal = prev, newVal = current)
+                    }
+            }
+        }
+    }
+
+    private fun decrementActiveTransitionAnimationCount() {
+        repository.activeTransitionAnimationCount.update { current ->
+            (current - 1).also {
+                check(it >= 0) {
+                    "Number of active transition animations is negative. Something must be" +
+                        " calling onTransitionAnimationEnd or onTransitionAnimationCancelled too" +
+                        " many times!"
+                }
+            }
+        }
+    }
+
+    private class DiffableSceneKey(private val key: SceneKey) : Diffable<DiffableSceneKey> {
+        override fun logDiffs(prevVal: DiffableSceneKey, row: TableRowLogger) {
+            row.logChange(columnName = "currentScene", value = key.debugName)
+        }
+    }
+
+    private class DiffableOverlayKeys(private val keys: Set<OverlayKey>) :
+        Diffable<DiffableOverlayKeys> {
+        override fun logDiffs(prevVal: DiffableOverlayKeys, row: TableRowLogger) {
+            row.logChange(
+                columnName = "currentOverlays",
+                value = keys.joinToString { key -> key.debugName },
+            )
+        }
+    }
+
+    /**
+     * Based off of the ordering of [allContentKeys], returns the key of the highest z-order content
+     * out of [content].
+     */
+    private fun determineTopmostContent(content: Set<ContentKey>): ContentKey {
+        // Assuming allContentKeys is sorted by ascending z-order.
+        return checkNotNull(allContentKeys.findLast { it in content }) {
+            "Could not find unknown content $content in allContentKeys $allContentKeys"
+        }
+    }
+
+    /** Optimization for common case where overlays is empty. */
+    private fun determineTopmostContent(scene: SceneKey, overlays: Set<OverlayKey>): ContentKey {
+        return if (overlays.isEmpty()) {
+            scene
+        } else {
+            determineTopmostContent(overlays)
+        }
+    }
+
+    /**
+     * The current content that has the highest z-order out of all currently shown scenes and
+     * overlays.
+     *
+     * Note that during a transition between content, a different content may have the highest z-
+     * order. Only the one provided by this flow is considered the current logical topmost content.
+     */
+    @Deprecated("Only to be used for compatibility with KeyguardTransitionFramework")
+    val topmostContent: StateFlow<ContentKey> =
+        combine(currentScene, currentOverlays, ::determineTopmostContent)
+            .stateInTraced(
+                name = "topmostContent",
+                scope = applicationScope,
+                started = SharingStarted.Eagerly,
+                initialValue = determineTopmostContent(currentScene.value, currentOverlays.value),
+            )
 }

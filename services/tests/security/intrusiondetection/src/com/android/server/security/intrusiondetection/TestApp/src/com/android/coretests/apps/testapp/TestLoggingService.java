@@ -17,19 +17,20 @@
 package com.android.coretests.apps.testapp;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
-import android.os.Process;
-
-import com.android.internal.infra.AndroidFuture;
-
 
 public class TestLoggingService extends Service {
     private static final String TAG = "TestLoggingService";
     private LocalIntrusionDetectionEventTransport mLocalIntrusionDetectionEventTransport;
 
-    public TestLoggingService() {
-        mLocalIntrusionDetectionEventTransport = new LocalIntrusionDetectionEventTransport();
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        Context context = getApplicationContext();
+        mLocalIntrusionDetectionEventTransport = new LocalIntrusionDetectionEventTransport(context);
     }
 
     // Binder given to clients.

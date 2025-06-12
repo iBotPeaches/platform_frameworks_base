@@ -36,7 +36,6 @@ import com.android.systemui.media.controls.domain.pipeline.getNotificationAction
 import com.android.systemui.media.controls.shared.MediaLogger
 import com.android.systemui.media.controls.shared.model.MediaControlModel
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.util.MediaSmartspaceLogger
 import com.android.systemui.media.dialog.MediaOutputDialogManager
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.statusbar.NotificationLockscreenUserManager
@@ -72,10 +71,7 @@ constructor(
         token: MediaSession.Token?,
         instanceId: InstanceId,
         delayMs: Long,
-        eventId: Int,
-        location: Int,
     ): Boolean {
-        logSmartspaceUserEvent(eventId, location)
         val dismissed =
             mediaDataProcessor.dismissMediaData(instanceId, delayMs, userInitiated = true)
         if (!dismissed) {
@@ -116,13 +112,7 @@ constructor(
         activityStarter.startActivity(SETTINGS_INTENT, /* dismissShade= */ true)
     }
 
-    fun startClickIntent(
-        expandable: Expandable,
-        clickIntent: PendingIntent,
-        eventId: Int,
-        location: Int,
-    ) {
-        logSmartspaceUserEvent(eventId, location)
+    fun startClickIntent(expandable: Expandable, clickIntent: PendingIntent) {
         if (!launchOverLockscreen(expandable, clickIntent)) {
             activityStarter.postStartActivityDismissingKeyguard(
                 clickIntent,
@@ -194,14 +184,6 @@ constructor(
             broadcastApp,
             packageName,
             expandable.dialogTransitionController(),
-        )
-    }
-
-    fun logSmartspaceUserEvent(eventId: Int, location: Int) {
-        repository.logSmartspaceCardUserEvent(
-            eventId,
-            MediaSmartspaceLogger.getSurface(location),
-            instanceId = instanceId,
         )
     }
 

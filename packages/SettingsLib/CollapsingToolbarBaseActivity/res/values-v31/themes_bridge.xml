@@ -171,6 +171,11 @@
 
         <!-- END Base.V14.Theme.MaterialComponents -->
     </style>
+    <!--
+      ~ NOTE: Base.ThemeOverlay.MaterialComponents.PlatformBridge and
+      ~ ThemeOverlay.MaterialComponents.PlatformBridge have the wrong parent specified, and is fixed
+      ~ in values-v36/themes_bridge.xml in order to avoid compaitilibility issue with OEM customization.
+      -->
     <style name="Base.ThemeOverlay.MaterialComponents.PlatformBridge" parent="Base.V31.ThemeOverlay.AppCompat.PlatformBridge" />
     <style name="ThemeOverlay.MaterialComponents.PlatformBridge" parent="Base.ThemeOverlay.AppCompat.PlatformBridge" />
 </resources>

@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.content.Context;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.SparseArray;
 
@@ -27,6 +28,7 @@ import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -163,5 +165,14 @@ public class ProtectedPackages {
     public boolean isPackageDataProtected(@UserIdInt int userId, String packageName) {
         return hasDeviceOwnerOrProfileOwner(userId, packageName)
                 || isProtectedPackage(userId, packageName);
+    }
+
+    /**
+     * Returns {@code true} if a given package is the device provisioning package. Otherwise,
+     * returns {@code false}.
+     */
+    public synchronized boolean isDeviceProvisioningPackage(String packageName) {
+        return !TextUtils.isEmpty(mDeviceProvisioningPackage) && Objects.equals(
+                mDeviceProvisioningPackage, packageName);
     }
 }

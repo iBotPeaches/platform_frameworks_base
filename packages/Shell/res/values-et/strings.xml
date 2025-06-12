@@ -21,7 +21,7 @@
     <string name="bugreport_in_progress_title" msgid="4311705936714972757">"Luuakse veaaruannet <xliff:g id="ID">#%d</xliff:g>"</string>
     <string name="bugreport_finished_title" msgid="4429132808670114081">"Jäädvustati veaaruanne <xliff:g id="ID">#%d</xliff:g>"</string>
     <string name="bugreport_updating_title" msgid="4423539949559634214">"Üksikasjade lisamine veaaruandesse"</string>
-    <string name="bugreport_updating_wait" msgid="3322151947853929470">"Oodake …"</string>
+    <string name="bugreport_updating_wait" msgid="3322151947853929470">"Palun oodake…"</string>
     <string name="bugreport_finished_text" product="watch" msgid="1223616207145252689">"Veaaruanne kuvatakse telefonis peagi"</string>
     <string name="bugreport_finished_text" product="tv" msgid="5758325479058638893">"Veaaruande jagamiseks valige"</string>
     <string name="bugreport_finished_text" product="default" msgid="8353769438382138847">"Veaaruande jagamiseks puudutage"</string>

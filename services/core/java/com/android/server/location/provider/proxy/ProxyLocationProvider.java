@@ -77,6 +77,22 @@ public class ProxyLocationProvider extends AbstractLocationProvider implements
         }
     }
 
+    /**
+     * Creates and registers this proxy. If no suitable service is available for the proxy, returns
+     * null.
+     */
+    @Nullable
+    public static ProxyLocationProvider create(Context context, String provider, String action,
+            int enableOverlayResId, int nonOverlayPackageResId, int unstableOverlayFallbackResId) {
+        ProxyLocationProvider proxy = new ProxyLocationProvider(context, provider, action,
+                enableOverlayResId, nonOverlayPackageResId, unstableOverlayFallbackResId);
+        if (proxy.checkServiceResolves()) {
+            return proxy;
+        } else {
+            return null;
+        }
+    }
+
     final Object mLock = new Object();
 
     final Context mContext;
@@ -103,6 +119,24 @@ public class ProxyLocationProvider extends AbstractLocationProvider implements
 
         mContext = context;
         mServiceWatcher = ServiceWatcher.create(context, provider,
+                CurrentUserServiceSupplier.createFromConfig(context, action, enableOverlayResId,
+                        nonOverlayPackageResId), this);
+        mName = provider;
+
+        mProxy = null;
+        mRequest = ProviderRequest.EMPTY_REQUEST;
+    }
+
+    private ProxyLocationProvider(Context context, String provider, String action,
+            int enableOverlayResId, int nonOverlayPackageResId, int unstableOverlayFallbackResId) {
+        // safe to use direct executor since our locks are not acquired in a code path invoked by
+        // our owning provider
+        super(DIRECT_EXECUTOR, null, null, Collections.emptySet());
+
+        mContext = context;
+        boolean unstableFallbackEnabled =
+            context.getResources().getBoolean(unstableOverlayFallbackResId);
+        mServiceWatcher = ServiceWatcher.create(context, provider, unstableFallbackEnabled,
                 CurrentUserServiceSupplier.createFromConfig(context, action, enableOverlayResId,
                         nonOverlayPackageResId), this);
         mName = provider;

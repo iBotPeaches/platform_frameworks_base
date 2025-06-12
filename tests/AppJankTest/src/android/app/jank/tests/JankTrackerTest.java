@@ -18,10 +18,12 @@ package android.app.jank.tests;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import android.app.jank.Flags;
 import android.app.jank.JankTracker;
 import android.app.jank.StateTracker;
+import android.content.Context;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
@@ -55,10 +57,9 @@ public class JankTrackerTest {
      * Start an empty activity so decore view is not null when creating the JankTracker instance.
      */
     private static ActivityScenario<EmptyActivity> sEmptyActivityRule;
-
     private static String sActivityName;
-
     private static View sActivityDecorView;
+    private static Context sContext;
 
     @BeforeClass
     public static void classSetup() {
@@ -66,6 +67,7 @@ public class JankTrackerTest {
         sEmptyActivityRule.onActivity(activity -> {
             sActivityDecorView = activity.getWindow().getDecorView();
             sActivityName = activity.toString();
+            sContext = activity.getApplicationContext();
         });
     }
 
@@ -168,4 +170,14 @@ public class JankTrackerTest {
 
         assertNotNull(jankTracker);
     }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_DETAILED_APP_JANK_METRICS_API)
+    public void jankTracker_IsNull_WhenViewNotInHierarchy() {
+        TestWidget testWidget = new TestWidget(sContext);
+        JankTracker jankTracker = testWidget.getJankTracker();
+
+        assertNull(jankTracker);
+    }
+
 }

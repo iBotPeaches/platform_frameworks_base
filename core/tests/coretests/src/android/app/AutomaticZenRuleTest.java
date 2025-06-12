@@ -26,7 +26,6 @@ import static org.junit.Assert.assertThrows;
 import android.content.ComponentName;
 import android.net.Uri;
 import android.os.Parcel;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.flag.junit.SetFlagsRule;
 
@@ -112,7 +111,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void testLongInputsFromParcel() {
         // Create a rule with long fields, set directly via reflection so that we can confirm that
         // a rule with too-long fields that comes in via a parcel has its fields truncated directly.
@@ -169,7 +167,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void builderConstructor_nullInputs_throws() {
         assertThrows(NullPointerException.class,
                 () -> new AutomaticZenRule.Builder(null, Uri.parse("condition")));
@@ -178,7 +175,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void constructor_defaultTypeUnknown() {
         AutomaticZenRule rule = new AutomaticZenRule("name", new ComponentName("pkg", "cps"), null,
                 Uri.parse("conditionId"), null, NotificationManager.INTERRUPTION_FILTER_PRIORITY,
@@ -188,7 +184,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void builder_defaultsAreSensible() {
         AutomaticZenRule rule = new AutomaticZenRule.Builder("name",
                 Uri.parse("conditionId")).build();
@@ -200,7 +195,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void validate_builderWithValidType_succeeds() throws Exception {
         AutomaticZenRule rule = new AutomaticZenRule.Builder("rule", Uri.parse("uri"))
                 .setType(AutomaticZenRule.TYPE_BEDTIME)
@@ -209,14 +203,12 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void validate_builderWithoutType_succeeds() throws Exception {
         AutomaticZenRule rule = new AutomaticZenRule.Builder("rule", Uri.parse("uri")).build();
         rule.validate(); // No exception.
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void validate_constructorWithoutType_succeeds() throws Exception {
         AutomaticZenRule rule = new AutomaticZenRule("rule", new ComponentName("pkg", "cps"),
                 new ComponentName("pkg", "activity"), Uri.parse("condition"), null,
@@ -225,7 +217,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void validate_invalidType_throws() throws Exception {
         AutomaticZenRule rule = new AutomaticZenRule.Builder("rule", Uri.parse("uri")).build();
 
@@ -238,7 +229,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void setType_invalidType_throws() {
         AutomaticZenRule rule = new AutomaticZenRule.Builder("rule", Uri.parse("uri")).build();
 
@@ -246,7 +236,6 @@ public class AutomaticZenRuleTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void setTypeBuilder_invalidType_throws() {
         AutomaticZenRule.Builder builder = new AutomaticZenRule.Builder("rule", Uri.parse("uri"));
 

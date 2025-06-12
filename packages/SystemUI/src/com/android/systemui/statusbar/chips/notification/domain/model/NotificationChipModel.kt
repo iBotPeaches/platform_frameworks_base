@@ -16,11 +16,26 @@
 
 package com.android.systemui.statusbar.chips.notification.domain.model
 
+import com.android.internal.logging.InstanceId
 import com.android.systemui.statusbar.StatusBarIconView
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModels
 
 /** Modeling all the data needed to render a status bar notification chip. */
 data class NotificationChipModel(
     val key: String,
+    /** The user-readable name of the app that posted this notification. */
+    val appName: String,
     val statusBarChipIconView: StatusBarIconView?,
-    val whenTime: Long,
+    val promotedContent: PromotedNotificationContentModels,
+    /** The time when the notification first appeared as promoted. */
+    val creationTime: Long,
+    /** True if the app managing this notification is currently visible to the user. */
+    val isAppVisible: Boolean,
+    /**
+     * The time when the app managing this notification last appeared as visible, or null if the app
+     * hasn't become visible since the notification became promoted.
+     */
+    val lastAppVisibleTime: Long?,
+    /** An optional per-notification ID used for logging. */
+    val instanceId: InstanceId?,
 )

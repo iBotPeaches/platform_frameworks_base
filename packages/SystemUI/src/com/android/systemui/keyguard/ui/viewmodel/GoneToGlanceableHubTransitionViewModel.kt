@@ -30,14 +30,14 @@ import kotlinx.coroutines.flow.Flow
 @SysUISingleton
 class GoneToGlanceableHubTransitionViewModel
 @Inject
-constructor(
-    animationFlow: KeyguardTransitionAnimationFlow,
-) : DeviceEntryIconTransition {
+constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTransition {
 
     private val transitionAnimation =
         animationFlow
             .setup(duration = TO_GLANCEABLE_HUB_DURATION, edge = Edge.INVALID)
             .setupWithoutSceneContainer(edge = Edge.create(GONE, GLANCEABLE_HUB))
+
+    val keyguardAlpha = transitionAnimation.immediatelyTransitionTo(0f)
 
     override val deviceEntryParentViewAlpha: Flow<Float> =
         transitionAnimation.sharedFlow(

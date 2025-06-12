@@ -15,7 +15,6 @@
   ~ limitations under the License.
   -->
 
-<selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:androidprv="http://schemas.android.com/apk/prv/res/android">
-    <item android:color="?androidprv:attr/colorAccentPrimary"/>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@android:color/system_primary_dark"/>
 </selector>

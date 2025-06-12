@@ -19,7 +19,7 @@ import android.content.ContentResolver
 import android.database.ContentObserver
 import android.os.Handler
 import android.provider.Settings
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.unfold.util.ScaleAwareTransitionProgressProvider.Companion.areAnimationsEnabled
 import javax.inject.Inject

@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.policy
 
 import android.app.IActivityManager
+import android.app.role.RoleManager
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
@@ -48,6 +49,7 @@ class SensitiveNotificationProtectionControllerFlagDisabledTest : SysuiTestCase(
     @Mock private lateinit var mediaProjectionManager: MediaProjectionManager
     @Mock private lateinit var packageManager: PackageManager
     @Mock private lateinit var telephonyManager: TelephonyManager
+    @Mock private lateinit var roleManager: RoleManager
     private lateinit var controller: SensitiveNotificationProtectionControllerImpl
 
     @Before
@@ -62,9 +64,10 @@ class SensitiveNotificationProtectionControllerFlagDisabledTest : SysuiTestCase(
                 activityManager,
                 packageManager,
                 telephonyManager,
+                roleManager,
                 handler,
                 FakeExecutor(FakeSystemClock()),
-                logger
+                logger,
             )
     }
 

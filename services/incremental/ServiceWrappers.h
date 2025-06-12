@@ -23,7 +23,7 @@
 #include <android/content/pm/IDataLoader.h>
 #include <android/content/pm/IDataLoaderStatusListener.h>
 #include <android/os/incremental/PerUidReadTimeouts.h>
-#include <binder/IAppOpsCallback.h>
+#include <binder/AppOpsManager.h>
 #include <binder/IServiceManager.h>
 #include <binder/Status.h>
 #include <incfs.h>
@@ -133,6 +133,7 @@ public:
 
 class AppOpsManagerWrapper {
 public:
+    using IAppOpsCallback = ::com::android::internal::app::IAppOpsCallback;
     virtual ~AppOpsManagerWrapper() = default;
     virtual binder::Status checkPermission(const char* permission, const char* operation,
                                            const char* package) const = 0;

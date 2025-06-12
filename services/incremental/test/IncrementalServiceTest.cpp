@@ -1678,7 +1678,7 @@ TEST_F(IncrementalServiceTest, testSetIncFsMountOptionsSuccessAndPermissionChang
                                                   {}, {}));
     ASSERT_GE(mDataLoader->setStorageParams(true), 0);
     ASSERT_NE(nullptr, mAppOpsManager->mStoredCallback.get());
-    mAppOpsManager->mStoredCallback->opChanged(0, {});
+    mAppOpsManager->mStoredCallback->opChanged(0, 0, {}, {});
 }
 
 TEST_F(IncrementalServiceTest, testSetIncFsMountOptionsCheckPermissionFails) {

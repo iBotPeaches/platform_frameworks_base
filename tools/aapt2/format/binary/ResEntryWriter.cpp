@@ -199,6 +199,10 @@ void WriteEntry(const FlatEntry* entry, T* out_result, bool compact = false) {
     flags |= ResTable_entry::FLAG_WEAK;
   }
 
+  if (entry->uses_readwrite_feature_flags) {
+    flags |= ResTable_entry::FLAG_USES_FEATURE_FLAGS;
+  }
+
   if constexpr (std::is_same_v<ResTable_entry_ext, T>) {
     flags |= ResTable_entry::FLAG_COMPLEX;
   }

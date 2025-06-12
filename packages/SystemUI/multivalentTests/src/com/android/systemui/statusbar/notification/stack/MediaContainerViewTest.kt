@@ -31,7 +31,7 @@ class MediaContainerViewTest : SysuiTestCase() {
     fun testUpdateClipping_updatesClipHeight() {
         assertTrue(mediaContainerView.clipHeight == 0)
 
-        mediaContainerView.actualHeight = 10
+        mediaContainerView.setFinalActualHeight(10)
         mediaContainerView.updateClipping()
         assertTrue(mediaContainerView.clipHeight == 10)
     }

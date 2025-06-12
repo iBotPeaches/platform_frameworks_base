@@ -21,7 +21,7 @@ import static com.android.internal.util.CharSequences.forAsciiBytes;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
@@ -32,7 +32,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = CharSequences.class)
+@DisabledOnRavenwood(blockedBy = CharSequences.class)
 public class CharSequencesTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

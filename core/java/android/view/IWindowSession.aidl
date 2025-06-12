@@ -272,6 +272,17 @@ interface IWindowSession {
             in @nullable ImeTracker.Token imeStatsToken);
 
     /**
+     * Notifies WindowState what insets types are currently running within the Window.
+     * see {@link com.android.server.wm.WindowState#mInsetsAnimationRunning).
+     *
+     * @param window The window that is insets animaiton is running.
+     * @param animatingTypes Indicates the currently animating insets types.
+     * @param imeStatsToken the token tracking the current IME request or {@code null} otherwise.
+     */
+    oneway void updateAnimatingTypes(IWindow window, int animatingTypes,
+            in @nullable ImeTracker.Token imeStatsToken);
+
+    /**
      * Called when the system gesture exclusion has changed.
      */
     oneway void reportSystemGestureExclusionChanged(IWindow window, in List<Rect> exclusionRects);
@@ -372,14 +383,4 @@ interface IWindowSession {
      */
     oneway void notifyImeWindowVisibilityChangedFromClient(IWindow window, boolean visible,
             in ImeTracker.Token statsToken);
-
-    /**
-     * Notifies WindowState whether inset animations are currently running within the Window.
-     * This value is used by the server to vote for refresh rate.
-     * see {@link com.android.server.wm.WindowState#mInsetsAnimationRunning).
-     *
-     * @param window The window that is insets animaiton is running.
-     * @param running Indicates the insets animation state.
-     */
-    oneway void notifyInsetsAnimationRunningStateChanged(IWindow window, boolean running);
 }

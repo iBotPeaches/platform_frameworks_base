@@ -17,6 +17,7 @@
 package com.android.server.pm;
 
 import android.app.ActivityManagerInternal;
+import android.app.AppOpsManagerInternal;
 import android.app.backup.IBackupManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -96,6 +97,7 @@ public class PackageManagerServiceInjector {
             mComponentResolverProducer;
     private final Singleton<PermissionManagerServiceInternal>
             mPermissionManagerServiceProducer;
+    private final Singleton<AppOpsManagerInternal> mAppOpsManagerInternalProducer;
     private final Singleton<UserManagerService>
             mUserManagerProducer;
     private final Singleton<Settings> mSettingsProducer;
@@ -149,6 +151,7 @@ public class PackageManagerServiceInjector {
             List<ScanPartition> systemPartitions,
             Producer<ComponentResolver> componentResolverProducer,
             Producer<PermissionManagerServiceInternal> permissionManagerServiceProducer,
+            Producer<AppOpsManagerInternal> appOpsManagerInternalProducer,
             Producer<UserManagerService> userManagerProducer,
             Producer<Settings> settingsProducer,
             Producer<AppsFilterImpl> appsFilterProducer,
@@ -194,6 +197,7 @@ public class PackageManagerServiceInjector {
                 componentResolverProducer);
         mPermissionManagerServiceProducer = new Singleton<>(
                 permissionManagerServiceProducer);
+        mAppOpsManagerInternalProducer = new Singleton<>(appOpsManagerInternalProducer);
         mUserManagerProducer = new Singleton<>(userManagerProducer);
         mSettingsProducer = new Singleton<>(settingsProducer);
         mAppsFilterProducer = new Singleton<>(appsFilterProducer);
@@ -288,6 +292,10 @@ public class PackageManagerServiceInjector {
 
     public PermissionManagerServiceInternal getPermissionManagerServiceInternal() {
         return mPermissionManagerServiceProducer.get(this, mPackageManager);
+    }
+
+    public AppOpsManagerInternal getAppOpsManagerInternal() {
+        return mAppOpsManagerInternalProducer.get(this, mPackageManager);
     }
 
     public Context getContext() {

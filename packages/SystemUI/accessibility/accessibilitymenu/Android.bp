@@ -40,6 +40,7 @@ android_app {
         "com_android_systemui_flags_lib",
         "SettingsLibDisplayUtils",
         "SettingsLibSettingsTheme",
+        "SystemUI-shared-utils",
         "com_android_a11y_menu_flags_lib",
         "//frameworks/libs/systemui:view_capture",
     ],

@@ -288,4 +288,22 @@
     <item msgid="3753634915787796632">"2"</item>
     <item msgid="4779928470672877922">"3"</item>
   </string-array>
+  <string-array name="shade_display_awareness_entries">
+    <item msgid="816770658383209617">"စက်ဖန်သားပြင် သီးသန့် (မူရင်း)"</item>
+    <item msgid="9161645858025071955">"ပြင်ပဖန်သားပြင်"</item>
+    <item msgid="23651860565814477">"နောက်ဆုံး အခြေအနေပြဘား တို့ထိမှု"</item>
+    <item msgid="7521112827893653392">"ပြသမှုအခြေပြု"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_summaries">
+    <item msgid="2964753205732912921">"စက်ဖန်သားပြင်တွင်သာ အရိပ်ပြပါ"</item>
+    <item msgid="1955398604822147783">"ပြင်ပဖန်သားပြင်တစ်ခုတွင် အရိပ်ကိုပြပါ"</item>
+    <item msgid="391477482416751568">"အခြေအနေပြဘား နောက်ဆုံးပြန်လှန်တုံ့ပြန်ထားသော ဖန်သားပြင်တွင် အရိပ်ကိုပြပါ"</item>
+    <item msgid="1746820128097981528">"နောက်ဆုံးပြထားသော ဖန်သားပြင်တွင် အရိပ်ကိုပြပါ"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_values">
+    <item msgid="3055776101992426514">"မူရင်းဖန်သားပြင်"</item>
+    <item msgid="774789415968826925">"မည်သည့်ပြင်ပဖန်သားပြင်မဆို"</item>
+    <item msgid="7880769915418638436">"အခြေအနေပြဘား နောက်ဆုံးထိတွေ့မှု"</item>
+    <item msgid="4313165186636015195">"ပြသထားသောဖန်သားပြင်"</item>
+  </string-array>
 </resources>

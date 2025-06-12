@@ -28,10 +28,6 @@ import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.graphics.PointF;
-import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.annotations.RequiresFlagsEnabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
@@ -53,9 +49,6 @@ import java.util.List;
  * Tests for {@link TwoFingersDownOrSwipe}.
  */
 public class TwoFingersDownOrSwipeTest {
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private static final float DEFAULT_X = 100f;
     private static final float DEFAULT_Y = 100f;
@@ -94,22 +87,6 @@ public class TwoFingersDownOrSwipeTest {
     }
 
     @Test
-    @RequiresFlagsDisabled(android.view.accessibility.Flags.FLAG_COPY_EVENTS_FOR_GESTURE_DETECTION)
-    public void sendTwoFingerDownEvent_onGestureCompleted_withoutCopiedEvents() {
-        final List<MotionEvent> downEvents = twoPointersDownEvents(Display.DEFAULT_DISPLAY,
-                new PointF(DEFAULT_X, DEFAULT_Y), new PointF(DEFAULT_X + 10, DEFAULT_Y + 10));
-
-        for (MotionEvent event : downEvents) {
-            mGesturesObserver.onMotionEvent(event, event, 0);
-        }
-
-        verify(mListener, timeout(sTimeoutMillis)).onGestureCompleted(
-                MagnificationGestureMatcher.GESTURE_TWO_FINGERS_DOWN_OR_SWIPE, downEvents.get(1),
-                downEvents.get(1), 0);
-    }
-
-    @Test
-    @RequiresFlagsEnabled(android.view.accessibility.Flags.FLAG_COPY_EVENTS_FOR_GESTURE_DETECTION)
     public void sendTwoFingerDownEvent_onGestureCompleted() {
         final List<MotionEvent> downEvents = twoPointersDownEvents(Display.DEFAULT_DISPLAY,
                 new PointF(DEFAULT_X, DEFAULT_Y), new PointF(DEFAULT_X + 10, DEFAULT_Y + 10));

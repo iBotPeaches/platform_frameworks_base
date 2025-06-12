@@ -22,7 +22,7 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
 import com.android.systemui.statusbar.connectivity.ConnectivityModule.Companion.AIRPLANE_MODE_TILE_SPEC
 import com.android.systemui.statusbar.connectivity.ConnectivityModule.Companion.HOTSPOT_TILE_SPEC
 import com.android.systemui.statusbar.policy.PolicyModule.Companion.WORK_MODE_TILE_SPEC
@@ -38,61 +38,72 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @SmallTest
 class NewTilesAvailabilityInteractorTest : SysuiTestCase() {
-    private val kosmos = testKosmos().apply {
-        tileAvailabilityInteractorsMap = buildMap {
-            put(AIRPLANE_MODE_TILE_SPEC, QSTileAvailabilityInteractor.AlwaysAvailableInteractor)
-            put(WORK_MODE_TILE_SPEC, FakeTileAvailabilityInteractor(
-                    mapOf(
-                       fakeUserRepository.getSelectedUserInfo().id to flowOf(true),
-                    ).withDefault { flowOf(false) }
-            ))
-            put(HOTSPOT_TILE_SPEC, FakeTileAvailabilityInteractor(
-                    emptyMap<Int, Flow<Boolean>>().withDefault { flowOf(false) }
-            ))
+    private val kosmos =
+        testKosmos().apply {
+            tileAvailabilityInteractorsMap = buildMap {
+                put(AIRPLANE_MODE_TILE_SPEC, QSTileAvailabilityInteractor.AlwaysAvailableInteractor)
+                put(
+                    WORK_MODE_TILE_SPEC,
+                    FakeTileAvailabilityInteractor(
+                        mapOf(fakeUserRepository.getSelectedUserInfo().id to flowOf(true))
+                            .withDefault { flowOf(false) }
+                    ),
+                )
+                put(
+                    HOTSPOT_TILE_SPEC,
+                    FakeTileAvailabilityInteractor(
+                        emptyMap<Int, Flow<Boolean>>().withDefault { flowOf(false) }
+                    ),
+                )
+            }
         }
-    }
 
     private val underTest by lazy { kosmos.newTilesAvailabilityInteractor }
 
     @Test
-    fun defaultUser_getAvailabilityFlow() = with(kosmos) {
-        testScope.runTest {
-            val availability by collectLastValue(underTest.newTilesAvailable)
+    fun defaultUser_getAvailabilityFlow() =
+        with(kosmos) {
+            testScope.runTest {
+                val availability by collectLastValue(underTest.newTilesAvailable)
 
-            assertThat(availability).isEqualTo(
-                    mapOf(
+                assertThat(availability)
+                    .isEqualTo(
+                        mapOf(
                             TileSpec.create(AIRPLANE_MODE_TILE_SPEC) to true,
                             TileSpec.create(WORK_MODE_TILE_SPEC) to true,
                             TileSpec.create(HOTSPOT_TILE_SPEC) to false,
+                        )
                     )
-            )
+            }
         }
-    }
 
     @Test
-    fun getAvailabilityFlow_userChange() = with(kosmos) {
-        testScope.runTest {
-            val availability by collectLastValue(underTest.newTilesAvailable)
-            fakeUserRepository.asMainUser()
+    fun getAvailabilityFlow_userChange() =
+        with(kosmos) {
+            testScope.runTest {
+                val availability by collectLastValue(underTest.newTilesAvailable)
+                fakeUserRepository.asMainUser()
 
-            assertThat(availability).isEqualTo(
-                    mapOf(
+                assertThat(availability)
+                    .isEqualTo(
+                        mapOf(
                             TileSpec.create(AIRPLANE_MODE_TILE_SPEC) to true,
                             TileSpec.create(WORK_MODE_TILE_SPEC) to false,
                             TileSpec.create(HOTSPOT_TILE_SPEC) to false,
+                        )
                     )
-            )
+            }
         }
-    }
 
     @Test
-    fun noAvailabilityInteractor_emptyMap() = with(kosmos) {
-        testScope.runTest {
-            tileAvailabilityInteractorsMap = emptyMap()
+    fun noAvailabilityInteractor_emptyMap() =
+        with(kosmos) {
+            testScope.runTest {
+                tileAvailabilityInteractorsMap = emptyMap()
 
-            val availability by collectLastValue(underTest.newTilesAvailable)
+                val availability by collectLastValue(underTest.newTilesAvailable)
 
-            assertThat(availability).isEmpty()
+                assertThat(availability).isEmpty()
+            }
         }
-    }
 }

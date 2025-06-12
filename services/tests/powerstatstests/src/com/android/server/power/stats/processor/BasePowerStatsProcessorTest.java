@@ -34,6 +34,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.mock;
 
+import android.annotation.SuppressLint;
 import android.os.BatteryConsumer;
 import android.os.BatteryUsageStats;
 import android.os.Process;
@@ -68,6 +69,7 @@ public class BasePowerStatsProcessorTest {
                 .setProcessorSupplier(() -> new BasePowerStatsProcessor(() -> 4000));
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void processPowerStats() {
         AggregatedPowerStats aggregatedPowerStats = prepareAggregatedPowerStats(true);
@@ -95,9 +97,11 @@ public class BasePowerStatsProcessorTest {
         stats.getUidStats(uidStats, APP_UID1,
                 states(POWER_STATE_BATTERY, SCREEN_STATE_OTHER, PROCESS_STATE_FOREGROUND_SERVICE));
         assertThat(statsLayout.getUidUsageDuration(uidStats)).isEqualTo(5000);
-        stats.getUidStats(uidStats, APP_UID1,
+        boolean nonZero = stats.getUidStats(uidStats, APP_UID1,
                 states(POWER_STATE_BATTERY, SCREEN_STATE_OTHER, PROCESS_STATE_UNSPECIFIED));
-        assertThat(statsLayout.getUidUsageDuration(uidStats)).isEqualTo(0);
+        if (nonZero) {
+            assertThat(statsLayout.getUidUsageDuration(uidStats)).isEqualTo(0);
+        }
 
         stats.getUidStats(uidStats, APP_UID2,
                 states(POWER_STATE_BATTERY, SCREEN_STATE_ON, PROCESS_STATE_CACHED));
@@ -105,11 +109,14 @@ public class BasePowerStatsProcessorTest {
         stats.getUidStats(uidStats, APP_UID2,
                 states(POWER_STATE_BATTERY, SCREEN_STATE_OTHER, PROCESS_STATE_CACHED));
         assertThat(statsLayout.getUidUsageDuration(uidStats)).isEqualTo(8500);
-        stats.getUidStats(uidStats, APP_UID2,
+        nonZero = stats.getUidStats(uidStats, APP_UID2,
                 states(POWER_STATE_BATTERY, SCREEN_STATE_OTHER, PROCESS_STATE_UNSPECIFIED));
-        assertThat(statsLayout.getUidUsageDuration(uidStats)).isEqualTo(0);
+        if (nonZero) {
+            assertThat(statsLayout.getUidUsageDuration(uidStats)).isEqualTo(0);
+        }
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void fuelgaugeAvailable() {
         AggregatedPowerStats aggregatedPowerStats = prepareAggregatedPowerStats(true);
@@ -138,6 +145,7 @@ public class BasePowerStatsProcessorTest {
         assertThat(dischargeDuration).isWithin(5).of(6000);
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void fuelgaugeUnavailable() {
         AggregatedPowerStats aggregatedPowerStats = prepareAggregatedPowerStats(false);

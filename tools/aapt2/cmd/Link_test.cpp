@@ -98,6 +98,7 @@ TEST_F(LinkTest, NoCompressAssets) {
   WriteFile(GetTestPath("assets/test.txt"), content);
   WriteFile(GetTestPath("assets/test.hello.txt"), content);
   WriteFile(GetTestPath("assets/test.hello.xml"), content);
+  WriteFile(GetTestPath("assets/fonts/myfont.ttf"), content);
 
   const std::string out_apk = GetTestPath("out.apk");
   std::vector<std::string> link_args = {
@@ -136,6 +137,10 @@ TEST_F(LinkTest, NoCompressAssets) {
   file = zip->FindFile("assets/test.hello.xml");
   ASSERT_THAT(file, Ne(nullptr));
   EXPECT_FALSE(file->WasCompressed());
+
+  file = zip->FindFile("assets/fonts/myfont.ttf");
+  ASSERT_THAT(file, Ne(nullptr));
+  EXPECT_TRUE(file->WasCompressed());
 }
 
 TEST_F(LinkTest, NoCompressResources) {
@@ -178,6 +183,42 @@ TEST_F(LinkTest, NoCompressResources) {
   EXPECT_FALSE(file->WasCompressed());
 
   file = zip->FindFile("res/raw/test2.goodbye.goodbye.xml");
+  ASSERT_THAT(file, Ne(nullptr));
+  EXPECT_FALSE(file->WasCompressed());
+}
+
+TEST_F(LinkTest, NoCompressFonts) {
+  StdErrDiagnostics diag;
+  std::string content(500, 'a');
+  const std::string compiled_files_dir = GetTestPath("compiled");
+  ASSERT_TRUE(CompileFile(GetTestPath("res/raw/test.txt"), content, compiled_files_dir, &diag));
+  WriteFile(GetTestPath("assets/fonts/myfont1.ttf"), content);
+  WriteFile(GetTestPath("assets/fonts/myfont2.ttf"), content);
+
+  const std::string out_apk = GetTestPath("out.apk");
+  std::vector<std::string> link_args = {
+      "--manifest", GetDefaultManifest(),
+      "-o", out_apk,
+      "--no-compress-fonts",
+      "-A", GetTestPath("assets")
+  };
+
+  ASSERT_TRUE(Link(link_args, compiled_files_dir, &diag));
+
+  std::unique_ptr<LoadedApk> apk = LoadedApk::LoadApkFromPath(out_apk, &diag);
+  ASSERT_THAT(apk, Ne(nullptr));
+  io::IFileCollection* zip = apk->GetFileCollection();
+  ASSERT_THAT(zip, Ne(nullptr));
+
+  auto file = zip->FindFile("res/raw/test.txt");
+  ASSERT_THAT(file, Ne(nullptr));
+  EXPECT_TRUE(file->WasCompressed());
+
+  file = zip->FindFile("assets/fonts/myfont1.ttf");
+  ASSERT_THAT(file, Ne(nullptr));
+  EXPECT_FALSE(file->WasCompressed());
+
+  file = zip->FindFile("assets/fonts/myfont2.ttf");
   ASSERT_THAT(file, Ne(nullptr));
   EXPECT_FALSE(file->WasCompressed());
 }
@@ -1026,7 +1067,7 @@ TEST_F(LinkTest, FeatureFlagDisabled_SdkAtMostUDC) {
                            .SetManifestFile(app_manifest)
                            .AddParameter("-I", android_apk)
                            .AddParameter("--java", app_java)
-                           .AddParameter("--feature-flags", "flag=false");
+                           .AddParameter("--feature-flags", "flag:ro=false");
 
   const std::string app_apk = GetTestPath("app.apk");
   BuildApk({}, app_apk, std::move(app_link_args), this, &diag);

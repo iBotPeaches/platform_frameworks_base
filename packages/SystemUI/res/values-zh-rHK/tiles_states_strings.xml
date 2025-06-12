@@ -56,6 +56,11 @@
     <item msgid="5376619709702103243">"已關閉"</item>
     <item msgid="4875147066469902392">"已開啟"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"無法使用"</item>
+    <item msgid="8589336868985358191">"已關閉"</item>
+    <item msgid="726072717827778234">"已開啟"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"無法使用"</item>
     <item msgid="5044688398303285224">"已關閉"</item>
@@ -78,8 +83,8 @@
   </string-array>
   <string-array name="tile_states_location">
     <item msgid="3316542218706374405">"無法使用"</item>
-    <item msgid="4813655083852587017">"已關閉"</item>
-    <item msgid="6744077414775180687">"已開啟"</item>
+    <item msgid="4813655083852587017">"關閉"</item>
+    <item msgid="6744077414775180687">"開啟"</item>
   </string-array>
   <string-array name="tile_states_hotspot">
     <item msgid="3145597331197351214">"無法使用"</item>
@@ -98,7 +103,7 @@
   </string-array>
   <string-array name="tile_states_saver">
     <item msgid="39714521631367660">"無法使用"</item>
-    <item msgid="6983679487661600728">"已關閉"</item>
+    <item msgid="6983679487661600728">"關閉"</item>
     <item msgid="7520663805910678476">"已開啟"</item>
   </string-array>
   <string-array name="tile_states_dark">
@@ -119,7 +124,7 @@
   <string-array name="tile_states_night">
     <item msgid="7857498964264855466">"無法使用"</item>
     <item msgid="2744885441164350155">"已關閉"</item>
-    <item msgid="151121227514952197">"已開啟"</item>
+    <item msgid="151121227514952197">"開啟"</item>
   </string-array>
   <string-array name="tile_states_screenrecord">
     <item msgid="1085836626613341403">"無法使用"</item>
@@ -133,7 +138,7 @@
   </string-array>
   <string-array name="tile_states_reverse">
     <item msgid="3574611556622963971">"無法使用"</item>
-    <item msgid="8707481475312432575">"已關閉"</item>
+    <item msgid="8707481475312432575">"關閉"</item>
     <item msgid="8031106212477483874">"已開啟"</item>
   </string-array>
   <string-array name="tile_states_reduce_brightness">
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"無法使用"</item>
     <item msgid="6419996398343291862">"關閉"</item>
     <item msgid="5908720590832378783">"開啟"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"無法使用"</item>
+    <item msgid="6641673879029894995">"關閉"</item>
+    <item msgid="5806682401126108403">"開啟"</item>
   </string-array>
 </resources>

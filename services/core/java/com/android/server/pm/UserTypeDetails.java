@@ -112,6 +112,9 @@ public final class UserTypeDetails {
      */
     private final @Nullable List<DefaultCrossProfileIntentFilter> mDefaultCrossProfileIntentFilters;
 
+    /** Whether the {@link #isProfile() profile} requires having a parent (as most profiles do). */
+    private final boolean mProfileParentRequired;
+
 
     // Fields for profiles only, controlling the nature of their badges.
     // All badge information should be set if {@link #hasBadge()} is true.
@@ -174,7 +177,7 @@ public final class UserTypeDetails {
 
     private UserTypeDetails(@NonNull String name, boolean enabled, int maxAllowed,
             @UserInfoFlag int baseType, @UserInfoFlag int defaultUserInfoPropertyFlags,
-            @Nullable int[] labels, int maxAllowedPerParent,
+            @Nullable int[] labels, int maxAllowedPerParent, boolean profileParentRequired,
             int iconBadge, int badgePlain, int badgeNoBackground,
             int statusBarIcon,
             @Nullable int[] badgeLabels, @Nullable int[] badgeColors,
@@ -195,6 +198,7 @@ public final class UserTypeDetails {
         this.mDefaultSystemSettings = defaultSystemSettings;
         this.mDefaultSecureSettings = defaultSecureSettings;
         this.mDefaultCrossProfileIntentFilters = defaultCrossProfileIntentFilters;
+        this.mProfileParentRequired = profileParentRequired;
         this.mIconBadge = iconBadge;
         this.mBadgePlain = badgePlain;
         this.mBadgeNoBackground = badgeNoBackground;
@@ -246,6 +250,14 @@ public final class UserTypeDetails {
     /** The {@link UserInfoFlag}s to apply by default to newly created users of this type. */
     public int getDefaultUserInfoFlags() {
         return mDefaultUserInfoPropertyFlags | mBaseType;
+    }
+
+    /**
+     * Returns whether this type of {@link #isProfile() profile} requires having a parent.
+     * Inapplicable to non-profiles (and therefore inapplicable to restricted profiles).
+     */
+    public boolean isProfileParentRequired() {
+        return mProfileParentRequired;
     }
 
     /**
@@ -406,6 +418,7 @@ public final class UserTypeDetails {
             UserRestrictionsUtils.dumpRestrictions(pw, restrictionsPrefix, mDefaultRestrictions);
         }
 
+        pw.print(prefix); pw.print("mProfileParentRequired: "); pw.println(mProfileParentRequired);
         pw.print(prefix); pw.print("mIconBadge: "); pw.println(mIconBadge);
         pw.print(prefix); pw.print("mBadgePlain: "); pw.println(mBadgePlain);
         pw.print(prefix); pw.print("mBadgeNoBackground: "); pw.println(mBadgeNoBackground);
@@ -438,6 +451,7 @@ public final class UserTypeDetails {
         private @Nullable int[] mBadgeLabels = null;
         private @Nullable int[] mBadgeColors = null;
         private @Nullable int[] mDarkThemeBadgeColors = null;
+        private boolean mProfileParentRequired = false;
         private @DrawableRes int mIconBadge = Resources.ID_NULL;
         private @DrawableRes int mBadgePlain = Resources.ID_NULL;
         private @DrawableRes int mBadgeNoBackground = Resources.ID_NULL;
@@ -487,11 +501,14 @@ public final class UserTypeDetails {
             return this;
         }
 
-        /**
-         * The badge colors when the badge is on a dark background.
-         */
+        /** The badge colors when the badge is on a dark background. */
         public Builder setDarkThemeBadgeColors(@ColorRes int ... darkThemeBadgeColors) {
             mDarkThemeBadgeColors = darkThemeBadgeColors;
+            return this;
+        }
+
+        public Builder setProfileParentRequired(boolean profileParentRequired) {
+            mProfileParentRequired = profileParentRequired;
             return this;
         }
 
@@ -541,9 +558,7 @@ public final class UserTypeDetails {
             return this;
         }
 
-        /**
-         * Sets the accessibility label associated with the user
-         */
+        /** Sets the accessibility label associated with the user */
         public Builder setAccessibilityString(@StringRes int accessibilityString) {
             mAccessibilityString = accessibilityString;
             return this;
@@ -590,6 +605,8 @@ public final class UserTypeDetails {
                                 || mDefaultCrossProfileIntentFilters.isEmpty(),
                         "UserTypeDetails %s has a non empty "
                                 + "defaultCrossProfileIntentFilters", mName);
+                Preconditions.checkArgument(!mProfileParentRequired,
+                        "UserTypeDetails %s requires a parent but isn't a profile", mName);
             }
             return new UserTypeDetails(
                     mName,
@@ -599,6 +616,7 @@ public final class UserTypeDetails {
                     mDefaultUserInfoPropertyFlags,
                     mLabels,
                     mMaxAllowedPerParent,
+                    mProfileParentRequired,
                     mIconBadge,
                     mBadgePlain,
                     mBadgeNoBackground,

@@ -113,6 +113,7 @@ cc_library_host_static {
         "io/ZipArchive.cpp",
         "link/AutoVersioner.cpp",
         "link/FeatureFlagsFilter.cpp",
+        "link/FlaggedXmlVersioner.cpp",
         "link/FlagDisabledResourceRemover.cpp",
         "link/ManifestFixer.cpp",
         "link/NoDefaultResourceRemover.cpp",

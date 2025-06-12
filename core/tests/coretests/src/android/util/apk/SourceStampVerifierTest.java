@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.content.Context;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -52,7 +52,7 @@ import java.util.zip.ZipFile;
 
 /** Unit test for {@link android.util.apk.SourceStampVerifier} */
 @RunWith(JUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = SourceStampVerifier.class)
+@DisabledOnRavenwood(blockedBy = SourceStampVerifier.class)
 public class SourceStampVerifierTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

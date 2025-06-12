@@ -19,7 +19,6 @@ package com.android.server.power.stats;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.BatteryConsumer;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -33,14 +32,9 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class IdlePowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_CPU_IDLE, 720.0)
             .setAveragePower(PowerProfile.POWER_CPU_SUSPEND, 360.0);

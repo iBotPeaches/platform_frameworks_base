@@ -16,6 +16,7 @@
 
 package android.companion;
 
+import static android.Manifest.permission.ASSOCIATE_COMPANION_DEVICES;
 import static android.Manifest.permission.REQUEST_COMPANION_SELF_MANAGED;
 
 import static com.android.internal.util.CollectionUtils.emptyIfNull;
@@ -28,7 +29,10 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.StringDef;
+import android.annotation.SuppressLint;
+import android.annotation.TestApi;
 import android.annotation.UserIdInt;
+import android.app.KeyguardManager;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.graphics.drawable.Icon;
 import android.os.Build;
@@ -90,9 +94,23 @@ public final class AssociationRequest implements Parcelable {
     public static final String DEVICE_PROFILE_GLASSES = "android.app.role.COMPANION_DEVICE_GLASSES";
 
     /**
+     * Device profile: a wearable device capable of sensing its surroundings.
+     * <p>
+     * This device profile is not tied to any android role, and is used to identify the device
+     * as a wearable sensing device.
+     * <p>
+     * This profile may only be used by the system.
+     *
+     * @see AssociationRequest.Builder#setDeviceProfile
+     * @hide
+     */
+    public static final String DEVICE_PROFILE_WEARABLE_SENSING =
+            "android.companion.COMPANION_DEVICE_WEARABLE_SENSING";
+
+    /**
      * Device profile: a virtual display capable of rendering Android applications, and sending back
      * input events.
-     *
+     * <p>
      * Only applications that have been granted
      * {@link android.Manifest.permission#REQUEST_COMPANION_PROFILE_APP_STREAMING} are allowed to
      * request to be associated with such devices.
@@ -106,7 +124,7 @@ public final class AssociationRequest implements Parcelable {
     /**
      * Device profile: a virtual device capable of rendering content from an Android host to a
      * nearby device.
-     *
+     * <p>
      * Only applications that have been granted
      * {@link android.Manifest.permission#REQUEST_COMPANION_PROFILE_NEARBY_DEVICE_STREAMING}
      * are allowed to request to be associated with such devices.
@@ -116,6 +134,21 @@ public final class AssociationRequest implements Parcelable {
     @RequiresPermission(Manifest.permission.REQUEST_COMPANION_PROFILE_NEARBY_DEVICE_STREAMING)
     public static final String DEVICE_PROFILE_NEARBY_DEVICE_STREAMING =
             "android.app.role.COMPANION_DEVICE_NEARBY_DEVICE_STREAMING";
+
+    /**
+     * Device profile: a virtual device capable of streaming sensor data such as camera, audio and
+     * IMU between an Android host and a nearby device.
+     * <p>
+     * Only applications that have been granted
+     * {@link android.Manifest.permission#REQUEST_COMPANION_PROFILE_VIRTUAL_DEVICE}
+     * are allowed to request to be associated with such devices.
+     *
+     * @see AssociationRequest.Builder#setDeviceProfile
+     */
+    @FlaggedApi(android.companion.virtualdevice.flags.Flags.FLAG_ENABLE_LIMITED_VDM_ROLE)
+    @RequiresPermission(Manifest.permission.REQUEST_COMPANION_PROFILE_VIRTUAL_DEVICE)
+    public static final String DEVICE_PROFILE_VIRTUAL_DEVICE =
+            "android.app.role.COMPANION_DEVICE_VIRTUAL_DEVICE";
 
     /**
      * Device profile: Android Automotive Projection
@@ -148,7 +181,8 @@ public final class AssociationRequest implements Parcelable {
     @Retention(RetentionPolicy.SOURCE)
     @StringDef(value = { DEVICE_PROFILE_WATCH, DEVICE_PROFILE_COMPUTER,
             DEVICE_PROFILE_AUTOMOTIVE_PROJECTION, DEVICE_PROFILE_APP_STREAMING,
-            DEVICE_PROFILE_GLASSES, DEVICE_PROFILE_NEARBY_DEVICE_STREAMING })
+            DEVICE_PROFILE_GLASSES, DEVICE_PROFILE_NEARBY_DEVICE_STREAMING,
+            DEVICE_PROFILE_WEARABLE_SENSING })
     public @interface DeviceProfile {}
 
     /**
@@ -197,6 +231,11 @@ public final class AssociationRequest implements Parcelable {
      * required.
      */
     private final boolean mForceConfirmation;
+
+    /**
+     * Whether to skip the role grant, permission checks and consent dialog.
+     */
+    private final boolean mSkipRoleGrant;
 
     /**
      * The app package name of the application the association will belong to.
@@ -268,6 +307,7 @@ public final class AssociationRequest implements Parcelable {
             @Nullable CharSequence displayName,
             boolean selfManaged,
             boolean forceConfirmation,
+            boolean skipRoleGrant,
             @Nullable Icon deviceIcon) {
         mSingleDevice = singleDevice;
         mDeviceFilters = requireNonNull(deviceFilters);
@@ -275,6 +315,7 @@ public final class AssociationRequest implements Parcelable {
         mDisplayName = displayName;
         mSelfManaged = selfManaged;
         mForceConfirmation = forceConfirmation;
+        mSkipRoleGrant = skipRoleGrant;
         mCreationTime = System.currentTimeMillis();
         mDeviceIcon = deviceIcon;
     }
@@ -315,6 +356,18 @@ public final class AssociationRequest implements Parcelable {
      */
     public boolean isForceConfirmation() {
         return mForceConfirmation;
+    }
+
+    /**
+     * Whether to skip the role grant, permission checks and consent dialog.
+     *
+     * @see Builder#setSkipRoleGrant(boolean)
+     * @hide
+     */
+    @SuppressLint("UnflaggedApi") // @TestApi without associated feature.
+    @TestApi
+    public boolean isSkipRoleGrant() {
+        return mSkipRoleGrant;
     }
 
     /**
@@ -370,6 +423,10 @@ public final class AssociationRequest implements Parcelable {
     public void setAssociatedDevice(AssociatedDevice associatedDevice) {
         mAssociatedDevice = associatedDevice;
     }
+    /** @hide */
+    public void setDeviceIcon(Icon deviceIcon) {
+        mDeviceIcon = deviceIcon;
+    }
 
     /** @hide */
     @NonNull
@@ -388,6 +445,7 @@ public final class AssociationRequest implements Parcelable {
         private CharSequence mDisplayName;
         private boolean mSelfManaged = false;
         private boolean mForceConfirmation = false;
+        private boolean mSkipRoleGrant = false;
         private Icon mDeviceIcon = null;
 
         public Builder() {}
@@ -475,11 +533,33 @@ public final class AssociationRequest implements Parcelable {
         }
 
         /**
+         * Do not attempt to grant the role corresponding to the device profile.
+         *
+         * <p>This will skip the permission checks and consent dialog but will not fail if the
+         * role cannot be granted.</p>
+         *
+         * <p>Requires that the device not to have secure lock screen and that there no locked SIM
+         * card. See {@link KeyguardManager#isKeyguardSecure()}</p>
+         *
+         * @hide
+         */
+        @RequiresPermission(ASSOCIATE_COMPANION_DEVICES)
+        @SuppressLint("UnflaggedApi") // @TestApi without associated feature.
+        @TestApi
+        @NonNull
+        public Builder setSkipRoleGrant(boolean skipRoleGrant) {
+            checkNotUsed();
+            mSkipRoleGrant = skipRoleGrant;
+            return this;
+        }
+
+        /**
          * Set the device icon for the self-managed device and to display the icon in the
          * self-managed association dialog.
+         * <p>The given device icon will be resized to 24dp x 24dp.
          *
-         * @throws IllegalArgumentException if the icon is not exactly 24dp by 24dp
-         * or if it is {@link Icon#TYPE_URI} or {@link Icon#TYPE_URI_ADAPTIVE_BITMAP}.
+         * @throws IllegalArgumentException if the icon is
+         * {@link Icon#TYPE_URI} or {@link Icon#TYPE_URI_ADAPTIVE_BITMAP}.
          * @see #setSelfManaged(boolean)
          */
         @NonNull
@@ -501,7 +581,8 @@ public final class AssociationRequest implements Parcelable {
                         + "provide the display name of the device");
             }
             return new AssociationRequest(mSingleDevice, emptyIfNull(mDeviceFilters),
-                    mDeviceProfile, mDisplayName, mSelfManaged, mForceConfirmation, mDeviceIcon);
+                    mDeviceProfile, mDisplayName, mSelfManaged, mForceConfirmation, mSkipRoleGrant,
+                    mDeviceIcon);
         }
     }
 
@@ -577,6 +658,7 @@ public final class AssociationRequest implements Parcelable {
                 + ", associatedDevice = " + mAssociatedDevice
                 + ", selfManaged = " + mSelfManaged
                 + ", forceConfirmation = " + mForceConfirmation
+                + ", skipRoleGrant = " + mSkipRoleGrant
                 + ", packageName = " + mPackageName
                 + ", userId = " + mUserId
                 + ", deviceProfilePrivilegesDescription = " + mDeviceProfilePrivilegesDescription
@@ -597,6 +679,7 @@ public final class AssociationRequest implements Parcelable {
                 && Objects.equals(mAssociatedDevice, that.mAssociatedDevice)
                 && mSelfManaged == that.mSelfManaged
                 && mForceConfirmation == that.mForceConfirmation
+                && mSkipRoleGrant == that.mSkipRoleGrant
                 && Objects.equals(mPackageName, that.mPackageName)
                 && mUserId == that.mUserId
                 && Objects.equals(mDeviceProfilePrivilegesDescription,
@@ -617,6 +700,7 @@ public final class AssociationRequest implements Parcelable {
         _hash = 31 * _hash + Objects.hashCode(mAssociatedDevice);
         _hash = 31 * _hash + Boolean.hashCode(mSelfManaged);
         _hash = 31 * _hash + Boolean.hashCode(mForceConfirmation);
+        _hash = 31 * _hash + Boolean.hashCode(mSkipRoleGrant);
         _hash = 31 * _hash + Objects.hashCode(mPackageName);
         _hash = 31 * _hash + mUserId;
         _hash = 31 * _hash + Objects.hashCode(mDeviceProfilePrivilegesDescription);
@@ -639,6 +723,7 @@ public final class AssociationRequest implements Parcelable {
         if (mAssociatedDevice != null) flg |= 0x40;
         if (mPackageName != null) flg |= 0x80;
         if (mDeviceProfilePrivilegesDescription != null) flg |= 0x100;
+        if (mSkipRoleGrant) flg |= 0x200;
 
         dest.writeInt(flg);
         dest.writeParcelableList(mDeviceFilters, flags);
@@ -672,6 +757,7 @@ public final class AssociationRequest implements Parcelable {
         boolean selfManaged = (flg & 0x2) != 0;
         boolean forceConfirmation = (flg & 0x4) != 0;
         boolean skipPrompt = (flg & 0x8) != 0;
+        boolean skipRoleGrant = (flg & 0x200) != 0;
         List<DeviceFilter<?>> deviceFilters = new ArrayList<>();
         in.readParcelableList(deviceFilters, DeviceFilter.class.getClassLoader(),
                 (Class<android.companion.DeviceFilter<?>>) (Class<?>)
@@ -694,6 +780,7 @@ public final class AssociationRequest implements Parcelable {
         this.mAssociatedDevice = associatedDevice;
         this.mSelfManaged = selfManaged;
         this.mForceConfirmation = forceConfirmation;
+        this.mSkipRoleGrant = skipRoleGrant;
         this.mPackageName = packageName;
         this.mUserId = userId;
         com.android.internal.util.AnnotationValidations.validate(

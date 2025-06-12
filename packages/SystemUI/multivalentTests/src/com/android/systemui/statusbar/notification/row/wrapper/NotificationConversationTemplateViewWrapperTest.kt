@@ -75,9 +75,10 @@ class NotificationConversationTemplateViewWrapperTest : SysuiTestCase() {
         // Creates a mocked out NotificationEntry of ConversationLayout type,
         // with a mock imageMessage.drawable embedded in its MessagingImageMessages
         // (both top level, and in a group).
-        val mockDrawable = mock<AnimatedImageDrawable>()
-        val mockDrawable2 = mock<AnimatedImageDrawable>()
-        val mockLayoutView: View = fakeConversationLayout(mockDrawable, mockDrawable2)
+        val mockDrawableGroupMessage = mock<AnimatedImageDrawable>()
+        val mockDrawableImageMessage = mock<AnimatedImageDrawable>()
+        val mockLayoutView: View =
+            fakeConversationLayout(mockDrawableGroupMessage, mockDrawableImageMessage)
 
         val wrapper: NotificationViewWrapper =
             NotificationConversationTemplateViewWrapper(mContext, mockLayoutView, mRow)
@@ -85,8 +86,8 @@ class NotificationConversationTemplateViewWrapperTest : SysuiTestCase() {
         wrapper.setAnimationsRunning(false)
 
         // Verifies that each AnimatedImageDrawable is started animating.
-        verify(mockDrawable).stop()
-        verify(mockDrawable2).stop()
+        verify(mockDrawableGroupMessage).stop()
+        verify(mockDrawableImageMessage).stop()
     }
 
     private fun fakeConversationLayout(
@@ -135,6 +136,7 @@ class NotificationConversationTemplateViewWrapperTest : SysuiTestCase() {
                     .thenReturn(mock())
                 whenever(requireViewById<View>(R.id.app_name_text)).thenReturn(mock())
                 whenever(requireViewById<View>(R.id.conversation_text)).thenReturn(mock())
+                whenever(requireViewById<View>(R.id.title)).thenReturn(mock())
             }
         return mockView
     }

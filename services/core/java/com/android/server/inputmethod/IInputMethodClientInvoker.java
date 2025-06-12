@@ -58,23 +58,17 @@ final class IInputMethodClientInvoker {
     private final Handler mHandler;
 
     @AnyThread
-    @Nullable
-    static IInputMethodClientInvoker create(@Nullable IInputMethodClient inputMethodClient,
+    @NonNull
+    static IInputMethodClientInvoker create(@NonNull IInputMethodClient inputMethodClient,
             @NonNull Handler handler) {
-        if (inputMethodClient == null) {
-            return null;
-        }
         final boolean isProxy = Binder.isProxy(inputMethodClient);
         return new IInputMethodClientInvoker(inputMethodClient, isProxy, isProxy ? null : handler);
     }
 
     @AnyThread
-    @Nullable
-    static IInputMethodClientInvoker create$ravenwood(
-            @Nullable IInputMethodClient inputMethodClient, @NonNull Handler handler) {
-        if (inputMethodClient == null) {
-            return null;
-        }
+    @NonNull
+    static IInputMethodClientInvoker create$ravenwood(@NonNull IInputMethodClient inputMethodClient,
+            @NonNull Handler handler) {
         return new IInputMethodClientInvoker(inputMethodClient, true, null);
     }
 
@@ -262,9 +256,11 @@ final class IInputMethodClientInvoker {
     @AnyThread
     private void setImeVisibilityInternal(boolean visible, @Nullable ImeTracker.Token statsToken) {
         try {
+            ImeTracker.forLogging().onProgress(statsToken, ImeTracker.PHASE_SERVER_CLIENT_INVOKER);
             mTarget.setImeVisibility(visible, statsToken);
         } catch (RemoteException e) {
             logRemoteException(e);
+            ImeTracker.forLogging().onFailed(statsToken, ImeTracker.PHASE_SERVER_CLIENT_INVOKER);
         }
     }
 

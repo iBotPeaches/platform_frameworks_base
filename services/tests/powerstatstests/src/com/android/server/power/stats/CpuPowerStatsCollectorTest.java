@@ -32,7 +32,6 @@ import android.os.BatteryConsumer;
 import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.IndentingPrintWriter;
 import android.util.SparseArray;
 
@@ -46,7 +45,6 @@ import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.format.CpuPowerStatsLayout;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -59,11 +57,6 @@ import java.io.StringWriter;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class CpuPowerStatsCollectorTest {
-
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     private static final int ISOLATED_UID = 99123;
     private static final int UID_1 = 42;

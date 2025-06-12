@@ -497,19 +497,19 @@ public class DeviceAdapterTest {
 
     private VibratorController createEmptyVibratorController(int vibratorId) {
         return new FakeVibratorControllerProvider(mTestLooper.getLooper())
-                .newVibratorController(vibratorId, (id, vibrationId)  -> {});
+                .newVibratorController(vibratorId, (id, vibrationId, stepId)  -> {});
     }
 
     private VibratorController createBasicVibratorController(int vibratorId) {
         FakeVibratorControllerProvider provider = createVibratorProviderWithEffects(
                 IVibrator.CAP_COMPOSE_EFFECTS);
-        return provider.newVibratorController(vibratorId, (id, vibrationId)  -> {});
+        return provider.newVibratorController(vibratorId, (id, vibrationId, stepId)  -> {});
     }
 
     private VibratorController createPwleWithoutFrequenciesVibratorController(int vibratorId) {
         FakeVibratorControllerProvider provider = createVibratorProviderWithEffects(
                 IVibrator.CAP_COMPOSE_EFFECTS, IVibrator.CAP_COMPOSE_PWLE_EFFECTS);
-        return provider.newVibratorController(vibratorId, (id, vibrationId)  -> {});
+        return provider.newVibratorController(vibratorId, (id, vibrationId, stepId)  -> {});
     }
 
     private VibratorController createPwleVibratorController(int vibratorId) {
@@ -519,7 +519,7 @@ public class DeviceAdapterTest {
         provider.setMinFrequency(TEST_MIN_FREQUENCY);
         provider.setFrequencyResolution(TEST_FREQUENCY_RESOLUTION);
         provider.setMaxAmplitudes(TEST_AMPLITUDE_MAP);
-        return provider.newVibratorController(vibratorId, (id, vibrationId)  -> {});
+        return provider.newVibratorController(vibratorId, (id, vibrationId, stepId)  -> {});
     }
 
     private VibratorController createPwleV2VibratorController(int vibratorId) {
@@ -538,7 +538,7 @@ public class DeviceAdapterTest {
         provider.setMinEnvelopeEffectControlPointDurationMillis(
                 TEST_MIN_ENVELOPE_EFFECT_CONTROL_POINT_DURATION_MILLIS);
 
-        return provider.newVibratorController(vibratorId, (id, vibrationId)  -> {});
+        return provider.newVibratorController(vibratorId, (id, vibrationId, stepId)  -> {});
     }
 
     private FakeVibratorControllerProvider createVibratorProviderWithEffects(int... capabilities) {

@@ -53,5 +53,21 @@ interface ClockProvider {
 /** Identifies a clock design */
 typealias ClockId = String
 
-/** Some data about a clock design */
-data class ClockMetadata(val clockId: ClockId)
+/** Some metadata about a clock design */
+data class ClockMetadata(
+    /** Id for the clock design. */
+    val clockId: ClockId,
+
+    /**
+     * true if this clock is deprecated and should not be used. The ID may still show up in certain
+     * locations to help migrations, but it will not be selectable by new users.
+     */
+    val isDeprecated: Boolean = false,
+
+    /**
+     * Optional mapping of a legacy clock to a new id. This will map users that already are using
+     * `clockId` to the `replacementTarget` instead. The provider should still support the old id
+     * w/o crashing, but can consider it deprecated and the id reserved.
+     */
+    val replacementTarget: ClockId? = null,
+)

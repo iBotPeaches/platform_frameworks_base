@@ -20,11 +20,15 @@ import static android.hardware.SensorPrivacyManager.Sensors.CAMERA;
 
 import android.annotation.NonNull;
 import android.hardware.SensorPrivacyManager;
+import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
+import android.util.Log;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 public class BiometricCameraManagerImpl implements BiometricCameraManager {
+
+    private static final String TAG = "BiometricCameraManager";
 
     private final CameraManager mCameraManager;
     private final SensorPrivacyManager mSensorPrivacyManager;
@@ -52,12 +56,18 @@ public class BiometricCameraManagerImpl implements BiometricCameraManager {
 
     @Override
     public boolean isAnyCameraUnavailable() {
-        for (String cameraId : mIsCameraAvailable.keySet()) {
-            if (!mIsCameraAvailable.get(cameraId)) {
-                return true;
+        try {
+            for (String cameraId : mCameraManager.getCameraIdList()) {
+                if (!mIsCameraAvailable.getOrDefault(cameraId, true)) {
+                    return true;
+                }
             }
+            return false;
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Camera exception thrown when trying to determine availability: ", e);
+            //If face HAL is unable to get access to a camera, it will return an error.
+            return false;
         }
-        return false;
     }
 
     @Override

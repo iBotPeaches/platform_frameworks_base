@@ -48,25 +48,31 @@ public class EvemuParser implements EventParser {
 
     private static class CommentAwareReader {
         private final LineNumberReader mReader;
-        private String mPreviousLine;
-        private String mNextLine;
+        /** The previous line of the file, or {@code null} if we're at the start of the file. */
+        private @Nullable String mPreviousLine;
+        /**
+         * The next line of the file to be returned from {@link #peekLine()}, or {@code null} if we
+         * haven't peeked since the last {@link #advance()} or are at the end of the file.
+         */
+        private @Nullable String mNextLine;
+        private boolean mAtEndOfFile = false;
 
-        CommentAwareReader(LineNumberReader in) throws IOException {
+        CommentAwareReader(LineNumberReader in) {
             mReader = in;
-            mNextLine = findNextLine();
         }
 
-        private @Nullable String findNextLine() throws IOException {
+        private void findNextLine() throws IOException {
             String line = "";
             while (line != null && line.length() == 0) {
                 String unstrippedLine = mReader.readLine();
                 if (unstrippedLine == null) {
-                    // End of file.
-                    return null;
+                    mAtEndOfFile = true;
+                    mNextLine = null;
+                    return;
                 }
                 line = stripComments(unstrippedLine);
             }
-            return line;
+            mNextLine = line;
         }
 
         private static String stripComments(String line) {
@@ -85,22 +91,31 @@ public class EvemuParser implements EventParser {
          * {@code null} if the end of the file is reached. However, it does not advance to the
          * next line of the file.
          */
-        public @Nullable String peekLine() {
+        public @Nullable String peekLine() throws IOException {
+            if (mNextLine == null && !mAtEndOfFile) {
+                findNextLine();
+            }
             return mNextLine;
         }
 
         /** Moves to the next line of the file. */
-        public void advance() throws IOException {
+        public void advance() {
             mPreviousLine = mNextLine;
-            mNextLine = findNextLine();
+            mNextLine = null;
         }
 
-        public boolean isAtEndOfFile() {
-            return mNextLine == null;
+        public boolean isAtEndOfFile() throws IOException {
+            if (mNextLine == null && !mAtEndOfFile) {
+                findNextLine();
+            }
+            return mAtEndOfFile;
         }
 
-        /** Returns the previous line, for error messages. */
-        public String getPreviousLine() {
+        /**
+         * Returns the previous line, for error messages. Will be {@code null} if we're at the start
+         * of the file.
+         */
+        public @Nullable String getPreviousLine() {
             return mPreviousLine;
         }
 

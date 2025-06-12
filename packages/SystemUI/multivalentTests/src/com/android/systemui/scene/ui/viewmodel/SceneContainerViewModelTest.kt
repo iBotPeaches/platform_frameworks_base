@@ -14,12 +14,8 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.scene.ui.viewmodel
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import android.view.MotionEvent
 import android.view.MotionEvent.ACTION_DOWN
 import android.view.MotionEvent.ACTION_OUTSIDE
@@ -29,8 +25,10 @@ import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.DefaultEdgeDetector
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.classifier.fakeFalsingManager
-import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.EnableSceneContainer
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runCurrent
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.power.data.repository.fakePowerRepository
@@ -41,23 +39,22 @@ import com.android.systemui.scene.sceneContainerViewModelFactory
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.shared.model.fakeSceneDataSource
-import com.android.systemui.shade.data.repository.fakeShadeRepository
-import com.android.systemui.shade.domain.interactor.shadeInteractor
-import com.android.systemui.shade.shared.flag.DualShade
+import com.android.systemui.shade.domain.interactor.enableDualShade
+import com.android.systemui.shade.domain.interactor.enableSingleShade
+import com.android.systemui.shade.domain.interactor.enableSplitShade
+import com.android.systemui.shade.domain.interactor.shadeMode
 import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.statusbar.data.repository.fakeRemoteInputRepository
 import com.android.systemui.testKosmos
-import com.android.systemui.util.mockito.mock
-import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
@@ -67,11 +64,6 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     private val kosmos = testKosmos()
     private val testScope by lazy { kosmos.testScope }
-    private val sceneInteractor by lazy { kosmos.sceneInteractor }
-    private val fakeSceneDataSource by lazy { kosmos.fakeSceneDataSource }
-    private val fakeShadeRepository by lazy { kosmos.fakeShadeRepository }
-    private val sceneContainerConfig by lazy { kosmos.sceneContainerConfig }
-    private val fakeRemoteInputRepository by lazy { kosmos.fakeRemoteInputRepository }
     private val falsingManager by lazy { kosmos.fakeFalsingManager }
     private val view = mock<View>()
 
@@ -95,14 +87,14 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun activate_setsMotionEventHandler() =
-        testScope.runTest {
+        kosmos.runTest {
             runCurrent()
             assertThat(motionEventHandler).isNotNull()
         }
 
     @Test
     fun deactivate_clearsMotionEventHandler() =
-        testScope.runTest {
+        kosmos.runTest {
             activationJob.cancel()
             runCurrent()
 
@@ -111,7 +103,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun isVisible() =
-        testScope.runTest {
+        kosmos.runTest {
             assertThat(underTest.isVisible).isTrue()
 
             sceneInteractor.setVisible(false, "reason")
@@ -125,7 +117,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun sceneTransition() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene by collectLastValue(underTest.currentScene)
             assertThat(currentScene).isEqualTo(Scenes.Lockscreen)
 
@@ -136,7 +128,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun canChangeScene_whenAllowed_switchingFromGone_returnsTrue() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene by collectLastValue(underTest.currentScene)
             fakeSceneDataSource.changeScene(toScene = Scenes.Gone)
             runCurrent()
@@ -153,7 +145,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun canChangeScene_whenAllowed_switchingFromLockscreen_returnsTrue() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene by collectLastValue(underTest.currentScene)
             fakeSceneDataSource.changeScene(toScene = Scenes.Lockscreen)
             runCurrent()
@@ -170,7 +162,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun canChangeScene_whenNotAllowed_fromLockscreen_toFalsingProtectedScenes_returnsFalse() =
-        testScope.runTest {
+        kosmos.runTest {
             falsingManager.setIsFalseTouch(true)
             val currentScene by collectLastValue(underTest.currentScene)
             fakeSceneDataSource.changeScene(toScene = Scenes.Lockscreen)
@@ -192,7 +184,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun canChangeScene_whenNotAllowed_fromLockscreen_toFalsingUnprotectedScenes_returnsTrue() =
-        testScope.runTest {
+        kosmos.runTest {
             falsingManager.setIsFalseTouch(true)
             val currentScene by collectLastValue(underTest.currentScene)
             fakeSceneDataSource.changeScene(toScene = Scenes.Lockscreen)
@@ -213,7 +205,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun canChangeScene_whenNotAllowed_fromGone_toAnyOtherScene_returnsTrue() =
-        testScope.runTest {
+        kosmos.runTest {
             falsingManager.setIsFalseTouch(true)
             val currentScene by collectLastValue(underTest.currentScene)
             fakeSceneDataSource.changeScene(toScene = Scenes.Gone)
@@ -230,8 +222,70 @@ class SceneContainerViewModelTest : SysuiTestCase() {
         }
 
     @Test
+    fun canShowOrReplaceOverlay_whenAllowed_showingWhileOnGone_returnsTrue() =
+        kosmos.runTest {
+            val currentScene by collectLastValue(underTest.currentScene)
+            fakeSceneDataSource.changeScene(toScene = Scenes.Gone)
+            runCurrent()
+            assertThat(currentScene).isEqualTo(Scenes.Gone)
+
+            sceneContainerConfig.overlayKeys.forEach { overlay ->
+                assertWithMessage("Overlay $overlay incorrectly protected when allowed")
+                    .that(underTest.canShowOrReplaceOverlay(newlyShown = overlay))
+                    .isTrue()
+            }
+        }
+
+    @Test
+    fun canShowOrReplaceOverlay_whenAllowed_showingWhileOnLockscreen_returnsTrue() =
+        kosmos.runTest {
+            val currentScene by collectLastValue(underTest.currentScene)
+            fakeSceneDataSource.changeScene(toScene = Scenes.Lockscreen)
+            runCurrent()
+            assertThat(currentScene).isEqualTo(Scenes.Lockscreen)
+
+            sceneContainerConfig.overlayKeys.forEach { overlay ->
+                assertWithMessage("Overlay $overlay incorrectly protected when allowed")
+                    .that(underTest.canShowOrReplaceOverlay(newlyShown = overlay))
+                    .isTrue()
+            }
+        }
+
+    @Test
+    fun canShowOrReplaceOverlay_whenNotAllowed_whileOnLockscreen_returnsFalse() =
+        kosmos.runTest {
+            falsingManager.setIsFalseTouch(true)
+            val currentScene by collectLastValue(underTest.currentScene)
+            fakeSceneDataSource.changeScene(toScene = Scenes.Lockscreen)
+            runCurrent()
+            assertThat(currentScene).isEqualTo(Scenes.Lockscreen)
+
+            sceneContainerConfig.overlayKeys.forEach { overlay ->
+                assertWithMessage("Protected overlay $overlay not properly protected")
+                    .that(underTest.canShowOrReplaceOverlay(newlyShown = overlay))
+                    .isFalse()
+            }
+        }
+
+    @Test
+    fun canShowOrReplaceOverlay_whenNotAllowed_whileOnGone_returnsTrue() =
+        kosmos.runTest {
+            falsingManager.setIsFalseTouch(true)
+            val currentScene by collectLastValue(underTest.currentScene)
+            fakeSceneDataSource.changeScene(toScene = Scenes.Gone)
+            runCurrent()
+            assertThat(currentScene).isEqualTo(Scenes.Gone)
+
+            sceneContainerConfig.overlayKeys.forEach { overlay ->
+                assertWithMessage("Protected overlay $overlay not properly protected")
+                    .that(underTest.canShowOrReplaceOverlay(newlyShown = overlay))
+                    .isTrue()
+            }
+        }
+
+    @Test
     fun userInput() =
-        testScope.runTest {
+        kosmos.runTest {
             assertThat(kosmos.fakePowerRepository.userTouchRegistered).isFalse()
             underTest.onMotionEvent(mock())
             assertThat(kosmos.fakePowerRepository.userTouchRegistered).isTrue()
@@ -239,7 +293,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun userInputOnEmptySpace_insideEvent() =
-        testScope.runTest {
+        kosmos.runTest {
             assertThat(fakeRemoteInputRepository.areRemoteInputsClosed).isFalse()
             val insideMotionEvent = MotionEvent.obtain(0, 0, ACTION_DOWN, 0f, 0f, 0)
             underTest.onEmptySpaceMotionEvent(insideMotionEvent)
@@ -248,7 +302,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun userInputOnEmptySpace_outsideEvent_remoteInputActive() =
-        testScope.runTest {
+        kosmos.runTest {
             fakeRemoteInputRepository.isRemoteInputActive.value = true
             assertThat(fakeRemoteInputRepository.areRemoteInputsClosed).isFalse()
             val outsideMotionEvent = MotionEvent.obtain(0, 0, ACTION_OUTSIDE, 0f, 0f, 0)
@@ -258,7 +312,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun userInputOnEmptySpace_outsideEvent_remoteInputInactive() =
-        testScope.runTest {
+        kosmos.runTest {
             fakeRemoteInputRepository.isRemoteInputActive.value = false
             assertThat(fakeRemoteInputRepository.areRemoteInputsClosed).isFalse()
             val outsideMotionEvent = MotionEvent.obtain(0, 0, ACTION_OUTSIDE, 0f, 0f, 0)
@@ -268,7 +322,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun remoteUserInteraction_keepsContainerVisible() =
-        testScope.runTest {
+        kosmos.runTest {
             sceneInteractor.setVisible(false, "reason")
             runCurrent()
             assertThat(underTest.isVisible).isFalse()
@@ -276,9 +330,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
             runCurrent()
             assertThat(underTest.isVisible).isTrue()
 
-            underTest.onMotionEvent(
-                mock { whenever(actionMasked).thenReturn(MotionEvent.ACTION_UP) }
-            )
+            underTest.onMotionEvent(mock { on { actionMasked } doReturn MotionEvent.ACTION_UP })
             runCurrent()
 
             assertThat(underTest.isVisible).isFalse()
@@ -286,7 +338,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun getActionableContentKey_noOverlays_returnsCurrentScene() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene by collectLastValue(underTest.currentScene)
             val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             assertThat(currentScene).isEqualTo(Scenes.Lockscreen)
@@ -304,7 +356,7 @@ class SceneContainerViewModelTest : SysuiTestCase() {
 
     @Test
     fun getActionableContentKey_multipleOverlays_returnsTopOverlay() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene by collectLastValue(underTest.currentScene)
             val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             fakeSceneDataSource.showOverlay(Overlays.QuickSettingsShade)
@@ -324,46 +376,44 @@ class SceneContainerViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun edgeDetector_singleShade_usesDefaultEdgeDetector() =
-        testScope.runTest {
-            val shadeMode by collectLastValue(kosmos.shadeInteractor.shadeMode)
-            fakeShadeRepository.setShadeLayoutWide(false)
+        kosmos.runTest {
+            val shadeMode by collectLastValue(kosmos.shadeMode)
+            kosmos.enableSingleShade()
+
             assertThat(shadeMode).isEqualTo(ShadeMode.Single)
-
-            assertThat(underTest.edgeDetector).isEqualTo(DefaultEdgeDetector)
+            assertThat(underTest.swipeSourceDetector).isEqualTo(DefaultEdgeDetector)
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun edgeDetector_splitShade_usesDefaultEdgeDetector() =
-        testScope.runTest {
-            val shadeMode by collectLastValue(kosmos.shadeInteractor.shadeMode)
-            fakeShadeRepository.setShadeLayoutWide(true)
+        kosmos.runTest {
+            val shadeMode by collectLastValue(kosmos.shadeMode)
+            kosmos.enableSplitShade()
+
             assertThat(shadeMode).isEqualTo(ShadeMode.Split)
-
-            assertThat(underTest.edgeDetector).isEqualTo(DefaultEdgeDetector)
+            assertThat(underTest.swipeSourceDetector).isEqualTo(DefaultEdgeDetector)
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
-    fun edgeDetector_dualShade_narrowScreen_usesSplitEdgeDetector() =
-        testScope.runTest {
-            val shadeMode by collectLastValue(kosmos.shadeInteractor.shadeMode)
-            fakeShadeRepository.setShadeLayoutWide(false)
+    fun edgeDetector_dualShade_narrowScreen_usesSceneContainerSwipeDetector() =
+        kosmos.runTest {
+            val shadeMode by collectLastValue(kosmos.shadeMode)
+            kosmos.enableDualShade(wideLayout = false)
 
             assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
-            assertThat(underTest.edgeDetector).isEqualTo(kosmos.splitEdgeDetector)
+            assertThat(underTest.swipeSourceDetector)
+                .isInstanceOf(SceneContainerSwipeDetector::class.java)
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
-    fun edgeDetector_dualShade_wideScreen_usesSplitEdgeDetector() =
-        testScope.runTest {
-            val shadeMode by collectLastValue(kosmos.shadeInteractor.shadeMode)
-            fakeShadeRepository.setShadeLayoutWide(true)
+    fun edgeDetector_dualShade_wideScreen_usesSceneContainerSwipeDetector() =
+        kosmos.runTest {
+            val shadeMode by collectLastValue(kosmos.shadeMode)
+            kosmos.enableDualShade(wideLayout = true)
 
             assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
-            assertThat(underTest.edgeDetector).isEqualTo(kosmos.splitEdgeDetector)
+            assertThat(underTest.swipeSourceDetector)
+                .isInstanceOf(SceneContainerSwipeDetector::class.java)
         }
 }

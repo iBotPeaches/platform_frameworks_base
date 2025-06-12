@@ -28,6 +28,7 @@ import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.RemoteViews
 import android.widget.RemoteViews.RemoteResponse
+import androidx.core.view.doOnLayout
 import com.android.systemui.animation.LaunchableView
 import com.android.systemui.animation.LaunchableViewDelegate
 
@@ -37,16 +38,16 @@ class CommunalAppWidgetHostView(
     private val interactionHandler: RemoteViews.InteractionHandler,
 ) : AppWidgetHostView(context, interactionHandler), LaunchableView {
     private val launchableViewDelegate =
-        LaunchableViewDelegate(
-            this,
-            superSetVisibility = { super.setVisibility(it) },
-        )
+        LaunchableViewDelegate(this, superSetVisibility = { super.setVisibility(it) })
 
     // Mutable corner radius.
     var enforcedCornerRadius: Float
 
     // Mutable `Rect`. The size will be mutated when the widget is reapplied.
     var enforcedRectangle: Rect
+
+    private var pendingUpdate: Boolean = false
+    private var pendingRemoteViews: RemoteViews? = null
 
     init {
         enforcedCornerRadius = RoundedCornerEnforcement.computeEnforcedRadius(context)
@@ -74,6 +75,23 @@ class CommunalAppWidgetHostView(
                 }
             }
         }
+
+    override fun updateAppWidget(remoteViews: RemoteViews?) {
+        // Workaround for Jetpack Compose bug which fails to render the widget if we add the
+        // RemoteViews before this parent view has been laid out. Therefore we wait for layout
+        // before calling the super.updateAppWidget() to actually render the widget.
+        // See b/387938328
+        pendingRemoteViews = remoteViews
+
+        if (!pendingUpdate) {
+            pendingUpdate = true
+            doOnLayout {
+                super.updateAppWidget(pendingRemoteViews)
+                pendingRemoteViews = null
+                pendingUpdate = false
+            }
+        }
+    }
 
     private fun enforceRoundedCorners() {
         if (enforcedCornerRadius <= 0) {
@@ -116,7 +134,7 @@ class CommunalAppWidgetHostView(
             launcherApps.getMainActivityLaunchIntent(
                 activityInfo.componentName,
                 null,
-                activityInfo.user
+                activityInfo.user,
             )
         if (intent != null) {
             interactionHandler.onInteraction(view, intent, RemoteResponse.fromPendingIntent(intent))

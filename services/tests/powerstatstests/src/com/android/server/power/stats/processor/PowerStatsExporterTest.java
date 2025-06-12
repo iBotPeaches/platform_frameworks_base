@@ -33,7 +33,6 @@ import android.os.Message;
 import android.os.Parcel;
 import android.os.PersistableBundle;
 import android.os.UidBatteryConsumer;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.runner.AndroidJUnit4;
 
@@ -42,6 +41,7 @@ import com.android.internal.os.CpuScalingPolicies;
 import com.android.internal.os.MonotonicClock;
 import com.android.internal.os.PowerProfile;
 import com.android.internal.os.PowerStats;
+import com.android.server.power.stats.BatteryHistoryDirectory;
 import com.android.server.power.stats.BatteryUsageStatsRule;
 import com.android.server.power.stats.MockClock;
 import com.android.server.power.stats.PowerStatsStore;
@@ -66,11 +66,6 @@ public class PowerStatsExporterTest {
     private static final double TOLERANCE = 0.01;
 
     @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
-    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_CPU_ACTIVE, 720)
             .setCpuScalingPolicy(0, new int[]{0}, new int[]{100})
@@ -84,6 +79,7 @@ public class PowerStatsExporterTest {
     private PowerStatsStore mPowerStatsStore;
     private PowerStatsAggregator mPowerStatsAggregator;
     private MultiStatePowerAttributor mPowerAttributor;
+    private BatteryHistoryDirectory mDirectory;
     private BatteryStatsHistory mHistory;
     private CpuPowerStatsLayout mCpuStatsArrayLayout;
     private PowerStats.Descriptor mPowerStatsDescriptor;
@@ -117,8 +113,8 @@ public class PowerStatsExporterTest {
                         AggregatedPowerStatsConfig.STATE_PROCESS_STATE);
 
         mPowerStatsStore = new PowerStatsStore(storeDirectory, new TestHandler());
-        mHistory = new BatteryStatsHistory(Parcel.obtain(), storeDirectory, 0, 10000,
-                mock(BatteryStatsHistory.HistoryStepDetailsCalculator.class), mClock,
+        mDirectory = new BatteryHistoryDirectory(storeDirectory, 0);
+        mHistory = new BatteryStatsHistory(Parcel.obtain(), 10000, mDirectory, mClock,
                 mMonotonicClock, null, null);
         mPowerStatsAggregator = new PowerStatsAggregator(config);
 
@@ -408,7 +404,7 @@ public class PowerStatsExporterTest {
         BatteryUsageStats.Builder builder = new BatteryUsageStats.Builder(
                 new String[]{"cu570m"},
                 /* includeProcessStateData */ true, true, true, /* powerThreshold */ 0);
-        exportAggregatedPowerStats(builder, 3700, 6700);
+        exportAggregatedPowerStats(builder, 3700, 7500);
 
         BatteryUsageStats actual = builder.build();
         String message = "Actual BatteryUsageStats: " + actual;

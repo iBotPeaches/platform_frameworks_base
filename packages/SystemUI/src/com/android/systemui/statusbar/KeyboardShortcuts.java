@@ -70,6 +70,7 @@ import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto;
 import com.android.settingslib.Utils;
 import com.android.systemui.res.R;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -141,38 +142,38 @@ public final class KeyboardShortcuts {
         this.mContext = new ContextThemeWrapper(
                 context, android.R.style.Theme_DeviceDefault_Settings);
         this.mPackageManager = AppGlobals.getPackageManager();
-        if (windowManager != null) {
-            this.mWindowManager = windowManager;
-        } else {
-            this.mWindowManager = mContext.getSystemService(WindowManager.class);
-        }
+        this.mWindowManager = windowManager;
         loadResources(context);
     }
 
-    private static KeyboardShortcuts getInstance(Context context) {
+    private static KeyboardShortcuts getInstance(Context context,
+            WindowManagerProvider windowManagerProvider) {
         if (sInstance == null) {
-            sInstance = new KeyboardShortcuts(context, null);
+            WindowManager windowManager = windowManagerProvider.getWindowManager(context);
+            sInstance = new KeyboardShortcuts(context, windowManager);
         }
         return sInstance;
     }
 
-    public static void show(Context context, int deviceId) {
+    public static void show(Context context, int deviceId,
+            WindowManagerProvider windowManagerProvider) {
         MetricsLogger.visible(context,
                 MetricsProto.MetricsEvent.KEYBOARD_SHORTCUTS_HELPER);
         synchronized (sLock) {
             if (sInstance != null && !sInstance.mContext.equals(context)) {
                 dismiss();
             }
-            getInstance(context).showKeyboardShortcuts(deviceId);
+            getInstance(context, windowManagerProvider).showKeyboardShortcuts(deviceId);
         }
     }
 
-    public static void toggle(Context context, int deviceId) {
+    public static void toggle(Context context, int deviceId,
+            WindowManagerProvider windowManagerProvider) {
         synchronized (sLock) {
             if (isShowing()) {
                 dismiss();
             } else {
-                show(context, deviceId);
+                show(context, deviceId, windowManagerProvider);
             }
         }
     }
@@ -485,11 +486,6 @@ public final class KeyboardShortcuts {
                 mContext.getString(
                         R.string.keyboard_shortcut_group_system_shortcuts_helper),
                 KeyEvent.KEYCODE_SLASH,
-                KeyEvent.META_META_ON));
-        systemGroup.addItem(new KeyboardShortcutInfo(
-                mContext.getString(
-                        R.string.keyboard_shortcut_group_system_switch_input),
-                KeyEvent.KEYCODE_SPACE,
                 KeyEvent.META_META_ON));
         return systemGroup;
     }

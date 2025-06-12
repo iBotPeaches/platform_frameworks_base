@@ -130,15 +130,36 @@ public class SeekBarWithIconButtonsViewTest extends SysuiTestCase {
     @Test
     public void setProgress_onProgressChangedAndOnUserInteractionFinalized() {
         reset(mOnSeekBarChangeListener);
-        mIconDiscreteSliderLinearLayout.setProgress(1);
+
+        // Trigger the progress changed listener with fromUser but without clicking.
+        // This is similar to what would happen if an accessibility service changed the
+        // progress.
+        mIconDiscreteSliderLinearLayout.getSeekBarChangeListener().onProgressChanged(
+                mIconDiscreteSliderLinearLayout.getSeekbar(), 1, /*fromUser=*/ true);
 
         // If users are changing seekbar progress without touching the seekbar or clicking the
         // buttons, trigger onUserInteractionFinalized.
         verify(mOnSeekBarChangeListener).onProgressChanged(
-                eq(mSeekbar), /* progress= */ eq(1), /* fromUser= */ eq(false));
+                eq(mSeekbar), /* progress= */ eq(1), /* fromUser= */ eq(true));
         verify(mOnSeekBarChangeListener, never()).onStartTrackingTouch(/* seekBar= */ any());
         verify(mOnSeekBarChangeListener, never()).onStopTrackingTouch(/* seekBar= */ any());
         verify(mOnSeekBarChangeListener).onUserInteractionFinalized(
+                /* seekBar= */ any(),
+                eq(OnSeekBarWithIconButtonsChangeListener.ControlUnitType.SLIDER));
+    }
+
+    @Test
+    public void setProgress_onProgressChangedWithoutUserInteractionFinalized() {
+        reset(mOnSeekBarChangeListener);
+        mIconDiscreteSliderLinearLayout.setProgress(1);
+
+        // If seekbar progress changes due to a non-user event, without touching the seekbar or
+        // clicking the buttons, do not trigger onUserInteractionFinalized.
+        verify(mOnSeekBarChangeListener).onProgressChanged(
+                eq(mSeekbar), /* progress= */ eq(1), /* fromUser= */ eq(false));
+        verify(mOnSeekBarChangeListener, never()).onStartTrackingTouch(/* seekBar= */ any());
+        verify(mOnSeekBarChangeListener, never()).onStopTrackingTouch(/* seekBar= */ any());
+        verify(mOnSeekBarChangeListener, never()).onUserInteractionFinalized(
                 /* seekBar= */ any(),
                 eq(OnSeekBarWithIconButtonsChangeListener.ControlUnitType.SLIDER));
     }

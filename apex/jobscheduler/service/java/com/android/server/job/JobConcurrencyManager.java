@@ -2039,8 +2039,8 @@ class JobConcurrencyManager {
         DeviceConfig.Properties properties =
                 DeviceConfig.getProperties(DeviceConfig.NAMESPACE_JOB_SCHEDULER);
 
-        // Concurrency limit should be in the range [8, MAX_CONCURRENCY_LIMIT].
-        mSteadyStateConcurrencyLimit = Math.max(8, Math.min(MAX_CONCURRENCY_LIMIT,
+        // Concurrency limit should be in the range [1, MAX_CONCURRENCY_LIMIT].
+        mSteadyStateConcurrencyLimit = Math.max(1, Math.min(MAX_CONCURRENCY_LIMIT,
                 properties.getInt(KEY_CONCURRENCY_LIMIT, DEFAULT_CONCURRENCY_LIMIT)));
 
         mScreenOffAdjustmentDelayMs = properties.getLong(

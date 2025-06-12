@@ -20,27 +20,27 @@ import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.notetask.NoteTaskController
 import com.android.systemui.notetask.NoteTaskEntryPoint
 import com.android.systemui.qs.pipeline.domain.interactor.PanelInteractor
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerSubject
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.notes.domain.model.NotesTileModel
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
 import org.mockito.Mockito.verify
+import org.mockito.kotlin.mock
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class NotesTileUserActionInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val inputHandler = FakeQSTileIntentUserInputHandler()
     private val panelInteractor = mock<PanelInteractor>()

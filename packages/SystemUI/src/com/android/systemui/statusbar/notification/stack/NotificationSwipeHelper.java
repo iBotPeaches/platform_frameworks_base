@@ -34,7 +34,6 @@ import android.view.ViewConfiguration;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.systemui.SwipeHelper;
-import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.plugins.FalsingManager;
@@ -261,7 +260,7 @@ class NotificationSwipeHelper extends SwipeHelper implements NotificationSwipeAc
             // Menu has not been snapped to previously and this is menu revealing gesture
             snapOpen(animView, menuSnapTarget, velocity);
             menuRow.onSnapOpen();
-        } else if (isDismissGesture && !gestureTowardsMenu) {
+        } else if (isDismissGesture && (!gestureTowardsMenu || isSwipeDismissible())) {
             dismiss(animView, velocity);
             menuRow.onDismiss();
         } else {
@@ -281,7 +280,7 @@ class NotificationSwipeHelper extends SwipeHelper implements NotificationSwipeAc
             // Haven't moved enough to unsnap from the menu
             menuRow.onSnapOpen();
             snapOpen(animView, menuRow.getMenuSnapTarget(), velocity);
-        } else if (isDismissGesture && !menuRow.shouldSnapBack()) {
+        } else if (isDismissGesture && (!menuRow.shouldSnapBack() || isSwipeDismissible())) {
             // Only dismiss if we're not moving towards the menu
             dismiss(animView, velocity);
             menuRow.onDismiss();
@@ -363,6 +362,7 @@ class NotificationSwipeHelper extends SwipeHelper implements NotificationSwipeAc
             superSnapChild(animView, targetLeft, velocity);
         }
 
+        mCallback.onMagneticInteractionEnd(animView, velocity);
         mCallback.onDragCancelled(animView);
         if (targetLeft == 0) {
             handleMenuCoveredOrDismissed();
@@ -404,7 +404,11 @@ class NotificationSwipeHelper extends SwipeHelper implements NotificationSwipeAc
     @Override
     public void setTranslation(View v, float translate) {
         if (v instanceof SwipeableView) {
-            ((SwipeableView) v).setTranslation(translate);
+            boolean setTranslationHandled =
+                    mCallback.handleSwipeableViewTranslation((SwipeableView) v, translate);
+            if (!setTranslationHandled) {
+                ((SwipeableView) v).setTranslation(translate);
+            }
         }
     }
 
@@ -529,6 +533,12 @@ class NotificationSwipeHelper extends SwipeHelper implements NotificationSwipeAc
         mPulsing = pulsing;
     }
 
+    @Override
+    public void resetTouchState() {
+        super.resetTouchState();
+        mCallback.resetMagneticStates();
+    }
+
     public interface NotificationCallback extends SwipeHelper.Callback{
         /**
          * @return if the view should be dismissed as soon as the touch is released, otherwise its
@@ -548,6 +558,11 @@ class NotificationSwipeHelper extends SwipeHelper implements NotificationSwipeAc
          * @param animView the view to ask about
          */
         float getTotalTranslationLength(View animView);
+
+        boolean handleSwipeableViewTranslation(SwipeableView view, float translate);
+
+        // Reset any ongoing magnetic interactions
+        void resetMagneticStates();
     }
 
     static class Builder {

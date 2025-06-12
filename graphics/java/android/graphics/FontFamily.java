@@ -41,6 +41,7 @@ import java.nio.channels.FileChannel;
  * @deprecated Use {@link android.graphics.fonts.FontFamily} instead.
  */
 @Deprecated
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class FontFamily {
 
     private static String TAG = "FontFamily";

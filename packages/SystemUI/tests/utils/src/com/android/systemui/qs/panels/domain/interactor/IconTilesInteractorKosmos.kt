@@ -16,6 +16,7 @@
 
 package com.android.systemui.qs.panels.domain.interactor
 
+import com.android.internal.logging.uiEventLoggerFake
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.log.core.FakeLogBuffer
@@ -29,6 +30,7 @@ val Kosmos.iconTilesInteractor by
             defaultLargeTilesRepository,
             currentTilesInteractor,
             qsPreferencesInteractor,
+            uiEventLoggerFake,
             largeTileSpanRepository,
             FakeLogBuffer.Factory.create(),
             applicationCoroutineScope,

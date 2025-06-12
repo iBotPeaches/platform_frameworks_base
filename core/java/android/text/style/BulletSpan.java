@@ -63,6 +63,7 @@ import android.text.TextUtils;
  * <img src="{@docRoot}reference/android/images/text/style/custombulletspan.png" />
  * <figcaption>Customized BulletSpan.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class BulletSpan implements LeadingMarginSpan, ParcelableSpan {
     // Bullet is slightly bigger to avoid aliasing artifacts on mdpi devices.
     private static final int STANDARD_BULLET_RADIUS = 4;

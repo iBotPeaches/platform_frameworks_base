@@ -134,15 +134,6 @@ class WindowToken extends WindowContainer<WindowState> {
         }
 
         /**
-         * Transforms the window container from the next rotation to the current rotation for
-         * showing the window in a display with different rotation.
-         */
-        void transform(WindowContainer<?> container) {
-            // The default implementation assumes shell transition is enabled, so the transform
-            // is done by getOrCreateFixedRotationLeash().
-        }
-
-        /**
          * Resets the transformation of the window containers which have been rotated. This should
          * be called when the window has the same rotation as display.
          */
@@ -155,45 +146,6 @@ class WindowToken extends WindowContainer<WindowState> {
         /** The state may not only be used by self. Make sure to leave the influence by others. */
         void disassociate(WindowToken token) {
             mAssociatedTokens.remove(token);
-        }
-    }
-
-    private static class FixedRotationTransformStateLegacy extends FixedRotationTransformState {
-        final SeamlessRotator mRotator;
-        final ArrayList<WindowContainer<?>> mRotatedContainers = new ArrayList<>(3);
-
-        FixedRotationTransformStateLegacy(DisplayInfo rotatedDisplayInfo,
-                DisplayFrames rotatedDisplayFrames, Configuration rotatedConfig,
-                int currentRotation) {
-            super(rotatedDisplayInfo, rotatedDisplayFrames, rotatedConfig);
-            // This will use unrotate as rotate, so the new and old rotation are inverted.
-            mRotator = new SeamlessRotator(rotatedDisplayInfo.rotation, currentRotation,
-                    rotatedDisplayInfo, true /* applyFixedTransformationHint */);
-        }
-
-        @Override
-        void transform(WindowContainer<?> container) {
-            mRotator.unrotate(container.getPendingTransaction(), container);
-            if (!mRotatedContainers.contains(container)) {
-                mRotatedContainers.add(container);
-            }
-        }
-
-        @Override
-        void resetTransform() {
-            for (int i = mRotatedContainers.size() - 1; i >= 0; i--) {
-                final WindowContainer<?> c = mRotatedContainers.get(i);
-                // If the window is detached (no parent), its surface may have been released.
-                if (c.getParent() != null) {
-                    mRotator.finish(c.getPendingTransaction(), c);
-                }
-            }
-        }
-
-        @Override
-        void disassociate(WindowToken token) {
-            super.disassociate(token);
-            mRotatedContainers.remove(token);
         }
     }
 
@@ -494,10 +446,7 @@ class WindowToken extends WindowContainer<WindowState> {
             mFixedRotationTransformState.disassociate(this);
         }
         config = new Configuration(config);
-        mFixedRotationTransformState = mTransitionController.isShellTransitionsEnabled()
-                ? new FixedRotationTransformState(info, displayFrames, config)
-                : new FixedRotationTransformStateLegacy(info, displayFrames, config,
-                        mDisplayContent.getRotation());
+        mFixedRotationTransformState = new FixedRotationTransformState(info, displayFrames, config);
         mFixedRotationTransformState.mAssociatedTokens.add(this);
         mDisplayContent.getDisplayPolicy().simulateLayoutDisplay(displayFrames);
         onFixedRotationStatePrepared();
@@ -699,15 +648,6 @@ class WindowToken extends WindowContainer<WindowState> {
             return;
         }
         super.updateSurfacePosition(t);
-        if (!mTransitionController.isShellTransitionsEnabled() && isFixedRotationTransforming()) {
-            final Task rootTask = r != null ? r.getRootTask() : null;
-            // Don't transform the activity in PiP because the PiP task organizer will handle it.
-            if (rootTask == null || !rootTask.inPinnedWindowingMode()) {
-                // The window is laid out in a simulated rotated display but the real display hasn't
-                // rotated, so here transforms its surface to fit in the real display.
-                mFixedRotationTransformState.transform(this);
-            }
-        }
     }
 
     @Override

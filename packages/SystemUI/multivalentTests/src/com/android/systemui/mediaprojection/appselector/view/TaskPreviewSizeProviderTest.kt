@@ -55,8 +55,6 @@ class TaskPreviewSizeProviderTest : SysuiTestCase() {
 
     @Before
     fun setup() {
-        whenever(mockContext.getSystemService(eq(WindowManager::class.java)))
-            .thenReturn(windowManager)
         whenever(mockContext.resources).thenReturn(resources)
     }
 
@@ -154,7 +152,8 @@ class TaskPreviewSizeProviderTest : SysuiTestCase() {
         return TaskPreviewSizeProvider(
                 mockContext,
                 windowMetricsProvider,
-                testConfigurationController
+                testConfigurationController,
+                windowManager
             )
             .also { it.addCallback(listener) }
     }

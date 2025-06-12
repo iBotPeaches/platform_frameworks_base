@@ -33,7 +33,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.ComponentName;
@@ -133,7 +132,7 @@ public class VibratorControlServiceTest {
         mVibratorControlService.registerVibratorController(controller1);
         mVibratorControlService.unregisterVibratorController(controller2);
 
-        verifyZeroInteractions(mMockVibrationScaler);
+        verifyNoMoreInteractions(mMockVibrationScaler);
         assertThat(controller1.isLinkedToDeath).isTrue();
     }
 
@@ -187,7 +186,7 @@ public class VibratorControlServiceTest {
         verify(mStatsLoggerMock).logVibrationParamResponseIgnored();
         verifyNoMoreInteractions(mStatsLoggerMock);
 
-        verifyZeroInteractions(mMockVibrationScaler);
+        verifyNoMoreInteractions(mMockVibrationScaler);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -242,7 +241,7 @@ public class VibratorControlServiceTest {
                 mFakeVibratorController);
 
         verify(mStatsLoggerMock, never()).logVibrationParamScale(anyFloat());
-        verifyZeroInteractions(mMockVibrationScaler);
+        verifyNoMoreInteractions(mMockVibrationScaler);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -280,7 +279,7 @@ public class VibratorControlServiceTest {
                 mFakeVibratorController);
 
         verify(mStatsLoggerMock, never()).logVibrationParamScale(anyFloat());
-        verifyZeroInteractions(mMockVibrationScaler);
+        verifyNoMoreInteractions(mMockVibrationScaler);
     }
 
     @Test

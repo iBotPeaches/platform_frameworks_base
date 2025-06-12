@@ -22,7 +22,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.qs.FakeQSFactory
@@ -34,8 +33,8 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.qsTileFactory
 import com.android.systemui.settings.fakeUserTracker
 import com.android.systemui.settings.userTracker
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -51,10 +50,11 @@ import org.junit.runner.RunWith
  */
 @MediumTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class WorkProfileAutoAddedAfterRestoreTest : SysuiTestCase() {
 
-    private val kosmos by lazy { Kosmos().apply { fakeUserTracker.set(listOf(USER_0_INFO), 0) } }
+    private val kosmos by lazy {
+        testKosmos().apply { fakeUserTracker.set(listOf(USER_0_INFO), 0) }
+    }
     // Getter here so it can change when there is a managed profile.
     private val workTileAvailable: Boolean
         get() = hasManagedProfile()
@@ -145,30 +145,15 @@ class WorkProfileAutoAddedAfterRestoreTest : SysuiTestCase() {
     }
 
     private fun TestScope.createManagedProfileAndAdd() {
-        kosmos.fakeUserTracker.set(
-            listOf(USER_0_INFO, MANAGED_USER_INFO),
-            0,
-        )
+        kosmos.fakeUserTracker.set(listOf(USER_0_INFO, MANAGED_USER_INFO), 0)
         runCurrent()
     }
 
     private companion object {
         val WORK_TILE_SPEC = "work".toTileSpec()
-        val USER_0_INFO =
-            UserInfo(
-                0,
-                "zero",
-                "",
-                UserInfo.FLAG_ADMIN or UserInfo.FLAG_FULL,
-            )
+        val USER_0_INFO = UserInfo(0, "zero", "", UserInfo.FLAG_ADMIN or UserInfo.FLAG_FULL)
         val MANAGED_USER_INFO =
-            UserInfo(
-                10,
-                "ten-managed",
-                "",
-                0,
-                UserManager.USER_TYPE_PROFILE_MANAGED,
-            )
+            UserInfo(10, "ten-managed", "", 0, UserManager.USER_TYPE_PROFILE_MANAGED)
 
         fun String.toTileSpec() = TileSpec.create(this)
     }

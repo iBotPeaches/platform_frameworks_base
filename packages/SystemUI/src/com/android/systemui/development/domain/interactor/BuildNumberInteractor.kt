@@ -23,6 +23,7 @@ import android.os.Build
 import android.os.UserHandle
 import com.android.internal.R as InternalR
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.development.data.repository.DevelopmentSettingRepository
@@ -32,13 +33,14 @@ import com.android.systemui.user.data.repository.UserRepository
 import com.android.systemui.user.utils.UserScopedService
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class BuildNumberInteractor
 @Inject
@@ -48,6 +50,7 @@ constructor(
     private val userRepository: UserRepository,
     private val clipboardManagerProvider: UserScopedService<ClipboardManager>,
     @Background private val backgroundDispatcher: CoroutineDispatcher,
+    @Application private val applicationScope: CoroutineScope,
 ) {
 
     /**
@@ -55,10 +58,11 @@ constructor(
      *
      * @see DevelopmentSettingRepository.isDevelopmentSettingEnabled
      */
-    val buildNumber: Flow<BuildNumber?> =
+    val buildNumber: StateFlow<BuildNumber?> =
         userRepository.selectedUserInfo
             .flatMapConcat { userInfo -> repository.isDevelopmentSettingEnabled(userInfo) }
             .map { enabled -> buildText.takeIf { enabled } }
+            .stateIn(applicationScope, WhileSubscribed(), null)
 
     private val buildText =
         BuildNumber(

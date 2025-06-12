@@ -101,7 +101,7 @@ class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.ViewHolde
 
     void setDevices(List<DeviceFilterPair<?>> devices) {
         mDevices = devices;
-        notifyDataSetChanged();
+        notifyItemRangeInserted(devices.size(), mDevices.size());
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

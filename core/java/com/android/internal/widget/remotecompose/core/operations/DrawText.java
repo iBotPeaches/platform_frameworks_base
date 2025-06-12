@@ -28,6 +28,7 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
@@ -204,5 +205,19 @@ public class DrawText extends PaintOperation implements VariableSupport {
     @Override
     public void paint(@NonNull PaintContext context) {
         context.drawTextRun(mTextID, mStart, mEnd, mContextStart, mContextEnd, mOutX, mOutY, mRtl);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("textId", mTextID)
+                .add("start", mStart)
+                .add("end", mEnd)
+                .add("contextStart", mContextStart)
+                .add("contextEnd", mContextEnd)
+                .add("x", mX, mOutX)
+                .add("y", mY, mOutY)
+                .add("rtl", mRtl);
     }
 }

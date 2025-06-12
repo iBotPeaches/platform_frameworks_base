@@ -21,5 +21,5 @@ package android.media.tv.extension.scan;
  */
 interface IHDPlusInfo {
     // Specifying a HDPlusInfo and start a network scan.
-    int setHDPlusInfo(String isBlindScanContinue, String isHDMode);
+    int setHDPlusInfo(boolean isBlindScanContinue, boolean isHDMode);
 }

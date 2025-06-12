@@ -86,8 +86,6 @@ import java.util.function.Supplier;
  */
 public final class BroadcastHelper {
     private static final boolean DEBUG_BROADCASTS = false;
-    private static final String PERMISSION_PACKAGE_CHANGED_BROADCAST_ON_COMPONENT_STATE_CHANGED =
-            "android.permission.INTERNAL_RECEIVE_PACKAGE_CHANGED_BROADCAST_ON_COMPONENT_STATE_CHANGED";
 
     private final UserManagerInternal mUmInternal;
     private final ActivityManagerInternal mAmInternal;
@@ -360,13 +358,17 @@ public final class BroadcastHelper {
             @Nullable SparseArray<int[]> broadcastAllowList,
             @NonNull AndroidPackage pkg,
             @NonNull String[] sharedUidPackages,
-            @NonNull String reasonForTrace) {
+            @NonNull String reasonForTrace,
+            int callingUidForTrace) {
         final boolean isForWholeApp = componentNames.contains(packageName);
+        final String callingPackageNameForTrace = mContext.getPackageManager().getNameForUid(
+                callingUidForTrace);
         if (isForWholeApp || !android.content.pm.Flags.reduceBroadcastsForComponentStateChanges()) {
             tracePackageChangedBroadcastEvent(
                     android.content.pm.Flags.reduceBroadcastsForComponentStateChanges(),
-                    reasonForTrace, "all" /* targetName */, "whole" /* targetComponent */,
-                    componentNames.size());
+                    reasonForTrace, packageName, "<implicit>" /* targetPackageName */,
+                    "whole" /* targetComponent */, componentNames.size(),
+                    callingPackageNameForTrace);
             sendPackageChangedBroadcastWithPermissions(packageName, dontKillApp, componentNames,
                     packageUid, reason, userIds, instantUserIds, broadcastAllowList,
                     null /* targetPackageName */, null /* requiredPermissions */);
@@ -388,20 +390,19 @@ public final class BroadcastHelper {
 
             // First, send the PACKAGE_CHANGED broadcast to the system.
             if (!TextUtils.equals(packageName, "android")) {
-                tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace,
-                        "system" /* targetName */, "notExported" /* targetComponent */,
-                        notExportedComponentNames.size());
+                tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace, packageName,
+                        "android" /* targetPackageName */, "notExported" /* targetComponent */,
+                        notExportedComponentNames.size(), callingPackageNameForTrace);
                 sendPackageChangedBroadcastWithPermissions(packageName, dontKillApp,
                         notExportedComponentNames, packageUid, reason, userIds, instantUserIds,
                         broadcastAllowList, "android" /* targetPackageName */,
-                        new String[]{
-                                PERMISSION_PACKAGE_CHANGED_BROADCAST_ON_COMPONENT_STATE_CHANGED});
+                        null /* requiredPermissions */);
             }
 
             // Second, send the PACKAGE_CHANGED broadcast to the application itself.
-            tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace,
-                    "applicationItself" /* targetName */, "notExported" /* targetComponent */,
-                    notExportedComponentNames.size());
+            tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace, packageName,
+                    packageName /* targetPackageName */, "notExported" /* targetComponent */,
+                    notExportedComponentNames.size(), callingPackageNameForTrace);
             sendPackageChangedBroadcastWithPermissions(packageName, dontKillApp,
                     notExportedComponentNames, packageUid, reason, userIds, instantUserIds,
                     broadcastAllowList, packageName /* targetPackageName */,
@@ -413,9 +414,9 @@ public final class BroadcastHelper {
                 if (TextUtils.equals(packageName, sharedPackage)) {
                     continue;
                 }
-                tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace,
-                        "sharedUidPackages" /* targetName */, "notExported" /* targetComponent */,
-                        notExportedComponentNames.size());
+                tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace, packageName,
+                        sharedPackage /* targetPackageName */, "notExported" /* targetComponent */,
+                        notExportedComponentNames.size(), callingPackageNameForTrace);
                 sendPackageChangedBroadcastWithPermissions(packageName, dontKillApp,
                         notExportedComponentNames, packageUid, reason, userIds, instantUserIds,
                         broadcastAllowList, sharedPackage /* targetPackageName */,
@@ -425,9 +426,9 @@ public final class BroadcastHelper {
         }
 
         if (!exportedComponentNames.isEmpty()) {
-            tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace,
-                    "all" /* targetName */, "exported" /* targetComponent */,
-                    exportedComponentNames.size());
+            tracePackageChangedBroadcastEvent(true /* applyFlag */, reasonForTrace, packageName,
+                    "<implicit>" /* targetPackageName */, "exported" /* targetComponent */,
+                    exportedComponentNames.size(), callingPackageNameForTrace);
             sendPackageChangedBroadcastWithPermissions(packageName, dontKillApp,
                     exportedComponentNames, packageUid, reason, userIds, instantUserIds,
                     broadcastAllowList, null /* targetPackageName */,
@@ -770,7 +771,8 @@ public final class BroadcastHelper {
                             dontKillApp,
                             new ArrayList<>(Collections.singletonList(pkg.getPackageName())),
                             pkg.getUid(), null /* reason */,
-                            "static_shared_library_changed" /* reasonForTrace */);
+                            "static_shared_library_changed" /* reasonForTrace */,
+                            Process.SYSTEM_UID);
                 }
             }
         }
@@ -962,7 +964,8 @@ public final class BroadcastHelper {
                                      @NonNull ArrayList<String> componentNames,
                                      int packageUid,
                                      @NonNull String reason,
-                                     @NonNull String reasonForTrace) {
+                                     @NonNull String reasonForTrace,
+                                     int callingUidForTrace) {
         PackageStateInternal setting = snapshot.getPackageStateInternal(packageName,
                 Process.SYSTEM_UID);
         if (setting == null || setting.getPkg() == null) {
@@ -980,7 +983,7 @@ public final class BroadcastHelper {
         mHandler.post(() -> sendPackageChangedBroadcastInternal(
                 packageName, dontKillApp, componentNames, packageUid, reason, userIds,
                 instantUserIds, broadcastAllowList, setting.getPkg(),
-                sharedUserPackages, reasonForTrace));
+                sharedUserPackages, reasonForTrace, callingUidForTrace));
         mPackageMonitorCallbackHelper.notifyPackageChanged(packageName, dontKillApp, componentNames,
                 packageUid, reason, userIds, instantUserIds, broadcastAllowList, mHandler);
     }
@@ -1274,8 +1277,10 @@ public final class BroadcastHelper {
                 uids, mHandler);
     }
 
-    private static void tracePackageChangedBroadcastEvent(boolean applyFlag, String reasonForTrace,
-            String targetName, String targetComponent, int componentSize) {
+    private static void tracePackageChangedBroadcastEvent(boolean applyFlag,
+            @NonNull String reasonForTrace, @Nullable String packageName,
+            @Nullable String targetPackageName, @Nullable String targetComponent,
+            int componentSize, @Nullable String callingPackageNameForTrace) {
 
         if (!Trace.isTagEnabled(Trace.TRACE_TAG_SYSTEM_SERVER)) {
             return;
@@ -1285,9 +1290,11 @@ public final class BroadcastHelper {
         builder.append("broadcastPackageChanged; ");
         builder.append("af="); builder.append(applyFlag);
         builder.append(",rft="); builder.append(reasonForTrace);
-        builder.append(",tn="); builder.append(targetName);
+        builder.append(",pn="); builder.append(packageName);
+        builder.append(",tpn="); builder.append(targetPackageName);
         builder.append(",tc="); builder.append(targetComponent);
         builder.append(",cs="); builder.append(componentSize);
+        builder.append(",cpnft="); builder.append(callingPackageNameForTrace);
 
         Trace.instant(Trace.TRACE_TAG_SYSTEM_SERVER, builder.toString());
     }

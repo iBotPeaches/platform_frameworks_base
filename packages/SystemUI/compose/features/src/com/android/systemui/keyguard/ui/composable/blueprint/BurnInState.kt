@@ -26,18 +26,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
 import com.android.systemui.keyguard.ui.viewmodel.BurnInParameters
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
 import com.android.systemui.plugins.clocks.ClockController
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Produces a [BurnInState] that can be used to query the `LockscreenBurnInViewModel` flows. */
 @Composable
-fun rememberBurnIn(
-    clockInteractor: KeyguardClockInteractor,
-): BurnInState {
-    val clock by clockInteractor.currentClock.collectAsStateWithLifecycle()
+fun rememberBurnIn(clockViewModel: KeyguardClockViewModel): BurnInState {
+    val clock by clockViewModel.currentClock.collectAsStateWithLifecycle()
 
     val (smartspaceTop, onSmartspaceTopChanged) = remember { mutableStateOf<Float?>(null) }
     val (smallClockTop, onSmallClockTopChanged) = remember { mutableStateOf<Float?>(null) }
@@ -62,18 +60,12 @@ fun rememberBurnIn(
 }
 
 @Composable
-private fun rememberBurnInParameters(
-    clock: ClockController?,
-    topmostTop: Int,
-): BurnInParameters {
+private fun rememberBurnInParameters(clock: ClockController?, topmostTop: Int): BurnInParameters {
     val density = LocalDensity.current
     val topInset = WindowInsets.systemBars.union(WindowInsets.displayCutout).getTop(density)
 
     return remember(clock, topInset, topmostTop) {
-        BurnInParameters(
-            topInset = topInset,
-            minViewY = topmostTop,
-        )
+        BurnInParameters(topInset = topInset, minViewY = topmostTop)
     }
 }
 

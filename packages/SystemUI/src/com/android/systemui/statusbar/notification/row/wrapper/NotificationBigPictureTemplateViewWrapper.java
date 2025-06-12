@@ -30,6 +30,7 @@ import com.android.internal.widget.BigPictureNotificationImageView;
 import com.android.systemui.statusbar.notification.ImageTransformState;
 import com.android.systemui.statusbar.notification.row.BigPictureIconManager;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 
 /**
  * Wraps a notification containing a big picture template
@@ -47,7 +48,9 @@ public class NotificationBigPictureTemplateViewWrapper extends NotificationTempl
     public void onContentUpdated(ExpandableNotificationRow row) {
         super.onContentUpdated(row);
         resolveViews();
-        updateImageTag(row.getEntry().getSbn());
+        updateImageTag(NotificationBundleUi.isEnabled()
+                ? row.getEntryAdapter().getSbn()
+                : row.getEntryLegacy().getSbn());
     }
 
     private void resolveViews() {

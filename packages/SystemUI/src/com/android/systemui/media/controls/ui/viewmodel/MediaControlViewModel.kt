@@ -35,8 +35,6 @@ import com.android.systemui.media.controls.shared.model.MediaButton
 import com.android.systemui.media.controls.shared.model.MediaControlModel
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager
 import com.android.systemui.media.controls.ui.controller.MediaLocation
-import com.android.systemui.media.controls.util.MediaSmartspaceLogger.Companion.SMARTSPACE_CARD_CLICK_EVENT
-import com.android.systemui.media.controls.util.MediaSmartspaceLogger.Companion.SMARTSPACE_CARD_DISMISS_EVENT
 import com.android.systemui.media.controls.util.MediaUiEventLogger
 import com.android.systemui.res.R
 import java.util.concurrent.Executor
@@ -47,12 +45,17 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** Models UI state and handles user input for a media control. */
-class MediaControlViewModel(
+data class MediaControlViewModel(
     @Application private val applicationContext: Context,
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     @Background private val backgroundExecutor: Executor,
     private val interactor: MediaControlInteractor,
     private val logger: MediaUiEventLogger,
+    val instanceId: InstanceId,
+    val onAdded: (MediaControlViewModel) -> Unit,
+    val onRemoved: (Boolean) -> Unit,
+    val onUpdated: (MediaControlViewModel) -> Unit,
+    val updateTime: Long = 0,
 ) {
     val player: Flow<MediaPlayerViewModel?> =
         interactor.mediaControl
@@ -90,13 +93,7 @@ class MediaControlViewModel(
         instanceId: InstanceId,
     ) {
         logger.logLongPressDismiss(uid, packageName, instanceId)
-        interactor.removeMediaControl(
-            token,
-            instanceId,
-            MEDIA_PLAYER_ANIMATION_DELAY,
-            SMARTSPACE_CARD_DISMISS_EVENT,
-            location,
-        )
+        interactor.removeMediaControl(token, instanceId, MEDIA_PLAYER_ANIMATION_DELAY)
     }
 
     private fun toViewModel(model: MediaControlModel): MediaPlayerViewModel {
@@ -141,21 +138,13 @@ class MediaControlViewModel(
             onClicked = { expandable ->
                 model.clickIntent?.let { clickIntent ->
                     logger.logTapContentView(model.uid, model.packageName, model.instanceId)
-                    interactor.startClickIntent(
-                        expandable,
-                        clickIntent,
-                        SMARTSPACE_CARD_CLICK_EVENT,
-                        location,
-                    )
+                    interactor.startClickIntent(expandable, clickIntent)
                 }
             },
             onLongClicked = {
                 logger.logLongPressOpen(model.uid, model.packageName, model.instanceId)
             },
-            onSeek = {
-                logger.logSeek(model.uid, model.packageName, model.instanceId)
-                interactor.logSmartspaceUserEvent(SMARTSPACE_CARD_CLICK_EVENT, location)
-            },
+            onSeek = { logger.logSeek(model.uid, model.packageName, model.instanceId) },
             onBindSeekbar = { seekBarViewModel ->
                 if (model.isResume && model.resumeProgress != null) {
                     seekBarViewModel.updateStaticProgress(model.resumeProgress)
@@ -316,8 +305,11 @@ class MediaControlViewModel(
             isVisibleWhenScrubbing = !shouldHideWhenScrubbing,
             notVisibleValue =
                 if (
-                    (buttonId == R.id.actionPrev && model.semanticActionButtons!!.reservePrev) ||
-                        (buttonId == R.id.actionNext && model.semanticActionButtons!!.reserveNext)
+                    !shouldHideWhenScrubbing &&
+                        ((buttonId == R.id.actionPrev &&
+                            model.semanticActionButtons!!.reservePrev) ||
+                            (buttonId == R.id.actionNext &&
+                                model.semanticActionButtons!!.reserveNext))
                 ) {
                     ConstraintSet.INVISIBLE
                 } else {
@@ -363,7 +355,6 @@ class MediaControlViewModel(
         action: Runnable,
     ) {
         logger.logTapAction(id, uid, packageName, instanceId)
-        interactor.logSmartspaceUserEvent(SMARTSPACE_CARD_CLICK_EVENT, location)
         isAnyButtonClicked = true
         action.run()
     }
@@ -382,7 +373,9 @@ class MediaControlViewModel(
         // so we should only allow scrubbing times to be shown if those action views are present.
         return semanticActions?.let {
             SEMANTIC_ACTIONS_HIDE_WHEN_SCRUBBING.stream().allMatch { id: Int ->
-                semanticActions.getActionById(id) != null
+                semanticActions.getActionById(id) != null ||
+                    (id == R.id.actionPrev && semanticActions.reservePrev ||
+                        id == R.id.actionNext && semanticActions.reserveNext)
             }
         } ?: false
     }
@@ -413,7 +406,11 @@ class MediaControlViewModel(
             )
 
         const val TURBULENCE_NOISE_PLAY_MS_DURATION = 7500L
-        const val MEDIA_PLAYER_SCRIM_START_ALPHA = 0.25f
-        const val MEDIA_PLAYER_SCRIM_END_ALPHA = 1.0f
+        @Deprecated("Remove with media_controls_a11y_colors flag")
+        const val MEDIA_PLAYER_SCRIM_START_ALPHA_LEGACY = 0.25f
+        @Deprecated("Remove with media_controls_a11y_colors flag")
+        const val MEDIA_PLAYER_SCRIM_END_ALPHA_LEGACY = 1.0f
+        const val MEDIA_PLAYER_SCRIM_START_ALPHA = 0.65f
+        const val MEDIA_PLAYER_SCRIM_END_ALPHA = 0.75f
     }
 }

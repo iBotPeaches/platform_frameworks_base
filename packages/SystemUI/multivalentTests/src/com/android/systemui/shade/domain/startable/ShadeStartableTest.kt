@@ -16,8 +16,6 @@
 
 package com.android.systemui.shade.domain.startable
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
 import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.ObservableTransitionState
@@ -39,8 +37,9 @@ import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.shared.model.fakeSceneDataSource
 import com.android.systemui.shade.ShadeExpansionChangeEvent
 import com.android.systemui.shade.ShadeExpansionListener
-import com.android.systemui.shade.domain.interactor.shadeInteractor
-import com.android.systemui.shade.shared.flag.DualShade
+import com.android.systemui.shade.domain.interactor.disableDualShade
+import com.android.systemui.shade.domain.interactor.enableDualShade
+import com.android.systemui.shade.domain.interactor.shadeMode
 import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.statusbar.notification.stack.notificationStackScrollLayoutController
 import com.android.systemui.statusbar.phone.scrimController
@@ -67,7 +66,6 @@ import platform.test.runner.parameterized.Parameters
 class ShadeStartableTest(flags: FlagsParameterization) : SysuiTestCase() {
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
-    private val shadeInteractor by lazy { kosmos.shadeInteractor }
     private val sceneInteractor by lazy { kosmos.sceneInteractor }
     private val shadeExpansionStateManager by lazy { kosmos.shadeExpansionStateManager }
     private val fakeConfigurationRepository by lazy { kosmos.fakeConfigurationRepository }
@@ -88,11 +86,11 @@ class ShadeStartableTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun hydrateShadeMode_dualShadeDisabled() =
         testScope.runTest {
             overrideResource(R.bool.config_use_split_notification_shade, false)
-            val shadeMode by collectLastValue(shadeInteractor.shadeMode)
+            kosmos.disableDualShade()
+            val shadeMode by collectLastValue(kosmos.shadeMode)
 
             underTest.start()
             assertThat(shadeMode).isEqualTo(ShadeMode.Single)
@@ -107,11 +105,12 @@ class ShadeStartableTest(flags: FlagsParameterization) : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
+    @EnableSceneContainer
     fun hydrateShadeMode_dualShadeEnabled() =
         testScope.runTest {
             overrideResource(R.bool.config_use_split_notification_shade, false)
-            val shadeMode by collectLastValue(shadeInteractor.shadeMode)
+            kosmos.enableDualShade()
+            val shadeMode by collectLastValue(kosmos.shadeMode)
 
             underTest.start()
             assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
@@ -159,11 +158,7 @@ class ShadeStartableTest(flags: FlagsParameterization) : SysuiTestCase() {
 
             assertThat(latestChangeEvent)
                 .isEqualTo(
-                    ShadeExpansionChangeEvent(
-                        fraction = 0f,
-                        expanded = false,
-                        tracking = false,
-                    )
+                    ShadeExpansionChangeEvent(fraction = 0f, expanded = false, tracking = false)
                 )
 
             changeScene(Scenes.Shade, transitionState) { progress ->

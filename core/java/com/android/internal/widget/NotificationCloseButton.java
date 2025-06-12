@@ -21,6 +21,8 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.util.AttributeSet;
 import android.view.RemotableViewMethod;
 import android.view.View;
@@ -39,6 +41,8 @@ public class NotificationCloseButton extends ImageView {
 
     @ColorInt private int mBackgroundColor;
     @ColorInt private int mForegroundColor;
+
+    private Drawable mPillDrawable;
 
     public NotificationCloseButton(Context context) {
         this(context, null, 0, 0);
@@ -62,6 +66,10 @@ public class NotificationCloseButton extends ImageView {
     protected void onFinishInflate() {
         super.onFinishInflate();
         setContentDescription(mContext.getText(R.string.close_button_text));
+
+        final LayerDrawable layeredPill = (LayerDrawable) this.getBackground();
+        mPillDrawable = layeredPill.findDrawableByLayerId(R.id.close_button_pill_colorized_layer);
+
         boolean notificationCloseButtonSupported = Resources.getSystem().getBoolean(
                 com.android.internal.R.bool.config_notificationCloseButtonSupported);
         this.setVisibility(notificationCloseButtonSupported ? View.VISIBLE : View.GONE);
@@ -76,8 +84,11 @@ public class NotificationCloseButton extends ImageView {
 
     private void updateColors() {
         if (mBackgroundColor != 0) {
-            this.setBackgroundTintList(ColorStateList.valueOf(mBackgroundColor));
+            // TODO(http://b/365585705): Ensure this close button compatible with the ongoing effort
+            // that makes notification rows partially-transparent.
+            this.mPillDrawable.setTintList(ColorStateList.valueOf(mBackgroundColor));
         }
+
         if (mForegroundColor != 0) {
             this.setImageTintList(ColorStateList.valueOf(mForegroundColor));
         }

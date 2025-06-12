@@ -42,14 +42,14 @@ sp<SurfaceComposerClient> android_view_SurfaceSession_getClient(
 
 
 static jlong nativeCreate(JNIEnv* env, jclass clazz) {
-    SurfaceComposerClient* client = new SurfaceComposerClient();
-    client->incStrong((void*)nativeCreate);
-    return reinterpret_cast<jlong>(client);
+    // Will be deleted via decStrong() in nativeDestroy.
+    auto client = sp<SurfaceComposerClient>::make();
+    return reinterpret_cast<jlong>(client.release());
 }
 
 static void nativeDestroy(JNIEnv* env, jclass clazz, jlong ptr) {
     SurfaceComposerClient* client = reinterpret_cast<SurfaceComposerClient*>(ptr);
-    client->decStrong((void*)nativeCreate);
+    client->decStrong((void*)client);
 }
 
 static const JNINativeMethod gMethods[] = {

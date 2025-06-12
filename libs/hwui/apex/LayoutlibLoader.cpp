@@ -29,6 +29,7 @@ using namespace std;
 extern int register_android_graphics_Bitmap(JNIEnv*);
 extern int register_android_graphics_BitmapFactory(JNIEnv*);
 extern int register_android_graphics_BitmapRegionDecoder(JNIEnv*);
+extern int register_android_graphics_RuntimeXfermode(JNIEnv*);
 extern int register_android_graphics_ByteBufferStreamAdaptor(JNIEnv* env);
 extern int register_android_graphics_Camera(JNIEnv* env);
 extern int register_android_graphics_CreateJavaOutputStreamAdaptor(JNIEnv* env);
@@ -131,6 +132,7 @@ static const std::unordered_map<std::string, RegJNIRec> gRegJNIMap = {
         {"android.graphics.RenderNode", REG_JNI(register_android_view_RenderNode)},
         {"android.graphics.Shader", REG_JNI(register_android_graphics_Shader)},
         {"android.graphics.RenderEffect", REG_JNI(register_android_graphics_RenderEffect)},
+        {"android.graphics.RuntimeXfermode", REG_JNI(register_android_graphics_RuntimeXfermode)},
         {"android.graphics.Typeface", REG_JNI(register_android_graphics_Typeface)},
         {"android.graphics.YuvImage", REG_JNI(register_android_graphics_YuvImage)},
         {"android.graphics.animation.NativeInterpolatorFactory",

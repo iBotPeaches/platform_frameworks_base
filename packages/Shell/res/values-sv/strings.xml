@@ -18,8 +18,8 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="3701846017049540910">"Skal"</string>
     <string name="bugreport_notification_channel" msgid="2574150205913861141">"Felrapporter"</string>
-    <string name="bugreport_in_progress_title" msgid="4311705936714972757">"Felrapporten <xliff:g id="ID">#%d</xliff:g> genereras"</string>
-    <string name="bugreport_finished_title" msgid="4429132808670114081">"Felrapporten <xliff:g id="ID">#%d</xliff:g> har skapats"</string>
+    <string name="bugreport_in_progress_title" msgid="4311705936714972757">"Felrapport <xliff:g id="ID">#%d</xliff:g> genereras"</string>
+    <string name="bugreport_finished_title" msgid="4429132808670114081">"Felrapport <xliff:g id="ID">#%d</xliff:g> har skapats"</string>
     <string name="bugreport_updating_title" msgid="4423539949559634214">"Lägger till information i felrapporten"</string>
     <string name="bugreport_updating_wait" msgid="3322151947853929470">"Vänta …"</string>
     <string name="bugreport_finished_text" product="watch" msgid="1223616207145252689">"Felrapporten visas på mobilen inom kort"</string>

@@ -17,7 +17,6 @@
 package com.android.systemui.statusbar.pipeline.satellite.ui
 
 import android.content.Context
-import com.android.internal.telephony.flags.Flags.oemEnabledSatelliteFlag
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.statusbar.pipeline.icons.shared.model.BindableIcon
 import com.android.systemui.statusbar.pipeline.icons.shared.model.ModernStatusBarViewCreator
@@ -29,10 +28,7 @@ import javax.inject.Inject
 @SysUISingleton
 class DeviceBasedSatelliteBindableIcon
 @Inject
-constructor(
-    context: Context,
-    viewModel: DeviceBasedSatelliteViewModel,
-) : BindableIcon {
+constructor(context: Context, viewModel: DeviceBasedSatelliteViewModel) : BindableIcon {
     override val slot: String =
         context.getString(com.android.internal.R.string.status_bar_oem_satellite)
 
@@ -42,5 +38,5 @@ constructor(
         }
     }
 
-    override val shouldBindIcon: Boolean = oemEnabledSatelliteFlag()
+    override val shouldBindIcon: Boolean = true
 }

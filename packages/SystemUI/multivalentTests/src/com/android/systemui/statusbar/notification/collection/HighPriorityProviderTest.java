@@ -30,6 +30,9 @@ import static org.mockito.Mockito.when;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -39,8 +42,10 @@ import com.android.systemui.statusbar.RankingBuilder;
 import com.android.systemui.statusbar.notification.collection.provider.HighPriorityProvider;
 import com.android.systemui.statusbar.notification.collection.render.GroupMembershipManager;
 import com.android.systemui.statusbar.notification.people.PeopleNotificationIdentifier;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -56,6 +61,9 @@ public class HighPriorityProviderTest extends SysuiTestCase {
     @Mock private PeopleNotificationIdentifier mPeopleNotificationIdentifier;
     @Mock private GroupMembershipManager mGroupMembershipManager;
     private HighPriorityProvider mHighPriorityProvider;
+
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Before
     public void setup() {
@@ -210,6 +218,7 @@ public class HighPriorityProviderTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
     public void testIsHighPriority_checkChildrenToCalculatePriority_legacy() {
         // GIVEN: a summary with low priority has a highPriorityChild and a lowPriorityChild
         final NotificationEntry summary = createNotifEntry(false);
@@ -247,20 +256,18 @@ public class HighPriorityProviderTest extends SysuiTestCase {
     }
 
     @Test
-    public void testIsHighPriority_checkChildrenToCalculatePriority() {
+    public void testIsHighPriority_checkChildrenViewsToCalculatePriority() {
         // GIVEN:
         // parent with summary = lowPrioritySummary
         //      NotificationEntry = lowPriorityChild
         //      NotificationEntry = highPriorityChild
+        List<NotificationEntry> children = List.of(createNotifEntry(false), createNotifEntry(true));
         final NotificationEntry lowPrioritySummary = createNotifEntry(false);
         final GroupEntry parentEntry = new GroupEntryBuilder()
                 .setSummary(lowPrioritySummary)
+                .setChildren(children)
                 .build();
-        when(mGroupMembershipManager.getChildren(parentEntry)).thenReturn(
-                new ArrayList<>(
-                        List.of(
-                                createNotifEntry(false),
-                                createNotifEntry(true))));
+        when(mGroupMembershipManager.getChildren(parentEntry)).thenReturn(children);
 
         // THEN the GroupEntry parentEntry is high priority since it has a high priority child
         assertTrue(mHighPriorityProvider.isHighPriority(parentEntry));
@@ -272,10 +279,11 @@ public class HighPriorityProviderTest extends SysuiTestCase {
         // parent with summary = lowPrioritySummary
         //      NotificationEntry = lowPriorityChild
         final NotificationEntry lowPrioritySummary = createNotifEntry(false);
+        final NotificationEntry lowPriorityChild = createNotifEntry(false);
         final GroupEntry parentEntry = new GroupEntryBuilder()
                 .setSummary(lowPrioritySummary)
+                .setChildren(List.of(lowPriorityChild))
                 .build();
-        final NotificationEntry lowPriorityChild = createNotifEntry(false);
         when(mGroupMembershipManager.getChildren(parentEntry)).thenReturn(
                 new ArrayList<>(List.of(lowPriorityChild)));
 

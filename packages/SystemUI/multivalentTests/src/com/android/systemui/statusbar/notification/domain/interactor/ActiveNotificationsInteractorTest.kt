@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.domain.interactor
 
 import android.platform.test.annotations.DisableFlags
@@ -26,16 +24,15 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips
-import com.android.systemui.statusbar.notification.collection.render.NotifStats
+import com.android.systemui.statusbar.notification.data.model.NotifStats
 import com.android.systemui.statusbar.notification.data.model.activeNotificationModel
 import com.android.systemui.statusbar.notification.data.repository.ActiveNotificationsStore
 import com.android.systemui.statusbar.notification.data.repository.activeNotificationListRepository
 import com.android.systemui.statusbar.notification.data.repository.setActiveNotifs
-import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentBuilder
 import com.android.systemui.statusbar.notification.shared.CallType
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -173,7 +170,7 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
             val promoted1 =
                 activeNotificationModel(
                     key = "notif1",
-                    promotedContent = PromotedNotificationContentModel.Builder("notif1").build(),
+                    promotedContent = PromotedNotificationContentBuilder("notif1").build(),
                 )
             val notPromoted2 = activeNotificationModel(key = "notif2", promotedContent = null)
 
@@ -211,14 +208,14 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
             val promoted1 =
                 activeNotificationModel(
                     key = "notif1",
-                    promotedContent = PromotedNotificationContentModel.Builder("notif1").build(),
+                    promotedContent = PromotedNotificationContentBuilder("notif1").build(),
                 )
             val notPromoted2 = activeNotificationModel(key = "notif2", promotedContent = null)
             val notPromoted3 = activeNotificationModel(key = "notif3", promotedContent = null)
             val promoted4 =
                 activeNotificationModel(
                     key = "notif4",
-                    promotedContent = PromotedNotificationContentModel.Builder("notif4").build(),
+                    promotedContent = PromotedNotificationContentBuilder("notif4").build(),
                 )
 
             activeNotificationListRepository.activeNotifications.value =
@@ -275,7 +272,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = true,
                     hasNonClearableSilentNotifs = false,
@@ -293,7 +289,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = false,
                     hasNonClearableSilentNotifs = false,
@@ -311,7 +306,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 0,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = false,
                     hasNonClearableSilentNotifs = false,
@@ -329,7 +323,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = false,
                     hasNonClearableSilentNotifs = false,
@@ -347,7 +340,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = true,
                     hasClearableAlertingNotifs = false,
                     hasNonClearableSilentNotifs = true,
@@ -365,7 +357,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = true,
                     hasNonClearableSilentNotifs = false,
@@ -383,7 +374,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = false,
                     hasNonClearableSilentNotifs = true,
@@ -401,7 +391,6 @@ class ActiveNotificationsInteractorTest : SysuiTestCase() {
 
             activeNotificationListRepository.notifStats.value =
                 NotifStats(
-                    numActiveNotifs = 2,
                     hasNonClearableAlertingNotifs = false,
                     hasClearableAlertingNotifs = false,
                     hasNonClearableSilentNotifs = false,

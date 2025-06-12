@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import android.content.ContentProvider;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.provider.Settings;
 import android.test.mock.MockContentResolver;
@@ -37,7 +37,7 @@ import org.junit.runner.RunWith;
  * Unit tests for FakeSettingsProvider.
  */
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ContentProvider.class)
+@DisabledOnRavenwood(blockedBy = ContentProvider.class)
 public class FakeSettingsProviderTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

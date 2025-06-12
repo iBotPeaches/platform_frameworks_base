@@ -142,14 +142,6 @@ class ExternalDisplayPolicy {
             mDisplayIdsWaitingForBootCompletion.clear();
         }
 
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
-            if (DEBUG) {
-                Slog.d(TAG, "External display management is not enabled on your device:"
-                                    + " cannot register thermal listener.");
-            }
-            return;
-        }
-
         if (!mFlags.isConnectedDisplayErrorHandlingEnabled()) {
             if (DEBUG) {
                 Slog.d(TAG, "ConnectedDisplayErrorHandlingEnabled is not enabled on your device:"
@@ -170,14 +162,6 @@ class ExternalDisplayPolicy {
             final boolean enabled) {
         if (!isExternalDisplayLocked(logicalDisplay)) {
             Slog.e(TAG, "setExternalDisplayEnabledLocked called for non external display");
-            return;
-        }
-
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
-            if (DEBUG) {
-                Slog.d(TAG, "setExternalDisplayEnabledLocked: External display management is not"
-                                    + " enabled on your device, cannot enable/disable display.");
-            }
             return;
         }
 
@@ -202,14 +186,6 @@ class ExternalDisplayPolicy {
             return;
         }
 
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
-            if (DEBUG) {
-                Slog.d(TAG, "handleExternalDisplayConnectedLocked connected display management"
-                                    + " flag is off");
-            }
-            return;
-        }
-
         if (!mIsBootCompleted) {
             mDisplayIdsWaitingForBootCompletion.add(logicalDisplay.getDisplayIdLocked());
             return;
@@ -217,8 +193,10 @@ class ExternalDisplayPolicy {
 
         mExternalDisplayStatsService.onDisplayConnected(logicalDisplay);
 
-        if ((Build.IS_ENG || Build.IS_USERDEBUG)
-                && SystemProperties.getBoolean(ENABLE_ON_CONNECT, false)) {
+        if (((Build.IS_ENG || Build.IS_USERDEBUG)
+                        && SystemProperties.getBoolean(ENABLE_ON_CONNECT, false))
+                || (mFlags.isDisplayContentModeManagementEnabled()
+                        && logicalDisplay.canHostTasksLocked())) {
             Slog.w(TAG, "External display is enabled by default, bypassing user consent.");
             mInjector.sendExternalDisplayEventLocked(logicalDisplay, EVENT_DISPLAY_CONNECTED);
             return;
@@ -249,10 +227,6 @@ class ExternalDisplayPolicy {
     void handleLogicalDisplayDisconnectedLocked(@NonNull final LogicalDisplay logicalDisplay) {
         // Type of the display here is always UNKNOWN, so we can't verify it is an external display
 
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
-            return;
-        }
-
         var displayId = logicalDisplay.getDisplayIdLocked();
         if (mDisplayIdsWaitingForBootCompletion.remove(displayId)) {
             return;
@@ -266,10 +240,6 @@ class ExternalDisplayPolicy {
      */
     void handleLogicalDisplayAddedLocked(@NonNull final LogicalDisplay logicalDisplay) {
         if (!isExternalDisplayLocked(logicalDisplay)) {
-            return;
-        }
-
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
             return;
         }
 
@@ -287,10 +257,6 @@ class ExternalDisplayPolicy {
             }
         }
 
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
-            return;
-        }
-
         if (isShown) {
             mExternalDisplayStatsService.onPresentationWindowAdded(displayId);
         } else {
@@ -301,12 +267,6 @@ class ExternalDisplayPolicy {
     @GuardedBy("mSyncRoot")
     private void disableExternalDisplayLocked(@NonNull final LogicalDisplay logicalDisplay) {
         if (!isExternalDisplayLocked(logicalDisplay)) {
-            return;
-        }
-
-        if (!mFlags.isConnectedDisplayManagementEnabled()) {
-            Slog.e(TAG, "disableExternalDisplayLocked shouldn't be called when the"
-                                + " connected display management flag is off");
             return;
         }
 

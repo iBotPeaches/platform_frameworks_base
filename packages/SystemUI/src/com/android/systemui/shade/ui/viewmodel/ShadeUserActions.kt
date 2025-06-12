@@ -20,10 +20,11 @@ import com.android.compose.animation.scene.Edge
 import com.android.compose.animation.scene.Swipe
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
+import com.android.compose.animation.scene.UserActionResult.ShowOverlay
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.shared.model.TransitionKeys.ToSplitShade
-import com.android.systemui.scene.ui.viewmodel.SceneContainerEdge
+import com.android.systemui.scene.ui.viewmodel.SceneContainerArea
 
 /** Returns collection of [UserAction] to [UserActionResult] pairs for opening the single shade. */
 fun singleShadeActions(
@@ -66,11 +67,12 @@ fun splitShadeActions(): Array<Pair<UserAction, UserActionResult>> {
 
 /** Returns collection of [UserAction] to [UserActionResult] pairs for opening the dual shade. */
 fun dualShadeActions(): Array<Pair<UserAction, UserActionResult>> {
-    val notifShadeUserActionResult = UserActionResult.ShowOverlay(Overlays.NotificationsShade)
-    val qsShadeuserActionResult = UserActionResult.ShowOverlay(Overlays.QuickSettingsShade)
     return arrayOf(
-        Swipe.Down to notifShadeUserActionResult,
-        Swipe.Down(fromSource = SceneContainerEdge.TopRight) to qsShadeuserActionResult,
+        Swipe.Down to ShowOverlay(Overlays.NotificationsShade),
+        Swipe.Down(fromSource = SceneContainerArea.EndHalf) to
+            ShowOverlay(Overlays.QuickSettingsShade),
+        Swipe.Down(fromSource = SceneContainerArea.TopEdgeEndHalf) to
+            ShowOverlay(Overlays.QuickSettingsShade),
     )
 }
 

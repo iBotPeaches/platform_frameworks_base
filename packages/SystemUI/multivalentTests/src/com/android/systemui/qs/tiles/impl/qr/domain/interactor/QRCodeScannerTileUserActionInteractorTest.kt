@@ -21,12 +21,12 @@ import android.platform.test.annotations.EnabledOnRavenwood
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerSubject
-import com.android.systemui.qs.tiles.base.actions.qsTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject
+import com.android.systemui.qs.tiles.base.domain.actions.qsTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.qr.domain.model.QRCodeScannerTileModel
 import com.android.systemui.qs.tiles.impl.qr.qrCodeScannerTileUserActionInteractor
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.mock
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -36,7 +36,7 @@ import org.junit.runner.RunWith
 @EnabledOnRavenwood
 @RunWith(AndroidJUnit4::class)
 class QRCodeScannerTileUserActionInteractorTest : SysuiTestCase() {
-    val kosmos = Kosmos()
+    val kosmos = testKosmos()
     private val inputHandler = kosmos.qsTileIntentUserInputHandler
     private val underTest = kosmos.qrCodeScannerTileUserActionInteractor
     private val intent = mock<Intent>()

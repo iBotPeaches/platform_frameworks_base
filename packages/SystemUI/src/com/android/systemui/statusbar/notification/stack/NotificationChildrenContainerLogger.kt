@@ -27,16 +27,16 @@ class NotificationChildrenContainerLogger
 @Inject
 constructor(@NotificationRenderLog private val notificationRenderBuffer: LogBuffer) {
     fun addTransientRow(
-        childEntry: NotificationEntry,
-        containerEntry: NotificationEntry,
+        childEntry: String,
+        containerEntry: String,
         index: Int
     ) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.INFO,
             {
-                str1 = childEntry.logKey
-                str2 = containerEntry.logKey
+                str1 = childEntry
+                str2 = containerEntry
                 int1 = index
             },
             { "addTransientRow: childKey: $str1 -- containerKey: $str2 -- index: $int1" }
@@ -44,15 +44,15 @@ constructor(@NotificationRenderLog private val notificationRenderBuffer: LogBuff
     }
 
     fun removeTransientRow(
-        childEntry: NotificationEntry,
-        containerEntry: NotificationEntry,
+        childEntry: String,
+        containerEntry: String,
     ) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.INFO,
             {
-                str1 = childEntry.logKey
-                str2 = containerEntry.logKey
+                str1 = childEntry
+                str2 = containerEntry
             },
             { "removeTransientRow: childKey: $str1 -- containerKey: $str2" }
         )

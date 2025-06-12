@@ -21,28 +21,45 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.LayoutRes
 import androidx.compose.ui.util.fastForEachIndexed
+import com.android.app.tracing.coroutines.launchInTraced
+import com.android.app.tracing.coroutines.launchTraced
 import com.android.systemui.res.R
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogScope
 import com.android.systemui.volume.dialog.sliders.dagger.VolumeDialogSliderComponent
 import com.android.systemui.volume.dialog.sliders.ui.viewmodel.VolumeDialogSlidersViewModel
+import com.android.systemui.volume.dialog.ui.binder.ViewBinder
+import com.android.systemui.volume.dialog.ui.viewmodel.VolumeDialogViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
 @VolumeDialogScope
 class VolumeDialogSlidersViewBinder
 @Inject
-constructor(private val viewModel: VolumeDialogSlidersViewModel) {
+constructor(
+    private val viewModel: VolumeDialogSlidersViewModel,
+    private val dialogViewModel: VolumeDialogViewModel,
+) : ViewBinder {
 
-    fun CoroutineScope.bind(view: View) {
+    override fun CoroutineScope.bind(view: View) {
         val floatingSlidersContainer: ViewGroup =
             view.requireViewById(R.id.volume_dialog_floating_sliders_container)
         val mainSliderContainer: View =
             view.requireViewById(R.id.volume_dialog_main_slider_container)
+        val background: View = view.requireViewById(R.id.volume_dialog_background)
+        val bottomSection: View = view.requireViewById(R.id.volume_dialog_bottom_section_container)
+        val topSection: View = view.requireViewById(R.id.volume_dialog_top_section_container)
+
+        launchTraced("VDSVB#addTouchableBounds") {
+            dialogViewModel.addTouchableBounds(mainSliderContainer, floatingSlidersContainer)
+        }
         viewModel.sliders
             .onEach { uiModel ->
-                bindSlider(uiModel.sliderComponent, mainSliderContainer)
+                bindSlider(
+                    uiModel.sliderComponent,
+                    mainSliderContainer,
+                    arrayOf(mainSliderContainer, background, bottomSection, topSection),
+                )
 
                 val floatingSliderViewBinders = uiModel.floatingSliderComponent
                 floatingSlidersContainer.ensureChildCount(
@@ -50,19 +67,20 @@ constructor(private val viewModel: VolumeDialogSlidersViewModel) {
                     count = floatingSliderViewBinders.size,
                 )
                 floatingSliderViewBinders.fastForEachIndexed { index, sliderComponent ->
-                    bindSlider(sliderComponent, floatingSlidersContainer.getChildAt(index))
+                    val sliderContainer = floatingSlidersContainer.getChildAt(index)
+                    bindSlider(sliderComponent, sliderContainer, arrayOf(sliderContainer))
                 }
             }
-            .launchIn(this)
+            .launchInTraced("VDSVB#sliders", this)
     }
 
     private fun CoroutineScope.bindSlider(
         component: VolumeDialogSliderComponent,
         sliderContainer: View,
+        viewsToAnimate: Array<View>,
     ) {
         with(component.sliderViewBinder()) { bind(sliderContainer) }
-        with(component.sliderTouchesViewBinder()) { bind(sliderContainer) }
-        with(component.sliderHapticsViewBinder()) { bind(sliderContainer) }
+        with(component.overscrollViewBinder()) { bind(sliderContainer, viewsToAnimate) }
     }
 }
 

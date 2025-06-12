@@ -17,7 +17,6 @@
 package com.android.systemui.keyguard.ui.viewmodel
 
 import android.util.MathUtils
-import com.android.systemui.Flags.lightRevealMigration
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.FromAodTransitionInteractor
 import com.android.systemui.keyguard.shared.model.Edge
@@ -25,6 +24,7 @@ import com.android.systemui.keyguard.shared.model.KeyguardState.DOZING
 import com.android.systemui.keyguard.shared.model.KeyguardState.OCCLUDED
 import com.android.systemui.keyguard.ui.KeyguardTransitionAnimationFlow
 import com.android.systemui.keyguard.ui.transitions.DeviceEntryIconTransition
+import com.android.systemui.shared.Flags.ambientAod
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.flow.Flow
@@ -56,7 +56,7 @@ constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTra
             duration = 250.milliseconds,
             startTime = 0.milliseconds,
             onStart = {
-                if (lightRevealMigration()) {
+                if (ambientAod()) {
                     currentAlpha = viewState.alpha()
                 } else {
                     currentAlpha = 0f

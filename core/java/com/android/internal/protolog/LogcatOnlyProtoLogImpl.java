@@ -19,6 +19,7 @@ package com.android.internal.protolog;
 import static com.android.internal.protolog.ProtoLog.REQUIRE_PROTOLOGTOOL;
 
 import android.annotation.NonNull;
+import android.ravenwood.annotation.RavenwoodKeepWholeClass;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -31,14 +32,15 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Class only create and used to server temporarily for when there is source code pre-processing by
+ * Class only created and used to serve temporarily for when there is source code pre-processing by
  * the ProtoLog tool, when the tracing to Perfetto flag is off, and the static REQUIRE_PROTOLOGTOOL
  * boolean is false. In which case we simply want to log protolog message to logcat. Note, that this
  * means that in such cases there is no real advantage of using protolog over logcat.
  *
- * @deprecated Should not be used. This is just a temporary class to support a legacy behavior.
+ * NOTE: Should not be used in real products as this mostly removes the benefits of protolog. This
+ * is just a temporary class to support a legacy behavior and tests running on the host-side.
  */
-@Deprecated
+@RavenwoodKeepWholeClass
 public class LogcatOnlyProtoLogImpl implements IProtoLog {
     private static final String LOG_TAG = LogcatOnlyProtoLogImpl.class.getName();
 

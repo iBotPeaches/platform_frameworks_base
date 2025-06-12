@@ -21,16 +21,17 @@ import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_CAMERA;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_LOCATION;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_MICROPHONE;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_NONE;
-import static android.app.ActivityManager.PROCESS_STATE_NONEXISTENT;
 import static android.app.ActivityManager.ProcessCapability;
 import static android.app.AppOpsManager.MIN_PRIORITY_UID_STATE;
 import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_FOREGROUND;
 import static android.app.AppOpsManager.MODE_IGNORED;
 import static android.app.AppOpsManager.OP_CAMERA;
+import static android.app.AppOpsManager.OP_CONTROL_AUDIO;
 import static android.app.AppOpsManager.OP_NONE;
 import static android.app.AppOpsManager.OP_RECEIVE_EXPLICIT_USER_INTERACTION_AUDIO;
 import static android.app.AppOpsManager.OP_RECORD_AUDIO;
+import static android.app.AppOpsManager.UID_STATE_CACHED;
 import static android.app.AppOpsManager.UID_STATE_FOREGROUND_SERVICE;
 import static android.app.AppOpsManager.UID_STATE_MAX_LAST_NON_RESTRICTED;
 import static android.app.AppOpsManager.UID_STATE_NONEXISTENT;
@@ -74,7 +75,6 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
     private SparseBooleanArray mAppWidgetVisible = new SparseBooleanArray();
     private SparseBooleanArray mPendingAppWidgetVisible = new SparseBooleanArray();
     private SparseLongArray mPendingCommitTime = new SparseLongArray();
-    private SparseBooleanArray mPendingGone = new SparseBooleanArray();
 
     private ArrayMap<UidStateChangedCallback, Executor>
             mUidStateChangedCallbacks = new ArrayMap<>();
@@ -176,6 +176,8 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
             case OP_RECORD_AUDIO:
             case OP_RECEIVE_EXPLICIT_USER_INTERACTION_AUDIO:
                 return PROCESS_CAPABILITY_FOREGROUND_MICROPHONE;
+            case OP_CONTROL_AUDIO:
+                return PROCESS_CAPABILITY_FOREGROUND_AUDIO_CONTROL;
             default:
                 return PROCESS_CAPABILITY_NONE;
         }
@@ -218,11 +220,12 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
     public void updateUidProcState(int uid, int procState, int capability) {
         int uidState = processStateToUidState(procState);
 
-        int prevUidState = mUidStates.get(uid, AppOpsManager.MIN_PRIORITY_UID_STATE);
+        int prevUidState = mUidStates.get(uid, AppOpsManager.UID_STATE_NONEXISTENT);
         int prevCapability = mCapability.get(uid, PROCESS_CAPABILITY_NONE);
-        int pendingUidState = mPendingUidStates.get(uid, MIN_PRIORITY_UID_STATE);
+        int pendingUidState = mPendingUidStates.get(uid, UID_STATE_NONEXISTENT);
         int pendingCapability = mPendingCapability.get(uid, PROCESS_CAPABILITY_NONE);
         long pendingStateCommitTime = mPendingCommitTime.get(uid, 0);
+
         if ((pendingStateCommitTime == 0
                 && (uidState != prevUidState || capability != prevCapability))
                 || (pendingStateCommitTime != 0
@@ -236,8 +239,7 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
 
             boolean hasLostCapability = (prevCapability & ~capability) != 0;
 
-            if (procState == PROCESS_STATE_NONEXISTENT) {
-                mPendingGone.put(uid, true);
+            if (uidState == UID_STATE_NONEXISTENT) {
                 commitUidPendingState(uid);
             } else if (uidState < prevUidState) {
                 // We are moving to a more important state, or the new state may be in the
@@ -339,7 +341,7 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
 
     private void commitUidPendingState(int uid) {
 
-        int uidState = mUidStates.get(uid, MIN_PRIORITY_UID_STATE);
+        int uidState = mUidStates.get(uid, UID_STATE_NONEXISTENT);
         int capability = mCapability.get(uid, PROCESS_CAPABILITY_NONE);
         boolean appWidgetVisible = mAppWidgetVisible.get(uid, false);
 
@@ -347,18 +349,23 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
         int pendingCapability = mPendingCapability.get(uid, capability);
         boolean pendingAppWidgetVisible = mPendingAppWidgetVisible.get(uid, appWidgetVisible);
 
-        boolean foregroundChange = uidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
-                != pendingUidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
+        // UID_STATE_NONEXISTENT is a state that isn't used outside of this class, nonexistent
+        // processes have always been represented as CACHED
+        int externalUidState = Math.min(uidState, UID_STATE_CACHED);
+        int externalPendingUidState = Math.min(pendingUidState, UID_STATE_CACHED);
+
+        boolean foregroundChange = externalUidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
+                != externalPendingUidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
                 || capability != pendingCapability
                 || appWidgetVisible != pendingAppWidgetVisible;
 
-        if (uidState != pendingUidState
+        if (externalUidState != externalPendingUidState
                 || capability != pendingCapability
                 || appWidgetVisible != pendingAppWidgetVisible) {
 
             if (foregroundChange) {
                 // To save on memory usage, log only interesting changes.
-                mEventLog.logCommitUidState(uid, pendingUidState, pendingCapability,
+                mEventLog.logCommitUidState(uid, externalPendingUidState, pendingCapability,
                         pendingAppWidgetVisible, appWidgetVisible != pendingAppWidgetVisible);
             }
 
@@ -367,24 +374,23 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
                 Executor executor = mUidStateChangedCallbacks.valueAt(i);
 
                 executor.execute(PooledLambda.obtainRunnable(
-                        UidStateChangedCallback::onUidStateChanged, cb, uid, pendingUidState,
-                        foregroundChange));
+                        UidStateChangedCallback::onUidStateChanged, cb, uid,
+                        externalPendingUidState, foregroundChange));
             }
         }
 
-        if (mPendingGone.get(uid, false)) {
+        if (pendingUidState == UID_STATE_NONEXISTENT && uidState != pendingUidState) {
             mUidStates.delete(uid);
             mCapability.delete(uid);
             mAppWidgetVisible.delete(uid);
-            mPendingGone.delete(uid);
             if (finishRunningOpsForKilledPackages()) {
                 for (int i = 0; i < mUidStateChangedCallbacks.size(); i++) {
                     UidStateChangedCallback cb = mUidStateChangedCallbacks.keyAt(i);
                     Executor executor = mUidStateChangedCallbacks.valueAt(i);
 
+                    // If foregroundness changed it should be handled in earlier callback invocation
                     executor.execute(PooledLambda.obtainRunnable(
-                            UidStateChangedCallback::onUidStateChanged, cb, uid,
-                            UID_STATE_NONEXISTENT, foregroundChange));
+                            UidStateChangedCallback::onUidProcessDeath, cb, uid));
                 }
             }
         } else {

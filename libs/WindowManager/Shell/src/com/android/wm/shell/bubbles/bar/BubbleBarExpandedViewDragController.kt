@@ -17,22 +17,31 @@
 package com.android.wm.shell.bubbles.bar
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.view.MotionEvent
 import android.view.View
 import androidx.annotation.VisibleForTesting
+import com.android.wm.shell.R
 import com.android.wm.shell.bubbles.BubblePositioner
+import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.android.wm.shell.shared.bubbles.DismissView
+import com.android.wm.shell.shared.bubbles.DragZoneFactory
+import com.android.wm.shell.shared.bubbles.DraggedObject
+import com.android.wm.shell.shared.bubbles.DropTargetManager
 import com.android.wm.shell.shared.bubbles.RelativeTouchListener
 import com.android.wm.shell.shared.magnetictarget.MagnetizedObject
 
 /** Controller for handling drag interactions with [BubbleBarExpandedView] */
 @SuppressLint("ClickableViewAccessibility")
 class BubbleBarExpandedViewDragController(
+    private val context: Context,
     private val expandedView: BubbleBarExpandedView,
     private val dismissView: DismissView,
     private val animationHelper: BubbleBarAnimationHelper,
     private val bubblePositioner: BubblePositioner,
     private val pinController: BubbleExpandedViewPinController,
+    private val dropTargetManager: DropTargetManager?,
+    private val dragZoneFactory: DragZoneFactory?,
     @get:VisibleForTesting val dragListener: DragListener,
 ) {
 
@@ -47,6 +56,8 @@ class BubbleBarExpandedViewDragController(
     private val magnetizedExpandedView: MagnetizedObject<BubbleBarExpandedView> =
         MagnetizedObject.magnetizeView(expandedView)
     private val magnetizedDismissTarget: MagnetizedObject.MagneticTarget
+
+    private val draggedBubbleElevation: Float
 
     init {
         magnetizedExpandedView.magnetListener = MagnetListener()
@@ -64,6 +75,8 @@ class BubbleBarExpandedViewDragController(
             MagnetizedObject.MagneticTarget(dismissView.circle, dismissView.circle.width)
         magnetizedExpandedView.addTarget(magnetizedDismissTarget)
 
+        draggedBubbleElevation = context.resources.getDimension(
+            R.dimen.dragged_bubble_elevation)
         val dragMotionEventHandler = HandleDragListener()
 
         expandedView.handleView.setOnTouchListener { view, event ->
@@ -97,7 +110,22 @@ class BubbleBarExpandedViewDragController(
         override fun onDown(v: View, ev: MotionEvent): Boolean {
             // While animating, don't allow new touch events
             if (expandedView.isAnimating) return false
-            pinController.onDragStart(bubblePositioner.isBubbleBarOnLeft)
+            expandedView.z = draggedBubbleElevation
+            if (dropTargetManager != null && dragZoneFactory != null) {
+                val draggedObject = DraggedObject.ExpandedView(
+                    if (bubblePositioner.isBubbleBarOnLeft) {
+                        BubbleBarLocation.LEFT
+                    } else {
+                        BubbleBarLocation.RIGHT
+                    }
+                )
+                dropTargetManager.onDragStarted(
+                    draggedObject,
+                    dragZoneFactory.createSortedDragZones(draggedObject)
+                )
+            } else {
+                pinController.onDragStart(bubblePositioner.isBubbleBarOnLeft)
+            }
             isDragged = true
             return true
         }
@@ -117,7 +145,11 @@ class BubbleBarExpandedViewDragController(
             expandedView.translationX = expandedViewInitialTranslationX + dx
             expandedView.translationY = expandedViewInitialTranslationY + dy
             dismissView.show()
-            pinController.onDragUpdate(ev.rawX, ev.rawY)
+            if (dropTargetManager != null) {
+                dropTargetManager.onDragUpdated(ev.rawX.toInt(), ev.rawY.toInt())
+            } else {
+                pinController.onDragUpdate(ev.rawX, ev.rawY)
+            }
         }
 
         override fun onUp(
@@ -130,17 +162,23 @@ class BubbleBarExpandedViewDragController(
             velX: Float,
             velY: Float,
         ) {
+            v.translationZ = 0f
             finishDrag()
         }
 
         override fun onCancel(v: View, ev: MotionEvent, viewInitialX: Float, viewInitialY: Float) {
             isStuckToDismiss = false
+            v.translationZ = 0f
             finishDrag()
         }
 
         private fun finishDrag() {
             if (!isStuckToDismiss) {
-                pinController.onDragEnd()
+                if (dropTargetManager != null) {
+                    dropTargetManager.onDragEnded()
+                } else {
+                    pinController.onDragEnd()
+                }
                 dragListener.onReleased(inDismiss = false)
                 animationHelper.animateToRestPosition()
                 dismissView.hide()
@@ -175,7 +213,11 @@ class BubbleBarExpandedViewDragController(
             draggedObject: MagnetizedObject<*>,
         ) {
             dragListener.onReleased(inDismiss = true)
-            pinController.onDragEnd()
+            if (dropTargetManager != null) {
+                dropTargetManager.onDragEnded()
+            } else {
+                pinController.onDragEnd()
+            }
             dismissView.hide()
         }
     }

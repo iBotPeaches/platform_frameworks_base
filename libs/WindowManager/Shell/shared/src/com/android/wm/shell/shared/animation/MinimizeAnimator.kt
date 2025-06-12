@@ -19,52 +19,76 @@ package com.android.wm.shell.shared.animation
 import android.animation.Animator
 import android.animation.AnimatorSet
 import android.animation.ValueAnimator
-import android.util.DisplayMetrics
+import android.content.Context
+import android.os.Handler
+import android.view.Choreographer
 import android.view.SurfaceControl.Transaction
-import android.view.animation.LinearInterpolator
-import android.view.animation.PathInterpolator
 import android.window.TransitionInfo.Change
+import com.android.internal.jank.Cuj.CUJ_DESKTOP_MODE_MINIMIZE_WINDOW
+import com.android.internal.jank.InteractionJankMonitor
 
 /** Creates minimization animation */
 object MinimizeAnimator {
 
     private const val MINIMIZE_ANIM_ALPHA_DURATION_MS = 100L
 
-    private val STANDARD_ACCELERATE = PathInterpolator(0.3f, 0f, 1f, 1f)
-
     private val minimizeBoundsAnimationDef =
         WindowAnimator.BoundsAnimationParams(
             durationMs = 200,
             endOffsetYDp = 12f,
             endScale = 0.97f,
-            interpolator = STANDARD_ACCELERATE,
+            interpolator = Interpolators.STANDARD_ACCELERATE,
         )
 
+    /**
+     * Creates a minimize animator for given task [Change].
+     *
+     * @param onAnimFinish finish-callback for the animation, note that this is called on the same
+     * thread as the animation itself.
+     * @param animationHandler the Handler that the animation is running on.
+     */
     @JvmStatic
     fun create(
-        displayMetrics: DisplayMetrics,
+        context: Context,
         change: Change,
         transaction: Transaction,
         onAnimFinish: (Animator) -> Unit,
+        interactionJankMonitor: InteractionJankMonitor,
+        animationHandler: Handler,
     ): Animator {
         val boundsAnimator = WindowAnimator.createBoundsAnimator(
-            displayMetrics,
+            context.resources.displayMetrics,
             minimizeBoundsAnimationDef,
             change,
             transaction,
         )
         val alphaAnimator = ValueAnimator.ofFloat(1f, 0f).apply {
             duration = MINIMIZE_ANIM_ALPHA_DURATION_MS
-            interpolator = LinearInterpolator()
+            interpolator = Interpolators.LINEAR
             addUpdateListener { animation ->
-                transaction.setAlpha(change.leash, animation.animatedValue as Float).apply()
+                transaction
+                    .setAlpha(change.leash, animation.animatedValue as Float)
+                    .setFrameTimeline(Choreographer.getInstance().vsyncId)
+                    .apply()
             }
         }
         val listener = object : Animator.AnimatorListener {
-            override fun onAnimationEnd(animator: Animator) = onAnimFinish(animator)
-            override fun onAnimationCancel(animator: Animator) = Unit
+            override fun onAnimationStart(animator: Animator) {
+                interactionJankMonitor.begin(
+                    change.leash,
+                    context,
+                    animationHandler,
+                    CUJ_DESKTOP_MODE_MINIMIZE_WINDOW,
+                )
+            }
+            override fun onAnimationCancel(animator: Animator) {
+                interactionJankMonitor.cancel(CUJ_DESKTOP_MODE_MINIMIZE_WINDOW)
+            }
             override fun onAnimationRepeat(animator: Animator) = Unit
-            override fun onAnimationStart(animator: Animator) = Unit
+            override fun onAnimationEnd(animator: Animator) {
+                interactionJankMonitor.end(CUJ_DESKTOP_MODE_MINIMIZE_WINDOW)
+                onAnimFinish(animator)
+            }
         }
         return AnimatorSet().apply {
             playTogether(boundsAnimator, alphaAnimator)

@@ -21,6 +21,7 @@ import android.tools.NavBar
 import android.tools.Rotation
 import android.tools.flicker.rules.ChangeDisplayOrientationRule
 import android.tools.traces.parsers.WindowManagerStateHelper
+import android.window.DesktopModeFlags
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import com.android.launcher3.tapl.LauncherInstrumentation
@@ -43,7 +44,10 @@ import org.junit.Test
  */
 @Ignore("Test Base Class")
 abstract class MinimizeAppWindows
-constructor(private val rotation: Rotation = Rotation.ROTATION_0) {
+constructor(
+    private val rotation: Rotation = Rotation.ROTATION_0,
+    private val usingKeyboard: Boolean = false
+) {
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
     private val tapl = LauncherInstrumentation()
     private val wmHelper = WindowManagerStateHelper(instrumentation)
@@ -58,6 +62,9 @@ constructor(private val rotation: Rotation = Rotation.ROTATION_0) {
     fun setup() {
         Assume.assumeTrue(Flags.enableDesktopWindowingMode() && tapl.isTablet)
         Assume.assumeTrue(Flags.enableMinimizeButton())
+        if (usingKeyboard) {
+            Assume.assumeTrue(DesktopModeFlags.ENABLE_TASK_RESIZING_KEYBOARD_SHORTCUTS.isTrue)
+        }
         tapl.setEnableRotation(true)
         tapl.setExpectedRotation(rotation.value)
         ChangeDisplayOrientationRule.setRotation(rotation)
@@ -68,9 +75,9 @@ constructor(private val rotation: Rotation = Rotation.ROTATION_0) {
 
     @Test
     open fun minimizeAllAppWindows() {
-        testApp3.minimizeDesktopApp(wmHelper, device)
-        testApp2.minimizeDesktopApp(wmHelper, device)
-        testApp1.minimizeDesktopApp(wmHelper, device)
+        testApp3.minimizeDesktopApp(wmHelper, device, usingKeyboard = usingKeyboard)
+        testApp2.minimizeDesktopApp(wmHelper, device, usingKeyboard = usingKeyboard)
+        testApp1.minimizeDesktopApp(wmHelper, device, usingKeyboard = usingKeyboard)
     }
 
     @After

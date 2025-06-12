@@ -75,6 +75,7 @@ import java.util.Objects;
  * Note that any {@link android.text.NoCopySpan} attached to the original text won't be passed to
  * PrecomputedText.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PrecomputedText implements Spannable {
     private static final char LINE_FEED = '\n';
 

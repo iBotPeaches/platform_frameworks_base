@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.notification.data.repository
 
 import com.android.systemui.statusbar.notification.data.model.activeNotificationModel
+import com.android.systemui.statusbar.notification.shared.ActiveNotificationModel
 
 /**
  * Make the repository hold [count] active notifications for testing. The keys of the notifications
@@ -34,6 +35,59 @@ fun ActiveNotificationListRepository.setActiveNotifs(count: Int) {
                 }
 
                 setRankingsMap(rankingsMap)
+            }
+            .build()
+}
+
+/**
+ * Adds the given notification to the repository while *maintaining any notifications already
+ * present*. [notif] will be ranked highest.
+ */
+fun ActiveNotificationListRepository.addNotif(notif: ActiveNotificationModel) {
+    val currentNotifications = this.activeNotifications.value.individuals
+    this.activeNotifications.value =
+        ActiveNotificationsStore.Builder()
+            .apply {
+                addIndividualNotif(notif)
+                currentNotifications.forEach {
+                    if (it.key != notif.key) {
+                        addIndividualNotif(it.value)
+                    }
+                }
+            }
+            .build()
+}
+
+/**
+ * Adds the given notification to the repository while *maintaining any notifications already
+ * present*. [notifs] will be ranked higher than existing notifs.
+ */
+fun ActiveNotificationListRepository.addNotifs(notifs: List<ActiveNotificationModel>) {
+    val currentNotifications = this.activeNotifications.value.individuals
+    val newKeys = notifs.map { it.key }
+    this.activeNotifications.value =
+        ActiveNotificationsStore.Builder()
+            .apply {
+                notifs.forEach { addIndividualNotif(it) }
+                currentNotifications.forEach {
+                    if (!newKeys.contains(it.key)) {
+                        addIndividualNotif(it.value)
+                    }
+                }
+            }
+            .build()
+}
+
+fun ActiveNotificationListRepository.removeNotif(keyToRemove: String) {
+    val currentNotifications = this.activeNotifications.value.individuals
+    this.activeNotifications.value =
+        ActiveNotificationsStore.Builder()
+            .apply {
+                currentNotifications.forEach {
+                    if (it.key != keyToRemove) {
+                        addIndividualNotif(it.value)
+                    }
+                }
             }
             .build()
 }

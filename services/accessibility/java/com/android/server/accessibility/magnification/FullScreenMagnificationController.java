@@ -121,6 +121,8 @@ public class FullScreenMagnificationController implements
     @NonNull private final Supplier<MagnificationThumbnail> mThumbnailSupplier;
     @NonNull private final Supplier<Boolean> mMagnificationConnectionStateSupplier;
 
+    private boolean mIsPointerMotionFilterInstalled = false;
+
     /**
      * This class implements {@link WindowManagerInternal.MagnificationCallbacks} and holds
      * magnification information per display.
@@ -830,9 +832,17 @@ public class FullScreenMagnificationController implements
                 return;
             }
 
-            final float nonNormOffsetX = mCurrentMagnificationSpec.offsetX - offsetX;
-            final float nonNormOffsetY = mCurrentMagnificationSpec.offsetY - offsetY;
-            if (updateCurrentSpecWithOffsetsLocked(nonNormOffsetX, nonNormOffsetY)) {
+            setOffset(mCurrentMagnificationSpec.offsetX - offsetX,
+                    mCurrentMagnificationSpec.offsetY - offsetY, id);
+        }
+
+        @GuardedBy("mLock")
+        void setOffset(float offsetX, float offsetY, int id) {
+            if (!mRegistered) {
+                return;
+            }
+
+            if (updateCurrentSpecWithOffsetsLocked(offsetX, offsetY)) {
                 onMagnificationChangedLocked(/* isScaleTransient= */ false);
             }
             if (id != INVALID_SERVICE_ID) {
@@ -1065,6 +1075,7 @@ public class FullScreenMagnificationController implements
             if (display.register()) {
                 mDisplays.put(displayId, display);
                 mScreenStateObserver.registerIfNecessary();
+                configurePointerMotionFilter(true);
             }
         }
     }
@@ -1613,6 +1624,28 @@ public class FullScreenMagnificationController implements
     }
 
     /**
+     * Sets the offset of the magnified region.
+     *
+     * @param displayId The logical display id.
+     * @param offsetX   the offset of the magnified region in the X coordinate, in current
+     *                  screen pixels.
+     * @param offsetY   the offset of the magnified region in the Y coordinate, in current
+     *                  screen pixels.
+     * @param id        the ID of the service requesting the change
+     */
+    @SuppressWarnings("GuardedBy")
+    // errorprone cannot recognize an inner class guarded by an outer class member.
+    public void setOffset(int displayId, float offsetX, float offsetY, int id) {
+        synchronized (mLock) {
+            final DisplayMagnification display = mDisplays.get(displayId);
+            if (display == null) {
+                return;
+            }
+            display.setOffset(offsetX, offsetY, id);
+        }
+    }
+
+    /**
      * Offsets the magnified region. Note that the offsetX and offsetY values actually move in the
      * opposite direction as the offsets passed in here.
      *
@@ -1885,6 +1918,7 @@ public class FullScreenMagnificationController implements
         }
         if (!hasRegister) {
             mScreenStateObserver.unregister();
+            configurePointerMotionFilter(false);
         }
     }
 
@@ -1898,6 +1932,22 @@ public class FullScreenMagnificationController implements
         synchronized (mLock) {
             mMagnificationInfoChangedCallbacks.remove(callback);
         }
+    }
+
+    private void configurePointerMotionFilter(boolean enabled) {
+        if (!Flags.enableMagnificationFollowsMouseWithPointerMotionFilter()) {
+            return;
+        }
+        if (enabled == mIsPointerMotionFilterInstalled) {
+            return;
+        }
+        if (!enabled) {
+            mControllerCtx.getInputManager().registerAccessibilityPointerMotionFilter(null);
+        } else {
+            mControllerCtx.getInputManager().registerAccessibilityPointerMotionFilter(
+                    new FullScreenMagnificationPointerMotionEventFilter(this));
+        }
+        mIsPointerMotionFilterInstalled = enabled;
     }
 
     private boolean traceEnabled() {

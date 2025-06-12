@@ -31,7 +31,7 @@ import static java.lang.String.join;
 import static java.util.Arrays.asList;
 
 import android.net.Network;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -56,7 +56,7 @@ import java.util.stream.Stream;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = NtpTrustedTime.class)
+@DisabledOnRavenwood(blockedBy = NtpTrustedTime.class)
 public class NtpTrustedTimeTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

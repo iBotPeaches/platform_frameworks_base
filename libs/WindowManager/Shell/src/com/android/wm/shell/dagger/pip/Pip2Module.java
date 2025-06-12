@@ -19,7 +19,9 @@ package com.android.wm.shell.dagger.pip;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.os.Handler;
+import android.window.DesktopModeFlags;
 
+import com.android.internal.jank.InteractionJankMonitor;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.DisplayController;
@@ -28,8 +30,10 @@ import com.android.wm.shell.common.FloatingContentCoordinator;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SystemWindows;
 import com.android.wm.shell.common.TaskStackListenerImpl;
+import com.android.wm.shell.common.pip.PipAppOpsListener;
 import com.android.wm.shell.common.pip.PipBoundsAlgorithm;
 import com.android.wm.shell.common.pip.PipBoundsState;
+import com.android.wm.shell.common.pip.PipDesktopState;
 import com.android.wm.shell.common.pip.PipDisplayLayoutState;
 import com.android.wm.shell.common.pip.PipMediaController;
 import com.android.wm.shell.common.pip.PipPerfHintController;
@@ -39,9 +43,13 @@ import com.android.wm.shell.common.pip.PipUtils;
 import com.android.wm.shell.common.pip.SizeSpecSource;
 import com.android.wm.shell.dagger.WMShellBaseModule;
 import com.android.wm.shell.dagger.WMSingleton;
+import com.android.wm.shell.desktopmode.DesktopPipTransitionController;
+import com.android.wm.shell.desktopmode.DesktopTasksController;
 import com.android.wm.shell.desktopmode.DesktopUserRepositories;
+import com.android.wm.shell.desktopmode.DragToDesktopTransitionHandler;
 import com.android.wm.shell.pip2.phone.PhonePipMenuController;
 import com.android.wm.shell.pip2.phone.PipController;
+import com.android.wm.shell.pip2.phone.PipInteractionHandler;
 import com.android.wm.shell.pip2.phone.PipMotionHelper;
 import com.android.wm.shell.pip2.phone.PipScheduler;
 import com.android.wm.shell.pip2.phone.PipTaskListener;
@@ -50,11 +58,14 @@ import com.android.wm.shell.pip2.phone.PipTransition;
 import com.android.wm.shell.pip2.phone.PipTransitionState;
 import com.android.wm.shell.pip2.phone.PipUiStateChangeController;
 import com.android.wm.shell.shared.annotations.ShellMainThread;
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
+import com.android.wm.shell.splitscreen.SplitScreenController;
 import com.android.wm.shell.sysui.ShellCommandHandler;
 import com.android.wm.shell.sysui.ShellController;
 import com.android.wm.shell.sysui.ShellInit;
 import com.android.wm.shell.transition.Transitions;
 
+import dagger.BindsOptionalOf;
 import dagger.Module;
 import dagger.Provides;
 
@@ -80,11 +91,17 @@ public abstract class Pip2Module {
             @NonNull PipScheduler pipScheduler,
             @NonNull PipTransitionState pipStackListenerController,
             @NonNull PipDisplayLayoutState pipDisplayLayoutState,
-            @NonNull PipUiStateChangeController pipUiStateChangeController) {
+            @NonNull PipUiStateChangeController pipUiStateChangeController,
+            DisplayController displayController,
+            Optional<SplitScreenController> splitScreenControllerOptional,
+            PipDesktopState pipDesktopState,
+            Optional<DesktopPipTransitionController> desktopPipTransitionController,
+            PipInteractionHandler pipInteractionHandler) {
         return new PipTransition(context, shellInit, shellTaskOrganizer, transitions,
                 pipBoundsState, null, pipBoundsAlgorithm, pipTaskListener,
                 pipScheduler, pipStackListenerController, pipDisplayLayoutState,
-                pipUiStateChangeController);
+                pipUiStateChangeController, displayController, splitScreenControllerOptional,
+                pipDesktopState, desktopPipTransitionController, pipInteractionHandler);
     }
 
     @WMSingleton
@@ -113,6 +130,9 @@ public abstract class Pip2Module {
             ShellTaskOrganizer shellTaskOrganizer,
             PipTransitionState pipTransitionState,
             PipTouchHandler pipTouchHandler,
+            PipAppOpsListener pipAppOpsListener,
+            PhonePipMenuController pipMenuController,
+            PipUiEventLogger pipUiEventLogger,
             @ShellMainThread ShellExecutor mainExecutor) {
         if (!PipUtils.isPip2ExperimentEnabled()) {
             return Optional.empty();
@@ -121,7 +141,8 @@ public abstract class Pip2Module {
                     context, shellInit, shellCommandHandler, shellController, displayController,
                     displayInsetsController, pipBoundsState, pipBoundsAlgorithm,
                     pipDisplayLayoutState, pipScheduler, taskStackListener, shellTaskOrganizer,
-                    pipTransitionState, pipTouchHandler, mainExecutor));
+                    pipTransitionState, pipTouchHandler, pipAppOpsListener, pipMenuController,
+                    pipUiEventLogger, mainExecutor));
         }
     }
 
@@ -131,10 +152,10 @@ public abstract class Pip2Module {
             PipBoundsState pipBoundsState,
             @ShellMainThread ShellExecutor mainExecutor,
             PipTransitionState pipTransitionState,
-            Optional<DesktopUserRepositories> desktopUserRepositoriesOptional,
-            RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer) {
+            Optional<SplitScreenController> splitScreenControllerOptional,
+            PipDesktopState pipDesktopState) {
         return new PipScheduler(context, pipBoundsState, mainExecutor, pipTransitionState,
-                desktopUserRepositoriesOptional, rootTaskDisplayAreaOrganizer);
+                splitScreenControllerOptional, pipDesktopState);
     }
 
     @WMSingleton
@@ -145,11 +166,12 @@ public abstract class Pip2Module {
             PipUiEventLogger pipUiEventLogger,
             PipTaskListener pipTaskListener,
             @NonNull PipTransitionState pipTransitionState,
+            @NonNull PipDisplayLayoutState pipDisplayLayoutState,
             @ShellMainThread ShellExecutor mainExecutor,
             @ShellMainThread Handler mainHandler) {
         return new PhonePipMenuController(context, pipBoundsState, pipMediaController,
-                systemWindows, pipUiEventLogger, pipTaskListener, pipTransitionState, mainExecutor,
-                mainHandler);
+                systemWindows, pipUiEventLogger, pipTaskListener, pipTransitionState,
+                pipDisplayLayoutState, mainExecutor, mainHandler);
     }
 
 
@@ -164,6 +186,9 @@ public abstract class Pip2Module {
             @NonNull PipTransitionState pipTransitionState,
             @NonNull PipScheduler pipScheduler,
             @NonNull SizeSpecSource sizeSpecSource,
+            @NonNull PipDisplayLayoutState pipDisplayLayoutState,
+            PipDesktopState pipDesktopState,
+            DisplayController displayController,
             PipMotionHelper pipMotionHelper,
             FloatingContentCoordinator floatingContentCoordinator,
             PipUiEventLogger pipUiEventLogger,
@@ -171,8 +196,9 @@ public abstract class Pip2Module {
             Optional<PipPerfHintController> pipPerfHintControllerOptional) {
         return new PipTouchHandler(context, shellInit, shellCommandHandler, menuPhoneController,
                 pipBoundsAlgorithm, pipBoundsState, pipTransitionState, pipScheduler,
-                sizeSpecSource, pipMotionHelper, floatingContentCoordinator, pipUiEventLogger,
-                mainExecutor, pipPerfHintControllerOptional);
+                sizeSpecSource, pipDisplayLayoutState, pipDesktopState, displayController,
+                pipMotionHelper, floatingContentCoordinator, pipUiEventLogger, mainExecutor,
+                pipPerfHintControllerOptional);
     }
 
     @WMSingleton
@@ -183,17 +209,18 @@ public abstract class Pip2Module {
             FloatingContentCoordinator floatingContentCoordinator,
             PipScheduler pipScheduler,
             Optional<PipPerfHintController> pipPerfHintControllerOptional,
-            PipBoundsAlgorithm pipBoundsAlgorithm,
-            PipTransitionState pipTransitionState) {
+            PipTransitionState pipTransitionState,
+            PipUiEventLogger pipUiEventLogger) {
         return new PipMotionHelper(context, pipBoundsState, menuController, pipSnapAlgorithm,
                 floatingContentCoordinator, pipScheduler, pipPerfHintControllerOptional,
-                pipBoundsAlgorithm, pipTransitionState);
+                pipTransitionState, pipUiEventLogger);
     }
 
     @WMSingleton
     @Provides
-    static PipTransitionState providePipTransitionState(@ShellMainThread Handler handler) {
-        return new PipTransitionState(handler);
+    static PipTransitionState providePipTransitionState(@ShellMainThread Handler handler,
+            PipDesktopState pipDesktopState) {
+        return new PipTransitionState(handler, pipDesktopState);
     }
 
     @WMSingleton
@@ -214,5 +241,46 @@ public abstract class Pip2Module {
             @ShellMainThread ShellExecutor mainExecutor) {
         return new PipTaskListener(context, shellTaskOrganizer, pipTransitionState,
                 pipScheduler, pipBoundsState, pipBoundsAlgorithm, mainExecutor);
+    }
+
+    @WMSingleton
+    @Provides
+    static PipDesktopState providePipDesktopState(
+            PipDisplayLayoutState pipDisplayLayoutState,
+            Optional<DesktopUserRepositories> desktopUserRepositoriesOptional,
+            Optional<DragToDesktopTransitionHandler> dragToDesktopTransitionHandlerOptional,
+            RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer
+    ) {
+        return new PipDesktopState(pipDisplayLayoutState, desktopUserRepositoriesOptional,
+                dragToDesktopTransitionHandlerOptional, rootTaskDisplayAreaOrganizer);
+    }
+
+    @WMSingleton
+    @Provides
+    static Optional<DesktopPipTransitionController> provideDesktopPipTransitionController(
+            Context context, Optional<DesktopTasksController> desktopTasksControllerOptional,
+            Optional<DesktopUserRepositories> desktopUserRepositoriesOptional,
+            PipDesktopState pipDesktopState
+    ) {
+        if (DesktopModeStatus.canEnterDesktopMode(context)
+                && DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_PIP.isTrue()) {
+            return Optional.of(
+                    new DesktopPipTransitionController(desktopTasksControllerOptional.get(),
+                            desktopUserRepositoriesOptional.get(), pipDesktopState));
+        }
+        return Optional.empty();
+    }
+
+    @BindsOptionalOf
+    abstract DragToDesktopTransitionHandler optionalDragToDesktopTransitionHandler();
+
+    @WMSingleton
+    @Provides
+    static PipInteractionHandler providePipInteractionHandler(
+            Context context,
+            @ShellMainThread Handler mainHandler
+    ) {
+        return new PipInteractionHandler(context, mainHandler,
+                InteractionJankMonitor.getInstance());
     }
 }

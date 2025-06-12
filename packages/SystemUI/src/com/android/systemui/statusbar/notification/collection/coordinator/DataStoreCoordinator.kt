@@ -17,7 +17,7 @@
 package com.android.systemui.statusbar.notification.collection.coordinator
 
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifLiveDataStoreImpl
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
@@ -36,19 +36,19 @@ class DataStoreCoordinator
 internal constructor(private val notifLiveDataStoreImpl: NotifLiveDataStoreImpl) : CoreCoordinator {
 
     override fun attach(pipeline: NotifPipeline) {
-        pipeline.addOnAfterRenderListListener { entries, _ -> onAfterRenderList(entries) }
+        pipeline.addOnAfterRenderListListener { entries -> onAfterRenderList(entries) }
     }
 
     override fun dumpPipeline(d: PipelineDumper) {
         d.dump("notifLiveDataStoreImpl", notifLiveDataStoreImpl)
     }
 
-    private fun onAfterRenderList(entries: List<ListEntry>) {
+    private fun onAfterRenderList(entries: List<PipelineEntry>) {
         val flatEntryList = flattenedEntryList(entries)
         notifLiveDataStoreImpl.setActiveNotifList(flatEntryList)
     }
 
-    private fun flattenedEntryList(entries: List<ListEntry>) =
+    private fun flattenedEntryList(entries: List<PipelineEntry>) =
         mutableListOf<NotificationEntry>().also { list ->
             entries.forEach { entry ->
                 when (entry) {

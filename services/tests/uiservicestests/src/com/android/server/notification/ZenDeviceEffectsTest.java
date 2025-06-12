@@ -20,7 +20,6 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 
-import android.app.Flags;
 import android.os.Parcel;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.notification.ZenDeviceEffects;
@@ -31,7 +30,6 @@ import com.android.server.UiServiceTestCase;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,25 +40,24 @@ public class ZenDeviceEffectsTest extends UiServiceTestCase {
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
-    @Before
-    public final void setUp() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-    }
-
     @Test
     public void builder() {
-        ZenDeviceEffects deviceEffects = new ZenDeviceEffects.Builder()
-                .setShouldDimWallpaper(true)
-                .setShouldDisableTapToWake(true).setShouldDisableTapToWake(false)
-                .setShouldDisableTiltToWake(true)
-                .setShouldMaximizeDoze(true)
-                .setShouldUseNightMode(false)
-                .setShouldSuppressAmbientDisplay(false).setShouldSuppressAmbientDisplay(true)
-                .addExtraEffect("WILL BE GONE")
-                .setExtraEffects(ImmutableSet.of("1", "2"))
-                .addExtraEffects(ImmutableSet.of("3", "4"))
-                .addExtraEffect("5")
-                .build();
+        ZenDeviceEffects deviceEffects =
+                new ZenDeviceEffects.Builder()
+                        .setShouldDimWallpaper(true)
+                        .setShouldDisableTapToWake(true)
+                        .setShouldDisableTapToWake(false)
+                        .setShouldDisableTiltToWake(true)
+                        .setShouldMaximizeDoze(true)
+                        .setShouldUseNightMode(false)
+                        .setShouldUseNightLight(true)
+                        .setShouldSuppressAmbientDisplay(false)
+                        .setShouldSuppressAmbientDisplay(true)
+                        .addExtraEffect("WILL BE GONE")
+                        .setExtraEffects(ImmutableSet.of("1", "2"))
+                        .addExtraEffects(ImmutableSet.of("3", "4"))
+                        .addExtraEffect("5")
+                        .build();
 
         assertThat(deviceEffects.shouldDimWallpaper()).isTrue();
         assertThat(deviceEffects.shouldDisableAutoBrightness()).isFalse();
@@ -68,6 +65,7 @@ public class ZenDeviceEffectsTest extends UiServiceTestCase {
         assertThat(deviceEffects.shouldDisableTiltToWake()).isTrue();
         assertThat(deviceEffects.shouldDisableTouch()).isFalse();
         assertThat(deviceEffects.shouldDisplayGrayscale()).isFalse();
+        assertThat(deviceEffects.shouldUseNightLight()).isTrue();
         assertThat(deviceEffects.shouldMaximizeDoze()).isTrue();
         assertThat(deviceEffects.shouldMinimizeRadioUsage()).isFalse();
         assertThat(deviceEffects.shouldUseNightMode()).isFalse();
@@ -85,15 +83,18 @@ public class ZenDeviceEffectsTest extends UiServiceTestCase {
                 .addExtraEffect("1")
                 .build();
 
-        ZenDeviceEffects modified = new ZenDeviceEffects.Builder(original)
-                .setShouldDisplayGrayscale(true)
-                .setShouldUseNightMode(false)
-                .addExtraEffect("2")
-                .build();
+        ZenDeviceEffects modified =
+                new ZenDeviceEffects.Builder(original)
+                        .setShouldDisplayGrayscale(true)
+                        .setShouldUseNightMode(false)
+                        .setShouldUseNightLight(true)
+                        .addExtraEffect("2")
+                        .build();
 
         assertThat(modified.shouldDimWallpaper()).isTrue(); // from original
         assertThat(modified.shouldDisableTiltToWake()).isTrue(); // from original
         assertThat(modified.shouldDisplayGrayscale()).isTrue(); // updated
+        assertThat(modified.shouldUseNightLight()).isTrue(); // updated
         assertThat(modified.shouldUseNightMode()).isFalse(); // updated
         assertThat(modified.shouldSuppressAmbientDisplay()).isTrue(); // from original
         assertThat(modified.getExtraEffects()).containsExactly("1", "2"); // updated

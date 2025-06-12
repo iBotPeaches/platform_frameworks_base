@@ -27,8 +27,19 @@ import android.util.MathUtils
 import com.android.internal.graphics.ColorUtils
 import java.lang.Math.max
 
+interface TextInterpolatorListener {
+    fun onPaintModified() {}
+
+    fun onRebased() {}
+}
+
 /** Provide text style linear interpolation for plain text. */
-class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) {
+class TextInterpolator(
+    layout: Layout,
+    var typefaceCache: TypefaceVariantCache,
+    private val listener: TextInterpolatorListener? = null,
+) {
+
     /**
      * Returns base paint used for interpolation.
      *
@@ -98,6 +109,9 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
      */
     var progress: Float = 0f
 
+    /** Linear progress value (not interpolated) */
+    var linearProgress: Float = 0f
+
     /**
      * The layout used for drawing text.
      *
@@ -133,6 +147,7 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
      */
     fun onTargetPaintModified() {
         updatePositionsAndFonts(shapeText(layout, targetPaint), updateBase = false)
+        listener?.onPaintModified()
     }
 
     /**
@@ -143,6 +158,7 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
      */
     fun onBasePaintModified() {
         updatePositionsAndFonts(shapeText(layout, basePaint), updateBase = true)
+        listener?.onPaintModified()
     }
 
     /**
@@ -201,6 +217,7 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
      */
     fun rebase() {
         if (progress == 0f) {
+            listener?.onRebased()
             return
         } else if (progress == 1f) {
             basePaint.set(targetPaint)
@@ -217,7 +234,12 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
                 }
                 run.fontRuns.forEach { fontRun ->
                     fontRun.baseFont =
-                        fontInterpolator.lerp(fontRun.baseFont, fontRun.targetFont, progress)
+                        fontInterpolator.lerp(
+                            fontRun.baseFont,
+                            fontRun.targetFont,
+                            progress,
+                            linearProgress,
+                        )
                     val fvar = FontVariationAxis.toFontVariationSettings(fontRun.baseFont.axes)
                     basePaint.typeface = typefaceCache.getTypefaceForVariant(fvar)
                 }
@@ -225,6 +247,8 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
         }
 
         progress = 0f
+        linearProgress = 0f
+        listener?.onRebased()
     }
 
     /**
@@ -358,7 +382,7 @@ class TextInterpolator(layout: Layout, var typefaceCache: TypefaceVariantCache) 
     // Draws single font run.
     private fun drawFontRun(c: Canvas, line: Run, run: FontRun, lineNo: Int, paint: Paint) {
         var arrayIndex = 0
-        val font = fontInterpolator.lerp(run.baseFont, run.targetFont, progress)
+        val font = fontInterpolator.lerp(run.baseFont, run.targetFont, progress, linearProgress)
 
         val glyphFilter = glyphFilter
         if (glyphFilter == null) {

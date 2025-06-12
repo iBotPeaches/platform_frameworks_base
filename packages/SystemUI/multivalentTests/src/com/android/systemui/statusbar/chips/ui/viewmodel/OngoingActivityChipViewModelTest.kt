@@ -20,17 +20,25 @@ import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.internal.jank.Cuj
+import com.android.internal.logging.InstanceId
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
+import com.android.systemui.animation.Expandable
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.chips.ui.view.ChipBackgroundContainer
+import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipViewModel.Companion.createDialogLaunchOnClickCallback
 import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipViewModel.Companion.createDialogLaunchOnClickListener
+import com.android.systemui.statusbar.chips.uievents.statusBarChipsUiEventLogger
 import com.android.systemui.statusbar.phone.SystemUIDialog
+import com.android.systemui.statusbar.phone.ongoingcall.DisableChipsModernization
+import com.android.systemui.statusbar.phone.ongoingcall.EnableChipsModernization
+import com.android.systemui.testKosmos
 import kotlin.test.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
@@ -39,6 +47,7 @@ import org.mockito.kotlin.whenever
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class OngoingActivityChipViewModelTest : SysuiTestCase() {
+    private val kosmos = testKosmos()
     private val mockSystemUIDialog = mock<SystemUIDialog>()
     private val dialogDelegate = SystemUIDialog.Delegate { mockSystemUIDialog }
     private val dialogTransitionAnimator = mock<DialogTransitionAnimator>()
@@ -53,8 +62,11 @@ class OngoingActivityChipViewModelTest : SysuiTestCase() {
                 )
                 .thenReturn(chipBackgroundView)
         }
+    private val mockExpandable: Expandable =
+        mock<Expandable>().apply { whenever(dialogTransitionController(any())).thenReturn(mock()) }
 
     @Test
+    @DisableChipsModernization
     fun createDialogLaunchOnClickListener_showsDialogOnClick() {
         val cuj = DialogCuj(Cuj.CUJ_STATUS_BAR_LAUNCH_DIALOG_FROM_CHIP, tag = "Test")
         val clickListener =
@@ -62,17 +74,33 @@ class OngoingActivityChipViewModelTest : SysuiTestCase() {
                 dialogDelegate,
                 dialogTransitionAnimator,
                 cuj,
-                logcatLogBuffer("OngoingActivityChipViewModelTest"),
-                "tag",
+                instanceId = InstanceId.fakeInstanceId(0),
+                uiEventLogger = kosmos.statusBarChipsUiEventLogger,
+                logger = logcatLogBuffer("OngoingActivityChipViewModelTest"),
+                tag = "tag",
             )
 
         clickListener.onClick(chipView)
         verify(dialogTransitionAnimator)
-            .showFromView(
-                eq(mockSystemUIDialog),
-                eq(chipBackgroundView),
-                eq(cuj),
-                anyBoolean(),
+            .showFromView(eq(mockSystemUIDialog), eq(chipBackgroundView), eq(cuj), anyBoolean())
+    }
+
+    @Test
+    @EnableChipsModernization
+    fun createDialogLaunchOnClickCallback_showsDialogOnClick() {
+        val cuj = DialogCuj(Cuj.CUJ_STATUS_BAR_LAUNCH_DIALOG_FROM_CHIP, tag = "Test")
+        val clickCallback =
+            createDialogLaunchOnClickCallback(
+                dialogDelegate,
+                dialogTransitionAnimator,
+                cuj,
+                instanceId = InstanceId.fakeInstanceId(0),
+                uiEventLogger = kosmos.statusBarChipsUiEventLogger,
+                logger = logcatLogBuffer("OngoingActivityChipViewModelTest"),
+                tag = "tag",
             )
+
+        clickCallback.invoke(mockExpandable)
+        verify(dialogTransitionAnimator).show(eq(mockSystemUIDialog), any(), anyBoolean())
     }
 }

@@ -16,7 +16,7 @@
 
 package com.android.server.notification;
 
-import static android.app.NotificationManager.Policy.STATE_CHANNELS_BYPASSING_DND;
+import static android.app.NotificationManager.Policy.STATE_HAS_PRIORITY_CHANNELS;
 import static android.provider.Settings.Global.ZEN_MODE_OFF;
 import static android.service.notification.NotificationServiceProto.CHANNEL_POLICY_NONE;
 import static android.service.notification.NotificationServiceProto.CHANNEL_POLICY_PRIORITY;
@@ -285,11 +285,10 @@ class ZenModeEventLogger {
                 return true;
             }
 
-            if (Flags.modesApi() && hasActiveRuleCountDiff()) {
-                // Rules with INTERRUPTION_FILTER_ALL were always possible but before MODES_API
-                // they were completely useless; now they can apply effects, so we want to log
-                // when they become active/inactive, even though DND itself (as in "notification
-                // blocking") is off.
+            if (hasActiveRuleCountDiff()) {
+                // Rules with INTERRUPTION_FILTER_ALL can apply effects, so we want to log when they
+                // become active/inactive, even though DND itself (as in "notification blocking")
+                // is off.
                 return true;
             }
 
@@ -331,7 +330,7 @@ class ZenModeEventLogger {
                 }
             }
 
-            if (Flags.modesApi() && mNewZenMode == ZEN_MODE_OFF) {
+            if (mNewZenMode == ZEN_MODE_OFF) {
                 // If the mode is OFF -> OFF then there cannot be any *effective* change to policy.
                 // (Note that, in theory, a policy diff is impossible since we don't merge the
                 // policies of INTERRUPTION_FILTER_ALL rules; this is a "just in case" check).
@@ -439,24 +438,14 @@ class ZenModeEventLogger {
 
         // Determine the number of (automatic & manual) rules active after the change takes place.
         int getNumRulesActive() {
-            if (!Flags.modesApi()) {
-                // If the zen mode has turned off, that means nothing can be active.
-                if (mNewZenMode == ZEN_MODE_OFF) {
-                    return 0;
-                }
-            }
             return numActiveRulesInConfig(mNewConfig);
         }
 
         /**
-         * Return a list of the types of each of the active rules in the configuration.
-         * Only available when {@code MODES_API} is active; otherwise returns an empty list.
+         * Return a list of the types of each of the active rules in the configuration (sorted by
+         * the numerical value of the type, and including duplicates).
          */
         int[] getActiveRuleTypes() {
-            if (!Flags.modesApi()) {
-                return new int[0];
-            }
-
             ArrayList<Integer> activeTypes = new ArrayList<>();
             List<ZenRule> activeRules = activeRulesList(mNewConfig);
             if (activeRules.size() == 0) {
@@ -476,77 +465,10 @@ class ZenModeEventLogger {
             return out;
         }
 
-        /**
-         * Return our best guess as to whether the changes observed are due to a user action.
-         * Note that this (before {@code MODES_API}) won't be 100% accurate as we can't necessarily
-         * distinguish between a system uid call indicating "user interacted with Settings" vs "a
-         * system app changed something automatically".
-         */
+        /** Return whether the changes observed are due to a user action. */
         boolean getIsUserAction() {
-            if (Flags.modesApi()) {
-                return mOrigin == ZenModeConfig.ORIGIN_USER_IN_SYSTEMUI
-                        || mOrigin == ZenModeConfig.ORIGIN_USER_IN_APP;
-            }
-
-            // Approach for pre-MODES_API:
-            //   - if manual rule turned on or off, the calling UID is system, and the new manual
-            //     rule does not have an enabler set, guess that this is likely to be a user action.
-            //     This may represent a system app turning on DND automatically, but we guess "user"
-            //     in this case.
-            //         - note that this has a known failure mode of "manual rule turning off
-            //           automatically after the default time runs out". We currently have no way
-            //           of distinguishing this case from a user manually turning off the rule.
-            //         - the reason for checking the enabler field is that a call may look like it's
-            //           coming from a system UID, but if an enabler is set then the request came
-            //           from an external source. "enabler" will be blank when manual rule is turned
-            //           on from Quick Settings or Settings.
-            //   - if an automatic rule's state changes in whether it is "enabled", then
-            //     that is probably a user action.
-            //   - if an automatic rule goes from "not snoozing" to "snoozing", that is probably
-            //     a user action; that means that the user temporarily turned off DND associated
-            //     with that rule.
-            //   - if an automatic rule becomes active but does *not* change in its enabled state
-            //     (covered by a previous case anyway), we guess that this is an automatic change.
-            //   - if a rule is added or removed and the call comes from the system, we guess that
-            //     this is a user action (as system rules can't be added or removed without a user
-            //     action).
-            switch (getChangedRuleType()) {
-                case RULE_TYPE_MANUAL:
-                    // TODO(b/278888961): Distinguish the automatically-turned-off state
-                    return isFromSystemOrSystemUi() && (getNewManualRuleEnabler() == null);
-                case RULE_TYPE_AUTOMATIC:
-                    for (ZenModeDiff.RuleDiff d : getChangedAutomaticRules().values()) {
-                        if (d.wasAdded() || d.wasRemoved()) {
-                            // If the change comes from system, a rule being added/removed indicates
-                            // a likely user action. From an app, it's harder to know for sure.
-                            return isFromSystemOrSystemUi();
-                        }
-                        ZenModeDiff.FieldDiff enabled = d.getDiffForField(
-                                ZenModeDiff.RuleDiff.FIELD_ENABLED);
-                        if (enabled != null && enabled.hasDiff()) {
-                            return true;
-                        }
-                        ZenModeDiff.FieldDiff snoozing = d.getDiffForField(
-                                ZenModeDiff.RuleDiff.FIELD_SNOOZING);
-                        if (snoozing != null && snoozing.hasDiff() && (boolean) snoozing.to()) {
-                            return true;
-                        }
-                    }
-                    // If the change was in an automatic rule and none of the "probably triggered
-                    // by a user" cases apply, then it's probably an automatic change.
-                    return false;
-                case RULE_TYPE_UNKNOWN:
-                default:
-            }
-
-            // If the change wasn't in a rule, but was in the zen policy: consider to be user action
-            // if the calling uid is system
-            if (hasPolicyDiff() || hasChannelsBypassingDiff()) {
-                return mCallingUid == Process.SYSTEM_UID;
-            }
-
-            // don't know, or none of the other things triggered; assume not a user action
-            return false;
+            return mOrigin == ZenModeConfig.ORIGIN_USER_IN_SYSTEMUI
+                    || mOrigin == ZenModeConfig.ORIGIN_USER_IN_APP;
         }
 
         boolean isFromSystemOrSystemUi() {
@@ -587,7 +509,7 @@ class ZenModeEventLogger {
          */
         @Nullable
         byte[] getDNDPolicyProto() {
-            if (Flags.modesApi() && mNewZenMode == ZEN_MODE_OFF) {
+            if (mNewZenMode == ZEN_MODE_OFF) {
                 return null;
             }
 
@@ -628,13 +550,10 @@ class ZenModeEventLogger {
                                 mNewPolicy.allowMessagesFrom()));
                 proto.write(DNDPolicyProto.ALLOW_CONVERSATIONS_FROM,
                         mNewPolicy.allowConversationsFrom());
-
-                if (Flags.modesApi()) {
-                    proto.write(DNDPolicyProto.ALLOW_CHANNELS,
-                            mNewPolicy.allowPriorityChannels()
-                                    ? CHANNEL_POLICY_PRIORITY
-                                    : CHANNEL_POLICY_NONE);
-                }
+                proto.write(DNDPolicyProto.ALLOW_CHANNELS,
+                        mNewPolicy.allowPriorityChannels()
+                                ? CHANNEL_POLICY_PRIORITY
+                                : CHANNEL_POLICY_NONE);
             } else {
                 Log.wtf(TAG, "attempted to write zen mode log event with null policy");
             }
@@ -648,14 +567,14 @@ class ZenModeEventLogger {
          */
         boolean getAreChannelsBypassing() {
             if (mNewPolicy != null) {
-                return (mNewPolicy.state & STATE_CHANNELS_BYPASSING_DND) != 0;
+                return (mNewPolicy.state & STATE_HAS_PRIORITY_CHANNELS) != 0;
             }
             return false;
         }
 
         private boolean hasChannelsBypassingDiff() {
             boolean prevChannelsBypassing = mPrevPolicy != null
-                    ? (mPrevPolicy.state & STATE_CHANNELS_BYPASSING_DND) != 0 : false;
+                    ? (mPrevPolicy.state & STATE_HAS_PRIORITY_CHANNELS) != 0 : false;
             return prevChannelsBypassing != getAreChannelsBypassing();
         }
 

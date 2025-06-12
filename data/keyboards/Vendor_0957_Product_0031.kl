@@ -15,7 +15,7 @@
 # Key Layout file for Google Reference RCU Remote with customizable button.
 #
 
-key 116   TV_POWER      WAKE
+key 116   POWER         WAKE
 key 217   ASSIST        WAKE
 key 423   MACRO_1       WAKE
 

@@ -129,6 +129,11 @@ class CameraAvailabilityListener(
         listeners.remove(callback)
     }
 
+    fun debugFaceAuth(id: Int) {
+        val info = cameraProtectionInfoList?.getOrNull(id)
+        if (info != null) notifyCameraActive(info)
+    }
+
     private fun isExcluded(packageId: String): Boolean {
         return excludedPackageIds.contains(packageId)
     }

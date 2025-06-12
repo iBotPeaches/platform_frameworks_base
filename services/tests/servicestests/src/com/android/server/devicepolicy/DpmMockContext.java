@@ -253,6 +253,8 @@ public class DpmMockContext extends MockContext {
                 return mMockSystemServices.subscriptionManager;
             case Context.USB_SERVICE:
                 return mMockSystemServices.usbManager;
+            case Context.EUICC_SERVICE:
+                return mMockSystemServices.euiccManager;
         }
         throw new UnsupportedOperationException();
     }
@@ -260,6 +262,11 @@ public class DpmMockContext extends MockContext {
     @Override
     public String getSystemServiceName(Class<?> serviceClass) {
         return realTestContext.getSystemServiceName(serviceClass);
+    }
+
+    @Override
+    public Context getApplicationContext() {
+        return this;
     }
 
     @Override
@@ -479,6 +486,14 @@ public class DpmMockContext extends MockContext {
         mMockSystemServices.registerReceiver(receiver, filter, scheduler);
         return spiedContext.registerReceiverAsUser(receiver, user, filter, broadcastPermission,
                 scheduler);
+    }
+
+    @Override
+    public Intent registerReceiverAsUser(BroadcastReceiver receiver, UserHandle user,
+            IntentFilter filter, String broadcastPermission, Handler scheduler, int flags) {
+        mMockSystemServices.registerReceiver(receiver, filter, scheduler);
+        return spiedContext.registerReceiverAsUser(receiver, user, filter, broadcastPermission,
+                scheduler, flags);
     }
 
     @Override

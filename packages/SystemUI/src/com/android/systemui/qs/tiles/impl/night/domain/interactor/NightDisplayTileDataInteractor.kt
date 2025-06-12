@@ -20,8 +20,8 @@ import android.content.Context
 import android.hardware.display.ColorDisplayManager
 import android.os.UserHandle
 import com.android.systemui.accessibility.data.repository.NightDisplayRepository
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.night.domain.model.NightDisplayTileModel
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.util.time.DateFormatUtil

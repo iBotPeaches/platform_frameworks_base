@@ -17,10 +17,10 @@
 package com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel
 
 import androidx.annotation.VisibleForTesting
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.coroutines.newTracingContext
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
-import com.android.systemui.flags.FeatureFlagsClassic
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.pipeline.airplane.domain.interactor.AirplaneModeInteractor
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractor
@@ -28,27 +28,27 @@ import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
 import com.android.systemui.statusbar.pipeline.mobile.ui.VerboseMobileViewLogger
 import com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView
 import com.android.systemui.statusbar.pipeline.shared.ConnectivityConstants
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /**
  * View model for describing the system's current mobile cellular connections. The result is a list
  * of [MobileIconViewModel]s which describe the individual icons and can be bound to
  * [ModernStatusBarMobileView].
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class MobileIconsViewModel
 @Inject
@@ -58,11 +58,12 @@ constructor(
     private val interactor: MobileIconsInteractor,
     private val airplaneModeInteractor: AirplaneModeInteractor,
     private val constants: ConnectivityConstants,
-    private val flags: FeatureFlagsClassic,
-    @Application private val scope: CoroutineScope,
+    @Background private val scope: CoroutineScope,
 ) {
     @VisibleForTesting
-    val reuseCache = mutableMapOf<Int, Pair<MobileIconViewModel, CoroutineScope>>()
+    val reuseCache = ConcurrentHashMap<Int, Pair<MobileIconViewModel, CoroutineScope>>()
+
+    val activeMobileDataSubscriptionId: StateFlow<Int?> = interactor.activeMobileDataSubscriptionId
 
     val subscriptionIdsFlow: StateFlow<List<Int>> =
         interactor.filteredSubscriptions
@@ -71,15 +72,20 @@ constructor(
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), listOf())
 
-    private val firstMobileSubViewModel: StateFlow<MobileIconViewModelCommon?> =
+    val mobileSubViewModels: StateFlow<List<MobileIconViewModelCommon>> =
         subscriptionIdsFlow
+            .map { ids -> ids.map { commonViewModelForSub(it) } }
+            .stateIn(scope, SharingStarted.WhileSubscribed(), emptyList())
+
+    private val firstMobileSubViewModel: StateFlow<MobileIconViewModelCommon?> =
+        mobileSubViewModels
             .map {
                 if (it.isEmpty()) {
                     null
                 } else {
                     // Mobile icons get reversed by [StatusBarIconController], so the last element
                     // in this list will show up visually first.
-                    commonViewModelForSub(it.last())
+                    it.last()
                 }
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), null)
@@ -92,6 +98,18 @@ constructor(
         firstMobileSubViewModel
             .flatMapLatest { firstMobileSubViewModel ->
                 firstMobileSubViewModel?.networkTypeIcon?.map { it != null } ?: flowOf(false)
+            }
+            .stateIn(scope, SharingStarted.WhileSubscribed(), false)
+
+    /** Whether all of [mobileSubViewModels] are visible or not. */
+    private val iconsAreAllVisible =
+        mobileSubViewModels.flatMapLatest { viewModels ->
+            combine(viewModels.map { it.isVisible }) { isVisibleArray -> isVisibleArray.all { it } }
+        }
+
+    val isStackable: StateFlow<Boolean> =
+        combine(iconsAreAllVisible, interactor.isStackable) { isVisible, isStackable ->
+                isVisible && isStackable
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), false)
 
@@ -123,7 +141,6 @@ constructor(
                 interactor.getMobileConnectionInteractorForSubId(subId),
                 airplaneModeInteractor,
                 constants,
-                flags,
                 vmScope,
             )
 

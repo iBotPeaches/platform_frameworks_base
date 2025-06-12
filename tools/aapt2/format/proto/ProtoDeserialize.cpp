@@ -640,6 +640,7 @@ bool DeserializeCompiledFileFromPb(const pb::internal::CompiledFile& pb_file,
   out_file->name = name_ref.ToResourceName();
   out_file->source.path = pb_file.source_path();
   out_file->type = DeserializeFileReferenceTypeFromPb(pb_file.type());
+  out_file->uses_readwrite_feature_flags = pb_file.uses_readwrite_feature_flags();
 
   out_file->flag_status = (FlagStatus)pb_file.flag_status();
   if (!pb_file.flag_name().empty()) {

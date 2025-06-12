@@ -23,7 +23,8 @@ import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.PathShape;
 import android.util.AttributeSet;
-import android.util.PathParser;
+
+import androidx.core.graphics.PathParser;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;

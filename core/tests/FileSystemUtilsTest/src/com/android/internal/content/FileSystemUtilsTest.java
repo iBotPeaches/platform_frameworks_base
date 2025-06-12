@@ -17,10 +17,12 @@
 package com.android.internal.content;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.AppModeFull;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.targetprep.TargetSetupError;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
@@ -29,6 +31,14 @@ import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class FileSystemUtilsTest extends BaseHostJUnit4Test {
+    private static final String PAGE_SIZE_COMPAT_ENABLED = "app_with_4kb_elf.apk";
+    private static final String PAGE_SIZE_COMPAT_DISABLED = "page_size_compat_disabled_app.apk";
+    private static final String PAGE_SIZE_COMPAT_ENABLED_COMPRESSED_ELF =
+            "app_with_4kb_compressed_elf.apk";
+    private static final String PAGE_SIZE_COMPAT_ENABLED_BY_PLATFORM =
+            "app_with_4kb_elf_no_override.apk";
+
+    private static final int DEVICE_WAIT_TIMEOUT = 120000;
 
     @Test
     @AppModeFull
@@ -48,12 +58,62 @@ public class FileSystemUtilsTest extends BaseHostJUnit4Test {
         runDeviceTests(appPackage, appPackage + "." + testName);
     }
 
-    @Test
-    @AppModeFull
-    public void runAppWith4KbLib_overrideCompatMode() throws DeviceNotAvailableException {
+    private void runPageSizeCompatTest(String appName, String testMethodName)
+            throws DeviceNotAvailableException, TargetSetupError {
+        getDevice().enableAdbRoot();
+        String result = getDevice().executeShellCommand("getconf PAGE_SIZE");
+        assumeTrue("16384".equals(result.strip()));
+        installPackage(appName, "-r");
         String appPackage = "android.test.pagesizecompat";
         String testName = "PageSizeCompatTest";
         assertTrue(isPackageInstalled(appPackage));
-        runDeviceTests(appPackage, appPackage + "." + testName);
+        assertTrue(runDeviceTests(appPackage, appPackage + "." + testName,
+                testMethodName));
+        uninstallPackage(appPackage);
+    }
+
+    @Test
+    @AppModeFull
+    public void runAppWith4KbLib_overrideCompatMode()
+            throws DeviceNotAvailableException, TargetSetupError {
+        runPageSizeCompatTest(PAGE_SIZE_COMPAT_ENABLED, "testPageSizeCompat_compatEnabled");
+    }
+
+    @Test
+    @AppModeFull
+    public void runAppWith4KbCompressedLib_overrideCompatMode()
+            throws DeviceNotAvailableException, TargetSetupError {
+        runPageSizeCompatTest(PAGE_SIZE_COMPAT_ENABLED_COMPRESSED_ELF,
+                "testPageSizeCompat_compatEnabled");
+    }
+
+    @Test
+    @AppModeFull
+    public void runAppWith4KbLib_disabledCompatMode()
+            throws DeviceNotAvailableException, TargetSetupError {
+        // This test is expected to fail since compat is disabled in manifest
+        runPageSizeCompatTest(PAGE_SIZE_COMPAT_DISABLED,
+                "testPageSizeCompat_compatDisabled");
+    }
+
+    @Test
+    @AppModeFull
+    public void runAppWith4KbLib_compatByAlignmentChecks()
+            throws DeviceNotAvailableException, TargetSetupError {
+        // make sure that device is available for UI test
+        prepareDevice();
+        // This test is expected to fail since compat is disabled in manifest
+        runPageSizeCompatTest(PAGE_SIZE_COMPAT_ENABLED_BY_PLATFORM,
+                "testPageSizeCompat_compatByAlignmentChecks");
+    }
+
+    private void prepareDevice() throws DeviceNotAvailableException {
+        // Verify that device is online before running test and enable root
+        getDevice().waitForDeviceAvailable(DEVICE_WAIT_TIMEOUT);
+        getDevice().enableAdbRoot();
+        getDevice().waitForDeviceAvailable(DEVICE_WAIT_TIMEOUT);
+
+        getDevice().executeShellCommand("input keyevent KEYCODE_WAKEUP");
+        getDevice().executeShellCommand("wm dismiss-keyguard");
     }
 }

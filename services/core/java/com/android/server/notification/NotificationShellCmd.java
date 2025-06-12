@@ -45,6 +45,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ShellCommand;
 import android.os.UserHandle;
+import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
@@ -81,6 +82,7 @@ public class NotificationShellCmd extends ShellCommand {
             + "  snooze --for <msec> <notification-key>\n"
             + "  unsnooze <notification-key>\n"
             + "  set_exempt_th_force_grouping [true|false]\n"
+            + "  redact_otp_from_untrusted_listeners [true|false]\n"
             ;
 
     private static final String NOTIFY_USAGE =
@@ -183,13 +185,8 @@ public class NotificationShellCmd extends ShellCommand {
                             interruptionFilter = INTERRUPTION_FILTER_ALL;
                     }
                     final int filter = interruptionFilter;
-                    if (android.app.Flags.modesApi()) {
-                        mBinderService.setInterruptionFilter(callingPackage, filter,
-                                /* fromUser= */ true);
-                    } else {
-                        mBinderService.setInterruptionFilter(callingPackage, filter,
-                                /* fromUser= */ false);
-                    }
+                    mBinderService.setInterruptionFilter(callingPackage, filter,
+                            /* fromUser= */ true);
                 }
                 break;
                 case "allow_dnd": {
@@ -434,6 +431,14 @@ public class NotificationShellCmd extends ShellCommand {
                     final boolean exemptTestHarnessFromForceGrouping =
                             "true".equals(arg) || "1".equals(arg);
                     mDirectService.setTestHarnessExempted(exemptTestHarnessFromForceGrouping);
+                    break;
+                }
+                case "redact_otp_from_untrusted_listeners": {
+                    String arg = getNextArgRequired();
+                    final int allow = "true".equals(arg) || "1".equals(arg) ? 1 : 0;
+                    Settings.Global.putInt(mDirectService.getContext().getContentResolver(),
+                            Settings.Global.REDACT_OTP_NOTIFICATIONS_FROM_UNTRUSTED_LISTENERS,
+                            allow);
                     break;
                 }
                 default:

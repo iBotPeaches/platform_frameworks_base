@@ -41,4 +41,10 @@ public interface TaskDragResizer {
      */
     void removeDragEventListener(
             DragPositioningCallbackUtility.DragEventListener dragEventListener);
+
+    /**
+     * Releases any resources associated with this TaskDragResizer. This should be called when the
+     * associated window is closed.
+     */
+    void close();
 }

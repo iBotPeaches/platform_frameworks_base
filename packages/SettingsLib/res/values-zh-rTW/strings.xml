@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"使用中 (僅左側)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"使用中 (僅右側)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"使用中 (左右兩側)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"無法更新環境狀態"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"已啟用 (僅限媒體)。電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"已啟用 (僅限媒體)。左側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"訪客裝置。電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"訪客裝置。左側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"訪客裝置 (僅限媒體)。電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"訪客裝置 (僅限媒體)。左側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"已連線 (支援音訊分享)。電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"已連線 (支援音訊分享)。左側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"已連線 (支援音訊分享)。左側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"已連線 (支援音訊分享)。右側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"已連線 (支援音訊分享)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"訪客裝置 (支援音訊分享)。電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"訪客裝置 (支援音訊分享)。左側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右側電量：<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"訪客裝置 (支援音訊分享)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"啟用 (僅限媒體)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"訪客裝置"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"訪客裝置 (僅限媒體)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"支援音訊分享"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"訪客裝置。支援音訊分享"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"左側啟用 (僅限媒體)"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"右側啟用 (僅限媒體)"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"左右側同時啟用 (僅限媒體)"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"硬體加速轉譯"</string>
     <string name="media_category" msgid="8122076702526144053">"媒體"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"監控"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"視窗管理"</string>
     <string name="strict_mode" msgid="889864762140862437">"嚴格模式已啟用"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"當應用程式在主執行緒中進行長時間作業時，讓螢幕閃爍"</string>
     <string name="pointer_location" msgid="7516929526199520173">"指標位置"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"轉場動畫比例"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"動畫影片長度比例"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"模擬次要顯示器"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"通知欄顯示位置"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"應用程式"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"不要保留活動"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"使用者離開活動後立刻刪除所有活動內容"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView 實作"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"設定 WebView 實作"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"這個選項已失效，請再試一次。"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView 開發人員工具"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"找不到 WebView 套件。"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"無法啟動開發人員工具。"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"螢幕色彩模式"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"使用 sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"已停用"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"快速充電"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"已由管理員停用"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"由受限制的設定控管"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"通話時無法使用"</string>
     <string name="disabled" msgid="8017887509554714950">"已停用"</string>
+    <string name="enabled" msgid="3997122818554810678">"已啟用"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"允許"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"不允許"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"安裝不明應用程式"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"內建喇叭"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"電視音訊"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"無法連線，請關閉裝置後再重新開啟"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"無法連線"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"有線音訊裝置"</string>
     <string name="help_label" msgid="3528360748637781274">"說明與意見回饋"</string>
     <string name="storage_category" msgid="2287342585424631813">"儲存空間"</string>
@@ -653,7 +672,7 @@
     <string name="add_user_failed" msgid="4809887794313944872">"無法建立新的使用者"</string>
     <string name="add_guest_failed" msgid="8074548434469843443">"無法建立新訪客"</string>
     <string name="user_nickname" msgid="262624187455825083">"暱稱"</string>
-    <string name="edit_user_info_message" msgid="6677556031419002895">"這部裝置的所有使用者都能看到你選擇的名稱和相片。"</string>
+    <string name="edit_user_info_message" msgid="6677556031419002895">"這部裝置的所有使用者，都能看到你選擇的名稱和相片。"</string>
     <string name="user_add_user" msgid="7876449291500212468">"新增使用者"</string>
     <string name="guest_new_guest" msgid="3482026122932643557">"新增訪客"</string>
     <string name="guest_exit_guest" msgid="5908239569510734136">"移除訪客"</string>

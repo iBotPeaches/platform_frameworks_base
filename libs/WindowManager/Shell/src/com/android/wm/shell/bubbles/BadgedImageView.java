@@ -15,6 +15,8 @@
  */
 package com.android.wm.shell.bubbles;
 
+import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTOR;
+
 import android.annotation.DrawableRes;
 import android.annotation.Nullable;
 import android.content.Context;
@@ -35,7 +37,6 @@ import android.widget.ImageView;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.android.launcher3.icons.DotRenderer;
-import com.android.launcher3.icons.IconNormalizer;
 import com.android.wm.shell.R;
 import com.android.wm.shell.shared.animation.Interpolators;
 
@@ -132,7 +133,7 @@ public class BadgedImageView extends ConstraintLayout {
 
     private void getOutline(Outline outline) {
         final int bubbleSize = mPositioner.getBubbleSize();
-        final int normalizedSize = IconNormalizer.getNormalizedCircleSize(bubbleSize);
+        final int normalizedSize = Math.round(ICON_VISIBLE_AREA_FACTOR * bubbleSize);
         final int inset = (bubbleSize - normalizedSize) / 2;
         outline.setOval(inset, inset, inset + normalizedSize, inset + normalizedSize);
     }
@@ -357,9 +358,9 @@ public class BadgedImageView extends ConstraintLayout {
 
     void showBadge() {
         Bitmap appBadgeBitmap = mBubble.getAppBadge();
-        final boolean isAppLaunchIntent = (mBubble instanceof Bubble)
-                && ((Bubble) mBubble).isAppLaunchIntent();
-        if (appBadgeBitmap == null || isAppLaunchIntent) {
+        final boolean showAppBadge = (mBubble instanceof Bubble)
+                && ((Bubble) mBubble).showAppBadge();
+        if (appBadgeBitmap == null || !showAppBadge) {
             mAppIcon.setVisibility(GONE);
             return;
         }

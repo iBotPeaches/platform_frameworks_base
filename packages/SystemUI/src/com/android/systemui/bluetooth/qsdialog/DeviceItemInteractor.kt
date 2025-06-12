@@ -19,12 +19,12 @@ package com.android.systemui.bluetooth.qsdialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
-import android.media.AudioManager
 import com.android.settingslib.bluetooth.BluetoothCallback
 import com.android.settingslib.bluetooth.CachedBluetoothDevice
 import com.android.settingslib.bluetooth.LocalBluetoothManager
+import com.android.settingslib.volume.domain.interactor.AudioModeInteractor
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.isActive
@@ -51,7 +52,6 @@ class DeviceItemInteractor
 constructor(
     private val bluetoothTileDialogRepository: BluetoothTileDialogRepository,
     private val audioSharingInteractor: AudioSharingInteractor,
-    private val audioManager: AudioManager,
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter(),
     private val localBluetoothManager: LocalBluetoothManager?,
     private val systemClock: SystemClock,
@@ -60,6 +60,7 @@ constructor(
     private val deviceItemDisplayPriority: List<@JvmSuppressWildcards DeviceItemType>,
     @Application private val coroutineScope: CoroutineScope,
     @Background private val backgroundDispatcher: CoroutineDispatcher,
+    private val audioModeInteractor: AudioModeInteractor,
 ) {
 
     private val mutableDeviceItemUpdate: MutableSharedFlow<List<DeviceItem>> =
@@ -118,8 +119,12 @@ constructor(
 
     internal suspend fun updateDeviceItems(context: Context, trigger: DeviceFetchTrigger) {
         withContext(backgroundDispatcher) {
+            if (!isActive) {
+                return@withContext
+            }
             val start = systemClock.elapsedRealtime()
             val audioSharingAvailable = audioSharingInteractor.audioSharingAvailable()
+            val isOngoingCall = audioModeInteractor.isOngoingCall.first()
             val deviceItems =
                 bluetoothTileDialogRepository.cachedDevices
                     .mapNotNull { cachedDevice ->
@@ -128,7 +133,7 @@ constructor(
                                 it.isFilterMatched(
                                     context,
                                     cachedDevice,
-                                    audioManager,
+                                    isOngoingCall,
                                     audioSharingAvailable,
                                 )
                             }

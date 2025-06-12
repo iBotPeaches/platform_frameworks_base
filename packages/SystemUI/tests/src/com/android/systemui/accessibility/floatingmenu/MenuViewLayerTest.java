@@ -77,6 +77,7 @@ import androidx.test.filters.SmallTest;
 import com.android.internal.accessibility.common.ShortcutConstants;
 import com.android.internal.accessibility.dialog.AccessibilityTarget;
 import com.android.internal.messages.nano.SystemMessageProto;
+import com.android.settingslib.bluetooth.HearingAidDeviceManager;
 import com.android.systemui.Flags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.SysuiTestableContext;
@@ -140,8 +141,10 @@ public class MenuViewLayerTest extends SysuiTestCase {
     @Mock
     private AccessibilityManager mStubAccessibilityManager;
     @Mock
+    private HearingAidDeviceManager mHearingAidDeviceManager;
+    @Mock
     private PackageManager mMockPackageManager;
-    private final SecureSettings mSecureSettings = TestUtils.mockSecureSettings();
+    private final SecureSettings mSecureSettings = TestUtils.mockSecureSettings(mContext);
 
     private final NotificationManager mMockNotificationManager = mock(NotificationManager.class);
 
@@ -159,7 +162,8 @@ public class MenuViewLayerTest extends SysuiTestCase {
                 new WindowMetrics(mDisplayBounds, fakeDisplayInsets(), /* density = */ 0.0f));
         doReturn(mWindowMetrics).when(mStubWindowManager).getCurrentWindowMetrics();
 
-        mMenuViewModel = new MenuViewModel(mSpyContext, mSecureSettings);
+        mMenuViewModel = new MenuViewModel(
+                mSpyContext, mStubAccessibilityManager, mSecureSettings, mHearingAidDeviceManager);
         MenuViewAppearance menuViewAppearance = new MenuViewAppearance(
                 mSpyContext, mStubWindowManager);
         mMenuView = spy(
@@ -228,7 +232,6 @@ public class MenuViewLayerTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableFlags(android.view.accessibility.Flags.FLAG_A11Y_QS_SHORTCUT)
     public void triggerDismissMenuAction_callsA11yManagerEnableShortcutsForTargets() {
         final List<String> stubShortcutTargets = new ArrayList<>();
         stubShortcutTargets.add(TEST_SELECT_TO_SPEAK_COMPONENT_NAME.flattenToString());
@@ -242,45 +245,6 @@ public class MenuViewLayerTest extends SysuiTestCase {
                 ShortcutConstants.UserShortcutType.SOFTWARE,
                 new ArraySet<>(stubShortcutTargets),
                 mSecureSettings.getRealUserHandle(UserHandle.USER_CURRENT));
-    }
-
-    @Test
-    @DisableFlags(android.view.accessibility.Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void triggerDismissMenuAction_matchA11yButtonTargetsResult() {
-        mMenuViewLayer.mDismissMenuAction.run();
-        verify(mSecureSettings).putStringForUser(
-                Settings.Secure.ACCESSIBILITY_BUTTON_TARGETS, /* value= */ "",
-                UserHandle.USER_CURRENT);
-    }
-
-    @Test
-    @DisableFlags(android.view.accessibility.Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void triggerDismissMenuAction_matchEnabledA11yServicesResult() {
-        setupEnabledAccessibilityServiceList();
-
-        mMenuViewLayer.mDismissMenuAction.run();
-        final String value = Settings.Secure.getStringForUser(mSpyContext.getContentResolver(),
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                mSecureSettings.getRealUserHandle(UserHandle.USER_CURRENT));
-
-        assertThat(value).isEqualTo("");
-    }
-
-    @Test
-    @DisableFlags(android.view.accessibility.Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void triggerDismissMenuAction_hasHardwareKeyShortcut_keepEnabledStatus() {
-        setupEnabledAccessibilityServiceList();
-        final List<String> stubShortcutTargets = new ArrayList<>();
-        stubShortcutTargets.add(TEST_SELECT_TO_SPEAK_COMPONENT_NAME.flattenToString());
-        when(mStubAccessibilityManager.getAccessibilityShortcutTargets(
-                ShortcutConstants.UserShortcutType.HARDWARE)).thenReturn(stubShortcutTargets);
-
-        mMenuViewLayer.mDismissMenuAction.run();
-        final String value = Settings.Secure.getStringForUser(mSpyContext.getContentResolver(),
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                mSecureSettings.getRealUserHandle(UserHandle.USER_CURRENT));
-
-        assertThat(value).isEqualTo(TEST_SELECT_TO_SPEAK_COMPONENT_NAME.flattenToString());
     }
 
     @Test
@@ -418,9 +382,10 @@ public class MenuViewLayerTest extends SysuiTestCase {
     @Test
     @EnableFlags(Flags.FLAG_FLOATING_MENU_DRAG_TO_EDIT)
     public void onDismissAction_incrementsTexMetricDismiss() {
-        mMenuViewModel.onTargetFeaturesChanged(
-                List.of(new TestAccessibilityTarget(mSpyContext, 1234),
-                        new TestAccessibilityTarget(mSpyContext, 5678)));
+        List<AccessibilityTarget> testTargets = new ArrayList<>();
+        testTargets.add(new TestAccessibilityTarget(mSpyContext, 1234));
+        testTargets.add(new TestAccessibilityTarget(mSpyContext, 5678));
+        mMenuViewModel.onTargetFeaturesChanged(testTargets);
 
         mMenuViewLayer.dispatchAccessibilityAction(R.id.action_remove_menu);
 
@@ -430,9 +395,10 @@ public class MenuViewLayerTest extends SysuiTestCase {
     @Test
     @EnableFlags(Flags.FLAG_FLOATING_MENU_DRAG_TO_EDIT)
     public void onEditAction_incrementsTexMetricEdit() {
-        mMenuViewModel.onTargetFeaturesChanged(
-                List.of(new TestAccessibilityTarget(mSpyContext, 1234),
-                        new TestAccessibilityTarget(mSpyContext, 5678)));
+        List<AccessibilityTarget> testTargets = new ArrayList<>();
+        testTargets.add(new TestAccessibilityTarget(mSpyContext, 1234));
+        testTargets.add(new TestAccessibilityTarget(mSpyContext, 5678));
+        mMenuViewModel.onTargetFeaturesChanged(testTargets);
 
         mMenuViewLayer.dispatchAccessibilityAction(R.id.action_edit);
 

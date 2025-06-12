@@ -42,6 +42,9 @@ import com.android.systemui.res.R
 import com.android.systemui.settings.UserTracker
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.merge
 
 /** When the scheduler is due, show a notification to launch tutorial */
@@ -55,19 +58,43 @@ constructor(
     private val notificationManager: NotificationManager,
     private val userTracker: UserTracker,
 ) {
+    private var updaterJob: Job? = null
+
     fun start() {
         backgroundScope.launch {
             merge(
                     tutorialSchedulerInteractor.tutorials,
                     tutorialSchedulerInteractor.commandTutorials,
                 )
-                .collect { showNotification(it) }
+                .filter { it != TutorialType.NONE }
+                .collectLatest {
+                    showNotification(it)
+                    updaterJob?.cancel()
+                    updaterJob = backgroundScope.launch { updateWhenDeviceDisconnects() }
+                }
         }
     }
+
+    private suspend fun updateWhenDeviceDisconnects() {
+        // Only update the notification when there is an active one (i.e. if the notification has
+        // been dismissed by the user, or if the tutorial has been launched, there's no need to
+        // update)
+        tutorialSchedulerInteractor.tutorialTypeUpdates
+            .filter { hasNotification() }
+            .collect {
+                if (it == TutorialType.NONE)
+                    notificationManager.cancelAsUser(TAG, NOTIFICATION_ID, userTracker.userHandle)
+                else showNotification(it)
+            }
+    }
+
+    private fun hasNotification() =
+        notificationManager.activeNotifications.any { it.id == NOTIFICATION_ID }
 
     // By sharing the same tag and id, we update the content of existing notification instead of
     // creating multiple notifications
     private fun showNotification(tutorialType: TutorialType) {
+        // Safe guard - but this should never been reached
         if (tutorialType == TutorialType.NONE) return
 
         if (notificationManager.getNotificationChannel(CHANNEL_ID) == null)

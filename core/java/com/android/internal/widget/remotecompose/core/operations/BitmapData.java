@@ -29,6 +29,8 @@ import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
@@ -36,15 +38,15 @@ import java.util.List;
  * Operation to deal with bitmap data On getting an Image during a draw call the bitmap is
  * compressed and saved in playback the image is decompressed
  */
-public class BitmapData extends Operation implements SerializableToString {
+public class BitmapData extends Operation implements SerializableToString, Serializable {
     private static final int OP_CODE = Operations.DATA_BITMAP;
     private static final String CLASS_NAME = "BitmapData";
-    int mImageId;
+    public final int mImageId;
     int mImageWidth;
     int mImageHeight;
     short mType;
     short mEncoding;
-    @NonNull final byte[] mBitmap;
+    @NonNull byte[] mBitmap;
 
     /** The max size of width or height */
     public static final int MAX_IMAGE_DIMENSION = 8000;
@@ -70,6 +72,9 @@ public class BitmapData extends Operation implements SerializableToString {
     /** The data is encoded as RAW 8888 bit */
     public static final short TYPE_RAW8888 = 3;
 
+    /** The data is encoded as PNG_8888 but decoded as ALPHA_8 */
+    public static final short TYPE_PNG_ALPHA_8 = 4;
+
     /**
      * create a bitmap structure
      *
@@ -83,6 +88,19 @@ public class BitmapData extends Operation implements SerializableToString {
         this.mImageWidth = width;
         this.mImageHeight = height;
         this.mBitmap = bitmap;
+    }
+
+    /**
+     * Update the bitmap data
+     *
+     * @param from the bitmap to copy
+     */
+    public void update(BitmapData from) {
+        this.mImageWidth = from.mImageWidth;
+        this.mImageHeight = from.mImageHeight;
+        this.mBitmap = from.mBitmap;
+        this.mType = from.mType;
+        this.mEncoding = from.mEncoding;
     }
 
     /**
@@ -131,6 +149,15 @@ public class BitmapData extends Operation implements SerializableToString {
      */
     public static int id() {
         return OP_CODE;
+    }
+
+    /**
+     * The type of the image
+     *
+     * @return the type of the image
+     */
+    public int getType() {
+        return mType;
     }
 
     /**
@@ -193,6 +220,21 @@ public class BitmapData extends Operation implements SerializableToString {
         int imageId = buffer.readInt();
         int width = buffer.readInt();
         int height = buffer.readInt();
+        int type;
+        if (width > 0xffff) {
+            type = width >> 16;
+            width = width & 0xffff;
+        } else {
+            type = TYPE_PNG_8888;
+        }
+
+        int encoding;
+        if (height > 0xffff) {
+            encoding = height >> 16;
+            height = height & 0xffff;
+        } else {
+            encoding = ENCODING_INLINE;
+        }
         if (width < 1
                 || height < 1
                 || height > MAX_IMAGE_DIMENSION
@@ -200,7 +242,10 @@ public class BitmapData extends Operation implements SerializableToString {
             throw new RuntimeException("Dimension of image is invalid " + width + "x" + height);
         }
         byte[] bitmap = buffer.readBuffer();
-        operations.add(new BitmapData(imageId, width, height, bitmap));
+        BitmapData bitmapData = new BitmapData(imageId, width, height, bitmap);
+        bitmapData.mType = (short) type;
+        bitmapData.mEncoding = (short) encoding;
+        operations.add(bitmapData);
     }
 
     /**
@@ -222,6 +267,7 @@ public class BitmapData extends Operation implements SerializableToString {
 
     @Override
     public void apply(@NonNull RemoteContext context) {
+        context.putObject(mImageId, this);
         context.loadBitmap(mImageId, mEncoding, mType, mImageWidth, mImageHeight, mBitmap);
     }
 
@@ -236,5 +282,46 @@ public class BitmapData extends Operation implements SerializableToString {
         serializer.append(
                 indent,
                 CLASS_NAME + " id " + mImageId + " (" + mImageWidth + "x" + mImageHeight + ")");
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("imageId", mImageId)
+                .add("imageWidth", mImageWidth)
+                .add("imageHeight", mImageHeight)
+                .add("imageType", getImageTypeString(mType))
+                .add("encoding", getEncodingString(mEncoding));
+    }
+
+    private String getEncodingString(short encoding) {
+        switch (encoding) {
+            case ENCODING_INLINE:
+                return "ENCODING_INLINE";
+            case ENCODING_URL:
+                return "ENCODING_URL";
+            case ENCODING_FILE:
+                return "ENCODING_FILE";
+            default:
+                return "ENCODING_INVALID";
+        }
+    }
+
+    private String getImageTypeString(short type) {
+        switch (type) {
+            case TYPE_PNG_8888:
+                return "TYPE_PNG_8888";
+            case TYPE_PNG:
+                return "TYPE_PNG";
+            case TYPE_RAW8:
+                return "TYPE_RAW8";
+            case TYPE_RAW8888:
+                return "TYPE_RAW8888";
+            case TYPE_PNG_ALPHA_8:
+                return "TYPE_PNG_ALPHA_8";
+            default:
+                return "TYPE_INVALID";
+        }
     }
 }

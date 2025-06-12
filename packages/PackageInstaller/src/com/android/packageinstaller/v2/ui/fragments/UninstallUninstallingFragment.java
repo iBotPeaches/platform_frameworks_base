@@ -16,12 +16,17 @@
 
 package com.android.packageinstaller.v2.ui.fragments;
 
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_APP_LABEL;
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_IS_CLONE_USER;
+
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.os.Bundle;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.fragment.app.DialogFragment;
+
 import com.android.packageinstaller.R;
 import com.android.packageinstaller.v2.model.UninstallUninstalling;
 
@@ -33,13 +38,32 @@ public class UninstallUninstallingFragment extends DialogFragment {
     private static final String LOG_TAG = UninstallUninstallingFragment.class.getSimpleName();
     UninstallUninstalling mDialogData;
 
-    public UninstallUninstallingFragment(UninstallUninstalling dialogData) {
-        mDialogData = dialogData;
+    UninstallUninstallingFragment() {
+        // Required for DialogFragment
+    }
+
+    /**
+     * Create a new instance of this fragment with necessary data set as fragment arguments
+     *
+     * @param dialogData {@link UninstallUninstalling} object containing data to display in
+     *         the dialog
+     * @return an instance of the fragment
+     */
+    public static UninstallUninstallingFragment newInstance(UninstallUninstalling dialogData) {
+        Bundle args = new Bundle();
+        args.putCharSequence(ARGS_APP_LABEL, dialogData.getAppLabel());
+        args.putBoolean(ARGS_IS_CLONE_USER, dialogData.isCloneUser());
+
+        UninstallUninstallingFragment fragment = new UninstallUninstallingFragment();
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @NonNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
+        setDialogData(requireArguments());
+
         Log.i(LOG_TAG, "Creating " + LOG_TAG + "\n" + mDialogData);
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext())
             .setCancelable(false);
@@ -54,5 +78,12 @@ public class UninstallUninstallingFragment extends DialogFragment {
         dialog.setCanceledOnTouchOutside(false);
 
         return dialog;
+    }
+
+    private void setDialogData(Bundle args) {
+        CharSequence label = args.getCharSequence(ARGS_APP_LABEL);
+        boolean isCloneUser = args.getBoolean(ARGS_IS_CLONE_USER);
+
+        mDialogData = new UninstallUninstalling(label, isCloneUser);
     }
 }

@@ -16,11 +16,8 @@
 
 package com.android.systemui.statusbar.pipeline.satellite.domain.interactor
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.internal.telephony.flags.Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.log.core.FakeLogBuffer
@@ -71,7 +68,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
     }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun isSatelliteAllowed_falseWhenNotAllowed() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isSatelliteAllowed)
@@ -84,7 +80,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun isSatelliteAllowed_trueWhenAllowed() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isSatelliteAllowed)
@@ -97,33 +92,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
-    fun isSatelliteAllowed_offWhenFlagIsOff() =
-        testScope.runTest {
-            // GIVEN feature is disabled
-
-            // Remake the interactor so the flag is read
-            underTest =
-                DeviceBasedSatelliteInteractor(
-                    repo,
-                    iconsInteractor,
-                    wifiInteractor,
-                    testScope.backgroundScope,
-                    FakeLogBuffer.Factory.create(),
-                    mock(),
-                )
-
-            val latest by collectLastValue(underTest.isSatelliteAllowed)
-
-            // WHEN satellite is allowed
-            repo.isSatelliteAllowedForCurrentLocation.value = true
-
-            // THEN the interactor returns false due to the flag value
-            assertThat(latest).isFalse()
-        }
-
-    @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun connectionState_matchesRepositoryValue() =
         testScope.runTest {
             val latest by collectLastValue(underTest.connectionState)
@@ -146,45 +114,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
-    fun connectionState_offWhenFeatureIsDisabled() =
-        testScope.runTest {
-            // GIVEN the flag is disabled
-
-            // Remake the interactor so the flag is read
-            underTest =
-                DeviceBasedSatelliteInteractor(
-                    repo,
-                    iconsInteractor,
-                    wifiInteractor,
-                    testScope.backgroundScope,
-                    FakeLogBuffer.Factory.create(),
-                    mock(),
-                )
-
-            val latest by collectLastValue(underTest.connectionState)
-
-            // THEN the state is always Off, regardless of status in system_server
-
-            // Off
-            repo.connectionState.value = SatelliteConnectionState.Off
-            assertThat(latest).isEqualTo(SatelliteConnectionState.Off)
-
-            // On
-            repo.connectionState.value = SatelliteConnectionState.On
-            assertThat(latest).isEqualTo(SatelliteConnectionState.Off)
-
-            // Connected
-            repo.connectionState.value = SatelliteConnectionState.Connected
-            assertThat(latest).isEqualTo(SatelliteConnectionState.Off)
-
-            // Unknown
-            repo.connectionState.value = SatelliteConnectionState.Unknown
-            assertThat(latest).isEqualTo(SatelliteConnectionState.Off)
-        }
-
-    @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun signalStrength_matchesRepo() =
         testScope.runTest {
             val latest by collectLastValue(underTest.signalStrength)
@@ -203,40 +132,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
-    fun signalStrength_zeroWhenDisabled() =
-        testScope.runTest {
-            // GIVEN the flag is enabled
-
-            // Remake the interactor so the flag is read
-            underTest =
-                DeviceBasedSatelliteInteractor(
-                    repo,
-                    iconsInteractor,
-                    wifiInteractor,
-                    testScope.backgroundScope,
-                    FakeLogBuffer.Factory.create(),
-                    mock(),
-                )
-
-            val latest by collectLastValue(underTest.signalStrength)
-
-            // THEN the value is always 0, regardless of what the system says
-            repo.signalStrength.value = 1
-            assertThat(latest).isEqualTo(0)
-
-            repo.signalStrength.value = 2
-            assertThat(latest).isEqualTo(0)
-
-            repo.signalStrength.value = 3
-            assertThat(latest).isEqualTo(0)
-
-            repo.signalStrength.value = 4
-            assertThat(latest).isEqualTo(0)
-        }
-
-    @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_noConnections_noDeviceEmergencyCalls_yes() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -251,7 +146,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_noConnections_deviceEmergencyCalls_yes() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -266,7 +160,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionInService_thenLost_noDeviceEmergencyCalls_yes() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -292,7 +185,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionInService_thenLost_deviceEmergencyCalls_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -318,7 +210,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_twoConnectionsOos_nonNtn_noDeviceEmergencyCalls_yes() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -342,7 +233,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_twoConnectionsOos_nonNtn_deviceEmergencyCalls_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -366,7 +256,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_twoConnectionsOos_noDeviceEmergencyCalls_oneNtn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -392,7 +281,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionOos_noDeviceEmergencyCalls_nonNtn_yes() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -412,7 +300,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionOos_nonNtn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -432,7 +319,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionOos_ntn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -450,7 +336,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionInService_nonNtn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -467,7 +352,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_oneConnectionInService_ntn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -484,7 +368,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_twoConnectionsOneInService_nonNtn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -504,7 +387,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun areAllConnectionsOutOfService_twoConnectionsInService_nonNtn_no() =
         testScope.runTest {
             val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
@@ -518,37 +400,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
             i2.isInService.value = true
 
             // THEN the value is propagated to this interactor
-            assertThat(latest).isFalse()
-        }
-
-    @Test
-    @DisableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
-    fun areAllConnectionsOutOfService_falseWhenFlagIsOff() =
-        testScope.runTest {
-            // GIVEN the flag is disabled
-
-            // Remake the interactor so the flag is read
-            underTest =
-                DeviceBasedSatelliteInteractor(
-                    repo,
-                    iconsInteractor,
-                    wifiInteractor,
-                    testScope.backgroundScope,
-                    FakeLogBuffer.Factory.create(),
-                    mock(),
-                )
-
-            val latest by collectLastValue(underTest.areAllConnectionsOutOfService)
-
-            // GIVEN a condition that should return true (all conections OOS)
-
-            val i1 = iconsInteractor.getMobileConnectionInteractorForSubId(1)
-            val i2 = iconsInteractor.getMobileConnectionInteractorForSubId(2)
-
-            i1.isInService.value = true
-            i2.isInService.value = true
-
-            // THEN the value is still false, because the flag is off
             assertThat(latest).isFalse()
         }
 
@@ -577,7 +428,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun isAnyConnectionNtn_trueWhenAnyNtn() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isAnyConnectionNtn)
@@ -595,7 +445,6 @@ class DeviceBasedSatelliteInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(FLAG_OEM_ENABLED_SATELLITE_FLAG)
     fun isAnyConnectionNtn_falseWhenNoNtn() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isAnyConnectionNtn)

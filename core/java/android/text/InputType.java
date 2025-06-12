@@ -44,6 +44,7 @@ import java.util.List;
  *     TYPE_DATETIME_VARIATION_TIME
  * </dl>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface InputType {
     /**
      * Mask of bits that determine the overall class

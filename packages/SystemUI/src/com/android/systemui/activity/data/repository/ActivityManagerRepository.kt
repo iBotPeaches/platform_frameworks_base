@@ -18,9 +18,11 @@ package com.android.systemui.activity.data.repository
 
 import android.app.ActivityManager
 import android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+import com.android.systemui.activity.data.model.AppVisibilityModel
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.log.core.Logger
+import com.android.systemui.util.time.SystemClock
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
@@ -29,9 +31,23 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.scan
 
 /** Repository for interfacing with [ActivityManager]. */
 interface ActivityManagerRepository {
+
+    /**
+     * Given a UID, creates a flow that emits details about when the process with the given UID was
+     * and is visible to the user.
+     *
+     * @param identifyingLogTag a tag identifying who created this flow, used for logging.
+     */
+    fun createAppVisibilityFlow(
+        creationUid: Int,
+        logger: Logger,
+        identifyingLogTag: String,
+    ): Flow<AppVisibilityModel>
+
     /**
      * Given a UID, creates a flow that emits true when the process with the given UID is visible to
      * the user and false otherwise.
@@ -50,8 +66,38 @@ class ActivityManagerRepositoryImpl
 @Inject
 constructor(
     @Background private val backgroundContext: CoroutineContext,
+    private val systemClock: SystemClock,
     private val activityManager: ActivityManager,
 ) : ActivityManagerRepository {
+
+    override fun createAppVisibilityFlow(
+        creationUid: Int,
+        logger: Logger,
+        identifyingLogTag: String,
+    ): Flow<AppVisibilityModel> {
+        return createIsAppVisibleFlow(creationUid, logger, identifyingLogTag)
+            .distinctUntilChanged()
+            .scan(initial = AppVisibilityModel()) {
+                oldState: AppVisibilityModel,
+                newIsVisible: Boolean ->
+                if (newIsVisible) {
+                    val lastAppVisibleTime = systemClock.currentTimeMillis()
+                    logger.d({ "$str1: Setting lastAppVisibleTime=$long1" }) {
+                        str1 = identifyingLogTag
+                        long1 = lastAppVisibleTime
+                    }
+                    AppVisibilityModel(
+                        isAppCurrentlyVisible = true,
+                        lastAppVisibleTime = lastAppVisibleTime,
+                    )
+                } else {
+                    // Reset the current status while maintaining the lastAppVisibleTime
+                    oldState.copy(isAppCurrentlyVisible = false)
+                }
+            }
+            .distinctUntilChanged()
+    }
+
     override fun createIsAppVisibleFlow(
         creationUid: Int,
         logger: Logger,

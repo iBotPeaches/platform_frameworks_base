@@ -25,7 +25,6 @@ import com.android.internal.os.Flags
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,7 +39,6 @@ class RavenwoodAconfigSimpleReadTests {
     }
 
     @Test
-    @Ignore // TODO: Enable this test after rolling out the "2" flags.
     fun testTrueFlags() {
         assertTrue(Flags.ravenwoodFlagRo2())
         assertTrue(Flags.ravenwoodFlagRw2())
@@ -67,14 +65,12 @@ class RavenwoodAconfigCheckFlagsRuleTests {
 
     @Test
     @RequiresFlagsDisabled(Flags.FLAG_RAVENWOOD_FLAG_RO_2)
-    @Ignore // TODO: Enable this test after rolling out the "2" flags.
     fun testRequireFlagsDisabledRo() {
         fail("This test shouldn't be executed")
     }
 
     @Test
     @RequiresFlagsDisabled(Flags.FLAG_RAVENWOOD_FLAG_RW_2)
-    @Ignore // TODO: Enable this test after rolling out the "2" flags.
     fun testRequireFlagsDisabledRw() {
         fail("This test shouldn't be executed")
     }

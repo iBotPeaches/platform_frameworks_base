@@ -16,7 +16,9 @@
 
 package com.android.server.wm;
 
+import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.view.InsetsSource.FLAG_INSETS_ROUNDED_CORNER;
+import static android.view.WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
@@ -27,6 +29,7 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 
 import android.graphics.Rect;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.view.InsetsSource;
 import android.view.InsetsState;
@@ -40,6 +43,7 @@ import androidx.annotation.Nullable;
 import androidx.test.filters.SmallTest;
 
 import com.android.internal.R;
+import com.android.window.flags.Flags;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -62,7 +66,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
         runTestScenario((robot) -> {
             robot.configureWindowStateWithTaskBar(/* hasTaskBarInsetsRoundedCorners */ true);
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
@@ -83,7 +86,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
         runTestScenario((robot) -> {
             robot.configureWindowStateWithTaskBar(/* hasTaskBarInsetsRoundedCorners */ false);
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
@@ -105,7 +107,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
         runTestScenario((robot) -> {
             robot.configureWindowStateWithTaskBar(/* hasTaskBarInsetsRoundedCorners */ true);
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
@@ -127,7 +128,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
         runTestScenario((robot) -> {
             robot.configureWindowStateWithTaskBar(/* hasTaskBarInsetsRoundedCorners */ true);
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
@@ -153,7 +153,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
             robot.conf().setLetterboxActivityCornersRadius(-1);
             robot.configureWindowState();
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
@@ -180,25 +179,17 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
             robot.conf().setLetterboxActivityCornersRadius(15);
             robot.configureWindowState();
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
             robot.resources().configureGetDimensionPixelSize(R.dimen.taskbar_frame_height, 20);
             robot.setInvCompatState(/* scale */ 0.5f);
 
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ true);
-            robot.checkWindowStateRoundedCornersRadius(/* expected */ 7);
-
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.checkWindowStateRoundedCornersRadius(/* expected */ 7);
 
             robot.activity().setTopActivityVisibleRequested(/* isVisibleRequested */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ false);
             robot.checkWindowStateRoundedCornersRadius(/* expected */ 0);
-
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ true);
-            robot.checkWindowStateRoundedCornersRadius(/* expected */ 7);
         });
     }
 
@@ -208,7 +199,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
             robot.conf().setLetterboxActivityCornersRadius(15);
             robot.configureWindowState();
             robot.activity().createActivityWithComponent();
-            robot.setTopActivityInLetterboxAnimation(/* inLetterboxAnimation */ false);
             robot.activity().setTopActivityVisible(/* isVisible */ true);
             robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
             robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
@@ -221,6 +211,51 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
             robot.checkWindowStateRoundedCornersRadius(/* expected */ 15);
 
             robot.setInvCompatState(/* scale */ 1f);
+            robot.checkWindowStateRoundedCornersRadius(/* expected */ 15);
+        });
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_EXCLUDE_CAPTION_FROM_APP_BOUNDS)
+    public void testGetRoundedCornersRadius_letterboxBoundsMatchHeightInFreeform_notRounded() {
+        runTestScenario((robot) -> {
+            robot.conf().setLetterboxActivityCornersRadius(15);
+            robot.configureWindowState();
+            robot.activity().createActivityWithComponent();
+            robot.activity().setTopActivityVisible(/* isVisible */ true);
+            robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
+            robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
+            robot.resources().configureGetDimensionPixelSize(R.dimen.taskbar_frame_height, 20);
+
+            robot.activity().setTaskWindowingMode(WINDOWING_MODE_FREEFORM);
+            final Rect appBounds = new Rect(0, 0, 100, 500);
+            robot.configureWindowStateFrame(appBounds);
+            robot.activity().configureTaskAppBounds(appBounds);
+
+            robot.startLetterbox();
+
+            robot.checkWindowStateRoundedCornersRadius(/* expected */ 0);
+        });
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_EXCLUDE_CAPTION_FROM_APP_BOUNDS)
+    public void testGetRoundedCornersRadius_letterboxBoundsNotMatchHeightInFreeform_rounded() {
+        runTestScenario((robot) -> {
+            robot.conf().setLetterboxActivityCornersRadius(15);
+            robot.configureWindowState();
+            robot.activity().createActivityWithComponent();
+            robot.activity().setTopActivityVisible(/* isVisible */ true);
+            robot.setIsLetterboxedForFixedOrientationAndAspectRatio(/* inLetterbox */ true);
+            robot.conf().setLetterboxActivityCornersRounded(/* rounded */ true);
+            robot.resources().configureGetDimensionPixelSize(R.dimen.taskbar_frame_height, 20);
+
+            robot.activity().setTaskWindowingMode(WINDOWING_MODE_FREEFORM);
+            robot.configureWindowStateFrame(new Rect(0, 0, 500, 200));
+            robot.activity().configureTaskAppBounds(new Rect(0, 0, 500, 500));
+
+            robot.startLetterbox();
+
             robot.checkWindowStateRoundedCornersRadius(/* expected */ 15);
         });
     }
@@ -265,12 +300,20 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
             spyOn(getTransparentPolicy());
         }
 
+        void startLetterbox() {
+            getAppCompatLetterboxPolicy().start(mWindowState);
+        }
+
         void configureWindowStateWithTaskBar(boolean hasInsetsRoundedCorners) {
             configureWindowState(/* withTaskBar */ true, hasInsetsRoundedCorners);
         }
 
         void configureWindowState() {
             configureWindowState(/* withTaskBar */ false, /* hasInsetsRoundedCorners */ false);
+        }
+
+        void configureWindowStateFrame(@NonNull Rect frame) {
+            doReturn(frame).when(mWindowState).getFrame();
         }
 
         void configureInsetsRoundedCorners(@NonNull RoundedCorners roundedCorners) {
@@ -290,8 +333,9 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
             }
             mWindowState.mInvGlobalScale = 1f;
             final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
+            attrs.type = TYPE_BASE_APPLICATION;
+            setFieldValue(mWindowState, "mAttrs", attrs);
             doReturn(mInsetsState).when(mWindowState).getInsetsState();
-            doReturn(attrs).when(mWindowState).getAttrs();
             doReturn(true).when(mWindowState).isDrawn();
             doReturn(true).when(mWindowState).isOnScreen();
             doReturn(false).when(mWindowState).isLetterboxedForDisplayCutout();
@@ -300,10 +344,6 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
 
         void setInvCompatState(float scale) {
             mWindowState.mInvGlobalScale = scale;
-        }
-
-        void setTopActivityInLetterboxAnimation(boolean inLetterboxAnimation) {
-            doReturn(inLetterboxAnimation).when(activity().top()).isInLetterboxAnimation();
         }
 
         void setTopActivityTransparentPolicyRunning(boolean running) {
@@ -364,7 +404,7 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
 
         @NonNull
         private AppCompatAspectRatioPolicy getAspectRatioPolicy() {
-            return activity().top().mAppCompatController.getAppCompatAspectRatioPolicy();
+            return activity().top().mAppCompatController.getAspectRatioPolicy();
         }
 
         @NonNull
@@ -374,7 +414,7 @@ public class AppCompatLetterboxPolicyTest extends WindowTestsBase {
 
         @NonNull
         private AppCompatLetterboxPolicy getAppCompatLetterboxPolicy() {
-            return activity().top().mAppCompatController.getAppCompatLetterboxPolicy();
+            return activity().top().mAppCompatController.getLetterboxPolicy();
         }
 
     }

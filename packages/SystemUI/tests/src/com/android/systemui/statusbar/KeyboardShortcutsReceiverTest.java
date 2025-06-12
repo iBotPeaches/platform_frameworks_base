@@ -36,6 +36,7 @@ import com.android.systemui.SysuiTestCase;
 import com.android.systemui.flags.FakeFeatureFlags;
 import com.android.systemui.flags.Flags;
 import com.android.systemui.shared.recents.utilities.Utilities;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import org.junit.After;
 import org.junit.Before;
@@ -59,6 +60,7 @@ public class KeyboardShortcutsReceiverTest extends SysuiTestCase {
 
     @Mock private KeyboardShortcuts mKeyboardShortcuts;
     @Mock private KeyboardShortcutListSearch mKeyboardShortcutListSearch;
+    @Mock private WindowManagerProvider mWindowManagerProvider;
 
     @Before
     public void setUp() {
@@ -69,7 +71,8 @@ public class KeyboardShortcutsReceiverTest extends SysuiTestCase {
         KeyboardShortcuts.sInstance = mKeyboardShortcuts;
         KeyboardShortcutListSearch.sInstance = mKeyboardShortcutListSearch;
 
-        mKeyboardShortcutsReceiver = spy(new KeyboardShortcutsReceiver(mFeatureFlags));
+        mKeyboardShortcutsReceiver = spy(new KeyboardShortcutsReceiver(mFeatureFlags,
+                mWindowManagerProvider));
     }
 
     @Before

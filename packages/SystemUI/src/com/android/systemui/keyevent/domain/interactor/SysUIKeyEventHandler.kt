@@ -42,7 +42,7 @@ constructor(
 
         when (event.keyCode) {
             KeyEvent.KEYCODE_BACK -> {
-                if (event.handleAction()) {
+                if (!backActionInteractor.isBackCallbackRegistered() && event.handleAction()) {
                     backActionInteractor.onBackRequested()
                 }
                 return true

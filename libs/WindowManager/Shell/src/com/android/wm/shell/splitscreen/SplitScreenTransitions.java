@@ -52,6 +52,7 @@ import com.android.wm.shell.common.split.SplitDecorManager;
 import com.android.wm.shell.protolog.ShellProtoLogGroup;
 import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.shared.TransitionUtil;
+import com.android.wm.shell.shared.split.SplitScreenConstants;
 import com.android.wm.shell.transition.OneShotRemoteHandler;
 import com.android.wm.shell.transition.Transitions;
 
@@ -362,7 +363,8 @@ class SplitScreenTransitions {
             WindowContainerTransaction wct,
             @Nullable RemoteTransition remoteTransition,
             Transitions.TransitionHandler handler,
-            int extraTransitType, boolean resizeAnim) {
+            int extraTransitType, boolean resizeAnim,
+            @SplitScreenConstants.PersistentSnapPosition int snapPosition) {
         if (mPendingEnter != null) {
             ProtoLog.v(WM_SHELL_TRANSITIONS, "  splitTransition "
                     + " skip to start enter split transition since it already exist. ");
@@ -373,16 +375,18 @@ class SplitScreenTransitions {
                     .onSplitAnimationInvoked(true /*animationRunning*/));
         }
         final IBinder transition = mTransitions.startTransition(transitType, wct, handler);
-        setEnterTransition(transition, remoteTransition, extraTransitType, resizeAnim);
+        setEnterTransition(transition, remoteTransition, extraTransitType, resizeAnim,
+                snapPosition);
         return transition;
     }
 
     /** Sets a transition to enter split. */
     void setEnterTransition(@NonNull IBinder transition,
             @Nullable RemoteTransition remoteTransition,
-            int extraTransitType, boolean resizeAnim) {
+            int extraTransitType, boolean resizeAnim,
+            int snapPosition) {
         mPendingEnter = new EnterSession(
-                transition, remoteTransition, extraTransitType, resizeAnim);
+                transition, remoteTransition, extraTransitType, resizeAnim, snapPosition);
 
         ProtoLog.v(WM_SHELL_TRANSITIONS, "  splitTransition "
                 + " deduced Enter split screen");
@@ -461,12 +465,14 @@ class SplitScreenTransitions {
         return transition;
     }
 
-    void mergeAnimation(IBinder transition, TransitionInfo info, SurfaceControl.Transaction t,
+    void mergeAnimation(IBinder transition, TransitionInfo info,
+            SurfaceControl.Transaction startT, SurfaceControl.Transaction finishT,
             IBinder mergeTarget, Transitions.TransitionFinishCallback finishCallback) {
         if (mergeTarget != mAnimatingTransition) return;
 
         if (mActiveRemoteHandler != null) {
-            mActiveRemoteHandler.mergeAnimation(transition, info, t, mergeTarget, finishCallback);
+            mActiveRemoteHandler.mergeAnimation(transition, info, startT,
+                    finishT, mergeTarget, finishCallback);
         } else {
             for (int i = mAnimations.size() - 1; i >= 0; --i) {
                 final Animator anim = mAnimations.get(i);
@@ -673,13 +679,16 @@ class SplitScreenTransitions {
     /** Bundled information of enter transition. */
     class EnterSession extends TransitSession {
         final boolean mResizeAnim;
+        /** The starting snap position we'll enter into with this transition. */
+        final @SplitScreenConstants.PersistentSnapPosition int mEnteringPosition;
 
         EnterSession(IBinder transition,
                 @Nullable RemoteTransition remoteTransition,
-                int extraTransitType, boolean resizeAnim) {
+                int extraTransitType, boolean resizeAnim, int snapPosition) {
             super(transition, null /* consumedCallback */, null /* finishedCallback */,
                     remoteTransition, extraTransitType);
             this.mResizeAnim = resizeAnim;
+            this.mEnteringPosition = snapPosition;
         }
     }
 

@@ -19,6 +19,7 @@ package com.android.systemui.qs.panels.domain.interactor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.qs.panels.data.repository.QSPreferencesRepository
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.pipeline.shared.TilesUpgradePath
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
@@ -27,6 +28,20 @@ class QSPreferencesInteractor @Inject constructor(private val repo: QSPreference
     val largeTilesSpecs: Flow<Set<TileSpec>> = repo.largeTilesSpecs
 
     fun setLargeTilesSpecs(specs: Set<TileSpec>) {
-        repo.setLargeTilesSpecs(specs)
+        repo.writeLargeTileSpecs(specs)
+    }
+
+    /**
+     * This method should be called to indicate that a "new" set of tiles has been determined for a
+     * particular user coming from different upgrade sources.
+     *
+     * @see TilesUpgradePath for more information
+     */
+    fun setInitialOrUpgradeLargeTilesSpecs(specs: TilesUpgradePath, user: Int) {
+        repo.setInitialOrUpgradeLargeTiles(specs, user)
+    }
+
+    suspend fun deleteLargeTilesDataJob() {
+        repo.deleteLargeTileDataJob()
     }
 }

@@ -16,6 +16,8 @@
 
 package com.android.printspooler.widget;
 
+import static android.view.accessibility.Flags.triStateChecked;
+
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.accessibility.AccessibilityEvent;
@@ -38,6 +40,20 @@ public final class PreviewPageFrame extends LinearLayout {
     }
 
     @Override
+    public boolean performClick() {
+        final boolean result = super.performClick();
+        // This widget is incorrectly using the notion of "selection"
+        // to represent checked state. We can't send this event in
+        // setSelected() because setSelected() is called when this widget
+        // is not attached.
+        if (triStateChecked()) {
+            notifyViewAccessibilityStateChangedIfNeeded(
+                    AccessibilityEvent.CONTENT_CHANGE_TYPE_CHECKED);
+        }
+        return result;
+    }
+
+    @Override
     public void onInitializeAccessibilityEvent(AccessibilityEvent event) {
         super.onInitializeAccessibilityEvent(event);
         event.setChecked(isSelected());
@@ -48,6 +64,11 @@ public final class PreviewPageFrame extends LinearLayout {
         super.onInitializeAccessibilityNodeInfo(info);
         info.setSelected(false);
         info.setCheckable(true);
-        info.setChecked(isSelected());
+        if (triStateChecked()) {
+            info.setChecked(isSelected() ? AccessibilityNodeInfo.CHECKED_STATE_TRUE :
+                    AccessibilityNodeInfo.CHECKED_STATE_FALSE);
+        } else {
+            info.setChecked(isSelected());
+        }
     }
 }

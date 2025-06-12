@@ -16,10 +16,14 @@
 
 package com.android.systemui.util.kotlin
 
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.util.time.SystemClock
 import com.android.systemui.util.time.SystemClockImpl
+import java.util.LinkedList
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,7 +37,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /**
  * Returns a new [Flow] that combines the two most recent emissions from [this] using [transform].
@@ -246,24 +249,24 @@ fun <T> Flow<T>.throttle(periodMs: Long, clock: SystemClock = SystemClockImpl())
     }
 
 inline fun <T1, T2, T3, T4, T5, T6, R> combine(
-        flow: Flow<T1>,
-        flow2: Flow<T2>,
-        flow3: Flow<T3>,
-        flow4: Flow<T4>,
-        flow5: Flow<T5>,
-        flow6: Flow<T6>,
-        crossinline transform: suspend (T1, T2, T3, T4, T5, T6) -> R
+    flow: Flow<T1>,
+    flow2: Flow<T2>,
+    flow3: Flow<T3>,
+    flow4: Flow<T4>,
+    flow5: Flow<T5>,
+    flow6: Flow<T6>,
+    crossinline transform: suspend (T1, T2, T3, T4, T5, T6) -> R,
 ): Flow<R> {
-    return kotlinx.coroutines.flow.combine(flow, flow2, flow3, flow4, flow5, flow6) {
-        args: Array<*> ->
+    return kotlinx.coroutines.flow.combine(flow, flow2, flow3, flow4, flow5, flow6) { args: Array<*>
+        ->
         @Suppress("UNCHECKED_CAST")
         transform(
-                args[0] as T1,
-                args[1] as T2,
-                args[2] as T3,
-                args[3] as T4,
-                args[4] as T5,
-                args[5] as T6,
+            args[0] as T1,
+            args[1] as T2,
+            args[2] as T3,
+            args[3] as T4,
+            args[4] as T5,
+            args[5] as T6,
         )
     }
 }
@@ -276,7 +279,7 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, R> combine(
     flow5: Flow<T5>,
     flow6: Flow<T6>,
     flow7: Flow<T7>,
-    crossinline transform: suspend (T1, T2, T3, T4, T5, T6, T7) -> R
+    crossinline transform: suspend (T1, T2, T3, T4, T5, T6, T7) -> R,
 ): Flow<R> {
     return kotlinx.coroutines.flow.combine(flow, flow2, flow3, flow4, flow5, flow6, flow7) {
         args: Array<*> ->
@@ -288,7 +291,7 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, R> combine(
             args[3] as T4,
             args[4] as T5,
             args[5] as T6,
-            args[6] as T7
+            args[6] as T7,
         )
     }
 }
@@ -302,7 +305,7 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, T8, R> combine(
     flow6: Flow<T6>,
     flow7: Flow<T7>,
     flow8: Flow<T8>,
-    crossinline transform: suspend (T1, T2, T3, T4, T5, T6, T7, T8) -> R
+    crossinline transform: suspend (T1, T2, T3, T4, T5, T6, T7, T8) -> R,
 ): Flow<R> {
     return kotlinx.coroutines.flow.combine(flow, flow2, flow3, flow4, flow5, flow6, flow7, flow8) {
         args: Array<*> ->
@@ -315,7 +318,7 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, T8, R> combine(
             args[4] as T5,
             args[5] as T6,
             args[6] as T7,
-            args[7] as T8
+            args[7] as T8,
         )
     }
 }
@@ -330,7 +333,7 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> combine(
     flow7: Flow<T7>,
     flow8: Flow<T8>,
     flow9: Flow<T9>,
-    crossinline transform: suspend (T1, T2, T3, T4, T5, T6, T7, T8, T9) -> R
+    crossinline transform: suspend (T1, T2, T3, T4, T5, T6, T7, T8, T9) -> R,
 ): Flow<R> {
     return kotlinx.coroutines.flow.combine(
         flow,
@@ -341,7 +344,7 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> combine(
         flow6,
         flow7,
         flow8,
-        flow9
+        flow9,
     ) { args: Array<*> ->
         @Suppress("UNCHECKED_CAST")
         transform(
@@ -352,8 +355,8 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> combine(
             args[4] as T5,
             args[5] as T6,
             args[6] as T7,
-            args[6] as T8,
-            args[6] as T9,
+            args[7] as T8,
+            args[8] as T9,
         )
     }
 }
@@ -364,3 +367,58 @@ inline fun <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> combine(
  */
 @Suppress("NOTHING_TO_INLINE")
 inline fun Flow<Unit>.emitOnStart(): Flow<Unit> = onStart { emit(Unit) }
+
+/**
+ * Transforms a Flow<T> into a Flow<List<T>> by implementing a sliding window algorithm.
+ *
+ * This function creates a sliding window over the input Flow<T>. The window has a specified
+ * [windowDuration] and slides continuously as time progresses. The emitted List<T> contains all
+ * items from the input flow that fall within the current window.
+ *
+ * The window slides forward by the smallest possible increment to include or exclude *one* event
+ * based on the time the event was emitted (determined by the System.currentTimeMillis()). This
+ * means that consecutive emitted lists will have overlapping elements if the elements fall within
+ * the [windowDuration]
+ *
+ * @param windowDuration The duration of the sliding window.
+ * @return A Flow that emits Lists of elements within the current sliding window.
+ */
+fun <T> Flow<T>.slidingWindow(
+    windowDuration: Duration,
+    clock: SystemClock = SystemClockImpl(),
+): Flow<List<T>> = channelFlow {
+    require(windowDuration.isPositive()) { "Window duration must be positive" }
+    val buffer = LinkedList<Pair<Duration, T>>()
+
+    coroutineScope {
+        var windowAdvancementJob: Job? = null
+
+        collect { value ->
+            windowAdvancementJob?.cancel()
+            val now = clock.currentTimeMillis().milliseconds
+            buffer.addLast(now to value)
+
+            while (buffer.isNotEmpty() && buffer.first.first + windowDuration <= now) {
+                buffer.removeFirst()
+            }
+            send(buffer.map { it.second })
+
+            // Keep the window advancing through time even if the source flow isn't emitting
+            // anymore. We stop advancing the window as soon as there are no items left in the
+            // buffer.
+            windowAdvancementJob = launch {
+                while (buffer.isNotEmpty()) {
+                    val startOfWindow = clock.currentTimeMillis().milliseconds - windowDuration
+                    // Invariant: At this point, everything in the buffer is guaranteed to be in
+                    // the window, as we removed expired items above.
+                    val timeUntilNextOldest =
+                        (buffer.first.first - startOfWindow).coerceAtLeast(0.milliseconds)
+                    delay(timeUntilNextOldest)
+                    // Remove the oldest item, as it has now fallen out of the window.
+                    buffer.removeFirst()
+                    send(buffer.map { it.second })
+                }
+            }
+        }
+    }
+}

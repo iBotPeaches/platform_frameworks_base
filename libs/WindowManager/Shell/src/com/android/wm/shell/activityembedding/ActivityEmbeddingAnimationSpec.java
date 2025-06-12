@@ -42,7 +42,6 @@ import android.view.animation.TranslateAnimation;
 import android.window.TransitionInfo;
 
 import com.android.internal.policy.TransitionAnimation;
-import com.android.window.flags.Flags;
 import com.android.wm.shell.shared.TransitionUtil;
 
 /** Animation spec for ActivityEmbedding transition. */
@@ -94,9 +93,10 @@ class ActivityEmbeddingAnimationSpec {
 
     /** Animation for window that is opening in a change transition. */
     @NonNull
-    Animation createChangeBoundsOpenAnimation(@NonNull TransitionInfo info,
-            @NonNull TransitionInfo.Change change, @NonNull Rect parentBounds) {
-        final Animation customAnimation = loadCustomAnimation(info, change, TRANSIT_CHANGE);
+    Animation createChangeBoundsOpenAnimation(@NonNull TransitionInfo.Change change,
+            @NonNull Rect parentBounds) {
+        final Animation customAnimation =
+                loadCustomAnimation(change.getAnimationOptions(), TRANSIT_CHANGE);
         if (customAnimation != null) {
             return customAnimation;
         }
@@ -126,9 +126,10 @@ class ActivityEmbeddingAnimationSpec {
 
     /** Animation for window that is closing in a change transition. */
     @NonNull
-    Animation createChangeBoundsCloseAnimation(@NonNull TransitionInfo info,
-            @NonNull TransitionInfo.Change change, @NonNull Rect parentBounds) {
-        final Animation customAnimation = loadCustomAnimation(info, change, TRANSIT_CHANGE);
+    Animation createChangeBoundsCloseAnimation(@NonNull TransitionInfo.Change change,
+            @NonNull Rect parentBounds) {
+        final Animation customAnimation =
+                loadCustomAnimation(change.getAnimationOptions(), TRANSIT_CHANGE);
         if (customAnimation != null) {
             return customAnimation;
         }
@@ -162,12 +163,13 @@ class ActivityEmbeddingAnimationSpec {
      *         the second one is for the end leash.
      */
     @NonNull
-    Animation[] createChangeBoundsChangeAnimations(@NonNull TransitionInfo info,
-            @NonNull TransitionInfo.Change change, @NonNull Rect parentBounds) {
+    Animation[] createChangeBoundsChangeAnimations(@NonNull TransitionInfo.Change change,
+            @NonNull Rect parentBounds) {
         // TODO(b/293658614): Support more complicated animations that may need more than a noop
         // animation as the start leash.
         final Animation noopAnimation = createNoopAnimation(change);
-        final Animation customAnimation = loadCustomAnimation(info, change, TRANSIT_CHANGE);
+        final Animation customAnimation =
+                loadCustomAnimation(change.getAnimationOptions(), TRANSIT_CHANGE);
         if (customAnimation != null) {
             return new Animation[]{noopAnimation, customAnimation};
         }
@@ -221,7 +223,8 @@ class ActivityEmbeddingAnimationSpec {
     Animation loadOpenAnimation(@NonNull TransitionInfo info,
             @NonNull TransitionInfo.Change change, @NonNull Rect wholeAnimationBounds) {
         final boolean isEnter = TransitionUtil.isOpeningType(change.getMode());
-        final Animation customAnimation = loadCustomAnimation(info, change, change.getMode());
+        final Animation customAnimation =
+                loadCustomAnimation(change.getAnimationOptions(), change.getMode());
         final Animation animation;
         if (customAnimation != null) {
             animation = customAnimation;
@@ -248,7 +251,8 @@ class ActivityEmbeddingAnimationSpec {
     Animation loadCloseAnimation(@NonNull TransitionInfo info,
             @NonNull TransitionInfo.Change change, @NonNull Rect wholeAnimationBounds) {
         final boolean isEnter = TransitionUtil.isOpeningType(change.getMode());
-        final Animation customAnimation = loadCustomAnimation(info, change, change.getMode());
+        final Animation customAnimation =
+                loadCustomAnimation(change.getAnimationOptions(), change.getMode());
         final Animation animation;
         if (customAnimation != null) {
             animation = customAnimation;
@@ -280,20 +284,8 @@ class ActivityEmbeddingAnimationSpec {
     }
 
     @Nullable
-    private Animation loadCustomAnimation(@NonNull TransitionInfo info,
-            @NonNull TransitionInfo.Change change, @WindowManager.TransitionType int mode) {
-        final TransitionInfo.AnimationOptions options;
-        if (Flags.moveAnimationOptionsToChange()) {
-            options = change.getAnimationOptions();
-        } else {
-            options = info.getAnimationOptions();
-        }
-        return loadCustomAnimationFromOptions(options, mode);
-    }
-
-    @Nullable
-    Animation loadCustomAnimationFromOptions(@Nullable TransitionInfo.AnimationOptions options,
-             @WindowManager.TransitionType int mode) {
+    Animation loadCustomAnimation(@Nullable TransitionInfo.AnimationOptions options,
+            @WindowManager.TransitionType int mode) {
         if (options == null || options.getType() != ANIM_CUSTOM) {
             return null;
         }

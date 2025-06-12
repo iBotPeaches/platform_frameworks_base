@@ -19,6 +19,8 @@ package com.android.compose.animation.scene
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.runtime.withFrameNanos
 import com.android.compose.animation.scene.content.state.TransitionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -32,7 +34,10 @@ internal fun CoroutineScope.animateContent(
 ): Job {
     oneOffAnimation.onRun = {
         // Animate the progress to its target value.
-        val animationSpec = transition.transformationSpec.progressSpec
+        @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+        val animationSpec =
+            transition.transformationSpec.progressSpec
+                ?: layoutState.motionScheme.defaultSpatialSpec()
         val visibilityThreshold =
             (animationSpec as? SpringSpec)?.visibilityThreshold ?: ProgressVisibilityThreshold
         val replacedTransition = transition.replacedTransition
@@ -43,6 +48,11 @@ internal fun CoroutineScope.animateContent(
                 oneOffAnimation.animatable = it
             }
 
+        if (layoutState.deferTransitionProgress) {
+            // Defer the animation by one frame so that the transition progress is changed only when
+            // the expensive first composition frame is done.
+            withFrameNanos {}
+        }
         animatable.animateTo(targetProgress, animationSpec, initialVelocity)
     }
 

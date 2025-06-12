@@ -199,7 +199,16 @@ public final class Looper {
             return false;
         }
 
-        // This must be in a local variable, in case a UI event sets the logger
+        PerfettoTrace.begin(PerfettoTrace.MQ_CATEGORY, "message_queue_receive")
+                .beginProto()
+                .beginNested(2004 /* message_queue */)
+                .addField(1 /* sending_thread_name */, msg.mSendingThreadName)
+                .endNested()
+                .endProto()
+                .setTerminatingFlow(msg.mEventId.get())
+                .emit();
+
+        // This must be in a local variabe, in case a UI event sets the logger
         final Printer logging = me.mLogging;
         if (logging != null) {
             logging.println(">>>>> Dispatching to " + msg.target + " "
@@ -289,6 +298,7 @@ public final class Looper {
                     + msg.callback + " what=" + msg.what);
         }
 
+        PerfettoTrace.end(PerfettoTrace.MQ_CATEGORY).emit();
         msg.recycleUnchecked();
 
         return true;

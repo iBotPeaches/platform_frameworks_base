@@ -183,7 +183,17 @@ public class MediaRouter {
             appContext.registerReceiver(new VolumeChangeReceiver(),
                     new IntentFilter(AudioManager.VOLUME_CHANGED_ACTION));
 
-            mDisplayService.registerDisplayListener(this, mHandler);
+            if (com.android.server.display.feature.flags.Flags
+                    .displayListenerPerformanceImprovements()
+                    && com.android.server.display.feature.flags.Flags
+                    .delayImplicitRrRegistrationUntilRrAccessed()) {
+                mDisplayService.registerDisplayListener(this, mHandler,
+                        DisplayManager.EVENT_TYPE_DISPLAY_ADDED
+                                | DisplayManager.EVENT_TYPE_DISPLAY_CHANGED
+                                | DisplayManager.EVENT_TYPE_DISPLAY_REMOVED);
+            } else {
+                mDisplayService.registerDisplayListener(this, mHandler);
+            }
 
             AudioRoutesInfo newAudioRoutes = null;
             try {

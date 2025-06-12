@@ -58,7 +58,7 @@ public class GroupEntryBuilder {
         return this;
     }
 
-    /** Sets the creation time. */
+    /** Sets the creation time. Should be SystemClock.elapsedRealtime */
     public GroupEntryBuilder setCreationTime(long creationTime) {
         mCreationTime = creationTime;
         return this;

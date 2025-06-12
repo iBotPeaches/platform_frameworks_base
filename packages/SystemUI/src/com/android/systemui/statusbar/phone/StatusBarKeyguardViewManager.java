@@ -18,7 +18,6 @@ package com.android.systemui.statusbar.phone;
 
 import static android.view.WindowInsets.Type.navigationBars;
 
-import static com.android.systemui.Flags.predictiveBackAnimateBouncer;
 import static com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants.EXPANSION_HIDDEN;
 import static com.android.systemui.plugins.ActivityStarter.OnDismissAction;
 import static com.android.systemui.statusbar.phone.BiometricUnlockController.MODE_WAKE_AND_UNLOCK;
@@ -47,7 +46,6 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.util.LatencyTracker;
 import com.android.internal.widget.LockPatternUtils;
-import com.android.keyguard.KeyguardMessageAreaController;
 import com.android.keyguard.KeyguardSecurityModel;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.KeyguardUpdateMonitorCallback;
@@ -57,7 +55,6 @@ import com.android.keyguard.ViewMediatorCallback;
 import com.android.systemui.DejankUtils;
 import com.android.systemui.Flags;
 import com.android.systemui.animation.back.FlingOnBackAnimationCallback;
-import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor;
 import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor;
 import com.android.systemui.bouncer.domain.interactor.BouncerInteractor;
 import com.android.systemui.bouncer.domain.interactor.PrimaryBouncerCallbackInteractor;
@@ -66,6 +63,7 @@ import com.android.systemui.bouncer.domain.interactor.PrimaryBouncerInteractor;
 import com.android.systemui.bouncer.shared.flag.ComposeBouncerFlags;
 import com.android.systemui.bouncer.ui.BouncerView;
 import com.android.systemui.bouncer.util.BouncerTestUtilsKt;
+import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryInteractor;
@@ -86,7 +84,7 @@ import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.scene.domain.interactor.SceneInteractor;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
-import com.android.systemui.scene.shared.model.Scenes;
+import com.android.systemui.scene.shared.model.Overlays;
 import com.android.systemui.shade.ShadeController;
 import com.android.systemui.shade.ShadeExpansionChangeEvent;
 import com.android.systemui.shade.ShadeExpansionListener;
@@ -112,7 +110,6 @@ import dagger.Lazy;
 import kotlin.Unit;
 
 import kotlinx.coroutines.CoroutineDispatcher;
-import kotlinx.coroutines.ExperimentalCoroutinesApi;
 import kotlinx.coroutines.Job;
 
 import java.io.PrintWriter;
@@ -131,7 +128,7 @@ import javax.inject.Inject;
  * which is in turn, reported to this class by the current
  * {@link com.android.keyguard.KeyguardViewController}.
  */
-@ExperimentalCoroutinesApi @SysUISingleton
+@SysUISingleton
 public class StatusBarKeyguardViewManager implements RemoteInputController.Callback,
         StatusBarStateController.StateListener, ConfigurationController.ConfigurationListener,
         ShadeExpansionListener, NavigationModeController.ModeChangedListener,
@@ -159,7 +156,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
     private final ConfigurationController mConfigurationController;
     private final NavigationModeController mNavigationModeController;
     private final NotificationShadeWindowController mNotificationShadeWindowController;
-    private final KeyguardMessageAreaController.Factory mKeyguardMessageAreaFactory;
     private final DreamOverlayStateController mDreamOverlayStateController;
     @Nullable
     private final FoldAodAnimationController mFoldAodAnimationController;
@@ -172,6 +168,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
     private final Lazy<SceneInteractor> mSceneInteractorLazy;
     private final Lazy<DeviceEntryInteractor> mDeviceEntryInteractorLazy;
     private final DismissCallbackRegistry mDismissCallbackRegistry;
+    private final CommunalSceneInteractor mCommunalSceneInteractor;
 
     private Job mListenForAlternateBouncerTransitionSteps = null;
     private Job mListenForKeyguardAuthenticatedBiometricsHandled = null;
@@ -328,8 +325,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
     private float mQsExpansion;
 
     final Set<KeyguardViewManagerCallback> mCallbacks = new HashSet<>();
-    private boolean mIsBackAnimationEnabled;
-    private final UdfpsOverlayInteractor mUdfpsOverlayInteractor;
     private final ActivityStarter mActivityStarter;
 
     private OnDismissAction mAfterKeyguardGoneAction;
@@ -387,7 +382,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
             DockManager dockManager,
             NotificationShadeWindowController notificationShadeWindowController,
             KeyguardStateController keyguardStateController,
-            KeyguardMessageAreaController.Factory keyguardMessageAreaFactory,
             Optional<SysUIUnfoldComponent> sysUIUnfoldComponent,
             Lazy<ShadeController> shadeController,
             LatencyTracker latencyTracker,
@@ -396,7 +390,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
             PrimaryBouncerInteractor primaryBouncerInteractor,
             BouncerView primaryBouncerView,
             AlternateBouncerInteractor alternateBouncerInteractor,
-            UdfpsOverlayInteractor udfpsOverlayInteractor,
             ActivityStarter activityStarter,
             KeyguardTransitionInteractor keyguardTransitionInteractor,
             KeyguardDismissTransitionInteractor keyguardDismissTransitionInteractor,
@@ -409,7 +402,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
             @Main DelayableExecutor executor,
             Lazy<DeviceEntryInteractor> deviceEntryInteractorLazy,
             DismissCallbackRegistry dismissCallbackRegistry,
-            Lazy<BouncerInteractor> bouncerInteractor
+            Lazy<BouncerInteractor> bouncerInteractor,
+            CommunalSceneInteractor communalSceneInteractor
     ) {
         mContext = context;
         mExecutor = executor;
@@ -423,7 +417,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
         mKeyguardUpdateManager = keyguardUpdateMonitor;
         mStatusBarStateController = sysuiStatusBarStateController;
         mDockManager = dockManager;
-        mKeyguardMessageAreaFactory = keyguardMessageAreaFactory;
         mShadeController = shadeController;
         mLatencyTracker = latencyTracker;
         mKeyguardSecurityModel = keyguardSecurityModel;
@@ -434,8 +427,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                 .map(SysUIUnfoldComponent::getFoldAodAnimationController).orElse(null);
         mAlternateBouncerInteractor = alternateBouncerInteractor;
         mBouncerInteractor = bouncerInteractor;
-        mIsBackAnimationEnabled = predictiveBackAnimateBouncer();
-        mUdfpsOverlayInteractor = udfpsOverlayInteractor;
         mActivityStarter = activityStarter;
         mKeyguardTransitionInteractor = keyguardTransitionInteractor;
         mKeyguardDismissTransitionInteractor = keyguardDismissTransitionInteractor;
@@ -447,6 +438,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
         mStatusBarKeyguardViewManagerInteractor = statusBarKeyguardViewManagerInteractor;
         mDeviceEntryInteractorLazy = deviceEntryInteractorLazy;
         mDismissCallbackRegistry = dismissCallbackRegistry;
+        mCommunalSceneInteractor = communalSceneInteractor;
     }
 
     KeyguardTransitionInteractor mKeyguardTransitionInteractor;
@@ -630,7 +622,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
 
     private boolean shouldPlayBackAnimation() {
         // Suppress back animation when bouncer shouldn't be dismissed on back invocation.
-        return !needsFullscreenBouncer() && mIsBackAnimationEnabled;
+        return !needsFullscreenBouncer();
     }
 
     @Override
@@ -677,7 +669,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
          * show if any subsequent events are to be handled.
          */
         if (!SceneContainerFlag.isEnabled() && beginShowingBouncer(event)) {
-            mPrimaryBouncerInteractor.show(/* isScrimmed= */false);
+            mPrimaryBouncerInteractor.show(/* isScrimmed= */false,
+                    TAG + "#onPanelExpansionChanged");
         }
 
         if (!primaryBouncerIsOrWillBeShowing()) {
@@ -722,7 +715,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
      * Shows the notification keyguard or the bouncer depending on
      * {@link #needsFullscreenBouncer()}.
      */
-    protected void showBouncerOrKeyguard(boolean hideBouncerWhenShowing, boolean isFalsingReset) {
+    protected void showBouncerOrKeyguard(boolean hideBouncerWhenShowing, boolean isFalsingReset,
+            String reason) {
         boolean showBouncer = needsFullscreenBouncer() && !mDozing;
         if (Flags.simPinRaceConditionOnRestart()) {
             showBouncer = showBouncer && !mIsSleeping;
@@ -732,11 +726,13 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
             if (!primaryBouncerIsShowing()) {
                 if (SceneContainerFlag.isEnabled()) {
                     mCentralSurfaces.hideKeyguard();
-                    mSceneInteractorLazy.get().changeScene(
-                            Scenes.Bouncer, "StatusBarKeyguardViewManager.showBouncerOrKeyguard");
+                    mSceneInteractorLazy.get().showOverlay(
+                            Overlays.Bouncer,
+                            TAG + "#showBouncerOrKeyguard"
+                    );
                 } else {
                     if (Flags.simPinRaceConditionOnRestart()) {
-                        if (mPrimaryBouncerInteractor.show(/* isScrimmed= */ true)) {
+                        if (mPrimaryBouncerInteractor.show(/* isScrimmed= */ true, reason)) {
                             mAttemptsToShowBouncer = 0;
                             mCentralSurfaces.hideKeyguard();
                         } else {
@@ -750,19 +746,19 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                                         + mAttemptsToShowBouncer++);
                                 mExecutor.executeDelayed(() ->
                                         showBouncerOrKeyguard(hideBouncerWhenShowing,
-                                            isFalsingReset),
+                                            isFalsingReset, reason),
                                         500);
                             }
                         }
                     } else {
                         mCentralSurfaces.hideKeyguard();
-                        mPrimaryBouncerInteractor.show(/* isScrimmed= */ true);
+                        mPrimaryBouncerInteractor.show(/* isScrimmed= */ true, reason);
                     }
                 }
             } else if (!isFalsingReset) {
                 // Falsing resets can cause this to flicker, so don't reset in this case
                 Log.i(TAG, "Sim bouncer is already showing, issuing a refresh");
-                mPrimaryBouncerInteractor.show(/* isScrimmed= */ true);
+                mPrimaryBouncerInteractor.show(/* isScrimmed= */ true, reason);
 
             }
         } else {
@@ -782,7 +778,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
      *                 false when the user will be dragging it and translation should be deferred
      *                 {@see KeyguardBouncer#show(boolean, boolean)}
      */
-    public void showBouncer(boolean scrimmed) {
+    public void showBouncer(boolean scrimmed, String reason) {
         if (SceneContainerFlag.isEnabled()) {
             mDeviceEntryInteractorLazy.get().attemptDeviceEntry();
             return;
@@ -793,7 +789,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
             mAlternateBouncerInteractor.forceShow();
             updateAlternateBouncerShowing(mAlternateBouncerInteractor.isVisibleState());
         } else {
-            showPrimaryBouncer(scrimmed);
+            showPrimaryBouncer(scrimmed, reason);
         }
     }
 
@@ -816,20 +812,22 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
      *
      * @param scrimmed true when the bouncer should show scrimmed, false when the user will be
      * dragging it and translation should be deferred {@see KeyguardBouncer#show(boolean, boolean)}
+     * @param reason string description for what is causing the bouncer to be requested
      */
-    public void showPrimaryBouncer(boolean scrimmed) {
+    @Override
+    public void showPrimaryBouncer(boolean scrimmed, String reason) {
         hideAlternateBouncer(
                 /* updateScrim= */ false,
                 // When the scene framework is on, don't ever clear the pending dismiss action from
                 /* clearDismissAction= */ !SceneContainerFlag.isEnabled());
         if (mKeyguardStateController.isShowing() && !isBouncerShowing()) {
             if (SceneContainerFlag.isEnabled()) {
-                mSceneInteractorLazy.get().changeScene(
-                        Scenes.Bouncer,
+                mSceneInteractorLazy.get().showOverlay(
+                        Overlays.Bouncer,
                         "primary bouncer requested"
                 );
             } else {
-                mPrimaryBouncerInteractor.show(scrimmed);
+                mPrimaryBouncerInteractor.show(scrimmed, reason);
             }
         }
         updateStates();
@@ -876,7 +874,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                 );
             }
 
-            showBouncer(true);
+            showBouncer(true, TAG + "#dismissWithAction");
             Trace.endSection();
             return;
         }
@@ -923,10 +921,13 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                     // we'll handle the dismiss action after keyguard is gone, so just show the
                     // bouncer
                     if (SceneContainerFlag.isEnabled()) {
-                        mSceneInteractorLazy.get().changeScene(
-                                Scenes.Bouncer, "StatusBarKeyguardViewManager.dismissWithAction");
+                        mSceneInteractorLazy.get().showOverlay(
+                                Overlays.Bouncer,
+                                TAG + "#dismissWithAction"
+                        );
                     } else {
-                        mPrimaryBouncerInteractor.show(/* isScrimmed= */ true);
+                        mPrimaryBouncerInteractor.show(/* isScrimmed= */ true,
+                                TAG + "#dismissWithAction, afterKeyguardGone");
                     }
                 } else {
                     // after authentication success, run dismiss action with the option to defer
@@ -934,10 +935,13 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                     mPrimaryBouncerInteractor.setDismissAction(
                             mAfterKeyguardGoneAction, mKeyguardGoneCancelAction);
                     if (SceneContainerFlag.isEnabled()) {
-                        mSceneInteractorLazy.get().changeScene(
-                                Scenes.Bouncer, "StatusBarKeyguardViewManager.dismissWithAction");
+                        mSceneInteractorLazy.get().showOverlay(
+                                Overlays.Bouncer,
+                                TAG + "#dismissWithAction"
+                        );
                     } else {
-                        mPrimaryBouncerInteractor.show(/* isScrimmed= */ true);
+                        mPrimaryBouncerInteractor.show(/* isScrimmed= */ true,
+                                TAG + "#dismissWithAction");
                     }
                     // bouncer will handle the dismiss action, so we no longer need to track it here
                     mAfterKeyguardGoneAction = null;
@@ -994,7 +998,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                     }
                 }
             } else {
-                showBouncerOrKeyguard(hideBouncerWhenShowing, isFalsingReset);
+                showBouncerOrKeyguard(hideBouncerWhenShowing, isFalsingReset, "reset");
             }
             if (!SceneContainerFlag.isEnabled() && hideBouncerWhenShowing && isBouncerShowing()) {
                 hideAlternateBouncer(true);
@@ -1178,7 +1182,6 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
     public void startPreHideAnimation(Runnable finishRunnable) {
         if (primaryBouncerIsShowing()) {
             mPrimaryBouncerInteractor.startDisappearAnimation(finishRunnable);
-            mShadeLockscreenInteractor.startBouncerPreHideAnimation();
 
             // We update the state (which will show the keyguard) only if an animation will run on
             // the keyguard. If there is no animation, we wait before updating the state so that we
@@ -1369,11 +1372,13 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
         }
         mStatusBarStateController.setLeaveOpenOnKeyguardHide(false);
 
-        boolean hideBouncerOverDream = isBouncerShowing()
-                && mDreamOverlayStateController.isOverlayActive();
+        boolean hideBouncerOverDreamOrHub = isBouncerShowing()
+                && (mDreamOverlayStateController.isOverlayActive()
+                || mCommunalSceneInteractor.isIdleOnCommunal().getValue());
         mCentralSurfaces.endAffordanceLaunch();
         // The second condition is for SIM card locked bouncer
-        if (hideBouncerOverDream || (primaryBouncerIsScrimmed() && !needsFullscreenBouncer())) {
+        if (hideBouncerOverDreamOrHub
+                || (primaryBouncerIsScrimmed() && !needsFullscreenBouncer())) {
             hideBouncer(false);
             updateStates();
         } else {
@@ -1580,6 +1585,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                 && mPrimaryBouncerView.getDelegate().dispatchBackKeyEventPreIme();
     }
 
+    @Override
     public void readyForKeyguardDone() {
         mViewMediatorCallback.readyForKeyguardDone();
     }

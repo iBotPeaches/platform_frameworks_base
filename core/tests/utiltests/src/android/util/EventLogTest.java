@@ -19,7 +19,7 @@ package android.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.EventLog.Event;
 
@@ -51,7 +51,7 @@ public class EventLogTest {
     }
 
     @Test
-    @IgnoreUnderRavenwood(reason = "Reading not yet supported")
+    @DisabledOnRavenwood(reason = "Reading not yet supported")
     public void testWithNewData() throws Throwable {
         Event event = createEvent(() -> {
             EventLog.writeEvent(314,  123);

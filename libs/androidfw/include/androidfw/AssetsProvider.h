@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROIDFW_ASSETSPROVIDER_H
-#define ANDROIDFW_ASSETSPROVIDER_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -36,6 +35,12 @@ namespace android {
 // Interface responsible for opening and iterating through asset files.
 struct AssetsProvider {
   static constexpr off64_t kUnknownLength = -1;
+
+  static std::unique_ptr<AssetsProvider> CreateWithOverride(
+      std::unique_ptr<AssetsProvider> provider, std::unique_ptr<AssetsProvider> override);
+
+  static std::unique_ptr<AssetsProvider> CreateFromNullable(
+      std::unique_ptr<AssetsProvider> nullable);
 
   // Opens a file for reading. If `file_exists` is not null, it will be set to `true` if the file
   // exists. This is useful for determining if the file exists but was unable to be opened due to
@@ -58,7 +63,7 @@ struct AssetsProvider {
   WARN_UNUSED virtual const std::string& GetDebugName() const = 0;
 
   // Returns whether the interface provides the most recent version of its files.
-  WARN_UNUSED virtual bool IsUpToDate() const = 0;
+  WARN_UNUSED virtual UpToDate IsUpToDate() const = 0;
 
   // Creates an Asset from a file on disk.
   static std::unique_ptr<Asset> CreateAssetFromFile(const std::string& path);
@@ -95,7 +100,7 @@ struct ZipAssetsProvider : public AssetsProvider {
 
   WARN_UNUSED std::optional<std::string_view> GetPath() const override;
   WARN_UNUSED const std::string& GetDebugName() const override;
-  WARN_UNUSED bool IsUpToDate() const override;
+  WARN_UNUSED UpToDate IsUpToDate() const override;
   WARN_UNUSED std::optional<uint32_t> GetCrc(std::string_view path) const;
 
   ~ZipAssetsProvider() override = default;
@@ -105,8 +110,14 @@ struct ZipAssetsProvider : public AssetsProvider {
 
  private:
   struct PathOrDebugName;
+
+  // There are applications that decided to dlsym and call this constructor somehow, so we
+  // have to keep it for backwards compatibility.
   ZipAssetsProvider(ZipArchive* handle, PathOrDebugName&& path, package_property_t flags,
                     time_t last_mod_time);
+  // ModTime is time_t on Win32, need to change the parameter order to make it overloadable.
+  ZipAssetsProvider(ZipArchive* handle, PathOrDebugName&& path, ModDate last_mod_time,
+                    package_property_t flags);
 
   struct PathOrDebugName {
     static PathOrDebugName Path(std::string value) {
@@ -135,7 +146,7 @@ struct ZipAssetsProvider : public AssetsProvider {
   std::unique_ptr<ZipArchive, ZipCloser> zip_handle_;
   PathOrDebugName name_;
   package_property_t flags_;
-  time_t last_mod_time_;
+  ModDate last_mod_time_;
 };
 
 // Supplies assets from a root directory.
@@ -147,7 +158,7 @@ struct DirectoryAssetsProvider : public AssetsProvider {
 
   WARN_UNUSED std::optional<std::string_view> GetPath() const override;
   WARN_UNUSED const std::string& GetDebugName() const override;
-  WARN_UNUSED bool IsUpToDate() const override;
+  WARN_UNUSED UpToDate IsUpToDate() const override;
 
   ~DirectoryAssetsProvider() override = default;
  protected:
@@ -156,9 +167,9 @@ struct DirectoryAssetsProvider : public AssetsProvider {
                                       bool* file_exists) const override;
 
  private:
-  explicit DirectoryAssetsProvider(std::string&& path, time_t last_mod_time);
+  explicit DirectoryAssetsProvider(std::string&& path, ModDate last_mod_time);
   std::string dir_;
-  time_t last_mod_time_;
+  ModDate last_mod_time_;
 };
 
 // Supplies assets from a `primary` asset provider and falls back to supplying assets from the
@@ -172,7 +183,7 @@ struct MultiAssetsProvider : public AssetsProvider {
 
   WARN_UNUSED std::optional<std::string_view> GetPath() const override;
   WARN_UNUSED const std::string& GetDebugName() const override;
-  WARN_UNUSED bool IsUpToDate() const override;
+  WARN_UNUSED UpToDate IsUpToDate() const override;
 
   ~MultiAssetsProvider() override = default;
  protected:
@@ -199,7 +210,7 @@ struct EmptyAssetsProvider : public AssetsProvider {
 
   WARN_UNUSED std::optional<std::string_view> GetPath() const override;
   WARN_UNUSED const std::string& GetDebugName() const override;
-  WARN_UNUSED bool IsUpToDate() const override;
+  WARN_UNUSED UpToDate IsUpToDate() const override;
 
   ~EmptyAssetsProvider() override = default;
  protected:
@@ -212,5 +223,3 @@ struct EmptyAssetsProvider : public AssetsProvider {
 };
 
 }  // namespace android
-
-#endif /* ANDROIDFW_ASSETSPROVIDER_H */

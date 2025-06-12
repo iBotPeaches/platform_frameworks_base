@@ -48,8 +48,13 @@ public class AuthenticationStatsPersister {
     private static final String USER_ID = "user_id";
     private static final String FACE_ATTEMPTS = "face_attempts";
     private static final String FACE_REJECTIONS = "face_rejections";
+    private static final String FACE_LAST_ENROLL_TIME = "face_last_enroll_time";
+    private static final String FACE_LAST_FRR_NOTIFICATION_TIME = "face_last_notification_time";
     private static final String FINGERPRINT_ATTEMPTS = "fingerprint_attempts";
     private static final String FINGERPRINT_REJECTIONS = "fingerprint_rejections";
+    private static final String FINGERPRINT_LAST_ENROLL_TIME = "fingerprint_last_enroll_time";
+    private static final String FINGERPRINT_LAST_FRR_NOTIFICATION_TIME =
+            "fingerprint_last_notification_time";
     private static final String ENROLLMENT_NOTIFICATIONS = "enrollment_notifications";
     private static final String KEY = "frr_stats";
     private static final String THRESHOLD_KEY = "frr_threshold";
@@ -73,21 +78,10 @@ public class AuthenticationStatsPersister {
             try {
                 JSONObject frrStatsJson = new JSONObject(frrStats);
                 if (modality == BiometricsProtoEnums.MODALITY_FACE) {
-                    authenticationStatsList.add(new AuthenticationStats(
-                            getIntValue(frrStatsJson, USER_ID,
-                                    UserHandle.USER_NULL /* defaultValue */),
-                            getIntValue(frrStatsJson, FACE_ATTEMPTS),
-                            getIntValue(frrStatsJson, FACE_REJECTIONS),
-                            getIntValue(frrStatsJson, ENROLLMENT_NOTIFICATIONS),
-                            modality));
+                    authenticationStatsList.add(getFaceAuthenticationStatsFromJson(frrStatsJson));
                 } else if (modality == BiometricsProtoEnums.MODALITY_FINGERPRINT) {
-                    authenticationStatsList.add(new AuthenticationStats(
-                            getIntValue(frrStatsJson, USER_ID,
-                                    UserHandle.USER_NULL /* defaultValue */),
-                            getIntValue(frrStatsJson, FINGERPRINT_ATTEMPTS),
-                            getIntValue(frrStatsJson, FINGERPRINT_REJECTIONS),
-                            getIntValue(frrStatsJson, ENROLLMENT_NOTIFICATIONS),
-                            modality));
+                    authenticationStatsList.add(
+                            getFingerprintAuthenticationStatsFromJson(frrStatsJson));
                 }
             } catch (JSONException e) {
                 Slog.w(TAG, String.format("Unable to resolve authentication stats JSON: %s",
@@ -95,6 +89,33 @@ public class AuthenticationStatsPersister {
             }
         }
         return authenticationStatsList;
+    }
+
+    @NonNull
+    AuthenticationStats getFaceAuthenticationStatsFromJson(JSONObject json) throws JSONException {
+        return new AuthenticationStats(
+                /* userId */ getIntValue(json, USER_ID, UserHandle.USER_NULL),
+                /* totalAttempts */ getIntValue(json, FACE_ATTEMPTS),
+                /* rejectedAttempts */ getIntValue(json, FACE_REJECTIONS),
+                /* enrollmentNotifications */ getIntValue(json, ENROLLMENT_NOTIFICATIONS),
+                /* lastEnrollmentTime */ getLongValue(json, FACE_LAST_ENROLL_TIME),
+                /* lastFrrNotificationTime */getLongValue(json, FACE_LAST_FRR_NOTIFICATION_TIME),
+                /* modality */ BiometricsProtoEnums.MODALITY_FACE);
+    }
+
+    @NonNull
+    AuthenticationStats getFingerprintAuthenticationStatsFromJson(JSONObject json)
+            throws JSONException {
+        return new AuthenticationStats(
+                /* userId */ getIntValue(json, USER_ID, UserHandle.USER_NULL),
+                /* totalAttempts */ getIntValue(json, FINGERPRINT_ATTEMPTS),
+                /* rejectedAttempts */ getIntValue(json, FINGERPRINT_REJECTIONS),
+                /* enrollmentNotifications */ getIntValue(json, ENROLLMENT_NOTIFICATIONS),
+                /* lastEnrollmentTime */ getLongValue(json,
+                        FINGERPRINT_LAST_ENROLL_TIME),
+                /* lastFrrNotificationTime */ getLongValue(json,
+                        FINGERPRINT_LAST_FRR_NOTIFICATION_TIME),
+                /* modality */ BiometricsProtoEnums.MODALITY_FINGERPRINT);
     }
 
     /**
@@ -124,7 +145,8 @@ public class AuthenticationStatsPersister {
      * Persist frr data for a specific user.
      */
     public void persistFrrStats(int userId, int totalAttempts, int rejectedAttempts,
-            int enrollmentNotifications, int modality) {
+            int enrollmentNotifications, long lastEnrollmentTime, long lastFrrNotificationTime,
+            int modality) {
         try {
             // Copy into a new HashSet to allow modification.
             Set<String> frrStatsSet = new HashSet<>(readFrrStats());
@@ -147,7 +169,8 @@ public class AuthenticationStatsPersister {
                 frrStatJson = new JSONObject().put(USER_ID, userId);
             }
             frrStatsSet.add(buildFrrStats(frrStatJson, totalAttempts, rejectedAttempts,
-                    enrollmentNotifications, modality));
+                    enrollmentNotifications, lastEnrollmentTime, lastFrrNotificationTime,
+                    modality));
 
             Slog.d(TAG, "frrStatsSet to persist: " + frrStatsSet);
 
@@ -171,18 +194,24 @@ public class AuthenticationStatsPersister {
 
     // Update frr stats for existing frrStats JSONObject and build the new string.
     private String buildFrrStats(JSONObject frrStats, int totalAttempts, int rejectedAttempts,
-            int enrollmentNotifications, int modality) throws JSONException {
+            int enrollmentNotifications, long lastEnrollmentTime, long lastFrrNotificationTime,
+            int modality)
+            throws JSONException {
         if (modality == BiometricsProtoEnums.MODALITY_FACE) {
             return frrStats
                     .put(FACE_ATTEMPTS, totalAttempts)
                     .put(FACE_REJECTIONS, rejectedAttempts)
                     .put(ENROLLMENT_NOTIFICATIONS, enrollmentNotifications)
+                    .put(FACE_LAST_ENROLL_TIME, lastEnrollmentTime)
+                    .put(FACE_LAST_FRR_NOTIFICATION_TIME, lastFrrNotificationTime)
                     .toString();
         } else if (modality == BiometricsProtoEnums.MODALITY_FINGERPRINT) {
             return frrStats
                     .put(FINGERPRINT_ATTEMPTS, totalAttempts)
                     .put(FINGERPRINT_REJECTIONS, rejectedAttempts)
                     .put(ENROLLMENT_NOTIFICATIONS, enrollmentNotifications)
+                    .put(FINGERPRINT_LAST_ENROLL_TIME, lastEnrollmentTime)
+                    .put(FINGERPRINT_LAST_FRR_NOTIFICATION_TIME, lastFrrNotificationTime)
                     .toString();
         } else {
             return frrStats.toString();
@@ -200,5 +229,14 @@ public class AuthenticationStatsPersister {
     private int getIntValue(JSONObject jsonObject, String key, int defaultValue)
             throws JSONException {
         return jsonObject.has(key) ? jsonObject.getInt(key) : defaultValue;
+    }
+
+    private long getLongValue(JSONObject jsonObject, String key) throws JSONException {
+        return getLongValue(jsonObject, key, 0 /* defaultValue */);
+    }
+
+    private long getLongValue(JSONObject jsonObject, String key, long defaultValue)
+            throws JSONException {
+        return jsonObject.has(key) ? jsonObject.getLong(key) : defaultValue;
     }
 }

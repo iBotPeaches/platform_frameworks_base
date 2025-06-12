@@ -20,8 +20,8 @@ import com.android.hoststubgen.asm.isAbstract
 import com.android.hoststubgen.asm.startsWithAny
 import com.android.hoststubgen.asm.toHumanReadableClassName
 import com.android.hoststubgen.log
-import org.objectweb.asm.tree.ClassNode
 import java.util.regex.Pattern
+import org.objectweb.asm.tree.ClassNode
 
 fun validateClasses(classes: ClassNodes): Boolean {
     var allOk = true
@@ -37,7 +37,7 @@ fun validateClasses(classes: ClassNodes): Boolean {
  *
  */
 fun checkClass(cn: ClassNode, classes: ClassNodes): Boolean {
-    if (cn.name.shouldByBypassed()) {
+    if (cn.name.shouldBypass()) {
         // Class doesn't need to be checked.
         return true
     }

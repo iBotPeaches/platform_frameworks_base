@@ -18,6 +18,7 @@ package android.text;
 
 import static android.text.TextUtils.formatSimple;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -28,7 +29,6 @@ import static org.junit.Assert.fail;
 
 import android.os.Parcel;
 import android.platform.test.annotations.Presubmit;
-import android.test.MoreAsserts;
 import android.text.style.StyleSpan;
 import android.text.util.Rfc822Token;
 import android.text.util.Rfc822Tokenizer;
@@ -237,7 +237,7 @@ public class TextUtilsTest {
         for (String s : splitter) {
             strings.add(s);
         }
-        MoreAsserts.assertEquals(expectedStrings, strings.toArray(new String[]{}));
+        assertArrayEquals(expectedStrings, strings.toArray(new String[]{}));
     }
 
     @Test

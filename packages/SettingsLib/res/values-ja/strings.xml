@@ -110,19 +110,30 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"アクティブ（左のみ）"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"アクティブ（右のみ）"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"アクティブ（左と右）"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"周囲の音を更新できませんでした"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"有効（メディアのみ）。バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"有効（メディアのみ）。左: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>、右: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"ゲストデバイス。バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"ゲストデバイス。左: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>、右: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"ゲストデバイス（メディアのみ）。バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"ゲストデバイス（メディアのみ）。左: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>、右: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"接続済み（音声の共有をサポート）。バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"接続済み（音声の共有をサポート）。左: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>、右: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"接続済み（音声の共有をサポート）。左: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"接続済み（音声の共有をサポート）。右: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"接続済み（音声の共有をサポート）"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"ゲストデバイス（音声の共有をサポート）。バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"ゲストデバイス（音声の共有をサポート）。左: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>、右: バッテリー残量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"ゲストデバイス（音声の共有をサポート）"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"有効（メディアのみ）"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"ゲストデバイス"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"ゲストデバイス（メディアのみ）"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"音声の共有をサポートしています"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"ゲストデバイス。音声の共有をサポートしています"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"有効（メディアのみ）、左のみ"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"有効（メディアのみ）、右のみ"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"有効（メディアのみ）、左右"</string>
-    <string name="bluetooth_profile_a2dp" msgid="4632426382762851724">"メディアの音声"</string>
+    <string name="bluetooth_profile_a2dp" msgid="4632426382762851724">"メディアのオーディオ"</string>
     <string name="bluetooth_profile_headset" msgid="5395952236133499331">"電話"</string>
     <string name="bluetooth_profile_opp" msgid="6692618568149493430">"ファイル転送"</string>
     <string name="bluetooth_profile_hid" msgid="2969922922664315866">"入力デバイス"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"ハードウェアアクセラレーテッドレンダリング"</string>
     <string name="media_category" msgid="8122076702526144053">"メディア"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"モニタリング"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"ウィンドウ管理"</string>
     <string name="strict_mode" msgid="889864762140862437">"厳格モードを有効にする"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"メインスレッドの処理が長引く場合は画面を点滅させる"</string>
     <string name="pointer_location" msgid="7516929526199520173">"ポインタの位置"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"トランジション アニメ スケール"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Animator 再生時間スケール"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"第2画面のシミュレーション"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"シェードの表示位置"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"アプリ"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"アクティビティを保持しない"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"ユーザーが離れたアクティビティを直ちに破棄する"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView の実装"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"WebView の実装の設定"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"この選択は無効になりました。もう一度お試しください。"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView の DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView パッケージが見つかりません。"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevTools を起動できませんでした。"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"画像の色モード"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGBを使用"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"無効"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"急速充電中"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"管理者により管理されています"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"制限付き設定によって管理されています"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"通話中は利用できません"</string>
     <string name="disabled" msgid="8017887509554714950">"無効"</string>
+    <string name="enabled" msgid="3997122818554810678">"有効"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"許可"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"許可しない"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"不明なアプリのインストール"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"内蔵スピーカー"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"TV オーディオ"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"接続エラーです。デバイスを OFF にしてから ON に戻してください"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"接続できません"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"有線オーディオ デバイス"</string>
     <string name="help_label" msgid="3528360748637781274">"ヘルプとフィードバック"</string>
     <string name="storage_category" msgid="2287342585424631813">"ストレージ"</string>
@@ -664,7 +683,7 @@
     <string name="guest_remove_guest_confirm_button" msgid="7858123434954143879">"削除"</string>
     <string name="guest_resetting" msgid="7822120170191509566">"ゲストをリセットしています…"</string>
     <string name="guest_reset_and_restart_dialog_title" msgid="3396657008451616041">"ゲスト セッションをリセットしますか？"</string>
-    <string name="guest_reset_and_restart_dialog_message" msgid="2764425635305200790">"新しいゲスト セッションが開始し、現在のセッションのすべてのアプリとデータが削除されます"</string>
+    <string name="guest_reset_and_restart_dialog_message" msgid="2764425635305200790">"新しいゲスト セッションが開始され、現在のセッションのすべてのアプリとデータが削除されます"</string>
     <string name="guest_exit_dialog_title" msgid="1846494656849381804">"ゲストモードを終了しますか？"</string>
     <string name="guest_exit_dialog_message" msgid="1743218864242719783">"現在のゲスト セッションからすべてのアプリとデータが削除されます"</string>
     <string name="grant_admin" msgid="4323199171790522574">"はい、管理者にします"</string>

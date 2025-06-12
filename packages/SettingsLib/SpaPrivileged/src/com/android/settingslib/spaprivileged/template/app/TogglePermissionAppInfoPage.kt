@@ -37,6 +37,7 @@ import com.android.settingslib.spa.widget.preference.Preference
 import com.android.settingslib.spa.widget.preference.PreferenceModel
 import com.android.settingslib.spa.widget.preference.SwitchPreferenceModel
 import com.android.settingslib.spa.widget.ui.AnnotatedText
+import com.android.settingslib.spa.widget.ui.Category
 import com.android.settingslib.spaprivileged.model.app.AppRecord
 import com.android.settingslib.spaprivileged.model.app.IPackageManagers
 import com.android.settingslib.spaprivileged.model.app.PackageManagers
@@ -153,13 +154,15 @@ internal fun <T : AppRecord> TogglePermissionAppListModel<T>.TogglePermissionApp
             override val changeable = { isChangeable }
             override val onCheckedChange: (Boolean) -> Unit = { setAllowed(record, it) }
         }
-        RestrictedSwitchPreference(
-            model = switchModel,
-            restrictions = getRestrictions(userId, packageName),
-            ifBlockedByAdminOverrideCheckedValueTo = switchifBlockedByAdminOverrideCheckedValueTo,
-            restrictionsProviderFactory = restrictionsProviderFactory,
-        )
-        InfoPageAdditionalContent(record, isAllowed)
+        Category {
+            RestrictedSwitchPreference(
+                model = switchModel,
+                restrictions = getRestrictions(userId, packageName, isAllowed()),
+                ifBlockedByAdminOverrideCheckedValueTo =
+                    switchifBlockedByAdminOverrideCheckedValueTo,
+                restrictionsProviderFactory = restrictionsProviderFactory,
+            )
+        }
     }
 }
 

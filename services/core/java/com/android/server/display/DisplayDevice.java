@@ -68,6 +68,8 @@ abstract class DisplayDevice {
     private int mCurrentLayerStack = -1;
     private int mCurrentFlags = 0;
     private int mCurrentOrientation = -1;
+    private int mLastDisplayWidth;
+    private int mLastDisplayHeight;
     private Rect mCurrentLayerStackRect;
     private Rect mCurrentDisplayRect;
     private final Context mContext;
@@ -216,9 +218,9 @@ abstract class DisplayDevice {
     }
 
     /**
-     * Gives the display device a chance to update its properties while in a transaction.
+     * Updates the surface for the display.
      */
-    public void performTraversalLocked(SurfaceControl.Transaction t) {
+    public void configureSurfaceLocked(SurfaceControl.Transaction t) {
     }
 
     /**
@@ -306,6 +308,14 @@ abstract class DisplayDevice {
     }
 
     /**
+     * Returns if the display should only mirror another display rather than showing other content
+     * until it is destroyed.
+     */
+    public boolean shouldOnlyMirror() {
+        return false;
+    }
+
+    /**
      * Sets the display layer stack while in a transaction.
      */
     public final void setLayerStackLocked(SurfaceControl.Transaction t, int layerStack,
@@ -362,6 +372,29 @@ abstract class DisplayDevice {
 
             t.setDisplayProjection(mDisplayToken,
                     orientation, layerStackRect, displayRect);
+        }
+    }
+
+    /**
+     * Configure transaction with the display size.
+     */
+    public void configureDisplaySizeLocked(SurfaceControl.Transaction t) {
+        DisplayDeviceInfo info = getDisplayDeviceInfoLocked();
+        boolean isInstalledRotated = info.installOrientation == ROTATION_90
+                || info.installOrientation == ROTATION_270;
+        int displayWidth = isInstalledRotated ? info.height : info.width;
+        int displayHeight = isInstalledRotated ? info.width : info.height;
+        setDisplaySizeLocked(t, displayWidth, displayHeight);
+    }
+
+    /**
+     * Sets display size while in a transaction.
+     */
+    public final void setDisplaySizeLocked(SurfaceControl.Transaction t, int width, int height) {
+        if (width != mLastDisplayWidth && height != mLastDisplayHeight) {
+            mLastDisplayWidth = width;
+            mLastDisplayHeight = height;
+            t.setDisplaySize(mDisplayToken, width, height);
         }
     }
 

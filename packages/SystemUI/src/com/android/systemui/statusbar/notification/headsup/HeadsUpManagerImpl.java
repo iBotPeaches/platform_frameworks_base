@@ -45,7 +45,9 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.shade.domain.interactor.ShadeInteractor;
 import com.android.systemui.statusbar.StatusBarState;
+import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
+import com.android.systemui.statusbar.notification.collection.coordinator.HeadsUpCoordinator;
 import com.android.systemui.statusbar.notification.collection.provider.OnReorderingAllowedListener;
 import com.android.systemui.statusbar.notification.collection.provider.OnReorderingBannedListener;
 import com.android.systemui.statusbar.notification.collection.provider.VisualStabilityProvider;
@@ -53,6 +55,7 @@ import com.android.systemui.statusbar.notification.collection.render.GroupMember
 import com.android.systemui.statusbar.notification.data.repository.HeadsUpRepository;
 import com.android.systemui.statusbar.notification.data.repository.HeadsUpRowRepository;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 import com.android.systemui.statusbar.notification.shared.NotificationThrottleHun;
 import com.android.systemui.statusbar.phone.ExpandHeadsUpOnInlineReply;
 import com.android.systemui.statusbar.phone.KeyguardBypassController;
@@ -63,6 +66,11 @@ import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.settings.GlobalSettings;
 import com.android.systemui.util.time.SystemClock;
+
+import kotlinx.coroutines.flow.Flow;
+import kotlinx.coroutines.flow.MutableStateFlow;
+import kotlinx.coroutines.flow.StateFlow;
+import kotlinx.coroutines.flow.StateFlowKt;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -77,11 +85,6 @@ import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
-import kotlinx.coroutines.flow.Flow;
-import kotlinx.coroutines.flow.MutableStateFlow;
-import kotlinx.coroutines.flow.StateFlow;
-import kotlinx.coroutines.flow.StateFlowKt;
-
 /**
  * A manager which handles heads up notifications which is a special mode where
  * they simply peek from the top of the screen.
@@ -92,14 +95,15 @@ public class HeadsUpManagerImpl
     private static final String TAG = "BaseHeadsUpManager";
     private static final String SETTING_HEADS_UP_SNOOZE_LENGTH_MS = "heads_up_snooze_length_ms";
     private static final String REASON_REORDER_ALLOWED = "mOnReorderingAllowedListener";
-    protected final ListenerSet<OnHeadsUpChangedListener> mListeners = new ListenerSet<>();
+    private final ListenerSet<OnHeadsUpChangedListener> mListeners = new ListenerSet<>();
 
-    protected final Context mContext;
+    private final Context mContext;
 
-    protected int mTouchAcceptanceDelay;
-    protected int mSnoozeLengthMs;
-    protected boolean mHasPinnedNotification;
-    protected int mUser;
+    private final int mTouchAcceptanceDelay;
+    private int mSnoozeLengthMs;
+    private boolean mHasPinnedNotification;
+    private PinnedStatus mPinnedNotificationStatus = PinnedStatus.NotPinned;
+    private int mUser;
 
     private final ArrayMap<String, Long> mSnoozedPackages;
     private final AccessibilityManagerWrapper mAccessibilityMgr;
@@ -111,13 +115,15 @@ public class HeadsUpManagerImpl
     private final List<OnHeadsUpPhoneListenerChange> mHeadsUpPhoneListeners = new ArrayList<>();
     private final VisualStabilityProvider mVisualStabilityProvider;
 
-    protected final SystemClock mSystemClock;
-    protected final ArrayMap<String, HeadsUpEntry> mHeadsUpEntryMap = new ArrayMap<>();
-    protected final HeadsUpManagerLogger mLogger;
-    protected int mMinimumDisplayTime;
-    protected int mStickyForSomeTimeAutoDismissTime;
-    protected int mAutoDismissTime;
-    protected DelayableExecutor mExecutor;
+    private final SystemClock mSystemClock;
+    @VisibleForTesting
+    final ArrayMap<String, HeadsUpEntry> mHeadsUpEntryMap = new ArrayMap<>();
+    private final HeadsUpManagerLogger mLogger;
+    private final int mMinimumDisplayTimeDefault;
+    private final int mMinimumDisplayTimeForUserInitiated;
+    private final int mStickyForSomeTimeAutoDismissTime;
+    private final int mAutoDismissTime;
+    private final DelayableExecutor mExecutor;
 
     private final int mExtensionTime;
 
@@ -128,14 +134,15 @@ public class HeadsUpManagerImpl
             StateFlowKt.MutableStateFlow(new HashSet<>());
     private final MutableStateFlow<Boolean> mHeadsUpAnimatingAway =
             StateFlowKt.MutableStateFlow(false);
+    private final MutableStateFlow<Boolean> mTrackingHeadsUp =
+            StateFlowKt.MutableStateFlow(false);
     private final HashSet<String> mSwipedOutKeys = new HashSet<>();
     private final HashSet<NotificationEntry> mEntriesToRemoveAfterExpand = new HashSet<>();
     @VisibleForTesting
-    public final ArraySet<NotificationEntry> mEntriesToRemoveWhenReorderingAllowed
+    final ArraySet<NotificationEntry> mEntriesToRemoveWhenReorderingAllowed
             = new ArraySet<>();
 
     private boolean mReleaseOnExpandFinish;
-    private boolean mTrackingHeadsUp;
     private boolean mIsShadeOrQsExpanded;
     private boolean mIsQsExpanded;
     private int mStatusBarState;
@@ -183,7 +190,7 @@ public class HeadsUpManagerImpl
 
     @Inject
     public HeadsUpManagerImpl(
-            @NonNull final Context context,
+            @NonNull @ShadeDisplayAware final Context context,
             HeadsUpManagerLogger logger,
             StatusBarStateController statusBarStateController,
             KeyguardBypassController bypassController,
@@ -211,9 +218,11 @@ public class HeadsUpManagerImpl
         mGroupMembershipManager = groupMembershipManager;
         mVisualStabilityProvider = visualStabilityProvider;
         Resources resources = context.getResources();
-        mMinimumDisplayTime = NotificationThrottleHun.isEnabled()
+        mMinimumDisplayTimeDefault = NotificationThrottleHun.isEnabled()
                 ? resources.getInteger(R.integer.heads_up_notification_minimum_time_with_throttling)
                 : resources.getInteger(R.integer.heads_up_notification_minimum_time);
+        mMinimumDisplayTimeForUserInitiated = resources.getInteger(
+                R.integer.heads_up_notification_minimum_time_for_user_initiated);
         mStickyForSomeTimeAutoDismissTime = resources.getInteger(
                 R.integer.sticky_heads_up_notification_time);
         mAutoDismissTime = resources.getInteger(R.integer.heads_up_notification_decay);
@@ -303,28 +312,32 @@ public class HeadsUpManagerImpl
                 + resources.getDimensionPixelSize(R.dimen.heads_up_status_bar_padding);
     }
 
-    /**
-     * Called when posting a new notification that should appear on screen.
-     * Adds the notification to be managed.
-     * @param entry entry to show
-     */
     @Override
-    public void showNotification(@NonNull NotificationEntry entry) {
+    public void showNotification(
+            @NonNull NotificationEntry entry, boolean isPinnedByUser) {
         HeadsUpEntry headsUpEntry = createHeadsUpEntry(entry);
 
-        mLogger.logShowNotificationRequest(entry);
+        mLogger.logShowNotificationRequest(entry, isPinnedByUser);
+
+        PinnedStatus requestedPinnedStatus =
+                isPinnedByUser
+                        ? PinnedStatus.PinnedByUser
+                        : PinnedStatus.PinnedBySystem;
+        headsUpEntry.setRequestedPinnedStatus(requestedPinnedStatus);
 
         Runnable runnable = () -> {
-            mLogger.logShowNotification(entry);
+            mLogger.logShowNotification(entry, isPinnedByUser);
 
             // Add new entry and begin managing it
             mHeadsUpEntryMap.put(entry.getKey(), headsUpEntry);
-            onEntryAdded(headsUpEntry);
+            onEntryAdded(headsUpEntry, requestedPinnedStatus);
             // TODO(b/328390331) move accessibility events to the view layer
             entry.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
-            entry.setIsHeadsUpEntry(true);
+            if (!NotificationBundleUi.isEnabled()) {
+                entry.setIsHeadsUpEntry(true);
+            }
 
-            updateNotificationInternal(entry.getKey(), true /* shouldHeadsUpAgain */);
+            updateNotificationInternal(entry.getKey(), requestedPinnedStatus);
             entry.setInterruption();
         };
         mAvalancheController.update(headsUpEntry, runnable, "showNotification");
@@ -375,25 +388,20 @@ public class HeadsUpManagerImpl
         return false;
     }
 
-    /**
-     * Called when the notification state has been updated.
-     * @param key the key of the entry that was updated
-     * @param shouldHeadsUpAgain whether the notification should show again and force reevaluation
-     *                           of removal time
-     */
-    public void updateNotification(@NonNull String key, boolean shouldHeadsUpAgain) {
+    @Override
+    public void updateNotification(
+            @NonNull String key, @NonNull PinnedStatus requestedPinnedStatus) {
         HeadsUpEntry headsUpEntry = mHeadsUpEntryMap.get(key);
-        mLogger.logUpdateNotificationRequest(key, shouldHeadsUpAgain, headsUpEntry != null);
+        mLogger.logUpdateNotificationRequest(key, requestedPinnedStatus, headsUpEntry != null);
 
-        Runnable runnable = () -> {
-            updateNotificationInternal(key, shouldHeadsUpAgain);
-        };
+        Runnable runnable = () -> updateNotificationInternal(key, requestedPinnedStatus);
         mAvalancheController.update(headsUpEntry, runnable, "updateNotification");
     }
 
-    private void updateNotificationInternal(@NonNull String key, boolean shouldHeadsUpAgain) {
+    private void updateNotificationInternal(
+            @NonNull String key, PinnedStatus requestedPinnedStatus) {
         HeadsUpEntry headsUpEntry = mHeadsUpEntryMap.get(key);
-        mLogger.logUpdateNotification(key, shouldHeadsUpAgain, headsUpEntry != null);
+        mLogger.logUpdateNotification(key, requestedPinnedStatus, headsUpEntry != null);
         if (headsUpEntry == null) {
             // the entry was released before this update (i.e by a listener) This can happen
             // with the groupmanager
@@ -404,20 +412,17 @@ public class HeadsUpManagerImpl
             headsUpEntry.mEntry.sendAccessibilityEvent(
                     AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
         }
-        if (shouldHeadsUpAgain) {
+        if (requestedPinnedStatus.isPinned()) {
             headsUpEntry.updateEntry(true /* updatePostTime */, "updateNotification");
-            PinnedStatus pinnedStatus = shouldHeadsUpBecomePinned(headsUpEntry.mEntry)
-                    ? PinnedStatus.PinnedBySystem
-                    : PinnedStatus.NotPinned;
-            if (headsUpEntry != null) {
-                setEntryPinned(headsUpEntry, pinnedStatus, "updateNotificationInternal");
-            }
+            PinnedStatus pinnedStatus =
+                    getNewPinnedStatusForEntry(headsUpEntry, requestedPinnedStatus);
+            setEntryPinned(headsUpEntry, pinnedStatus, "updateNotificationInternal");
         }
     }
 
     @Override
-    public void setTrackingHeadsUp(boolean trackingHeadsUp) {
-        mTrackingHeadsUp = trackingHeadsUp;
+    public void setTrackingHeadsUp(boolean isTrackingHeadsUp) {
+        mTrackingHeadsUp.setValue(isTrackingHeadsUp);
     }
 
     @Override
@@ -509,16 +514,13 @@ public class HeadsUpManagerImpl
                 || !mAvalancheController.getWaitingEntryList().isEmpty();
     }
 
-    /**
-     * @return true if the notification is managed by this manager
-     */
+    @Override
     public boolean isHeadsUpEntry(@NonNull String key) {
         return mHeadsUpEntryMap.containsKey(key) || mAvalancheController.isWaiting(key);
     }
 
     /**
-     * @param key
-     * @return When a HUN entry should be removed in milliseconds from now
+     * @return When a HUN entry with the given key should be removed in milliseconds from now
      */
     @Override
     public long getEarliestRemovalTime(String key) {
@@ -530,7 +532,10 @@ public class HeadsUpManagerImpl
     }
 
     @VisibleForTesting
-    protected boolean shouldHeadsUpBecomePinned(@NonNull NotificationEntry entry) {
+    boolean shouldHeadsUpBecomePinned(@Nullable NotificationEntry entry) {
+        if (entry == null) {
+            return false;
+        }
         boolean pin = mStatusBarState == StatusBarState.SHADE && !mIsShadeOrQsExpanded;
         if (SceneContainerFlag.isEnabled()) {
             pin |= mIsQsExpanded;
@@ -551,24 +556,18 @@ public class HeadsUpManagerImpl
         return hasFullScreenIntent(entry) && !headsUpEntry.mWasUnpinned;
     }
 
-    protected boolean hasFullScreenIntent(@NonNull NotificationEntry entry) {
-        if (entry == null) {
-            return false;
-        }
-        if (entry.getSbn() == null) {
-            return false;
-        }
+    private boolean hasFullScreenIntent(@NonNull NotificationEntry entry) {
         if (entry.getSbn().getNotification() == null) {
             return false;
         }
         return entry.getSbn().getNotification().fullScreenIntent != null;
     }
 
-    protected void setEntryPinned(
+    private void setEntryPinned(
             @NonNull HeadsUpManagerImpl.HeadsUpEntry headsUpEntry, PinnedStatus pinnedStatus,
             String reason) {
-        mLogger.logSetEntryPinned(headsUpEntry.mEntry, pinnedStatus, reason);
-        NotificationEntry entry = headsUpEntry.mEntry;
+        NotificationEntry entry = headsUpEntry.requireEntry();
+        mLogger.logSetEntryPinned(entry, pinnedStatus, reason);
         boolean isPinned = pinnedStatus.isPinned();
         if (!isPinned) {
             headsUpEntry.mWasUnpinned = true;
@@ -576,7 +575,7 @@ public class HeadsUpManagerImpl
         if (headsUpEntry.getPinnedStatus().getValue() != pinnedStatus) {
             headsUpEntry.setRowPinnedStatus(pinnedStatus);
             updatePinnedMode();
-            if (isPinned && entry.getSbn() != null) {
+            if (isPinned) {
                mUiEventLogger.logWithInstanceId(
                         NotificationPeekEvent.NOTIFICATION_PEEK, entry.getSbn().getUid(),
                         entry.getSbn().getPackageName(), entry.getSbn().getInstanceId());
@@ -596,27 +595,48 @@ public class HeadsUpManagerImpl
      * Manager-specific logic that should occur when an entry is added.
      * @param headsUpEntry entry added
      */
-    protected void onEntryAdded(HeadsUpEntry headsUpEntry) {
-        NotificationEntry entry = headsUpEntry.mEntry;
+    @VisibleForTesting
+     void onEntryAdded(HeadsUpEntry headsUpEntry, PinnedStatus requestedPinnedStatus) {
+        NotificationEntry entry = headsUpEntry.requireEntry();
         entry.setHeadsUp(true);
 
-        final PinnedStatus pinnedStatus = shouldHeadsUpBecomePinned(entry)
-                ? PinnedStatus.PinnedBySystem
-                : PinnedStatus.NotPinned;
+        PinnedStatus pinnedStatus = getNewPinnedStatusForEntry(headsUpEntry, requestedPinnedStatus);
         setEntryPinned(headsUpEntry, pinnedStatus, "onEntryAdded");
         EventLogTags.writeSysuiHeadsUpStatus(entry.getKey(), 1 /* visible */);
         for (OnHeadsUpChangedListener listener : mListeners) {
+            // TODO(b/382509804): It's odd that if pinnedStatus == PinnedStatus.NotPinned, then we
+            //  still send isHeadsUp=true to listeners. Is this causing bugs?
             listener.onHeadsUpStateChanged(entry, true);
         }
         updateTopHeadsUpFlow();
         updateHeadsUpFlow();
     }
 
+    private PinnedStatus getNewPinnedStatusForEntry(
+            HeadsUpEntry headsUpEntry, PinnedStatus requestedPinnedStatus) {
+        NotificationEntry entry = headsUpEntry.mEntry;
+        if (entry == null) {
+            return PinnedStatus.NotPinned;
+        }
+        boolean shouldBecomePinned = shouldHeadsUpBecomePinned(entry);
+        if (!shouldBecomePinned) {
+            return PinnedStatus.NotPinned;
+        }
+
+        if (!StatusBarNotifChips.isEnabled()
+                && requestedPinnedStatus == PinnedStatus.PinnedByUser) {
+            Log.wtf(TAG, "PinnedStatus.PinnedByUser not allowed if StatusBarNotifChips flag off");
+            return PinnedStatus.NotPinned;
+        }
+
+        return requestedPinnedStatus;
+    }
+
     /**
      * Remove a notification from the alerting entries.
      * @param key key of notification to remove
      */
-    protected final void removeEntry(@NonNull String key, String reason) {
+    private void removeEntry(@NonNull String key, String reason) {
         HeadsUpEntry headsUpEntry = mHeadsUpEntryMap.get(key);
         boolean isWaiting;
         if (headsUpEntry == null) {
@@ -633,10 +653,10 @@ public class HeadsUpManagerImpl
             if (finalHeadsUpEntry == null) {
                 return;
             }
-            NotificationEntry entry = finalHeadsUpEntry.mEntry;
+            NotificationEntry entry = finalHeadsUpEntry.requireEntry();
 
             // If the notification is animating, we will remove it at the end of the animation.
-            if (entry != null && entry.isExpandAnimationRunning()) {
+            if (entry.isExpandAnimationRunning()) {
                 return;
             }
             entry.demoteStickyHun();
@@ -658,8 +678,9 @@ public class HeadsUpManagerImpl
      * @param headsUpEntry entry removed
      * @param reason why onEntryRemoved was called
      */
-    protected void onEntryRemoved(HeadsUpEntry headsUpEntry, String reason) {
-        NotificationEntry entry = headsUpEntry.mEntry;
+    @VisibleForTesting
+    void onEntryRemoved(@NonNull HeadsUpEntry headsUpEntry, String reason) {
+        NotificationEntry entry = headsUpEntry.requireEntry();
         entry.setHeadsUp(false);
         setEntryPinned(headsUpEntry, PinnedStatus.NotPinned, "onEntryRemoved");
         EventLogTags.writeSysuiHeadsUpStatus(entry.getKey(), 0 /* visible */);
@@ -681,19 +702,18 @@ public class HeadsUpManagerImpl
             // mEntriesToRemoveWhenReorderingAllowed, we should not remove from this list (and cause
             // ArrayIndexOutOfBoundsException). We don't need to in this case anyway, because we
             // clear mEntriesToRemoveWhenReorderingAllowed after removing these entries.
-            if (!reason.equals(REASON_REORDER_ALLOWED)
-                    && mEntriesToRemoveWhenReorderingAllowed.contains(notifEntry)) {
+            if (!reason.equals(REASON_REORDER_ALLOWED)) {
                 mEntriesToRemoveWhenReorderingAllowed.remove(notifEntry);
             }
         }
     }
 
     private void updateTopHeadsUpFlow() {
-        mTopHeadsUpRow.setValue((HeadsUpRowRepository) getTopHeadsUpEntry());
+        mTopHeadsUpRow.setValue(getTopHeadsUpEntry());
     }
 
     private void updateHeadsUpFlow() {
-        mHeadsUpNotificationRows.setValue(new HashSet<>(getHeadsUpEntryPhoneMap().values()));
+        mHeadsUpNotificationRows.setValue(new HashSet<>(mHeadsUpEntryMap.values()));
     }
 
     @Override
@@ -719,11 +739,6 @@ public class HeadsUpManagerImpl
         return mHeadsUpAnimatingAway.getValue();
     }
 
-    @NonNull
-    private ArrayMap<String, HeadsUpEntry> getHeadsUpEntryPhoneMap() {
-        return mHeadsUpEntryMap;
-    }
-
     /**
      * Called to notify the listeners that the HUN animating away animation has ended.
      */
@@ -734,23 +749,13 @@ public class HeadsUpManagerImpl
         }
     }
 
-    /**
-     * Manager-specific logic, that should occur, when the entry is updated, and its posted time has
-     * changed.
-     *
-     * @param headsUpEntry entry updated
-     */
-    protected void onEntryUpdated(HeadsUpEntry headsUpEntry) {
-        // no need to update the list here
-        updateTopHeadsUpFlow();
-    }
-
-    protected void updatePinnedMode() {
+    private void updatePinnedMode() {
         boolean hasPinnedNotification = hasPinnedNotificationInternal();
+        mPinnedNotificationStatus = pinnedNotificationStatusInternal();
         if (hasPinnedNotification == mHasPinnedNotification) {
             return;
         }
-        mLogger.logUpdatePinnedMode(hasPinnedNotification);
+        mLogger.logUpdatePinnedMode(hasPinnedNotification, mPinnedNotificationStatus);
         mHasPinnedNotification = hasPinnedNotification;
         if (mHasPinnedNotification) {
             MetricsLogger.count(mContext, "note_peek", 1);
@@ -786,7 +791,7 @@ public class HeadsUpManagerImpl
         keySet.addAll(mAvalancheController.getWaitingKeys());
         for (String key : keySet) {
             HeadsUpEntry entry = getHeadsUpEntry(key);
-            if (entry.mEntry == null) {
+            if (entry == null || entry.mEntry == null) {
                 continue;
             }
             String packageName = entry.mEntry.getSbn().getPackageName();
@@ -808,7 +813,8 @@ public class HeadsUpManagerImpl
     }
 
     @Nullable
-    protected HeadsUpEntry getHeadsUpEntry(@NonNull String key) {
+    @VisibleForTesting
+    HeadsUpEntry getHeadsUpEntry(@NonNull String key) {
         if (mHeadsUpEntryMap.containsKey(key)) {
             return mHeadsUpEntryMap.get(key);
         }
@@ -825,7 +831,7 @@ public class HeadsUpManagerImpl
     }
 
     @Nullable
-    protected HeadsUpEntry getTopHeadsUpEntry() {
+    private HeadsUpEntry getTopHeadsUpEntry() {
         if (mHeadsUpEntryMap.isEmpty()) {
             return null;
         }
@@ -852,11 +858,11 @@ public class HeadsUpManagerImpl
 
     private String getEntryMapStr() {
         if (mHeadsUpEntryMap.isEmpty()) {
-            return "EMPTY";
+            return "";
         }
         StringBuilder entryMapStr = new StringBuilder();
         for (HeadsUpEntry entry: mHeadsUpEntryMap.values()) {
-            entryMapStr.append("\n\t").append(
+            entryMapStr.append("\n ").append(
                     entry.mEntry == null ? "null" : entry.mEntry.getKey());
         }
         return entryMapStr.toString();
@@ -872,14 +878,22 @@ public class HeadsUpManagerImpl
         if (!hasPinnedHeadsUp() || topEntry == null) {
             return null;
         } else {
+            ExpandableNotificationRow topRow = topEntry.getRow();
             if (topEntry.rowIsChildInGroup()) {
-                final NotificationEntry groupSummary =
-                        mGroupMembershipManager.getGroupSummary(topEntry);
-                if (groupSummary != null) {
-                    topEntry = groupSummary;
+                if (NotificationBundleUi.isEnabled()) {
+                    if (topRow.getNotificationParent() != null) {
+                        topRow = topRow.getNotificationParent();
+                    }
+                } else {
+                    final NotificationEntry groupSummary =
+                            mGroupMembershipManager.getGroupSummary(topEntry);
+                    if (groupSummary != null) {
+                        topEntry = groupSummary;
+                        topRow = topEntry.getRow();
+                    }
                 }
             }
-            ExpandableNotificationRow topRow = topEntry.getRow();
+
             int[] tmpArray = new int[2];
             topRow.getLocationOnScreen(tmpArray);
             int minX = tmpArray[0];
@@ -921,7 +935,7 @@ public class HeadsUpManagerImpl
         dumpInternal(pw, args);
     }
 
-    protected void dumpInternal(@NonNull PrintWriter pw, @NonNull String[] args) {
+    private void dumpInternal(@NonNull PrintWriter pw, @NonNull String[] args) {
         pw.print("  mTouchAcceptanceDelay="); pw.println(mTouchAcceptanceDelay);
         pw.print("  mSnoozeLengthMs="); pw.println(mSnoozeLengthMs);
         pw.print("  now="); pw.println(mSystemClock.elapsedRealtime());
@@ -941,21 +955,38 @@ public class HeadsUpManagerImpl
         pw.println(mTouchableRegion);
     }
 
-    /**
-     * Returns if there are any pinned Heads Up Notifications or not.
-     */
+    @Override
     public boolean hasPinnedHeadsUp() {
         return mHasPinnedNotification;
+    }
+
+    @Override
+    @NonNull
+    public PinnedStatus pinnedHeadsUpStatus() {
+        if (!StatusBarNotifChips.isEnabled()) {
+            return mHasPinnedNotification ? PinnedStatus.PinnedBySystem : PinnedStatus.NotPinned;
+        }
+        return mPinnedNotificationStatus;
     }
 
     private boolean hasPinnedNotificationInternal() {
         for (String key : mHeadsUpEntryMap.keySet()) {
             HeadsUpEntry entry = getHeadsUpEntry(key);
-            if (entry.mEntry != null && entry.mEntry.isRowPinned()) {
+            if (entry != null && entry.mEntry != null && entry.mEntry.isRowPinned()) {
                 return true;
             }
         }
         return false;
+    }
+
+    private PinnedStatus pinnedNotificationStatusInternal() {
+        for (String key : mHeadsUpEntryMap.keySet()) {
+            HeadsUpEntry entry = getHeadsUpEntry(key);
+            if (entry.mEntry != null && entry.mEntry.isRowPinned()) {
+                return entry.mEntry.getPinnedStatus();
+            }
+        }
+        return PinnedStatus.NotPinned;
     }
 
     /**
@@ -966,6 +997,10 @@ public class HeadsUpManagerImpl
     public void unpinAll(boolean userUnPinned) {
         for (String key : mHeadsUpEntryMap.keySet()) {
             HeadsUpEntry headsUpEntry = getHeadsUpEntry(key);
+            if (headsUpEntry == null) {
+                Log.wtf(TAG, "Couldn't find entry " + key + " in unpinAll");
+                continue;
+            }
             mLogger.logUnpinEntryRequest(key);
             Runnable runnable = () -> {
                 mLogger.logUnpinEntry(key);
@@ -976,10 +1011,10 @@ public class HeadsUpManagerImpl
 
                 // when the user unpinned all of HUNs by moving one HUN, all of HUNs should not stay
                 // on the screen.
-                if (userUnPinned && headsUpEntry.mEntry != null) {
-                    if (headsUpEntry.mEntry != null && headsUpEntry.mEntry.mustStayOnScreen()) {
-                        headsUpEntry.mEntry.setHeadsUpIsVisible();
-                    }
+                if (userUnPinned
+                        && headsUpEntry.mEntry != null
+                        && headsUpEntry.mEntry.mustStayOnScreen()) {
+                    headsUpEntry.mEntry.setHeadsUpIsVisible();
                 }
             };
             mAvalancheController.delete(headsUpEntry, runnable, "unpinAll");
@@ -989,7 +1024,7 @@ public class HeadsUpManagerImpl
     @Override
     public void setRemoteInputActive(
             @NonNull NotificationEntry entry, boolean remoteInputActive) {
-        HeadsUpEntry headsUpEntry = getHeadsUpEntryPhone(entry.getKey());
+        HeadsUpEntry headsUpEntry = mHeadsUpEntryMap.get(entry.getKey());
         if (headsUpEntry != null && headsUpEntry.mRemoteInputActive != remoteInputActive) {
             headsUpEntry.mRemoteInputActive = remoteInputActive;
             if (ExpandHeadsUpOnInlineReply.isEnabled() && remoteInputActive) {
@@ -1000,13 +1035,8 @@ public class HeadsUpManagerImpl
             } else {
                 headsUpEntry.updateEntry(false /* updatePostTime */, "setRemoteInputActive(false)");
             }
-            onEntryUpdated(headsUpEntry);
+            updateTopHeadsUpFlow();
         }
-    }
-
-    @Nullable
-    private HeadsUpEntry getHeadsUpEntryPhone(@NonNull String key) {
-        return mHeadsUpEntryMap.get(key);
     }
 
     @Override
@@ -1036,8 +1066,9 @@ public class HeadsUpManagerImpl
         }
     }
 
+    @NonNull
     @Override
-    public boolean isTrackingHeadsUp() {
+    public StateFlow<Boolean> isTrackingHeadsUp() {
         return mTrackingHeadsUp;
     }
 
@@ -1063,7 +1094,23 @@ public class HeadsUpManagerImpl
      * Set an entry to be expanded and therefore stick in the heads up area if it's pinned
      * until it's collapsed again.
      */
+    @Override
+    public void setExpanded(@NonNull String entryKey, @NonNull ExpandableNotificationRow row,
+            boolean expanded) {
+        NotificationBundleUi.unsafeAssertInNewMode();
+        HeadsUpEntry headsUpEntry = getHeadsUpEntry(entryKey);
+        if (headsUpEntry != null && row.getPinnedStatus().isPinned()) {
+            headsUpEntry.setExpanded(expanded);
+        }
+    }
+
+    /**
+     * Set an entry to be expanded and therefore stick in the heads up area if it's pinned
+     * until it's collapsed again.
+     */
+    @Override
     public void setExpanded(@NonNull NotificationEntry entry, boolean expanded) {
+        NotificationBundleUi.assertInLegacyMode();
         HeadsUpEntry headsUpEntry = getHeadsUpEntry(entry.getKey());
         if (headsUpEntry != null && entry.isRowPinned()) {
             headsUpEntry.setExpanded(expanded);
@@ -1076,11 +1123,11 @@ public class HeadsUpManagerImpl
      *
      * @param entry the entry that might be indirectly removed by the user's action
      *
-     * @see HeadsUpCoordinator#mActionPressListener
+     * @see HeadsUpCoordinator.mActionPressListener
      * @see #canRemoveImmediately(String)
      */
-    public void setUserActionMayIndirectlyRemove(@NonNull NotificationEntry entry) {
-        HeadsUpEntry headsUpEntry = getHeadsUpEntry(entry.getKey());
+    public void setUserActionMayIndirectlyRemove(@NonNull String entryKey) {
+        HeadsUpEntry headsUpEntry = getHeadsUpEntry(entryKey);
         if (headsUpEntry != null) {
             headsUpEntry.mUserActionMayIndirectlyRemove = true;
         }
@@ -1100,7 +1147,7 @@ public class HeadsUpManagerImpl
             return true;
         }
 
-        HeadsUpEntry headsUpEntry = getHeadsUpEntryPhone(key);
+        HeadsUpEntry headsUpEntry = mHeadsUpEntryMap.get(key);
         HeadsUpEntry topEntry = getTopHeadsUpEntryPhone();
 
         if (headsUpEntry == null || headsUpEntry != topEntry) {
@@ -1115,8 +1162,8 @@ public class HeadsUpManagerImpl
     }
 
     /**
-     * @param key
-     * @return true if the entry is (pinned and expanded) or (has an active remote input)
+     * @return true if the entry with the given key is (pinned and expanded) or (has an active
+     * remote input)
      */
     @Override
     public boolean isSticky(String key) {
@@ -1128,7 +1175,8 @@ public class HeadsUpManagerImpl
     }
 
     @NonNull
-    protected HeadsUpEntry createHeadsUpEntry(NotificationEntry entry) {
+    @VisibleForTesting
+    HeadsUpEntry createHeadsUpEntry(NotificationEntry entry) {
         if (NotificationThrottleHun.isEnabled()) {
             return new HeadsUpEntry(entry);
         } else {
@@ -1152,7 +1200,7 @@ public class HeadsUpManagerImpl
     }
 
     @VisibleForTesting
-    public final OnReorderingAllowedListener mOnReorderingAllowedListener = () -> {
+    final OnReorderingAllowedListener mOnReorderingAllowedListener = () -> {
         if (NotificationThrottleHun.isEnabled()) {
             mAvalancheController.setEnableAtRuntime(true);
             if (mEntriesToRemoveWhenReorderingAllowed.isEmpty()) {
@@ -1229,20 +1277,28 @@ public class HeadsUpManagerImpl
         public boolean mRemoteInputActive;
         public boolean mUserActionMayIndirectlyRemove;
 
-        protected boolean mExpanded;
-        protected boolean mWasUnpinned;
+        private boolean mExpanded;
+        @VisibleForTesting
+        boolean mWasUnpinned;
 
         @Nullable public NotificationEntry mEntry;
         public long mPostTime;
         public long mEarliestRemovalTime;
 
-        @Nullable protected Runnable mRemoveRunnable;
+        @Nullable private Runnable mRemoveRunnable;
 
         @Nullable private Runnable mCancelRemoveRunnable;
 
         private boolean mGutsShownPinned;
+        /** The *current* pinned status of this HUN. */
         private final MutableStateFlow<PinnedStatus> mPinnedStatus =
                 StateFlowKt.MutableStateFlow(PinnedStatus.NotPinned);
+
+        /**
+         * The *requested* pinned status of this HUN. {@link AvalancheController} uses this value to
+         * know if the current HUN needs to be removed so that a pinned-by-user HUN can show.
+         */
+        private PinnedStatus mRequestedPinnedStatus = PinnedStatus.NotPinned;
 
         /**
          * If the time this entry has been on was extended
@@ -1272,7 +1328,6 @@ public class HeadsUpManagerImpl
         }
 
         private NotificationEntry requireEntry() {
-            /* check if */ SceneContainerFlag.isUnexpectedlyInLegacyMode();
             return Objects.requireNonNull(mEntry);
         }
 
@@ -1288,7 +1343,7 @@ public class HeadsUpManagerImpl
             setEntry(entry, createRemoveRunnable(entry));
         }
 
-        protected void setEntry(
+        private void setEntry(
                 @NonNull final NotificationEntry entry,
                 @Nullable Runnable removeRunnable) {
             mEntry = entry;
@@ -1305,11 +1360,22 @@ public class HeadsUpManagerImpl
             }
         }
 
-        protected boolean isRowPinned() {
-            return mEntry != null && mEntry.isRowPinned();
+        /** Sets what pinned status this HUN is requesting. */
+        void setRequestedPinnedStatus(PinnedStatus pinnedStatus) {
+            if (!StatusBarNotifChips.isEnabled() && pinnedStatus == PinnedStatus.PinnedByUser) {
+                Log.w(TAG, "PinnedByUser status not allowed if StatusBarNotifChips is disabled");
+                mRequestedPinnedStatus = PinnedStatus.NotPinned;
+            } else {
+                mRequestedPinnedStatus = pinnedStatus;
+            }
         }
 
-        protected void setRowPinnedStatus(PinnedStatus pinnedStatus) {
+        PinnedStatus getRequestedPinnedStatus() {
+            return mRequestedPinnedStatus;
+        }
+
+        @VisibleForTesting
+        void setRowPinnedStatus(PinnedStatus pinnedStatus) {
             if (mEntry != null) mEntry.setRowPinnedStatus(pinnedStatus);
             mPinnedStatus.setValue(pinnedStatus);
         }
@@ -1317,7 +1383,7 @@ public class HeadsUpManagerImpl
         /**
          * An interface that returns the amount of time left this HUN should show.
          */
-        interface FinishTimeUpdater {
+        private interface FinishTimeUpdater {
             long updateAndGetTimeRemaining();
         }
 
@@ -1337,18 +1403,28 @@ public class HeadsUpManagerImpl
         public void updateEntry(boolean updatePostTime, boolean updateEarliestRemovalTime,
                 @Nullable String reason) {
             Runnable runnable = () -> {
+                if (mEntry == null) {
+                    Log.wtf(TAG, "#updateEntry called with null mEntry; returning early");
+                    return;
+                }
                 mLogger.logUpdateEntry(mEntry, updatePostTime, reason);
 
                 final long now = mSystemClock.elapsedRealtime();
                 if (updateEarliestRemovalTime) {
-                    mEarliestRemovalTime = now + mMinimumDisplayTime;
+                    if (StatusBarNotifChips.isEnabled()
+                            && mPinnedStatus.getValue() == PinnedStatus.PinnedByUser) {
+                        mEarliestRemovalTime = now + mMinimumDisplayTimeForUserInitiated;
+                    } else {
+                        mEarliestRemovalTime = now + mMinimumDisplayTimeDefault;
+                    }
                 }
 
                 if (updatePostTime) {
                     mPostTime = Math.max(mPostTime, now);
                 }
             };
-            mAvalancheController.update(this, runnable, "updateEntry (updatePostTime)");
+            mAvalancheController.update(this, runnable, "updateEntry reason:"
+                    + reason + " updatePostTime:" + updatePostTime);
 
             if (isSticky()) {
                 cancelAutoRemovalCallbacks("updateEntry (sticky)");
@@ -1356,25 +1432,38 @@ public class HeadsUpManagerImpl
             }
 
             FinishTimeUpdater finishTimeCalculator = () -> {
-                final long finishTime = calculateFinishTime();
+                RemainingDuration remainingDuration =
+                        mAvalancheController.getDuration(this, mAutoDismissTime);
+
+                if (remainingDuration instanceof RemainingDuration.HideImmediately) {
+                    /* Check if */ StatusBarNotifChips.isUnexpectedlyInLegacyMode();
+                    return 0;
+                }
+
+                int remainingTimeoutMs;
+                if (isStickyForSomeTime()) {
+                    remainingTimeoutMs = mStickyForSomeTimeAutoDismissTime;
+                } else {
+                    remainingTimeoutMs =
+                            ((RemainingDuration.UpdatedDuration) remainingDuration).getDuration();
+                }
+                final long duration = getRecommendedHeadsUpTimeoutMs(remainingTimeoutMs);
+                final long timeoutTimestamp =
+                        mPostTime + duration + (extended ? mExtensionTime : 0);
+
                 final long now = mSystemClock.elapsedRealtime();
-                final long timeLeft = NotificationThrottleHun.isEnabled()
-                        ? Math.max(finishTime, mEarliestRemovalTime) - now
-                        : Math.max(finishTime - now, mMinimumDisplayTime);
-                return timeLeft;
+                return NotificationThrottleHun.isEnabled()
+                        ? Math.max(timeoutTimestamp, mEarliestRemovalTime) - now
+                        : Math.max(timeoutTimestamp - now, mMinimumDisplayTimeDefault);
             };
             scheduleAutoRemovalCallback(finishTimeCalculator, "updateEntry (not sticky)");
 
             // Notify the manager, that the posted time has changed.
-            onEntryUpdated(this);
+            updateTopHeadsUpFlow();
 
-            if (mEntriesToRemoveAfterExpand.contains(mEntry)) {
-                mEntriesToRemoveAfterExpand.remove(mEntry);
-            }
+            mEntriesToRemoveAfterExpand.remove(mEntry);
             if (!NotificationThrottleHun.isEnabled()) {
-                if (mEntriesToRemoveWhenReorderingAllowed.contains(mEntry)) {
-                    mEntriesToRemoveWhenReorderingAllowed.remove(mEntry);
-                }
+                mEntriesToRemoveWhenReorderingAllowed.remove(mEntry);
             }
         }
 
@@ -1403,7 +1492,12 @@ public class HeadsUpManagerImpl
                 }
             }
 
-            return (mEntry.isRowPinned() && mExpanded)
+            // Promoted notifications are always shown as expanded, and we don't want them to ever
+            // be sticky.
+            boolean isStickyDueToExpansion =
+                    mEntry.isRowPinned() && mExpanded && !mEntry.isPromotedOngoing();
+
+            return isStickyDueToExpansion
                     || mRemoteInputActive
                     || hasFullScreenIntent(mEntry);
         }
@@ -1495,8 +1589,7 @@ public class HeadsUpManagerImpl
         @Override
         public boolean equals(@Nullable Object o) {
             if (this == o) return true;
-            if (o == null || !(o instanceof HeadsUpEntry)) return false;
-            HeadsUpEntry otherHeadsUpEntry = (HeadsUpEntry) o;
+            if (!(o instanceof HeadsUpEntry otherHeadsUpEntry)) return false;
             if (mEntry != null && otherHeadsUpEntry.mEntry != null) {
                 return mEntry.getKey().equals(otherHeadsUpEntry.mEntry.getKey());
             }
@@ -1560,10 +1653,13 @@ public class HeadsUpManagerImpl
             }
         }
 
-        public void scheduleAutoRemovalCallback(FinishTimeUpdater finishTimeCalculator,
+        private void scheduleAutoRemovalCallback(FinishTimeUpdater finishTimeCalculator,
                 @NonNull String reason) {
-
-            mLogger.logAutoRemoveRequest(this.mEntry, reason);
+            if (mEntry == null) {
+                Log.wtf(TAG, "#scheduleAutoRemovalCallback with null mEntry; returning early");
+                return;
+            }
+            mLogger.logAutoRemoveRequest(mEntry, reason);
             Runnable runnable = () -> {
                 long delayMs = finishTimeCalculator.updateAndGetTimeRemaining();
 
@@ -1603,16 +1699,14 @@ public class HeadsUpManagerImpl
         public void removeAsSoonAsPossible() {
             if (mRemoveRunnable != null) {
 
-                FinishTimeUpdater finishTimeCalculator = () -> {
-                    final long timeLeft = mEarliestRemovalTime - mSystemClock.elapsedRealtime();
-                    return timeLeft;
-                };
+                FinishTimeUpdater finishTimeCalculator = () ->
+                        mEarliestRemovalTime - mSystemClock.elapsedRealtime();
                 scheduleAutoRemovalCallback(finishTimeCalculator, "removeAsSoonAsPossible");
             }
         }
 
         /** Creates a runnable to remove this notification from the alerting entries. */
-        protected Runnable createRemoveRunnable(NotificationEntry entry) {
+        private Runnable createRemoveRunnable(NotificationEntry entry) {
             return () -> {
                 if (!NotificationThrottleHun.isEnabled()
                         && !mVisualStabilityProvider.isReorderingAllowed()
@@ -1622,7 +1716,7 @@ public class HeadsUpManagerImpl
                     mEntriesToRemoveWhenReorderingAllowed.add(entry);
                     mVisualStabilityProvider.addTemporaryReorderingAllowedListener(
                             mOnReorderingAllowedListener);
-                } else if (mTrackingHeadsUp) {
+                } else if (mTrackingHeadsUp.getValue()) {
                     mEntriesToRemoveAfterExpand.add(entry);
                     mLogger.logRemoveEntryAfterExpand(entry);
                 } else if (mVisualStabilityProvider.isReorderingAllowed()
@@ -1636,32 +1730,16 @@ public class HeadsUpManagerImpl
          * Calculate what the post time of a notification is at some current time.
          * @return the post time
          */
-        protected long calculatePostTime() {
+        private long calculatePostTime() {
             // The actual post time will be just after the heads-up really slided in
             return mSystemClock.elapsedRealtime() + mTouchAcceptanceDelay;
         }
 
         /**
-         * @return When the notification should auto-dismiss itself, based on
-         * {@link SystemClock#elapsedRealtime()}
-         */
-        protected long calculateFinishTime() {
-            int requestedTimeOutMs;
-            if (isStickyForSomeTime()) {
-                requestedTimeOutMs = mStickyForSomeTimeAutoDismissTime;
-            } else {
-                requestedTimeOutMs = mAvalancheController.getDurationMs(this, mAutoDismissTime);
-            }
-            final long duration = getRecommendedHeadsUpTimeoutMs(requestedTimeOutMs);
-            return mPostTime + duration + (extended ? mExtensionTime : 0);
-        }
-
-        /**
          * Get user-preferred or default timeout duration. The larger one will be returned.
          * @return milliseconds before auto-dismiss
-         * @param requestedTimeout
          */
-        protected int getRecommendedHeadsUpTimeoutMs(int requestedTimeout) {
+        private int getRecommendedHeadsUpTimeoutMs(int requestedTimeout) {
             return mAccessibilityMgr.getRecommendedTimeoutMillis(
                     requestedTimeout,
                     AccessibilityManager.FLAG_CONTENT_CONTROLS

@@ -16,7 +16,8 @@
 
 package com.android.systemui.statusbar.notification.collection.coordinator
 
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.GroupEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.SortBySectionTimeFlag
@@ -61,6 +62,7 @@ class ConversationCoordinator @Inject constructor(
                         originalGroup == null -> null
                         originalGroup == promoted.parent -> null
                         originalGroup.parent == null -> null
+                        originalGroup !is GroupEntry -> summary.key
                         originalGroup.summary != summary -> null
                         originalGroup.children.any { it.channel == summary.channel } -> null
                         else -> summary.key
@@ -74,7 +76,7 @@ class ConversationCoordinator @Inject constructor(
         override fun shouldPromoteToTopLevel(entry: NotificationEntry): Boolean {
             val shouldPromote = entry.channel?.isImportantConversation == true
             if (shouldPromote) {
-                val summary = entry.parent?.summary
+                val summary = (entry.parent as? GroupEntry)?.summary
                 if (summary != null && entry.channel == summary.channel) {
                     promotedEntriesToSummaryOfSameChannel[entry] = summary
                 }
@@ -85,17 +87,23 @@ class ConversationCoordinator @Inject constructor(
 
     val priorityPeopleSectioner =
             object : NotifSectioner("Priority People", BUCKET_PRIORITY_PEOPLE) {
-                override fun isInSection(entry: ListEntry): Boolean {
+                override fun isInSection(entry: PipelineEntry): Boolean {
+                    if (BundleUtil.isClassified(entry)) {
+                        return false
+                    }
                     return getPeopleType(entry) == TYPE_IMPORTANT_PERSON
                 }
             }
 
     // TODO(b/330193582): Rename to just "People"
     val peopleAlertingSectioner = object : NotifSectioner("People(alerting)", BUCKET_PEOPLE) {
-        override fun isInSection(entry: ListEntry): Boolean  {
+        override fun isInSection(entry: PipelineEntry): Boolean  {
+            if (BundleUtil.isClassified(entry)) {
+                return false
+            }
             if (SortBySectionTimeFlag.isEnabled) {
-                return highPriorityProvider.isHighPriorityConversation(entry)
-                        || isConversation(entry)
+                return (highPriorityProvider.isHighPriorityConversation(entry)
+                        || isConversation(entry))
             } else {
                 return highPriorityProvider.isHighPriorityConversation(entry)
             }
@@ -109,10 +117,13 @@ class ConversationCoordinator @Inject constructor(
     }
 
     val peopleSilentSectioner = object : NotifSectioner("People(silent)", BUCKET_PEOPLE) {
-        // Because the peopleAlertingSectioner is above this one, it will claim all conversations that are alerting.
-        // All remaining conversations must be silent.
-        override fun isInSection(entry: ListEntry): Boolean {
+        // Because the peopleAlertingSectioner is above this one, it will claim all conversations
+        // that are alerting. All remaining conversations must be silent.
+        override fun isInSection(entry: PipelineEntry): Boolean {
             SortBySectionTimeFlag.assertInLegacyMode()
+            if (BundleUtil.isClassified(entry)) {
+                return false
+            }
             return isConversation(entry)
         }
 
@@ -132,17 +143,17 @@ class ConversationCoordinator @Inject constructor(
         pipeline.addOnBeforeRenderListListener(onBeforeRenderListListener)
     }
 
-    private fun isConversation(entry: ListEntry): Boolean =
+    private fun isConversation(entry: PipelineEntry): Boolean =
             getPeopleType(entry) != TYPE_NON_PERSON
 
     @PeopleNotificationType
-    private fun getPeopleType(entry: ListEntry): Int =
+    private fun getPeopleType(entry: PipelineEntry): Int =
             entry.representativeEntry?.let {
                 peopleNotificationIdentifier.getPeopleNotificationType(it)
             } ?: TYPE_NON_PERSON
 
     private val notifComparator: NotifComparator = object : NotifComparator("People") {
-        override fun compare(entry1: ListEntry, entry2: ListEntry): Int {
+        override fun compare(entry1: PipelineEntry, entry2: PipelineEntry): Int {
             val type1 = getPeopleType(entry1)
             val type2 = getPeopleType(entry2)
             return type2.compareTo(type1)

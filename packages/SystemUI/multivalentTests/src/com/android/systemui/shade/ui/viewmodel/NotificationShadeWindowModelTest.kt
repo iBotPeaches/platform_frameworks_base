@@ -32,17 +32,16 @@ import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.domain.interactor.sceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class NotificationShadeWindowModelTest : SysuiTestCase() {
@@ -127,7 +126,7 @@ class NotificationShadeWindowModelTest : SysuiTestCase() {
                     to = KeyguardState.DREAMING,
                     value = 1f,
                     transitionState = TransitionState.FINISHED,
-                ),
+                )
             )
             assertThat(isKeyguardOccluded).isTrue()
 
@@ -156,7 +155,7 @@ class NotificationShadeWindowModelTest : SysuiTestCase() {
                     to = KeyguardState.OCCLUDED,
                     value = 1f,
                     transitionState = TransitionState.FINISHED,
-                ),
+                )
             )
             assertThat(isKeyguardOccluded).isTrue()
         }
@@ -175,7 +174,8 @@ class NotificationShadeWindowModelTest : SysuiTestCase() {
             runCurrent()
             assertThat(bouncerShowing).isFalse()
 
-            transitionState.value = ObservableTransitionState.Idle(Scenes.Bouncer)
+            transitionState.value =
+                ObservableTransitionState.Idle(Scenes.Lockscreen, setOf(Overlays.Bouncer))
             runCurrent()
             assertThat(bouncerShowing).isTrue()
         }
@@ -206,7 +206,7 @@ class NotificationShadeWindowModelTest : SysuiTestCase() {
 
             val transitionState =
                 MutableStateFlow<ObservableTransitionState>(
-                    ObservableTransitionState.Idle(Scenes.Bouncer)
+                    ObservableTransitionState.Idle(Scenes.Lockscreen, setOf(Overlays.Bouncer))
                 )
             kosmos.sceneInteractor.setTransitionState(transitionState)
             runCurrent()
@@ -221,7 +221,8 @@ class NotificationShadeWindowModelTest : SysuiTestCase() {
                 AuthenticationMethodModel.Password
             )
             // go back to bouncer
-            transitionState.value = ObservableTransitionState.Idle(Scenes.Bouncer)
+            transitionState.value =
+                ObservableTransitionState.Idle(Scenes.Lockscreen, setOf(Overlays.Bouncer))
             runCurrent()
             assertThat(bouncerRequiresIme).isTrue()
         }

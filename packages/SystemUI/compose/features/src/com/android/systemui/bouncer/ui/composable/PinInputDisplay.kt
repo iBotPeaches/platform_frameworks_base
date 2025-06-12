@@ -35,7 +35,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
@@ -83,10 +83,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 @Composable
-fun PinInputDisplay(
-    viewModel: PinBouncerViewModel,
-    modifier: Modifier = Modifier,
-) {
+fun PinInputDisplay(viewModel: PinBouncerViewModel, modifier: Modifier = Modifier) {
     val hintedPinLength: Int? by viewModel.hintedPinLength.collectAsStateWithLifecycle()
     val shapeAnimations = rememberShapeAnimations(viewModel.pinShapes)
 
@@ -173,7 +170,10 @@ private fun HintingPinInputDisplay(
     LaunchedEffect(Unit) { playAnimation = true }
 
     val dotColor = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(modifier = modifier.heightIn(min = shapeAnimations.shapeSize)) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.height(shapeAnimations.shapeSize),
+    ) {
         pinEntryDrawable.forEachIndexed { index, drawable ->
             // Key the loop by [index] and [drawable], so that updating a shape drawable at the same
             // index will play the new animation (by remembering a new [atEnd]).
@@ -316,17 +316,15 @@ private fun SimArea(viewModel: PinBouncerViewModel) {
     Box(modifier = Modifier.padding(bottom = 20.dp)) {
         // If isLockedEsim is null, then we do not show anything.
         if (isLockedEsim == true) {
-            PlatformOutlinedButton(
-                onClick = { viewModel.onDisableEsimButtonClicked() },
-            ) {
+            PlatformOutlinedButton(onClick = { viewModel.onDisableEsimButtonClicked() }) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_no_sim),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface),
                     )
                     Text(
                         text = stringResource(R.string.disable_carrier_button_text),
@@ -339,15 +337,13 @@ private fun SimArea(viewModel: PinBouncerViewModel) {
             Image(
                 painter = painterResource(id = R.drawable.ic_lockscreen_sim),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(colorResource(id = R.color.background_protected))
+                colorFilter = ColorFilter.tint(colorResource(id = R.color.background_protected)),
             )
         }
     }
 }
 
-private class PinInputRow(
-    val shapeAnimations: ShapeAnimations,
-) {
+private class PinInputRow(val shapeAnimations: ShapeAnimations) {
     private val entries = mutableStateListOf<PinInputEntry>()
 
     @Composable
@@ -359,10 +355,11 @@ private class PinInputRow(
             contentAlignment = Alignment.Center,
         ) {
             Row(
-                modifier
-                    .heightIn(min = shapeAnimations.shapeSize)
-                    // Pins overflowing horizontally should still be shown as scrolling.
-                    .wrapContentSize(unbounded = true)
+                verticalAlignment = Alignment.CenterVertically,
+                modifier =
+                    Modifier.height(shapeAnimations.shapeSize)
+                        // Pins overflowing horizontally should still be shown as scrolling.
+                        .wrapContentSize(unbounded = true),
             ) {
                 entries.forEach { entry -> key(entry.digit) { entry.Content() } }
             }
@@ -439,10 +436,7 @@ private class PinInputRow(
     }
 }
 
-private class PinInputEntry(
-    val digit: Digit,
-    val shapeAnimations: ShapeAnimations,
-) {
+private class PinInputEntry(val digit: Digit, val shapeAnimations: ShapeAnimations) {
     private val shape = shapeAnimations.getShapeToDot(digit.sequenceNumber)
     // horizontal space occupied, used to shift contents as individual digits are animated in/out
     private val entryWidth =
@@ -474,7 +468,7 @@ private class PinInputEntry(
     suspend fun animateRemoval() = coroutineScope {
         awaitAll(
             async { entryWidth.animateTo(0.dp, shapeAnimations.inputShiftAnimationSpec) },
-            async { shapeSize.animateTo(0.dp, shapeAnimations.deleteShapeSizeAnimationSpec) }
+            async { shapeSize.animateTo(0.dp, shapeAnimations.deleteShapeSizeAnimationSpec) },
         )
     }
 
@@ -505,7 +499,7 @@ private class PinInputEntry(
                     layout(animatedEntryWidth.roundToPx(), shapeHeight.roundToPx()) {
                         placeable.place(
                             ((animatedEntryWidth - animatedShapeSize) / 2f).roundToPx(),
-                            ((shapeHeight - animatedShapeSize) / 2f).roundToPx()
+                            ((shapeHeight - animatedShapeSize) / 2f).roundToPx(),
                         )
                     }
                 },

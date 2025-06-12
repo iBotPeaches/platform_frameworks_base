@@ -23,7 +23,10 @@ import com.android.systemui.statusbar.notification.collection.notifcollection.Di
  * A holder class for a [NotificationEntry] and an associated [DismissedByUserStats], used by
  * [NotifCollection] for handling dismissal.
  */
-data class EntryWithDismissStats(val entry: NotificationEntry, val stats: DismissedByUserStats) {
+data class EntryWithDismissStats(val entry: NotificationEntry?,
+                                 val stats: DismissedByUserStats,
+                                 val key: String,
+                                 val entryHashCode: Int) {
     /**
      * Creates deep a copy of this object, but with the entry, key and rank updated to correspond to
      * the given entry.
@@ -42,5 +45,7 @@ data class EntryWithDismissStats(val entry: NotificationEntry, val stats: Dismis
                         /* visible= */ false,
                     ),
                 ),
+            key = newEntry.key,
+            entryHashCode = newEntry.hashCode()
         )
 }

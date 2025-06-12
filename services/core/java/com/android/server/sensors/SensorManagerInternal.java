@@ -17,6 +17,7 @@
 package com.android.server.sensors;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.hardware.SensorDirectChannel;
 import android.os.ParcelFileDescriptor;
 
@@ -71,7 +72,7 @@ public abstract class SensorManagerInternal {
     /**
      * Sends an event for the runtime sensor with the given handle to the framework.
      *
-     * Only relevant for sending runtime sensor events. @see #createRuntimeSensor.
+     * <p>Only relevant for sending runtime sensor events. @see #createRuntimeSensor.</p>
      *
      * @param handle The sensor handle.
      * @param type The type of the sensor.
@@ -81,6 +82,21 @@ public abstract class SensorManagerInternal {
      */
     public abstract boolean sendSensorEvent(int handle, int type, long timestampNanos,
             @NonNull float[] values);
+
+    /**
+     * Sends an additional info event for the runtime sensor with the given handle to the framework.
+     *
+     * <p>Only relevant for runtime sensors. @see #createRuntimeSensor.</p>
+     *
+     * @param handle The sensor handle.
+     * @param type The type of payload data.
+     * @param serial The sequence number of this frame for this type.
+     * @param timestampNanos Timestamp of the event.
+     * @param values The payload data represented in float values.
+     * @return Whether the event injection was successful.
+     */
+    public abstract boolean sendSensorAdditionalInfo(int handle, int type, int serial,
+            long timestampNanos, @Nullable float[] values);
 
     /**
      * Listener for proximity sensor state changes.

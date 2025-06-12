@@ -87,6 +87,7 @@
     <string name="NetworkPreferenceSwitchTitle" msgid="1008329951315753038">"মোবাইল নেটওয়ার্কে কানেক্ট করা যাচ্ছে না"</string>
     <string name="NetworkPreferenceSwitchSummary" msgid="2086506181486324860">"পছন্দের নেটওয়ার্ক পরিবর্তন করে দেখুন। অন্য নেটওয়ার্ক বেছে নিতে ট্যাপ করুন।"</string>
     <string name="EmergencyCallWarningTitle" msgid="1615688002899152860">"জরুরি কল করা যাবে না"</string>
+    <string name="emergency_calling_do_not_show_again" msgid="5034171343309733068">"আর দেখতে চাই না"</string>
     <string name="EmergencyCallWarningSummary" msgid="9102799172089265268">"জরুরি কলের জন্য মোবাইল নেটওয়ার্ক থাকতে হবে"</string>
     <string name="notification_channel_network_alert" msgid="4788053066033851841">"সতর্কতা"</string>
     <string name="notification_channel_call_forward" msgid="8230490317314272406">"কল ফরওয়ার্ড করা"</string>
@@ -268,6 +269,7 @@
     <string name="global_action_bug_report" msgid="5127867163044170003">"ত্রুটির প্রতিবেদন"</string>
     <string name="global_action_logout" msgid="6093581310002476511">"সেশন শেষ করুন"</string>
     <string name="global_action_screenshot" msgid="2610053466156478564">"স্ক্রিনশট নিন"</string>
+    <string name="global_action_standby" msgid="6786920589970257642">"স্ট্যান্ডবাই"</string>
     <string name="bugreport_title" msgid="8549990811777373050">"সমস্যার রিপোর্ট"</string>
     <string name="bugreport_message" msgid="5212529146119624326">"এটি একটি ই-মেল মেসেজ পাঠানোর জন্য আপনার ডিভাইসের বর্তমান অবস্থা সম্পর্কে তথ্য সংগ্রহ করবে৷ ত্রুটির প্রতিবেদন শুরুর সময় থেকে এটি পাঠানোর জন্য প্রস্তুত হতে কিছুটা সময় নেবে; অনুগ্রহ করে ধৈর্য রাখুন৷"</string>
     <string name="bugreport_option_interactive_title" msgid="7968287837902871289">"ইন্টারেক্টিভ প্রতিবেদন"</string>
@@ -301,6 +303,7 @@
     <string name="notification_channel_network_alerts" msgid="6312366315654526528">"নেটওয়ার্ক সক্রান্ত অ্যালার্ট"</string>
     <string name="notification_channel_network_available" msgid="6083697929214165169">"নেটওয়ার্ক পাওয়া যাচ্ছে"</string>
     <string name="notification_channel_vpn" msgid="1628529026203808999">"VPN এর স্থিতি"</string>
+    <string name="notification_channel_system_time" msgid="1660313368058030441">"সময় এবং টাইম জোন"</string>
     <string name="notification_channel_device_admin" msgid="6384932669406095506">"আপনার আইটি অ্যাডমিনের সতর্কতা"</string>
     <string name="notification_channel_alerts" msgid="5070241039583668427">"সতর্কতা"</string>
     <string name="notification_channel_retail_mode" msgid="3732239154256431213">"খুচরা বিক্রয়ের ডেমো"</string>
@@ -308,6 +311,7 @@
     <string name="notification_channel_heavy_weight_app" msgid="17455756500828043">"অ্যাপ চলছে"</string>
     <string name="notification_channel_foreground_service" msgid="7102189948158885178">"কিছু অ্যাপ ব্যাটারি ব্যবহার করছে"</string>
     <string name="notification_channel_accessibility_magnification" msgid="1707913872219798098">"বড় করে দেখা"</string>
+    <string name="notification_channel_accessibility_hearing_device" msgid="7816963856388758952">"হিয়ারিং ডিভাইস"</string>
     <string name="notification_channel_accessibility_security_policy" msgid="1727787021725251912">"অ্যাক্সেসিবিলিটি সংক্রান্ত ব্যবহার"</string>
     <string name="notification_channel_display" msgid="6905032605735615090">"ডিসপ্লে"</string>
     <string name="foreground_service_app_in_background" msgid="1439289699671273555">"<xliff:g id="APP_NAME">%1$s</xliff:g> অ্যাপটি ব্যাটারি ব্যবহার করছে"</string>
@@ -324,7 +328,7 @@
     <string name="permgroupdesc_contacts" msgid="9163927941244182567">"আপনার পরিচিতিগুলিতে অ্যাক্সেস"</string>
     <string name="permgrouplab_location" msgid="1858277002233964394">"লোকেশন"</string>
     <string name="permgroupdesc_location" msgid="1995955142118450685">"এই ডিভাইসের লোকেশন অ্যাক্সেস"</string>
-    <string name="permgrouplab_calendar" msgid="6426860926123033230">"ক্যালেন্ডার"</string>
+    <string name="permgrouplab_calendar" msgid="6426860926123033230">"Calendar"</string>
     <string name="permgroupdesc_calendar" msgid="6762751063361489379">"আপনার ক্যালেন্ডারে অ্যাক্সেস"</string>
     <string name="permgrouplab_sms" msgid="795737735126084874">"SMS"</string>
     <string name="permgroupdesc_sms" msgid="5726462398070064542">"এসএমএসগুলি পাঠাতে এবং দেখতে"</string>
@@ -350,6 +354,10 @@
     <string name="permgroupdesc_sensors" msgid="2610631290633747752">"আপনার অত্যাবশ্যক লক্ষণগুলির সম্পর্কে সেন্সর ডেটা অ্যাক্সেস করে"</string>
     <string name="permgrouplab_notifications" msgid="5472972361980668884">"বিজ্ঞপ্তি"</string>
     <string name="permgroupdesc_notifications" msgid="4608679556801506580">"বিজ্ঞপ্তি দেখুন"</string>
+    <string name="permgrouplab_xr_tracking" msgid="7418994009794287471">"XR ট্র্যাকিং ডেটা"</string>
+    <string name="permgroupdesc_xr_tracking" msgid="6777198859446500821">"আপনার এবং আপনার চারপাশের পরিবেশ সম্পর্কে XR ডেটা অ্যাক্সেস করুন"</string>
+    <string name="permgrouplab_xr_tracking_sensitive" msgid="1194833982988144536">"সংবেদনশীল XR ট্র্যাকিং ডেটা"</string>
+    <string name="permgroupdesc_xr_tracking_sensitive" msgid="9178027369004805829">"সংবেদনশীল ট্র্যাকিং ডেটা অ্যাক্সেস করুন, যেমন চোখের দৃষ্টি"</string>
     <string name="capability_title_canRetrieveWindowContent" msgid="7554282892101587296">"উইন্ডোর কন্টেন্ট ফিরিয়ে আনুন"</string>
     <string name="capability_desc_canRetrieveWindowContent" msgid="6195610527625237661">"ব্যবহার করছেন এমন একটি উইন্ডোর কন্টেন্ট পরীক্ষা করে৷"</string>
     <string name="capability_title_canRequestTouchExploration" msgid="327598364696316213">"স্পর্শের মাধ্যমে অন্বেষণ করা চালু করুন"</string>
@@ -645,6 +653,22 @@
     <string name="permdesc_imagesWrite" msgid="5195054463269193317">"অ্যাপকে আপনার ফটো সংগ্রহ পরিবর্তন করার অনুমতি দিন।"</string>
     <string name="permlab_mediaLocation" msgid="7368098373378598066">"ডিয়া সংগ্রহ থেকে লোকেশন দেখতে দিন"</string>
     <string name="permdesc_mediaLocation" msgid="597912899423578138">"আপনার মিডিয়া সংগ্রহ থেকে লোকেশন দেখতে অ্যাপকে অনুমতি দিন।"</string>
+    <string name="permlab_eye_tracking_coarse" msgid="7989596289790269059">"আপনার আনুমানিক চোখের দৃষ্টি ট্র্যাক করুন"</string>
+    <string name="permdesc_eye_tracking_coarse" msgid="870510233930553355">"অ্যাপটিকে আপনার আনুমানিক চোখের দৃষ্টি ট্র্যাক করার অনুমতি দেয়।"</string>
+    <string name="permlab_eye_tracking_fine" msgid="6914457357027049512">"কোনদিকে দেখছেন তা ট্র্যাক করুন"</string>
+    <string name="permdesc_eye_tracking_fine" msgid="5788889152304524730">"অ্যাপটিকে আপনার চোখের দৃষ্টি সম্পর্কিত নির্দিষ্ট ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
+    <string name="permlab_face_tracking" msgid="2272048395128283324">"নিজের ফেস ট্র্যাক করুন"</string>
+    <string name="permdesc_face_tracking" msgid="2622783922311211866">"অ্যাপটিকে ফেস ট্র্যাকিং ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
+    <string name="permlab_hand_tracking" msgid="6478233866595566940">"হাত ট্র্যাক করুন"</string>
+    <string name="permdesc_hand_tracking" msgid="8639715900104966456">"অ্যাপটিকে হ্যান্ড ট্র্যাকিং ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
+    <string name="permlab_head_tracking" msgid="1309731456372087270">"আপনার মাথা ট্র্যাক করুন"</string>
+    <string name="permdesc_head_tracking" msgid="231597390513699188">"অ্যাপটিকে হেড ট্র্যাকিং ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
+    <string name="permlab_scene_understanding_coarse" msgid="6518646430502858641">"আপনার চারপাশের পরিবেশ সম্পর্কে বুঝুন"</string>
+    <string name="permdesc_scene_understanding_coarse" msgid="4508880777646198656">"অ্যাপটিকে সরাসরি আপনার চারপাশের পরিবেশ সম্পর্কে ট্র্যাকিং ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
+    <string name="permlab_scene_understanding_fine" msgid="409126403264393251">"সূক্ষ্ম বিশদ বিবরণ সহ আপনার চারপাশের পরিবেশ সম্পর্কে বুঝুন"</string>
+    <string name="permdesc_scene_understanding_fine" msgid="6223368011593524179">"অ্যাপটিকে সরাসরি আপনার চারপাশের পরিবেশ সম্পর্কে সূক্ষ্ম বিবরণ সহ ট্র্যাকিং ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
+    <string name="permlab_xr_tracking_in_background" msgid="7117098718465619023">"ফোরগ্রাউন্ডে না থাকাকালীন XR ডেটা অ্যাক্সেস করুন"</string>
+    <string name="permdesc_xr_tracking_in_background" msgid="939504041387836853">"অ্যাপটিকে ফোরগ্রাউন্ডে না থাকাকালীন XR ডেটা অ্যাক্সেস করার অনুমতি দেয়।"</string>
     <string name="biometric_app_setting_name" msgid="3339209978734534457">"বায়োমেট্রিক্স ব্যবহার করুন"</string>
     <string name="biometric_or_screen_lock_app_setting_name" msgid="5348462421758257752">"বায়োমেট্রিক্স অথবা স্ক্রিন লক ব্যবহার করুন"</string>
     <string name="biometric_dialog_default_title" msgid="55026799173208210">"আপনার পরিচয় যাচাই করুন"</string>
@@ -1405,6 +1429,8 @@
     <string name="install_carrier_app_notification_button" msgid="6257740533102594290">"অ্যাপ ডাউনলোড করুন"</string>
     <string name="carrier_app_notification_title" msgid="5815477368072060250">"নতুন সিম ঢোকানো হয়েছে"</string>
     <string name="carrier_app_notification_text" msgid="6567057546341958637">"এটিকে সেট-আপ করতে আলতো চাপুন"</string>
+    <string name="time_zone_change_notification_title" msgid="5232503069219193218">"আপনার টাইম জোন পরিবর্তন হয়ে গেছে"</string>
+    <string name="time_zone_change_notification_body" msgid="6135793674904665585">"আপনি এখন <xliff:g id="TIME_ZONE_DISPLAY_NAME">%1$s</xliff:g> (<xliff:g id="TIME_ZONE_OFFSET">%2$s</xliff:g>)-এ আছেন"</string>
     <string name="time_picker_dialog_title" msgid="9053376764985220821">"সময় সেট করুন"</string>
     <string name="date_picker_dialog_title" msgid="5030520449243071926">"তারিখ সেট করুন"</string>
     <string name="date_time_set" msgid="4603445265164486816">"সেট করুন"</string>
@@ -1778,6 +1804,11 @@
     <string name="one_handed_mode_feature_name" msgid="2334330034828094891">"এক হাতে ব্যবহার করার মোড"</string>
     <string name="reduce_bright_colors_feature_name" msgid="3222994553174604132">"অতিরিক্ত কম উজ্জ্বলতা"</string>
     <string name="hearing_aids_feature_name" msgid="1125892105105852542">"হিয়ারিং ডিভাইস"</string>
+    <string name="autoclick_feature_name" msgid="8149248738736949630">"অটোক্লিক"</string>
+    <string name="hearing_device_status_disconnected" msgid="497547752953543832">"ডিসকানেক্ট হয়ে গেছে"</string>
+    <string name="hearing_device_status_connected" msgid="2149385149669918764">"কানেক্ট করা হয়েছে"</string>
+    <string name="hearing_device_status_active" msgid="4770378695482566032">"অ্যাক্টিভ"</string>
+    <string name="hearing_device_status_loading" msgid="5717083847663109747">"লোড হচ্ছে"</string>
     <string name="accessibility_shortcut_enabling_service" msgid="5473495203759847687">"ভলিউম কী ধরে ছিলেন। <xliff:g id="SERVICE_NAME">%1$s</xliff:g> চালু করা হয়েছে।"</string>
     <string name="accessibility_shortcut_disabling_service" msgid="8675244165062700619">"ভলিউম কী ধরে ছিলেন। <xliff:g id="SERVICE_NAME">%1$s</xliff:g> বন্ধ করা হয়েছে।"</string>
     <string name="accessibility_shortcut_spoken_feedback" msgid="3760999147597564314">"ভলিউম \'কী\' রিলিজ করুন। <xliff:g id="SERVICE_NAME">%1$s</xliff:g> চালু করুন, দু\'টি ভলিউম \'কী\' আবার প্রেস করে ৩ সেকেন্ড ধরে রাখুন।"</string>
@@ -1788,7 +1819,12 @@
     <string name="accessibility_gesture_instructional_text" msgid="4133877896011098550">"পরের বার এই শর্টকাট ব্যবহার করলে, ফিচারটি চালু হয়ে যাবে। ২টি আঙ্গুল দিয়ে স্ক্রিনের নিচ থেকে উপরের দিকে সোয়াইপ করে দ্রুত ছেড়ে দিন।"</string>
     <string name="accessibility_gesture_3finger_instructional_text" msgid="1124458279366968154">"পরের বার এই শর্টকাট ব্যবহার করলে, ফিচারটি চালু হয়ে যাবে। ৩টি আঙ্গুল দিয়ে স্ক্রিনের নিচ থেকে উপরের দিকে সোয়াইপ করে দ্রুত ছেড়ে দিন।"</string>
     <string name="accessibility_magnification_chooser_text" msgid="1502075582164931596">"বড় করে দেখা"</string>
-    <string name="user_switched" msgid="7249833311585228097">"বর্তমান ব্যবহারকারী <xliff:g id="NAME">%1$s</xliff:g>৷"</string>
+    <string name="hearing_device_switch_phone_mic_notification_title" msgid="6645178038359708836">"ফোনের মাইকে পরিবর্তন করবেন?"</string>
+    <string name="hearing_device_switch_hearing_mic_notification_title" msgid="4612074852145289569">"হিয়ারিং এড মাইকে পরিবর্তন করবেন?"</string>
+    <string name="hearing_device_switch_phone_mic_notification_text" msgid="1332426273666077412">"আরও ভালো সাউন্ডের জন্য অথবা আপনার হিয়ারিং এডের ব্যাটারি যদি কম থাকে। এটি শুধুমাত্র কল চলাকালীন আপনার মাইক পরিবর্তন করে।"</string>
+    <string name="hearing_device_switch_hearing_mic_notification_text" msgid="8288368365767284208">"হ্যান্ডস-ফ্রি কলিংয়ের জন্য আপনার হিয়ারিং এডের মাইক্রোফোন ব্যবহার করতে পারবেন। এটি শুধুমাত্র কল চলাকালীন আপনার মাইক পরিবর্তন করে।"</string>
+    <string name="hearing_device_notification_switch_button" msgid="3619524619430941300">"পরিবর্তন করুন"</string>
+    <string name="hearing_device_notification_settings_button" msgid="6673651052880279178">"সেটিংস"</string>
     <string name="user_switching_message" msgid="1912993630661332336">"<xliff:g id="NAME">%1$s</xliff:g> প্রোফাইলে পাল্টানো হচ্ছে…"</string>
     <string name="user_logging_out_message" msgid="7216437629179710359">"<xliff:g id="NAME">%1$s</xliff:g>কে লগ-আউট করা হচ্ছে..."</string>
     <string name="owner_name" msgid="8713560351570795743">"মালিক"</string>
@@ -1930,7 +1966,7 @@
     <string name="lock_to_app_unlock_pattern" msgid="2694204070499712503">"আনপিন করার আগে আনলক প্যাটার্ন চান"</string>
     <string name="lock_to_app_unlock_password" msgid="9126722403506560473">"আনপিন করার আগে পাসওয়ার্ড চান"</string>
     <string name="package_installed_device_owner" msgid="8684974629306529138">"আপনার অ্যাডমিন ইনস্টল করেছেন।\nঅনুমোদন করা অনুমতি দেখতে সেটিংসে যান"</string>
-    <string name="package_updated_device_owner" msgid="7560272363805506941">"আপনার প্রশাসক আপডেট করেছেন"</string>
+    <string name="package_updated_device_owner" msgid="7770195449213776218">"আপনার অ্যাডমিন আপডেট করেছেন।\nঅনুমোদন করা অনুমতি দেখতে সেটিংসে যান"</string>
     <string name="package_deleted_device_owner" msgid="2292335928930293023">"আপনার প্রশাসক মুছে দিয়েছেন"</string>
     <string name="confirm_battery_saver" msgid="5247976246208245754">"ঠিক আছে"</string>
     <string name="battery_saver_description_with_learn_more" msgid="5444908404021316250">"ব্যাটারি সেভার ডার্ক থিম চালু করে এবং ব্যাকগ্রাউন্ড অ্যাক্টিভিটি, কিছু ভিজ্যুয়াল এফেক্ট, নির্দিষ্ট ফিচার ও কয়েকটি নেটওয়ার্ক কানেকশনের ব্যবহার সীমিত করে বা বন্ধ করে দেয়।"</string>
@@ -2073,6 +2109,9 @@
     <string name="unpin_target" msgid="3963318576590204447">"আনপিন করুন"</string>
     <string name="unpin_specific_target" msgid="3859828252160908146">"<xliff:g id="LABEL">%1$s</xliff:g> অ্যাপ আনপিন করুন"</string>
     <string name="app_info" msgid="6113278084877079851">"অ্যাপের তথ্য"</string>
+    <string name="shortcut_group_a11y_title" msgid="2992150163811583865">"সরাসরি টার্গেট শেয়ার করুন"</string>
+    <string name="suggested_apps_group_a11y_title" msgid="2804876567839501831">"অ্যাপ সাজেশন"</string>
+    <string name="all_apps_group_a11y_title" msgid="7020352520224108745">"অ্যাপ তালিকা"</string>
     <string name="negative_duration" msgid="1938335096972945232">"−<xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="demo_starting_message" msgid="6577581216125805905">"ডেমো শুরু করা হচ্ছে…"</string>
     <string name="demo_restarting_message" msgid="1160053183701746766">"ডিভাইস আবার সেট করা হচ্ছে…"</string>
@@ -2227,6 +2266,20 @@
     <string name="accessibility_system_action_dpad_left_label" msgid="6557647179116479152">"ডিপ্যাড (Dpad)-এর বাঁদিকে"</string>
     <string name="accessibility_system_action_dpad_right_label" msgid="9180196950365804081">"ডিপ্যাড (Dpad)-এর ডানদিকে"</string>
     <string name="accessibility_system_action_dpad_center_label" msgid="8149791419358224893">"ডিপ্যাড (Dpad)-এর মাঝখানে"</string>
+    <string name="accessibility_autoclick_type_settings_panel_title" msgid="7354373370578758696">"অটোক্লিক টাইপ সেটিংস প্যানেল"</string>
+    <string name="accessibility_autoclick_left_click" msgid="2301793352260551080">"বাঁদিকের বোতামে ক্লিক করুন"</string>
+    <string name="accessibility_autoclick_right_click" msgid="4353495816526181293">"মাউসের ডানদিকের বোতামে ক্লিক করুন"</string>
+    <string name="accessibility_autoclick_double_click" msgid="2103826849116176478">"ডবল ক্লিক করুন"</string>
+    <string name="accessibility_autoclick_drag" msgid="1499559489796843224">"টেনে আনুন"</string>
+    <string name="accessibility_autoclick_scroll" msgid="3499385943728726933">"স্ক্রল করুন"</string>
+    <string name="accessibility_autoclick_pause" msgid="3272200156172573568">"পজ করুন"</string>
+    <string name="accessibility_autoclick_position" msgid="2933660969907663545">"পজিশন"</string>
+    <string name="accessibility_autoclick_scroll_up" msgid="2044948780797117443">"উপর দিকে স্ক্রল করুন"</string>
+    <string name="accessibility_autoclick_scroll_down" msgid="3733401063292018116">"নিচে স্ক্রল করুন"</string>
+    <string name="accessibility_autoclick_scroll_left" msgid="8564421367992824198">"বাঁদিকে স্ক্রল করুন"</string>
+    <string name="accessibility_autoclick_scroll_right" msgid="8932417330753984265">"ডানদিকে স্ক্রল করুন"</string>
+    <string name="accessibility_autoclick_scroll_exit" msgid="3788610039146769696">"স্ক্রল মোড থেকে বেরিয়ে আসুন"</string>
+    <string name="accessibility_autoclick_scroll_panel_title" msgid="7120598166296447036">"স্ক্রল প্যানেল"</string>
     <string name="as_app_forced_to_restricted_bucket" msgid="8233871289353898964">"<xliff:g id="PACKAGE_NAME">%1$s</xliff:g> সীমাবদ্ধ গ্রুপে অন্তর্ভুক্ত করা হয়েছে"</string>
     <string name="conversation_single_line_name_display" msgid="8958948312915255999">"<xliff:g id="SENDER_NAME">%1$s</xliff:g>:"</string>
     <string name="conversation_single_line_image_placeholder" msgid="6983271082911936900">"একটি ছবি পাঠানো হয়েছে"</string>
@@ -2434,6 +2487,7 @@
     <string name="profile_label_work_3" msgid="4834572253956798917">"৩য় অফিস"</string>
     <string name="profile_label_test" msgid="9168641926186071947">"পরীক্ষা"</string>
     <string name="profile_label_communal" msgid="8743921499944800427">"কমিউনাল"</string>
+    <string name="profile_label_supervising" msgid="5649312778545745371">"তত্ত্বাবধান করা"</string>
     <string name="accessibility_label_managed_profile" msgid="3366526886209832641">"অফিস প্রোফাইল"</string>
     <string name="accessibility_label_private_profile" msgid="1436459319135548969">"প্রাইভেট স্পেস"</string>
     <string name="accessibility_label_clone_profile" msgid="7579118375042398784">"ক্লোন"</string>
@@ -2444,6 +2498,7 @@
     <string name="screen_not_shared_sensitive_content" msgid="7058419185079565001">"নিরাপত্তার জন্য স্ক্রিন শেয়ার করা থেকে লুকানো অ্যাপের কন্টেন্ট"</string>
     <string name="satellite_notification_title" msgid="4026338973463121526">"স্যাটেলাইটের সাথে অটোমেটিক কানেক্ট করা হয়েছে"</string>
     <string name="satellite_notification_summary" msgid="5207364139430767162">"আপনি কোনও মেবাইল বা ওয়াই-ফাই নেটওয়ার্ক ছাড়াই মেসেজ পাঠাতে ও পেতে পারবেন"</string>
+    <string name="satellite_notification_summary_with_data" msgid="6486843676720429049">"আপনি স্যাটেলাইটের মাধ্যমে মেসেজ পাঠাতে ও পেতে এবং সীমিত ডেটা ব্যবহার করতে পারেন"</string>
     <string name="satellite_notification_manual_title" msgid="1097504441849466279">"\'স্যাটেলাইট মেসেজিং\' ব্যবহার করবেন?"</string>
     <string name="satellite_notification_manual_summary" msgid="901206289846283445">"কোনও মেবাইল বা ওয়াই-ফাই নেটওয়ার্ক ছাড়াই মেসেজ পাঠান ও রিসিভ করুন"</string>
     <string name="satellite_notification_open_message" msgid="4149234979688273729">"Messages খুলুন"</string>
@@ -2500,4 +2555,10 @@
     <string name="keyboard_shortcut_group_applications_maps" msgid="7950000659522589471">"ম্যাপ"</string>
     <string name="keyboard_shortcut_group_applications" msgid="3010389163951364798">"অ্যাপ্লিকেশন"</string>
     <string name="fingerprint_loe_notification_msg" msgid="3927447270148854546">"আপনার ফিঙ্গারপ্রিন্ট আর শনাক্ত করা যাবে না। \'ফিঙ্গারপ্রিন্ট আনলক\' ফিচার আবার সেট-আপ করুন।"</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_title" msgid="468577168569874967">"লক থাকাকালীন USB ডিভাইস প্লাগ-ইন করা হয়েছে"</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_text" msgid="6695268246267993166">"Android লক থাকাকালীন USB ডিভাইস প্লাগ-ইন করা হয়েছে। ডিভাইস ব্যবহার করতে, প্রথমে Android আনলক করুন এবং তারপর সেটি ব্যবহার করতে USB ডিভাইস আবার যোগ করুন।"</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_title" msgid="3461195995882871461">"সন্দেহজনক USB অ্যাক্টিভিটি"</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_text" msgid="6537085605929303187">"USB ডেটা সিগন্যাল বন্ধ করা হয়েছে।"</string>
+    <string name="fingerprint_frr_notification_title" msgid="3668331918920659093">"\'ফিঙ্গারপ্রিন্ট আনলক\' ফিচারে সমস্যা হচ্ছে?"</string>
+    <string name="fingerprint_frr_notification_msg" msgid="2162966846624639252">"আপনার আনলক করার অভিজ্ঞতা উন্নত করতে রিভিউ সংক্রান্ত পরামর্শে ট্যাপ করুন"</string>
 </resources>

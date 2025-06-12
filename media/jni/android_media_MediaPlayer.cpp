@@ -1378,7 +1378,7 @@ static jintArray android_media_MediaPlayer_getRoutedDeviceIds(JNIEnv *env, jobje
     }
     jint* values = env->GetIntArrayElements(result, 0);
     for (unsigned int i = 0; i < deviceIds.size(); i++) {
-        values[i++] = static_cast<jint>(deviceIds[i]);
+        values[i] = static_cast<jint>(deviceIds[i]);
     }
     env->ReleaseIntArrayElements(result, values, 0);
     return result;
@@ -1476,8 +1476,6 @@ static int register_android_media_MediaPlayer(JNIEnv *env)
     return AndroidRuntime::registerNativeMethods(env,
                 "android/media/MediaPlayer", gMethods, NELEM(gMethods));
 }
-extern int register_android_media_ImageReader(JNIEnv *env);
-extern int register_android_media_ImageWriter(JNIEnv *env);
 extern int register_android_media_JetPlayer(JNIEnv *env);
 extern int register_android_media_Crypto(JNIEnv *env);
 extern int register_android_media_Drm(JNIEnv *env);
@@ -1490,7 +1488,6 @@ extern int register_android_media_MediaMetadataRetriever(JNIEnv *env);
 extern int register_android_media_MediaMuxer(JNIEnv *env);
 extern int register_android_media_MediaRecorder(JNIEnv *env);
 extern int register_android_media_MediaSync(JNIEnv *env);
-extern int register_android_media_PublicFormatUtils(JNIEnv *env);
 extern int register_android_media_ResampleInputStream(JNIEnv *env);
 extern int register_android_media_MediaProfiles(JNIEnv *env);
 extern int register_android_mtp_MtpDatabase(JNIEnv *env);
@@ -1507,16 +1504,6 @@ jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
         goto bail;
     }
     assert(env != NULL);
-
-    if (register_android_media_ImageWriter(env) != JNI_OK) {
-        ALOGE("ERROR: ImageWriter native registration failed");
-        goto bail;
-    }
-
-    if (register_android_media_ImageReader(env) < 0) {
-        ALOGE("ERROR: ImageReader native registration failed");
-        goto bail;
-    }
 
     if (register_android_media_JetPlayer(env) < 0) {
         ALOGE("ERROR: JetPlayer native registration failed");
@@ -1535,11 +1522,6 @@ jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
 
     if (register_android_media_MediaMetadataRetriever(env) < 0) {
         ALOGE("ERROR: MediaMetadataRetriever native registration failed\n");
-        goto bail;
-    }
-
-    if (register_android_media_PublicFormatUtils(env) < 0) {
-        ALOGE("ERROR: PublicFormatUtils native registration failed\n");
         goto bail;
     }
 

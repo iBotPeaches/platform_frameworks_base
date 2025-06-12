@@ -16,15 +16,22 @@
 
 package com.android.systemui.statusbar.notification.stack
 
+import android.app.Notification
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.flags.DisableSceneContainer
 import com.android.systemui.flags.andSceneContainer
+import com.android.systemui.res.R
 import com.android.systemui.shade.transition.LargeScreenShadeInterpolator
 import com.android.systemui.statusbar.StatusBarState
+import com.android.systemui.statusbar.notification.collection.NotificationEntryBuilder
+import com.android.systemui.statusbar.notification.data.repository.HeadsUpRepository
 import com.android.systemui.statusbar.notification.headsup.AvalancheController
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
@@ -32,6 +39,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyString
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
@@ -47,6 +55,7 @@ class AmbientStateTest(flags: FlagsParameterization) : SysuiTestCase() {
     private val statusBarKeyguardViewManager = mock<StatusBarKeyguardViewManager>()
     private val largeScreenShadeInterpolator = mock<LargeScreenShadeInterpolator>()
     private val avalancheController = mock<AvalancheController>()
+    private val headsupRepository = mock<HeadsUpRepository>()
 
     private lateinit var sut: AmbientState
 
@@ -72,6 +81,7 @@ class AmbientStateTest(flags: FlagsParameterization) : SysuiTestCase() {
                 bypassController,
                 statusBarKeyguardViewManager,
                 largeScreenShadeInterpolator,
+                headsupRepository,
                 avalancheController,
             )
     }
@@ -384,6 +394,36 @@ class AmbientStateTest(flags: FlagsParameterization) : SysuiTestCase() {
         sut.setIsClosing(false)
 
         assertThat(sut.isClosing).isFalse()
+    }
+    // endregion
+
+    // region isPulsing
+    @Test
+    @EnableFlags(NotificationBundleUi.FLAG_NAME)
+    fun isPulsing_key() {
+        whenever(headsupRepository.isHeadsUpEntry(anyString())).thenReturn(true);
+        sut.isPulsing = true
+        assertThat(sut.isPulsing("key")).isTrue()
+
+        whenever(headsupRepository.isHeadsUpEntry(anyString())).thenReturn(false);
+        sut.isPulsing = true
+        assertThat(sut.isPulsing("key")).isFalse()
+    }
+
+    @Test
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    fun isPulsing_entry() {
+        val notification: Notification =
+            Notification.Builder(mContext, "").setSmallIcon(R.drawable.ic_person).build()
+        val entry = NotificationEntryBuilder().setNotification(notification).build()
+
+        sut.isPulsing = true
+        entry.setIsHeadsUpEntry(true)
+        assertThat(sut.isPulsing(entry)).isTrue()
+
+        sut.isPulsing = true
+        entry.setIsHeadsUpEntry(false)
+        assertThat(sut.isPulsing(entry)).isFalse()
     }
     // endregion
 }

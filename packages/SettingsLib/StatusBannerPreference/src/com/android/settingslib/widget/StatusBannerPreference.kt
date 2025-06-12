@@ -28,6 +28,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.android.settingslib.widget.preference.statusbanner.R
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.progressindicator.CircularProgressIndicator
 
 class StatusBannerPreference @JvmOverloads constructor(
     context: Context,
@@ -40,11 +41,15 @@ class StatusBannerPreference @JvmOverloads constructor(
         GENERIC,
         LOW,
         MEDIUM,
-        HIGH
+        HIGH,
+        OFF,
+        LOADING_DETERMINATE, // The loading progress is set by the caller.
+        LOADING_INDETERMINATE // No loading progress. Just loading animation
     }
     var iconLevel: BannerStatus = BannerStatus.GENERIC
         set(value) {
             field = value
+            updateIconTint(value)
             notifyChanged()
         }
     var buttonLevel: BannerStatus = BannerStatus.GENERIC
@@ -58,6 +63,8 @@ class StatusBannerPreference @JvmOverloads constructor(
             notifyChanged()
         }
     private var listener: View.OnClickListener? = null
+
+    private var circularProgressIndicator: CircularProgressIndicator? = null
 
     init {
         layoutResource = R.layout.settingslib_expressive_preference_statusbanner
@@ -75,7 +82,7 @@ class StatusBannerPreference @JvmOverloads constructor(
             if (icon == null) {
                 icon = getIconDrawable(iconLevel)
             } else {
-                icon!!.setTintList(ColorStateList.valueOf(getBackgroundColor(iconLevel)))
+                updateIconTint(iconLevel)
             }
             buttonLevel = getInteger(R.styleable.StatusBanner_buttonLevel, 0).toBannerStatus()
             buttonText = getString(R.styleable.StatusBanner_buttonText) ?: ""
@@ -87,6 +94,9 @@ class StatusBannerPreference @JvmOverloads constructor(
         1 -> BannerStatus.LOW
         2 -> BannerStatus.MEDIUM
         3 -> BannerStatus.HIGH
+        4 -> BannerStatus.OFF
+        5 -> BannerStatus.LOADING_DETERMINATE
+        6 -> BannerStatus.LOADING_INDETERMINATE
         else -> BannerStatus.GENERIC
     }
 
@@ -100,15 +110,53 @@ class StatusBannerPreference @JvmOverloads constructor(
         }
 
         holder.findViewById(android.R.id.icon_frame)?.apply {
-            visibility = if (icon != null) View.VISIBLE else View.GONE
+            visibility =
+                if (
+                    icon != null || iconLevel == BannerStatus.LOADING_DETERMINATE ||
+                    iconLevel == BannerStatus.LOADING_INDETERMINATE
+                )
+                    View.VISIBLE
+                else View.GONE
+        }
+
+        holder.findViewById(android.R.id.icon)?.apply {
+            visibility =
+                if (iconLevel == BannerStatus.LOADING_DETERMINATE ||
+                    iconLevel == BannerStatus.LOADING_INDETERMINATE)
+                    View.GONE
+                else View.VISIBLE
+        }
+
+        circularProgressIndicator = holder.findViewById(R.id.progress_indicator)
+                as? CircularProgressIndicator
+
+        (circularProgressIndicator)?.apply {
+            visibility =
+                if (iconLevel == BannerStatus.LOADING_DETERMINATE)
+                    View.VISIBLE
+                else View.GONE
+        }
+
+        holder.findViewById(R.id.loading_indicator)?.apply {
+            visibility =
+                if (iconLevel == BannerStatus.LOADING_INDETERMINATE)
+                    View.VISIBLE
+                else View.GONE
         }
 
         (holder.findViewById(R.id.status_banner_button) as? MaterialButton)?.apply {
-            setBackgroundColor(getBackgroundColor(buttonLevel))
+            setBackgroundColor(
+                if (buttonLevel == BannerStatus.OFF) getBackgroundColor(BannerStatus.GENERIC)
+                else getBackgroundColor(buttonLevel)
+            )
             text = buttonText
             setOnClickListener(listener)
             visibility = if (listener != null) View.VISIBLE else View.GONE
         }
+    }
+
+    fun getProgressIndicator(): CircularProgressIndicator? {
+        return circularProgressIndicator
     }
 
     /**
@@ -143,6 +191,11 @@ class StatusBannerPreference @JvmOverloads constructor(
                 R.color.settingslib_expressive_color_status_level_high
             )
 
+            BannerStatus.OFF -> ContextCompat.getColor(
+                context,
+                R.color.settingslib_expressive_color_status_level_off
+            )
+
             else -> ContextCompat.getColor(
                 context,
                 com.android.settingslib.widget.theme.R.color.settingslib_materialColorPrimary
@@ -167,6 +220,11 @@ class StatusBannerPreference @JvmOverloads constructor(
                 R.drawable.settingslib_expressive_icon_status_level_high
             )
 
+            BannerStatus.OFF -> ContextCompat.getDrawable(
+                context,
+                R.drawable.settingslib_expressive_icon_status_level_off
+            )
+
             else -> null
         }
     }
@@ -188,10 +246,19 @@ class StatusBannerPreference @JvmOverloads constructor(
                 R.drawable.settingslib_expressive_background_level_high
             )
 
+            // Using the same background drawable for other levels.
             else -> ContextCompat.getDrawable(
                 context,
                 R.drawable.settingslib_expressive_background_generic
             )
         }
+    }
+
+    /**
+     * Sets the icon's tint color based on the icon level. If an icon is not defined, this is a
+     * no-op.
+     */
+    private fun updateIconTint(iconLevel: BannerStatus) {
+        icon?.setTintList(ColorStateList.valueOf(getBackgroundColor(iconLevel)))
     }
 }

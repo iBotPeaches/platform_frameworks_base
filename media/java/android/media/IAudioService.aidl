@@ -32,6 +32,7 @@ import android.media.BluetoothProfileConnectionInfo;
 import android.media.FadeManagerConfiguration;
 import android.media.IAudioDeviceVolumeDispatcher;
 import android.media.IAudioFocusDispatcher;
+import android.media.IAudioManagerNative;
 import android.media.IAudioModeDispatcher;
 import android.media.IAudioRoutesObserver;
 import android.media.IAudioServerStateDispatcher;
@@ -64,6 +65,7 @@ import android.media.audiopolicy.AudioPolicyConfig;
 import android.media.audiopolicy.AudioProductStrategy;
 import android.media.audiopolicy.AudioVolumeGroup;
 import android.media.audiopolicy.IAudioPolicyCallback;
+import android.media.audiopolicy.IAudioVolumeChangeDispatcher;
 import android.media.projection.IMediaProjection;
 import android.net.Uri;
 import android.os.PersistableBundle;
@@ -83,6 +85,7 @@ interface IAudioService {
     // When a method's argument list is changed, BpAudioManager's corresponding serialization code
     // (if any) in frameworks/native/services/audiomanager/IAudioManager.cpp must be updated.
 
+    IAudioManagerNative getNativeInterface();
     int trackPlayer(in PlayerBase.PlayerIdCard pic);
 
     oneway void playerAttributes(in int piid, in AudioAttributes attr);
@@ -363,13 +366,6 @@ interface IAudioService {
     oneway void setCsdAsAFeatureEnabled(boolean csdToggleValue);
 
     @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
-    oneway void setBluetoothAudioDeviceCategory_legacy(in String address, boolean isBle,
-            int deviceCategory);
-
-    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
-    int getBluetoothAudioDeviceCategory_legacy(in String address, boolean isBle);
-
-    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
     boolean setBluetoothAudioDeviceCategory(in String address, int deviceCategory);
 
     @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
@@ -450,6 +446,10 @@ interface IAudioService {
     oneway void unregisterAudioServerStateDispatcher(IAudioServerStateDispatcher asd);
 
     boolean isAudioServerRunning();
+
+    void registerAudioVolumeCallback(IAudioVolumeChangeDispatcher avc);
+
+    oneway void unregisterAudioVolumeCallback(IAudioVolumeChangeDispatcher avc);
 
     int setUidDeviceAffinity(in IAudioPolicyCallback pcb, in int uid, in int[] deviceTypes,
              in String[] deviceAddresses);
@@ -817,4 +817,8 @@ interface IAudioService {
     @EnforcePermission("QUERY_AUDIO_STATE")
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.QUERY_AUDIO_STATE)")
     boolean shouldNotificationSoundPlay(in AudioAttributes aa);
+
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED)")
+    void setEnableHardening(in boolean shouldEnable);
 }

@@ -18,8 +18,8 @@ package com.android.systemui.qs.tiles.impl.onehanded.domain
 
 import android.os.UserHandle
 import com.android.systemui.accessibility.data.repository.OneHandedModeRepository
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.onehanded.domain.model.OneHandedModeTileModel
 import com.android.wm.shell.onehanded.OneHanded
 import javax.inject.Inject
@@ -30,16 +30,16 @@ import kotlinx.coroutines.flow.map
 /** Observes one handed mode state changes providing the [OneHandedModeTileModel]. */
 class OneHandedModeTileDataInteractor
 @Inject
-constructor(
-    private val oneHandedModeRepository: OneHandedModeRepository,
-) : QSTileDataInteractor<OneHandedModeTileModel> {
+constructor(private val oneHandedModeRepository: OneHandedModeRepository) :
+    QSTileDataInteractor<OneHandedModeTileModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<OneHandedModeTileModel> {
         return oneHandedModeRepository.isEnabled(user).map { OneHandedModeTileModel(it) }
     }
+
     override fun availability(user: UserHandle): Flow<Boolean> =
         flowOf(OneHanded.sIsSupportOneHandedMode)
 }

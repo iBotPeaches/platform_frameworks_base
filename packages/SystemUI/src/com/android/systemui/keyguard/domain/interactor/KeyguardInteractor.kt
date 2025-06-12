@@ -13,21 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.keyguard.domain.interactor
 
 import android.app.StatusBarManager
 import android.graphics.Point
 import android.util.Log
 import android.util.MathUtils
-import com.android.app.animation.Interpolators
 import com.android.systemui.bouncer.data.repository.KeyguardBouncerRepository
 import com.android.systemui.common.shared.model.NotificationContainerBounds
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.keyguard.data.repository.KeyguardRepository
 import com.android.systemui.keyguard.shared.model.BiometricUnlockModel
 import com.android.systemui.keyguard.shared.model.CameraLaunchSourceModel
@@ -37,6 +33,7 @@ import com.android.systemui.keyguard.shared.model.DozeStateModel.Companion.isDoz
 import com.android.systemui.keyguard.shared.model.DozeTransitionModel
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState
+import com.android.systemui.keyguard.shared.model.KeyguardState.ALTERNATE_BOUNCER
 import com.android.systemui.keyguard.shared.model.KeyguardState.AOD
 import com.android.systemui.keyguard.shared.model.KeyguardState.DOZING
 import com.android.systemui.keyguard.shared.model.KeyguardState.GLANCEABLE_HUB
@@ -44,7 +41,8 @@ import com.android.systemui.keyguard.shared.model.KeyguardState.GONE
 import com.android.systemui.keyguard.shared.model.KeyguardState.LOCKSCREEN
 import com.android.systemui.keyguard.shared.model.KeyguardState.OCCLUDED
 import com.android.systemui.keyguard.shared.model.StatusBarState
-import com.android.systemui.power.domain.interactor.PowerInteractor
+import com.android.systemui.log.table.TableLogBuffer
+import com.android.systemui.log.table.logDiffsForTable
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
@@ -53,16 +51,18 @@ import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.data.repository.ShadeRepository
 import com.android.systemui.util.kotlin.Utils.Companion.sample as sampleCombine
 import com.android.systemui.util.kotlin.sample
+import com.android.systemui.wallpapers.data.repository.WallpaperFocalAreaRepository
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.combineTransform
 import kotlinx.coroutines.flow.debounce
@@ -84,8 +84,8 @@ class KeyguardInteractor
 @Inject
 constructor(
     private val repository: KeyguardRepository,
-    powerInteractor: PowerInteractor,
     bouncerRepository: KeyguardBouncerRepository,
+    private val wallpaperFocalAreaRepository: WallpaperFocalAreaRepository,
     @ShadeDisplayAware configurationInteractor: ConfigurationInteractor,
     shadeRepository: ShadeRepository,
     private val keyguardTransitionInteractor: KeyguardTransitionInteractor,
@@ -93,6 +93,8 @@ constructor(
     private val fromGoneTransitionInteractor: Provider<FromGoneTransitionInteractor>,
     private val fromLockscreenTransitionInteractor: Provider<FromLockscreenTransitionInteractor>,
     private val fromOccludedTransitionInteractor: Provider<FromOccludedTransitionInteractor>,
+    private val fromAlternateBouncerTransitionInteractor:
+        Provider<FromAlternateBouncerTransitionInteractor>,
     @Application applicationScope: CoroutineScope,
 ) {
     // TODO(b/296118689): move to a repository
@@ -119,13 +121,11 @@ constructor(
                 // We offset the placeholder bounds by the configured top margin to account for
                 // legacy placement behavior within notifications for splitshade.
                 emit(
-                    if (MigrateClocksToBlueprint.isEnabled) {
-                        if (useSplitShade) {
-                            bounds.copy(bottom = bounds.bottom - keyguardSplitShadeTopMargin)
-                        } else {
-                            bounds
-                        }
-                    } else bounds
+                    if (useSplitShade) {
+                        bounds.copy(bottom = bounds.bottom - keyguardSplitShadeTopMargin)
+                    } else {
+                        bounds
+                    }
                 )
             }
             .stateIn(
@@ -200,8 +200,12 @@ constructor(
      * Dozing and dreaming have overlapping events. If the doze state remains in FINISH, it means
      * that doze mode is not running and DREAMING is ok to commence.
      *
-     * Allow a brief moment to prevent rapidly oscillating between true/false signals.
+     * Allow a brief moment to prevent rapidly oscillating between true/false signals. The amount of
+     * time is [IS_ABLE_TO_DREAM_DELAY_MS] - consumers should consider waiting for that long before
+     * examining the value of this flow, to let other consumers have enough time to also see that
+     * same new value.
      */
+    @OptIn(FlowPreview::class)
     val isAbleToDream: Flow<Boolean> =
         dozeTransitionModel
             .flatMapLatest { dozeTransitionModel ->
@@ -212,12 +216,8 @@ constructor(
                     // do not immediately process any dreaming information when exiting AOD. It
                     // should actually be quite strange to leave AOD and then go straight to
                     // DREAMING so this should be fine.
-                    delay(500L)
-                    isDreaming
-                        .sample(powerInteractor.isAwake) { isDreaming, isAwake ->
-                            isDreaming && isAwake
-                        }
-                        .debounce(50L)
+                    delay(IS_ABLE_TO_DREAM_DELAY_MS)
+                    isDreaming.debounce(50L)
                 } else {
                     flowOf(false)
                 }
@@ -247,7 +247,7 @@ constructor(
     val topClippingBounds: Flow<Int?> by lazy {
         combineTransform(
                 keyguardTransitionInteractor
-                    .transitionValue(scene = Scenes.Gone, stateWithoutSceneContainer = GONE)
+                    .transitionValue(content = Scenes.Gone, stateWithoutSceneContainer = GONE)
                     .map { it == 1f }
                     .onStart { emit(false) }
                     .distinctUntilChanged(),
@@ -334,12 +334,12 @@ constructor(
     /** The approximate location on the screen of the face unlock sensor, if one is available. */
     val faceSensorLocation: Flow<Point?> = repository.faceSensorLocation
 
-    @Deprecated("Use the relevant TransitionViewModel")
-    val keyguardAlpha: Flow<Float> = repository.keyguardAlpha
-
     /** Temporary shim for fading out content when the brightness slider is used */
     @Deprecated("SceneContainer uses NotificationStackAppearanceInteractor")
     val panelAlpha: StateFlow<Float> = repository.panelAlpha.asStateFlow()
+
+    /** Sets the zoom out scale of spatial model pushback from e.g. pulling down the shade. */
+    val zoomOut: StateFlow<Float> = repository.zoomOut
 
     /**
      * When the lockscreen can be dismissed, emit an alpha value as the user swipes up. This is
@@ -370,9 +370,11 @@ constructor(
                         currentKeyguardState == LOCKSCREEN &&
                         legacyShadeExpansion != 1f
                 ) {
-                    emit(MathUtils.constrainedMap(0f, 1f, 0.95f, 1f, legacyShadeExpansion))
+                    emit(MathUtils.constrainedMap(0f, 1f, 0.82f, 1f, legacyShadeExpansion))
                 } else if (
-                    (legacyShadeExpansion == 0f || legacyShadeExpansion == 1f) && !onGlanceableHub
+                    !onGlanceableHub &&
+                        isKeyguardDismissible &&
+                        (legacyShadeExpansion == 0f || legacyShadeExpansion == 1f)
                 ) {
                     // Resets alpha state
                     emit(1f)
@@ -400,15 +402,7 @@ constructor(
                         // 0f and 1f need to be ignored in the legacy shade expansion. These can
                         // flip arbitrarily as the legacy shade is reset, and would cause the
                         // translation value to jump around unexpectedly.
-                        emit(
-                            MathUtils.lerp(
-                                translationDistance,
-                                0,
-                                Interpolators.FAST_OUT_LINEAR_IN.getInterpolation(
-                                    legacyShadeExpansion
-                                ),
-                            )
-                        )
+                        emit(MathUtils.lerp(translationDistance, 0, legacyShadeExpansion))
                     }
                 }
             }
@@ -417,8 +411,6 @@ constructor(
                 started = SharingStarted.WhileSubscribed(),
                 initialValue = 0f,
             )
-
-    val clockShouldBeCentered: Flow<Boolean> = repository.clockShouldBeCentered
 
     /** Whether to animate the next doze mode transition. */
     val animateDozingTransitions: Flow<Boolean> by lazy {
@@ -477,20 +469,16 @@ constructor(
         repository.setQuickSettingsVisible(isVisible)
     }
 
-    fun setAlpha(alpha: Float) {
-        repository.setKeyguardAlpha(alpha)
-    }
-
     fun setPanelAlpha(alpha: Float) {
         repository.setPanelAlpha(alpha)
     }
 
-    fun setAnimateDozingTransitions(animate: Boolean) {
-        repository.setAnimateDozingTransitions(animate)
+    fun setZoomOut(zoomOutFromShadeRadius: Float) {
+        repository.setZoomOut(zoomOutFromShadeRadius)
     }
 
-    fun setClockShouldBeCentered(shouldBeCentered: Boolean) {
-        repository.setClockShouldBeCentered(shouldBeCentered)
+    fun setAnimateDozingTransitions(animate: Boolean) {
+        repository.setAnimateDozingTransitions(animate)
     }
 
     fun setLastRootViewTapPosition(point: Point?) {
@@ -519,10 +507,17 @@ constructor(
     }
 
     /** Temporary shim, until [KeyguardWmStateRefactor] is enabled */
+    fun showGlanceableHub(): Boolean {
+        return fromGoneTransitionInteractor.get().showGlanceableHub()
+    }
+
+    /** Temporary shim, until [KeyguardWmStateRefactor] is enabled */
     fun dismissKeyguard() {
         when (keyguardTransitionInteractor.transitionState.value.to) {
             LOCKSCREEN -> fromLockscreenTransitionInteractor.get().dismissKeyguard()
             OCCLUDED -> fromOccludedTransitionInteractor.get().dismissFromOccluded()
+            ALTERNATE_BOUNCER ->
+                fromAlternateBouncerTransitionInteractor.get().dismissAlternateBouncer()
             else -> Log.v(TAG, "Keyguard was dismissed, no direct transition call needed")
         }
     }
@@ -537,7 +532,7 @@ constructor(
     }
 
     fun setShortcutAbsoluteTop(top: Float) {
-        repository.setShortcutAbsoluteTop(top)
+        wallpaperFocalAreaRepository.setShortcutAbsoluteTop(top)
     }
 
     fun setIsKeyguardGoingAway(isGoingAway: Boolean) {
@@ -545,10 +540,26 @@ constructor(
     }
 
     fun setNotificationStackAbsoluteBottom(bottom: Float) {
-        repository.setNotificationStackAbsoluteBottom(bottom)
+        wallpaperFocalAreaRepository.setNotificationStackAbsoluteBottom(bottom)
+    }
+
+    suspend fun hydrateTableLogBuffer(tableLogBuffer: TableLogBuffer) {
+        isDozing
+            .logDiffsForTable(
+                tableLogBuffer = tableLogBuffer,
+                columnName = "isDozing",
+                initialValue = isDozing.value,
+            )
+            .collect()
     }
 
     companion object {
         private const val TAG = "KeyguardInteractor"
+        /**
+         * Amount of time that [KeyguardInteractor.isAbleToDream] is delayed; consumers of that flow
+         * should consider waiting this amount of time before check the value of this flow, to let
+         * other consumers have enough time to see the new value.
+         */
+        const val IS_ABLE_TO_DREAM_DELAY_MS = 500L
     }
 }

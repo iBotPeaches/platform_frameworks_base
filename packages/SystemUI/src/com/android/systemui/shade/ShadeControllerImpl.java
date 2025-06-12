@@ -23,6 +23,7 @@ import android.view.MotionEvent;
 import android.view.ViewTreeObserver;
 import android.view.WindowManagerGlobal;
 
+import com.android.keyguard.KeyguardViewController;
 import com.android.systemui.DejankUtils;
 import com.android.systemui.assist.AssistManager;
 import com.android.systemui.dagger.SysUISingleton;
@@ -35,7 +36,6 @@ import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.NotificationShadeWindowController;
 import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.notification.row.NotificationGutsManager;
-import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.window.StatusBarWindowControllerStore;
@@ -61,7 +61,6 @@ public final class ShadeControllerImpl extends BaseShadeControllerImpl {
     private final KeyguardStateController mKeyguardStateController;
     private final NotificationShadeWindowController mNotificationShadeWindowController;
     private final StatusBarStateController mStatusBarStateController;
-    private final StatusBarKeyguardViewManager mStatusBarKeyguardViewManager;
     private final StatusBarWindowControllerStore mStatusBarWindowControllerStore;
     private final DeviceProvisionedController mDeviceProvisionedController;
 
@@ -82,7 +81,7 @@ public final class ShadeControllerImpl extends BaseShadeControllerImpl {
             WindowRootViewVisibilityInteractor windowRootViewVisibilityInteractor,
             KeyguardStateController keyguardStateController,
             StatusBarStateController statusBarStateController,
-            StatusBarKeyguardViewManager statusBarKeyguardViewManager,
+            KeyguardViewController keyguardViewController,
             StatusBarWindowControllerStore statusBarWindowControllerStore,
             DeviceProvisionedController deviceProvisionedController,
             NotificationShadeWindowController notificationShadeWindowController,
@@ -93,7 +92,7 @@ public final class ShadeControllerImpl extends BaseShadeControllerImpl {
             Lazy<NotificationGutsManager> gutsManager
     ) {
         super(commandQueue,
-                statusBarKeyguardViewManager,
+                keyguardViewController,
                 notificationShadeWindowController,
                 assistManagerLazy);
         SceneContainerFlag.assertInLegacyMode();
@@ -107,7 +106,6 @@ public final class ShadeControllerImpl extends BaseShadeControllerImpl {
         mGutsManager = gutsManager;
         mNotificationShadeWindowController = notificationShadeWindowController;
         mNotifShadeWindowViewController = notificationShadeWindowViewController;
-        mStatusBarKeyguardViewManager = statusBarKeyguardViewManager;
         mDisplayId = displayId;
         mKeyguardStateController = keyguardStateController;
         mAssistManagerLazy = assistManagerLazy;
@@ -396,7 +394,7 @@ public final class ShadeControllerImpl extends BaseShadeControllerImpl {
 
     @Override
     public void collapseShadeForActivityStart() {
-        if (isExpandedVisible() && !mStatusBarKeyguardViewManager.isBouncerShowing()) {
+        if (isExpandedVisible() && !getKeyguardViewController().isBouncerShowing()) {
             animateCollapseShadeForcedDelayed();
         } else {
             // Do it after DismissAction has been processed to conserve the

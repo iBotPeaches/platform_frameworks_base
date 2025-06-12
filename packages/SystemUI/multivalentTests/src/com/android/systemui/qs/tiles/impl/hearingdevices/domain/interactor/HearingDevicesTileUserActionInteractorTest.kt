@@ -22,12 +22,13 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.accessibility.hearingaid.HearingDevicesDialogManager
 import com.android.systemui.accessibility.hearingaid.HearingDevicesUiEventLogger.Companion.LAUNCH_SOURCE_QS_TILE
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerSubject
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.shared.QSSettingsPackageRepository
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.hearingdevices.domain.model.HearingDevicesTileModel
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -40,12 +41,13 @@ import org.mockito.junit.MockitoJUnit
 import org.mockito.junit.MockitoRule
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 @SmallTest
 @EnabledOnRavenwood
 @RunWith(AndroidJUnit4::class)
 class HearingDevicesTileUserActionInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val inputHandler = FakeQSTileIntentUserInputHandler()
 
@@ -53,14 +55,18 @@ class HearingDevicesTileUserActionInteractorTest : SysuiTestCase() {
 
     @Rule @JvmField val mockitoRule: MockitoRule = MockitoJUnit.rule()
     @Mock private lateinit var dialogManager: HearingDevicesDialogManager
+    @Mock private lateinit var settingsPackageRepository: QSSettingsPackageRepository
 
     @Before
     fun setUp() {
+        whenever(settingsPackageRepository.getSettingsPackageName())
+            .thenReturn(SETTINGS_PACKAGE_NAME)
         underTest =
             HearingDevicesTileUserActionInteractor(
                 testScope.coroutineContext,
                 inputHandler,
                 dialogManager,
+                settingsPackageRepository,
             )
     }
 
@@ -91,6 +97,11 @@ class HearingDevicesTileUserActionInteractorTest : SysuiTestCase() {
 
             QSTileIntentUserInputHandlerSubject.assertThat(inputHandler).handledOneIntentInput {
                 assertThat(it.intent.action).isEqualTo(Settings.ACTION_HEARING_DEVICES_SETTINGS)
+                assertThat(it.intent.`package`).isEqualTo(SETTINGS_PACKAGE_NAME)
             }
         }
+
+    companion object {
+        private const val SETTINGS_PACKAGE_NAME = "com.android.settings"
+    }
 }

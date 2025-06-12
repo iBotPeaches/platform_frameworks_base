@@ -35,6 +35,10 @@ class FakeHeadsUpNotificationRepository : HeadsUpRepository {
         orderedHeadsUpRows.map { it.firstOrNull() }.distinctUntilChanged()
     override val activeHeadsUpRows: Flow<Set<HeadsUpRowRepository>> =
         orderedHeadsUpRows.map { it.toSet() }.distinctUntilChanged()
+    override val isTrackingHeadsUp: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+    override fun isHeadsUpEntry(key: String): Boolean =
+        orderedHeadsUpRows.value.any { it.key == key }
 
     override fun setHeadsUpAnimatingAway(animatingAway: Boolean) {
         isHeadsUpAnimatingAway.value = animatingAway

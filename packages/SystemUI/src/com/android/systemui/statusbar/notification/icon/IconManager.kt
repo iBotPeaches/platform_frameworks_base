@@ -90,12 +90,12 @@ constructor(
         ConcurrentHashMap<String, Job>()
 
     fun addIconsUpdateListener(listener: OnIconUpdateRequiredListener) {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
         onIconUpdateRequiredListeners += listener
     }
 
     fun removeIconsUpdateListener(listener: OnIconUpdateRequiredListener) {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
         onIconUpdateRequiredListeners -= listener
     }
 
@@ -140,7 +140,7 @@ constructor(
      */
     fun createSbIconView(context: Context, entry: NotificationEntry): StatusBarIconView =
         traceSection("IconManager.createSbIconView") {
-            StatusBarConnectedDisplays.assertInNewMode()
+            StatusBarConnectedDisplays.unsafeAssertInNewMode()
 
             val sbIcon = iconBuilder.createIconView(entry, context)
             sbIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -162,9 +162,7 @@ constructor(
             val sbIcon = iconBuilder.createIconView(entry)
             sbIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
             val sbChipIcon: StatusBarIconView?
-            if (
-                Flags.statusBarCallChipNotificationIcon() && !StatusBarConnectedDisplays.isEnabled
-            ) {
+            if (!StatusBarConnectedDisplays.isEnabled) {
                 sbChipIcon = iconBuilder.createIconView(entry)
                 sbChipIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
             } else {
@@ -186,7 +184,7 @@ constructor(
 
             try {
                 setIcon(entry, normalIconDescriptor, sbIcon)
-                if (Flags.statusBarCallChipNotificationIcon() && sbChipIcon != null) {
+                if (sbChipIcon != null) {
                     setIcon(entry, normalIconDescriptor, sbChipIcon)
                 }
                 setIcon(entry, sensitiveIconDescriptor, shelfIcon)
@@ -202,7 +200,7 @@ constructor(
     /** Update the [StatusBarIconView] for the given [NotificationEntry]. */
     fun updateSbIcon(entry: NotificationEntry, iconView: StatusBarIconView) =
         traceSection("IconManager.updateSbIcon") {
-            StatusBarConnectedDisplays.assertInNewMode()
+            StatusBarConnectedDisplays.unsafeAssertInNewMode()
 
             val (normalIconDescriptor, _) = getIconDescriptors(entry)
             val notificationContentDescription =
@@ -224,10 +222,6 @@ constructor(
                 return@traceSection
             }
 
-            if (StatusBarConnectedDisplays.isEnabled) {
-                onIconUpdateRequiredListeners.onEach { it.onIconUpdateRequired(entry) }
-            }
-
             if (usingCache && !Flags.notificationsBackgroundIcons()) {
                 Log.wtf(
                     TAG,
@@ -238,6 +232,10 @@ constructor(
             if (!usingCache || !Flags.notificationsBackgroundIcons()) {
                 entry.icons.smallIconDescriptor = null
                 entry.icons.peopleAvatarDescriptor = null
+            }
+
+            if (StatusBarConnectedDisplays.isEnabled) {
+                onIconUpdateRequiredListeners.onEach { it.onIconUpdateRequired(entry) }
             }
 
             val (normalIconDescriptor, sensitiveIconDescriptor) = getIconDescriptors(entry)

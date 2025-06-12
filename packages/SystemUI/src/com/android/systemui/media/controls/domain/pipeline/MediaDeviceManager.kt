@@ -37,6 +37,7 @@ import com.android.settingslib.media.LocalMediaManager
 import com.android.settingslib.media.MediaDevice
 import com.android.settingslib.media.PhoneMediaDevice
 import com.android.settingslib.media.flags.Flags
+import com.android.systemui.Flags.mediaControlsDeviceManagerBackgroundExecution
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.media.controls.shared.MediaControlDrawables
@@ -94,36 +95,21 @@ constructor(
         data: MediaData,
         immediately: Boolean,
         receivedSmartspaceCardLatency: Int,
-        isSsReactivated: Boolean
+        isSsReactivated: Boolean,
     ) {
-        if (oldKey != null && oldKey != key) {
-            val oldEntry = entries.remove(oldKey)
-            oldEntry?.stop()
-        }
-        var entry = entries[key]
-        if (entry == null || entry.token != data.token) {
-            entry?.stop()
-            if (data.device != null) {
-                // If we were already provided device info (e.g. from RCN), keep that and don't
-                // listen for updates, but process once to push updates to listeners
-                processDevice(key, oldKey, data.device)
-                return
-            }
-            val controller = data.token?.let { controllerFactory.create(it) }
-            val localMediaManager =
-                localMediaManagerFactory.create(data.packageName, controller?.sessionToken)
-            val muteAwaitConnectionManager =
-                muteAwaitConnectionManagerFactory.create(localMediaManager)
-            entry = Entry(key, oldKey, controller, localMediaManager, muteAwaitConnectionManager)
-            entries[key] = entry
-            entry.start()
+        if (mediaControlsDeviceManagerBackgroundExecution()) {
+            bgExecutor.execute { onMediaLoaded(key, oldKey, data) }
+        } else {
+            onMediaLoaded(key, oldKey, data)
         }
     }
 
     override fun onMediaDataRemoved(key: String, userInitiated: Boolean) {
-        val token = entries.remove(key)
-        token?.stop()
-        token?.let { listeners.forEach { it.onKeyRemoved(key, userInitiated) } }
+        if (mediaControlsDeviceManagerBackgroundExecution()) {
+            bgExecutor.execute { onMediaRemoved(key, userInitiated) }
+        } else {
+            onMediaRemoved(key, userInitiated)
+        }
     }
 
     fun dump(pw: PrintWriter) {
@@ -139,6 +125,47 @@ constructor(
     @MainThread
     private fun processDevice(key: String, oldKey: String?, device: MediaDeviceData?) {
         listeners.forEach { it.onMediaDeviceChanged(key, oldKey, device) }
+    }
+
+    private fun onMediaLoaded(key: String, oldKey: String?, data: MediaData) {
+        if (oldKey != null && oldKey != key) {
+            val oldEntry = entries.remove(oldKey)
+            oldEntry?.stop()
+        }
+        var entry = entries[key]
+        if (entry == null || entry.token != data.token) {
+            entry?.stop()
+            if (data.device != null) {
+                // If we were already provided device info (e.g. from RCN), keep that and
+                // don't listen for updates, but process once to push updates to listeners
+                if (mediaControlsDeviceManagerBackgroundExecution()) {
+                    fgExecutor.execute { processDevice(key, oldKey, data.device) }
+                } else {
+                    processDevice(key, oldKey, data.device)
+                }
+                return
+            }
+            val controller = data.token?.let { controllerFactory.create(it) }
+            val localMediaManager =
+                localMediaManagerFactory.create(data.packageName, controller?.sessionToken)
+            val muteAwaitConnectionManager =
+                muteAwaitConnectionManagerFactory.create(localMediaManager)
+            entry = Entry(key, oldKey, controller, localMediaManager, muteAwaitConnectionManager)
+            entries[key] = entry
+            entry.start()
+        }
+    }
+
+    private fun onMediaRemoved(key: String, userInitiated: Boolean) {
+        val token = entries.remove(key)
+        token?.stop()
+        if (mediaControlsDeviceManagerBackgroundExecution()) {
+            fgExecutor.execute {
+                token?.let { listeners.forEach { it.onKeyRemoved(key, userInitiated) } }
+            }
+        } else {
+            token?.let { listeners.forEach { it.onKeyRemoved(key, userInitiated) } }
+        }
     }
 
     interface Listener {
@@ -260,7 +287,7 @@ constructor(
         override fun onAboutToConnectDeviceAdded(
             deviceAddress: String,
             deviceName: String,
-            deviceIcon: Drawable?
+            deviceIcon: Drawable?,
         ) {
             aboutToConnectDeviceOverride =
                 AboutToConnectDevice(
@@ -270,8 +297,8 @@ constructor(
                             /* enabled */ enabled = true,
                             /* icon */ deviceIcon,
                             /* name */ deviceName,
-                            /* showBroadcastButton */ showBroadcastButton = false
-                        )
+                            /* showBroadcastButton */ showBroadcastButton = false,
+                        ),
                 )
             updateCurrent()
         }
@@ -292,7 +319,7 @@ constructor(
 
         override fun onBroadcastMetadataChanged(
             broadcastId: Int,
-            metadata: BluetoothLeBroadcastMetadata
+            metadata: BluetoothLeBroadcastMetadata,
         ) {
             logger.logBroadcastMetadataChanged(broadcastId, metadata.toString())
             updateCurrent()
@@ -352,14 +379,14 @@ constructor(
                             //           route.
                             connectedDevice?.copy(
                                 name = it.name ?: connectedDevice.name,
-                                icon = icon
+                                icon = icon,
                             )
                         }
                             ?: MediaDeviceData(
                                 enabled = false,
                                 icon = MediaControlDrawables.getHomeDevices(context),
                                 name = context.getString(R.string.media_seamless_other_device),
-                                showBroadcastButton = false
+                                showBroadcastButton = false,
                             )
                     logger.logRemoteDevice(routingSession?.name, connectedDevice)
                 } else {
@@ -398,7 +425,7 @@ constructor(
                         device?.iconWithoutBackground,
                         name,
                         id = device?.id,
-                        showBroadcastButton = false
+                        showBroadcastButton = false,
                     )
             }
         }
@@ -415,7 +442,7 @@ constructor(
                 icon = iconWithoutBackground,
                 name = name,
                 id = id,
-                showBroadcastButton = false
+                showBroadcastButton = false,
             )
 
         private fun getLeAudioBroadcastDeviceData(): MediaDeviceData {
@@ -425,7 +452,7 @@ constructor(
                     icon = MediaControlDrawables.getLeAudioSharing(context),
                     name = context.getString(R.string.audio_sharing_description),
                     intent = null,
-                    showBroadcastButton = false
+                    showBroadcastButton = false,
                 )
             } else {
                 MediaDeviceData(
@@ -433,7 +460,7 @@ constructor(
                     icon = MediaControlDrawables.getAntenna(context),
                     name = broadcastDescription,
                     intent = null,
-                    showBroadcastButton = true
+                    showBroadcastButton = true,
                 )
             }
         }
@@ -449,7 +476,7 @@ constructor(
                 device,
                 controller,
                 routingSession?.name,
-                selectedRoutes?.firstOrNull()?.name
+                selectedRoutes?.firstOrNull()?.name,
             )
 
             if (controller == null) {
@@ -514,7 +541,7 @@ constructor(
                 MediaDataUtils.getAppLabel(
                     context,
                     localMediaManager.packageName,
-                    context.getString(R.string.bt_le_audio_broadcast_dialog_unknown_name)
+                    context.getString(R.string.bt_le_audio_broadcast_dialog_unknown_name),
                 )
             val isCurrentBroadcastedApp = TextUtils.equals(mediaApp, currentBroadcastedApp)
             if (isCurrentBroadcastedApp) {
@@ -538,5 +565,5 @@ constructor(
  */
 private data class AboutToConnectDevice(
     val fullMediaDevice: MediaDevice? = null,
-    val backupMediaDeviceData: MediaDeviceData? = null
+    val backupMediaDeviceData: MediaDeviceData? = null,
 )

@@ -43,6 +43,7 @@ import com.android.wm.shell.shared.annotations.ShellMainThread;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 /**
  * A Task Listener implementation used only for CUJs and trigger paths that cannot be initiated via
@@ -61,7 +62,7 @@ public class PipTaskListener implements ShellTaskOrganizer.TaskListener,
     private final PipBoundsState mPipBoundsState;
     private final PipBoundsAlgorithm mPipBoundsAlgorithm;
     private final ShellExecutor mMainExecutor;
-    private final PictureInPictureParams mPictureInPictureParams =
+    private PictureInPictureParams mPictureInPictureParams =
             new PictureInPictureParams.Builder().build();
 
     private boolean mWaitingForAspectRatioChange = false;
@@ -91,6 +92,12 @@ public class PipTaskListener implements ShellTaskOrganizer.TaskListener,
             });
         }
         mPipResizeAnimatorSupplier = PipResizeAnimator::new;
+        mPipScheduler.setPipParamsSupplier(this::getPictureInPictureParams);
+        // Reset {@link #mPictureInPictureParams} after exiting PiP. For instance, next Activity
+        // with null aspect ratio would accidentally inherit the aspect ratio from a previous
+        // PiP Activity.
+        mPipBoundsState.addOnPipComponentChangedListener(((oldPipComponent, newPipComponent) ->
+                mPictureInPictureParams = new PictureInPictureParams.Builder().build()));
     }
 
     void setPictureInPictureParams(@Nullable PictureInPictureParams params) {
@@ -105,8 +112,20 @@ public class PipTaskListener implements ShellTaskOrganizer.TaskListener,
                 listener.onActionsChanged(params.getActions(), params.getCloseAction());
             }
         }
-        mPictureInPictureParams.copyOnlySet(params != null ? params
-                : new PictureInPictureParams.Builder().build());
+        // Set the new params but make sure mPictureInPictureParams is not null.
+        mPictureInPictureParams = params == null
+                ? new PictureInPictureParams.Builder().build() : params;
+        logRemoteActions(mPictureInPictureParams);
+    }
+
+    private void logRemoteActions(@android.annotation.NonNull PictureInPictureParams params) {
+        StringJoiner sj = new StringJoiner("|", "[", "]");
+        if (params.hasSetActions()) {
+            params.getActions().forEach((action) -> sj.add(action.getTitle()));
+        }
+
+        ProtoLog.d(ShellProtoLogGroup.WM_SHELL_PICTURE_IN_PICTURE,
+                "PIP remote actions=%s", sj.toString());
     }
 
     /** Add a PipParamsChangedCallback listener. */
@@ -132,11 +151,13 @@ public class PipTaskListener implements ShellTaskOrganizer.TaskListener,
                 "onTaskInfoChanged: %s, state=%s oldParams=%s newParams=%s",
                 taskInfo.topActivity, mPipTransitionState, mPictureInPictureParams, params);
         setPictureInPictureParams(params);
+        // Note: params is nullable while mPictureInPictureParams is never null
         float newAspectRatio = mPictureInPictureParams.getAspectRatioFloat();
-        if (PipUtils.aspectRatioChanged(newAspectRatio, mPipBoundsState.getAspectRatio())) {
-            mPipTransitionState.setOnIdlePipTransitionStateRunnable(() -> {
-                onAspectRatioChanged(newAspectRatio);
-            });
+        if (mPictureInPictureParams.hasSetAspectRatio()
+                && mPipBoundsAlgorithm.isValidPictureInPictureAspectRatio(newAspectRatio)
+                && PipUtils.aspectRatioChanged(newAspectRatio, mPipBoundsState.getAspectRatio())) {
+            mPipTransitionState.setOnIdlePipTransitionStateRunnable(
+                    () -> onAspectRatioChanged(newAspectRatio));
         }
     }
 

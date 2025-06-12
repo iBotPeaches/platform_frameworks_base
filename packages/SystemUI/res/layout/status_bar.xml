@@ -96,17 +96,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/status_bar_system_icons_height"
                         android:layout_gravity="center_vertical"
-                        android:textAppearance="@style/TextAppearance.StatusBar.Clock"
+                        android:textAppearance="@style/TextAppearance.StatusBar.Default.Clock"
                         android:singleLine="true"
                         android:paddingStart="@dimen/status_bar_left_clock_starting_padding"
                         android:paddingEnd="@dimen/status_bar_left_clock_end_padding"
                         android:gravity="center_vertical|start"
                     />
 
-                    <include layout="@layout/ongoing_activity_chip"
+                    <include layout="@layout/ongoing_activity_chip_primary"
                         android:id="@+id/ongoing_activity_chip_primary"/>
 
-                    <include layout="@layout/ongoing_activity_chip"
+                    <include layout="@layout/ongoing_activity_chip_secondary"
                         android:id="@+id/ongoing_activity_chip_secondary"
                         android:visibility="gone"/>
 

@@ -41,14 +41,13 @@ import com.android.systemui.keyguard.data.repository.FakeTrustRepository
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.sceneInteractor
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.testKosmos
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.time.FakeSystemClock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -61,7 +60,6 @@ import org.mockito.Mockito.mock
 import org.mockito.junit.MockitoJUnit
 import org.mockito.junit.MockitoRule
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class DeviceEntrySideFpsOverlayInteractorTest : SysuiTestCase() {
@@ -175,7 +173,7 @@ class DeviceEntrySideFpsOverlayInteractorTest : SysuiTestCase() {
                 collectLastValue(underTest.showIndicatorForDeviceEntry)
             runCurrent()
 
-            updateBouncerScene(
+            updateBouncer(
                 isActive = true,
                 fpsDetectionRunning = true,
                 isUnlockingWithFpAllowed = true,
@@ -201,7 +199,7 @@ class DeviceEntrySideFpsOverlayInteractorTest : SysuiTestCase() {
                 collectLastValue(underTest.showIndicatorForDeviceEntry)
             runCurrent()
 
-            updateBouncerScene(
+            updateBouncer(
                 isActive = false,
                 fpsDetectionRunning = true,
                 isUnlockingWithFpAllowed = true,
@@ -250,7 +248,7 @@ class DeviceEntrySideFpsOverlayInteractorTest : SysuiTestCase() {
                 collectLastValue(underTest.showIndicatorForDeviceEntry)
             runCurrent()
 
-            updateBouncerScene(
+            updateBouncer(
                 isActive = true,
                 fpsDetectionRunning = false,
                 isUnlockingWithFpAllowed = true,
@@ -266,7 +264,7 @@ class DeviceEntrySideFpsOverlayInteractorTest : SysuiTestCase() {
                 collectLastValue(underTest.showIndicatorForDeviceEntry)
             runCurrent()
 
-            updateBouncerScene(
+            updateBouncer(
                 isActive = true,
                 fpsDetectionRunning = true,
                 isUnlockingWithFpAllowed = false,
@@ -351,15 +349,16 @@ class DeviceEntrySideFpsOverlayInteractorTest : SysuiTestCase() {
         )
     }
 
-    private fun TestScope.updateBouncerScene(
+    private fun TestScope.updateBouncer(
         isActive: Boolean,
         fpsDetectionRunning: Boolean,
         isUnlockingWithFpAllowed: Boolean,
     ) {
-        kosmos.sceneInteractor.changeScene(
-            if (isActive) Scenes.Bouncer else Scenes.Lockscreen,
-            "reason",
-        )
+        if (isActive) {
+            kosmos.sceneInteractor.showOverlay(Overlays.Bouncer, "reason")
+        } else {
+            kosmos.sceneInteractor.hideOverlay(Overlays.Bouncer, "reason")
+        }
 
         whenever(keyguardUpdateMonitor.isFingerprintDetectionRunning)
             .thenReturn(fpsDetectionRunning)

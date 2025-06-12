@@ -17,7 +17,6 @@
 package android.service.notification;
 
 import android.annotation.NonNull;
-import android.app.Flags;
 import android.app.NotificationManager.Policy;
 
 /**
@@ -50,7 +49,8 @@ public class ZenAdapters {
                                 : ZenPolicy.PEOPLE_TYPE_NONE)
                 .allowReminders(policy.allowReminders())
                 .allowRepeatCallers(policy.allowRepeatCallers())
-                .allowSystem(policy.allowSystem());
+                .allowSystem(policy.allowSystem())
+                .allowPriorityChannels(policy.allowPriorityChannels());
 
         if (policy.suppressedVisualEffects != Policy.SUPPRESSED_EFFECTS_UNSET) {
             zenPolicyBuilder.showBadges(policy.showBadges())
@@ -60,10 +60,6 @@ public class ZenAdapters {
                     .showLights(policy.showLights())
                     .showPeeking(policy.showPeeking())
                     .showStatusBarIcons(policy.showStatusBarIcons());
-        }
-
-        if (Flags.modesApi()) {
-            zenPolicyBuilder.allowPriorityChannels(policy.allowPriorityChannels());
         }
 
         return zenPolicyBuilder.build();

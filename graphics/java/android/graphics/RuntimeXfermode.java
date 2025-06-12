@@ -39,6 +39,7 @@ import libcore.util.NativeAllocationRegistry;
  * </pre>
  */
 @FlaggedApi(Flags.FLAG_RUNTIME_COLOR_FILTERS_BLENDERS)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class RuntimeXfermode extends Xfermode {
 
     private static class NoImagePreloadHolder {

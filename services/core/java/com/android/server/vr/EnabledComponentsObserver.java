@@ -58,6 +58,7 @@ public class EnabledComponentsObserver implements SettingChangeListener {
 
     private final Object mLock;
     private final Context mContext;
+    private final PackageMonitor mPackageMonitor;
     private final String mSettingName;
     private final String mServiceName;
     private final String mServicePermission;
@@ -78,13 +79,39 @@ public class EnabledComponentsObserver implements SettingChangeListener {
 
     private EnabledComponentsObserver(@NonNull Context context, @NonNull String settingName,
             @NonNull String servicePermission, @NonNull String serviceName, @NonNull Object lock,
-            @NonNull Collection<EnabledComponentChangeListener> listeners) {
+            @NonNull Collection<EnabledComponentChangeListener> listeners,
+            @NonNull Looper looper) {
         mLock = lock;
         mContext = context;
         mSettingName = settingName;
         mServiceName = serviceName;
         mServicePermission = servicePermission;
         mEnabledComponentListeners.addAll(listeners);
+        mPackageMonitor = new PackageMonitor(true) {
+            @Override
+            public void onSomePackagesChanged() {
+                onPackagesChanged();
+            }
+
+            @Override
+            public void onPackageDisappeared(String packageName, int reason) {
+                onPackagesChanged();
+            }
+
+            @Override
+            public void onPackageModified(String packageName) {
+                onPackagesChanged();
+            }
+
+            @Override
+            public boolean onHandleForceStop(Intent intent, String[] packages, int uid,
+                    boolean doit) {
+                onPackagesChanged();
+                return super.onHandleForceStop(intent, packages, uid, doit);
+            }
+        };
+
+        mPackageMonitor.register(context, looper, UserHandle.ALL, true);;
     }
 
     /**
@@ -108,38 +135,7 @@ public class EnabledComponentsObserver implements SettingChangeListener {
         SettingsObserver s = SettingsObserver.build(context, handler, settingName);
 
         final EnabledComponentsObserver o = new EnabledComponentsObserver(context, settingName,
-                servicePermission, serviceName, lock, listeners);
-
-        PackageMonitor packageMonitor = new PackageMonitor(true) {
-            @Override
-            public void onSomePackagesChanged() {
-                o.onPackagesChanged();
-
-            }
-
-            @Override
-            public void onPackageDisappeared(String packageName, int reason) {
-                o.onPackagesChanged();
-
-            }
-
-            @Override
-            public void onPackageModified(String packageName) {
-                o.onPackagesChanged();
-
-            }
-
-            @Override
-            public boolean onHandleForceStop(Intent intent, String[] packages, int uid,
-                    boolean doit) {
-                o.onPackagesChanged();
-
-                return super.onHandleForceStop(intent, packages, uid, doit);
-            }
-        };
-
-        packageMonitor.register(context, looper, UserHandle.ALL, true);
-
+                servicePermission, serviceName, lock, listeners, looper);
         s.addListener(o);
 
         return o;

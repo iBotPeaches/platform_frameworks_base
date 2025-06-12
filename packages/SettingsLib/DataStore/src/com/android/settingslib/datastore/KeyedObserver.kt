@@ -116,8 +116,28 @@ interface KeyedObservable<K> {
 }
 
 /** Delegation of [KeyedObservable]. */
-open class KeyedObservableDelegate<K>(delegate: KeyedObservable<K>) :
-    KeyedObservable<K> by delegate
+interface KeyedObservableDelegate<K> : KeyedObservable<K> {
+
+    /** [KeyedObservable] to delegate. */
+    val keyedObservableDelegate: KeyedObservable<K>
+
+    override fun addObserver(observer: KeyedObserver<K?>, executor: Executor): Boolean =
+        keyedObservableDelegate.addObserver(observer, executor)
+
+    override fun addObserver(key: K, observer: KeyedObserver<K>, executor: Executor): Boolean =
+        keyedObservableDelegate.addObserver(key, observer, executor)
+
+    override fun removeObserver(observer: KeyedObserver<K?>): Boolean =
+        keyedObservableDelegate.removeObserver(observer)
+
+    override fun removeObserver(key: K, observer: KeyedObserver<K>): Boolean =
+        keyedObservableDelegate.removeObserver(key, observer)
+
+    override fun notifyChange(reason: Int): Unit = keyedObservableDelegate.notifyChange(reason)
+
+    override fun notifyChange(key: K, reason: Int): Unit =
+        keyedObservableDelegate.notifyChange(key, reason)
+}
 
 /** A thread safe implementation of [KeyedObservable]. */
 open class KeyedDataObservable<K> : KeyedObservable<K> {

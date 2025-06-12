@@ -19,9 +19,12 @@ package com.android.systemui.keyguard.domain.interactor
 import android.animation.ValueAnimator
 import android.util.MathUtils
 import com.android.app.animation.Interpolators
-import com.android.systemui.Flags.communalSceneKtfRefactor
+import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor
 import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
+import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.keyguard.KeyguardWmStateRefactor
@@ -39,6 +42,10 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.data.repository.ShadeRepository
 import com.android.systemui.util.kotlin.sample
+import java.util.UUID
+import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -47,11 +54,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
-import java.util.UUID
-import javax.inject.Inject
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 @SysUISingleton
 class FromLockscreenTransitionInteractor
@@ -61,13 +63,14 @@ constructor(
     override val internalTransitionInteractor: InternalKeyguardTransitionInteractor,
     transitionInteractor: KeyguardTransitionInteractor,
     @Background private val scope: CoroutineScope,
+    @Application private val applicationScope: CoroutineScope,
     @Background bgDispatcher: CoroutineDispatcher,
     @Main mainDispatcher: CoroutineDispatcher,
     keyguardInteractor: KeyguardInteractor,
     private val shadeRepository: ShadeRepository,
     powerInteractor: PowerInteractor,
-    private val glanceableHubTransitions: GlanceableHubTransitions,
     private val communalSettingsInteractor: CommunalSettingsInteractor,
+    private val communalSceneInteractor: CommunalSceneInteractor,
     private val swipeToDismissInteractor: SwipeToDismissInteractor,
     keyguardOcclusionInteractor: KeyguardOcclusionInteractor,
 ) :
@@ -91,8 +94,8 @@ constructor(
         listenForLockscreenToPrimaryBouncerDragging()
         listenForLockscreenToAlternateBouncer()
         listenForLockscreenTransitionToCamera()
-        if (!communalSceneKtfRefactor()) {
-            listenForLockscreenToGlanceableHub()
+        if (communalSettingsInteractor.isV2FlagEnabled()) {
+            listenForLockscreenToGlanceableHubV2()
         }
     }
 
@@ -174,7 +177,7 @@ constructor(
     private fun listenForLockscreenToPrimaryBouncerDragging() {
         if (SceneContainerFlag.isEnabled) return
         var transitionId: UUID? = null
-        scope.launch("$TAG#listenForLockscreenToPrimaryBouncerDragging") {
+        applicationScope.launch("$TAG#listenForLockscreenToPrimaryBouncerDragging") {
             shadeRepository.legacyShadeExpansion.collect { shadeExpansion ->
                 val statusBarState = keyguardInteractor.statusBarState.value
                 val isKeyguardUnlocked = keyguardInteractor.isKeyguardDismissible.value
@@ -203,7 +206,7 @@ constructor(
                                 id,
                                 // This maps the shadeExpansion to a much faster curve, to match
                                 // the existing logic
-                                1f - MathUtils.constrainedMap(0f, 1f, 0.95f, 1f, shadeExpansion),
+                                1f - MathUtils.constrainedMap(0f, 1f, 0.88f, 1f, shadeExpansion),
                                 nextState,
                             )
                         }
@@ -268,9 +271,7 @@ constructor(
                     it.transitionState == TransitionState.CANCELED &&
                         it.to == KeyguardState.PRIMARY_BOUNCER
                 }
-                .collect {
-                    transitionId = null
-                }
+                .collect { transitionId = null }
         }
     }
 
@@ -352,21 +353,16 @@ constructor(
         }
     }
 
-    /**
-     * Listens for transition from glanceable hub back to lock screen and directly drives the
-     * keyguard transition.
-     */
-    private fun listenForLockscreenToGlanceableHub() {
-        if (SceneContainerFlag.isEnabled) return
-        if (!communalSettingsInteractor.isCommunalFlagEnabled()) {
-            return
-        }
-        scope.launch(context = mainDispatcher) {
-            glanceableHubTransitions.listenForGlanceableHubTransition(
-                transitionOwnerName = TAG,
-                fromState = KeyguardState.LOCKSCREEN,
-                toState = KeyguardState.GLANCEABLE_HUB,
-            )
+    private fun listenForLockscreenToGlanceableHubV2() {
+        scope.launch {
+            communalSettingsInteractor.autoOpenEnabled
+                .filterRelevantKeyguardStateAnd { shouldShow -> shouldShow }
+                .collect {
+                    communalSceneInteractor.changeScene(
+                        newScene = CommunalScenes.Communal,
+                        loggingReason = "lockscreen to communal",
+                    )
+                }
         }
     }
 

@@ -24,8 +24,8 @@ import android.graphics.drawable.Icon
 import android.os.UserHandle
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.qs.tiles.impl.custom.data.entity.CustomTileDefaults
-import com.android.systemui.qs.tiles.impl.di.QSTileScope
+import com.android.systemui.qs.tiles.base.shared.model.QSTileScope
+import com.android.systemui.qs.tiles.impl.custom.data.model.CustomTileDefaults
 import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -58,11 +58,7 @@ interface CustomTileDefaultsRepository {
      *
      * Listen to [defaults] to get the loaded result
      */
-    fun requestNewDefaults(
-        user: UserHandle,
-        componentName: ComponentName,
-        force: Boolean = false,
-    )
+    fun requestNewDefaults(user: UserHandle, componentName: ComponentName, force: Boolean = false)
 }
 
 @QSTileScope
@@ -77,7 +73,7 @@ constructor(
     private val defaultsRequests =
         MutableSharedFlow<DefaultsRequest>(
             replay = 1,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
     private val defaults: SharedFlow<DefaultsResult> =
@@ -106,7 +102,7 @@ constructor(
 
     private suspend fun loadDefaults(
         user: UserHandle,
-        componentName: ComponentName
+        componentName: ComponentName,
     ): CustomTileDefaults =
         withContext(backgroundDispatcher) {
             try {
@@ -120,16 +116,14 @@ constructor(
 
                 CustomTileDefaults.Result(
                     Icon.createWithResource(componentName.packageName, iconRes),
-                    info.loadLabel(userContext.packageManager)
+                    info.loadLabel(userContext.packageManager),
                 )
             } catch (e: PackageManager.NameNotFoundException) {
                 CustomTileDefaults.Error
             }
         }
 
-    private fun ComponentName.getServiceInfo(
-        packageManager: PackageManager,
-    ): ServiceInfo {
+    private fun ComponentName.getServiceInfo(packageManager: PackageManager): ServiceInfo {
         val isSystemApp = packageManager.getApplicationInfo(packageName, 0).isSystemApp
         var flags =
             (PackageManager.MATCH_DIRECT_BOOT_UNAWARE or PackageManager.MATCH_DIRECT_BOOT_AWARE)

@@ -30,6 +30,7 @@ import com.android.systemui.bluetooth.qsdialog.AudioSharingRepositoryEmptyImpl
 import com.android.systemui.bluetooth.qsdialog.AudioSharingRepositoryImpl
 import com.android.systemui.bluetooth.qsdialog.AvailableAudioSharingMediaDeviceItemFactory
 import com.android.systemui.bluetooth.qsdialog.AvailableMediaDeviceItemFactory
+import com.android.systemui.bluetooth.qsdialog.BluetoothTileDialogLogger
 import com.android.systemui.bluetooth.qsdialog.ConnectedDeviceItemFactory
 import com.android.systemui.bluetooth.qsdialog.DeviceItemActionInteractor
 import com.android.systemui.bluetooth.qsdialog.DeviceItemActionInteractorImpl
@@ -53,6 +54,7 @@ interface AudioSharingModule {
         fun provideAudioSharingRepository(
             localBluetoothManager: LocalBluetoothManager?,
             settingsLibAudioSharingRepository: SettingsLibAudioSharingRepository,
+            logger: BluetoothTileDialogLogger,
             @Background backgroundDispatcher: CoroutineDispatcher,
         ): AudioSharingRepository =
             if (
@@ -62,6 +64,7 @@ interface AudioSharingModule {
                 AudioSharingRepositoryImpl(
                     localBluetoothManager,
                     settingsLibAudioSharingRepository,
+                    logger,
                     backgroundDispatcher,
                 )
             } else {

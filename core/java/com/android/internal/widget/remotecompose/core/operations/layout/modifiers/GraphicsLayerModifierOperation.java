@@ -15,10 +15,8 @@
  */
 package com.android.internal.widget.remotecompose.core.operations.layout.modifiers;
 
-import static com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation.FLOAT;
-import static com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation.INT;
-
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 
 import com.android.internal.widget.remotecompose.core.Operation;
 import com.android.internal.widget.remotecompose.core.Operations;
@@ -29,178 +27,231 @@ import com.android.internal.widget.remotecompose.core.documentation.Documentatio
 import com.android.internal.widget.remotecompose.core.operations.layout.AnimatableValue;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.SerializeTags;
 
+import java.util.HashMap;
 import java.util.List;
 
-/**
- * Represents a padding modifier. Padding modifiers can be chained and will impact following
- * modifiers.
- */
+/** Represents a graphics layer modifier. */
 public class GraphicsLayerModifierOperation extends DecoratorModifierOperation {
     private static final int OP_CODE = Operations.MODIFIER_GRAPHICS_LAYER;
     public static final String CLASS_NAME = "GraphicsLayerModifierOperation";
 
-    AnimatableValue mScaleX;
-    AnimatableValue mScaleY;
-    AnimatableValue mRotationX;
-    AnimatableValue mRotationY;
-    AnimatableValue mRotationZ;
-    AnimatableValue mTransformOriginX;
-    AnimatableValue mTransformOriginY;
-    AnimatableValue mShadowElevation;
-    AnimatableValue mAlpha;
-    AnimatableValue mCameraDistance;
-    int mBlendMode;
-    int mSpotShadowColorId;
-    int mAmbientShadowColorId;
-    int mColorFilterId;
-    int mRenderEffectId;
+    public static final int SCALE_X = 0;
+    public static final int SCALE_Y = 1;
+    public static final int ROTATION_X = 2;
+    public static final int ROTATION_Y = 3;
+    public static final int ROTATION_Z = 4;
+    public static final int TRANSFORM_ORIGIN_X = 5;
+    public static final int TRANSFORM_ORIGIN_Y = 6;
+    public static final int TRANSLATION_X = 7;
+    public static final int TRANSLATION_Y = 8;
+    public static final int TRANSLATION_Z = 9;
+    public static final int SHADOW_ELEVATION = 10;
+    public static final int ALPHA = 11;
+    public static final int CAMERA_DISTANCE = 12;
+    public static final int COMPOSITING_STRATEGY = 13;
+    public static final int SPOT_SHADOW_COLOR = 14;
+    public static final int AMBIENT_SHADOW_COLOR = 15;
+    public static final int HAS_BLUR = 16;
+    public static final int BLUR_RADIUS_X = 17;
+    public static final int BLUR_RADIUS_Y = 18;
+    public static final int BLUR_TILE_MODE = 19;
+    public static final int SHAPE = 20;
+    public static final int SHAPE_RADIUS = 21;
 
-    public GraphicsLayerModifierOperation(
-            float scaleX,
-            float scaleY,
-            float rotationX,
-            float rotationY,
-            float rotationZ,
-            float shadowElevation,
-            float transformOriginX,
-            float transformOriginY,
-            float alpha,
-            float cameraDistance,
-            int blendMode,
-            int spotShadowColorId,
-            int ambientShadowColorId,
-            int colorFilterId,
-            int renderEffectId) {
-        mScaleX = new AnimatableValue(scaleX);
-        mScaleY = new AnimatableValue(scaleY);
-        mRotationX = new AnimatableValue(rotationX);
-        mRotationY = new AnimatableValue(rotationY);
-        mRotationZ = new AnimatableValue(rotationZ);
-        mShadowElevation = new AnimatableValue(shadowElevation);
-        mTransformOriginX = new AnimatableValue(transformOriginX);
-        mTransformOriginY = new AnimatableValue(transformOriginY);
-        mAlpha = new AnimatableValue(alpha);
-        mCameraDistance = new AnimatableValue(cameraDistance);
-        mBlendMode = blendMode;
-        mSpotShadowColorId = spotShadowColorId;
-        mAmbientShadowColorId = ambientShadowColorId;
-        mColorFilterId = colorFilterId;
-        mRenderEffectId = renderEffectId;
+    public static final int SHAPE_RECT = 0;
+    public static final int SHAPE_ROUND_RECT = 1;
+    public static final int SHAPE_CIRCLE = 2;
+
+    public static final int TILE_MODE_CLAMP = 0;
+    public static final int TILE_MODE_REPEATED = 1;
+    public static final int TILE_MODE_MIRROR = 2;
+    public static final int TILE_MODE_DECAL = 3;
+
+    /** The object is an integer */
+    private static final short DATA_TYPE_INT = 0;
+
+    /** The object is an float */
+    private static final short DATA_TYPE_FLOAT = 1;
+
+    AttributeValue[] mValues = {
+        new AttributeValue(SCALE_X, "SCALE_X", 1f),
+        new AttributeValue(SCALE_Y, "SCALE_Y", 1f),
+        new AttributeValue(ROTATION_X, "ROTATION_X", 0f),
+        new AttributeValue(ROTATION_Y, "ROTATION_Y", 0f),
+        new AttributeValue(ROTATION_Z, "ROTATION_Z", 0f),
+        new AttributeValue(TRANSFORM_ORIGIN_X, "TRANSFORM_ORIGIN_X", 0f),
+        new AttributeValue(TRANSFORM_ORIGIN_Y, "TRANSFORM_ORIGIN_Y", 0f),
+        new AttributeValue(TRANSLATION_X, "TRANSLATION_X", 0f),
+        new AttributeValue(TRANSLATION_Y, "TRANSLATION_Y", 0f),
+        new AttributeValue(TRANSLATION_Z, "TRANSLATION_Z", 0f),
+        new AttributeValue(SHADOW_ELEVATION, "SHADOW_ELEVATION", 0f),
+        new AttributeValue(ALPHA, "ALPHA", 1f),
+        new AttributeValue(CAMERA_DISTANCE, "CAMERA_DISTANCE", 8f),
+        new AttributeValue(COMPOSITING_STRATEGY, "COMPOSITING_STRATEGY", 0),
+        new AttributeValue(SPOT_SHADOW_COLOR, "SPOT_SHADOW_COLOR", 0),
+        new AttributeValue(AMBIENT_SHADOW_COLOR, "AMBIENT_SHADOW_COLOR", 0),
+        new AttributeValue(HAS_BLUR, "HAS_BLUR", 0),
+        new AttributeValue(BLUR_RADIUS_X, "BLUR_RADIUS_X", 0f),
+        new AttributeValue(BLUR_RADIUS_Y, "BLUR_RADIUS_Y", 0f),
+        new AttributeValue(BLUR_TILE_MODE, "BLUR_TILE_MODE", TILE_MODE_CLAMP),
+        new AttributeValue(SHAPE, "SHAPE", -1),
+        new AttributeValue(SHAPE_RADIUS, "SHAPE_RADIUS", 0f),
+    };
+
+    boolean mHasBlurEffect = false;
+
+    /**
+     * Fill in the hashmap with the attributes values
+     *
+     * @param attributes
+     */
+    public void fillInAttributes(HashMap<Integer, Object> attributes) {
+        for (int i = 0; i < mValues.length; i++) {
+            if (mValues[i].needsToWrite()) {
+                attributes.put(i, mValues[i].getObjectValue());
+            }
+        }
     }
 
-    public float getScaleX() {
-        return mScaleX.getValue();
-    }
+    static final int FLOAT_VALUE = 0;
+    static final int INT_VALUE = 1;
 
-    public float getScaleY() {
-        return mScaleY.getValue();
-    }
+    /** Utility class to manage attributes */
+    static class AttributeValue {
+        String mName;
+        int mId;
+        @Nullable AnimatableValue mAnimatableValue;
+        float mDefaultValue = 0f;
+        int mIntValue = 0;
+        int mIntDefaultValue = 0;
+        int mType = FLOAT_VALUE;
 
-    public float getRotationX() {
-        return mRotationX.getValue();
-    }
+        AttributeValue(int id, String name, float defaultValue) {
+            mId = id;
+            mName = name;
+            mDefaultValue = defaultValue;
+            mType = FLOAT_VALUE;
+        }
 
-    public float getRotationY() {
-        return mRotationY.getValue();
-    }
+        AttributeValue(int id, String name, int defaultValue) {
+            mId = id;
+            mName = name;
+            mIntDefaultValue = defaultValue;
+            mType = INT_VALUE;
+        }
 
-    public float getRotationZ() {
-        return mRotationZ.getValue();
-    }
+        public float getValue() {
+            if (mType == FLOAT_VALUE) {
+                if (mAnimatableValue != null) {
+                    return mAnimatableValue.getValue();
+                }
+                return mDefaultValue;
+            } else {
+                return mIntValue;
+            }
+        }
 
-    public float getShadowElevation() {
-        return mShadowElevation.getValue();
-    }
+        public int getIntValue() {
+            if (mType == FLOAT_VALUE) {
+                if (mAnimatableValue != null) {
+                    return (int) mAnimatableValue.getValue();
+                }
+            } else if (mType == INT_VALUE) {
+                return mIntValue;
+            }
+            return 0;
+        }
 
-    public float getTransformOriginX() {
-        return mTransformOriginX.getValue();
-    }
+        public void evaluate(PaintContext context) {
+            if (mAnimatableValue != null) {
+                mAnimatableValue.evaluate(context);
+            }
+        }
 
-    public float getTransformOriginY() {
-        return mTransformOriginY.getValue();
-    }
+        public boolean needsToWrite() {
+            if (mType == FLOAT_VALUE) {
+                if (mAnimatableValue != null) {
+                    return mAnimatableValue.getValue() != mDefaultValue;
+                }
+                return false;
+            } else if (mType == INT_VALUE) {
+                return mIntValue != mIntDefaultValue;
+            }
+            return false;
+        }
 
-    public float getAlpha() {
-        return mAlpha.getValue();
-    }
+        public void write(WireBuffer buffer) {
+            buffer.writeInt(mId);
+            if (mType == FLOAT_VALUE) {
+                buffer.writeFloat(getValue());
+            } else if (mType == INT_VALUE) {
+                buffer.writeInt(getIntValue());
+            }
+        }
 
-    public float getCameraDistance() {
-        return mCameraDistance.getValue();
-    }
+        public Object getObjectValue() {
+            if (mType == FLOAT_VALUE) {
+                return getValue();
+            }
+            return getIntValue();
+        }
 
-    // TODO: add implementation for blendmode
-    public int getBlendModeId() {
-        return mBlendMode;
-    }
+        public void setValue(float value) {
+            mAnimatableValue = new AnimatableValue(value);
+        }
 
-    // TODO: add implementation for shadow
-    public int getSpotShadowColorId() {
-        return mSpotShadowColorId;
-    }
-
-    public int getAmbientShadowColorId() {
-        return mAmbientShadowColorId;
-    }
-
-    // TODO: add implementation for color filters
-    public int getColorFilterId() {
-        return mColorFilterId;
-    }
-
-    public int getRenderEffectId() {
-        return mRenderEffectId;
+        public void setValue(int value) {
+            mIntValue = value;
+        }
     }
 
     @Override
-    public void write(WireBuffer buffer) {
-        apply(
-                buffer,
-                mScaleX.getValue(),
-                mScaleY.getValue(),
-                mRotationX.getValue(),
-                mRotationY.getValue(),
-                mRotationZ.getValue(),
-                mShadowElevation.getValue(),
-                mTransformOriginX.getValue(),
-                mTransformOriginY.getValue(),
-                mAlpha.getValue(),
-                mCameraDistance.getValue(),
-                mBlendMode,
-                mSpotShadowColorId,
-                mAmbientShadowColorId,
-                mColorFilterId,
-                mRenderEffectId);
+    public void write(@NonNull WireBuffer buffer) {
+        buffer.start(OP_CODE);
+        buffer.writeInt(mValues.length);
+        for (int i = 0; i < mValues.length; i++) {
+            AttributeValue value = mValues[i];
+            if (value.needsToWrite()) {
+                value.write(buffer);
+            }
+        }
     }
 
     @Override
     public void serializeToString(int indent, StringSerializer serializer) {
-        serializer.append(indent, "GRAPHICS_LAYER = [" + mScaleX + ", " + mScaleY + "]");
+        serializer.append(
+                indent,
+                "GRAPHICS_LAYER = ["
+                        + mValues[SCALE_X].getValue()
+                        + ", "
+                        + mValues[SCALE_Y].getValue()
+                        + "]");
     }
 
     @NonNull
     @Override
     public String deepToString(@NonNull String indent) {
-        return (indent != null ? indent : "") + toString();
+        return indent + toString();
     }
 
     @Override
-    public void paint(PaintContext context) {
-        mScaleX.evaluate(context);
-        mScaleY.evaluate(context);
-        mRotationX.evaluate(context);
-        mRotationY.evaluate(context);
-        mRotationZ.evaluate(context);
-        mTransformOriginX.evaluate(context);
-        mTransformOriginY.evaluate(context);
-        mShadowElevation.evaluate(context);
-        mAlpha.evaluate(context);
-        mCameraDistance.evaluate(context);
+    public void paint(@NonNull PaintContext context) {
+        for (int i = 0; i < mValues.length; i++) {
+            AttributeValue v = mValues[i];
+            v.evaluate(context);
+        }
     }
 
     @Override
     public String toString() {
-        return "GraphicsLayerModifierOperation(" + mScaleX + ", " + mScaleY + ")";
+        return "GraphicsLayerModifierOperation("
+                + mValues[SCALE_X].getValue()
+                + ", "
+                + mValues[SCALE_Y].getValue()
+                + ")";
     }
 
     /**
@@ -222,96 +273,122 @@ public class GraphicsLayerModifierOperation extends DecoratorModifierOperation {
         return OP_CODE;
     }
 
-    public static void apply(
-            WireBuffer buffer,
-            float scaleX,
-            float scaleY,
-            float rotationX,
-            float rotationY,
-            float rotationZ,
-            float shadowElevation,
-            float transformOriginX,
-            float transformOriginY,
-            float alpha,
-            float cameraDistance,
-            int blendMode,
-            int spotShadowColorId,
-            int ambientShadowColorId,
-            int colorFilterId,
-            int renderEffectId) {
+    /**
+     * Write the operation to the buffer
+     *
+     * @param buffer a WireBuffer
+     * @param values attributes of the layer
+     */
+    public static void apply(WireBuffer buffer, HashMap<Integer, Object> values) {
         buffer.start(OP_CODE);
-        buffer.writeFloat(scaleX);
-        buffer.writeFloat(scaleY);
-        buffer.writeFloat(rotationX);
-        buffer.writeFloat(rotationY);
-        buffer.writeFloat(rotationZ);
-        buffer.writeFloat(shadowElevation);
-        buffer.writeFloat(transformOriginX);
-        buffer.writeFloat(transformOriginY);
-        buffer.writeFloat(alpha);
-        buffer.writeFloat(cameraDistance);
-        buffer.writeInt(blendMode);
-        buffer.writeInt(spotShadowColorId);
-        buffer.writeInt(ambientShadowColorId);
-        buffer.writeInt(colorFilterId);
-        buffer.writeInt(renderEffectId);
+        int size = values.size();
+        buffer.writeInt(size);
+        for (Integer key : values.keySet()) {
+            Object value = values.get(key);
+            if (value instanceof Integer) {
+                writeIntAttribute(buffer, key, (Integer) value);
+            } else if (value instanceof Float) {
+                writeFloatAttribute(buffer, key, (Float) value);
+            }
+        }
     }
 
+    /**
+     * Utility to write an integer attribute
+     *
+     * @param buffer
+     * @param type
+     * @param value
+     */
+    private static void writeIntAttribute(WireBuffer buffer, int type, int value) {
+        int tag = type | (DATA_TYPE_INT << 10);
+        buffer.writeInt(tag);
+        buffer.writeInt(value);
+    }
+
+    /**
+     * Utility to write a float attribute
+     *
+     * @param buffer
+     * @param type
+     * @param value
+     */
+    private static void writeFloatAttribute(WireBuffer buffer, int type, float value) {
+        int tag = type | (DATA_TYPE_FLOAT << 10);
+        buffer.writeInt(tag);
+        buffer.writeFloat(value);
+    }
+
+    /**
+     * Read the operation from the buffer
+     *
+     * @param buffer a WireBuffer
+     * @param operations the list of operations read so far
+     */
     public static void read(WireBuffer buffer, List<Operation> operations) {
-        float scaleX = buffer.readFloat();
-        float scaleY = buffer.readFloat();
-        float rotationX = buffer.readFloat();
-        float rotationY = buffer.readFloat();
-        float rotationZ = buffer.readFloat();
-        float shadowElevation = buffer.readFloat();
-        float transformOriginX = buffer.readFloat();
-        float transformOriginY = buffer.readFloat();
-        float alpha = buffer.readFloat();
-        float cameraDistance = buffer.readFloat();
-        int blendMode = buffer.readInt();
-        int spotShadowColorId = buffer.readInt();
-        int ambientShadowColorId = buffer.readInt();
-        int colorFilterId = buffer.readInt();
-        int renderEffectId = buffer.readInt();
-        operations.add(
-                new GraphicsLayerModifierOperation(
-                        scaleX,
-                        scaleY,
-                        rotationX,
-                        rotationY,
-                        rotationZ,
-                        shadowElevation,
-                        transformOriginX,
-                        transformOriginY,
-                        alpha,
-                        cameraDistance,
-                        blendMode,
-                        spotShadowColorId,
-                        ambientShadowColorId,
-                        colorFilterId,
-                        renderEffectId));
+        int length = buffer.readInt();
+        GraphicsLayerModifierOperation op = new GraphicsLayerModifierOperation();
+        for (int i = 0; i < length; i++) {
+            op.readAttributeValue(buffer);
+        }
+        operations.add(op);
     }
 
+    /**
+     * Read a single attribute value from the buffer
+     *
+     * @param buffer
+     */
+    private void readAttributeValue(WireBuffer buffer) {
+        int tag = buffer.readInt();
+        int dataType = tag >> 10;
+        int index = (short) (tag & 0x3F);
+        if (index == BLUR_RADIUS_X || index == BLUR_RADIUS_Y) {
+            mHasBlurEffect = true;
+            mValues[HAS_BLUR].setValue(1);
+        }
+        if (dataType == DATA_TYPE_FLOAT) {
+            float value = buffer.readFloat();
+            mValues[index].setValue(value);
+        } else if (dataType == DATA_TYPE_INT) {
+            int value = buffer.readInt();
+            mValues[index].setValue(value);
+        }
+    }
+
+    /**
+     * Populate the documentation with a description of this operation
+     *
+     * @param doc to append the description to.
+     */
     public static void documentation(DocumentationBuilder doc) {
         doc.operation("Modifier Operations", OP_CODE, CLASS_NAME)
-                .description("define the GraphicsLayer Modifier")
-                .field(FLOAT, "scaleX", "")
-                .field(FLOAT, "scaleY", "")
-                .field(FLOAT, "rotationX", "")
-                .field(FLOAT, "rotationY", "")
-                .field(FLOAT, "rotationZ", "")
-                .field(FLOAT, "shadowElevation", "")
-                .field(FLOAT, "transformOriginX", "")
-                .field(FLOAT, "transformOriginY", "")
-                .field(FLOAT, "alpha", "")
-                .field(FLOAT, "cameraDistance", "")
-                .field(INT, "blendMode", "")
-                .field(INT, "spotShadowColorId", "")
-                .field(INT, "ambientShadowColorId", "")
-                .field(INT, "colorFilterId", "")
-                .field(INT, "renderEffectId", "");
+                .description("define the GraphicsLayer Modifier");
     }
 
     @Override
     public void layout(RemoteContext context, Component component, float width, float height) {}
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addTags(SerializeTags.MODIFIER)
+                .addType("GraphicsLayerModifierOperation")
+                .add("scaleX", mValues[SCALE_X].getValue())
+                .add("scaleY", mValues[SCALE_Y].getValue())
+                .add("rotationX", mValues[ROTATION_X].getValue())
+                .add("rotationY", mValues[ROTATION_Y].getValue())
+                .add("rotationZ", mValues[ROTATION_Z].getValue())
+                .add("shadowElevation", mValues[SHADOW_ELEVATION].getValue())
+                .add("transformOriginX", mValues[TRANSFORM_ORIGIN_X].getValue())
+                .add("transformOriginY", mValues[TRANSFORM_ORIGIN_Y].getValue())
+                .add("translationX", mValues[TRANSLATION_X].getValue())
+                .add("translationY", mValues[TRANSLATION_Y].getValue())
+                .add("translationZ", mValues[TRANSLATION_Z].getValue())
+                .add("alpha", mValues[ALPHA].getValue())
+                .add("cameraDistance", mValues[CAMERA_DISTANCE].getValue())
+                .add("compositingStrategy", mValues[COMPOSITING_STRATEGY].getIntValue())
+                .add("spotShadowColorId", mValues[SPOT_SHADOW_COLOR].getIntValue())
+                .add("ambientShadowColorId", mValues[AMBIENT_SHADOW_COLOR].getIntValue());
+    }
 }

@@ -3198,8 +3198,10 @@ void IncrementalService::DataLoaderStub::onDump(int fd) {
     dprintf(fd, "    }\n");
 }
 
-void IncrementalService::AppOpsListener::opChanged(int32_t, const String16&) {
+binder::Status IncrementalService::AppOpsListener::opChanged(int32_t, int32_t,
+                                                             const String16&, const String16&) {
     incrementalService.onAppOpChanged(packageName);
+    return binder::Status::ok();
 }
 
 binder::Status IncrementalService::IncrementalServiceConnector::setStorageParams(

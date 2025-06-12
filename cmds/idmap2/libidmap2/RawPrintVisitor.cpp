@@ -55,6 +55,14 @@ void RawPrintVisitor::visit(const IdmapHeader& header) {
   }
 }
 
+void RawPrintVisitor::visit(const IdmapConstraints &idmapConstraints) {
+  print(static_cast<uint32_t>(idmapConstraints.constraints.size()), "constraints count");
+  for (const auto& constraint : idmapConstraints.constraints) {
+    print(constraint.constraint_type, "constraint type");
+    print(constraint.constraint_value, "constraint value");
+  }
+}
+
 void RawPrintVisitor::visit(const IdmapData& data ATTRIBUTE_UNUSED) {
   for (auto& target_entry : data.GetTargetEntries()) {
     Result<std::string> target_name(Error(""));

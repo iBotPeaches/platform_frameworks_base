@@ -138,7 +138,7 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     private static native long nativeOpen(String path, int openFlags, String label,
             boolean enableTrace, boolean enableProfile, int lookasideSlotSize,
             int lookasideSlotCount);
-    private static native void nativeClose(long connectionPtr);
+    private static native void nativeClose(long connectionPtr, boolean fast);
     private static native void nativeRegisterCustomScalarFunction(long connectionPtr,
             String name, UnaryOperator<String> function);
     private static native void nativeRegisterCustomAggregateFunction(long connectionPtr,
@@ -300,7 +300,7 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             final int cookie = mRecentOperations.beginOperation("close", null, null);
             try {
                 mPreparedStatementCache.evictAll();
-                nativeClose(mConnectionPtr);
+                nativeClose(mConnectionPtr, finalized && Flags.noCheckpointOnFinalize());
                 mConnectionPtr = 0;
             } finally {
                 mRecentOperations.endOperation(cookie);

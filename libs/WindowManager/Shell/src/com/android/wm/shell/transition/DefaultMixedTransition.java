@@ -34,6 +34,7 @@ import com.android.wm.shell.activityembedding.ActivityEmbeddingController;
 import com.android.wm.shell.desktopmode.DesktopTasksController;
 import com.android.wm.shell.keyguard.KeyguardTransitionHandler;
 import com.android.wm.shell.pip.PipTransitionController;
+import com.android.wm.shell.pip2.phone.transition.PipTransitionUtils;
 import com.android.wm.shell.protolog.ShellProtoLogGroup;
 import com.android.wm.shell.splitscreen.StageCoordinator;
 import com.android.wm.shell.unfold.UnfoldTransitionHandler;
@@ -132,7 +133,7 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
 
         TransitionInfo.Change pipActivityChange = null;
         if (pipChange != null) {
-            pipActivityChange = mPipHandler.getDeferConfigActivityChange(
+            pipActivityChange = PipTransitionUtils.getDeferConfigActivityChange(
                     info, pipChange.getContainer());
             everythingElse.getChanges().remove(pipActivityChange);
         }
@@ -204,6 +205,7 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS,
                 "tryAnimateOpenIntentWithRemoteAndPipOrDesktop");
         TransitionInfo.Change pipChange = null;
+        TransitionInfo.Change pipActivityChange = null;
         for (int i = info.getChanges().size() - 1; i >= 0; --i) {
             TransitionInfo.Change change = info.getChanges().get(i);
             if (mPipHandler.isEnteringPip(change, info.getType())) {
@@ -213,6 +215,12 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
                 }
                 pipChange = change;
                 info.getChanges().remove(i);
+            } else if (change.getTaskInfo() == null && change.getParent() != null
+                    && pipChange != null && change.getParent().equals(pipChange.getContainer())) {
+                // Cache the PiP activity if it's a target and cached pip task change is its parent;
+                // note that we are bottom-to-top, so if such activity has a task
+                // that is also a target, then it must have been cached already as pipChange.
+                pipActivityChange = change;
             }
         }
         TransitionInfo.Change desktopChange = null;
@@ -257,8 +265,16 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
             // make a new startTransaction because pip's startEnterAnimation "consumes" it so
             // we need a separate one to send over to launcher.
             SurfaceControl.Transaction otherStartT = new SurfaceControl.Transaction();
-
-            mPipHandler.startEnterAnimation(pipChange, otherStartT, finishTransaction, finishCB);
+            if (pipActivityChange == null) {
+                mPipHandler.startEnterAnimation(pipChange, otherStartT, finishTransaction,
+                        finishCB);
+            } else {
+                info.getChanges().remove(pipActivityChange);
+                TransitionInfo pipInfo = subCopy(info, TRANSIT_PIP, false /* withChanges */);
+                pipInfo.getChanges().addAll(List.of(pipChange, pipActivityChange));
+                mPipHandler.startAnimation(mTransition, pipInfo, startTransaction,
+                        finishTransaction, finishCB);
+            }
 
             // Dispatch the rest of the transition normally.
             if (mLeftoversHandler != null
@@ -369,7 +385,8 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
     @Override
     void mergeAnimation(
             @NonNull IBinder transition, @NonNull TransitionInfo info,
-            @NonNull SurfaceControl.Transaction t, @NonNull IBinder mergeTarget,
+            @NonNull SurfaceControl.Transaction startT, @NonNull SurfaceControl.Transaction finishT,
+            @NonNull IBinder mergeTarget,
             @NonNull Transitions.TransitionFinishCallback finishCallback) {
         switch (mType) {
             case TYPE_DISPLAY_AND_SPLIT_CHANGE:
@@ -379,7 +396,7 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
             case TYPE_ENTER_PIP_FROM_ACTIVITY_EMBEDDING:
                 mPipHandler.end();
                 mActivityEmbeddingController.mergeAnimation(
-                        transition, info, t, mergeTarget, finishCallback);
+                        transition, info, startT, finishT, mergeTarget, finishCallback);
                 return;
             case TYPE_ENTER_PIP_FROM_SPLIT:
                 if (mAnimType == ANIM_TYPE_GOING_HOME) {
@@ -390,28 +407,28 @@ class DefaultMixedTransition extends DefaultMixedHandler.MixedTransition {
                     mPipHandler.end();
                     if (mLeftoversHandler != null) {
                         mLeftoversHandler.mergeAnimation(
-                                transition, info, t, mergeTarget, finishCallback);
+                                transition, info, startT, finishT, mergeTarget, finishCallback);
                     }
-                } else {
-                    mPipHandler.end();
                 }
                 return;
             case TYPE_KEYGUARD:
-                mKeyguardHandler.mergeAnimation(transition, info, t, mergeTarget, finishCallback);
+                mKeyguardHandler.mergeAnimation(transition, info, startT, finishT, mergeTarget,
+                        finishCallback);
                 return;
             case TYPE_OPTIONS_REMOTE_AND_PIP_OR_DESKTOP_CHANGE:
                 mPipHandler.end();
                 if (mLeftoversHandler != null) {
                     mLeftoversHandler.mergeAnimation(
-                            transition, info, t, mergeTarget, finishCallback);
+                            transition, info, startT, finishT, mergeTarget, finishCallback);
                 }
                 return;
             case TYPE_UNFOLD:
-                mUnfoldHandler.mergeAnimation(transition, info, t, mergeTarget, finishCallback);
+                mUnfoldHandler.mergeAnimation(transition, info, startT, finishT, mergeTarget,
+                        finishCallback);
                 return;
             case TYPE_OPEN_IN_DESKTOP:
                 mDesktopTasksController.mergeAnimation(
-                        transition, info, t, mergeTarget, finishCallback);
+                        transition, info, startT, finishT, mergeTarget, finishCallback);
                 return;
             default:
                 throw new IllegalStateException("Playing a default mixed transition with unknown or"

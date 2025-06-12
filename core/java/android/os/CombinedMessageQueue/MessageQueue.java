@@ -24,8 +24,6 @@ import android.annotation.TestApi;
 import android.app.ActivityThread;
 import android.app.Instrumentation;
 import android.compat.annotation.UnsupportedAppUsage;
-import android.os.Process;
-import android.os.UserHandle;
 import android.ravenwood.annotation.RavenwoodKeepWholeClass;
 import android.ravenwood.annotation.RavenwoodRedirect;
 import android.ravenwood.annotation.RavenwoodRedirectionClass;
@@ -35,9 +33,6 @@ import android.util.Log;
 import android.util.Printer;
 import android.util.SparseArray;
 import android.util.proto.ProtoOutputStream;
-
-import com.android.internal.annotations.GuardedBy;
-import com.android.internal.ravenwood.RavenwoodEnvironment;
 
 import dalvik.annotation.optimization.NeverCompile;
 
@@ -79,8 +74,13 @@ public final class MessageQueue {
     @SuppressWarnings("unused")
     private long mPtr; // used by native code
 
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(
+            maxTargetSdk = Build.VERSION_CODES.BAKLAVA,
+            publicAlternatives =
+                    "To manipulate the queue in Instrumentation tests, use {@link"
+                        + " android.os.TestLooperManager}")
     Message mMessages;
+
     private Message mLast;
     @UnsupportedAppUsage
     private final ArrayList<IdleHandler> mIdleHandlers = new ArrayList<IdleHandler>();
@@ -94,6 +94,10 @@ public final class MessageQueue {
     // Tracks the number of async message. We use this in enqueueMessage() to avoid searching the
     // queue for async messages when inserting a message at the tail.
     private int mAsyncMessageCount;
+
+    private final AtomicLong mMessageCount = new AtomicLong();
+    private final String mThreadName;
+    private final long mTid;
 
     /**
      * Select between two implementations of message queue. The legacy implementation is used
@@ -126,9 +130,11 @@ public final class MessageQueue {
 
     MessageQueue(boolean quitAllowed) {
         initIsProcessAllowedToUseConcurrent();
-        mUseConcurrent = sIsProcessAllowedToUseConcurrent && !isInstrumenting();
+        mUseConcurrent = sIsProcessAllowedToUseConcurrent;
         mQuitAllowed = quitAllowed;
         mPtr = nativeInit();
+        mThreadName = Thread.currentThread().getName();
+        mTid = Process.myTid();
     }
 
     private static void initIsProcessAllowedToUseConcurrent() {
@@ -136,9 +142,24 @@ public final class MessageQueue {
             return;
         }
 
-        if (RavenwoodEnvironment.getInstance().isRunningOnRavenwood()) {
+        // Holdback study.
+        if (Flags.messageQueueForceLegacy()) {
             sIsProcessAllowedToUseConcurrent = false;
             return;
+        }
+
+        if (Flags.forceConcurrentMessageQueue()) {
+            // b/379472827: Robolectric tests use reflection to access MessageQueue.mMessages.
+            // This is a hack to allow Robolectric tests to use the legacy implementation.
+            try {
+                Class.forName("org.robolectric.Robolectric");
+            } catch (ClassNotFoundException e) {
+                // This is not a Robolectric test.
+                sIsProcessAllowedToUseConcurrent = true;
+                return;
+            }
+            // This is a Robolectric test.
+            // Continue to the following checks.
         }
 
         final String processName = Process.myProcessName();
@@ -172,11 +193,6 @@ public final class MessageQueue {
 
         // We can lift these restrictions in the future after we've made it possible for test
         // authors to test Looper and MessageQueue without resorting to reflection.
-
-        // Holdback study.
-        if (sIsProcessAllowedToUseConcurrent && Flags.messageQueueForceLegacy()) {
-            sIsProcessAllowedToUseConcurrent = false;
-        }
     }
 
     @RavenwoodReplace
@@ -201,15 +217,6 @@ public final class MessageQueue {
         return;
     }
 
-    private static boolean isInstrumenting() {
-        final ActivityThread activityThread = ActivityThread.currentActivityThread();
-        if (activityThread == null) {
-            return false;
-        }
-        final Instrumentation instrumentation = activityThread.getInstrumentation();
-        return instrumentation != null && instrumentation.isInstrumenting();
-    }
-
     @Override
     protected void finalize() throws Throwable {
         try {
@@ -217,6 +224,36 @@ public final class MessageQueue {
         } finally {
             super.finalize();
         }
+    }
+
+    private void decAndTraceMessageCount() {
+        mMessageCount.decrementAndGet();
+        traceMessageCount();
+    }
+
+    private void incAndTraceMessageCount(Message msg, long when) {
+        mMessageCount.incrementAndGet();
+        msg.mSendingThreadName = Thread.currentThread().getName();
+        msg.mEventId.set(PerfettoTrace.getFlowId());
+
+        traceMessageCount();
+        PerfettoTrace.instant(PerfettoTrace.MQ_CATEGORY, "message_queue_send")
+                .setFlow(msg.mEventId.get())
+                .beginProto()
+                .beginNested(2004 /* message_queue */)
+                .addField(2 /* receiving_thread_name */, mThreadName)
+                .addField(3 /* message_code */, msg.what)
+                .addField(4 /* message_delay_ms */, when - SystemClock.uptimeMillis())
+                .endNested()
+                .endProto()
+                .emit();
+    }
+
+    /** @hide */
+    private void traceMessageCount() {
+        PerfettoTrace.counter(PerfettoTrace.MQ_CATEGORY, mMessageCount.get())
+                .usingThreadCounterTrack(mTid, mThreadName)
+                .emit();
     }
 
     // Disposes of the underlying message queue.
@@ -237,6 +274,44 @@ public final class MessageQueue {
     }
     private final MatchDeliverableMessages mMatchDeliverableMessages =
             new MatchDeliverableMessages();
+
+    private boolean isIdleConcurrent() {
+        final long now = SystemClock.uptimeMillis();
+
+        if (stackHasMessages(null, 0, null, null, now, mMatchDeliverableMessages, false)) {
+            return false;
+        }
+
+        MessageNode msgNode = null;
+        MessageNode asyncMsgNode = null;
+
+        if (!mPriorityQueue.isEmpty()) {
+            try {
+                msgNode = mPriorityQueue.first();
+            } catch (NoSuchElementException e) { }
+        }
+
+        if (!mAsyncPriorityQueue.isEmpty()) {
+            try {
+                asyncMsgNode = mAsyncPriorityQueue.first();
+            } catch (NoSuchElementException e) { }
+        }
+
+        if ((msgNode != null && msgNode.getWhen() <= now)
+                || (asyncMsgNode != null && asyncMsgNode.getWhen() <= now)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean isIdleLegacy() {
+        synchronized (this) {
+            final long now = SystemClock.uptimeMillis();
+            return mMessages == null || now < mMessages.when;
+        }
+    }
+
     /**
      * Returns true if the looper has no pending messages which are due to be processed.
      *
@@ -246,38 +321,21 @@ public final class MessageQueue {
      */
     public boolean isIdle() {
         if (mUseConcurrent) {
-            final long now = SystemClock.uptimeMillis();
-
-            if (stackHasMessages(null, 0, null, null, now, mMatchDeliverableMessages, false)) {
-                return false;
-            }
-
-            MessageNode msgNode = null;
-            MessageNode asyncMsgNode = null;
-
-            if (!mPriorityQueue.isEmpty()) {
-                try {
-                    msgNode = mPriorityQueue.first();
-                } catch (NoSuchElementException e) { }
-            }
-
-            if (!mAsyncPriorityQueue.isEmpty()) {
-                try {
-                    asyncMsgNode = mAsyncPriorityQueue.first();
-                } catch (NoSuchElementException e) { }
-            }
-
-            if ((msgNode != null && msgNode.getWhen() <= now)
-                    || (asyncMsgNode != null && asyncMsgNode.getWhen() <= now)) {
-                return false;
-            }
-
-            return true;
+            return isIdleConcurrent();
         } else {
-            synchronized (this) {
-                final long now = SystemClock.uptimeMillis();
-                return mMessages == null || now < mMessages.when;
-            }
+            return isIdleLegacy();
+        }
+    }
+
+    private void addIdleHandlerConcurrent(@NonNull IdleHandler handler) {
+        synchronized (mIdleHandlersLock) {
+            mIdleHandlers.add(handler);
+        }
+    }
+
+    private void addIdleHandlerLegacy(@NonNull IdleHandler handler) {
+        synchronized (this) {
+            mIdleHandlers.add(handler);
         }
     }
 
@@ -296,13 +354,19 @@ public final class MessageQueue {
             throw new NullPointerException("Can't add a null IdleHandler");
         }
         if (mUseConcurrent) {
-            synchronized (mIdleHandlersLock) {
-                mIdleHandlers.add(handler);
-            }
+            addIdleHandlerConcurrent(handler);
         } else {
-            synchronized (this) {
-                mIdleHandlers.add(handler);
-            }
+            addIdleHandlerLegacy(handler);
+        }
+    }
+    private void removeIdleHandlerConcurrent(@NonNull IdleHandler handler) {
+        synchronized (mIdleHandlersLock) {
+            mIdleHandlers.remove(handler);
+        }
+    }
+    private void removeIdleHandlerLegacy(@NonNull IdleHandler handler) {
+        synchronized (this) {
+            mIdleHandlers.remove(handler);
         }
     }
 
@@ -317,13 +381,21 @@ public final class MessageQueue {
      */
     public void removeIdleHandler(@NonNull IdleHandler handler) {
         if (mUseConcurrent) {
-            synchronized (mIdleHandlersLock) {
-                mIdleHandlers.remove(handler);
-            }
+            removeIdleHandlerConcurrent(handler);
         } else {
-            synchronized (this) {
-                mIdleHandlers.remove(handler);
-            }
+            removeIdleHandlerLegacy(handler);
+        }
+    }
+
+    private boolean isPollingConcurrent() {
+        // If the loop is quitting then it must not be idling.
+        // We can assume mPtr != 0 when sQuitting is false.
+        return !((boolean) sQuitting.getVolatile(this)) && nativeIsPolling(mPtr);
+    }
+
+    private boolean isPollingLegacy() {
+        synchronized (this) {
+            return isPollingLocked();
         }
     }
 
@@ -340,13 +412,9 @@ public final class MessageQueue {
      */
     public boolean isPolling() {
         if (mUseConcurrent) {
-            // If the loop is quitting then it must not be idling.
-            // We can assume mPtr != 0 when sQuitting is false.
-            return !((boolean) sQuitting.getVolatile(this)) && nativeIsPolling(mPtr);
+            return isPollingConcurrent();
         } else {
-            synchronized (this) {
-                return isPollingLocked();
-            }
+            return isPollingLegacy();
         }
     }
 
@@ -354,6 +422,21 @@ public final class MessageQueue {
         // If the loop is quitting then it must not be idling.
         // We can assume mPtr != 0 when mQuitting is false.
         return !mQuitting && nativeIsPolling(mPtr);
+    }
+    private void addOnFileDescriptorEventListenerConcurrent(@NonNull FileDescriptor fd,
+            @OnFileDescriptorEventListener.Events int events,
+            @NonNull OnFileDescriptorEventListener listener) {
+        synchronized (mFileDescriptorRecordsLock) {
+            updateOnFileDescriptorEventListenerLocked(fd, events, listener);
+        }
+    }
+
+    private void addOnFileDescriptorEventListenerLegacy(@NonNull FileDescriptor fd,
+            @OnFileDescriptorEventListener.Events int events,
+            @NonNull OnFileDescriptorEventListener listener) {
+        synchronized (this) {
+            updateOnFileDescriptorEventListenerLocked(fd, events, listener);
+        }
     }
 
     /**
@@ -391,13 +474,21 @@ public final class MessageQueue {
         }
 
         if (mUseConcurrent) {
-            synchronized (mFileDescriptorRecordsLock) {
-                updateOnFileDescriptorEventListenerLocked(fd, events, listener);
-            }
+            addOnFileDescriptorEventListenerConcurrent(fd, events, listener);
         } else {
-            synchronized (this) {
-                updateOnFileDescriptorEventListenerLocked(fd, events, listener);
-            }
+            addOnFileDescriptorEventListenerLegacy(fd, events, listener);
+        }
+    }
+
+    private void removeOnFileDescriptorEventListenerConcurrent(@NonNull FileDescriptor fd) {
+        synchronized (mFileDescriptorRecordsLock) {
+            updateOnFileDescriptorEventListenerLocked(fd, 0, null);
+        }
+    }
+
+    private void removeOnFileDescriptorEventListenerLegacy(@NonNull FileDescriptor fd) {
+        synchronized (this) {
+            updateOnFileDescriptorEventListenerLocked(fd, 0, null);
         }
     }
 
@@ -419,13 +510,9 @@ public final class MessageQueue {
             throw new IllegalArgumentException("fd must not be null");
         }
         if (mUseConcurrent) {
-            synchronized (mFileDescriptorRecordsLock) {
-                updateOnFileDescriptorEventListenerLocked(fd, 0, null);
-            }
+            removeOnFileDescriptorEventListenerConcurrent(fd);
         } else {
-            synchronized (this) {
-                updateOnFileDescriptorEventListenerLocked(fd, 0, null);
-            }
+            removeOnFileDescriptorEventListenerLegacy(fd);
         }
     }
 
@@ -552,7 +639,7 @@ public final class MessageQueue {
     /* This is only read/written from the Looper thread. For use with Concurrent MQ */
     private int mNextPollTimeoutMillis;
     private boolean mMessageDirectlyQueued;
-    private Message nextMessage(boolean peek) {
+    private Message nextMessage(boolean peek, boolean returnEarliest) {
         int i = 0;
 
         while (true) {
@@ -629,7 +716,7 @@ public final class MessageQueue {
              * If we have a barrier we should return the async node (if it exists and is ready)
              */
             if (msgNode != null && msgNode.isBarrier()) {
-                if (asyncMsgNode != null && now >= asyncMsgNode.getWhen()) {
+                if (asyncMsgNode != null && (returnEarliest || now >= asyncMsgNode.getWhen())) {
                     found = asyncMsgNode;
                 } else {
                     next = asyncMsgNode;
@@ -643,7 +730,7 @@ public final class MessageQueue {
                 earliest = pickEarliestNode(msgNode, asyncMsgNode);
 
                 if (earliest != null) {
-                    if (now >= earliest.getWhen()) {
+                    if (returnEarliest || now >= earliest.getWhen()) {
                         found = earliest;
                     } else {
                         next = earliest;
@@ -748,9 +835,10 @@ public final class MessageQueue {
             mMessageDirectlyQueued = false;
             nativePollOnce(ptr, mNextPollTimeoutMillis);
 
-            Message msg = nextMessage(false);
+            Message msg = nextMessage(false, false);
             if (msg != null) {
                 msg.markInUse();
+                decAndTraceMessageCount();
                 return msg;
             }
 
@@ -806,12 +894,7 @@ public final class MessageQueue {
         }
     }
 
-    @UnsupportedAppUsage
-    Message next() {
-        if (mUseConcurrent) {
-            return nextConcurrent();
-        }
-
+    private Message nextLegacy() {
         // Return here if the message loop has already quit and been disposed.
         // This can happen if the application tries to restart a looper after quit
         // which is not supported.
@@ -865,6 +948,7 @@ public final class MessageQueue {
                         if (msg.isAsynchronous()) {
                             mAsyncMessageCount--;
                         }
+                        decAndTraceMessageCount();
                         if (TRACE) {
                             Trace.setCounter("MQ.Delivered", mMessagesDelivered.incrementAndGet());
                         }
@@ -929,6 +1013,19 @@ public final class MessageQueue {
         }
     }
 
+    @UnsupportedAppUsage(
+            maxTargetSdk = Build.VERSION_CODES.BAKLAVA,
+            publicAlternatives =
+                    "To manipulate the queue in Instrumentation tests, use {@link"
+                        + " android.os.TestLooperManager}")
+    Message next() {
+        if (mUseConcurrent) {
+            return nextConcurrent();
+        } else {
+            return nextLegacy();
+        }
+    }
+
     void quit(boolean safe) {
         if (!mQuitAllowed) {
             throw new IllegalStateException("Main thread not allowed to quit.");
@@ -966,6 +1063,15 @@ public final class MessageQueue {
         }
     }
 
+    private int postSyncBarrierConcurrent() {
+        return postSyncBarrier(SystemClock.uptimeMillis());
+
+    }
+
+    private int postSyncBarrierLegacy() {
+        return postSyncBarrier(SystemClock.uptimeMillis());
+    }
+
     /**
      * Posts a synchronization barrier to the Looper's message queue.
      *
@@ -992,7 +1098,11 @@ public final class MessageQueue {
     @UnsupportedAppUsage
     @TestApi
     public int postSyncBarrier() {
-        return postSyncBarrier(SystemClock.uptimeMillis());
+        if (mUseConcurrent) {
+            return postSyncBarrierConcurrent();
+        } else {
+            return postSyncBarrierLegacy();
+        }
     }
 
     private int postSyncBarrier(long when) {
@@ -1077,48 +1187,33 @@ public final class MessageQueue {
         }
     }
 
-    /**
-     * Removes a synchronization barrier.
-     *
-     * @param token The synchronization barrier token that was returned by
-     * {@link #postSyncBarrier}.
-     *
-     * @throws IllegalStateException if the barrier was not found.
-     *
-     * @hide
-     */
-    @UnsupportedAppUsage
-    @TestApi
-    public void removeSyncBarrier(int token) {
-        // Remove a sync barrier token from the queue.
-        // If the queue is no longer stalled by a barrier then wake it.
-        if (mUseConcurrent) {
-            boolean removed;
-            MessageNode first;
-            final MatchBarrierToken matchBarrierToken = new MatchBarrierToken(token);
+    private void removeSyncBarrierConcurrent(int token) {
+        boolean removed;
+        MessageNode first;
+        final MatchBarrierToken matchBarrierToken = new MatchBarrierToken(token);
 
-            try {
-                /* Retain the first element to see if we are currently stuck on a barrier. */
-                first = mPriorityQueue.first();
-            } catch (NoSuchElementException e) {
-                /* The queue is empty */
-                first = null;
-            }
-
-            removed = findOrRemoveMessages(null, 0, null, null, 0, matchBarrierToken, true);
-            if (removed && first != null) {
-                Message m = first.mMessage;
-                if (m.target == null && m.arg1 == token) {
-                    /* Wake up next() in case it was sleeping on this barrier. */
-                    nativeWake(mPtr);
-                }
-            } else if (!removed) {
-                throw new IllegalStateException("The specified message queue synchronization "
-                        + " barrier token has not been posted or has already been removed.");
-            }
-            return;
+        try {
+            /* Retain the first element to see if we are currently stuck on a barrier. */
+            first = mPriorityQueue.first();
+        } catch (NoSuchElementException e) {
+            /* The queue is empty */
+            first = null;
         }
 
+        removed = findOrRemoveMessages(null, 0, null, null, 0, matchBarrierToken, true);
+        if (removed && first != null) {
+            Message m = first.mMessage;
+            if (m.target == null && m.arg1 == token) {
+                /* Wake up next() in case it was sleeping on this barrier. */
+                nativeWake(mPtr);
+            }
+        } else if (!removed) {
+            throw new IllegalStateException("The specified message queue synchronization "
+                    + " barrier token has not been posted or has already been removed.");
+        }
+    }
+
+    private void removeSyncBarrierLegacy(int token) {
         synchronized (this) {
             Message prev = null;
             Message p = mMessages;
@@ -1145,6 +1240,7 @@ public final class MessageQueue {
                 needWake = mMessages == null || mMessages.target != null;
             }
             p.recycleUnchecked();
+            decAndTraceMessageCount();
 
             // If the loop is quitting then it is already awake.
             // We can assume mPtr != 0 when mQuitting is false.
@@ -1154,19 +1250,38 @@ public final class MessageQueue {
         }
     }
 
-    boolean enqueueMessage(Message msg, long when) {
-        if (msg.target == null) {
-            throw new IllegalArgumentException("Message must have a target.");
-        }
-
+    /**
+     * Removes a synchronization barrier.
+     *
+     * @param token The synchronization barrier token that was returned by
+     * {@link #postSyncBarrier}.
+     *
+     * @throws IllegalStateException if the barrier was not found.
+     *
+     * @hide
+     */
+    @UnsupportedAppUsage
+    @TestApi
+    public void removeSyncBarrier(int token) {
+        // Remove a sync barrier token from the queue.
+        // If the queue is no longer stalled by a barrier then wake it.
         if (mUseConcurrent) {
-            if (msg.isInUse()) {
-                throw new IllegalStateException(msg + " This message is already in use.");
-            }
-
-            return enqueueMessageUnchecked(msg, when);
+            removeSyncBarrierConcurrent(token);
+        } else {
+            removeSyncBarrierLegacy(token);
         }
 
+    }
+
+    private boolean enqueueMessageConcurrent(Message msg, long when) {
+        if (msg.isInUse()) {
+            throw new IllegalStateException(msg + " This message is already in use.");
+        }
+
+        return enqueueMessageUnchecked(msg, when);
+    }
+
+    private boolean enqueueMessageLegacy(Message msg, long when) {
         synchronized (this) {
             if (msg.isInUse()) {
                 throw new IllegalStateException(msg + " This message is already in use.");
@@ -1182,6 +1297,8 @@ public final class MessageQueue {
 
             msg.markInUse();
             msg.when = when;
+            incAndTraceMessageCount(msg, when);
+
             Message p = mMessages;
             boolean needWake;
             if (p == null || when == 0 || when < p.when) {
@@ -1272,6 +1389,18 @@ public final class MessageQueue {
         return true;
     }
 
+    boolean enqueueMessage(Message msg, long when) {
+        if (msg.target == null) {
+            throw new IllegalArgumentException("Message must have a target.");
+        }
+
+        if (mUseConcurrent) {
+            return enqueueMessageConcurrent(msg, when);
+        } else {
+            return enqueueMessageLegacy(msg, when);
+        }
+    }
+
     private Message legacyPeekOrPoll(boolean peek) {
         synchronized (this) {
             // Try to retrieve the next message.  Return if found.
@@ -1286,33 +1415,34 @@ public final class MessageQueue {
                 } while (msg != null && !msg.isAsynchronous());
             }
             if (msg != null) {
+                if (peek) {
+                    return msg;
+                }
                 if (now >= msg.when) {
                     // Got a message.
                     mBlocked = false;
-                    if (peek) {
-                        return msg;
-                    }
-                    if (prevMsg != null) {
-                        prevMsg.next = msg.next;
-                        if (prevMsg.next == null) {
-                            mLast = prevMsg;
-                        }
-                    } else {
-                        mMessages = msg.next;
-                        if (msg.next == null) {
-                            mLast = null;
-                        }
-                    }
-                    msg.next = null;
-                    msg.markInUse();
-                    if (msg.isAsynchronous()) {
-                        mAsyncMessageCount--;
-                    }
-                    if (TRACE) {
-                        Trace.setCounter("MQ.Delivered", mMessagesDelivered.incrementAndGet());
-                    }
-                    return msg;
                 }
+                if (prevMsg != null) {
+                    prevMsg.next = msg.next;
+                    if (prevMsg.next == null) {
+                        mLast = prevMsg;
+                    }
+                } else {
+                    mMessages = msg.next;
+                    if (msg.next == null) {
+                        mLast = null;
+                    }
+                }
+                msg.next = null;
+                msg.markInUse();
+                if (msg.isAsynchronous()) {
+                    mAsyncMessageCount--;
+                }
+                decAndTraceMessageCount();
+                if (TRACE) {
+                    Trace.setCounter("MQ.Delivered", mMessagesDelivered.incrementAndGet());
+                }
+                return msg;
             }
         }
         return null;
@@ -1329,7 +1459,7 @@ public final class MessageQueue {
         throwIfNotTest();
         Message ret;
         if (mUseConcurrent) {
-            ret = nextMessage(true);
+            ret = nextMessage(true, true);
         } else {
             ret = legacyPeekOrPoll(true);
         }
@@ -1347,7 +1477,7 @@ public final class MessageQueue {
     Message pollForTest() {
         throwIfNotTest();
         if (mUseConcurrent) {
-            return nextMessage(false);
+            return nextMessage(false, true);
         } else {
             return legacyPeekOrPoll(false);
         }
@@ -1355,65 +1485,25 @@ public final class MessageQueue {
 
     /**
      * @return true if we are blocked on a sync barrier
+     *
+     * Calls to this method must not be allowed to race with `next`.
+     * Specifically, the Looper thread must be paused before calling this method,
+     * and may not be resumed until after returning from this method.
      */
     boolean isBlockedOnSyncBarrier() {
         throwIfNotTest();
         if (mUseConcurrent) {
+            // Call nextMessage to get the stack drained into our priority queues
+            nextMessage(true, false);
+
             Iterator<MessageNode> queueIter = mPriorityQueue.iterator();
             MessageNode queueNode = iterateNext(queueIter);
 
-            if (queueNode.isBarrier()) {
-                long now = SystemClock.uptimeMillis();
-
-                /* Look for a deliverable async node. If one exists we are not blocked. */
-                Iterator<MessageNode> asyncQueueIter = mAsyncPriorityQueue.iterator();
-                MessageNode asyncNode = iterateNext(asyncQueueIter);
-                if (asyncNode != null && now >= asyncNode.getWhen()) {
-                    return false;
-                }
-                /*
-                 * Look for a deliverable sync node. In this case, if one exists we are blocked
-                 * since the barrier prevents delivery of the Message.
-                 */
-                while (queueNode.isBarrier()) {
-                    queueNode = iterateNext(queueIter);
-                }
-                if (queueNode != null && now >= queueNode.getWhen()) {
-                    return true;
-                }
-
-                return false;
-            }
+            return (queueNode != null && queueNode.isBarrier());
         } else {
             Message msg = mMessages;
-            if (msg != null && msg.target == null) {
-                Message iter = msg;
-                /* Look for a deliverable async node */
-                do {
-                    iter = iter.next;
-                } while (iter != null && !iter.isAsynchronous());
-
-                long now = SystemClock.uptimeMillis();
-                if (iter != null && now >= iter.when) {
-                    return false;
-                }
-                /*
-                 * Look for a deliverable sync node. In this case, if one exists we are blocked
-                 * since the barrier prevents delivery of the Message.
-                 */
-                iter = msg;
-                do {
-                    iter = iter.next;
-                } while (iter != null && (iter.target == null || iter.isAsynchronous()));
-
-                if (iter != null && now >= iter.when) {
-                    return true;
-                }
-                return false;
-            }
+            return msg != null && msg.target == null;
         }
-        /* No barrier was found. */
-        return false;
     }
 
     private static final class MatchHandlerWhatAndObject extends MessageCompare {
@@ -1429,14 +1519,13 @@ public final class MessageQueue {
     }
     private final MatchHandlerWhatAndObject mMatchHandlerWhatAndObject =
             new MatchHandlerWhatAndObject();
-    boolean hasMessages(Handler h, int what, Object object) {
-        if (h == null) {
-            return false;
-        }
-        if (mUseConcurrent) {
-            return findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObject,
-                    false);
-        }
+
+    private boolean hasMessagesConcurrent(Handler h, int what, Object object) {
+        return findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObject,
+                false);
+    }
+
+    private boolean hasMessagesLegacy(Handler h, int what, Object object) {
         synchronized (this) {
             Message p = mMessages;
             while (p != null) {
@@ -1446,6 +1535,17 @@ public final class MessageQueue {
                 p = p.next;
             }
             return false;
+        }
+    }
+
+    boolean hasMessages(Handler h, int what, Object object) {
+        if (h == null) {
+            return false;
+        }
+        if (mUseConcurrent) {
+            return hasMessagesConcurrent(h, what, object);
+        } else {
+            return hasMessagesLegacy(h, what, object);
         }
     }
 
@@ -1462,15 +1562,13 @@ public final class MessageQueue {
     }
     private final MatchHandlerWhatAndObjectEquals mMatchHandlerWhatAndObjectEquals =
             new MatchHandlerWhatAndObjectEquals();
-    boolean hasEqualMessages(Handler h, int what, Object object) {
-        if (h == null) {
-            return false;
-        }
-        if (mUseConcurrent) {
-            return findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObjectEquals,
-                    false);
 
-        }
+    private boolean hasEqualMessagesConcurrent(Handler h, int what, Object object) {
+        return findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObjectEquals,
+                false);
+    }
+
+    private boolean hasEqualMessagesLegacy(Handler h, int what, Object object) {
         synchronized (this) {
             Message p = mMessages;
             while (p != null) {
@@ -1480,6 +1578,17 @@ public final class MessageQueue {
                 p = p.next;
             }
             return false;
+        }
+    }
+
+    boolean hasEqualMessages(Handler h, int what, Object object) {
+        if (h == null) {
+            return false;
+        }
+        if (mUseConcurrent) {
+            return hasEqualMessagesConcurrent(h, what, object);
+        } else {
+            return hasEqualMessagesLegacy(h, what, object);
         }
     }
 
@@ -1496,16 +1605,13 @@ public final class MessageQueue {
     }
     private final MatchHandlerRunnableAndObject mMatchHandlerRunnableAndObject =
             new MatchHandlerRunnableAndObject();
-    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
-    boolean hasMessages(Handler h, Runnable r, Object object) {
-        if (h == null) {
-            return false;
-        }
-        if (mUseConcurrent) {
-            return findOrRemoveMessages(h, -1, object, r, 0, mMatchHandlerRunnableAndObject,
-                    false);
-        }
 
+    private boolean hasMessagesConcurrent(Handler h, Runnable r, Object object) {
+        return findOrRemoveMessages(h, -1, object, r, 0, mMatchHandlerRunnableAndObject,
+                false);
+    }
+
+    private boolean hasMessagesLegacy(Handler h, Runnable r, Object object) {
         synchronized (this) {
             Message p = mMessages;
             while (p != null) {
@@ -1518,6 +1624,18 @@ public final class MessageQueue {
         }
     }
 
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
+    boolean hasMessages(Handler h, Runnable r, Object object) {
+        if (h == null) {
+            return false;
+        }
+        if (mUseConcurrent) {
+            return hasMessagesConcurrent(h, r, object);
+        } else {
+            return hasMessagesLegacy(h, r, object);
+        }
+    }
+
     private static final class MatchHandler extends MessageCompare {
         @Override
         public boolean compareMessage(MessageNode n, Handler h, int what, Object object, Runnable r,
@@ -1526,13 +1644,12 @@ public final class MessageQueue {
         }
     }
     private final MatchHandler mMatchHandler = new MatchHandler();
-    boolean hasMessages(Handler h) {
-        if (h == null) {
-            return false;
-        }
-        if (mUseConcurrent) {
-            return findOrRemoveMessages(h, -1, null, null, 0, mMatchHandler, false);
-        }
+
+    private boolean hasMessagesConcurrent(Handler h) {
+        return findOrRemoveMessages(h, -1, null, null, 0, mMatchHandler, false);
+    }
+
+    private boolean hasMessagesLegacy(Handler h) {
         synchronized (this) {
             Message p = mMessages;
             while (p != null) {
@@ -1545,14 +1662,22 @@ public final class MessageQueue {
         }
     }
 
-    void removeMessages(Handler h, int what, Object object) {
+    boolean hasMessages(Handler h) {
         if (h == null) {
-            return;
+            return false;
         }
         if (mUseConcurrent) {
-            findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObject, true);
-            return;
+            return hasMessagesConcurrent(h);
+        } else {
+            return hasMessagesLegacy(h);
         }
+    }
+
+    private void removeMessagesConcurrent(Handler h, int what, Object object) {
+        findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObject, true);
+    }
+
+    private void removeMessagesLegacy(Handler h, int what, Object object) {
         synchronized (this) {
             Message p = mMessages;
 
@@ -1565,6 +1690,7 @@ public final class MessageQueue {
                     mAsyncMessageCount--;
                 }
                 p.recycleUnchecked();
+                decAndTraceMessageCount();
                 p = n;
             }
 
@@ -1583,6 +1709,66 @@ public final class MessageQueue {
                             mAsyncMessageCount--;
                         }
                         n.recycleUnchecked();
+                        decAndTraceMessageCount();
+                        p.next = nn;
+                        if (p.next == null) {
+                            mLast = p;
+                        }
+                        continue;
+                    }
+                }
+                p = n;
+            }
+        }
+    }
+
+    void removeMessages(Handler h, int what, Object object) {
+        if (h == null) {
+            return;
+        }
+        if (mUseConcurrent) {
+            removeMessagesConcurrent(h, what, object);
+        } else {
+            removeMessagesLegacy(h, what, object);
+        }
+    }
+
+    private void removeEqualMessagesConcurrent(Handler h, int what, Object object) {
+            findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObjectEquals, true);
+    }
+
+    private void removeEqualMessagesLegacy(Handler h, int what, Object object) {
+        synchronized (this) {
+            Message p = mMessages;
+
+            // Remove all messages at front.
+            while (p != null && p.target == h && p.what == what
+                   && (object == null || object.equals(p.obj))) {
+                Message n = p.next;
+                mMessages = n;
+                if (p.isAsynchronous()) {
+                    mAsyncMessageCount--;
+                }
+                p.recycleUnchecked();
+                p = n;
+            }
+
+            if (p == null) {
+                mLast = mMessages;
+            }
+
+            // Remove all messages after front.
+            while (p != null) {
+                Message n = p.next;
+                if (n != null) {
+                    if (n.target == h && n.what == what
+                            && (object == null || object.equals(n.obj))) {
+                        Message nn = n.next;
+                        if (n.isAsynchronous()) {
+                            mAsyncMessageCount--;
+                        }
+                        n.recycleUnchecked();
+                        decAndTraceMessageCount();
                         p.next = nn;
                         if (p.next == null) {
                             mLast = p;
@@ -1601,61 +1787,17 @@ public final class MessageQueue {
         }
 
         if (mUseConcurrent) {
-            findOrRemoveMessages(h, what, object, null, 0, mMatchHandlerWhatAndObjectEquals, true);
-            return;
-        }
-
-        synchronized (this) {
-            Message p = mMessages;
-
-            // Remove all messages at front.
-            while (p != null && p.target == h && p.what == what
-                   && (object == null || object.equals(p.obj))) {
-                Message n = p.next;
-                mMessages = n;
-                if (p.isAsynchronous()) {
-                    mAsyncMessageCount--;
-                }
-                p.recycleUnchecked();
-                p = n;
-            }
-
-            if (p == null) {
-                mLast = mMessages;
-            }
-
-            // Remove all messages after front.
-            while (p != null) {
-                Message n = p.next;
-                if (n != null) {
-                    if (n.target == h && n.what == what
-                            && (object == null || object.equals(n.obj))) {
-                        Message nn = n.next;
-                        if (n.isAsynchronous()) {
-                            mAsyncMessageCount--;
-                        }
-                        n.recycleUnchecked();
-                        p.next = nn;
-                        if (p.next == null) {
-                            mLast = p;
-                        }
-                        continue;
-                    }
-                }
-                p = n;
-            }
+            removeEqualMessagesConcurrent(h, what, object);
+        } else {
+            removeEqualMessagesLegacy(h, what, object);
         }
     }
 
-    void removeMessages(Handler h, Runnable r, Object object) {
-        if (h == null || r == null) {
-            return;
-        }
+    private void removeMessagesConcurrent(Handler h, Runnable r, Object object) {
+        findOrRemoveMessages(h, -1, object, r, 0, mMatchHandlerRunnableAndObject, true);
+    }
 
-        if (mUseConcurrent) {
-            findOrRemoveMessages(h, -1, object, r, 0, mMatchHandlerRunnableAndObject, true);
-            return;
-        }
+    private void removeMessagesLegacy(Handler h, Runnable r, Object object) {
         synchronized (this) {
             Message p = mMessages;
 
@@ -1668,6 +1810,7 @@ public final class MessageQueue {
                     mAsyncMessageCount--;
                 }
                 p.recycleUnchecked();
+                decAndTraceMessageCount();
                 p = n;
             }
 
@@ -1686,6 +1829,7 @@ public final class MessageQueue {
                             mAsyncMessageCount--;
                         }
                         n.recycleUnchecked();
+                        decAndTraceMessageCount();
                         p.next = nn;
                         if (p.next == null) {
                             mLast = p;
@@ -1695,6 +1839,18 @@ public final class MessageQueue {
                 }
                 p = n;
             }
+        }
+    }
+
+    void removeMessages(Handler h, Runnable r, Object object) {
+        if (h == null || r == null) {
+            return;
+        }
+
+        if (mUseConcurrent) {
+            removeMessagesConcurrent(h, r, object);
+        } else {
+            removeMessagesLegacy(h, r, object);
         }
     }
 
@@ -1711,15 +1867,12 @@ public final class MessageQueue {
     }
     private final MatchHandlerRunnableAndObjectEquals mMatchHandlerRunnableAndObjectEquals =
             new MatchHandlerRunnableAndObjectEquals();
-    void removeEqualMessages(Handler h, Runnable r, Object object) {
-        if (h == null || r == null) {
-            return;
-        }
 
-        if (mUseConcurrent) {
-            findOrRemoveMessages(h, -1, object, r, 0, mMatchHandlerRunnableAndObjectEquals, true);
-            return;
-        }
+    private void removeEqualMessagesConcurrent(Handler h, Runnable r, Object object) {
+        findOrRemoveMessages(h, -1, object, r, 0, mMatchHandlerRunnableAndObjectEquals, true);
+    }
+
+    private void removeEqualMessagesLegacy(Handler h, Runnable r, Object object) {
         synchronized (this) {
             Message p = mMessages;
 
@@ -1732,6 +1885,7 @@ public final class MessageQueue {
                     mAsyncMessageCount--;
                 }
                 p.recycleUnchecked();
+                decAndTraceMessageCount();
                 p = n;
             }
 
@@ -1750,6 +1904,7 @@ public final class MessageQueue {
                             mAsyncMessageCount--;
                         }
                         n.recycleUnchecked();
+                        decAndTraceMessageCount();
                         p.next = nn;
                         if (p.next == null) {
                             mLast = p;
@@ -1759,6 +1914,18 @@ public final class MessageQueue {
                 }
                 p = n;
             }
+        }
+    }
+
+    void removeEqualMessages(Handler h, Runnable r, Object object) {
+        if (h == null || r == null) {
+            return;
+        }
+
+        if (mUseConcurrent) {
+            removeEqualMessagesConcurrent(h, r, object);
+        } else {
+            removeEqualMessagesLegacy(h, r, object);
         }
     }
 
@@ -1774,15 +1941,12 @@ public final class MessageQueue {
         }
     }
     private final MatchHandlerAndObject mMatchHandlerAndObject = new MatchHandlerAndObject();
-    void removeCallbacksAndMessages(Handler h, Object object) {
-        if (h == null) {
-            return;
-        }
 
-        if (mUseConcurrent) {
+    private void removeCallbacksAndMessagesConcurrent(Handler h, Object object) {
             findOrRemoveMessages(h, -1, object, null, 0, mMatchHandlerAndObject, true);
-            return;
-        }
+    }
+
+    private void removeCallbacksAndMessagesLegacy(Handler h, Object object) {
         synchronized (this) {
             Message p = mMessages;
 
@@ -1795,6 +1959,7 @@ public final class MessageQueue {
                     mAsyncMessageCount--;
                 }
                 p.recycleUnchecked();
+                decAndTraceMessageCount();
                 p = n;
             }
 
@@ -1812,6 +1977,7 @@ public final class MessageQueue {
                             mAsyncMessageCount--;
                         }
                         n.recycleUnchecked();
+                        decAndTraceMessageCount();
                         p.next = nn;
                         if (p.next == null) {
                             mLast = p;
@@ -1821,6 +1987,18 @@ public final class MessageQueue {
                 }
                 p = n;
             }
+        }
+    }
+
+    void removeCallbacksAndMessages(Handler h, Object object) {
+        if (h == null) {
+            return;
+        }
+
+        if (mUseConcurrent) {
+            removeCallbacksAndMessagesConcurrent(h, object);
+        } else {
+            removeCallbacksAndMessagesLegacy(h, object);
         }
     }
 
@@ -1837,15 +2015,12 @@ public final class MessageQueue {
     }
     private final MatchHandlerAndObjectEquals mMatchHandlerAndObjectEquals =
             new MatchHandlerAndObjectEquals();
-    void removeCallbacksAndEqualMessages(Handler h, Object object) {
-        if (h == null) {
-            return;
-        }
 
-        if (mUseConcurrent) {
-            findOrRemoveMessages(h, -1, object, null, 0, mMatchHandlerAndObjectEquals, true);
-            return;
-        }
+    void removeCallbacksAndEqualMessagesConcurrent(Handler h, Object object) {
+        findOrRemoveMessages(h, -1, object, null, 0, mMatchHandlerAndObjectEquals, true);
+    }
+
+    void removeCallbacksAndEqualMessagesLegacy(Handler h, Object object) {
         synchronized (this) {
             Message p = mMessages;
 
@@ -1858,6 +2033,7 @@ public final class MessageQueue {
                     mAsyncMessageCount--;
                 }
                 p.recycleUnchecked();
+                decAndTraceMessageCount();
                 p = n;
             }
 
@@ -1875,6 +2051,7 @@ public final class MessageQueue {
                             mAsyncMessageCount--;
                         }
                         n.recycleUnchecked();
+                        decAndTraceMessageCount();
                         p.next = nn;
                         if (p.next == null) {
                             mLast = p;
@@ -1884,6 +2061,18 @@ public final class MessageQueue {
                 }
                 p = n;
             }
+        }
+    }
+
+    void removeCallbacksAndEqualMessages(Handler h, Object object) {
+        if (h == null) {
+            return;
+        }
+
+        if (mUseConcurrent) {
+            removeCallbacksAndEqualMessagesConcurrent(h, object);
+        } else {
+            removeCallbacksAndEqualMessagesLegacy(h, object);
         }
     }
 
@@ -1897,6 +2086,8 @@ public final class MessageQueue {
         mMessages = null;
         mLast = null;
         mAsyncMessageCount = 0;
+        mMessageCount.set(0);
+        traceMessageCount();
     }
 
     private void removeAllFutureMessagesLocked() {
@@ -1927,6 +2118,7 @@ public final class MessageQueue {
                         mAsyncMessageCount--;
                     }
                     p.recycleUnchecked();
+                    decAndTraceMessageCount();
                 } while (n != null);
             }
         }
@@ -2349,10 +2541,6 @@ public final class MessageQueue {
             return mMessage.when;
         }
 
-        boolean isRemovedFromStack() {
-            return mRemovedFromStackValue;
-        }
-
         boolean removeFromStack() {
             return sRemovedFromStack.compareAndSet(this, false, true);
         }
@@ -2571,6 +2759,7 @@ public final class MessageQueue {
         MessageNode node = new MessageNode(msg, seq);
         msg.when = when;
         msg.markInUse();
+        incAndTraceMessageCount(msg, when);
 
         if (DEBUG) {
             Log.d(TAG_C, "Insert message what: " + msg.what + " when: " + msg.when + " seq: "
@@ -2666,16 +2855,10 @@ public final class MessageQueue {
         StateNode bottom = getStateNode(top);
 
         /*
-         * If the top node is a state node, there are no reachable messages.
-         * If it's anything other than Active, we can quit as we know that next() is not
-         * consuming items.
-         * If the top node is Active then we know that next() is currently consuming items.
-         * In that case we should wait next() has drained the stack.
+         * If the top node is a state node, there are no reachable messages. We should still
+         * wait for next to complete draining the stack.
          */
         if (top == bottom) {
-            if (bottom != sStackStateActive) {
-                return false;
-            }
             waitForDrainCompleted();
             return false;
         }
@@ -2698,12 +2881,13 @@ public final class MessageQueue {
                 if (removeMatches) {
                     if (p.removeFromStack()) {
                         p.mMessage.recycleUnchecked();
+                        decAndTraceMessageCount();
                         if (mMessageCounts.incrementCancelled()) {
                             nativeWake(mPtr);
                         }
                     }
                 } else {
-                    return true;
+                    break;
                 }
             }
 
@@ -2713,15 +2897,16 @@ public final class MessageQueue {
                 if (DEBUG) {
                     Log.d(TAG_C, "stackHasMessages next() is walking the stack, we must re-sample");
                 }
-                waitForDrainCompleted();
                 break;
             }
             if (!n.isMessageNode()) {
                 /* We reached the end of the stack */
-                return found;
+                break;
             }
             p = (MessageNode) n;
         }
+
+        waitForDrainCompleted();
 
         return found;
     }
@@ -2740,6 +2925,7 @@ public final class MessageQueue {
                     found = true;
                     if (queue.remove(msg)) {
                         msg.mMessage.recycleUnchecked();
+                        decAndTraceMessageCount();
                     }
                 } else {
                     return true;

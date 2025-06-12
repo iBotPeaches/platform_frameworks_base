@@ -18,6 +18,8 @@ package com.android.wm.shell.compatui;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 
+import static com.android.wm.shell.compatui.impl.CompatUIRequestsKt.DISPLAY_COMPAT_SHOW_RESTART_DIALOG;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.TaskInfo;
@@ -37,9 +39,9 @@ import android.view.Display;
 import android.view.InsetsSourceControl;
 import android.view.InsetsState;
 import android.view.accessibility.AccessibilityManager;
+import android.window.DesktopModeFlags;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.window.flags.Flags;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.DisplayController.OnDisplaysChangedListener;
@@ -53,8 +55,11 @@ import com.android.wm.shell.common.SyncTransactionQueue;
 import com.android.wm.shell.compatui.api.CompatUIEvent;
 import com.android.wm.shell.compatui.api.CompatUIHandler;
 import com.android.wm.shell.compatui.api.CompatUIInfo;
+import com.android.wm.shell.compatui.api.CompatUIRequest;
 import com.android.wm.shell.compatui.impl.CompatUIEvents.SizeCompatRestartButtonClicked;
+import com.android.wm.shell.compatui.impl.CompatUIRequests;
 import com.android.wm.shell.desktopmode.DesktopUserRepositories;
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.sysui.KeyguardChangeListener;
 import com.android.wm.shell.sysui.ShellController;
 import com.android.wm.shell.sysui.ShellInit;
@@ -70,7 +75,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -105,6 +109,12 @@ public class CompatUIController implements OnDisplaysChangedListener,
      * currently visible
      */
     private final SparseArray<RestartDialogWindowManager> mTaskIdToRestartDialogWindowManagerMap =
+            new SparseArray<>(0);
+
+    /**
+     * {@link SparseArray} that maps task ids to {@link CompatUIInfo}.
+     */
+    private final SparseArray<CompatUIInfo> mTaskIdToCompatUIInfoMap =
             new SparseArray<>(0);
 
     /**
@@ -245,6 +255,25 @@ public class CompatUIController implements OnDisplaysChangedListener,
         mCallback = callback;
     }
 
+    @Override
+    public void sendCompatUIRequest(CompatUIRequest compatUIRequest) {
+        switch(compatUIRequest.getRequestId()) {
+            case DISPLAY_COMPAT_SHOW_RESTART_DIALOG:
+                handleDisplayCompatShowRestartDialog(compatUIRequest.asType());
+                break;
+            default:
+        }
+    }
+
+    private void handleDisplayCompatShowRestartDialog(
+            CompatUIRequests.DisplayCompatShowRestartDialog request) {
+        final CompatUIInfo compatUIInfo = mTaskIdToCompatUIInfoMap.get(request.getTaskId());
+        if (compatUIInfo == null) {
+            return;
+        }
+        onRestartButtonClicked(new Pair<>(compatUIInfo.getTaskInfo(), compatUIInfo.getListener()));
+    }
+
     /**
      * Called when the Task info changed. Creates and updates the compat UI if there is an
      * activity in size compat, or removes the UI if there is no size compat activity.
@@ -254,13 +283,22 @@ public class CompatUIController implements OnDisplaysChangedListener,
     public void onCompatInfoChanged(@NonNull CompatUIInfo compatUIInfo) {
         final TaskInfo taskInfo = compatUIInfo.getTaskInfo();
         final ShellTaskOrganizer.TaskListener taskListener = compatUIInfo.getListener();
-        if (taskInfo != null && !taskInfo.appCompatTaskInfo.isTopActivityInSizeCompat()) {
+        if (taskListener == null) {
+            mTaskIdToCompatUIInfoMap.delete(taskInfo.taskId);
+        } else {
+            mTaskIdToCompatUIInfoMap.put(taskInfo.taskId, compatUIInfo);
+        }
+        final boolean isInDisplayCompatMode =
+                taskInfo.appCompatTaskInfo.isRestartMenuEnabledForDisplayMove();
+        if (taskInfo != null && !taskInfo.appCompatTaskInfo.isTopActivityInSizeCompat()
+                && !isInDisplayCompatMode) {
             mSetOfTaskIdsShowingRestartDialog.remove(taskInfo.taskId);
         }
         mIsInDesktopMode = isInDesktopMode(taskInfo);
         // We close all the Compat UI educations in case TaskInfo has no configuration or
         // TaskListener or in desktop mode.
-        if (taskInfo.configuration == null || taskListener == null || mIsInDesktopMode) {
+        if (taskInfo.configuration == null || taskListener == null
+                || (mIsInDesktopMode && !isInDisplayCompatMode)) {
             // Null token means the current foreground activity is not in compatibility mode.
             removeLayouts(taskInfo.taskId);
             return;
@@ -552,8 +590,11 @@ public class CompatUIController implements OnDisplaysChangedListener,
             @Nullable ShellTaskOrganizer.TaskListener taskListener) {
         RestartDialogWindowManager layout =
                 mTaskIdToRestartDialogWindowManagerMap.get(taskInfo.taskId);
+        final boolean isInNonDisplayCompatDesktopMode = mIsInDesktopMode
+                && !taskInfo.appCompatTaskInfo.isRestartMenuEnabledForDisplayMove();
         if (layout != null) {
-            if (layout.needsToBeRecreated(taskInfo, taskListener) || mIsInDesktopMode) {
+            if (layout.needsToBeRecreated(taskInfo, taskListener)
+                    || isInNonDisplayCompatDesktopMode) {
                 mTaskIdToRestartDialogWindowManagerMap.remove(taskInfo.taskId);
                 layout.release();
             } else {
@@ -568,8 +609,9 @@ public class CompatUIController implements OnDisplaysChangedListener,
                 return;
             }
         }
-        if (mIsInDesktopMode) {
-            // Return if in desktop mode.
+        if (isInNonDisplayCompatDesktopMode) {
+            // No restart dialog can be shown in desktop mode unless the task is in display compat
+            // mode.
             return;
         }
         // Create a new UI layout.
@@ -667,9 +709,10 @@ public class CompatUIController implements OnDisplaysChangedListener,
 
     private void createOrUpdateUserAspectRatioSettingsLayout(@NonNull TaskInfo taskInfo,
             @Nullable ShellTaskOrganizer.TaskListener taskListener) {
+        boolean overridesShowAppHandle = DesktopModeStatus.overridesShowAppHandle(mContext);
         if (mUserAspectRatioSettingsLayout != null) {
             if (mUserAspectRatioSettingsLayout.needsToBeRecreated(taskInfo, taskListener)
-                    || mIsInDesktopMode) {
+                    || mIsInDesktopMode || overridesShowAppHandle) {
                 mUserAspectRatioSettingsLayout.release();
                 mUserAspectRatioSettingsLayout = null;
             } else {
@@ -682,8 +725,9 @@ public class CompatUIController implements OnDisplaysChangedListener,
                 return;
             }
         }
-        if (mIsInDesktopMode) {
-            // Return if in desktop mode.
+        if (mIsInDesktopMode || overridesShowAppHandle) {
+            // Return if in desktop mode or app handle menu is already showing change aspect ratio
+            // option.
             return;
         }
         // Create a new UI layout.
@@ -870,7 +914,8 @@ public class CompatUIController implements OnDisplaysChangedListener,
             return false;
         }
         boolean isDesktopModeShowing = mDesktopUserRepositories.get().getCurrent()
-                .getVisibleTaskCount(taskInfo.displayId) > 0;
-        return Flags.skipCompatUiEducationInDesktopMode() && isDesktopModeShowing;
+                .isAnyDeskActive(taskInfo.displayId);
+        return DesktopModeFlags.ENABLE_DESKTOP_SKIP_COMPAT_UI_EDUCATION_IN_DESKTOP_MODE_BUGFIX
+                .isTrue() && isDesktopModeShowing;
     }
 }

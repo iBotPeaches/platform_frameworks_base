@@ -20,7 +20,7 @@ import android.app.trust.TrustManager
 import com.android.keyguard.TrustGrantFlags
 import com.android.keyguard.logging.TrustRepositoryLogger
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -31,7 +31,6 @@ import com.android.systemui.user.data.repository.UserRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,7 +70,6 @@ interface TrustRepository {
     suspend fun reportKeyguardShowingChanged()
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class TrustRepositoryImpl
 @Inject

@@ -8,11 +8,12 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.qs.pipeline.data.model.RestoreData
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.pipeline.shared.TilesUpgradePath
 import com.android.systemui.qs.pipeline.shared.logging.QSPipelineLogger
 import com.android.systemui.util.settings.FakeSettings
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -25,7 +26,6 @@ import org.mockito.MockitoAnnotations
 
 @SmallTest
 @EnabledOnRavenwood
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class UserTileSpecRepositoryTest : SysuiTestCase() {
     private val secureSettings = FakeSettings()
@@ -314,11 +314,7 @@ class UserTileSpecRepositoryTest : SysuiTestCase() {
             runCurrent()
 
             val restoreData =
-                RestoreData(
-                    restoredSpecs.toTileSpecs(),
-                    restoredAutoAdded.toTilesSet(),
-                    USER,
-                )
+                RestoreData(restoredSpecs.toTileSpecs(), restoredAutoAdded.toTilesSet(), USER)
             underTest.reconcileRestore(restoreData, autoAddedBeforeRestore.toTilesSet())
             runCurrent()
 
@@ -353,6 +349,74 @@ class UserTileSpecRepositoryTest : SysuiTestCase() {
             assertThat(tiles).isEqualTo(currentTiles)
         }
 
+    @Test
+    fun noSettingsStored_noTilesReadFromSettings() =
+        testScope.runTest {
+            val tilesRead by collectLastValue(underTest.tilesUpgradePath.consumeAsFlow())
+            val tiles by collectLastValue(underTest.tiles())
+
+            assertThat(tiles).isEqualTo(getDefaultTileSpecs())
+            assertThat(tilesRead).isEqualTo(TilesUpgradePath.DefaultSet)
+        }
+
+    @Test
+    fun settingsStored_tilesReadFromSettings() =
+        testScope.runTest {
+            val storedTiles = "a,b"
+            storeTiles(storedTiles)
+            val tiles by collectLastValue(underTest.tiles())
+            val tilesRead by collectLastValue(underTest.tilesUpgradePath.consumeAsFlow())
+
+            assertThat(tilesRead)
+                .isEqualTo(TilesUpgradePath.ReadFromSettings(storedTiles.toTilesSet()))
+        }
+
+    @Test
+    fun noSettingsStored_tilesChanged_tilesReadFromSettingsNotChanged() =
+        testScope.runTest {
+            val tilesRead by collectLastValue(underTest.tilesUpgradePath.consumeAsFlow())
+            val tiles by collectLastValue(underTest.tiles())
+
+            underTest.addTile(TileSpec.create("a"))
+            assertThat(tilesRead).isEqualTo(TilesUpgradePath.DefaultSet)
+        }
+
+    @Test
+    fun settingsStored_tilesChanged_tilesReadFromSettingsNotChanged() =
+        testScope.runTest {
+            val storedTiles = "a,b"
+            storeTiles(storedTiles)
+            val tiles by collectLastValue(underTest.tiles())
+            val tilesRead by collectLastValue(underTest.tilesUpgradePath.consumeAsFlow())
+
+            underTest.addTile(TileSpec.create("c"))
+            assertThat(tilesRead)
+                .isEqualTo(TilesUpgradePath.ReadFromSettings(storedTiles.toTilesSet()))
+        }
+
+    @Test
+    fun tilesRestoredFromBackup() =
+        testScope.runTest {
+            val specsBeforeRestore = "a,b,c,d,e"
+            val restoredSpecs = "a,c,d,f"
+            val autoAddedBeforeRestore = "b,d"
+            val restoredAutoAdded = "d,e"
+
+            storeTiles(specsBeforeRestore)
+            val tiles by collectLastValue(underTest.tiles())
+            val tilesRead by collectLastValue(underTest.tilesUpgradePath.consumeAsFlow())
+            runCurrent()
+
+            val restoreData =
+                RestoreData(restoredSpecs.toTileSpecs(), restoredAutoAdded.toTilesSet(), USER)
+            underTest.reconcileRestore(restoreData, autoAddedBeforeRestore.toTilesSet())
+            runCurrent()
+
+            val expected = "a,b,c,d,f"
+            assertThat(tilesRead)
+                .isEqualTo(TilesUpgradePath.RestoreFromBackup(expected.toTilesSet()))
+        }
+
     private fun getDefaultTileSpecs(): List<TileSpec> {
         return defaultTilesRepository.defaultTiles
     }
@@ -372,6 +436,7 @@ class UserTileSpecRepositoryTest : SysuiTestCase() {
         private const val SETTING = Settings.Secure.QS_TILES
 
         private fun String.toTileSpecs() = TilesSettingConverter.toTilesList(this)
+
         private fun String.toTilesSet() = TilesSettingConverter.toTilesSet(this)
     }
 }

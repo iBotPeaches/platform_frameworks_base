@@ -43,6 +43,7 @@ import java.lang.ref.WeakReference;
  * with hardware keyboards.  Software input methods have no obligation to trigger
  * the methods in this class.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TextKeyListener extends BaseKeyListener implements SpanWatcher {
     private static TextKeyListener[] sInstance =
         new TextKeyListener[Capitalize.values().length * 2];

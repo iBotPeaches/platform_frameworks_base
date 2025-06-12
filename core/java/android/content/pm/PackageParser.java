@@ -2322,10 +2322,10 @@ public class PackageParser {
 
             } else if (tagName.equals(TAG_ADOPT_PERMISSIONS)) {
                 sa = res.obtainAttributes(parser,
-                        com.android.internal.R.styleable.AndroidManifestOriginalPackage);
+                        com.android.internal.R.styleable.AndroidManifestAdoptPermissions);
 
                 String name = sa.getNonConfigurationString(
-                        com.android.internal.R.styleable.AndroidManifestOriginalPackage_name, 0);
+                        com.android.internal.R.styleable.AndroidManifestAdoptPermissions_name, 0);
 
                 sa.recycle();
 
@@ -7764,6 +7764,10 @@ public class PackageParser {
             final ArrayList<T> intentsList;
             try {
                 final Class<T> cls = (Class<T>) Class.forName(componentName);
+                if (!IntentInfo.class.isAssignableFrom(cls)) {
+                    throw new AssertionError("Intent list requires subclass of IntentInfo, not: "
+                            + componentName);
+                }
                 final Constructor<T> cons = cls.getConstructor(Parcel.class);
 
                 intentsList = new ArrayList<>(N);

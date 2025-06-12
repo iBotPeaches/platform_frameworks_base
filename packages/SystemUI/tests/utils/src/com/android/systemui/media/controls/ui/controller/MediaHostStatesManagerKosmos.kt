@@ -16,6 +16,7 @@
 
 package com.android.systemui.media.controls.ui.controller
 
+import com.android.systemui.dump.dumpManager
 import com.android.systemui.kosmos.Kosmos
 
-val Kosmos.mediaHostStatesManager by Kosmos.Fixture { MediaHostStatesManager() }
+val Kosmos.mediaHostStatesManager by Kosmos.Fixture { MediaHostStatesManager(dumpManager) }

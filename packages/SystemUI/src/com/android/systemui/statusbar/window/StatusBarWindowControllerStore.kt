@@ -18,17 +18,16 @@ package com.android.systemui.statusbar.window
 
 import android.content.Context
 import android.view.WindowManager
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.display.data.repository.SingleDisplayStore
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.data.repository.StatusBarConfigurationControllerStore
 import com.android.systemui.statusbar.data.repository.StatusBarContentInsetsProviderStore
+import com.android.systemui.statusbar.data.repository.StatusBarPerDisplayStoreImpl
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 
@@ -42,31 +41,35 @@ constructor(
     @Background backgroundApplicationScope: CoroutineScope,
     private val controllerFactory: StatusBarWindowController.Factory,
     private val displayWindowPropertiesRepository: DisplayWindowPropertiesRepository,
-    private val viewCaptureAwareWindowManagerFactory: ViewCaptureAwareWindowManager.Factory,
     private val statusBarConfigurationControllerStore: StatusBarConfigurationControllerStore,
     private val statusBarContentInsetsProviderStore: StatusBarContentInsetsProviderStore,
     displayRepository: DisplayRepository,
 ) :
     StatusBarWindowControllerStore,
-    PerDisplayStoreImpl<StatusBarWindowController>(backgroundApplicationScope, displayRepository) {
+    StatusBarPerDisplayStoreImpl<StatusBarWindowController>(
+        backgroundApplicationScope,
+        displayRepository,
+    ) {
 
     init {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
     }
 
-    override fun createInstanceForDisplay(displayId: Int): StatusBarWindowController {
+    override fun createInstanceForDisplay(displayId: Int): StatusBarWindowController? {
         val statusBarDisplayContext =
             displayWindowPropertiesRepository.get(
                 displayId = displayId,
                 windowType = WindowManager.LayoutParams.TYPE_STATUS_BAR,
-            )
-        val viewCaptureAwareWindowManager =
-            viewCaptureAwareWindowManagerFactory.create(statusBarDisplayContext.windowManager)
+            ) ?: return null
+        val statusBarConfigurationController =
+            statusBarConfigurationControllerStore.forDisplay(displayId) ?: return null
+        val contentInsetsProvider =
+            statusBarContentInsetsProviderStore.forDisplay(displayId) ?: return null
         return controllerFactory.create(
             statusBarDisplayContext.context,
-            viewCaptureAwareWindowManager,
-            statusBarConfigurationControllerStore.forDisplay(displayId),
-            statusBarContentInsetsProviderStore.forDisplay(displayId),
+            statusBarDisplayContext.windowManager,
+            statusBarConfigurationController,
+            contentInsetsProvider,
         )
     }
 
@@ -82,7 +85,7 @@ class SingleDisplayStatusBarWindowControllerStore
 @Inject
 constructor(
     context: Context,
-    viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
+    windowManager: WindowManager,
     factory: StatusBarWindowControllerImpl.Factory,
     statusBarConfigurationControllerStore: StatusBarConfigurationControllerStore,
     statusBarContentInsetsProviderStore: StatusBarContentInsetsProviderStore,
@@ -91,7 +94,7 @@ constructor(
     PerDisplayStore<StatusBarWindowController> by SingleDisplayStore(
         factory.create(
             context,
-            viewCaptureAwareWindowManager,
+            windowManager,
             statusBarConfigurationControllerStore.defaultDisplay,
             statusBarContentInsetsProviderStore.defaultDisplay,
         )

@@ -16,10 +16,10 @@
 
 #define LOG_TAG "misc"
 
-//
-// Miscellaneous utility functions.
-//
-#include <androidfw/misc.h>
+#include "androidfw/misc.h"
+
+#include <errno.h>
+#include <sys/stat.h>
 
 #include "android-base/logging.h"
 
@@ -28,38 +28,35 @@
 #include <sys/vfs.h>
 #endif  // __linux__
 
-#include <cstring>
+#include <array>
 #include <cstdio>
-#include <errno.h>
-#include <sys/stat.h>
+#include <cstring>
 
 namespace android {
 
 /*
  * Get a file's type.
  */
-FileType getFileType(const char* fileName)
-{
-    struct stat sb;
-
-    if (stat(fileName, &sb) < 0) {
-        if (errno == ENOENT || errno == ENOTDIR)
-            return kFileTypeNonexistent;
-        else {
-            PLOG(ERROR) << "getFileType(): stat(" << fileName << ") failed";
-            return kFileTypeUnknown;
-        }
-    } else {
-        if (S_ISREG(sb.st_mode))
-            return kFileTypeRegular;
-        else if (S_ISDIR(sb.st_mode))
-            return kFileTypeDirectory;
-        else if (S_ISCHR(sb.st_mode))
-            return kFileTypeCharDev;
-        else if (S_ISBLK(sb.st_mode))
-            return kFileTypeBlockDev;
-        else if (S_ISFIFO(sb.st_mode))
-            return kFileTypeFifo;
+FileType getFileType(const char* fileName) {
+  struct stat sb;
+  if (stat(fileName, &sb) < 0) {
+    if (errno == ENOENT || errno == ENOTDIR)
+      return kFileTypeNonexistent;
+    else {
+      PLOG(ERROR) << "getFileType(): stat(" << fileName << ") failed";
+      return kFileTypeUnknown;
+    }
+  } else {
+    if (S_ISREG(sb.st_mode))
+      return kFileTypeRegular;
+    else if (S_ISDIR(sb.st_mode))
+      return kFileTypeDirectory;
+    else if (S_ISCHR(sb.st_mode))
+      return kFileTypeCharDev;
+    else if (S_ISBLK(sb.st_mode))
+      return kFileTypeBlockDev;
+    else if (S_ISFIFO(sb.st_mode))
+      return kFileTypeFifo;
 #if defined(S_ISLNK)
         else if (S_ISLNK(sb.st_mode))
             return kFileTypeSymlink;
@@ -73,27 +70,34 @@ FileType getFileType(const char* fileName)
     }
 }
 
-/*
- * Get a file's modification date.
- */
-time_t getFileModDate(const char* fileName) {
-    struct stat sb;
-    if (stat(fileName, &sb) < 0) {
-        return (time_t)-1;
-    }
-    return sb.st_mtime;
+ModDate getModDate(const struct stat& st) {
+#ifdef _WIN32
+  return st.st_mtime;
+#elif defined(__APPLE__)
+  return st.st_mtimespec;
+#else
+  return st.st_mtim;
+#endif
 }
 
-time_t getFileModDate(int fd) {
-    struct stat sb;
-    if (fstat(fd, &sb) < 0) {
-        return (time_t)-1;
-    }
-    if (sb.st_nlink <= 0) {
-        errno = ENOENT;
-        return (time_t)-1;
-    }
-    return sb.st_mtime;
+ModDate getFileModDate(const char* fileName) {
+  struct stat sb;
+  if (stat(fileName, &sb) < 0) {
+    return kInvalidModDate;
+  }
+  return getModDate(sb);
+}
+
+ModDate getFileModDate(int fd) {
+  struct stat sb;
+  if (fstat(fd, &sb) < 0) {
+    return kInvalidModDate;
+  }
+  if (sb.st_nlink <= 0) {
+    errno = ENOENT;
+    return kInvalidModDate;
+  }
+  return getModDate(sb);
 }
 
 #ifndef __linux__
@@ -104,8 +108,14 @@ bool isReadonlyFilesystem(const char*) {
 bool isReadonlyFilesystem(int) {
     return false;
 }
+bool isKnownWritablePath(const char*) {
+  return false;
+}
 #else   // __linux__
 bool isReadonlyFilesystem(const char* path) {
+  if (isKnownWritablePath(path)) {
+    return false;
+  }
     struct statfs sfs;
     if (::statfs(path, &sfs)) {
         PLOG(ERROR) << "isReadonlyFilesystem(): statfs(" << path << ") failed";
@@ -122,6 +132,13 @@ bool isReadonlyFilesystem(int fd) {
     }
     return (sfs.f_flags & ST_RDONLY) != 0;
 }
+
+bool isKnownWritablePath(const char* path) {
+  // We know that all paths in /data/ are writable.
+  static constexpr char kRwPrefix[] = "/data/";
+  return strncmp(kRwPrefix, path, std::size(kRwPrefix) - 1) == 0;
+}
+
 #endif  // __linux__
 
-}; // namespace android
+}  // namespace android

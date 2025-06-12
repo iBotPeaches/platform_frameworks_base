@@ -88,7 +88,7 @@ constructor(
         dialog.setPositiveButton(
             R.string.quick_settings_done,
             /* onClick = */ null,
-            /* dismissOnClick = */ true
+            /* dismissOnClick = */ true,
         )
     }
 
@@ -102,7 +102,7 @@ constructor(
             labelArray[i] =
                 context.resources.getString(
                     com.android.settingslib.R.string.font_scale_percentage,
-                    (strEntryValues[i].toFloat() * 100).roundToInt()
+                    (strEntryValues[i].toFloat() * 100).roundToInt(),
                 )
         }
         seekBarWithIconButtonsView.setProgressStateLabels(labelArray)
@@ -132,7 +132,7 @@ constructor(
 
                 override fun onUserInteractionFinalized(
                     seekBar: SeekBar,
-                    @ControlUnitType control: Int
+                    @ControlUnitType control: Int,
                 ) {
                     if (control == ControlUnitType.BUTTON) {
                         // The seekbar progress is changed by icon buttons
@@ -216,7 +216,7 @@ constructor(
             !systemSettings.putStringForUser(
                 Settings.System.FONT_SCALE,
                 strEntryValues[lastProgress.get()],
-                userTracker.userId
+                userTracker.userId,
             )
         ) {
             title.post { doneButton.isEnabled = true }
@@ -228,13 +228,13 @@ constructor(
         if (
             secureSettings.getStringForUser(
                 Settings.Secure.ACCESSIBILITY_FONT_SCALING_HAS_BEEN_CHANGED,
-                userTracker.userId
+                userTracker.userId,
             ) != ON
         ) {
             secureSettings.putStringForUser(
                 Settings.Secure.ACCESSIBILITY_FONT_SCALING_HAS_BEEN_CHANGED,
                 ON,
-                userTracker.userId
+                userTracker.userId,
             )
         }
     }
@@ -249,7 +249,7 @@ constructor(
 
         title.setTextSize(
             TypedValue.COMPLEX_UNIT_PX,
-            previewConfigContext.resources.getDimension(R.dimen.dialog_title_text_size)
+            previewConfigContext.resources.getDimension(R.dimen.dialog_title_text_size),
         )
     }
 

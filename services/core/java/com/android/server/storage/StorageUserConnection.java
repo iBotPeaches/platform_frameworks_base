@@ -351,18 +351,38 @@ public final class StorageUserConnection {
             }
         }
 
+
         private void waitForAsyncVoid(AsyncStorageServiceCall asyncCall) throws Exception {
+            waitForAsyncVoid(asyncCall, /*bindIfNotConnected*/ true,
+                    DEFAULT_REMOTE_TIMEOUT_SECONDS);
+        }
+
+        private void waitForAsyncVoid(AsyncStorageServiceCall asyncCall,
+                boolean bindIfNotConnected, int timeoutSeconds) throws Exception {
             CompletableFuture<Void> opFuture = new CompletableFuture<>();
             RemoteCallback callback = new RemoteCallback(result -> setResult(result, opFuture));
 
-            waitForAsync(asyncCall, callback, opFuture, mOutstandingOps,
-                    DEFAULT_REMOTE_TIMEOUT_SECONDS);
+            waitForAsync(asyncCall, callback, opFuture, mOutstandingOps, bindIfNotConnected,
+                    timeoutSeconds);
         }
 
         private <T> T waitForAsync(AsyncStorageServiceCall asyncCall, RemoteCallback callback,
                 CompletableFuture<T> opFuture, ArrayList<CompletableFuture<T>> outstandingOps,
-                long timeoutSeconds) throws Exception {
-            CompletableFuture<IExternalStorageService> serviceFuture = connectIfNeeded();
+                boolean bindIfNotConnected, long timeoutSeconds) throws Exception {
+
+            CompletableFuture<IExternalStorageService> serviceFuture;
+            if (bindIfNotConnected) {
+                serviceFuture = connectIfNeeded();
+            } else {
+                synchronized (mLock) {
+                    if (mRemoteFuture == null || mRemoteFuture.getNow(null) == null) {
+                        Slog.w(TAG, "Dropping async request as service is not connected"
+                                + "and request doesn't require connecting");
+                        return null;
+                    }
+                    serviceFuture = mRemoteFuture;
+                }
+            }
 
             try {
                 synchronized (mLock) {
@@ -404,7 +424,11 @@ public final class StorageUserConnection {
         public void endSession(Session session) throws ExternalStorageServiceException {
             try {
                 waitForAsyncVoid((service, callback) ->
-                        service.endSession(session.sessionId, callback));
+                        service.endSession(session.sessionId, callback),
+                        // endSession shouldn't be trying to bind to remote service if the service
+                        // isn't connected already as this means that no previous mounting has been
+                        // completed.
+                        /*bindIfNotConnected*/ false, /*timeoutSeconds*/ 10);
             } catch (Exception e) {
                 throw new ExternalStorageServiceException("Failed to end session: " + session, e);
             }
@@ -415,7 +439,11 @@ public final class StorageUserConnection {
                 ExternalStorageServiceException {
             try {
                 waitForAsyncVoid((service, callback) ->
-                        service.notifyVolumeStateChanged(sessionId, vol, callback));
+                        service.notifyVolumeStateChanged(sessionId, vol, callback),
+                        // notifyVolumeStateChanged shouldn't be trying to bind to remote service
+                        // if the service isn't connected already as this means that
+                        // no previous mounting has been completed
+                        /*bindIfNotConnected*/ false, /*timeoutSeconds*/ 10);
             } catch (Exception e) {
                 throw new ExternalStorageServiceException("Failed to notify volume state changed "
                         + "for vol : " + vol, e);

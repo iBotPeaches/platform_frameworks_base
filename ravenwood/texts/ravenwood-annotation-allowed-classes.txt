@@ -323,6 +323,10 @@ com.android.internal.graphics.cam.Frame
 com.android.internal.graphics.cam.HctSolver
 com.android.internal.graphics.ColorUtils
 
+com.android.internal.protolog.common.LogLevel
+com.android.internal.protolog.LogcatOnlyProtoLogImpl
+com.android.internal.protolog.ProtoLog
+
 com.android.internal.util.BitUtils
 com.android.internal.util.BitwiseInputStream
 com.android.internal.util.BitwiseOutputStream

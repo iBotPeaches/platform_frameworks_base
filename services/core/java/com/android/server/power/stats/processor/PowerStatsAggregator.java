@@ -23,6 +23,7 @@ import android.util.SparseBooleanArray;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.BatteryStatsHistory;
 import com.android.internal.os.BatteryStatsHistoryIterator;
+import com.android.internal.os.MonotonicClock;
 
 import java.util.function.Consumer;
 
@@ -97,19 +98,24 @@ public class PowerStatsAggregator {
 
                     if (!startedSession) {
                         mStats.start(item.time);
-                        mStats.addClockUpdate(item.time, item.currentTime);
+                        if (!mStats.addClockUpdate(item.time, item.currentTime)) {
+                            break;
+                        }
                         if (baseTime == UNINITIALIZED) {
                             baseTime = item.time;
                         }
                         startedSession = true;
                     } else if (item.cmd == BatteryStats.HistoryItem.CMD_CURRENT_TIME
                                || item.cmd == BatteryStats.HistoryItem.CMD_RESET) {
-                        mStats.addClockUpdate(item.time, item.currentTime);
+                        if (!mStats.addClockUpdate(item.time, item.currentTime)) {
+                            break;
+                        }
                     }
 
                     lastTime = item.time;
 
-                    if (item.batteryLevel != lastBatteryLevel) {
+                    if (item.cmd == BatteryStats.HistoryItem.CMD_UPDATE
+                            && item.batteryLevel != lastBatteryLevel) {
                         mStats.noteBatteryLevel(item.batteryLevel, item.batteryChargeUah,
                                 item.time);
                         lastBatteryLevel = item.batteryLevel;
@@ -162,17 +168,24 @@ public class PowerStatsAggregator {
                                 consumer.accept(mStats);
                             }
                             mStats.reset();
-                            mStats.addClockUpdate(item.time, item.currentTime);
+                            if (!mStats.addClockUpdate(item.time, item.currentTime)) {
+                                break;
+                            }
                             baseTime = lastTime = item.time;
                         }
                         mStats.addPowerStats(item.powerStats, item.time);
                     }
                 }
             }
-            if (lastTime > baseTime) {
-                mStats.setDuration(lastTime - baseTime);
-                mStats.finish(lastTime);
-                consumer.accept(mStats);
+            if (startedSession) {
+                if (endTimeMs != MonotonicClock.UNDEFINED) {
+                    lastTime = endTimeMs;
+                }
+                if (lastTime > baseTime) {
+                    mStats.setDuration(lastTime - baseTime);
+                    mStats.finish(lastTime);
+                    consumer.accept(mStats);
+                }
             }
 
             mStats.reset();     // to free up memory

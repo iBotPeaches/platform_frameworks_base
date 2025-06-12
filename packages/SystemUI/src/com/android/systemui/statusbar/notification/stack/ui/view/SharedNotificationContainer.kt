@@ -60,6 +60,7 @@ class SharedNotificationContainer(context: Context, attrs: AttributeSet?) :
         marginTop: Int,
         marginEnd: Int,
         marginBottom: Int,
+        nsslAlpha: Float,
     ) {
         val constraintSet = ConstraintSet()
         constraintSet.clone(baseConstraintSet)
@@ -75,7 +76,7 @@ class SharedNotificationContainer(context: Context, attrs: AttributeSet?) :
         constraintSet.apply {
             if (SceneContainerFlag.isEnabled) {
                 when (horizontalPosition) {
-                    is HorizontalPosition.FloatAtEnd ->
+                    is HorizontalPosition.FloatAtStart ->
                         constrainWidth(nsslId, horizontalPosition.width)
                     is HorizontalPosition.MiddleToEdge ->
                         setGuidelinePercent(R.id.nssl_guideline, horizontalPosition.ratio)
@@ -83,13 +84,17 @@ class SharedNotificationContainer(context: Context, attrs: AttributeSet?) :
                 }
             }
 
+            // Constraint layout sets the alpha to 1 if it's not set explicitly in the constraint
+            // set. Let's keep the current nssl alpha instead, otherwise this might interfere with
+            // animations.
+            setAlpha(nsslId, nsslAlpha)
+            connect(nsslId, START, startConstraintId, START, marginStart)
             if (
                 !SceneContainerFlag.isEnabled ||
-                    horizontalPosition !is HorizontalPosition.FloatAtEnd
+                    horizontalPosition !is HorizontalPosition.FloatAtStart
             ) {
-                connect(nsslId, START, startConstraintId, START, marginStart)
+                connect(nsslId, END, PARENT_ID, END, marginEnd)
             }
-            connect(nsslId, END, PARENT_ID, END, marginEnd)
             connect(nsslId, BOTTOM, PARENT_ID, BOTTOM, marginBottom)
             connect(nsslId, TOP, PARENT_ID, TOP, marginTop)
         }

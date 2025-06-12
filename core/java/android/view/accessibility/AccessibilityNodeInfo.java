@@ -541,6 +541,22 @@ public class AccessibilityNodeInfo implements Parcelable {
             "ACTION_ARGUMENT_HTML_ELEMENT_STRING";
 
     /**
+     * Argument for specifying the extended selection.
+     *
+     * <p><strong>Type:</strong> {@link AccessibilityNodeInfo.Selection}<br>
+     * <strong>Actions:</strong>
+     *
+     * <ul>
+     *   <li>{@link AccessibilityAction#ACTION_SET_EXTENDED_SELECTION}
+     * </ul>
+     *
+     * @see AccessibilityAction#ACTION_SET_EXTENDED_SELECTION
+     */
+    @FlaggedApi(Flags.FLAG_A11Y_SELECTION_API)
+    public static final String ACTION_ARGUMENT_SELECTION_PARCELABLE =
+            "android.view.accessibility.action.ARGUMENT_SELECTION_PARCELABLE";
+
+    /**
      * Argument for whether when moving at granularity to extend the selection
      * or to move it otherwise.
      * <p>
@@ -1145,6 +1161,8 @@ public class AccessibilityNodeInfo implements Parcelable {
     private Bundle mExtras;
 
     private int mConnectionId = UNDEFINED_CONNECTION_ID;
+
+    private Selection mSelection;
 
     private RangeInfo mRangeInfo;
     private CollectionInfo mCollectionInfo;
@@ -2660,6 +2678,55 @@ public class AccessibilityNodeInfo implements Parcelable {
     }
 
     /**
+     * Sets the extended selection, which is a representation of selection that spans multiple nodes
+     * that exist within the subtree of the node defining selection.
+     *
+     * <p><b>Note:</b> The start and end {@link SelectionPosition} of the provided {@link Selection}
+     * should be constructed with {@code this} node or a descendant of it.
+     *
+     * <p><b>Note:</b> {@link AccessibilityNodeInfo#setFocusable} and
+     * {@link AccessibilityNodeInfo#setFocused} should both be called with {@code true}
+     * before setting the selection in order to make {@code this} node a candidate to
+     * contain a selection.
+     *
+     * <p><b>Note:</b> Cannot be called from an AccessibilityService. This class is made immutable
+     * before being delivered to an AccessibilityService.
+     *
+     * @param selection The extended selection within the node's subtree, or {@code null} if no
+     *     selection exists.
+     * @see AccessibilityNodeInfo.AccessibilityAction#ACTION_SET_EXTENDED_SELECTION
+     * @throws IllegalStateException If called from an AccessibilityService
+     */
+    @FlaggedApi(Flags.FLAG_A11Y_SELECTION_API)
+    public void setSelection(@Nullable Selection selection) {
+        enforceNotSealed();
+        mSelection = selection;
+    }
+
+    /**
+     * Gets the extended selection, which is a representation of selection that spans multiple nodes
+     * that exist within the subtree of the node defining selection.
+     *
+     * <p><b>Note:</b> Nodes that are candidates to contain a selection should return
+     * {@code true} from {@link #isFocusable()} and {@link #isFocused()}.
+     * The start and end {@link SelectionPosition}s of this {@link Selection}
+     * should exist within {@code this} node or its descendants.
+     *
+     * @return The extended selection within the node's subtree, or {@code null} if no selection
+     *     exists.
+     */
+    @FlaggedApi(Flags.FLAG_A11Y_SELECTION_API)
+    public @Nullable Selection getSelection() {
+        if (mSelection != null) {
+            mSelection.getStart().setWindowId(mWindowId);
+            mSelection.getStart().setConnectionId(mConnectionId);
+            mSelection.getEnd().setWindowId(mWindowId);
+            mSelection.getEnd().setConnectionId(mConnectionId);
+        }
+        return mSelection;
+    }
+
+    /**
      * Gets whether this node is visible to the user.
      * <p>
      * Between {@link Build.VERSION_CODES#JELLY_BEAN API 16} and
@@ -4168,6 +4235,15 @@ public class AccessibilityNodeInfo implements Parcelable {
      *         there is no text selection and no cursor.
      */
     public int getTextSelectionStart() {
+        if (Flags.a11ySelectionApi()) {
+            Selection current = getSelection();
+            if ((current != null)
+                    && current.getStart().usesNode(this)
+                    && current.getEnd().usesNode(this)) {
+                return current.getStart().getOffset();
+            }
+            return UNDEFINED_SELECTION_INDEX;
+        }
         return mTextSelectionStart;
     }
 
@@ -4183,6 +4259,15 @@ public class AccessibilityNodeInfo implements Parcelable {
      *         there is no text selection and no cursor.
      */
     public int getTextSelectionEnd() {
+        if (Flags.a11ySelectionApi()) {
+            Selection current = getSelection();
+            if ((current != null)
+                    && current.getStart().usesNode(this)
+                    && current.getEnd().usesNode(this)) {
+                return current.getEnd().getOffset();
+            }
+            return UNDEFINED_SELECTION_INDEX;
+        }
         return mTextSelectionEnd;
     }
 
@@ -4201,6 +4286,13 @@ public class AccessibilityNodeInfo implements Parcelable {
      */
     public void setTextSelection(int start, int end) {
         enforceNotSealed();
+        if (Flags.a11ySelectionApi()) {
+            Selection selection =
+                    new Selection(
+                            new SelectionPosition(this, start), new SelectionPosition(this, end));
+            setSelection(selection);
+            return;
+        }
         mTextSelectionStart = start;
         mTextSelectionEnd = end;
     }
@@ -4875,6 +4967,10 @@ public class AccessibilityNodeInfo implements Parcelable {
             nonDefaultFields |= bitAt(fieldIndex);
         }
         fieldIndex++;
+        if (!Objects.equals(mSelection, DEFAULT.mSelection)) {
+            nonDefaultFields |= bitAt(fieldIndex);
+        }
+        fieldIndex++;
         if (mChecked != DEFAULT.mChecked) {
             nonDefaultFields |= bitAt(fieldIndex);
         }
@@ -5055,6 +5151,9 @@ public class AccessibilityNodeInfo implements Parcelable {
             parcel.writeLong(mLeashedParentNodeId);
         }
         if (isBitSet(nonDefaultFields, fieldIndex++)) {
+            mSelection.writeToParcel(parcel, flags);
+        }
+        if (isBitSet(nonDefaultFields, fieldIndex++)) {
             parcel.writeInt(mChecked);
         }
         if (isBitSet(nonDefaultFields, fieldIndex++)) {
@@ -5172,6 +5271,17 @@ public class AccessibilityNodeInfo implements Parcelable {
         ExtraRenderingInfo ti = other.mExtraRenderingInfo;
         mExtraRenderingInfo = (ti == null) ? null
                 : new ExtraRenderingInfo(ti);
+
+        if (Flags.a11ySelectionApi()) {
+            if (other.getSelection() != null) {
+                SelectionPosition sps = other.getSelection().getStart();
+                SelectionPosition spe = other.getSelection().getEnd();
+                mSelection =
+                        new Selection(
+                                new SelectionPosition(sps.mSourceNodeId, sps.getOffset()),
+                                new SelectionPosition(spe.mSourceNodeId, spe.getOffset()));
+            }
+        }
     }
 
     /**
@@ -5344,6 +5454,9 @@ public class AccessibilityNodeInfo implements Parcelable {
             mLeashedParentNodeId = parcel.readLong();
         }
         if (isBitSet(nonDefaultFields, fieldIndex++)) {
+            mSelection = Selection.CREATOR.createFromParcel(parcel);
+        }
+        if (isBitSet(nonDefaultFields, fieldIndex++)) {
             mChecked = parcel.readInt();
         }
         if (isBitSet(nonDefaultFields, fieldIndex++)) {
@@ -5494,6 +5607,9 @@ public class AccessibilityNodeInfo implements Parcelable {
                 }
                 if (action == R.id.accessibilityActionScrollInDirection) {
                     return "ACTION_SCROLL_IN_DIRECTION";
+                }
+                if (action == R.id.accessibilityActionSetExtendedSelection) {
+                    return "ACTION_SET_EXTENDED_SELECTION";
                 }
                 return "ACTION_UNKNOWN";
             }
@@ -5693,6 +5809,271 @@ public class AccessibilityNodeInfo implements Parcelable {
             case AccessibilityNodeProvider.HOST_VIEW_ID: return "HOST";
             default: return "" + item;
         }
+    }
+
+    /**
+     * A class which defines either the start or end of a selection that can span across multiple
+     * AccessibilityNodeInfo objects.
+     *
+     * @see AccessibilityNodeInfo.Selection
+     */
+    @FlaggedApi(Flags.FLAG_A11Y_SELECTION_API)
+    public static final class SelectionPosition implements Parcelable {
+
+        private final int mOffset;
+        private final long mSourceNodeId;
+        private int mConnectionId;
+        private int mWindowId;
+
+        /**
+         * Instantiates a new SelectionPosition.
+         *
+         * @param node The {@link AccessibilityNodeInfo} for the node of this selection.
+         * @param offset The offset for a {@link SelectionPosition} within {@code view}'s text
+         *     content, which should be a value between 0 and the length of {@code view}'s text.
+         */
+        public SelectionPosition(@NonNull AccessibilityNodeInfo node, int offset) {
+            this(node.mSourceNodeId, offset);
+        }
+
+        /**
+         * Instantiates a new SelectionPosition.
+         *
+         * @param view The {@link View} containing the text associated with this selection
+         *     position.
+         * @param offset The offset for a selection position within {@code view}'s text content,
+         *     which should be a value between 0 and the length of {@code view}'s text.
+         */
+        public SelectionPosition(@NonNull View view, int offset) {
+            this(
+                    makeNodeId(
+                            view.getAccessibilityViewId(), AccessibilityNodeProvider.HOST_VIEW_ID),
+                    offset);
+        }
+
+        /**
+         * Instantiates a new {@link SelectionPosition}.
+         *
+         * @param view The view whose virtual descendant is associated with the selection position.
+         * @param virtualDescendantId The ID of the virtual descendant within {@code view}'s virtual
+         *     subtree that contains the selection position.
+         * @param offset The offset for a selection position within the virtual descendant's text
+         *     content, which should be a value between 0 and the length of the descendant's text.
+         * @see AccessibilityNodeProvider
+         */
+        public SelectionPosition(@NonNull View view, int virtualDescendantId, int offset) {
+            this(makeNodeId(view.getAccessibilityViewId(), virtualDescendantId), offset);
+        }
+
+        private SelectionPosition(long sourceNodeId, int offset) {
+            mOffset = offset;
+            mSourceNodeId = sourceNodeId;
+        }
+
+        private SelectionPosition(Parcel in) {
+            mOffset = in.readInt();
+            mSourceNodeId = in.readLong();
+        }
+
+        private void setWindowId(int windowId) {
+            mWindowId = windowId;
+        }
+
+        private void setConnectionId(int connectionId) {
+            mConnectionId = connectionId;
+        }
+
+        /**
+         * Gets the node for {@code this} {@link SelectionPosition}
+         * <br>
+         * <strong>Note:</strong> This api can only be called from {@link AccessibilityService}.
+         *
+         * @return The node associated with {@code this} {@link SelectionPosition}
+         */
+        public @Nullable AccessibilityNodeInfo getNode() {
+            return getNodeForAccessibilityId(mConnectionId, mWindowId, mSourceNodeId);
+        }
+
+        /**
+         * Gets the offset for {@code this} {@link SelectionPosition}.
+         *
+         * @return A value from 0 to the length of {@link #getNode()}'s content representing the
+         *     offset of the {@link SelectionPosition}
+         */
+        public int getOffset() {
+            return mOffset;
+        }
+
+        private boolean usesNode(@NonNull AccessibilityNodeInfo node) {
+            return this.mSourceNodeId == node.mSourceNodeId
+                    && this.mConnectionId == node.mConnectionId
+                    && this.mWindowId == node.mWindowId;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == null) {
+                return false;
+            }
+
+            if (other == this) {
+                return true;
+            }
+
+            if (getClass() != other.getClass()) {
+                return false;
+            }
+
+            SelectionPosition rhs = (SelectionPosition) other;
+            if (getOffset() != rhs.getOffset()) {
+                return false;
+            }
+
+            return mSourceNodeId == rhs.mSourceNodeId;
+        }
+
+        @Override
+        public int hashCode() {
+            final long prime = 877;
+            long result = 1;
+
+            if (mOffset != 0) {
+                result *= mOffset;
+            }
+
+            if (mSourceNodeId != UNDEFINED_NODE_ID) {
+                result *= mSourceNodeId;
+            }
+
+            return Long.hashCode(result * prime);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void writeToParcel(@NonNull Parcel dest, int flags) {
+            dest.writeInt(mOffset);
+            dest.writeLong(mSourceNodeId);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        /**
+         * @see android.os.Parcelable.Creator
+         */
+        @NonNull
+        public static final Creator<SelectionPosition> CREATOR =
+                new Creator<SelectionPosition>() {
+                    @Override
+                    public SelectionPosition createFromParcel(Parcel in) {
+                        return new SelectionPosition(in);
+                    }
+
+                    @Override
+                    public SelectionPosition[] newArray(int size) {
+                        return new SelectionPosition[size];
+                    }
+                };
+    }
+
+    /**
+     * Represents a selection of content that may extend across more than one {@link
+     * AccessibilityNodeInfo} instance.
+     *
+     * @see AccessibilityNodeInfo.SelectionPosition
+     */
+    @FlaggedApi(Flags.FLAG_A11Y_SELECTION_API)
+    public static final class Selection implements Parcelable {
+
+        private final SelectionPosition mStart;
+        private final SelectionPosition mEnd;
+
+        /**
+         * Instantiates a new Selection.
+         *
+         * @param start The start of the extended selection.
+         * @param end The end of the extended selection.
+         */
+        public Selection(@NonNull SelectionPosition start, @NonNull SelectionPosition end) {
+            this.mStart = start;
+            this.mEnd = end;
+        }
+
+        private Selection(Parcel in) {
+            mStart = SelectionPosition.CREATOR.createFromParcel(in);
+            mEnd = SelectionPosition.CREATOR.createFromParcel(in);
+        }
+
+        /**
+         * @return The start of the extended selection.
+         */
+        public @NonNull SelectionPosition getStart() {
+            return mStart;
+        }
+
+        /**
+         * @return The end of the extended selection.
+         */
+        public @NonNull SelectionPosition getEnd() {
+            return mEnd;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+
+            if (obj == this) {
+                return true;
+            }
+
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+
+            Selection rhs = (Selection) obj;
+            return getStart().equals(rhs.getStart()) && getEnd().equals(rhs.getEnd());
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 17;
+            return prime * getStart().hashCode() * getEnd().hashCode();
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void writeToParcel(@NonNull Parcel dest, int flags) {
+            mStart.writeToParcel(dest, flags);
+            mEnd.writeToParcel(dest, flags);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        /**
+         * @see android.os.Parcelable.Creator
+         */
+        @NonNull
+        public static final Creator<Selection> CREATOR =
+                new Creator<Selection>() {
+                    @Override
+                    public Selection createFromParcel(Parcel in) {
+                        return new Selection(in);
+                    }
+
+                    @Override
+                    public Selection[] newArray(int size) {
+                        return new Selection[size];
+                    }
+                };
     }
 
     /**
@@ -6418,6 +6799,29 @@ public class AccessibilityNodeInfo implements Parcelable {
          */
         @NonNull public static final AccessibilityAction ACTION_SHOW_TEXT_SUGGESTIONS =
                 new AccessibilityAction(R.id.accessibilityActionShowTextSuggestions);
+
+        /**
+         * Action to set the extended selection. Performing this action with no arguments clears the
+         * selection.
+         *
+         * <p><strong>Arguments:</strong> {@link
+         * AccessibilityNodeInfo#ACTION_ARGUMENT_SELECTION_PARCELABLE
+         * AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_PARCELABLE}<br>
+         * <strong>Example:</strong> <code><pre><p>
+         *  Bundle arguments = new Bundle();
+         *  Selection selection = new Selection(null, null);
+         *  arguments.setParcelable(
+         *          AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_PARCELABLE, selection);
+         *  info.performAction(
+         *          AccessibilityAction.ACTION_SET_EXTENDED_SELECTION.getId(), arguments);
+         * </pre></code>
+         *
+         * @see AccessibilityNodeInfo#ACTION_ARGUMENT_SELECTION_PARCELABLE
+         */
+        @FlaggedApi(Flags.FLAG_A11Y_SELECTION_API)
+        @NonNull
+        public static final AccessibilityAction ACTION_SET_EXTENDED_SELECTION =
+                new AccessibilityAction(R.id.accessibilityActionSetExtendedSelection);
 
         private final int mActionId;
         private final CharSequence mLabel;

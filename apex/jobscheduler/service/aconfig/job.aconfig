@@ -96,3 +96,45 @@ flag {
    description: "Apply the quota policy to jobs started when the app was in TOP state"
    bug: "374323858"
 }
+
+flag {
+    name: "enforce_schedule_limit_to_proxy_jobs"
+    namespace: "backstage_power"
+    description: "Limit the schedule calls towards the persisted proxy jobs"
+    bug: "377912323"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "include_trace_tag_in_job_name"
+    namespace: "backstage_power"
+    description: "Add the trace tag to the job name"
+    bug: "354795473"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "additional_quota_for_system_installer"
+    namespace: "backstage_power"
+    description: "Offer additional quota for system installer"
+    bug: "398264531"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "tune_quota_window_default_parameters"
+    namespace: "backstage_power"
+    description: "Tune default active/exempted bucket quota parameters"
+    bug: "401767691"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+

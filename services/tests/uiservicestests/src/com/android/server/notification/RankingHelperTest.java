@@ -17,19 +17,19 @@ package com.android.server.notification;
 
 import static android.app.NotificationManager.IMPORTANCE_DEFAULT;
 import static android.app.NotificationManager.IMPORTANCE_LOW;
-
 import static android.platform.test.flag.junit.SetFlagsRule.DefaultInitValueType.DEVICE_DEFAULT;
+
 import static com.google.common.truth.Truth.assertThat;
+
 import static junit.framework.TestCase.assertEquals;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import android.app.Flags;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -40,7 +40,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
-import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.os.UserHandle;
@@ -67,7 +66,6 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -154,7 +152,7 @@ public class RankingHelperTest extends UiServiceTestCase {
                 .thenReturn(SOUND_URI);
 
         mTestNotificationPolicy = new NotificationManager.Policy(0, 0, 0, 0,
-                NotificationManager.Policy.STATE_CHANNELS_BYPASSING_DND, 0);
+                NotificationManager.Policy.STATE_HAS_PRIORITY_CHANNELS, 0);
         when(mMockZenModeHelper.getNotificationPolicy(any())).thenReturn(mTestNotificationPolicy);
         mHelper = new RankingHelper(getContext(), mHandler, mConfig, mMockZenModeHelper,
                 mUsageStats, new String[] {ImportanceExtractor.class.getName()},

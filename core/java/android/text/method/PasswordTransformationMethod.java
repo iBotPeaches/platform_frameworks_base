@@ -33,6 +33,7 @@ import android.view.View;
 
 import java.lang.ref.WeakReference;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PasswordTransformationMethod
 implements TransformationMethod, TextWatcher
 {

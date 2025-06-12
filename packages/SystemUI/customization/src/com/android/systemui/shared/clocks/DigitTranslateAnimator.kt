@@ -20,57 +20,43 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
-import android.graphics.Point
+import com.android.systemui.plugins.clocks.VPointF
+import com.android.systemui.plugins.clocks.VPointF.Companion.times
 
-class DigitTranslateAnimator(val updateCallback: () -> Unit) {
-    val DEFAULT_ANIMATION_DURATION = 500L
-    val updatedTranslate = Point(0, 0)
+class DigitTranslateAnimator(private val updateCallback: (VPointF) -> Unit) {
+    var currentTranslation = VPointF.ZERO
+    var baseTranslation = VPointF.ZERO
+    var targetTranslation = VPointF.ZERO
 
-    val baseTranslation = Point(0, 0)
-    var targetTranslation: Point? = null
-    val bounceAnimator: ValueAnimator =
+    private val bounceAnimator: ValueAnimator =
         ValueAnimator.ofFloat(1f).apply {
-            duration = DEFAULT_ANIMATION_DURATION
-            addUpdateListener {
-                updateTranslation(it.animatedFraction, updatedTranslate)
-                updateCallback()
-            }
+            addUpdateListener { updateCallback(getInterpolatedTranslation(it.animatedFraction)) }
             addListener(
                 object : AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: Animator) {
-                        rebase()
+                        baseTranslation = currentTranslation
                     }
 
                     override fun onAnimationCancel(animation: Animator) {
-                        rebase()
+                        baseTranslation = currentTranslation
                     }
                 }
             )
         }
 
-    fun rebase() {
-        baseTranslation.x = updatedTranslate.x
-        baseTranslation.y = updatedTranslate.y
-    }
-
     fun animatePosition(
         animate: Boolean = true,
         delay: Long = 0,
-        duration: Long = -1L,
+        duration: Long,
         interpolator: TimeInterpolator? = null,
-        targetTranslation: Point? = null,
+        targetTranslation: VPointF,
         onAnimationEnd: Runnable? = null,
     ) {
-        this.targetTranslation = targetTranslation ?: Point(0, 0)
+        this.targetTranslation = targetTranslation
         if (animate) {
             bounceAnimator.cancel()
             bounceAnimator.startDelay = delay
-            bounceAnimator.duration =
-                if (duration == -1L) {
-                    DEFAULT_ANIMATION_DURATION
-                } else {
-                    duration
-                }
+            bounceAnimator.duration = duration
             interpolator?.let { bounceAnimator.interpolator = it }
             if (onAnimationEnd != null) {
                 val listener =
@@ -89,16 +75,13 @@ class DigitTranslateAnimator(val updateCallback: () -> Unit) {
             bounceAnimator.start()
         } else {
             // No animation is requested, thus set base and target state to the same state.
-            updateTranslation(1F, updatedTranslate)
-            rebase()
-            updateCallback()
+            currentTranslation = targetTranslation
+            baseTranslation = targetTranslation
+            updateCallback(targetTranslation)
         }
     }
 
-    fun updateTranslation(progress: Float, outPoint: Point) {
-        outPoint.x =
-            (baseTranslation.x + progress * (targetTranslation!!.x - baseTranslation.x)).toInt()
-        outPoint.y =
-            (baseTranslation.y + progress * (targetTranslation!!.y - baseTranslation.y)).toInt()
+    fun getInterpolatedTranslation(progress: Float): VPointF {
+        return baseTranslation + progress * (targetTranslation - baseTranslation)
     }
 }

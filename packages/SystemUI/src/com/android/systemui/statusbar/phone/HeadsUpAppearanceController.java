@@ -23,6 +23,7 @@ import android.util.MathUtils;
 import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.widget.ViewClippingUtil;
@@ -36,7 +37,9 @@ import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.CrossFadeHelper;
 import com.android.systemui.statusbar.HeadsUpStatusBarView;
 import com.android.systemui.statusbar.StatusBarState;
+import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips;
 import com.android.systemui.statusbar.core.StatusBarRootModernization;
+import com.android.systemui.statusbar.headsup.shared.StatusBarNoHunBehavior;
 import com.android.systemui.statusbar.notification.NotificationWakeUpCoordinator;
 import com.android.systemui.statusbar.notification.SourceType;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
@@ -149,19 +152,21 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
         mOperatorNameViewOptional = operatorNameViewOptional;
         mDarkIconDispatcher = darkIconDispatcher;
 
-        mView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-            @Override
-            public void onLayoutChange(View v, int left, int top, int right, int bottom,
-                    int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                if (shouldBeVisible()) {
-                    updateTopEntry();
+        if (!StatusBarNoHunBehavior.isEnabled()) {
+            mView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                        int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    if (shouldHeadsUpStatusBarBeVisible()) {
+                        updatePinnedStatus();
 
-                    // trigger scroller to notify the latest panel translation
-                    mStackScrollerController.requestLayout();
+                        // trigger scroller to notify the latest panel translation
+                        mStackScrollerController.requestLayout();
+                    }
+                    mView.removeOnLayoutChangeListener(this);
                 }
-                mView.removeOnLayoutChangeListener(this);
-            }
-        });
+            });
+        }
         mBypassController = bypassController;
         mStatusBarStateController = stateController;
         mPhoneStatusBarTransitions = phoneStatusBarTransitions;
@@ -173,13 +178,15 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     @Override
     protected void onViewAttached() {
         mHeadsUpManager.addListener(this);
-        mView.setOnDrawingRectChangedListener(this::updateIsolatedIconLocation);
-        updateIsolatedIconLocation();
-        mWakeUpCoordinator.addListener(this);
+        if (!StatusBarNoHunBehavior.isEnabled()) {
+            mView.setOnDrawingRectChangedListener(this::updateIsolatedIconLocation);
+            updateIsolatedIconLocation();
+            mDarkIconDispatcher.addDarkReceiver(this);
+            mWakeUpCoordinator.addListener(this);
+        }
         getShadeHeadsUpTracker().addTrackingHeadsUpListener(mSetTrackingHeadsUp);
         getShadeHeadsUpTracker().setHeadsUpAppearanceController(this);
         mStackScrollerController.addOnExpandedHeightChangedListener(mSetExpandedHeight);
-        mDarkIconDispatcher.addDarkReceiver(this);
     }
 
     private ShadeHeadsUpTracker getShadeHeadsUpTracker() {
@@ -189,63 +196,92 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     @Override
     protected void onViewDetached() {
         mHeadsUpManager.removeListener(this);
-        mView.setOnDrawingRectChangedListener(null);
-        mHeadsUpNotificationIconInteractor.setIsolatedIconLocation(null);
-        mWakeUpCoordinator.removeListener(this);
+        if (!StatusBarNoHunBehavior.isEnabled()) {
+            mView.setOnDrawingRectChangedListener(null);
+            mHeadsUpNotificationIconInteractor.setIsolatedIconLocation(null);
+            mDarkIconDispatcher.removeDarkReceiver(this);
+            mWakeUpCoordinator.removeListener(this);
+        }
         getShadeHeadsUpTracker().removeTrackingHeadsUpListener(mSetTrackingHeadsUp);
         getShadeHeadsUpTracker().setHeadsUpAppearanceController(null);
         mStackScrollerController.removeOnExpandedHeightChangedListener(mSetExpandedHeight);
-        mDarkIconDispatcher.removeDarkReceiver(this);
     }
 
     private void updateIsolatedIconLocation() {
+        StatusBarNoHunBehavior.assertInLegacyMode();
         mHeadsUpNotificationIconInteractor.setIsolatedIconLocation(mView.getIconDrawingRect());
     }
 
     @Override
     public void onHeadsUpPinned(NotificationEntry entry) {
-        updateTopEntry();
-        updateHeader(entry);
-        updateHeadsUpAndPulsingRoundness(entry);
+        updatePinnedStatus();
+        updateHeader(entry.getRow());
+        updateHeadsUpAndPulsingRoundness(entry.getRow());
     }
 
     @Override
     public void onHeadsUpStateChanged(@NonNull NotificationEntry entry, boolean isHeadsUp) {
-        updateHeadsUpAndPulsingRoundness(entry);
+        updateHeadsUpAndPulsingRoundness(entry.getRow());
         mPhoneStatusBarTransitions.onHeadsUpStateChanged(isHeadsUp);
     }
 
-    private void updateTopEntry() {
+    private void updatePinnedStatus() {
+        if (StatusBarNoHunBehavior.isEnabled()) {
+            return;
+        }
         NotificationEntry newEntry = null;
-        if (shouldBeVisible()) {
+        if (shouldHeadsUpStatusBarBeVisible()) {
             newEntry = mHeadsUpManager.getTopEntry();
         }
         NotificationEntry previousEntry = mView.getShowingEntry();
         mView.setEntry(newEntry);
         if (newEntry != previousEntry) {
             if (newEntry == null) {
-                // no heads up anymore, lets start the disappear animation
+                // No longer heads up
                 setPinnedStatus(PinnedStatus.NotPinned);
             } else if (previousEntry == null) {
-                // We now have a headsUp and didn't have one before. Let's start the disappear
-                // animation
-                setPinnedStatus(PinnedStatus.PinnedBySystem);
+                // We now have a heads up when we didn't have one before
+                setPinnedStatus(newEntry.getPinnedStatus());
             }
 
-            String isolatedIconKey;
-            if (newEntry != null) {
-                isolatedIconKey = newEntry.getRepresentativeEntry().getKey();
+            mHeadsUpNotificationIconInteractor.setIsolatedIconNotificationKey(
+                    getIsolatedIconKey(newEntry));
+        }
+    }
+
+    private static @Nullable String getIsolatedIconKey(NotificationEntry newEntry) {
+        StatusBarNoHunBehavior.assertInLegacyMode();
+        if (newEntry == null) {
+            return null;
+        }
+        if (StatusBarNotifChips.isEnabled()) {
+            // If the flag is on, only show the isolated icon if the HUN is pinned by the
+            // *system*. (If the HUN was pinned by the user, then the user tapped the
+            // notification status bar chip and we want to keep the chip showing.)
+            if (newEntry.getPinnedStatus() == PinnedStatus.PinnedBySystem) {
+                return newEntry.getRepresentativeEntry().getKey();
             } else {
-                isolatedIconKey = null;
+                return null;
             }
-            mHeadsUpNotificationIconInteractor.setIsolatedIconNotificationKey(isolatedIconKey);
+        } else {
+            // If the flag is off, we know all HUNs are pinned by the system and should show
+            // the isolated icon
+            return newEntry.getRepresentativeEntry().getKey();
         }
     }
 
     private void setPinnedStatus(PinnedStatus pinnedStatus) {
+        if (StatusBarNoHunBehavior.isEnabled()) {
+            return;
+        }
         if (mPinnedStatus != pinnedStatus) {
             mPinnedStatus = pinnedStatus;
-            if (pinnedStatus.isPinned()) {
+
+            boolean shouldShowHunStatusBar = StatusBarNotifChips.isEnabled()
+                    ? mPinnedStatus == PinnedStatus.PinnedBySystem
+                    // If the flag isn't enabled, all HUNs get the normal treatment.
+                    : mPinnedStatus.isPinned();
+            if (shouldShowHunStatusBar) {
                 updateParentClipping(false /* shouldClip */);
                 mView.setVisibility(View.VISIBLE);
                 show(mView);
@@ -271,6 +307,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     }
 
     private void updateParentClipping(boolean shouldClip) {
+        StatusBarNoHunBehavior.assertInLegacyMode();
         ViewClippingUtil.setClippingDeactivated(
                 mView, !shouldClip, mParentClippingParams);
     }
@@ -298,6 +335,8 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
      *
      */
     private void hide(View view, int endState, Runnable callback) {
+        StatusBarNoHunBehavior.assertInLegacyMode();
+
         if (mAnimationsEnabled) {
             CrossFadeHelper.fadeOut(view, CONTENT_FADE_DURATION /* duration */,
                     0 /* delay */, () -> {
@@ -315,6 +354,8 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     }
 
     private void show(View view) {
+        StatusBarNoHunBehavior.assertInLegacyMode();
+
         if (mAnimationsEnabled) {
             CrossFadeHelper.fadeIn(view, CONTENT_FADE_DURATION /* duration */,
                     CONTENT_FADE_DELAY /* delay */);
@@ -330,33 +371,53 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
     @VisibleForTesting
     public PinnedStatus getPinnedStatus() {
+        if (StatusBarNoHunBehavior.isEnabled()) {
+            return PinnedStatus.NotPinned;
+        }
         return mPinnedStatus;
     }
 
-    /**
-     * Should the headsup status bar view be visible right now? This may be different from isShown,
-     * since the headsUp manager might not have notified us yet of the state change.
-     *
-     * @return if the heads up status bar view should be shown
-     * @deprecated use HeadsUpNotificationInteractor.showHeadsUpStatusBar instead.
-     */
-    public boolean shouldBeVisible() {
+    /** True if the device's current state allows us to show HUNs and false otherwise. */
+    private boolean canShowHeadsUp() {
         boolean notificationsShown = !mWakeUpCoordinator.getNotificationsFullyHidden();
-        boolean canShow = !isExpanded() && notificationsShown;
         if (mBypassController.getBypassEnabled() &&
                 (mStatusBarStateController.getState() == StatusBarState.KEYGUARD
                         || mKeyguardStateController.isKeyguardGoingAway())
                 && notificationsShown) {
-            canShow = true;
+            return true;
         }
-        return canShow && mHeadsUpManager.hasPinnedHeadsUp();
+        return !isExpanded() && notificationsShown;
+    }
+
+    /**
+     * True if the headsup status bar view (which has just the HUN icon and app name) should be
+     * visible right now and false otherwise.
+     *
+     * @deprecated use {@link com.android.systemui.statusbar.notification.domain.interactor.HeadsUpNotificationInteractor#getStatusBarHeadsUpState()}
+     *    instead.
+     */
+    @Deprecated
+    public boolean shouldHeadsUpStatusBarBeVisible() {
+        if (StatusBarNoHunBehavior.isEnabled()) {
+            return false;
+        }
+
+        if (StatusBarNotifChips.isEnabled()) {
+            return canShowHeadsUp()
+                    && mHeadsUpManager.pinnedHeadsUpStatus() == PinnedStatus.PinnedBySystem;
+            // Note: This means that if mHeadsUpManager.pinnedHeadsUpStatus() == PinnedByUser,
+            // #updateTopEntry won't do anything, so mPinnedStatus will remain as NotPinned and will
+            // *not* update to PinnedByUser.
+        } else {
+            return canShowHeadsUp() && mHeadsUpManager.hasPinnedHeadsUp();
+        }
     }
 
     @Override
     public void onHeadsUpUnPinned(NotificationEntry entry) {
-        updateTopEntry();
-        updateHeader(entry);
-        updateHeadsUpAndPulsingRoundness(entry);
+        updatePinnedStatus();
+        updateHeader(entry.getRow());
+        updateHeadsUpAndPulsingRoundness(entry.getRow());
     }
 
     public void setAppearFraction(float expandedHeight, float appearFraction) {
@@ -372,7 +433,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
             updateHeadsUpHeaders();
         }
         if (isExpanded() != oldIsExpanded) {
-            updateTopEntry();
+            updatePinnedStatus();
         }
     }
 
@@ -387,9 +448,8 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
         ExpandableNotificationRow previousTracked = mTrackedChild;
         mTrackedChild = trackedChild;
         if (previousTracked != null) {
-            NotificationEntry entry = previousTracked.getEntry();
-            updateHeader(entry);
-            updateHeadsUpAndPulsingRoundness(entry);
+            updateHeader(previousTracked);
+            updateHeadsUpAndPulsingRoundness(previousTracked);
         }
     }
 
@@ -399,13 +459,12 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
     private void updateHeadsUpHeaders() {
         mHeadsUpManager.getAllEntries().forEach(entry -> {
-            updateHeader(entry);
-            updateHeadsUpAndPulsingRoundness(entry);
+            updateHeader(entry.getRow());
+            updateHeadsUpAndPulsingRoundness(entry.getRow());
         });
     }
 
-    public void updateHeader(NotificationEntry entry) {
-        ExpandableNotificationRow row = entry.getRow();
+    public void updateHeader(ExpandableNotificationRow row) {
         float headerVisibleAmount = 1.0f;
         // To fix the invisible HUN group header issue
         if (!AsyncGroupHeaderViewInflation.isEnabled()) {
@@ -419,10 +478,9 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
     /**
      * Update the HeadsUp and the Pulsing roundness based on current state
-     * @param entry target notification
+     * @param row target notification row
      */
-    public void updateHeadsUpAndPulsingRoundness(NotificationEntry entry) {
-        ExpandableNotificationRow row = entry.getRow();
+    public void updateHeadsUpAndPulsingRoundness(ExpandableNotificationRow row) {
         boolean isTrackedChild = row == mTrackedChild;
         if (row.isPinned() || row.isHeadsUpAnimatingAway() || isTrackedChild) {
             float roundness = MathUtils.saturate(1f - mAppearFraction);
@@ -442,15 +500,18 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
     @Override
     public void onDarkChanged(ArrayList<Rect> areas, float darkIntensity, int tint) {
+        StatusBarNoHunBehavior.assertInLegacyMode();
         mView.onDarkChanged(areas, darkIntensity, tint);
     }
 
     public void onStateChanged() {
-        updateTopEntry();
+        StatusBarNoHunBehavior.assertInLegacyMode();
+        updatePinnedStatus();
     }
 
     @Override
     public void onFullyHiddenChanged(boolean isFullyHidden) {
-        updateTopEntry();
+        StatusBarNoHunBehavior.assertInLegacyMode();
+        updatePinnedStatus();
     }
 }

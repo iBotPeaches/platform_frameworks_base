@@ -86,11 +86,13 @@ import android.view.MagnificationSpec;
 import android.view.MotionEvent;
 import android.view.SurfaceControl;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityCache;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.view.accessibility.IAccessibilityInteractionConnectionCallback;
+import android.view.accessibility.IWindowSurfaceInfoCallback;
 import android.view.inputmethod.EditorInfo;
 import android.window.ScreenCapture;
 import android.window.ScreenCapture.ScreenshotHardwareBuffer;
@@ -343,6 +345,8 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
                 SurfaceControl sc,
                 IAccessibilityInteractionConnectionCallback callback);
 
+        int performScreenCapture(ScreenCapture.LayerCaptureArgs captureArgs,
+                ScreenCapture.ScreenCaptureListener captureListener);
     }
 
     public AbstractAccessibilityServiceConnection(Context context, ComponentName componentName,
@@ -1111,14 +1115,12 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
         if (svcConnTracingEnabled()) {
             logTraceSvcConn("performGlobalAction", "action=" + action);
         }
-        int currentUserId;
         synchronized (mLock) {
             if (!hasRightsToCurrentUserLocked()) {
                 return false;
             }
-            currentUserId = mSystemSupport.getCurrentUserIdLocked();
         }
-        enforceCurrentUserIfVisibleBackgroundEnabled(currentUserId);
+        enforceCurrentUserIfVisibleBackgroundEnabled();
         final long identity = Binder.clearCallingIdentity();
         try {
             return mSystemActionPerformer.performSystemAction(action);
@@ -1456,7 +1458,45 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
                         AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_WINDOW, interactionId);
                 return;
             }
-            connection.getRemote().takeScreenshotOfWindow(interactionId, listener, callback);
+            if (Flags.allowSecureScreenshots()) {
+                IWindowSurfaceInfoCallback infoCallback = new IWindowSurfaceInfoCallback.Stub() {
+                    @Override
+                    public void provideWindowSurfaceInfo(int windowFlags, int processUid,
+                            SurfaceControl surfaceControl) {
+                        final boolean canCaptureSecureLayers = canCaptureSecureLayers();
+                        if (!canCaptureSecureLayers
+                                && (windowFlags & WindowManager.LayoutParams.FLAG_SECURE) != 0) {
+                            try {
+                                callback.sendTakeScreenshotOfWindowError(
+                                        AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW,
+                                        interactionId);
+                            } catch (RemoteException e) {
+                                // ignore - the other side will time out
+                            }
+                            return;
+                        }
+
+                        final ScreenCapture.LayerCaptureArgs captureArgs =
+                                new ScreenCapture.LayerCaptureArgs.Builder(surfaceControl)
+                                        .setChildrenOnly(false)
+                                        .setUid(processUid)
+                                        .setCaptureSecureLayers(canCaptureSecureLayers)
+                                        .build();
+                        if (mSystemSupport.performScreenCapture(captureArgs, listener) != 0) {
+                            try {
+                                callback.sendTakeScreenshotOfWindowError(
+                                        AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR,
+                                        interactionId);
+                            } catch (RemoteException e) {
+                                // ignore - the other side will time out
+                            }
+                        }
+                    }
+                };
+                connection.getRemote().getWindowSurfaceInfo(infoCallback);
+            } else {
+                connection.getRemote().takeScreenshotOfWindow(interactionId, listener, callback);
+            }
         } finally {
             Binder.restoreCallingIdentity(identity);
         }
@@ -1523,7 +1563,14 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
                         }
                     }
             );
-            mWindowManagerService.captureDisplay(displayId, null, screenCaptureListener);
+            if (Flags.allowSecureScreenshots()) {
+                mWindowManagerService.captureDisplay(displayId,
+                        new ScreenCapture.CaptureArgs.Builder<>()
+                                .setCaptureSecureLayers(canCaptureSecureLayers()).build(),
+                        screenCaptureListener);
+            } else {
+                mWindowManagerService.captureDisplay(displayId, null, screenCaptureListener);
+            }
         } catch (Exception e) {
             sendScreenshotFailure(AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY,
                     callback);
@@ -1562,6 +1609,13 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
             // Send back the result.
             callback.sendResult(payload);
         }, null).recycleOnUse());
+    }
+
+    private boolean canCaptureSecureLayers() {
+        return Flags.allowSecureScreenshots()
+                && mAccessibilityServiceInfo.isAccessibilityTool()
+                && mAccessibilityServiceInfo.getResolveInfo().serviceInfo
+                .applicationInfo.isSystemApp();
     }
 
     @Override
@@ -1888,14 +1942,9 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
     }
 
     public void notifyGesture(AccessibilityGestureEvent gestureEvent) {
-        if (android.view.accessibility.Flags.copyEventsForGestureDetection()) {
-            // We will use this event async, so copy it because it contains MotionEvents.
-            mInvocationHandler.obtainMessage(InvocationHandler.MSG_ON_GESTURE,
-                    gestureEvent.copyForAsync()).sendToTarget();
-        } else {
-            mInvocationHandler.obtainMessage(InvocationHandler.MSG_ON_GESTURE,
-                    gestureEvent).sendToTarget();
-        }
+        // We will use this event async, so copy it because it contains MotionEvents.
+        mInvocationHandler.obtainMessage(InvocationHandler.MSG_ON_GESTURE,
+                gestureEvent.copyForAsync()).sendToTarget();
     }
 
     public void notifySystemActionsChangedLocked() {
@@ -2372,9 +2421,7 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
                 case MSG_ON_GESTURE: {
                     if (message.obj instanceof AccessibilityGestureEvent gesture) {
                         notifyGestureInternal(gesture);
-                        if (android.view.accessibility.Flags.copyEventsForGestureDetection()) {
-                            gesture.recycle();
-                        }
+                        gesture.recycle();
                     }
                 } break;
                 case MSG_CLEAR_ACCESSIBILITY_CACHE: {
@@ -2735,11 +2782,7 @@ abstract class AbstractAccessibilityServiceConnection extends IAccessibilityServ
     @RequiresNoPermission
     @Override
     public void setAnimationScale(float scale) {
-        int currentUserId;
-        synchronized (mLock) {
-            currentUserId = mSystemSupport.getCurrentUserIdLocked();
-        }
-        enforceCurrentUserIfVisibleBackgroundEnabled(currentUserId);
+        enforceCurrentUserIfVisibleBackgroundEnabled();
         final long identity = Binder.clearCallingIdentity();
         try {
             Settings.Global.putFloat(

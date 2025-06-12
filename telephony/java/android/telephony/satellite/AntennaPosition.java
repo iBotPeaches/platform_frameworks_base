@@ -16,13 +16,10 @@
 
 package android.telephony.satellite;
 
-import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.internal.telephony.flags.Flags;
 
 import java.util.Objects;
 
@@ -32,7 +29,6 @@ import java.util.Objects;
  * @hide
  */
 @SystemApi
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public final class AntennaPosition implements Parcelable {
     /** Antenna direction used for satellite communication. */
     @NonNull private AntennaDirection mAntennaDirection;
@@ -53,20 +49,17 @@ public final class AntennaPosition implements Parcelable {
     }
 
     @Override
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public void writeToParcel(@NonNull Parcel out, int flags) {
         out.writeParcelable(mAntennaDirection, flags);
         out.writeInt(mSuggestedHoldPosition);
     }
 
     @NonNull
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final Creator<AntennaPosition> CREATOR =
             new Creator<>() {
                 @Override
@@ -107,13 +100,11 @@ public final class AntennaPosition implements Parcelable {
     }
 
     @NonNull
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public AntennaDirection getAntennaDirection() {
         return mAntennaDirection;
     }
 
     @SatelliteManager.DeviceHoldPosition
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public int getSuggestedHoldPosition() {
         return mSuggestedHoldPosition;
     }

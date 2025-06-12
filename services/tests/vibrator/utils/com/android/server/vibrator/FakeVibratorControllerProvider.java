@@ -118,11 +118,11 @@ public final class FakeVibratorControllerProvider {
         }
 
         @Override
-        public long on(long milliseconds, long vibrationId) {
+        public long on(long milliseconds, long vibrationId, long stepId) {
             recordEffectSegment(vibrationId, new StepSegment(VibrationEffect.DEFAULT_AMPLITUDE,
                     /* frequencyHz= */ 0, (int) milliseconds));
             applyLatency(mOnLatency);
-            scheduleListener(milliseconds, vibrationId);
+            scheduleListener(milliseconds, vibrationId, stepId);
             return milliseconds;
         }
 
@@ -139,7 +139,7 @@ public final class FakeVibratorControllerProvider {
         }
 
         @Override
-        public long perform(long effect, long strength, long vibrationId) {
+        public long perform(long effect, long strength, long vibrationId, long stepId) {
             if (mSupportedEffects == null
                     || Arrays.binarySearch(mSupportedEffects, (int) effect) < 0) {
                 return 0;
@@ -147,13 +147,13 @@ public final class FakeVibratorControllerProvider {
             recordEffectSegment(vibrationId,
                     new PrebakedSegment((int) effect, false, (int) strength));
             applyLatency(mOnLatency);
-            scheduleListener(EFFECT_DURATION, vibrationId);
+            scheduleListener(EFFECT_DURATION, vibrationId, stepId);
             return EFFECT_DURATION;
         }
 
         @Override
         public long performVendorEffect(Parcel vendorData, long strength, float scale,
-                float adaptiveScale, long vibrationId) {
+                float adaptiveScale, long vibrationId, long stepId) {
             if ((mCapabilities & IVibrator.CAP_PERFORM_VENDOR_EFFECTS) == 0) {
                 return 0;
             }
@@ -161,13 +161,13 @@ public final class FakeVibratorControllerProvider {
             recordVendorEffect(vibrationId,
                     new VibrationEffect.VendorEffect(bundle, (int) strength, scale, adaptiveScale));
             applyLatency(mOnLatency);
-            scheduleListener(mVendorEffectDuration, vibrationId);
+            scheduleListener(mVendorEffectDuration, vibrationId, stepId);
             // HAL has unknown duration for vendor effects.
             return Long.MAX_VALUE;
         }
 
         @Override
-        public long compose(PrimitiveSegment[] primitives, long vibrationId) {
+        public long compose(PrimitiveSegment[] primitives, long vibrationId, long stepId) {
             if (mSupportedPrimitives == null) {
                 return 0;
             }
@@ -182,12 +182,13 @@ public final class FakeVibratorControllerProvider {
                 recordEffectSegment(vibrationId, primitive);
             }
             applyLatency(mOnLatency);
-            scheduleListener(duration, vibrationId);
+            scheduleListener(duration, vibrationId, stepId);
             return duration;
         }
 
         @Override
-        public long composePwle(RampSegment[] primitives, int braking, long vibrationId) {
+        public long composePwle(RampSegment[] primitives, int braking, long vibrationId,
+                long stepId) {
             long duration = 0;
             for (RampSegment primitive : primitives) {
                 duration += primitive.getDuration();
@@ -195,19 +196,19 @@ public final class FakeVibratorControllerProvider {
             }
             recordBraking(vibrationId, braking);
             applyLatency(mOnLatency);
-            scheduleListener(duration, vibrationId);
+            scheduleListener(duration, vibrationId, stepId);
             return duration;
         }
 
         @Override
-        public long composePwleV2(PwlePoint[] pwlePoints, long vibrationId) {
+        public long composePwleV2(PwlePoint[] pwlePoints, long vibrationId, long stepId) {
             long duration = 0;
             for (PwlePoint pwlePoint: pwlePoints) {
                 duration += pwlePoint.getTimeMillis();
                 recordEffectPwlePoint(vibrationId, pwlePoint);
             }
             applyLatency(mOnLatency);
-            scheduleListener(duration, vibrationId);
+            scheduleListener(duration, vibrationId, stepId);
 
             return duration;
         }
@@ -263,8 +264,8 @@ public final class FakeVibratorControllerProvider {
             }
         }
 
-        private void scheduleListener(long vibrationDuration, long vibrationId) {
-            mHandler.postDelayed(() -> listener.onComplete(vibratorId, vibrationId),
+        private void scheduleListener(long vibrationDuration, long vibrationId, long stepId) {
+            mHandler.postDelayed(() -> listener.onComplete(vibratorId, vibrationId, stepId),
                     vibrationDuration + mCompletionCallbackDelay);
         }
     }

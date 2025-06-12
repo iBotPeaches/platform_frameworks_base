@@ -23,6 +23,7 @@ package android.graphics;
  * information on the available alpha compositing and blending modes.</p>
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PorterDuffXfermode extends Xfermode {
     /**
      * Create an xfermode that uses the specified porter-duff mode.

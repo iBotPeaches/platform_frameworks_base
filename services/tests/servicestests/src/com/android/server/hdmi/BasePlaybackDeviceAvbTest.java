@@ -20,7 +20,7 @@ import android.hardware.hdmi.DeviceFeatures;
 import android.hardware.hdmi.HdmiControlManager;
 import android.hardware.hdmi.HdmiDeviceInfo;
 import android.media.AudioDeviceAttributes;
-import android.media.AudioManager;
+import android.media.AudioDeviceVolumeManager;
 
 import org.junit.Test;
 
@@ -60,8 +60,8 @@ public abstract class BasePlaybackDeviceAvbTest extends BaseAbsoluteVolumeBehavi
      */
     @Test
     public void savlNotSupported_allOtherConditionsMet_giveAudioStatusNotSent() {
-        mAudioManager.setDeviceVolumeBehavior(getAudioOutputDevice(),
-                AudioManager.DEVICE_VOLUME_BEHAVIOR_FULL);
+        mAudioDeviceVolumeManager.setDeviceVolumeBehavior(getAudioOutputDevice(),
+                AudioDeviceVolumeManager.DEVICE_VOLUME_BEHAVIOR_FULL);
         setCecVolumeControlSetting(HdmiControlManager.VOLUME_CONTROL_ENABLED);
         enableSystemAudioModeIfNeeded();
 

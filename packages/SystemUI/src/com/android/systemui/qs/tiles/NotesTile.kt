@@ -22,6 +22,7 @@ import android.os.Looper
 import android.service.quicksettings.Tile
 import com.android.internal.logging.MetricsLogger
 import com.android.systemui.animation.Expandable
+import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.plugins.ActivityStarter
@@ -32,12 +33,12 @@ import com.android.systemui.qs.QSHost
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.logging.QSLogger
 import com.android.systemui.qs.tileimpl.QSTileImpl
-import com.android.systemui.qs.tiles.impl.notes.domain.NotesTileMapper
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfigProvider
+import com.android.systemui.qs.tiles.base.shared.model.QSTileState
 import com.android.systemui.qs.tiles.impl.notes.domain.interactor.NotesTileDataInteractor
 import com.android.systemui.qs.tiles.impl.notes.domain.interactor.NotesTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.notes.domain.model.NotesTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfigProvider
-import com.android.systemui.qs.tiles.viewmodel.QSTileState
+import com.android.systemui.qs.tiles.impl.notes.ui.mapper.NotesTileMapper
 import com.android.systemui.res.R
 import javax.inject.Inject
 
@@ -92,7 +93,8 @@ constructor(
 
         state?.apply {
             this.state = tileState.activationState.legacyState
-            icon = maybeLoadResourceIcon(tileState.iconRes ?: R.drawable.ic_qs_notes)
+            icon =
+                maybeLoadResourceIcon((tileState.icon as Icon.Loaded).res ?: R.drawable.ic_qs_notes)
             label = tileState.label
             contentDescription = tileState.contentDescription
             expandedAccessibilityClassName = tileState.expandedAccessibilityClassName

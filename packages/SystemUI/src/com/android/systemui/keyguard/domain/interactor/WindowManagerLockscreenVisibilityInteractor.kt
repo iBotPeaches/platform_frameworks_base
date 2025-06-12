@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.keyguard.domain.interactor
 
 import com.android.compose.animation.scene.ObservableTransitionState.Idle
@@ -24,7 +22,6 @@ import com.android.systemui.Flags.transitionRaceCondition
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryInteractor
 import com.android.systemui.keyguard.data.repository.KeyguardTransitionRepository
-import com.android.systemui.keyguard.shared.model.BiometricUnlockMode
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.KeyguardState.Companion.deviceIsAsleepInState
@@ -34,12 +31,10 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.notification.domain.interactor.NotificationLaunchAnimationInteractor
-import com.android.systemui.util.kotlin.Utils.Companion.toTriple
-import com.android.systemui.util.kotlin.sample
+import com.android.systemui.util.kotlin.Utils.Companion.toQuad
 import com.android.systemui.utils.coroutines.flow.flatMapLatestConflated
 import dagger.Lazy
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -47,7 +42,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class WindowManagerLockscreenVisibilityInteractor
 @Inject
@@ -67,7 +61,7 @@ constructor(
     private val defaultSurfaceBehindVisibility =
         combine(
             transitionInteractor.isFinishedIn(
-                scene = Scenes.Gone,
+                content = Scenes.Gone,
                 stateWithoutSceneContainer = KeyguardState.GONE,
             ),
             wakeToGoneInteractor.canWakeDirectlyToGone,
@@ -84,7 +78,6 @@ constructor(
      * only be visible after swiping 20% of the way up the screen, and should become invisible again
      * if the user swipes back down.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     private val transitionSpecificSurfaceBehindVisibility: Flow<Boolean?> =
         transitionInteractor.startedKeyguardTransitionStep
             .flatMapLatest { startedStep ->
@@ -122,14 +115,13 @@ constructor(
      * transitioning between [KeyguardState]s or [Scenes] or the transition-specific visibility used
      * during certain ongoing transitions.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     val surfaceBehindVisibility: Flow<Boolean> =
         if (SceneContainerFlag.isEnabled) {
                 sceneInteractor.get().transitionState.flatMapLatestConflated { state ->
                     when {
                         state.isTransitioning(from = Scenes.Lockscreen, to = Scenes.Gone) ->
                             isDeviceEnteredDirectly
-                        state.isTransitioning(from = Scenes.Bouncer, to = Scenes.Gone) ->
+                        state.isTransitioning(from = Overlays.Bouncer, to = Scenes.Gone) ->
                             (state as Transition).progress.map { progress ->
                                 progress >
                                     FromPrimaryBouncerTransitionInteractor
@@ -187,7 +179,7 @@ constructor(
                         edgeWithoutSceneContainer = Edge.create(to = KeyguardState.GONE),
                     ),
                     transitionInteractor.isFinishedIn(
-                        scene = Scenes.Gone,
+                        content = Scenes.Gone,
                         stateWithoutSceneContainer = KeyguardState.GONE,
                     ),
                     surfaceBehindInteractor.isAnimatingSurface,
@@ -204,46 +196,60 @@ constructor(
                 .distinctUntilChanged()
         }
 
-    private val lockscreenVisibilityWithScenes =
-        combine(
-                sceneInteractor.get().transitionState.flatMapLatestConflated {
-                    when (it) {
-                        is Idle -> {
-                            when (it.currentScene) {
-                                in keyguardScenes -> flowOf(true)
-                                in nonKeyguardScenes -> flowOf(false)
-                                in keyguardAgnosticScenes -> isDeviceNotEnteredDirectly
-                                else ->
-                                    throw IllegalStateException("Unknown scene: ${it.currentScene}")
+    private val lockscreenVisibilityWithScenes: Flow<Boolean> =
+        // The scene container visibility into account as that will be forced to false when the
+        // device isn't yet provisioned (e.g. still in the setup wizard).
+        sceneInteractor.get().isVisible.flatMapLatestConflated { isVisible ->
+            if (isVisible) {
+                combine(
+                        sceneInteractor.get().transitionState.flatMapLatestConflated {
+                            when (it) {
+                                is Idle ->
+                                    when (it.currentScene) {
+                                        in keyguardContent -> flowOf(true)
+                                        in nonKeyguardContent -> flowOf(false)
+                                        in keyguardAgnosticContent -> isDeviceNotEnteredDirectly
+                                        else ->
+                                            throw IllegalStateException(
+                                                "Unknown scene: ${it.currentScene}"
+                                            )
+                                    }
+                                is Transition ->
+                                    when {
+                                        it.isTransitioningSets(from = keyguardContent) ->
+                                            flowOf(true)
+                                        it.isTransitioningSets(from = nonKeyguardContent) ->
+                                            flowOf(false)
+                                        it.isTransitioningSets(from = keyguardAgnosticContent) ->
+                                            isDeviceNotEnteredDirectly
+                                        else ->
+                                            throw IllegalStateException(
+                                                "Unknown content: ${it.fromContent}"
+                                            )
+                                    }
                             }
-                        }
-                        is Transition -> {
-                            when {
-                                it.isTransitioningSets(from = keyguardScenes) -> flowOf(true)
-                                it.isTransitioningSets(from = nonKeyguardScenes) -> flowOf(false)
-                                it.isTransitioningSets(from = keyguardAgnosticScenes) ->
-                                    isDeviceNotEnteredDirectly
-                                else ->
-                                    throw IllegalStateException("Unknown scene: ${it.fromContent}")
-                            }
-                        }
+                        },
+                        wakeToGoneInteractor.canWakeDirectlyToGone,
+                        ::Pair,
+                    )
+                    .map { (lockscreenVisibilityByTransitionState, canWakeDirectlyToGone) ->
+                        lockscreenVisibilityByTransitionState && !canWakeDirectlyToGone
                     }
-                },
-                wakeToGoneInteractor.canWakeDirectlyToGone,
-                ::Pair,
-            )
-            .map { (lockscreenVisibilityByTransitionState, canWakeDirectlyToGone) ->
-                lockscreenVisibilityByTransitionState && !canWakeDirectlyToGone
+            } else {
+                // Lockscreen is never visible when the scene container is invisible.
+                flowOf(false)
             }
+        }
 
     private val lockscreenVisibilityLegacy =
         combine(
                 transitionInteractor.currentKeyguardState,
+                transitionInteractor.startedStepWithPrecedingStep,
                 wakeToGoneInteractor.canWakeDirectlyToGone,
-                ::Pair,
+                surfaceBehindVisibility,
+                ::toQuad,
             )
-            .sample(transitionInteractor.startedStepWithPrecedingStep, ::toTriple)
-            .map { (currentState, canWakeDirectlyToGone, startedWithPrev) ->
+            .map { (currentState, startedWithPrev, canWakeDirectlyToGone, surfaceBehindVis) ->
                 val startedFromStep = startedWithPrev.previousValue
                 val startedStep = startedWithPrev.newValue
                 val returningToGoneAfterCancellation =
@@ -296,6 +302,11 @@ constructor(
                     // we should simply tell WM that the lockscreen is no longer visible, and
                     // *not* play the going away animation or related animations.
                     false
+                } else if (!surfaceBehindVis) {
+                    // If the surface behind is not visible, then the lockscreen has to be visible
+                    // since there's nothing to show. The surface behind will never be invisible if
+                    // the lockscreen is disabled or suppressed.
+                    true
                 } else {
                     currentState != KeyguardState.GONE
                 }
@@ -325,37 +336,30 @@ constructor(
      * clock/smartspace/notif icons are visible.
      */
     val aodVisibility: Flow<Boolean> =
-        combine(
-                keyguardInteractor.isDozing,
-                keyguardInteractor.isAodAvailable,
-                keyguardInteractor.biometricUnlockState,
-            ) { isDozing, isAodAvailable, biometricUnlockState ->
-                // AOD is visible if we're dozing, unless we are wake and unlocking (where we go
-                // directly from AOD to unlocked while dozing).
-                isDozing &&
-                    isAodAvailable &&
-                    !BiometricUnlockMode.isWakeAndUnlock(biometricUnlockState.mode)
-            }
+        transitionInteractor
+            .transitionValue(KeyguardState.AOD)
+            .map { it == 1f }
             .distinctUntilChanged()
 
     companion object {
         /**
-         * Scenes that are part of the keyguard and are shown when the device is locked or when the
+         * Content that is part of the keyguard and are shown when the device is locked or when the
          * keyguard still needs to be dismissed.
          */
-        val keyguardScenes = setOf(Scenes.Lockscreen, Scenes.Bouncer, Scenes.Communal, Scenes.Dream)
+        val keyguardContent =
+            setOf(Scenes.Lockscreen, Overlays.Bouncer, Scenes.Communal, Scenes.Dream)
 
         /**
-         * Scenes that don't belong in the keyguard family and cannot show when the device is locked
-         * or when the keyguard still needs to be dismissed.
+         * Content that doesn't belong in the keyguard family and cannot show when the device is
+         * locked or when the keyguard still needs to be dismissed.
          */
-        private val nonKeyguardScenes = setOf(Scenes.Gone)
+        private val nonKeyguardContent = setOf(Scenes.Gone)
 
         /**
-         * Scenes that can show regardless of device lock or keyguard dismissal states. Other
+         * Content that can show regardless of device lock or keyguard dismissal states. Other
          * sources of state need to be consulted to know whether the device has been entered or not.
          */
-        private val keyguardAgnosticScenes =
+        private val keyguardAgnosticContent =
             setOf(
                 Scenes.Shade,
                 Scenes.QuickSettings,

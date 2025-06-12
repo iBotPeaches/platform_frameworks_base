@@ -389,6 +389,8 @@ public class BackupManagerMonitorDumpsysUtils {
                     "Agent failure during restore";
             case BackupManagerMonitor.LOG_EVENT_ID_FAILED_TO_READ_DATA_FROM_TRANSPORT ->
                     "Failed to read data from Transport";
+            case BackupManagerMonitor.LOG_EVENT_ID_FULL_BACKUP_AGENT_PIPE_BROKEN ->
+                "LOG_EVENT_ID_FULL_BACKUP_AGENT_PIPE_BROKEN";
             default -> "Unknown log event ID: " + code;
         };
         return id;

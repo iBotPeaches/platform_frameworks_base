@@ -17,6 +17,7 @@
 package android.graphics.text;
 
 /** @hide */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class GraphemeBreak {
     private GraphemeBreak() { }
 

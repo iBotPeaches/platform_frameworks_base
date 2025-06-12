@@ -17,60 +17,61 @@
 package com.android.systemui.display.data.repository
 
 import android.view.Display
-import com.android.systemui.CoreStartable
-import com.android.systemui.coroutines.newTracingContext
+import com.android.app.displaylib.PerDisplayInstanceProvider
+import com.android.app.displaylib.PerDisplayInstanceRepositoryImpl
+import com.android.app.displaylib.PerDisplayRepository
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
-import java.util.concurrent.ConcurrentHashMap
+import com.android.systemui.display.dagger.SystemUIDisplaySubcomponent
+import com.android.systemui.display.dagger.SystemUIDisplaySubcomponent.PerDisplaySingleton
+import dagger.Module
+import dagger.Provides
 import javax.inject.Inject
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.cancel
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /**
- * Provides per display instances of [CoroutineScope]. These will remain active as long as the
- * display is connected, and automatically cancelled when the display is removed.
+ * Provides per display instances of [CoroutineScope].
+ *
+ * This is used to create a [PerDisplayRepository] of [CoroutineScope].
+ *
+ * Note this scope is cancelled when the display is removed, see [DisplayComponentRepository]. This
+ * class is essentially only needed to reuse the application background scope for the default
+ * display, and get the display scope from the correct [SystemUIDisplaySubcomponent].
+ *
+ * We should eventually delete this, when all classes using display scoped instances are in the
+ * correct dagger scope ([PerDisplaySingleton])
  */
-interface DisplayScopeRepository {
-    fun scopeForDisplay(displayId: Int): CoroutineScope
-}
-
 @SysUISingleton
-class DisplayScopeRepositoryImpl
+class DisplayScopeRepositoryInstanceProvider
 @Inject
 constructor(
     @Background private val backgroundApplicationScope: CoroutineScope,
-    @Background private val backgroundDispatcher: CoroutineDispatcher,
-    private val displayRepository: DisplayRepository,
-) : DisplayScopeRepository, CoreStartable {
+    private val displayComponentRepository: PerDisplayRepository<SystemUIDisplaySubcomponent>,
+) : PerDisplayInstanceProvider<CoroutineScope> {
 
-    private val perDisplayScopes = ConcurrentHashMap<Int, CoroutineScope>()
-
-    override fun scopeForDisplay(displayId: Int): CoroutineScope {
-        return perDisplayScopes.computeIfAbsent(displayId) { createScopeForDisplay(displayId) }
-    }
-
-    override fun start() {
-        StatusBarConnectedDisplays.assertInNewMode()
-        backgroundApplicationScope.launch {
-            displayRepository.displayRemovalEvent.collect { displayId ->
-                val scope = perDisplayScopes.remove(displayId)
-                scope?.cancel("Display $displayId has been removed.")
-            }
-        }
-    }
-
-    private fun createScopeForDisplay(displayId: Int): CoroutineScope {
+    override fun createInstance(displayId: Int): CoroutineScope? {
         return if (displayId == Display.DEFAULT_DISPLAY) {
             // The default display is connected all the time, therefore we can optimise by reusing
             // the application scope, and don't need to create a new scope.
             backgroundApplicationScope
         } else {
-            CoroutineScope(
-                backgroundDispatcher + newTracingContext("DisplayScope$displayId")
-            )
+            // The scope is automatically cancelled from the component when the display is removed.
+            displayComponentRepository[displayId]?.displayCoroutineScope
         }
+    }
+}
+
+@Module
+object PerDisplayCoroutineScopeRepositoryModule {
+    @SysUISingleton
+    @Provides
+    fun provideDisplayCoroutineScopeRepository(
+        repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<CoroutineScope>,
+        instanceProvider: DisplayScopeRepositoryInstanceProvider,
+    ): PerDisplayRepository<CoroutineScope> {
+        return repositoryFactory.create(
+            debugName = "CoroutineScopePerDisplayRepo",
+            instanceProvider,
+        )
     }
 }

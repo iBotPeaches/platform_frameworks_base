@@ -46,6 +46,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.keyguard.CarrierTextManager;
+import com.android.systemui.kairos.KairosNetwork;
 import com.android.systemui.log.core.FakeLogBuffer;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.statusbar.connectivity.IconState;
@@ -55,6 +56,7 @@ import com.android.systemui.statusbar.connectivity.SignalCallback;
 import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider;
 import com.android.systemui.statusbar.pipeline.StatusBarPipelineFlags;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter;
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.ShadeCarrierGroupMobileIconViewModel;
@@ -63,6 +65,7 @@ import com.android.systemui.util.kotlin.FlowProviderKt;
 import com.android.systemui.utils.leaks.LeakCheckedTest;
 import com.android.systemui.utils.os.FakeHandler;
 
+import kotlinx.coroutines.CoroutineScope;
 import kotlinx.coroutines.flow.MutableStateFlow;
 
 import org.junit.Before;
@@ -178,8 +181,10 @@ public class ShadeCarrierGroupControllerTest extends LeakCheckedTest {
                 mSlotIndexResolver,
                 mMobileUiAdapter,
                 mMobileContextProvider,
-                mStatusBarPipelineFlags
-        )
+                mStatusBarPipelineFlags,
+                mock(CoroutineScope.class),
+                mock(KairosNetwork.class),
+                () -> mock(MobileUiAdapterKairos.class))
                 .setShadeCarrierGroup(mShadeCarrierGroup)
                 .build();
 

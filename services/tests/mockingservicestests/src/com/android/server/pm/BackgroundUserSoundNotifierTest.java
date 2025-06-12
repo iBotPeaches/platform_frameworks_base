@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.testng.AssertJUnit.assertEquals;
 
@@ -128,7 +128,7 @@ public class BackgroundUserSoundNotifierTest {
                 AudioManager.AUDIOFOCUS_NONE, /* flags= */ 0, Build.VERSION.SDK_INT);
         clearInvocations(mNotificationManager);
         mBackgroundUserSoundNotifier.notifyForegroundUserAboutSoundIfNecessary(afi);
-        verifyZeroInteractions(mNotificationManager);
+        verifyNoMoreInteractions(mNotificationManager);
     }
 
     @Test
@@ -143,7 +143,7 @@ public class BackgroundUserSoundNotifierTest {
                 Build.VERSION.SDK_INT);
         clearInvocations(mNotificationManager);
         mBackgroundUserSoundNotifier.notifyForegroundUserAboutSoundIfNecessary(afi);
-        verifyZeroInteractions(mNotificationManager);
+        verifyNoMoreInteractions(mNotificationManager);
     }
 
     @Test

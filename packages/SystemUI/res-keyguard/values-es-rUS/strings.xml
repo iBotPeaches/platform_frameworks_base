@@ -21,11 +21,11 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="keyguard_enter_your_pin" msgid="5429932527814874032">"Ingresa tu PIN"</string>
-    <string name="keyguard_enter_pin" msgid="8114529922480276834">"Ingresar PIN"</string>
+    <string name="keyguard_enter_pin" msgid="8114529922480276834">"Ingresa el PIN"</string>
     <string name="keyguard_enter_your_pattern" msgid="351503370332324745">"Ingresa tu patrón"</string>
-    <string name="keyguard_enter_pattern" msgid="7616595160901084119">"Dibujar patrón"</string>
+    <string name="keyguard_enter_pattern" msgid="7616595160901084119">"Dibuja el patrón"</string>
     <string name="keyguard_enter_your_password" msgid="7225626204122735501">"Ingresa tu contraseña"</string>
-    <string name="keyguard_enter_password" msgid="6483623792371009758">"Ingresar contraseña"</string>
+    <string name="keyguard_enter_password" msgid="6483623792371009758">"Ingresa la contraseña"</string>
     <string name="keyguard_sim_error_message_short" msgid="633630844240494070">"Tarjeta no válida"</string>
     <string name="keyguard_charged" msgid="5478247181205188995">"Cargada"</string>
     <string name="keyguard_plugged_in_wireless" msgid="2537874724955057383">"<xliff:g id="PERCENTAGE">%s</xliff:g> • Cargando de manera inalámbrica"</string>
@@ -62,9 +62,9 @@
     <string name="kg_bio_try_again_or_pin" msgid="4752168242723808390">"Vuelve a intentarlo o ingresa el PIN"</string>
     <string name="kg_bio_try_again_or_password" msgid="1473132729225398039">"Vuelve a intentarlo o ingresa la contraseña"</string>
     <string name="kg_bio_try_again_or_pattern" msgid="4867893307468801501">"Vuelve a intentarlo o dibuja el patrón"</string>
-    <string name="kg_bio_too_many_attempts_pin" msgid="5850845723433047605">"Se requiere PIN luego de demasiados intentos"</string>
-    <string name="kg_bio_too_many_attempts_password" msgid="5551690347827728042">"Se requiere contraseña luego de demasiados intentos"</string>
-    <string name="kg_bio_too_many_attempts_pattern" msgid="736884689355181602">"Se requiere patrón luego de demasiados intentos"</string>
+    <string name="kg_bio_too_many_attempts_pin" msgid="5850845723433047605">"Debes ingresar un PIN luego de demasiados intentos"</string>
+    <string name="kg_bio_too_many_attempts_password" msgid="5551690347827728042">"Debes ingresar una contraseña luego de demasiados intentos"</string>
+    <string name="kg_bio_too_many_attempts_pattern" msgid="736884689355181602">"Debes ingresar un patrón luego de demasiados intentos"</string>
     <string name="kg_unlock_with_pin_or_fp" msgid="5635161174698729890">"Desbloquear con PIN o huella dactilar"</string>
     <string name="kg_unlock_with_password_or_fp" msgid="2251295907826814237">"Desbloq. contraseña/huella"</string>
     <string name="kg_unlock_with_pattern_or_fp" msgid="2391870539909135046">"Desbloq. patrón/huella"</string>
@@ -104,7 +104,7 @@
     <string name="kg_password_pin_failed" msgid="5136259126330604009">"Se produjo un error al desbloquear la tarjeta SIM con el PIN."</string>
     <string name="kg_password_puk_failed" msgid="6778867411556937118">"Se produjo un error al desbloquear la tarjeta SIM con el PUK."</string>
     <string name="accessibility_ime_switch_button" msgid="9082358310194861329">"Cambiar método de entrada"</string>
-    <string name="airplane_mode" msgid="2528005343938497866">"Modo de avión"</string>
+    <string name="airplane_mode" msgid="2528005343938497866">"Modo avión"</string>
     <string name="kg_prompt_reason_restart_pattern" msgid="3321211830602827742">"Se requiere patrón tras reiniciar dispositivo"</string>
     <string name="kg_prompt_reason_restart_pin" msgid="2672166323886110512">"Se requiere PIN tras reiniciar dispositivo"</string>
     <string name="kg_prompt_reason_restart_password" msgid="3967993994418885887">"Se requiere contraseña tras reiniciar dispositivo"</string>

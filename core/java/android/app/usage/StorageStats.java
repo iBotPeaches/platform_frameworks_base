@@ -22,7 +22,10 @@ import android.annotation.IntDef;
 import android.content.Context;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.UserHandle;
+import android.util.Log;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -34,6 +37,9 @@ import java.lang.annotation.RetentionPolicy;
  * @see StorageStatsManager
  */
 public final class StorageStats implements Parcelable {
+    /** @hide */ public String packageName;
+    /** @hide */ public int userHandle;
+    /** @hide */ public int uid;
     /** @hide */ public long codeBytes;
     /** @hide */ public long dataBytes;
     /** @hide */ public long cacheBytes;
@@ -130,6 +136,14 @@ public final class StorageStats implements Parcelable {
     @Retention(RetentionPolicy.SOURCE)
     public @interface AppDataType {}
 
+    private static final String TAG = "StorageStats";
+
+    /**
+     * artStatsFetched is only applicable when
+     * Flags.getAppArtManagedBytes() is true;
+     */
+    private boolean artStatsFetched;
+
     /**
      * Return the size of app. This includes {@code APK} files, optimized
      * compiler output, and unpacked native libraries.
@@ -157,9 +171,9 @@ public final class StorageStats implements Parcelable {
     @FlaggedApi(Flags.FLAG_GET_APP_BYTES_BY_DATA_TYPE_API)
     public long getAppBytesByDataType(@AppDataType int dataType) {
         switch (dataType) {
-          case APP_DATA_TYPE_FILE_TYPE_DEXOPT_ARTIFACT: return dexoptBytes;
-          case APP_DATA_TYPE_FILE_TYPE_REFERENCE_PROFILE: return refProfBytes;
-          case APP_DATA_TYPE_FILE_TYPE_CURRENT_PROFILE: return curProfBytes;
+          case APP_DATA_TYPE_FILE_TYPE_DEXOPT_ARTIFACT: return getDexoptBytes();
+          case APP_DATA_TYPE_FILE_TYPE_REFERENCE_PROFILE: return getRefProfBytes();
+          case APP_DATA_TYPE_FILE_TYPE_CURRENT_PROFILE: return getCurProfBytes();
           case APP_DATA_TYPE_FILE_TYPE_APK: return apkBytes;
           case APP_DATA_TYPE_LIB: return libBytes;
           case APP_DATA_TYPE_FILE_TYPE_DM: return dmBytes;
@@ -215,6 +229,9 @@ public final class StorageStats implements Parcelable {
 
     /** {@hide} */
     public StorageStats(Parcel in) {
+        this.packageName = in.readString8();
+        this.userHandle = in.readInt();
+        this.uid = in.readInt();
         this.codeBytes = in.readLong();
         this.dataBytes = in.readLong();
         this.cacheBytes = in.readLong();
@@ -234,6 +251,9 @@ public final class StorageStats implements Parcelable {
 
     @Override
     public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString8(packageName);
+        dest.writeInt(userHandle);
+        dest.writeInt(uid);
         dest.writeLong(codeBytes);
         dest.writeLong(dataBytes);
         dest.writeLong(cacheBytes);
@@ -257,4 +277,42 @@ public final class StorageStats implements Parcelable {
             return new StorageStats[size];
         }
     };
+
+    private void getArtManagedStats() {
+      try {
+        IStorageStatsManager storageStatsManagerService;
+        // Fetch art stats only if it is not already fetched.
+        if (Flags.getAppArtManagedBytes() && !artStatsFetched) {
+          android.os.IBinder binder = ServiceManager.getService("storagestats");
+          storageStatsManagerService = IStorageStatsManager.Stub.asInterface(binder);
+
+          StorageStats newStats =
+              storageStatsManagerService.queryArtManagedStats(packageName, userHandle, uid);
+
+          dexoptBytes = newStats.dexoptBytes;
+          curProfBytes = newStats.curProfBytes;
+          refProfBytes = newStats.refProfBytes;
+
+          artStatsFetched = true;
+        }
+      } catch (RemoteException e) {
+          Log.e(TAG, "Failed to get art stats", e);
+          e.rethrowFromSystemServer();
+      }
+    }
+
+    private long getDexoptBytes() {
+      getArtManagedStats();
+      return dexoptBytes;
+    }
+
+    private long getCurProfBytes() {
+      getArtManagedStats();
+      return curProfBytes;
+    }
+
+    private long getRefProfBytes() {
+      getArtManagedStats();
+      return refProfBytes;
+    }
 }

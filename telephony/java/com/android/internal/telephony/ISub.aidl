@@ -347,13 +347,17 @@ interface ISub {
      * Returns whether the given subscription is associated with the calling user.
      *
      * @param subscriptionId the subscription ID of the subscription
+     * @param callingPackage The package maing the call
+     * @param callingFeatureId The feature in the package
+
      * @return {@code true} if the subscription is associated with the user that the current process
      *         is running in; {@code false} otherwise.
      *
      * @throws IllegalArgumentException if subscription doesn't exist.
      * @throws SecurityException if the caller doesn't have permissions required.
      */
-    boolean isSubscriptionAssociatedWithCallingUser(int subscriptionId);
+    boolean isSubscriptionAssociatedWithCallingUser(int subscriptionId, String callingPackage,
+            String callingFeatureId);
 
     /**
      * Check if subscription and user are associated with each other.

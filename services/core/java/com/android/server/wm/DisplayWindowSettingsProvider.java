@@ -511,6 +511,8 @@ class DisplayWindowSettingsProvider implements SettingsProvider {
                     0 /* defaultValue */);
             settingsEntry.mForcedDensity = getIntAttribute(parser, "forcedDensity",
                     0 /* defaultValue */);
+            settingsEntry.mForcedDensityRatio = parser.getAttributeFloat(null, "forcedDensityRatio",
+                    0.0f /* defaultValue */);
             settingsEntry.mForcedScalingMode = getIntegerAttribute(parser, "forcedScalingMode",
                     null /* defaultValue */);
             settingsEntry.mRemoveContentMode = getIntAttribute(parser, "removeContentMode",
@@ -598,6 +600,10 @@ class DisplayWindowSettingsProvider implements SettingsProvider {
                 }
                 if (settingsEntry.mForcedDensity != 0) {
                     out.attributeInt(null, "forcedDensity", settingsEntry.mForcedDensity);
+                }
+                if (settingsEntry.mForcedDensityRatio != 0.0f) {
+                    out.attributeFloat(null, "forcedDensityRatio",
+                            settingsEntry.mForcedDensityRatio);
                 }
                 if (settingsEntry.mForcedScalingMode != null) {
                     out.attributeInt(null, "forcedScalingMode",

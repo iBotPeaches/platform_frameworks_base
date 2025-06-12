@@ -63,6 +63,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.List;
+import java.util.Optional;
 
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4;
 import platform.test.runner.parameterized.Parameters;
@@ -100,7 +101,7 @@ public class RotationLockTileTest extends SysuiTestCase {
     @Mock
     private BatteryController mBatteryController;
     @Mock
-    DeviceStateRotationLockSettingController mDeviceStateRotationLockSettingController;
+    Optional<DeviceStateRotationLockSettingController> mDeviceStateRotationLockSettingController;
     @Mock
     RotationPolicyWrapper mRotationPolicyWrapper;
     @Mock

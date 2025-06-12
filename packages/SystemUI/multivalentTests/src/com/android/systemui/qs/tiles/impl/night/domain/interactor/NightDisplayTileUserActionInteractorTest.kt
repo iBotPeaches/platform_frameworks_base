@@ -26,12 +26,12 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.accessibility.data.repository.NightDisplayRepository
 import com.android.systemui.dagger.NightDisplayListenerModule
-import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.intentInputs
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.intentInputs
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.custom.qsTileLogger
 import com.android.systemui.qs.tiles.impl.night.domain.model.NightDisplayTileModel
+import com.android.systemui.testKosmos
 import com.android.systemui.user.utils.UserScopedService
 import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.mock
@@ -51,7 +51,7 @@ import org.mockito.Mockito.verify
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class NightDisplayTileUserActionInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val qsTileIntentUserActionHandler = FakeQSTileIntentUserInputHandler()
     private val testUser = UserHandle.of(1)
     private val colorDisplayManager =
@@ -89,7 +89,7 @@ class NightDisplayTileUserActionInteractorTest : SysuiTestCase() {
         NightDisplayTileUserActionInteractor(
             nightDisplayRepository,
             qsTileIntentUserActionHandler,
-            kosmos.qsTileLogger
+            kosmos.qsTileLogger,
         )
 
     @Test
@@ -143,7 +143,7 @@ class NightDisplayTileUserActionInteractorTest : SysuiTestCase() {
             underTest.handleInput(
                 QSTileInputTestKtx.longClick(
                     NightDisplayTileModel.AutoModeOff(enabledState, false),
-                    testUser
+                    testUser,
                 )
             )
 
@@ -163,7 +163,7 @@ class NightDisplayTileUserActionInteractorTest : SysuiTestCase() {
             underTest.handleInput(
                 QSTileInputTestKtx.longClick(
                     NightDisplayTileModel.AutoModeOff(enabledState, false),
-                    testUser
+                    testUser,
                 )
             )
 

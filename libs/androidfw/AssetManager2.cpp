@@ -23,6 +23,7 @@
 #include <map>
 #include <set>
 #include <span>
+#include <sstream>
 #include <utility>
 
 #include "android-base/logging.h"
@@ -43,6 +44,9 @@
 namespace android {
 
 namespace {
+
+constexpr int32_t kDefaultDisplayId = 0;
+constexpr int32_t kDefaultDeviceId = 0;
 
 using EntryValue = std::variant<Res_value, incfs::verified_map_ptr<ResTable_map_entry>>;
 
@@ -78,6 +82,9 @@ struct FindEntryResult {
   // The bitmask of configuration axis with which the resource value varies.
   uint32_t type_flags;
 
+  // The bitmask of ResTable_entry flags
+  uint16_t entry_flags;
+
   // The dynamic package ID map for the package from which this resource came from.
   const DynamicRefTable* dynamic_ref_table;
 
@@ -99,14 +106,15 @@ struct Theme::Entry {
   Res_value value;
 };
 
-AssetManager2::AssetManager2(ApkAssetsList apk_assets, const ResTable_config& configuration) {
+AssetManager2::AssetManager2(ApkAssetsList apk_assets, const ResTable_config& configuration)
+  : display_id_(kDefaultDisplayId), device_id_(kDefaultDeviceId) {
   configurations_.push_back(configuration);
 
   // Don't invalidate caches here as there's nothing cached yet.
   SetApkAssets(apk_assets, false);
 }
 
-AssetManager2::AssetManager2() {
+AssetManager2::AssetManager2() : display_id_(kDefaultDisplayId), device_id_(kDefaultDeviceId) {
   configurations_.emplace_back();
 }
 
@@ -172,8 +180,7 @@ void AssetManager2::BuildDynamicRefTable(ApkAssetsList apk_assets) {
       // to take effect.
       auto iter = target_assets_package_ids.find(loaded_idmap->TargetApkPath());
       if (iter == target_assets_package_ids.end()) {
-         LOG(INFO) << "failed to find target package for overlay "
-                   << loaded_idmap->OverlayApkPath();
+        LOG(INFO) << "failed to find target package for overlay " << loaded_idmap->OverlayApkPath();
       } else {
         uint8_t target_package_id = iter->second;
 
@@ -189,10 +196,11 @@ void AssetManager2::BuildDynamicRefTable(ApkAssetsList apk_assets) {
                                   << " assigned package group";
 
         PackageGroup& target_package_group = package_groups_[target_idx];
-        target_package_group.overlays_.push_back(
-            ConfiguredOverlay{loaded_idmap->GetTargetResourcesMap(target_package_id,
-                                                                  overlay_ref_table.get()),
-                              apk_assets_cookies[apk_assets]});
+        target_package_group.overlays_.push_back(ConfiguredOverlay{
+                  loaded_idmap->GetTargetResourcesMap(target_package_id, overlay_ref_table.get()),
+                  apk_assets_cookies[apk_assets],
+                  IsAnyOverlayConstraintSatisfied(loaded_idmap->GetConstraints())
+        });
       }
     }
 
@@ -291,7 +299,7 @@ void AssetManager2::DumpToLog() const {
   }
   LOG(INFO) << "Package ID map: " << list;
 
-  for (const auto& package_group: package_groups_) {
+  for (const auto& package_group : package_groups_) {
     list = "";
     for (const auto& package : package_group.packages_) {
       const LoadedPackage* loaded_package = package.loaded_package_;
@@ -347,7 +355,6 @@ std::shared_ptr<const DynamicRefTable> AssetManager2::GetDynamicRefTableForCooki
 
 const std::unordered_map<std::string, std::string>*
   AssetManager2::GetOverlayableMapForPackage(uint32_t package_id) const {
-
   if (package_id >= package_ids_.size()) {
     return nullptr;
   }
@@ -438,6 +445,24 @@ bool AssetManager2::ContainsAllocatedTable() const {
   return false;
 }
 
+static std::string ConfigVecToString(std::span<const ResTable_config> configurations) {
+  std::stringstream ss;
+  ss << "[";
+  bool first = true;
+  for (const auto& config : configurations) {
+    if (!first) {
+      ss << ",";
+    }
+    char out[RESTABLE_MAX_LOCALE_LEN] = {};
+    config.getBcp47Locale(out);
+    ss << out;
+    first = false;
+  }
+  ss << "]";
+  return ss.str();
+}
+
+
 void AssetManager2::SetConfigurations(std::span<const ResTable_config> configurations,
                                       bool force_refresh) {
   int diff = 0;
@@ -452,6 +477,17 @@ void AssetManager2::SetConfigurations(std::span<const ResTable_config> configura
       }
     }
   }
+
+  // Log the locale list change to investigate b/392255526
+  if (diff & ConfigDescription::CONFIG_LOCALE) {
+    auto oldstr = ConfigVecToString(configurations_);
+    auto newstr = ConfigVecToString(configurations);
+    if (oldstr != newstr) {
+      LOG(INFO) << "AssetManager2(" << this << ") locale list changing from "
+                << oldstr << " to " << newstr;
+    }
+  }
+
   configurations_.clear();
   for (auto&& config : configurations) {
     configurations_.emplace_back(config);
@@ -459,6 +495,50 @@ void AssetManager2::SetConfigurations(std::span<const ResTable_config> configura
   if (diff) {
     RebuildFilterList();
     InvalidateCaches(static_cast<uint32_t>(diff));
+  }
+}
+
+void AssetManager2::SetDefaultLocale(std::optional<ResTable_config> default_locale) {
+  int diff = 0;
+  if (default_locale_ && default_locale) {
+    diff = default_locale_->diff(default_locale.value());
+  } else if (default_locale_ || default_locale) {
+    diff = -1;
+  }
+  if (diff & ConfigDescription::CONFIG_LOCALE) {
+    char old_loc[RESTABLE_MAX_LOCALE_LEN] = {};
+    char new_loc[RESTABLE_MAX_LOCALE_LEN] = {};
+    if (default_locale_) {
+      default_locale_->getBcp47Locale(old_loc);
+    }
+    if (default_locale) {
+      default_locale->getBcp47Locale(new_loc);
+    }
+    LOG(INFO) << "AssetManager2(" << this << ") default locale changing from '"
+              << old_loc << "' to '" << new_loc << "'";
+  }
+  default_locale_ = default_locale;
+}
+
+void AssetManager2::SetOverlayConstraints(int32_t display_id, int32_t device_id) {
+  bool changed = false;
+  if (display_id_ != display_id) {
+    display_id_ = display_id;
+    changed = true;
+  }
+  if (device_id_ != device_id) {
+    device_id_ = device_id;
+    changed = true;
+  }
+  if (changed) {
+    // Enable/disable overlays based on current constraints
+    for (PackageGroup& group : package_groups_) {
+      for (auto &overlay: group.overlays_) {
+        overlay.enabled = IsAnyOverlayConstraintSatisfied(
+                overlay.overlay_res_maps_.GetConstraints());
+      }
+    }
+    InvalidateCaches(static_cast<uint32_t>(-1));
   }
 }
 
@@ -475,6 +555,8 @@ std::set<AssetManager2::ApkAssetsPtr> AssetManager2::GetNonSystemOverlays() cons
 
     if (!found_system_package) {
       auto op = StartOperation();
+      // Return all overlays, including the disabled ones as this is used for static info
+      // collection only.
       for (const ConfiguredOverlay& overlay : package_group.overlays_) {
         if (const auto& asset = GetApkAssets(overlay.cookie)) {
           non_system_overlays.insert(std::move(asset));
@@ -521,12 +603,12 @@ base::expected<std::set<ResTable_config>, IOError> AssetManager2::GetResourceCon
   return configurations;
 }
 
-std::set<std::string> AssetManager2::GetResourceLocales(bool exclude_system,
-                                                        bool merge_equivalent_languages) const {
+LoadedPackage::Locales AssetManager2::GetResourceLocales(
+    bool exclude_system, bool merge_equivalent_languages) const {
   ATRACE_NAME("AssetManager::GetResourceLocales");
   auto op = StartOperation();
 
-  std::set<std::string> locales;
+  LoadedPackage::Locales locales;
   const auto non_system_overlays =
       exclude_system ? GetNonSystemOverlays() : std::set<ApkAssetsPtr>();
 
@@ -540,8 +622,7 @@ std::set<std::string> AssetManager2::GetResourceLocales(bool exclude_system,
         if (!non_system_overlays.empty()) {
           // Exclude overlays that target only system resources.
           const auto& apk_assets = GetApkAssets(package_group.cookies_[i]);
-          if (apk_assets && apk_assets->IsOverlay() &&
-              non_system_overlays.find(apk_assets) == non_system_overlays.end()) {
+          if (apk_assets && apk_assets->IsOverlay() && !non_system_overlays.contains(apk_assets)) {
             continue;
           }
         }
@@ -651,7 +732,6 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntry(
 
   auto op = StartOperation();
 
-
   // Retrieve the package group from the package id of the resource id.
   if (UNLIKELY(!is_valid_resid(resid))) {
     LOG(ERROR) << base::StringPrintf("Invalid resource ID 0x%08x.", resid);
@@ -672,7 +752,7 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntry(
   std::optional<FindEntryResult> final_result;
   bool final_has_locale = false;
   bool final_overlaid = false;
-  for (auto & config : configurations_) {
+  for (auto& config : configurations_) {
     // Might use this if density_override != 0.
     ResTable_config density_override_config;
 
@@ -698,7 +778,8 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntry(
       }
       if (!assets->IsLoader()) {
         for (const auto& id_map : package_group.overlays_) {
-          auto overlay_entry = id_map.overlay_res_maps_.Lookup(resid);
+          auto overlay_entry = id_map.enabled ?
+                  id_map.overlay_res_maps_.Lookup(resid) : IdmapResMap::Result();
           if (!overlay_entry) {
             // No id map entry exists for this target resource.
             continue;
@@ -708,7 +789,7 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntry(
             ConfigDescription best_frro_config;
             Res_value best_frro_value;
             bool frro_found = false;
-            for( const auto& [config, value] : overlay_entry.GetInlineValue()) {
+            for(const auto& [config, value] : overlay_entry.GetInlineValue()) {
               if ((!frro_found || config.isBetterThan(best_frro_config, desired_config))
                   && config.match(*desired_config)) {
                 frro_found = true;
@@ -787,11 +868,11 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntry(
 
     bool has_locale = false;
     if (result->config.locale == 0) {
-      if (default_locale_ != 0) {
-        ResTable_config conf = {.locale = default_locale_};
-        // Since we know conf has a locale and only a locale, match will tell us if that locale
-        // matches
-        has_locale = conf.match(config);
+      // The default_locale_ is the locale used for any resources with no locale in the config
+      if (default_locale_) {
+        // Since we know default_locale_ has a locale and only a locale, match will tell us if that
+        // locale matches
+        has_locale = default_locale_->match(config);
       }
     } else {
       has_locale = true;
@@ -800,10 +881,10 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntry(
       // if we don't have a result yet
     if (!final_result ||
         // or this config is better before the locale than the existing result
-        result->config.isBetterThanBeforeLocale(final_result->config, desired_config) ||
+        result->config.isBetterThanBeforeLocale(final_result->config, *desired_config) ||
         // or the existing config isn't better before locale and this one specifies a locale
         // whereas the existing one doesn't
-        (!final_result->config.isBetterThanBeforeLocale(result->config, desired_config)
+        (!final_result->config.isBetterThanBeforeLocale(result->config, *desired_config)
             && has_locale && !final_has_locale)) {
       final_result = result.value();
       final_overlaid = overlaid;
@@ -952,6 +1033,7 @@ base::expected<FindEntryResult, NullOrIOError> AssetManager2::FindEntryInternal(
     .entry = *entry,
     .config = *best_config,
     .type_flags = type_flags,
+    .entry_flags = (*best_entry_verified)->flags(),
     .dynamic_ref_table = package_group.dynamic_ref_table.get(),
     .package_name = &best_package->GetPackageName(),
     .type_string_ref = StringPoolRef(best_package->GetTypeStringPool(), best_type->id - 1),
@@ -1011,7 +1093,7 @@ std::string AssetManager2::GetLastResourceResolution() const {
                                      resid, resource_name_string.c_str(), conf.toString().c_str());
     char str[40];
     str[0] = '\0';
-    for(auto iter = configurations_.begin(); iter < configurations_.end(); iter++) {
+    for (auto iter = configurations_.begin(); iter < configurations_.end(); iter++) {
       iter->getBcp47Locale(str);
       log_stream << base::StringPrintf(" %s%s", str, iter < configurations_.end() ? "," : "");
     }
@@ -1106,16 +1188,16 @@ base::expected<AssetManager2::SelectedValue, NullOrIOError> AssetManager2::GetRe
     }
 
     // Create a reference since we can't represent this complex type as a Res_value.
-    return SelectedValue(Res_value::TYPE_REFERENCE, resid, result->cookie, result->type_flags,
-                         resid, result->config);
+    return SelectedValue(Res_value::TYPE_REFERENCE, resid, result->cookie, result->entry_flags,
+                         result->type_flags, resid, result->config);
   }
 
   // Convert the package ID to the runtime assigned package ID.
   Res_value value = std::get<Res_value>(result->entry);
   result->dynamic_ref_table->lookupResourceValue(&value);
 
-  return SelectedValue(value.dataType, value.data, result->cookie, result->type_flags,
-                       resid, result->config);
+  return SelectedValue(value.dataType, value.data, result->cookie, result->entry_flags,
+                       result->type_flags, resid, result->config);
 }
 
 base::expected<std::monostate, NullOrIOError> AssetManager2::ResolveReference(
@@ -1467,8 +1549,6 @@ base::expected<uint32_t, NullOrIOError> AssetManager2::GetResourceId(
   }
 
   const StringPiece16 kAttr16 = u"attr";
-  const static std::u16string kAttrPrivate16 = u"^attr-private";
-
   for (const PackageGroup& package_group : package_groups_) {
     for (const ConfiguredPackage& package_impl : package_group.packages_) {
       const LoadedPackage* package = package_impl.loaded_package_;
@@ -1486,6 +1566,7 @@ base::expected<uint32_t, NullOrIOError> AssetManager2::GetResourceId(
         // Private attributes in libraries (such as the framework) are sometimes encoded
         // under the type '^attr-private' in order to leave the ID space of public 'attr'
         // free for future additions. Check '^attr-private' for the same name.
+        const static std::u16string kAttrPrivate16 = u"^attr-private";
         resid = package->FindEntryByName(kAttrPrivate16, entry16);
       }
 
@@ -1505,7 +1586,7 @@ void AssetManager2::RebuildFilterList() {
       package.loaded_package_->ForEachTypeSpec([&](const TypeSpec& type_spec, uint8_t type_id) {
         FilteredConfigGroup* group = nullptr;
         for (const auto& type_entry : type_spec.type_entries) {
-          for (auto & config : configurations_) {
+          for (auto& config : configurations_) {
             if (type_entry.config.match(config)) {
               if (!group) {
                 group = &package.filtered_configs_.editItemAt(type_id - 1);
@@ -1520,6 +1601,27 @@ void AssetManager2::RebuildFilterList() {
           [](const auto& fcg) { return fcg.type_entries.empty(); });
     }
   }
+}
+
+bool AssetManager2::IsAnyOverlayConstraintSatisfied(const Idmap_constraints& constraints) const {
+  if (constraints.constraint_count == 0) {
+    // There are no constraints, return true.
+    return true;
+  }
+
+  for (uint32_t i = 0; i < constraints.constraint_count; i++) {
+    auto constraint = constraints.constraint_entries[i];
+    if (constraint.constraint_type == kOverlayConstraintTypeDisplayId &&
+        constraint.constraint_value == display_id_) {
+      return true;
+    }
+    if (constraint.constraint_type == kOverlayConstraintTypeDeviceId &&
+        constraint.constraint_value == device_id_) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 void AssetManager2::InvalidateCaches(uint32_t diff) {
@@ -1748,8 +1850,8 @@ std::optional<AssetManager2::SelectedValue> Theme::GetAttribute(uint32_t resid) 
     }
 
     return AssetManager2::SelectedValue(entry_it->value.dataType, entry_it->value.data,
-                                        entry_it->cookie, type_spec_flags, 0U /* resid */,
-                                        {} /* config */);
+                                        entry_it->cookie, 0U /* entry flags*/, type_spec_flags,
+                                        0U /* resid */, {} /* config */);
   }
   return std::nullopt;
 }

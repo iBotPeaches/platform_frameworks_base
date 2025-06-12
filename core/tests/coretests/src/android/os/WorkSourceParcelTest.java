@@ -18,7 +18,7 @@ package android.os;
 
 import static org.junit.Assert.assertEquals;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -30,7 +30,7 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
-@IgnoreUnderRavenwood(reason = "JNI")
+@DisabledOnRavenwood(reason = "JNI")
 public class WorkSourceParcelTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();
@@ -49,7 +49,7 @@ public class WorkSourceParcelTest {
             String[] names, int parcelEndMarker);
 
     static {
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             System.loadLibrary("worksourceparceltest_jni");
         }
     }

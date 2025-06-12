@@ -56,24 +56,29 @@
     <item msgid="5376619709702103243">"Kimezimwa"</item>
     <item msgid="4875147066469902392">"Kimewashwa"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"Haipatikani"</item>
+    <item msgid="8589336868985358191">"Imezimwa"</item>
+    <item msgid="726072717827778234">"Imewashwa"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"Hakipatikani"</item>
-    <item msgid="5044688398303285224">"Kimezimwa"</item>
+    <item msgid="5044688398303285224">"Imezimwa"</item>
     <item msgid="8527389108867454098">"Kimewashwa"</item>
   </string-array>
   <string-array name="tile_states_rotation">
     <item msgid="4578491772376121579">"Hakipatikani"</item>
     <item msgid="5776427577477729185">"Kimezimwa"</item>
-    <item msgid="7105052717007227415">"Kimewashwa"</item>
+    <item msgid="7105052717007227415">"Imewashwa"</item>
   </string-array>
   <string-array name="tile_states_bt">
     <item msgid="5330252067413512277">"Hakipatikani"</item>
-    <item msgid="5315121904534729843">"Kimezimwa"</item>
-    <item msgid="503679232285959074">"Kimewashwa"</item>
+    <item msgid="5315121904534729843">"Imezimwa"</item>
+    <item msgid="503679232285959074">"Imewashwa"</item>
   </string-array>
   <string-array name="tile_states_airplane">
     <item msgid="1985366811411407764">"Hakipatikani"</item>
-    <item msgid="4801037224991420996">"Kimezimwa"</item>
+    <item msgid="4801037224991420996">"Imezimwa"</item>
     <item msgid="1982293347302546665">"Kimewashwa"</item>
   </string-array>
   <string-array name="tile_states_location">
@@ -93,7 +98,7 @@
   </string-array>
   <string-array name="tile_states_inversion">
     <item msgid="3638187931191394628">"Hakipatikani"</item>
-    <item msgid="9103697205127645916">"Kimezimwa"</item>
+    <item msgid="9103697205127645916">"Umezimwa"</item>
     <item msgid="8067744885820618230">"Kimewashwa"</item>
   </string-array>
   <string-array name="tile_states_saver">
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"Halipatikani"</item>
     <item msgid="6419996398343291862">"Limezimwa"</item>
     <item msgid="5908720590832378783">"Limewashwa"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"Hakipatikani"</item>
+    <item msgid="6641673879029894995">"Kimezimwa"</item>
+    <item msgid="5806682401126108403">"Kimewashwa"</item>
   </string-array>
 </resources>

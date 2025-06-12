@@ -25,6 +25,7 @@ import static com.android.server.wm.utils.LastCallVerifier.lastCall;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -431,5 +432,33 @@ public class DimmerTests extends WindowTestsBase {
                 anyInt(), any(SurfaceAnimator.OnAnimationFinishedCallback.class));
         verify(mTransaction, never()).setAlpha(dimLayer, 0.5f);
         verify(mTransaction).setAlpha(dimLayer, 0.9f);
+    }
+
+    /**
+     * A window requesting to dim to 0 and without blur would cause the dim to be created and
+     * destroyed continuously.
+     * Ensure the dim layer is not created until the window is requesting valid values.
+     */
+    @Test
+    public void testDimNotCreatedIfNoAlphaNoBlur() {
+        mDimmer.adjustAppearance(mChild1, 0.0f, 0);
+        mDimmer.adjustPosition(mChild1, mChild1);
+        assertNull(mDimmer.getDimLayer());
+        mDimmer.updateDims(mTransaction);
+        assertNull(mDimmer.getDimLayer());
+
+        mDimmer.adjustAppearance(mChild1, 0.9f, 0);
+        mDimmer.adjustPosition(mChild1, mChild1);
+        assertNotNull(mDimmer.getDimLayer());
+    }
+
+    /**
+     * If there is a blur, then the dim layer is created even though alpha is 0
+     */
+    @Test
+    public void testDimCreatedIfNoAlphaButHasBlur() {
+        mDimmer.adjustAppearance(mChild1, 0.0f, 10);
+        mDimmer.adjustPosition(mChild1, mChild1);
+        assertNotNull(mDimmer.getDimLayer());
     }
 }

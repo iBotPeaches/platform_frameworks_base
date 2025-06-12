@@ -34,6 +34,7 @@ import java.util.Iterator;
  * <code>PathIterator</code> can be used to query a given {@link Path} object, to discover its
  * operations and point values.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PathIterator implements Iterator<PathIterator.Segment> {
 
     private final float[] mPointsArray;
@@ -47,9 +48,11 @@ public class PathIterator implements Iterator<PathIterator.Segment> {
     private static final boolean IS_DALVIK = "dalvik".equalsIgnoreCase(
             System.getProperty("java.vm.name"));
 
-    private static final NativeAllocationRegistry sRegistry =
-            NativeAllocationRegistry.createMalloced(
-                    PathIterator.class.getClassLoader(), nGetFinalizer());
+    private static class NoImagePreloadHolder {
+        private static final NativeAllocationRegistry sRegistry =
+                NativeAllocationRegistry.createMalloced(
+                        PathIterator.class.getClassLoader(), nGetFinalizer());
+    }
 
     /**
      * The <code>Verb</code> indicates the operation for a given segment of a path. These
@@ -68,6 +71,11 @@ public class PathIterator implements Iterator<PathIterator.Segment> {
     public static final int VERB_CUBIC = 4;
     public static final int VERB_CLOSE = 5;
     public static final int VERB_DONE = 6;
+
+
+    static {
+        // Keep <cinit> exist in bytecode
+    }
 
     /**
      * Returns a {@link PathIterator} object for this path, which can be used to query the
@@ -90,7 +98,7 @@ public class PathIterator implements Iterator<PathIterator.Segment> {
             mPointsArray = new float[POINT_ARRAY_SIZE];
             mPointsAddress = 0;
         }
-        sRegistry.registerNativeAllocation(this, mNativeIterator);
+        NoImagePreloadHolder.sRegistry.registerNativeAllocation(this, mNativeIterator);
     }
 
     /**

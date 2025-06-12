@@ -28,8 +28,6 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.app.viewcapture.ViewCapture
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.ActivityTransitionAnimator
@@ -62,8 +60,6 @@ import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.testKosmos
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import com.google.common.truth.Truth.assertThat
-import dagger.Lazy
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -89,7 +85,6 @@ private const val DISPLAY_HEIGHT = 1920
 private const val SENSOR_WIDTH = 30
 private const val SENSOR_HEIGHT = 60
 
-@ExperimentalCoroutinesApi
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @RunWithLooper(setAsMainLooper = true)
@@ -100,7 +95,6 @@ class UdfpsControllerOverlayTest : SysuiTestCase() {
 
     @Mock private lateinit var inflater: LayoutInflater
     @Mock private lateinit var windowManager: WindowManager
-    @Mock private lateinit var lazyViewCapture: kotlin.Lazy<ViewCapture>
     @Mock private lateinit var accessibilityManager: AccessibilityManager
     @Mock private lateinit var statusBarStateController: StatusBarStateController
     @Mock private lateinit var statusBarKeyguardViewManager: StatusBarKeyguardViewManager
@@ -122,9 +116,7 @@ class UdfpsControllerOverlayTest : SysuiTestCase() {
     private lateinit var deviceEntryUdfpsTouchOverlayViewModel:
         DeviceEntryUdfpsTouchOverlayViewModel
     @Mock private lateinit var defaultUdfpsTouchOverlayViewModel: DefaultUdfpsTouchOverlayViewModel
-    @Mock
-    private lateinit var udfpsKeyguardAccessibilityDelegate: UdfpsKeyguardAccessibilityDelegate
-    private lateinit var keyguardTransitionRepository: FakeKeyguardTransitionRepository
+    @Mock private lateinit var keyguardTransitionRepository: FakeKeyguardTransitionRepository
     private lateinit var keyguardTransitionInteractor: KeyguardTransitionInteractor
     @Mock private lateinit var shadeInteractor: ShadeInteractor
     @Captor private lateinit var layoutParamsCaptor: ArgumentCaptor<WindowManager.LayoutParams>
@@ -164,11 +156,7 @@ class UdfpsControllerOverlayTest : SysuiTestCase() {
             UdfpsControllerOverlay(
                 context,
                 inflater,
-                ViewCaptureAwareWindowManager(
-                    windowManager,
-                    lazyViewCapture,
-                    isViewCaptureEnabled = false,
-                ),
+                windowManager,
                 accessibilityManager,
                 statusBarStateController,
                 statusBarKeyguardViewManager,
@@ -187,7 +175,6 @@ class UdfpsControllerOverlayTest : SysuiTestCase() {
                 primaryBouncerInteractor,
                 alternateBouncerInteractor,
                 isDebuggable,
-                udfpsKeyguardAccessibilityDelegate,
                 keyguardTransitionInteractor,
                 mSelectedUserInteractor,
                 { deviceEntryUdfpsTouchOverlayViewModel },

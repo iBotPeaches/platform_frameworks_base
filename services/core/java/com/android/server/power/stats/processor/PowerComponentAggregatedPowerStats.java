@@ -16,11 +16,13 @@
 
 package com.android.server.power.stats.processor;
 
+import android.annotation.CheckResult;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.BatteryStats;
 import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
+import android.util.IntArray;
 import android.util.Slog;
 import android.util.SparseArray;
 
@@ -34,7 +36,6 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.function.IntConsumer;
 
 /**
@@ -72,11 +73,11 @@ class PowerComponentAggregatedPowerStats {
     private MultiStateStats mDeviceStats;
     private final SparseArray<MultiStateStats> mStateStats = new SparseArray<>();
     private final SparseArray<UidStats> mUidStats = new SparseArray<>();
-    private long[] mZeroArray;
 
     private static class UidStats {
         public int[] states;
         public MultiStateStats stats;
+        public boolean hasPowerStats;
         public boolean updated;
     }
 
@@ -200,6 +201,7 @@ class PowerComponentAggregatedPowerStats {
         if (uidStats.stats == null) {
             createUidStats(uidStats, mPowerStatsTimestamp);
         }
+        uidStats.hasPowerStats = true;
         uidStats.stats.setStats(states, values);
     }
 
@@ -240,6 +242,7 @@ class PowerComponentAggregatedPowerStats {
             }
             uidStats.stats.increment(powerStats.uidStats.valueAt(i), timestampMs);
             uidStats.updated = true;
+            uidStats.hasPowerStats = true;
         }
 
         // For UIDs not mentioned in the PowerStats object, we must assume a 0 increment.
@@ -248,11 +251,8 @@ class PowerComponentAggregatedPowerStats {
         for (int i = mUidStats.size() - 1; i >= 0; i--) {
             PowerComponentAggregatedPowerStats.UidStats uidStats = mUidStats.valueAt(i);
             if (!uidStats.updated && uidStats.stats != null) {
-                if (mZeroArray == null
-                        || mZeroArray.length != mPowerStatsDescriptor.uidStatsArrayLength) {
-                    mZeroArray = new long[mPowerStatsDescriptor.uidStatsArrayLength];
-                }
-                uidStats.stats.increment(mZeroArray, timestampMs);
+                // Null stands for an array of zeros
+                uidStats.stats.increment(null, timestampMs);
             }
             uidStats.updated = false;
         }
@@ -267,6 +267,7 @@ class PowerComponentAggregatedPowerStats {
         mStateStats.clear();
         for (int i = mUidStats.size() - 1; i >= 0; i--) {
             mUidStats.valueAt(i).stats = null;
+            mUidStats.valueAt(i).hasPowerStats = false;
         }
     }
 
@@ -290,14 +291,33 @@ class PowerComponentAggregatedPowerStats {
         return uidStats;
     }
 
-    void collectUids(Collection<Integer> uids) {
+    IntArray getUids() {
+        IntArray uids = new IntArray(mUidStats.size());
         for (int i = mUidStats.size() - 1; i >= 0; i--) {
-            if (mUidStats.valueAt(i).stats != null) {
+            UidStats uidStats = mUidStats.valueAt(i);
+            if (uidStats.stats != null) {
                 uids.add(mUidStats.keyAt(i));
             }
         }
+        return uids;
     }
 
+    IntArray getActiveUids() {
+        IntArray uids = new IntArray(mUidStats.size());
+        for (int i = mUidStats.size() - 1; i >= 0; i--) {
+            UidStats uidStats = mUidStats.valueAt(i);
+            if (uidStats.hasPowerStats) {
+                uids.add(mUidStats.keyAt(i));
+            }
+        }
+        return uids;
+    }
+
+    /**
+     * Populates outValues with the stats for the specified states. If the stats are all 0,
+     * returns false, leaving outValues unchanged.
+     */
+    @CheckResult
     boolean getDeviceStats(long[] outValues, int[] deviceStates) {
         if (deviceStates.length != mDeviceStateConfig.length) {
             throw new IllegalArgumentException(
@@ -305,12 +325,16 @@ class PowerComponentAggregatedPowerStats {
                     + " expected: " + mDeviceStateConfig.length);
         }
         if (mDeviceStats != null) {
-            mDeviceStats.getStats(outValues, deviceStates);
-            return true;
+            return mDeviceStats.getStats(outValues, deviceStates);
         }
         return false;
     }
 
+    /**
+     * Populates outValues with the stats for the specified key and device states. If the stats
+     * are all 0, returns false, leaving outValues unchanged.
+     */
+    @CheckResult
     boolean getStateStats(long[] outValues, int key, int[] deviceStates) {
         if (deviceStates.length != mDeviceStateConfig.length) {
             throw new IllegalArgumentException(
@@ -319,8 +343,7 @@ class PowerComponentAggregatedPowerStats {
         }
         MultiStateStats stateStats = mStateStats.get(key);
         if (stateStats != null) {
-            stateStats.getStats(outValues, deviceStates);
-            return true;
+            return stateStats.getStats(outValues, deviceStates);
         }
         return false;
     }
@@ -331,6 +354,11 @@ class PowerComponentAggregatedPowerStats {
         }
     }
 
+    /**
+     * Populates outValues with the stats for the specified UID and UID states. If the stats are
+     *  all 0, returns false, leaving outValues unchanged.
+     */
+    @CheckResult
     boolean getUidStats(long[] outValues, int uid, int[] uidStates) {
         if (uidStates.length != mUidStateConfig.length) {
             throw new IllegalArgumentException(
@@ -339,8 +367,7 @@ class PowerComponentAggregatedPowerStats {
         }
         UidStats uidStats = mUidStats.get(uid);
         if (uidStats != null && uidStats.stats != null) {
-            uidStats.stats.getStats(outValues, uidStates);
-            return true;
+            return uidStats.stats.getStats(outValues, uidStates);
         }
         return false;
     }
@@ -516,6 +543,7 @@ class PowerComponentAggregatedPowerStats {
                         if (uidStats.stats == null) {
                             createUidStats(uidStats, UNKNOWN);
                         }
+                        uidStats.hasPowerStats = true;
                         if (!uidStats.stats.readFromXml(parser)) {
                             return false;
                         }
@@ -563,15 +591,7 @@ class PowerComponentAggregatedPowerStats {
         long[] values = new long[stats.getDimensionCount()];
         MultiStateStats.States[] stateInfo = stats.getStates();
         MultiStateStats.States.forEachTrackedStateCombination(stateInfo, states -> {
-            stats.getStats(values, states);
-            boolean nonZero = false;
-            for (long value : values) {
-                if (value != 0) {
-                    nonZero = true;
-                    break;
-                }
-            }
-            if (!nonZero) {
+            if (!stats.getStats(values, states)) {
                 return;
             }
 

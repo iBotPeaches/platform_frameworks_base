@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Менеджар спадарожнай прылады"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Дазволіць праграме &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; доступ да прылады &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Упэўніцеся, што на гэтай прыладзе (<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>) уключаны <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>, а <xliff:g id="PROFILE_NAME">%3$s</xliff:g> знаходзіцца паблізу."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Прылады не знойдзены. Паўтарыце спробу пазней."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth і Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"гадзіннік"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Выберыце прыладу (<xliff:g id="APP_NAME">%1$s</xliff:g>), якой будзе кіраваць праграма &lt;strong&gt;&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Выберыце імя <xliff:g id="PROFILE_NAME">%1$s</xliff:g> для наладжвання"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"<xliff:g id="PROFILE_NAME">%1$s</xliff:g>: выберыце, каб наладзіць"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Ідзе пошук: <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Гэта праграма зможа сінхранізаваць інфармацыю (напрыклад, імя таго, хто звоніць) на вашай прыладзе тыпу \"<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>\" і атрымае наступныя дазволы"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Дазволіць праграме &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; кіраваць прыладай &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"прылада"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Дазволіць праграме &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; трансліраваць праграмы прылады тыпу \"<xliff:g id="DEVICE_TYPE">%2$s</xliff:g>\" на прыладу &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Праграма \"<xliff:g id="APP_NAME_0">%1$s</xliff:g>\" будзе мець доступ да ўсяго, што паказваецца ці прайграецца на прыладзе \"<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>\", у тым ліку да аўдыя, фота, плацежнай інфармацыі, пароляў і паведамленняў.&lt;br/&gt;&lt;br/&gt;Праграма \"<xliff:g id="APP_NAME_2">%1$s</xliff:g>\" зможа трансліраваць праграмы на прыладу \"<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>\", пакуль вы не адклічаце гэты дазвол."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Праграма \"<xliff:g id="APP_NAME">%1$s</xliff:g>\" запытвае дазвол ад імя прылады \"<xliff:g id="DEVICE_NAME">%2$s</xliff:g>\" на трансляцыю праграм з прылады тыпу \"<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>\""</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Дазволіць праграме &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; трансліраваць аўдыя і сістэмныя функцыі паміж прыладамі \"<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>\" і &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> будзе мець доступ да ўсяго, што прайграецца на прыладзе \"<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>\".&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> зможа трансліраваць аўдыя на прыладу \"<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>\", пакуль вы не адклічаце гэты дазвол."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"прылада"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Гэта праграма зможа сінхранізаваць інфармацыю (напрыклад, імя таго, хто звоніць) паміж тэлефонам і выбранай прыладай"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Дазволіць"</string>
     <string name="consent_no" msgid="2640796915611404382">"Не дазваляць"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Скасаваць"</string>
     <string name="consent_back" msgid="2560683030046918882">"Назад"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Прагартаць спіс уніз"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Стрэлка ўніз"</string>
     <string name="permission_expand" msgid="893185038020887411">"Разгарнуць <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Згарнуць <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Даць праграмам на прыладзе &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; такія самыя дазволы, што і на прыладзе &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
@@ -54,7 +64,7 @@
     <string name="permission_microphone" msgid="2152206421428732949">"Мікрафон"</string>
     <string name="permission_call_logs" msgid="5546761417694586041">"Журналы выклікаў"</string>
     <string name="permission_nearby_devices" msgid="7530973297737123481">"Прылады паблізу"</string>
-    <string name="permission_media_routing_control" msgid="5498639511586715253">"Змяніць прыладу вываду медыя"</string>
+    <string name="permission_media_routing_control" msgid="5498639511586715253">"Змяненне прылады вываду медыя"</string>
     <string name="permission_storage" msgid="6831099350839392343">"Фота і медыяфайлы"</string>
     <string name="permission_notifications" msgid="4099418516590632909">"Апавяшчэнні"</string>
     <string name="permission_phone_summary" msgid="8246321093970051702">"Ажыццяўленне тэлефонных выклікаў і кіраванне імі"</string>

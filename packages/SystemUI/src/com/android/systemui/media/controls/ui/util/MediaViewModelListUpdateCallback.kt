@@ -17,16 +17,17 @@
 package com.android.systemui.media.controls.ui.util
 
 import androidx.recyclerview.widget.ListUpdateCallback
-import com.android.systemui.media.controls.ui.viewmodel.MediaCommonViewModel
+import com.android.systemui.media.controls.ui.viewmodel.MediaControlViewModel
+import kotlin.math.min
 
 /** A [ListUpdateCallback] to apply media events needed to reach the new state. */
 class MediaViewModelListUpdateCallback(
-    private val old: List<MediaCommonViewModel>,
-    private val new: List<MediaCommonViewModel>,
-    private val onAdded: (MediaCommonViewModel, Int) -> Unit,
-    private val onUpdated: (MediaCommonViewModel, Int) -> Unit,
-    private val onRemoved: (MediaCommonViewModel) -> Unit,
-    private val onMoved: (MediaCommonViewModel, Int, Int) -> Unit,
+    private val old: List<MediaControlViewModel>,
+    private val new: List<MediaControlViewModel>,
+    private val onAdded: (MediaControlViewModel, Int) -> Unit,
+    private val onUpdated: (MediaControlViewModel, Int) -> Unit,
+    private val onRemoved: (MediaControlViewModel) -> Unit,
+    private val onMoved: (MediaControlViewModel, Int, Int) -> Unit,
 ) : ListUpdateCallback {
 
     override fun onInserted(position: Int, count: Int) {
@@ -46,7 +47,7 @@ class MediaViewModelListUpdateCallback(
     }
 
     override fun onChanged(position: Int, count: Int, payload: Any?) {
-        for (i in position until position + count) {
+        for (i in position until min(position + count, new.size)) {
             onUpdated(new[i], position)
         }
     }

@@ -17,8 +17,8 @@
 package com.android.server.security;
 
 import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_BOOT_STATE;
-import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_KEYSTORE_REQUIREMENTS;
 import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_CERTS;
+import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_KEYSTORE_REQUIREMENTS;
 import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_LOCAL_BINDING_REQUIREMENTS;
 import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_PATCH_LEVEL_DIFF;
 import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_UNKNOWN;
@@ -47,12 +47,8 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.security.AttestationVerificationManagerService.DumpLogger;
 
-import org.json.JSONObject;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
@@ -60,7 +56,6 @@ import java.security.cert.CertPathValidatorException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
-import java.security.cert.PKIXCertPathChecker;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
@@ -69,7 +64,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -126,6 +120,7 @@ class AttestationVerificationPeerDeviceVerifier {
     private final LocalDate mTestLocalPatchDate;
     private final CertificateFactory mCertificateFactory;
     private final CertPathValidator mCertPathValidator;
+    private final CertificateRevocationStatusManager mCertificateRevocationStatusManager;
     private final DumpLogger mDumpLogger;
 
     AttestationVerificationPeerDeviceVerifier(@NonNull Context context,
@@ -135,6 +130,7 @@ class AttestationVerificationPeerDeviceVerifier {
         mCertificateFactory = CertificateFactory.getInstance("X.509");
         mCertPathValidator = CertPathValidator.getInstance("PKIX");
         mTrustAnchors = getTrustAnchors();
+        mCertificateRevocationStatusManager = new CertificateRevocationStatusManager(mContext);
         mRevocationEnabled = true;
         mTestSystemDate = null;
         mTestLocalPatchDate = null;
@@ -150,6 +146,7 @@ class AttestationVerificationPeerDeviceVerifier {
         mCertificateFactory = CertificateFactory.getInstance("X.509");
         mCertPathValidator = CertPathValidator.getInstance("PKIX");
         mTrustAnchors = trustAnchors;
+        mCertificateRevocationStatusManager = new CertificateRevocationStatusManager(mContext);
         mRevocationEnabled = revocationEnabled;
         mTestSystemDate = systemDate;
         mTestLocalPatchDate = localPatchDate;
@@ -300,15 +297,18 @@ class AttestationVerificationPeerDeviceVerifier {
 
         CertPath certificatePath = mCertificateFactory.generateCertPath(certificates);
         PKIXParameters validationParams = new PKIXParameters(mTrustAnchors);
-        if (mRevocationEnabled) {
-            // Checks Revocation Status List based on
-            // https://developer.android.com/training/articles/security-key-attestation#certificate_status
-            PKIXCertPathChecker checker = new AndroidRevocationStatusListChecker();
-            validationParams.addCertPathChecker(checker);
-        }
         // Do not use built-in revocation status checker.
         validationParams.setRevocationEnabled(false);
         mCertPathValidator.validate(certificatePath, validationParams);
+        if (mRevocationEnabled) {
+            // Checks Revocation Status List based on
+            // https://developer.android.com/training/articles/security-key-attestation#certificate_status
+            // The first certificate is the leaf, which is generated at runtime with the attestation
+            // attributes such as the challenge. It is specific to this attestation instance and
+            // does not need to be checked for revocation.
+            mCertificateRevocationStatusManager.checkRevocationStatus(
+                    new ArrayList<>(certificates.subList(1, certificates.size())));
+        }
     }
 
     private Set<TrustAnchor> getTrustAnchors() throws CertPathValidatorException {
@@ -572,96 +572,6 @@ class AttestationVerificationPeerDeviceVerifier {
         // Check patch dates are within the max patch level diff of each other
         return Math.abs(ChronoUnit.MONTHS.between(localPatchDate, remotePatchDate))
                 <= maxPatchLevelDiffMonths;
-    }
-
-    /**
-     * Checks certificate revocation status.
-     *
-     * Queries status list from android.googleapis.com/attestation/status and checks for
-     * the existence of certificate's serial number. If serial number exists in map, then fail.
-     */
-    private final class AndroidRevocationStatusListChecker extends PKIXCertPathChecker {
-        private static final String TOP_LEVEL_JSON_PROPERTY_KEY = "entries";
-        private static final String STATUS_PROPERTY_KEY = "status";
-        private static final String REASON_PROPERTY_KEY = "reason";
-        private String mStatusUrl;
-        private JSONObject mJsonStatusMap;
-
-        @Override
-        public void init(boolean forward) throws CertPathValidatorException {
-            mStatusUrl = getRevocationListUrl();
-            if (mStatusUrl == null || mStatusUrl.isEmpty()) {
-                throw new CertPathValidatorException(
-                        "R.string.vendor_required_attestation_revocation_list_url is empty.");
-            }
-            // TODO(b/221067843): Update to only pull status map on non critical path and if
-            // out of date (24hrs).
-            mJsonStatusMap = getStatusMap(mStatusUrl);
-        }
-
-        @Override
-        public boolean isForwardCheckingSupported() {
-            return false;
-        }
-
-        @Override
-        public Set<String> getSupportedExtensions() {
-            return null;
-        }
-
-        @Override
-        public void check(Certificate cert, Collection<String> unresolvedCritExts)
-                throws CertPathValidatorException {
-            X509Certificate x509Certificate = (X509Certificate) cert;
-            // The json key is the certificate's serial number converted to lowercase hex.
-            String serialNumber = x509Certificate.getSerialNumber().toString(16);
-
-            if (serialNumber == null) {
-                throw new CertPathValidatorException("Certificate serial number can not be null.");
-            }
-
-            if (mJsonStatusMap.has(serialNumber)) {
-                JSONObject revocationStatus;
-                String status;
-                String reason;
-                try {
-                    revocationStatus = mJsonStatusMap.getJSONObject(serialNumber);
-                    status = revocationStatus.getString(STATUS_PROPERTY_KEY);
-                    reason = revocationStatus.getString(REASON_PROPERTY_KEY);
-                } catch (Throwable t) {
-                    throw new CertPathValidatorException("Unable get properties for certificate "
-                            + "with serial number " + serialNumber);
-                }
-                throw new CertPathValidatorException(
-                        "Invalid certificate with serial number " + serialNumber
-                                + " has status " + status
-                                + " because reason " + reason);
-            }
-        }
-
-        private JSONObject getStatusMap(String stringUrl) throws CertPathValidatorException {
-            URL url;
-            try {
-                url = new URL(stringUrl);
-            } catch (Throwable t) {
-                throw new CertPathValidatorException(
-                        "Unable to get revocation status from " + mStatusUrl, t);
-            }
-
-            try (InputStream inputStream = url.openStream()) {
-                JSONObject statusListJson = new JSONObject(
-                        new String(inputStream.readAllBytes(), UTF_8));
-                return statusListJson.getJSONObject(TOP_LEVEL_JSON_PROPERTY_KEY);
-            } catch (Throwable t) {
-                throw new CertPathValidatorException(
-                        "Unable to parse revocation status from " + mStatusUrl, t);
-            }
-        }
-
-        private String getRevocationListUrl() {
-            return mContext.getResources().getString(
-                    R.string.vendor_required_attestation_revocation_list_url);
-        }
     }
 
     /* Mutable data class for tracking dump data from verifications. */

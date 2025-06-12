@@ -18,10 +18,16 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Vil du gi &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;-appen tilgang til &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Sørg for at denne enheten (<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>) har <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> slått på, og hold den andre enheten (<xliff:g id="PROFILE_NAME">%3$s</xliff:g>) i nærheten."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Fant ingen enheter. Prøv på nytt senere."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wifi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth og wifi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"klokke"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Velg en enhet som skal administreres av &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Velg <xliff:g id="PROFILE_NAME">%1$s</xliff:g> som skal konfigureres"</string>
-    <string name="summary_watch" msgid="8134580124808507407">"Denne appen får tillatelse til å synkronisere informasjon, for eksempel navnet til folk som ringer, og har disse tillatelsene på <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Velg enheten (<xliff:g id="PROFILE_NAME">%1$s</xliff:g>) som skal konfigureres"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Ser etter en <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="summary_watch" msgid="8134580124808507407">"Denne appen får tillatelse til å synkronisere informasjon, for eksempel navnet til folk som ringer, og har disse tillatelsene på enheten din (<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>)"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Vil du la &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; administrere &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"enheten"</string>
     <string name="summary_glasses" msgid="5469208629679579157">"Denne appen får disse tillatelsene på <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Vil du la &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; strømme apper fra <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> til &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> kan se som vises eller spilles av på <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, inkludert lyd, bilder, passord og meldinger.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> kan strømme apper til <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> frem til du fjerner tilgangen til denne tillatelsen."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> ber om tillatelse til å strømme apper fra <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> på vegne av <xliff:g id="DEVICE_NAME">%2$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Vil du la &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; strømme lyd og systemfunksjoner mellom <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> og &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> får tilgang til alt som spilles av på <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> kan strømme lyd til <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> frem til du fjerner denne tillatelsen."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"enhet"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Denne appen kan synkronisere informasjon som navnet til noen som ringer, mellom telefonen og den valgte enheten"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Tillat"</string>
     <string name="consent_no" msgid="2640796915611404382">"Ikke tillat"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Avbryt"</string>
     <string name="consent_back" msgid="2560683030046918882">"Tilbake"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Rull nedover i listen"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Nedoverpil"</string>
     <string name="permission_expand" msgid="893185038020887411">"Vis <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Skjul <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Vil du gi apper på &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; de samme tillatelsene som på &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

@@ -25,7 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performTouchInput
@@ -34,6 +35,7 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.compose.theme.PlatformTheme
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.common.shared.model.ContentDescription
 import com.android.systemui.common.shared.model.Icon
@@ -43,6 +45,7 @@ import com.android.systemui.qs.panels.ui.compose.infinitegrid.DefaultEditTileGri
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
+import com.android.systemui.res.R
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
@@ -59,18 +62,21 @@ class ResizingTest : SysuiTestCase() {
         listState: EditTileListState,
         onResize: (TileSpec, Boolean) -> Unit,
     ) {
-        DefaultEditTileGrid(
-            listState = listState,
-            otherTiles = listOf(),
-            columns = 4,
-            largeTilesSpan = 4,
-            modifier = Modifier.fillMaxSize(),
-            onRemoveTile = {},
-            onSetTiles = {},
-            onResize = onResize,
-            onStopEditing = {},
-            onReset = null,
-        )
+        PlatformTheme {
+            DefaultEditTileGrid(
+                listState = listState,
+                otherTiles = listOf(),
+                columns = 4,
+                largeTilesSpan = 4,
+                modifier = Modifier.fillMaxSize(),
+                onAddTile = { _, _ -> },
+                onRemoveTile = {},
+                onSetTiles = {},
+                onResize = onResize,
+                onStopEditing = {},
+                onReset = null,
+            )
+        }
     }
 
     @Test
@@ -83,8 +89,11 @@ class ResizingTest : SysuiTestCase() {
         composeRule.waitForIdle()
 
         composeRule
-            .onNodeWithContentDescription("tileA")
-            .performCustomAccessibilityActionWithLabel("Toggle size")
+            .onAllNodesWithText("tileA")
+            .onFirst()
+            .performCustomAccessibilityActionWithLabel(
+                context.getString(R.string.accessibility_qs_edit_toggle_tile_size_action)
+            )
 
         assertThat(tiles.find { it.tile.tileSpec.spec == "tileA" }?.width).isEqualTo(2)
     }
@@ -99,8 +108,11 @@ class ResizingTest : SysuiTestCase() {
         composeRule.waitForIdle()
 
         composeRule
-            .onNodeWithContentDescription("tileD_large")
-            .performCustomAccessibilityActionWithLabel("Toggle size")
+            .onAllNodesWithText("tileD_large")
+            .onFirst()
+            .performCustomAccessibilityActionWithLabel(
+                context.getString(R.string.accessibility_qs_edit_toggle_tile_size_action)
+            )
 
         assertThat(tiles.find { it.tile.tileSpec.spec == "tileD_large" }?.width).isEqualTo(1)
     }
@@ -115,7 +127,8 @@ class ResizingTest : SysuiTestCase() {
         composeRule.waitForIdle()
 
         composeRule
-            .onNodeWithContentDescription("tileA")
+            .onAllNodesWithText("tileA")
+            .onFirst()
             .performClick() // Select
             .performTouchInput { // Tap on resizing handle
                 click(centerRight)
@@ -135,7 +148,8 @@ class ResizingTest : SysuiTestCase() {
         composeRule.waitForIdle()
 
         composeRule
-            .onNodeWithContentDescription("tileD_large")
+            .onAllNodesWithText("tileD_large")
+            .onFirst()
             .performClick() // Select
             .performTouchInput { // Tap on resizing handle
                 click(centerRight)
@@ -155,7 +169,8 @@ class ResizingTest : SysuiTestCase() {
         composeRule.waitForIdle()
 
         composeRule
-            .onNodeWithContentDescription("tileA")
+            .onAllNodesWithText("tileA")
+            .onFirst()
             .performClick() // Select
             .performTouchInput { // Resize up
                 swipeRight(startX = right, endX = right * 2)
@@ -175,7 +190,8 @@ class ResizingTest : SysuiTestCase() {
         composeRule.waitForIdle()
 
         composeRule
-            .onNodeWithContentDescription("tileD_large")
+            .onAllNodesWithText("tileD_large")
+            .onFirst()
             .performClick() // Select
             .performTouchInput { // Resize down
                 swipeLeft()

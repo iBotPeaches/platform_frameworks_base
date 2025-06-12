@@ -15,9 +15,13 @@
  */
 package com.android.internal.widget.remotecompose.player;
 
+import static com.android.internal.widget.remotecompose.core.CoreDocument.MAJOR_VERSION;
+import static com.android.internal.widget.remotecompose.core.CoreDocument.MINOR_VERSION;
+
 import android.app.Application;
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -26,25 +30,27 @@ import android.hardware.SensorManager;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
-import android.view.HapticFeedbackConstants;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.widget.remotecompose.accessibility.RemoteComposeTouchHelper;
 import com.android.internal.widget.remotecompose.core.CoreDocument;
 import com.android.internal.widget.remotecompose.core.RemoteContext;
+import com.android.internal.widget.remotecompose.core.RemoteContextAware;
 import com.android.internal.widget.remotecompose.core.operations.NamedVariable;
 import com.android.internal.widget.remotecompose.core.operations.RootContentBehavior;
+import com.android.internal.widget.remotecompose.player.platform.AndroidRemoteContext;
 import com.android.internal.widget.remotecompose.player.platform.RemoteComposeCanvas;
 
 /** A view to to display and play RemoteCompose documents */
-public class RemoteComposePlayer extends FrameLayout {
+public class RemoteComposePlayer extends FrameLayout implements RemoteContextAware {
     private RemoteComposeCanvas mInner;
 
-    private static final int MAX_SUPPORTED_MAJOR_VERSION = 0;
-    private static final int MAX_SUPPORTED_MINOR_VERSION = 1;
+    private static final int MAX_SUPPORTED_MAJOR_VERSION = MAJOR_VERSION;
+    private static final int MAX_SUPPORTED_MINOR_VERSION = MINOR_VERSION;
 
     public RemoteComposePlayer(Context context) {
         super(context);
@@ -59,6 +65,33 @@ public class RemoteComposePlayer extends FrameLayout {
     public RemoteComposePlayer(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init(context, attrs, defStyleAttr);
+    }
+
+    @Override
+    public RemoteContext getRemoteContext() {
+        return mInner.getRemoteContext();
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public void requestLayout() {
+        super.requestLayout();
+
+        if (mInner != null) {
+            mInner.requestLayout();
+        }
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public void invalidate() {
+        super.invalidate();
+
+        if (mInner != null) {
+            mInner.invalidate();
+        }
     }
 
     /**
@@ -83,10 +116,31 @@ public class RemoteComposePlayer extends FrameLayout {
         return mInner.getDocument();
     }
 
+    /**
+     * This will update values in the already loaded document.
+     *
+     * @param value the document to update variables in the current document width
+     */
+    public void updateDocument(RemoteComposeDocument value) {
+        RemoteComposeDocument document = value;
+        AndroidRemoteContext tmpContext = new AndroidRemoteContext();
+        document.initializeContext(tmpContext);
+        float density = getContext().getResources().getDisplayMetrics().density;
+        tmpContext.setAnimationEnabled(true);
+        tmpContext.setDensity(density);
+        tmpContext.setUseChoreographer(false);
+        mInner.getDocument().mDocument.applyUpdate(document.mDocument);
+        mInner.invalidate();
+    }
+
     public void setDocument(RemoteComposeDocument value) {
         if (value != null) {
             if (value.canBeDisplayed(
                     MAX_SUPPORTED_MAJOR_VERSION, MAX_SUPPORTED_MINOR_VERSION, 0L)) {
+                if (value.isUpdateDoc()) {
+                    updateDocument(value);
+                    return;
+                }
                 mInner.setDocument(value);
                 int contentBehavior = value.getDocument().getContentScroll();
                 applyContentBehavior(contentBehavior);
@@ -100,6 +154,7 @@ public class RemoteComposePlayer extends FrameLayout {
 
             RemoteComposeTouchHelper.REGISTRAR.clearAccessibilityDelegate(this);
         }
+
         mapColors();
         setupSensors();
         mInner.setHapticEngine(
@@ -214,6 +269,45 @@ public class RemoteComposePlayer extends FrameLayout {
     }
 
     /**
+     * Set an override for a user domain int resource
+     *
+     * @param name name of the int
+     * @param value value of the int
+     */
+    public void setUserLocalColor(String name, int value) {
+        mInner.setLocalColor("USER:" + name, value);
+    }
+
+    /**
+     * Set an override for a user domain float resource
+     *
+     * @param name name of the float
+     * @param value value of the float
+     */
+    public void setUserLocalFloat(String name, float value) {
+        mInner.setLocalFloat("USER:" + name, value);
+    }
+
+    /**
+     * Set an override for a user domain int resource
+     *
+     * @param name name of the int
+     * @param value value of the int
+     */
+    public void setUserLocalBitmap(String name, Bitmap value) {
+        mInner.setLocalBitmap("USER:" + name, value);
+    }
+
+    /**
+     * Clear the override of the given user bitmap
+     *
+     * @param name name of the bitmap
+     */
+    public void clearUserLocalBitmap(String name) {
+        mInner.clearLocalBitmap("USER:" + name);
+    }
+
+    /**
      * Clear the override of the given user string
      *
      * @param name name of the string
@@ -229,6 +323,24 @@ public class RemoteComposePlayer extends FrameLayout {
      */
     public void clearUserLocalInt(String name) {
         mInner.clearLocalInt("USER:" + name);
+    }
+
+    /**
+     * Clear the override of the given user color
+     *
+     * @param name name of the color
+     */
+    public void clearUserLocalColor(String name) {
+        mInner.clearLocalColor("USER:" + name);
+    }
+
+    /**
+     * Clear the override of the given user int
+     *
+     * @param name name of the int
+     */
+    public void clearUserLocalFloat(String name) {
+        mInner.clearLocalFloat("USER:" + name);
     }
 
     /**
@@ -259,6 +371,16 @@ public class RemoteComposePlayer extends FrameLayout {
         return mInner.getDocument().mDocument.getOpsPerFrame();
     }
 
+    /**
+     * Set to use the choreographer
+     *
+     * @param value
+     */
+    @VisibleForTesting
+    public void setUseChoreographer(boolean value) {
+        mInner.setUseChoreographer(value);
+    }
+
     /** Id action callback interface */
     public interface IdActionCallbacks {
         /**
@@ -271,7 +393,8 @@ public class RemoteComposePlayer extends FrameLayout {
     }
 
     /**
-     * Add a callback for handling id actions events on the document
+     * Add a callback for handling id actions events on the document. Can only be added after the
+     * document has been loaded.
      *
      * @param callback the callback lambda that will be used when a action is executed
      *     <p>The parameter of the callback are:
@@ -345,6 +468,16 @@ public class RemoteComposePlayer extends FrameLayout {
      */
     public void setColor(String colorName, int colorValue) {
         mInner.setColor(colorName, colorValue);
+    }
+
+    /**
+     * This sets long based on its name.
+     *
+     * @param name Name of the color
+     * @param value The new long value
+     */
+    public void setLong(String name, long value) {
+        mInner.setLong(name, value);
     }
 
     private void mapColors() {
@@ -554,29 +687,34 @@ public class RemoteComposePlayer extends FrameLayout {
         }
     }
 
-    private static int[] sHapticTable = {
-        HapticFeedbackConstants.NO_HAPTICS,
-        HapticFeedbackConstants.LONG_PRESS,
-        HapticFeedbackConstants.VIRTUAL_KEY,
-        HapticFeedbackConstants.KEYBOARD_TAP,
-        HapticFeedbackConstants.CLOCK_TICK,
-        HapticFeedbackConstants.CONTEXT_CLICK,
-        HapticFeedbackConstants.KEYBOARD_PRESS,
-        HapticFeedbackConstants.KEYBOARD_RELEASE,
-        HapticFeedbackConstants.VIRTUAL_KEY_RELEASE,
-        HapticFeedbackConstants.TEXT_HANDLE_MOVE,
-        HapticFeedbackConstants.GESTURE_START,
-        HapticFeedbackConstants.GESTURE_END,
-        HapticFeedbackConstants.CONFIRM,
-        HapticFeedbackConstants.REJECT,
-        HapticFeedbackConstants.TOGGLE_ON,
-        HapticFeedbackConstants.TOGGLE_OFF,
-        HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE,
-        HapticFeedbackConstants.GESTURE_THRESHOLD_DEACTIVATE,
-        HapticFeedbackConstants.DRAG_START,
-        HapticFeedbackConstants.SEGMENT_TICK,
-        HapticFeedbackConstants.SEGMENT_FREQUENT_TICK,
-    };
+    private static final int[] sHapticTable;
+
+    static {
+        sHapticTable =
+                new int[] {
+                    android.view.HapticFeedbackConstants.NO_HAPTICS,
+                    android.view.HapticFeedbackConstants.LONG_PRESS,
+                    android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+                    android.view.HapticFeedbackConstants.KEYBOARD_TAP,
+                    android.view.HapticFeedbackConstants.CLOCK_TICK,
+                    android.view.HapticFeedbackConstants.CONTEXT_CLICK,
+                    android.view.HapticFeedbackConstants.KEYBOARD_PRESS,
+                    android.view.HapticFeedbackConstants.KEYBOARD_RELEASE,
+                    android.view.HapticFeedbackConstants.VIRTUAL_KEY_RELEASE,
+                    android.view.HapticFeedbackConstants.TEXT_HANDLE_MOVE,
+                    android.view.HapticFeedbackConstants.GESTURE_START,
+                    android.view.HapticFeedbackConstants.GESTURE_END,
+                    android.view.HapticFeedbackConstants.CONFIRM,
+                    android.view.HapticFeedbackConstants.REJECT,
+                    android.view.HapticFeedbackConstants.TOGGLE_ON,
+                    android.view.HapticFeedbackConstants.TOGGLE_OFF,
+                    android.view.HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE,
+                    android.view.HapticFeedbackConstants.GESTURE_THRESHOLD_DEACTIVATE,
+                    android.view.HapticFeedbackConstants.DRAG_START,
+                    android.view.HapticFeedbackConstants.SEGMENT_TICK,
+                    android.view.HapticFeedbackConstants.SEGMENT_FREQUENT_TICK,
+                };
+    }
 
     private void provideHapticFeedback(int type) {
         performHapticFeedback(sHapticTable[type % sHapticTable.length]);

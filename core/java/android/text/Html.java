@@ -17,13 +17,13 @@
 package android.text;
 
 import android.app.ActivityThread;
-import android.app.Application;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.ravenwood.annotation.RavenwoodReplace;
 import android.text.style.AbsoluteSizeSpan;
 import android.text.style.AlignmentSpan;
 import android.text.style.BackgroundColorSpan;
@@ -65,6 +65,7 @@ import java.util.regex.Pattern;
  * This class processes HTML strings into displayable styled text.
  * Not all HTML tags are supported.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Html {
     /**
      * Retrieves images for HTML &lt;img&gt; tags.
@@ -506,6 +507,15 @@ public class Html {
         out.append("</p>\n");
     }
 
+    @RavenwoodReplace(blockedBy = ActivityThread.class)
+    private static float getDisplayMetricsDensity() {
+        return ActivityThread.currentApplication().getResources().getDisplayMetrics().density;
+    }
+
+    private static float getDisplayMetricsDensity$ravenwood() {
+        return Resources.getSystem().getDisplayMetrics().density;
+    }
+
     private static void withinParagraph(StringBuilder out, Spanned text, int start, int end) {
         int next;
         for (int i = start; i < end; i = next) {
@@ -559,8 +569,7 @@ public class Html {
                     AbsoluteSizeSpan s = ((AbsoluteSizeSpan) style[j]);
                     float sizeDip = s.getSize();
                     if (!s.getDip()) {
-                        Application application = ActivityThread.currentApplication();
-                        sizeDip /= application.getResources().getDisplayMetrics().density;
+                        sizeDip /= getDisplayMetricsDensity();
                     }
 
                     // px in CSS is the equivalance of dip in Android
@@ -669,6 +678,7 @@ public class Html {
     }
 }
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 class HtmlToSpannedConverter implements ContentHandler {
 
     private static final float[] HEADING_SIZES = {
@@ -843,6 +853,16 @@ class HtmlToSpannedConverter implements ContentHandler {
         }
     }
 
+    @RavenwoodReplace(blockedBy = ActivityThread.class)
+    private static int getFontWeightAdjustment() {
+        return ActivityThread.currentApplication().getResources()
+                .getConfiguration().fontWeightAdjustment;
+    }
+
+    private static int getFontWeightAdjustment$ravenwood() {
+        return Resources.getSystem().getConfiguration().fontWeightAdjustment;
+    }
+
     private void handleEndTag(String tag) {
         if (tag.equalsIgnoreCase("br")) {
             handleBr(mSpannableStringBuilder);
@@ -858,17 +878,11 @@ class HtmlToSpannedConverter implements ContentHandler {
         } else if (tag.equalsIgnoreCase("span")) {
             endCssStyle(mSpannableStringBuilder);
         } else if (tag.equalsIgnoreCase("strong")) {
-            Application application = ActivityThread.currentApplication();
-            int fontWeightAdjustment =
-                    application.getResources().getConfiguration().fontWeightAdjustment;
             end(mSpannableStringBuilder, Bold.class, new StyleSpan(Typeface.BOLD,
-                    fontWeightAdjustment));
+                    getFontWeightAdjustment()));
         } else if (tag.equalsIgnoreCase("b")) {
-            Application application = ActivityThread.currentApplication();
-            int fontWeightAdjustment =
-                    application.getResources().getConfiguration().fontWeightAdjustment;
             end(mSpannableStringBuilder, Bold.class, new StyleSpan(Typeface.BOLD,
-                    fontWeightAdjustment));
+                    getFontWeightAdjustment()));
         } else if (tag.equalsIgnoreCase("em")) {
             end(mSpannableStringBuilder, Italic.class, new StyleSpan(Typeface.ITALIC));
         } else if (tag.equalsIgnoreCase("cite")) {
@@ -1036,11 +1050,8 @@ class HtmlToSpannedConverter implements ContentHandler {
         // Their ranges should not include the newlines at the end
         Heading h = getLast(text, Heading.class);
         if (h != null) {
-            Application application = ActivityThread.currentApplication();
-            int fontWeightAdjustment =
-                    application.getResources().getConfiguration().fontWeightAdjustment;
             setSpanFromMark(text, h, new RelativeSizeSpan(HEADING_SIZES[h.mLevel]),
-                    new StyleSpan(Typeface.BOLD, fontWeightAdjustment));
+                    new StyleSpan(Typeface.BOLD, getFontWeightAdjustment()));
         }
 
         endBlockElement(text);

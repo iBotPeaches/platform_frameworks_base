@@ -21,6 +21,7 @@ import android.compat.annotation.UnsupportedAppUsage;
 /**
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TableMaskFilter extends MaskFilter {
 
     public TableMaskFilter(byte[] table) {

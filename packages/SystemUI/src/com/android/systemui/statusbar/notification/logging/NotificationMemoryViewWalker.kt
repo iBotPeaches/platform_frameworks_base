@@ -12,7 +12,7 @@ import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.util.children
 
 /** Walks view hiearchy of a given notification to estimate its memory use. */
-internal object NotificationMemoryViewWalker {
+object NotificationMemoryViewWalker {
 
     private const val TAG = "NotificationMemory"
 
@@ -26,9 +26,13 @@ internal object NotificationMemoryViewWalker {
         private var softwareBitmaps = 0
 
         fun addSmallIcon(smallIconUse: Int) = apply { smallIcon += smallIconUse }
+
         fun addLargeIcon(largeIconUse: Int) = apply { largeIcon += largeIconUse }
+
         fun addSystem(systemIconUse: Int) = apply { systemIcons += systemIconUse }
+
         fun addStyle(styleUse: Int) = apply { style += styleUse }
+
         fun addSoftwareBitmapPenalty(softwareBitmapUse: Int) = apply {
             softwareBitmaps += softwareBitmapUse
         }
@@ -67,14 +71,14 @@ internal object NotificationMemoryViewWalker {
                     getViewUsage(ViewType.PRIVATE_EXPANDED_VIEW, row.privateLayout?.expandedChild),
                     getViewUsage(
                         ViewType.PRIVATE_CONTRACTED_VIEW,
-                        row.privateLayout?.contractedChild
+                        row.privateLayout?.contractedChild,
                     ),
                     getViewUsage(ViewType.PRIVATE_HEADS_UP_VIEW, row.privateLayout?.headsUpChild),
                     getViewUsage(
                         ViewType.PUBLIC_VIEW,
                         row.publicLayout?.expandedChild,
                         row.publicLayout?.contractedChild,
-                        row.publicLayout?.headsUpChild
+                        row.publicLayout?.headsUpChild,
                     ),
                 )
                 .filterNotNull()
@@ -107,14 +111,14 @@ internal object NotificationMemoryViewWalker {
             row.publicLayout?.expandedChild,
             row.publicLayout?.contractedChild,
             row.publicLayout?.headsUpChild,
-            seenObjects = seenObjects
+            seenObjects = seenObjects,
         )
     }
 
     private fun getViewUsage(
         type: ViewType,
         vararg rootViews: View?,
-        seenObjects: HashSet<Int> = hashSetOf()
+        seenObjects: HashSet<Int> = hashSetOf(),
     ): NotificationViewUsage? {
         val usageBuilder = lazy { UsageBuilder() }
         rootViews.forEach { rootView ->

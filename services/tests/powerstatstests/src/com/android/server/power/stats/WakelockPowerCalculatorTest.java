@@ -43,7 +43,6 @@ public class WakelockPowerCalculatorTest {
     @Rule(order = 0)
     public final RavenwoodRule mRavenwood =
             new RavenwoodRule.Builder()
-                    .setProvideMainThread(true)
                     .setSystemPropertyImmutable(
                             "persist.sys.com.android.server.power.feature.flags."
                                     + "framework_wakelock_info-override",

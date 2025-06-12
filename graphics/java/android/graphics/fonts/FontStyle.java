@@ -44,6 +44,7 @@ import java.util.Objects;
  * </p>
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class FontStyle {
     private static final String TAG = "FontStyle";
 

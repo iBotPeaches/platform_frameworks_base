@@ -16,8 +16,6 @@
 
 package com.android.systemui.model
 
-import com.android.systemui.dagger.qualifiers.DisplayId
-
 /**
  * In-bulk updates multiple flag values and commits the update.
  *
@@ -32,16 +30,8 @@ import com.android.systemui.dagger.qualifiers.DisplayId
  *     SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING to (sceneKey == Scenes.Lockscreen),
  * )
  * ```
- *
- * You can inject [displayId] by injecting it using:
- * ```
- *     @DisplayId private val displayId: Int`,
- * ```
  */
-fun SysUiState.updateFlags(
-    @DisplayId displayId: Int,
-    vararg flagValuePairs: Pair<Long, Boolean>,
-) {
+fun SysUiState.updateFlags(vararg flagValuePairs: Pair<Long, Boolean>) {
     flagValuePairs.forEach { (flag, enabled) -> setFlag(flag, enabled) }
-    commitUpdate(displayId)
+    commitUpdate()
 }

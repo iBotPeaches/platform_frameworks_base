@@ -29,10 +29,13 @@ sealed interface ScreenRecordChipModel {
     /**
      * There's an active screen recording happening.
      *
+     * @property hostPackage the package name of the app that is receiving the content of the media
+     *   projection (aka which app the phone screen contents are being sent to).
      * @property recordedTask the task being recorded if the user is recording only a single app.
      *   Null if the user is recording the entire screen or we don't have the task info yet.
      */
     data class Recording(
+        val hostPackage: String?,
         val recordedTask: ActivityManager.RunningTaskInfo?,
     ) : ScreenRecordChipModel
 }

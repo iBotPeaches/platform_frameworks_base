@@ -29,9 +29,9 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.settingslib.graph.SignalDrawable
 import com.android.systemui.Flags.statusBarStaticInoutIndicators
-import com.android.systemui.common.ui.binder.ContentDescriptionViewBinder
 import com.android.systemui.common.ui.binder.IconViewBinder
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.plugins.DarkIconDispatcher
@@ -45,15 +45,12 @@ import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarV
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewVisibilityHelper
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.StatusBarViewBinderConstants.ALPHA_ACTIVE
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.StatusBarViewBinderConstants.ALPHA_INACTIVE
+import com.android.systemui.util.kotlin.pairwiseBy
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import com.android.app.tracing.coroutines.launchTraced as launch
 
-private data class Colors(
-    @ColorInt val tint: Int,
-    @ColorInt val contrast: Int,
-)
+data class MobileIconColors(@ColorInt val tint: Int, @ColorInt val contrast: Int)
 
 object MobileIconBinder {
     /** Binds the view to the view-model, continuing to update the former based on the latter */
@@ -83,11 +80,11 @@ object MobileIconBinder {
         @StatusBarIconView.VisibleState
         val visibilityState: MutableStateFlow<Int> = MutableStateFlow(initialVisibilityState)
 
-        val iconTint: MutableStateFlow<Colors> =
+        val iconTint: MutableStateFlow<MobileIconColors> =
             MutableStateFlow(
-                Colors(
+                MobileIconColors(
                     tint = DarkIconDispatcher.DEFAULT_ICON_TINT,
-                    contrast = DarkIconDispatcher.DEFAULT_INVERSE_ICON_TINT
+                    contrast = DarkIconDispatcher.DEFAULT_INVERSE_ICON_TINT,
                 )
             )
         val decorTint: MutableStateFlow<Int> = MutableStateFlow(viewModel.defaultColor)
@@ -105,7 +102,7 @@ object MobileIconBinder {
                             viewModel.verboseLogger?.logBinderReceivedVisibility(
                                 view,
                                 viewModel.subscriptionId,
-                                isVisible
+                                isVisible,
                             )
                             view.isVisible = isVisible
                             // [StatusIconContainer] can get out of sync sometimes. Make sure to
@@ -135,24 +132,42 @@ object MobileIconBinder {
 
                     // Set the icon for the triangle
                     launch {
-                        viewModel.icon.distinctUntilChanged().collect { icon ->
-                            viewModel.verboseLogger?.logBinderReceivedSignalIcon(
-                                view,
-                                viewModel.subscriptionId,
-                                icon,
-                            )
-                            if (icon is SignalIconModel.Cellular) {
-                                iconView.setImageDrawable(mobileDrawable)
-                                mobileDrawable.level = icon.toSignalDrawableState()
-                            } else if (icon is SignalIconModel.Satellite) {
-                                IconViewBinder.bind(icon.icon, iconView)
+                        viewModel.icon
+                            .pairwiseBy(initialValue = null) { oldIcon, newIcon ->
+                                // Make sure we requestLayout if the number of levels changes
+                                val shouldRequestLayout =
+                                    when {
+                                        oldIcon == null -> true
+                                        oldIcon is SignalIconModel.Cellular &&
+                                            newIcon is SignalIconModel.Cellular -> {
+                                            oldIcon.numberOfLevels != newIcon.numberOfLevels
+                                        }
+                                        else -> false
+                                    }
+                                Pair(shouldRequestLayout, newIcon)
                             }
-                        }
+                            .collect { (shouldRequestLayout, newIcon) ->
+                                viewModel.verboseLogger?.logBinderReceivedSignalIcon(
+                                    view,
+                                    viewModel.subscriptionId,
+                                    newIcon,
+                                )
+                                if (newIcon is SignalIconModel.Cellular) {
+                                    iconView.setImageDrawable(mobileDrawable)
+                                    mobileDrawable.level = newIcon.toSignalDrawableState()
+                                } else if (newIcon is SignalIconModel.Satellite) {
+                                    IconViewBinder.bind(newIcon.icon, iconView)
+                                }
+
+                                if (shouldRequestLayout) {
+                                    iconView.requestLayout()
+                                }
+                            }
                     }
 
                     launch {
                         viewModel.contentDescription.distinctUntilChanged().collect {
-                            ContentDescriptionViewBinder.bind(it, view)
+                            MobileContentDescriptionViewBinder.bind(it, view)
                         }
                     }
 
@@ -276,7 +291,7 @@ object MobileIconBinder {
             }
 
             override fun onIconTintChanged(newTint: Int, contrastTint: Int) {
-                iconTint.value = Colors(tint = newTint, contrast = contrastTint)
+                iconTint.value = MobileIconColors(tint = newTint, contrast = contrastTint)
             }
 
             override fun onDecorTintChanged(newTint: Int) {

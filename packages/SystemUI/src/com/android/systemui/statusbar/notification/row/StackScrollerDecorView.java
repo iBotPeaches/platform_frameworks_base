@@ -260,7 +260,7 @@ public abstract class StackScrollerDecorView extends ExpandableView {
     @Override
     public long performRemoveAnimation(long duration, long delay,
             float translationDirection, boolean isHeadsUpAnimation,
-            Runnable onStartedRunnable,
+            boolean isHeadsUpCycling, Runnable onStartedRunnable,
             Runnable onFinishedRunnable,
             AnimatorListenerAdapter animationListener, ClipSide clipSide) {
         // TODO: Use duration
@@ -279,7 +279,7 @@ public abstract class StackScrollerDecorView extends ExpandableView {
 
     @Override
     public void performAddAnimation(long delay, long duration, boolean isHeadsUpAppear,
-            Runnable endRunnable) {
+            boolean isHeadsUpCycling, Runnable endRunnable) {
         // TODO: use delay and duration
         setContentVisibleAnimated(true);
     }

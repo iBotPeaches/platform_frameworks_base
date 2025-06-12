@@ -105,6 +105,7 @@ public class CollapsingCoordinatorLayout extends CoordinatorLayout {
         return true;
     }
 
+    @SuppressWarnings("RestrictTo")
     private void init() {
         int resId = SettingsThemeHelper.isExpressiveTheme(getContext())
                 ? R.layout.settingslib_expressive_collapsing_toolbar_content_layout

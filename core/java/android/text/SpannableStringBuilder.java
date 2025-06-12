@@ -35,6 +35,7 @@ import java.util.IdentityHashMap;
 /**
  * This is the class for text whose content and markup can both be changed.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SpannableStringBuilder implements CharSequence, GetChars, Spannable, Editable,
         Appendable, GraphicsOperations {
     private final static String TAG = "SpannableStringBuilder";

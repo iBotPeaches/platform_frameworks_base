@@ -16,6 +16,8 @@
 
 package com.android.systemui.dreams;
 
+import static com.android.systemui.Flags.FLAG_BOUNCER_UI_REVAMP;
+
 import static kotlinx.coroutines.flow.FlowKt.emptyFlow;
 import static kotlinx.coroutines.flow.StateFlowKt.MutableStateFlow;
 
@@ -32,6 +34,7 @@ import android.app.DreamManager;
 import android.content.res.Resources;
 import android.graphics.Region;
 import android.os.Handler;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.testing.TestableLooper.RunWithLooper;
 import android.view.AttachedSurfaceControl;
@@ -231,6 +234,7 @@ public class DreamOverlayContainerViewControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableFlags(FLAG_BOUNCER_UI_REVAMP)
     public void testBouncerAnimation_updateBlur() {
         final ArgumentCaptor<PrimaryBouncerExpansionCallback> bouncerExpansionCaptor =
                 ArgumentCaptor.forClass(PrimaryBouncerExpansionCallback.class);
@@ -250,6 +254,26 @@ public class DreamOverlayContainerViewControllerTest extends SysuiTestCase {
         bouncerExpansionCaptor.getValue().onExpansionChanged(bouncerHideAmount);
         verify(mBlurUtils).blurRadiusOfRatio(1 - scaledFraction);
         verify(mBlurUtils).applyBlur(mViewRoot, (int) blurRadius, false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_BOUNCER_UI_REVAMP)
+    public void testBouncerAnimation_doesNotBlur_whenBouncerRevampEnabled() {
+        final ArgumentCaptor<PrimaryBouncerExpansionCallback> bouncerExpansionCaptor =
+                ArgumentCaptor.forClass(PrimaryBouncerExpansionCallback.class);
+        mController.onViewAttached();
+        verify(mPrimaryBouncerCallbackInteractor).addBouncerExpansionCallback(
+                bouncerExpansionCaptor.capture());
+
+        final float blurRadius = 1337f;
+        when(mBlurUtils.blurRadiusOfRatio(anyFloat())).thenReturn(blurRadius);
+
+        bouncerExpansionCaptor.getValue().onStartingToShow();
+        final float bouncerHideAmount = 0.05f;
+
+        bouncerExpansionCaptor.getValue().onExpansionChanged(bouncerHideAmount);
+        verify(mBlurUtils, never()).blurRadiusOfRatio(anyFloat());
+        verify(mBlurUtils, never()).applyBlur(eq(mViewRoot), anyInt(), anyBoolean());
     }
 
     @Test

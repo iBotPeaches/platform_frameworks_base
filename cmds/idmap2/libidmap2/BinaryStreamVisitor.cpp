@@ -63,6 +63,14 @@ void BinaryStreamVisitor::visit(const IdmapHeader& header) {
   WriteString(header.GetDebugInfo());
 }
 
+void BinaryStreamVisitor::visit(const IdmapConstraints& constraints) {
+  Write32(static_cast<uint32_t>(constraints.constraints.size()));
+  for (const auto& constraint : constraints.constraints) {
+    Write32(constraint.constraint_type);
+    Write32(constraint.constraint_value);
+  }
+}
+
 void BinaryStreamVisitor::visit(const IdmapData& data) {
   for (const auto& target_entry : data.GetTargetEntries()) {
     Write32(target_entry.target_id);

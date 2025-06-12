@@ -17,20 +17,50 @@
 package com.android.systemui.activity.data.repository
 
 import android.app.activityManager
+import com.android.systemui.activity.data.model.AppVisibilityModel
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.log.core.Logger
+import com.android.systemui.util.time.SystemClock
+import com.android.systemui.util.time.fakeSystemClock
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
-val Kosmos.activityManagerRepository by Kosmos.Fixture { FakeActivityManagerRepository() }
+val Kosmos.activityManagerRepository by
+    Kosmos.Fixture { FakeActivityManagerRepository(fakeSystemClock) }
 
 val Kosmos.realActivityManagerRepository by
-    Kosmos.Fixture { ActivityManagerRepositoryImpl(testDispatcher, activityManager) }
+    Kosmos.Fixture {
+        ActivityManagerRepositoryImpl(testDispatcher, fakeSystemClock, activityManager)
+    }
 
-class FakeActivityManagerRepository : ActivityManagerRepository {
-    private val uidFlows = mutableMapOf<Int, MutableList<MutableStateFlow<Boolean>>>()
+class FakeActivityManagerRepository(private val systemClock: SystemClock) :
+    ActivityManagerRepository {
+    private val isVisibleFlows = mutableMapOf<Int, MutableList<MutableStateFlow<Boolean>>>()
+    private val appVisibilityFlows =
+        mutableMapOf<Int, MutableList<MutableStateFlow<AppVisibilityModel>>>()
 
     var startingIsAppVisibleValue = false
+
+    override fun createAppVisibilityFlow(
+        creationUid: Int,
+        logger: Logger,
+        identifyingLogTag: String,
+    ): Flow<AppVisibilityModel> {
+        val newFlow =
+            MutableStateFlow(
+                if (startingIsAppVisibleValue) {
+                    AppVisibilityModel(
+                        isAppCurrentlyVisible = true,
+                        lastAppVisibleTime = systemClock.currentTimeMillis(),
+                    )
+                } else {
+                    AppVisibilityModel(isAppCurrentlyVisible = false, lastAppVisibleTime = null)
+                }
+            )
+        appVisibilityFlows.computeIfAbsent(creationUid) { mutableListOf() }.add(newFlow)
+        return newFlow
+    }
 
     override fun createIsAppVisibleFlow(
         creationUid: Int,
@@ -38,12 +68,26 @@ class FakeActivityManagerRepository : ActivityManagerRepository {
         identifyingLogTag: String,
     ): MutableStateFlow<Boolean> {
         val newFlow = MutableStateFlow(startingIsAppVisibleValue)
-        uidFlows.computeIfAbsent(creationUid) { mutableListOf() }.add(newFlow)
+        isVisibleFlows.computeIfAbsent(creationUid) { mutableListOf() }.add(newFlow)
         return newFlow
     }
 
     fun setIsAppVisible(uid: Int, isAppVisible: Boolean) {
-        uidFlows[uid]?.forEach { stateFlow -> stateFlow.value = isAppVisible }
+        isVisibleFlows[uid]?.forEach { stateFlow -> stateFlow.value = isAppVisible }
+        appVisibilityFlows[uid]?.forEach { stateFlow ->
+            stateFlow.value =
+                if (isAppVisible) {
+                    AppVisibilityModel(
+                        isAppCurrentlyVisible = true,
+                        lastAppVisibleTime = systemClock.currentTimeMillis(),
+                    )
+                } else {
+                    AppVisibilityModel(
+                        isAppCurrentlyVisible = false,
+                        stateFlow.value.lastAppVisibleTime,
+                    )
+                }
+        }
     }
 }
 

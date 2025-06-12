@@ -51,6 +51,7 @@ import android.platform.test.flag.junit.SetFlagsRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.LocalServices;
+import com.android.server.backup.BackupRestoreTask.CancellationReason;
 import com.android.server.backup.internal.LifecycleOperationStorage;
 
 import libcore.junit.util.compat.CoreCompatChangeRule.DisableCompatChanges;
@@ -368,9 +369,12 @@ public class BackupAgentConnectionManagerTest {
         mConnectionManager.agentDisconnected(TEST_PACKAGE);
 
         mTestThread.join();
-        verify(mUserBackupManagerService).handleCancel(eq(123), eq(true));
-        verify(mUserBackupManagerService).handleCancel(eq(456), eq(true));
-        verify(mUserBackupManagerService).handleCancel(eq(789), eq(true));
+        verify(mUserBackupManagerService)
+                .handleCancel(eq(123), eq(CancellationReason.AGENT_DISCONNECTED));
+        verify(mUserBackupManagerService)
+                .handleCancel(eq(456), eq(CancellationReason.AGENT_DISCONNECTED));
+        verify(mUserBackupManagerService)
+                .handleCancel(eq(789), eq(CancellationReason.AGENT_DISCONNECTED));
     }
 
     @Test

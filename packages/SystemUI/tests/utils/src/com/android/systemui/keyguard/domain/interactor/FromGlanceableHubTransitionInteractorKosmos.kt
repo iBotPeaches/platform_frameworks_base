@@ -31,7 +31,6 @@ var Kosmos.fromGlanceableHubTransitionInteractor by
             scope = applicationCoroutineScope,
             mainDispatcher = testDispatcher,
             bgDispatcher = testDispatcher,
-            glanceableHubTransitions = glanceableHubTransitions,
             communalSettingsInteractor = communalSettingsInteractor,
             keyguardInteractor = keyguardInteractor,
             transitionRepository = keyguardTransitionRepository,

@@ -247,6 +247,12 @@ public class TypedValue {
      */
     public int sourceResourceId;
 
+    /**
+     * Whether the value uses feature flags that need to be evaluated at runtime.
+     * @hide
+     */
+    public boolean usesFeatureFlags = false;
+
     /* ------------------------------------------------------------ */
 
     /** Return the data for this value as a float.  Only use for values

@@ -18,7 +18,6 @@ package com.android.systemui.statusbar.chips.call.domain.interactor
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
-import com.android.systemui.statusbar.chips.statusBarChipsLogger
 import com.android.systemui.statusbar.phone.ongoingcall.data.repository.ongoingCallRepository
 import com.android.systemui.statusbar.phone.ongoingcall.domain.interactor.ongoingCallInteractor
 
@@ -28,6 +27,5 @@ val Kosmos.callChipInteractor: CallChipInteractor by
             scope = applicationCoroutineScope,
             repository = ongoingCallRepository,
             ongoingCallInteractor = ongoingCallInteractor,
-            logger = statusBarChipsLogger,
         )
     }

@@ -950,6 +950,8 @@ public class ActivityInfo extends ComponentInfo implements Parcelable {
             CONFIG_COLOR_MODE,
             CONFIG_FONT_SCALE,
             CONFIG_GRAMMATICAL_GENDER,
+            CONFIG_FONT_WEIGHT_ADJUSTMENT,
+            CONFIG_WINDOW_CONFIGURATION,
             CONFIG_ASSETS_PATHS,
             CONFIG_RESOURCES_UNUSED,
     })
@@ -1347,6 +1349,33 @@ public class ActivityInfo extends ComponentInfo implements Parcelable {
             314961188L;
 
     /**
+     * Excludes the packages the override is applied to from the camera compatibility treatment for
+     * fixed-orientation apps, which simulates running on a portrait device, in the orientation
+     * requested by the app.
+     *
+     * <p>This treatment aims to mitigate camera issues on large screens, like stretched or sideways
+     * previews. It simulates running on a portrait device by:
+     * <ul>
+     *   <li>Letterboxing the app window,
+     *   <li>Cropping the camera buffer to match the app's requested orientation,
+     *   <li>Setting the camera sensor orientation to portrait.
+     *   <li>Setting the display rotation to match the app's requested orientation, given portrait
+     *       natural orientation,
+     *   <li>Refreshes the activity to trigger new camera setup, with sandboxed values.
+     * </ul>
+     *
+     * <p>By setting this override to {@code true}, it disables the camera compatibility treatment
+     * which simulates app's requested orientation.
+     *
+     * @hide
+     */
+    @ChangeId
+    @Overridable
+    @Disabled
+    public static final long OVERRIDE_CAMERA_COMPAT_DISABLE_SIMULATE_REQUESTED_ORIENTATION =
+            398195815L;  // buganizer id
+
+    /**
      * This change id forces the packages it is applied to sandbox {@link android.view.View} API to
      * an activity bounds for:
      *
@@ -1641,6 +1670,19 @@ public class ActivityInfo extends ComponentInfo implements Parcelable {
     @Disabled
     @Overridable
     public static final long OVERRIDE_ENABLE_INSETS_DECOUPLED_CONFIGURATION = 327313645L;
+
+    /**
+     * When the override is enabled, the activity receives configuration coupled with caption bar
+     * insets. Normally, caption bar insets are decoupled from configuration.
+     *
+     * <p>Override applies only if the activity targets SDK level 34 or earlier version.
+     *
+     * @hide
+     */
+    @ChangeId
+    @Overridable
+    @Disabled
+    public static final long OVERRIDE_EXCLUDE_CAPTION_INSETS_FROM_APP_BOUNDS = 388014743L;
 
     /**
      * Optional set of a certificates identifying apps that are allowed to embed this activity. From

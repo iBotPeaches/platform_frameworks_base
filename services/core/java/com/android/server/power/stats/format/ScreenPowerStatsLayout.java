@@ -29,7 +29,8 @@ import com.android.internal.os.PowerStats;
 public class ScreenPowerStatsLayout extends PowerStatsLayout {
     private static final String EXTRA_DEVICE_SCREEN_COUNT = "dsc";
     private static final String EXTRA_DEVICE_SCREEN_ON_DURATION_POSITION = "dsd";
-    private static final String EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS = "dbd";
+    private static final String EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS = "dbds";
+    private static final String EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS_COMPAT = "dbd";
     private static final String EXTRA_DEVICE_DOZE_DURATION_POSITION = "ddd";
     private static final String EXTRA_DEVICE_DOZE_POWER_POSITION = "ddp";
     private static final String EXTRA_UID_FOREGROUND_DURATION = "uf";
@@ -55,8 +56,14 @@ public class ScreenPowerStatsLayout extends PowerStatsLayout {
         PersistableBundle extras = descriptor.extras;
         mDisplayCount = extras.getInt(EXTRA_DEVICE_SCREEN_COUNT, 1);
         mDeviceScreenOnDurationPosition = extras.getInt(EXTRA_DEVICE_SCREEN_ON_DURATION_POSITION);
-        mDeviceBrightnessDurationPositions = extras.getIntArray(
+        mDeviceBrightnessDurationPositions = getIntArray(extras,
                 EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS);
+        if (mDeviceBrightnessDurationPositions == null) {
+            // We should never put arrays in PowerStats.Descriptor because of the performance of
+            // .equals
+            mDeviceBrightnessDurationPositions = extras.getIntArray(
+                    EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS_COMPAT);
+        }
         mDeviceScreenDozeDurationPosition = extras.getInt(EXTRA_DEVICE_DOZE_DURATION_POSITION);
         mDeviceScreenDozePowerPosition = extras.getInt(EXTRA_DEVICE_DOZE_POWER_POSITION);
         mUidTopActivityTimePosition = extras.getInt(EXTRA_UID_FOREGROUND_DURATION);
@@ -67,7 +74,7 @@ public class ScreenPowerStatsLayout extends PowerStatsLayout {
         super.toExtras(extras);
         extras.putInt(EXTRA_DEVICE_SCREEN_COUNT, mDisplayCount);
         extras.putInt(EXTRA_DEVICE_SCREEN_ON_DURATION_POSITION, mDeviceScreenOnDurationPosition);
-        extras.putIntArray(EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS,
+        putIntArray(extras, EXTRA_DEVICE_BRIGHTNESS_DURATION_POSITIONS,
                 mDeviceBrightnessDurationPositions);
         extras.putInt(EXTRA_DEVICE_DOZE_DURATION_POSITION, mDeviceScreenDozeDurationPosition);
         extras.putInt(EXTRA_DEVICE_DOZE_POWER_POSITION, mDeviceScreenDozePowerPosition);

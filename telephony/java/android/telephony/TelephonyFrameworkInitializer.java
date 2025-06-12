@@ -31,7 +31,6 @@ import android.telephony.euicc.EuiccManager;
 import android.telephony.ims.ImsManager;
 import android.telephony.satellite.SatelliteManager;
 
-import com.android.internal.telephony.flags.Flags;
 import com.android.internal.util.Preconditions;
 
 
@@ -77,9 +76,6 @@ public class TelephonyFrameworkInitializer {
     // also check through Compatibility framework a few lines below).
     @SuppressWarnings("AndroidFrameworkCompatChange")
     private static boolean hasSystemFeature(Context context, String feature) {
-        // Check release status of this change in behavior.
-        if (!Flags.minimalTelephonyManagersConditionalOnFeatures()) return true;
-
         // Check SDK version of the vendor partition.
         final int vendorApiLevel = SystemProperties.getInt(
                 "ro.vendor.api_level", Build.VERSION.DEVICE_INITIAL_SDK_INT);

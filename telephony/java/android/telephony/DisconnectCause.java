@@ -366,7 +366,6 @@ public final class DisconnectCause {
     /**
      * Indicates that the call was unable to be made because the satellite modem is enabled.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int SATELLITE_ENABLED = 82;
 
     //*********************************************************************************************

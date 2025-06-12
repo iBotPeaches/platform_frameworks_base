@@ -24,6 +24,7 @@ import android.view.View;
  * characters of passwords with dots, or keeping the newline characters
  * from causing line breaks in single-line text fields.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface TransformationMethod
 {
     /**

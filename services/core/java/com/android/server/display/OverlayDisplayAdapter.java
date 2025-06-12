@@ -76,6 +76,7 @@ import java.util.regex.Pattern;
  * <li><code>secure</code>: creates a secure display</li>
  * <li><code>own_content_only</code>: only shows this display's own content</li>
  * <li><code>should_show_system_decorations</code>: supports system decorations</li>
+ * <li><code>fixed_content_mode</code>: not allowed to switch content mode</li>
  * <li><code>gravity_top_left</code>: display the overlay at the top left of the screen</li>
  * <li><code>gravity_top_right</code>: display the overlay at the top right of the screen</li>
  * <li><code>gravity_bottom_right</code>: display the overlay at the bottom right of the screen</li>
@@ -116,6 +117,26 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
      */
     private static final String OVERLAY_DISPLAY_FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS =
             "should_show_system_decorations";
+
+    /**
+     * When this flag is set, the overlay display is not allowed to switch content mode.
+     * Note that it is the opposite of {@link  DisplayDeviceInfo#FLAG_ALLOWS_CONTENT_MODE_SWITCH},
+     * because we want overlay displays (such as those used for connected display simulation in
+     * development) to have {@link  DisplayDeviceInfo#FLAG_ALLOWS_CONTENT_MODE_SWITCH} enabled by
+     * default without explicitly specifying it.
+     *
+     * @see DisplayDeviceInfo#FLAG_ALLOWS_CONTENT_MODE_SWITCH
+     */
+    private static final String OVERLAY_DISPLAY_FLAG_FIXED_CONTENT_MODE =
+            "fixed_content_mode";
+
+    /**
+     * When this flag is set, disables support for moving and resizing the overlay window.
+     * As the window is made non-touchable, this also makes it possible to directly interact with
+     * the content underneath.
+     */
+    private static final String OVERLAY_DISPLAY_FLAG_DISABLE_WINDOW_INTERACTION =
+            "disable_window_interaction";
 
     // Gravity flags to decide where the overlay should be shown.
     private static final String GRAVITY_TOP_LEFT = "gravity_top_left";
@@ -341,7 +362,7 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
         }
 
         @Override
-        public void performTraversalLocked(SurfaceControl.Transaction t) {
+        public void configureSurfaceLocked(SurfaceControl.Transaction t) {
             if (mSurfaceTexture != null) {
                 if (mSurface == null) {
                     mSurface = new Surface(mSurfaceTexture);
@@ -383,6 +404,17 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
                 }
                 if (mFlags.mShouldShowSystemDecorations) {
                     mInfo.flags |= DisplayDeviceInfo.FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS;
+                }
+                if (getFeatureFlags().isDisplayContentModeManagementEnabled()) {
+                    if (!mFlags.mFixedContentMode
+                            && !mFlags.mOwnContentOnly
+                            && !mFlags.mShouldShowSystemDecorations) {
+                        // For overlay displays, if FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS and
+                        // FLAG_OWN_CONTENT_ONLY are both disabled,
+                        // then FLAG_ALLOWS_CONTENT_MODE_SWITCH should be enabled by default,
+                        // unless OVERLAY_DISPLAY_FLAG_FIXED_CONTENT_MODE is set.
+                        mInfo.flags |= DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH;
+                    }
                 }
                 mInfo.type = Display.TYPE_OVERLAY;
                 mInfo.touch = DisplayDeviceInfo.TOUCH_VIRTUAL;
@@ -547,9 +579,9 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
             @Override
             public void run() {
                 OverlayMode mode = mModes.get(mActiveMode);
-                OverlayDisplayWindow window = new OverlayDisplayWindow(getContext(),
-                        mName, mode.mWidth, mode.mHeight, mode.mDensityDpi, mGravity,
-                        mFlags.mSecure, OverlayDisplayHandle.this);
+                OverlayDisplayWindow window = new OverlayDisplayWindow(getContext(), mName,
+                        mode.mWidth, mode.mHeight, mode.mDensityDpi, mGravity, mFlags.mSecure,
+                        mFlags.mDisableWindowInteraction, OverlayDisplayHandle.this);
                 window.show();
 
                 synchronized (getSyncRoot()) {
@@ -628,16 +660,26 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
         /** See {@link #OVERLAY_DISPLAY_FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS}. */
         final boolean mShouldShowSystemDecorations;
 
+        /** See {@link #OVERLAY_DISPLAY_FLAG_FIXED_CONTENT_MODE}. */
+        final boolean mFixedContentMode;
+
+        /** See {@link #OVERLAY_DISPLAY_FLAG_DISABLE_WINDOW_INTERACTION}. */
+        final boolean mDisableWindowInteraction;
+
         final int mGravity;
 
         OverlayFlags(
                 boolean secure,
                 boolean ownContentOnly,
                 boolean shouldShowSystemDecorations,
+                boolean fixedContentMode,
+                boolean disableWindowInteraction,
                 int gravity) {
             mSecure = secure;
             mOwnContentOnly = ownContentOnly;
             mShouldShowSystemDecorations = shouldShowSystemDecorations;
+            mFixedContentMode = fixedContentMode;
+            mDisableWindowInteraction = disableWindowInteraction;
             mGravity = gravity;
         }
 
@@ -647,12 +689,16 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
                         false /* secure */,
                         false /* ownContentOnly */,
                         false /* shouldShowSystemDecorations */,
+                        false /* fixedContentMode */,
+                        false /* disableWindowInteraction */,
                         Gravity.NO_GRAVITY);
             }
 
             boolean secure = false;
             boolean ownContentOnly = false;
             boolean shouldShowSystemDecorations = false;
+            boolean fixedContentMode = false;
+            boolean disableWindowInteraction = false;
             int gravity = Gravity.NO_GRAVITY;
             for (String flag: flagString.split(FLAG_SPLITTER)) {
                 if (OVERLAY_DISPLAY_FLAG_SECURE.equals(flag)) {
@@ -661,11 +707,16 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
                     ownContentOnly = true;
                 } else if (OVERLAY_DISPLAY_FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS.equals(flag)) {
                     shouldShowSystemDecorations = true;
+                } else if (OVERLAY_DISPLAY_FLAG_FIXED_CONTENT_MODE.equals(flag)) {
+                    fixedContentMode = true;
+                } else if (OVERLAY_DISPLAY_FLAG_DISABLE_WINDOW_INTERACTION.equals(flag)) {
+                    disableWindowInteraction = true;
                 } else {
                     gravity = parseOverlayGravity(flag);
                 }
             }
-            return new OverlayFlags(secure, ownContentOnly, shouldShowSystemDecorations, gravity);
+            return new OverlayFlags(secure, ownContentOnly, shouldShowSystemDecorations,
+                    fixedContentMode, disableWindowInteraction, gravity);
         }
 
         @Override
@@ -674,6 +725,8 @@ final class OverlayDisplayAdapter extends DisplayAdapter {
                     .append("secure=").append(mSecure)
                     .append(", ownContentOnly=").append(mOwnContentOnly)
                     .append(", shouldShowSystemDecorations=").append(mShouldShowSystemDecorations)
+                    .append(", fixedContentMode=").append(mFixedContentMode)
+                    .append(", disableWindowInteraction=").append(mDisableWindowInteraction)
                     .append(", gravity").append(Gravity.toString(mGravity))
                     .append("}")
                     .toString();

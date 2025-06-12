@@ -31,6 +31,7 @@ import java.lang.annotation.RetentionPolicy;
  * Shader used to draw a bitmap as a texture. The bitmap can be repeated or
  * mirrored by setting the tiling mode.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class BitmapShader extends Shader {
     /**
      * Prevent garbage collection.

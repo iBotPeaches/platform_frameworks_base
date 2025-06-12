@@ -19,7 +19,6 @@ package com.android.systemui.statusbar.chips.ui.model
 import android.content.Context
 import android.content.res.ColorStateList
 import androidx.annotation.ColorInt
-import com.android.settingslib.Utils
 import com.android.systemui.res.R
 
 /** Model representing how the chip in the status bar should be colored. */
@@ -30,31 +29,49 @@ sealed interface ColorsModel {
     /** The color for the text (and icon) on the chip. */
     @ColorInt fun text(context: Context): Int
 
-    /** The chip should match the theme's primary color. */
-    data object Themed : ColorsModel {
+    /** The color to use for the chip outline, or null if the chip shouldn't have an outline. */
+    @ColorInt fun outline(context: Context): Int?
+
+    /** The chip should match the theme's primary accent color. */
+    data object AccentThemed : ColorsModel {
         override fun background(context: Context): ColorStateList =
-            Utils.getColorAttr(context, com.android.internal.R.attr.colorAccent)
+            ColorStateList.valueOf(
+                context.getColor(com.android.internal.R.color.materialColorPrimaryFixedDim)
+            )
 
         override fun text(context: Context) =
-            Utils.getColorAttrDefaultColor(context, com.android.internal.R.attr.colorPrimary)
+            context.getColor(com.android.internal.R.color.materialColorOnPrimaryFixed)
+
+        override fun outline(context: Context) = null
     }
 
-    /**
-     * The chip should have the given background color, and text color that matches dark/light
-     * theme.
-     */
-    data class Custom(val backgroundColorInt: Int) : ColorsModel {
+    /** The chip should match the system theme main color. */
+    // Note: When StatusBarChipsModernization is disabled, the chip's color doesn't get
+    // updated when the user switches theme. It only gets updated when a different
+    // configuration change happens, like a rotation.
+    data object SystemThemed : ColorsModel {
+        override fun background(context: Context): ColorStateList =
+            ColorStateList.valueOf(
+                context.getColor(com.android.internal.R.color.materialColorSurfaceDim)
+            )
+
+        override fun text(context: Context) =
+            context.getColor(com.android.internal.R.color.materialColorOnSurface)
+
+        override fun outline(context: Context) =
+            // Outline is required on the SystemThemed chip to guarantee the chip doesn't completely
+            // blend in with the background.
+            context.getColor(com.android.internal.R.color.materialColorOutlineVariant)
+    }
+
+    /** The chip should have the given background color and primary text color. */
+    data class Custom(val backgroundColorInt: Int, val primaryTextColorInt: Int) : ColorsModel {
         override fun background(context: Context): ColorStateList =
             ColorStateList.valueOf(backgroundColorInt)
 
-        // TODO(b/361346412): When dark theme changes, the chip should automatically re-render with
-        // the right text color. Right now, it has the right text color when the chip is first
-        // created but the color doesn't update if dark theme changes.
-        override fun text(context: Context) =
-            Utils.getColorAttrDefaultColor(
-                context,
-                com.android.internal.R.attr.materialColorOnSurface,
-            )
+        override fun text(context: Context): Int = primaryTextColorInt
+
+        override fun outline(context: Context) = null
     }
 
     /** The chip should have a red background with white text. */
@@ -64,5 +81,7 @@ sealed interface ColorsModel {
         }
 
         override fun text(context: Context) = context.getColor(android.R.color.white)
+
+        override fun outline(context: Context) = null
     }
 }

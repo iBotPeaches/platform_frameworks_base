@@ -17,8 +17,8 @@
 package android.content;
 
 import static android.app.appfunctions.flags.Flags.FLAG_ENABLE_APP_FUNCTION_MANAGER;
-import static android.content.flags.Flags.FLAG_ENABLE_BIND_PACKAGE_ISOLATED_PROCESS;
 import static android.app.ondeviceintelligence.flags.Flags.FLAG_ENABLE_ON_DEVICE_INTELLIGENCE_MODULE;
+import static android.content.flags.Flags.FLAG_ENABLE_BIND_PACKAGE_ISOLATED_PROCESS;
 import static android.security.Flags.FLAG_SECURE_LOCKDOWN;
 
 import android.annotation.AttrRes;
@@ -744,15 +744,22 @@ public abstract class Context {
      */
     public static final long BIND_MATCH_QUARANTINED_COMPONENTS = 0x2_0000_0000L;
 
+    /**
+     * Flag for {@link #bindService} that allows the bound app to be frozen if it is eligible.
+     *
+     * @hide
+     */
+    public static final long BIND_ALLOW_FREEZE = 0x4_0000_0000L;
 
     /**
      * These bind flags reduce the strength of the binding such that we shouldn't
      * consider it as pulling the process up to the level of the one that is bound to it.
      * @hide
      */
-    public static final int BIND_REDUCTION_FLAGS =
+    public static final long BIND_REDUCTION_FLAGS =
             Context.BIND_ALLOW_OOM_MANAGEMENT | Context.BIND_WAIVE_PRIORITY
-                    | Context.BIND_NOT_PERCEPTIBLE | Context.BIND_NOT_VISIBLE;
+                    | Context.BIND_NOT_PERCEPTIBLE | Context.BIND_NOT_VISIBLE
+                    | Context.BIND_ALLOW_FREEZE;
 
     /** @hide */
     @IntDef(flag = true, prefix = { "RECEIVER_VISIBLE" }, value = {
@@ -786,6 +793,40 @@ public abstract class Context {
      * Has the same behavior as marking a statically registered receiver with "exported=false"
      */
     public static final int RECEIVER_NOT_EXPORTED = 0x4;
+
+    /**
+     * The permission is granted.
+     *
+     * @hide
+     */
+    public static final int PERMISSION_REQUEST_STATE_GRANTED = 0;
+
+    /**
+     * The permission isn't granted, but apps can request the permission. When the app request
+     * the permission, user will be prompted with permission dialog to grant or deny the request.
+     *
+     * @hide
+     */
+    public static final int PERMISSION_REQUEST_STATE_REQUESTABLE = 1;
+
+    /**
+     * The permission is denied, and shouldn't be requested by apps. Permission request
+     * will be automatically denied by the system, preventing the permission dialog from being
+     * displayed to the user.
+     *
+     * @hide
+     */
+    public static final int PERMISSION_REQUEST_STATE_UNREQUESTABLE = 2;
+
+
+    /** @hide */
+    @IntDef(prefix = { "PERMISSION_REQUEST_STATE_" }, value = {
+            PERMISSION_REQUEST_STATE_GRANTED,
+            PERMISSION_REQUEST_STATE_REQUESTABLE,
+            PERMISSION_REQUEST_STATE_UNREQUESTABLE
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface PermissionRequestState {}
 
     /**
      * Returns an AssetManager instance for the application's package.
@@ -3300,7 +3341,7 @@ public abstract class Context {
      * this case, only one of these can be returned directly by the function;
      * which of these that is returned is arbitrarily decided by the system.
      *
-     * <p>If you know the Intent your are registering for is sticky, you can
+     * <p>If you know the Intent you are registering for is sticky, you can
      * supply null for your <var>receiver</var>.  In this case, no receiver is
      * registered -- the function simply returns the sticky Intent that
      * matches <var>filter</var>.  In the case of multiple matches, the same
@@ -5560,7 +5601,6 @@ public abstract class Context {
      * @hide
      * @see #getSystemService(String)
      */
-    @FlaggedApi(android.app.contextualsearch.flags.Flags.FLAG_ENABLE_SERVICE)
     @SystemApi
     public static final String CONTEXTUAL_SEARCH_SERVICE = "contextual_search";
 
@@ -6825,6 +6865,8 @@ public abstract class Context {
      * @see android.app.supervision.SupervisionManager
      * @hide
      */
+    @SystemApi
+    @FlaggedApi(android.app.supervision.flags.Flags.FLAG_SUPERVISION_MANAGER_APIS)
     public static final String SUPERVISION_SERVICE = "supervision";
 
     /**
@@ -6988,6 +7030,31 @@ public abstract class Context {
     @PermissionMethod(orSelf = true)
     public abstract void enforceCallingOrSelfPermission(
             @NonNull @PermissionName String permission, @Nullable String message);
+
+    /**
+     * Returns the permission request state for a given runtime permission. This method provides a
+     * streamlined mechanism for applications to determine whether a permission can be
+     * requested (i.e. whether the user will be prompted with a permission dialog).
+     *
+     * <p>Traditionally, determining if a permission has been permanently denied (unrequestable)
+     * required applications to initiate a permission request and subsequently analyze the result
+     * of {@link android.app.Activity#shouldShowRequestPermissionRationale} in conjunction with the
+     * grant result within the {@link android.app.Activity#onRequestPermissionsResult} callback.
+     *
+     * @param permission The name of the permission.
+     *
+     * @return The current request state of the specified permission, represented by one of the
+     * following constants: {@link PermissionRequestState#PERMISSION_REQUEST_STATE_GRANTED},
+     * {@link PermissionRequestState#PERMISSION_REQUEST_STATE_REQUESTABLE}, or
+     * {@link PermissionRequestState#PERMISSION_REQUEST_STATE_UNREQUESTABLE}.
+     *
+     * @hide
+     */
+    @CheckResult
+    @PermissionRequestState
+    public int getPermissionRequestState(@NonNull String permission) {
+        throw new RuntimeException("Not implemented. Must override in a subclass.");
+    }
 
     /**
      * Grant permission to access a specific Uri to another package, regardless

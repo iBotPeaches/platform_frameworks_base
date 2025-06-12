@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -72,13 +73,16 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.compose.animation.Expandable
-import com.android.compose.animation.scene.SceneScope
-import com.android.compose.modifiers.fadingBackground
+import com.android.compose.animation.scene.ContentScope
+import com.android.compose.modifiers.animatedBackground
 import com.android.compose.theme.colorAttr
+import com.android.systemui.Flags.notificationShadeBlur
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.ui.compose.Icon
 import com.android.systemui.compose.modifiers.sysuiResTag
+import com.android.systemui.qs.flags.QSComposeFragment
+import com.android.systemui.qs.flags.QsInCompose
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsForegroundServicesButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsSecurityButtonViewModel
@@ -90,7 +94,7 @@ import com.android.systemui.res.R
 import kotlinx.coroutines.launch
 
 @Composable
-fun SceneScope.FooterActionsWithAnimatedVisibility(
+fun ContentScope.FooterActionsWithAnimatedVisibility(
     viewModel: FooterActionsViewModel,
     isCustomizing: Boolean,
     customizingAnimationDuration: Int,
@@ -114,11 +118,9 @@ fun SceneScope.FooterActionsWithAnimatedVisibility(
         QuickSettingsTheme {
             // This view has its own horizontal padding
             // TODO(b/321716470) This should use a lifecycle tied to the scene.
-            FooterActions(
-                viewModel = viewModel,
-                qsVisibilityLifecycleOwner = lifecycleOwner,
-                modifier = Modifier.element(QuickSettings.Elements.FooterActions),
-            )
+            Element(QuickSettings.Elements.FooterActions, Modifier) {
+                FooterActions(viewModel = viewModel, qsVisibilityLifecycleOwner = lifecycleOwner)
+            }
         }
     }
 }
@@ -141,6 +143,7 @@ fun FooterActions(
         mutableStateOf<FooterActionsForegroundServicesButtonViewModel?>(null)
     }
     var userSwitcher by remember { mutableStateOf<FooterActionsButtonViewModel?>(null) }
+    var power by remember { mutableStateOf(viewModel.initialPower()) }
 
     LaunchedEffect(
         context,
@@ -160,17 +163,20 @@ fun FooterActions(
             launch { viewModel.security.collect { security = it } }
             launch { viewModel.foregroundServices.collect { foregroundServices = it } }
             launch { viewModel.userSwitcher.collect { userSwitcher = it } }
+            launch { viewModel.power.collect { power = it } }
         }
     }
 
-    val backgroundColor = colorAttr(R.attr.underSurface)
+    val backgroundColor =
+        if (!notificationShadeBlur()) colorAttr(R.attr.underSurface) else Color.Transparent
+    val backgroundAlphaValue = if (!notificationShadeBlur()) backgroundAlpha::value else ({ 0f })
     val contentColor = MaterialTheme.colorScheme.onSurface
     val backgroundTopRadius = dimensionResource(R.dimen.qs_corner_radius)
     val backgroundModifier =
-        remember(backgroundColor, backgroundAlpha, backgroundTopRadius) {
-            Modifier.fadingBackground(
-                backgroundColor,
-                backgroundAlpha::value,
+        remember(backgroundColor, backgroundAlphaValue, backgroundTopRadius) {
+            Modifier.animatedBackground(
+                { backgroundColor },
+                backgroundAlphaValue,
                 RoundedCornerShape(topStart = backgroundTopRadius, topEnd = backgroundTopRadius),
             )
         }
@@ -213,11 +219,20 @@ fun FooterActions(
                 Spacer(Modifier.weight(1f))
             }
 
-            security?.let { SecurityButton(it, Modifier.weight(1f)) }
-            foregroundServices?.let { ForegroundServicesButton(it) }
-            userSwitcher?.let { IconButton(it, Modifier.sysuiResTag("multi_user_switch")) }
-            IconButton(viewModel.settings, Modifier.sysuiResTag("settings_button_container"))
-            viewModel.power?.let { IconButton(it, Modifier.sysuiResTag("pm_lite")) }
+            val useModifierBasedExpandable = remember { QSComposeFragment.isEnabled }
+            SecurityButton({ security }, useModifierBasedExpandable, Modifier.weight(1f))
+            ForegroundServicesButton({ foregroundServices }, useModifierBasedExpandable)
+            IconButton(
+                { userSwitcher },
+                useModifierBasedExpandable,
+                Modifier.sysuiResTag("multi_user_switch"),
+            )
+            IconButton(
+                { viewModel.settings },
+                useModifierBasedExpandable,
+                Modifier.sysuiResTag("settings_button_container"),
+            )
+            IconButton({ power }, useModifierBasedExpandable, Modifier.sysuiResTag("pm_lite"))
         }
     }
 }
@@ -225,43 +240,72 @@ fun FooterActions(
 /** The security button. */
 @Composable
 private fun SecurityButton(
-    model: FooterActionsSecurityButtonViewModel,
+    model: () -> FooterActionsSecurityButtonViewModel?,
+    useModifierBasedExpandable: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val model = model() ?: return
     val onClick: ((Expandable) -> Unit)? =
         model.onClick?.let { onClick ->
             val context = LocalContext.current
             { expandable -> onClick(context, expandable) }
         }
 
-    TextButton(model.icon, model.text, showNewDot = false, onClick = onClick, modifier)
+    TextButton(
+        model.icon,
+        model.text,
+        showNewDot = false,
+        onClick = onClick,
+        useModifierBasedExpandable,
+        modifier,
+    )
 }
 
 /** The foreground services button. */
 @Composable
 private fun RowScope.ForegroundServicesButton(
-    model: FooterActionsForegroundServicesButtonViewModel
+    model: () -> FooterActionsForegroundServicesButtonViewModel?,
+    useModifierBasedExpandable: Boolean,
 ) {
+    val model = model() ?: return
     if (model.displayText) {
         TextButton(
             Icon.Resource(R.drawable.ic_info_outline, contentDescription = null),
             model.text,
             showNewDot = model.hasNewChanges,
             onClick = model.onClick,
+            useModifierBasedExpandable,
             Modifier.weight(1f),
         )
     } else {
         NumberButton(
             model.foregroundServicesCount,
+            contentDescription = model.text,
             showNewDot = model.hasNewChanges,
             onClick = model.onClick,
+            useModifierBasedExpandable,
         )
     }
 }
 
 /** A button with an icon. */
 @Composable
-fun IconButton(model: FooterActionsButtonViewModel, modifier: Modifier = Modifier) {
+fun IconButton(
+    model: () -> FooterActionsButtonViewModel?,
+    useModifierBasedExpandable: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val model = model() ?: return
+    IconButton(model, useModifierBasedExpandable, modifier)
+}
+
+/** A button with an icon. */
+@Composable
+fun IconButton(
+    model: FooterActionsButtonViewModel,
+    useModifierBasedExpandable: Boolean,
+    modifier: Modifier = Modifier,
+) {
     Expandable(
         color = colorAttr(model.backgroundColor),
         shape = CircleShape,
@@ -271,6 +315,7 @@ fun IconButton(model: FooterActionsButtonViewModel, modifier: Modifier = Modifie
                 color = MaterialTheme.colorScheme.secondary,
                 CornerSize(percent = 50),
             ),
+        useModifierBasedImplementation = useModifierBasedExpandable,
     ) {
         val tint = model.iconTint?.let { Color(it) } ?: Color.Unspecified
         Icon(model.icon, tint = tint, modifier = Modifier.size(20.dp))
@@ -281,8 +326,10 @@ fun IconButton(model: FooterActionsButtonViewModel, modifier: Modifier = Modifie
 @Composable
 private fun NumberButton(
     number: Int,
+    contentDescription: String,
     showNewDot: Boolean,
     onClick: (Expandable) -> Unit,
+    useModifierBasedExpandable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     // By default Expandable will show a ripple above its content when clicked, and clip the content
@@ -302,6 +349,7 @@ private fun NumberButton(
                 color = MaterialTheme.colorScheme.secondary,
                 CornerSize(percent = 50),
             ),
+        useModifierBasedImplementation = useModifierBasedExpandable,
     ) {
         Box(Modifier.size(40.dp)) {
             Box(
@@ -311,7 +359,10 @@ private fun NumberButton(
             ) {
                 Text(
                     number.toString(),
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier =
+                        Modifier.align(Alignment.Center).semantics {
+                            this.contentDescription = contentDescription
+                        },
                     style = MaterialTheme.typography.bodyLarge,
                     color = colorAttr(R.attr.onShadeInactiveVariant),
                     // TODO(b/242040009): This should only use a standard text style instead and
@@ -339,12 +390,14 @@ private fun NewChangesDot(modifier: Modifier = Modifier) {
 }
 
 /** A larger button with an icon, some text and an optional dot (to indicate new changes). */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun TextButton(
     icon: Icon,
     text: String,
     showNewDot: Boolean,
     onClick: ((Expandable) -> Unit)?,
+    useModifierBasedExpandable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Expandable(
@@ -357,20 +410,29 @@ private fun TextButton(
                 .padding(horizontal = 4.dp)
                 .borderOnFocus(color = MaterialTheme.colorScheme.secondary, CornerSize(50)),
         onClick = onClick,
+        useModifierBasedImplementation = useModifierBasedExpandable,
     ) {
         Row(
             Modifier.padding(horizontal = dimensionResource(R.dimen.qs_footer_padding)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, Modifier.padding(end = 12.dp).size(20.dp))
+            Icon(
+                icon,
+                Modifier.padding(end = 12.dp).size(20.dp),
+                colorAttr(R.attr.onShadeInactiveVariant),
+            )
 
             Text(
                 text,
                 Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
-                // TODO(b/242040009): Remove this letter spacing. We should only use the M3 text
-                // styles without modifying them.
-                letterSpacing = 0.01.em,
+                style =
+                    if (QsInCompose.isEnabled) {
+                        MaterialTheme.typography.labelLarge
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    },
+                letterSpacing = if (QsInCompose.isEnabled) 0.em else 0.01.em,
+                color = colorAttr(R.attr.onShadeInactiveVariant),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -384,6 +446,7 @@ private fun TextButton(
                     painterResource(com.android.internal.R.drawable.ic_chevron_end),
                     contentDescription = null,
                     Modifier.padding(start = 8.dp).size(20.dp),
+                    colorAttr(R.attr.onShadeInactiveVariant),
                 )
             }
         }

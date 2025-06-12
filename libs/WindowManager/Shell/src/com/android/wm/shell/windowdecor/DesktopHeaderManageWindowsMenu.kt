@@ -25,11 +25,11 @@ import android.view.SurfaceControlViewHost
 import android.view.WindowInsets.Type.systemBars
 import android.view.WindowManager
 import android.view.WindowlessWindowManager
+import android.window.DesktopModeFlags
 import android.window.TaskConstants
 import android.window.TaskSnapshot
 import androidx.compose.ui.graphics.toArgb
 import com.android.internal.annotations.VisibleForTesting
-import com.android.window.flags.Flags
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer
 import com.android.wm.shell.common.DisplayController
 import com.android.wm.shell.desktopmode.DesktopUserRepositories
@@ -54,7 +54,7 @@ class DesktopHeaderManageWindowsMenu(
     private val desktopUserRepositories: DesktopUserRepositories,
     private val surfaceControlBuilderSupplier: Supplier<SurfaceControl.Builder>,
     private val surfaceControlTransactionSupplier: Supplier<SurfaceControl.Transaction>,
-    snapshotList: List<Pair<Int, TaskSnapshot>>,
+    snapshotList: List<Pair<Int, TaskSnapshot?>>,
     onIconClickListener: ((Int) -> Unit),
     onOutsideClickListener: (() -> Unit)
 ) : ManageWindowsViewContainer(
@@ -74,10 +74,9 @@ class DesktopHeaderManageWindowsMenu(
     override fun addToContainer(menuView: ManageWindowsView) {
         val menuPosition = Point(x, y)
         val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                WindowManager.LayoutParams.FLAG_SPLIT_TOUCH
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
         val desktopRepository = desktopUserRepositories.getProfile(callerTaskInfo.userId)
-        menuViewContainer = if (Flags.enableFullyImmersiveInDesktop()
+        menuViewContainer = if (DesktopModeFlags.ENABLE_FULLY_IMMERSIVE_IN_DESKTOP.isTrue
             && desktopRepository.isTaskInFullImmersiveState(callerTaskInfo.taskId)) {
             // Use system view container so that forcibly shown system bars take effect in
             // immersive.

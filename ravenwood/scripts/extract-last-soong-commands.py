@@ -55,7 +55,7 @@ def main(args):
 
                 if s.startswith("verbose"):
                     continue
-                if re.match('^\[.*bootstrap blueprint', s):
+                if re.match('^\\[.*bootstrap blueprint', s):
                     continue
 
                 s = s.rstrip()

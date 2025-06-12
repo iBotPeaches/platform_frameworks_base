@@ -21,17 +21,17 @@ import android.content.pm.UserInfo
 import android.os.UserManager
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
-import android.platform.test.flag.junit.SetFlagsRule
 import android.testing.AndroidTestingRunner
 import androidx.test.filters.SmallTest
-import com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession
 import com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn
+import com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession
 import com.android.dx.mockito.inline.extended.StaticMockitoSession
 import com.android.window.flags.Flags.FLAG_ENABLE_DESKTOP_WINDOWING_HSUM
 import com.android.wm.shell.ShellTestCase
 import com.android.wm.shell.common.ShellExecutor
 import com.android.wm.shell.desktopmode.persistence.DesktopPersistentRepository
 import com.android.wm.shell.desktopmode.persistence.DesktopRepositoryInitializer
+import com.android.wm.shell.sysui.ShellController
 import com.android.wm.shell.sysui.ShellInit
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
@@ -43,7 +43,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.spy
@@ -55,8 +54,6 @@ import org.mockito.quality.Strictness
 @RunWith(AndroidTestingRunner::class)
 @ExperimentalCoroutinesApi
 class DesktopUserRepositoriesTest : ShellTestCase() {
-    @get:Rule val setFlagsRule = SetFlagsRule()
-
     private lateinit var userRepositories: DesktopUserRepositories
     private lateinit var shellInit: ShellInit
     private lateinit var datastoreScope: CoroutineScope
@@ -66,6 +63,7 @@ class DesktopUserRepositoriesTest : ShellTestCase() {
     private val persistentRepository = mock<DesktopPersistentRepository>()
     private val repositoryInitializer = mock<DesktopRepositoryInitializer>()
     private val userManager = mock<UserManager>()
+    private val shellController = mock<ShellController>()
 
     @Before
     fun setUp() {
@@ -80,14 +78,20 @@ class DesktopUserRepositoriesTest : ShellTestCase() {
         datastoreScope = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
         shellInit = spy(ShellInit(testExecutor))
 
-        val profiles: MutableList<UserInfo> = mutableListOf(
-            UserInfo(USER_ID_1, "User 1", 0),
-            UserInfo(PROFILE_ID_2, "Profile 2", 0))
+        val profiles: MutableList<UserInfo> =
+            mutableListOf(UserInfo(USER_ID_1, "User 1", 0), UserInfo(PROFILE_ID_2, "Profile 2", 0))
         whenever(userManager.getProfiles(USER_ID_1)).thenReturn(profiles)
 
-        userRepositories = DesktopUserRepositories(
-            context, shellInit, persistentRepository, repositoryInitializer, datastoreScope,
-                userManager)
+        userRepositories =
+            DesktopUserRepositories(
+                context,
+                shellInit,
+                shellController,
+                persistentRepository,
+                repositoryInitializer,
+                datastoreScope,
+                userManager,
+            )
     }
 
     @After
@@ -119,8 +123,26 @@ class DesktopUserRepositoriesTest : ShellTestCase() {
         assertThat(desktopRepository.userId).isEqualTo(PROFILE_ID_2)
     }
 
+    @Test
+    @EnableFlags(FLAG_ENABLE_DESKTOP_WINDOWING_HSUM)
+    fun getUserForProfile_flagEnabled_returnsUserIdForProfile() {
+        userRepositories.onUserChanged(USER_ID_2, mock())
+        val profiles: MutableList<UserInfo> =
+            mutableListOf(
+                UserInfo(USER_ID_2, "User profile", 0),
+                UserInfo(PROFILE_ID_1, "Work profile", 0),
+            )
+        userRepositories.onUserProfilesChanged(profiles)
+
+        val userIdForProfile = userRepositories.getUserIdForProfile(PROFILE_ID_1)
+
+        assertThat(userIdForProfile).isEqualTo(USER_ID_2)
+    }
+
     private companion object {
         const val USER_ID_1 = 7
+        const val USER_ID_2 = 8
+        const val PROFILE_ID_1 = 4
         const val PROFILE_ID_2 = 5
     }
 }

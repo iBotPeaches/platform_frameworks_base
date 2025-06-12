@@ -197,13 +197,16 @@ class PackageFlattener {
     bool sparse_encode = sparse_entries_ == SparseEntriesMode::Enabled ||
                          sparse_entries_ == SparseEntriesMode::Forced;
 
-    if (sparse_entries_ == SparseEntriesMode::Forced ||
-        (context_->GetMinSdkVersion() == 0 && config.sdkVersion == 0)) {
-      // Sparse encode if forced or sdk version is not set in context and config.
-    } else {
-      // Otherwise, only sparse encode if the entries will be read on platforms S_V2+.
-      sparse_encode = sparse_encode && (context_->GetMinSdkVersion() >= SDK_S_V2);
-    }
+    // Only sparse encode if the entries will be read on platforms S_V2+. Sparse encoding
+    // is not supported on older platforms (b/197642721, b/197976367).
+    //
+    // We also allow sparse encoding for minSdk is 0 (not set) if sparse encoding is forced,
+    // in order to support Bundletool's usage of aapt2 where minSdk is not set in splits.
+    bool meets_min_sdk_requirement_for_sparse_encoding =
+        (context_->GetMinSdkVersion() >= SDK_S_V2) ||
+        (context_->GetMinSdkVersion() == 0 && sparse_entries_ == SparseEntriesMode::Forced);
+
+    sparse_encode = sparse_encode && meets_min_sdk_requirement_for_sparse_encoding;
 
     // Only sparse encode if the offsets are representable in 2 bytes.
     sparse_encode = sparse_encode && short_offsets;
@@ -502,7 +505,8 @@ class PackageFlattener {
         // Group values by configuration.
         for (auto& config_value : entry.values) {
           config_to_entry_list_map[config_value->config].push_back(
-              FlatEntry{&entry, config_value->value.get(), local_key_index});
+              FlatEntry{&entry, config_value->value.get(), local_key_index,
+                        config_value->uses_readwrite_feature_flags});
         }
       }
 

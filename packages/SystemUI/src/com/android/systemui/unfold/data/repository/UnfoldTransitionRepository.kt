@@ -16,7 +16,7 @@
 package com.android.systemui.unfold.data.repository
 
 import androidx.annotation.FloatRange
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.unfold.UnfoldTransitionProgressProvider
 import com.android.systemui.unfold.data.repository.UnfoldTransitionStatus.TransitionFinished
 import com.android.systemui.unfold.data.repository.UnfoldTransitionStatus.TransitionInProgress

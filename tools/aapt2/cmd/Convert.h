@@ -38,14 +38,14 @@ class ConvertCommand : public Command {
         "--enable-sparse-encoding",
         "Enables encoding sparse entries using a binary search tree.\n"
         "This decreases APK size at the cost of resource retrieval performance.\n"
-        "Only applies sparse encoding to Android O+ resources or all resources if minSdk of "
-        "the APK is O+",
+        "Only applies sparse encoding if minSdk of the APK is >= 32",
         &enable_sparse_encoding_);
-    AddOptionalSwitch("--force-sparse-encoding",
-                      "Enables encoding sparse entries using a binary search tree.\n"
-                      "This decreases APK size at the cost of resource retrieval performance.\n"
-                      "Applies sparse encoding to all resources regardless of minSdk.",
-                      &force_sparse_encoding_);
+    AddOptionalSwitch(
+        "--force-sparse-encoding",
+        "Enables encoding sparse entries using a binary search tree.\n"
+        "This decreases APK size at the cost of resource retrieval performance.\n"
+        "Only applies sparse encoding if minSdk of the APK is >= 32 or is not set",
+        &force_sparse_encoding_);
     AddOptionalSwitch(
         "--enable-compact-entries",
         "This decreases APK size by using compact resource entries for simple data types.",

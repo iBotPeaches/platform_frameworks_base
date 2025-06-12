@@ -20,10 +20,10 @@ import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testCase
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.settings.userTracker
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth
 import org.junit.Before
 import org.junit.Test
@@ -34,7 +34,7 @@ import org.mockito.MockitoAnnotations
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 class ScreenRecordingStartTimeStoreTest : SysuiTestCase() {
-    private val userTracker: UserTracker = Kosmos().also { it.testCase = this }.userTracker
+    private val userTracker: UserTracker = testKosmos().also { it.testCase = this }.userTracker
 
     private lateinit var underTest: ScreenRecordingStartTimeStore
 

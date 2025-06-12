@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import static android.os.Trace.TRACE_TAG_WINDOW_MANAGER;
 import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.WindowManager.TRANSIT_FLAG_AOD_APPEARING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_APPEARING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY_NO_ANIMATION;
@@ -27,7 +28,6 @@ import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY_TO_SHA
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY_WITH_WALLPAPER;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_OCCLUDING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_UNOCCLUDING;
-import static android.view.WindowManager.TRANSIT_KEYGUARD_GOING_AWAY;
 import static android.view.WindowManager.TRANSIT_KEYGUARD_OCCLUDE;
 import static android.view.WindowManager.TRANSIT_KEYGUARD_UNOCCLUDE;
 import static android.view.WindowManager.TRANSIT_OPEN;
@@ -216,6 +216,9 @@ class KeyguardController {
                 } else if (keyguardShowing && !state.mKeyguardShowing) {
                     transition.addFlag(TRANSIT_FLAG_KEYGUARD_APPEARING);
                 }
+                if (mWindowManager.mFlags.mAodTransition && aodShowing && !state.mAodShowing) {
+                    transition.addFlag(TRANSIT_FLAG_AOD_APPEARING);
+                }
             }
         }
         // Update the task snapshot if the screen will not be turned off. To make sure that the
@@ -238,19 +241,28 @@ class KeyguardController {
         state.mAodShowing = aodShowing;
         state.writeEventLog("setKeyguardShown");
 
-        if (keyguardChanged) {
-            // Irrelevant to AOD.
-            state.mKeyguardGoingAway = false;
-            if (keyguardShowing) {
-                state.mDismissalRequested = false;
+        if (keyguardChanged || (mWindowManager.mFlags.mAodTransition && aodChanged)) {
+            if (keyguardChanged) {
+                // Irrelevant to AOD.
+                state.mKeyguardGoingAway = false;
+                if (keyguardShowing) {
+                    state.mDismissalRequested = false;
+                }
             }
             if (goingAwayRemoved
-                    || (keyguardShowing && !Display.isOffState(dc.getDisplayInfo().state))) {
+                    || (keyguardShowing && !Display.isOffState(dc.getDisplayInfo().state))
+                    || (mWindowManager.mFlags.mAodTransition && aodShowing)) {
                 // Keyguard decided to show or stopped going away. Send a transition to animate back
                 // to the locked state before holding the sleep token again
                 if (!ENABLE_NEW_KEYGUARD_SHELL_TRANSITIONS) {
-                    dc.requestTransitionAndLegacyPrepare(
-                            TRANSIT_TO_FRONT, TRANSIT_FLAG_KEYGUARD_APPEARING);
+                    if (keyguardChanged) {
+                        dc.requestTransitionAndLegacyPrepare(TRANSIT_TO_FRONT,
+                                TRANSIT_FLAG_KEYGUARD_APPEARING, /* trigger= */ null);
+                    }
+                    if (mWindowManager.mFlags.mAodTransition && aodChanged && aodShowing) {
+                        dc.requestTransitionAndLegacyPrepare(TRANSIT_TO_FRONT,
+                                TRANSIT_FLAG_AOD_APPEARING, /* trigger= */ null);
+                    }
                 }
                 dc.mWallpaperController.adjustWallpaperWindows();
                 dc.executeAppTransition();
@@ -297,7 +309,6 @@ class KeyguardController {
             state.writeEventLog("keyguardGoingAway");
             final int transitFlags = convertTransitFlags(flags);
             final DisplayContent dc = mRootWindowContainer.getDefaultDisplay();
-            dc.prepareAppTransition(TRANSIT_KEYGUARD_GOING_AWAY, transitFlags);
             // We are deprecating TRANSIT_KEYGUARD_GOING_AWAY for Shell transition and use
             // TRANSIT_FLAG_KEYGUARD_GOING_AWAY to indicate that it should animate keyguard going
             // away.
@@ -477,8 +488,6 @@ class KeyguardController {
                     if (trigger != null) {
                         transition.collect(trigger);
                     }
-                } else {
-                    dc.prepareAppTransition(transitType, transitFlags);
                 }
             } else {
                 if (tc.inTransition()) {
@@ -502,7 +511,6 @@ class KeyguardController {
     private void handleDismissInsecureKeyguard(DisplayContent dc) {
         mService.deferWindowLayout();
         try {
-            dc.prepareAppTransition(TRANSIT_KEYGUARD_GOING_AWAY, 0 /* transitFlags */);
             // We are deprecating TRANSIT_KEYGUARD_GOING_AWAY for Shell transition and use
             // TRANSIT_FLAG_KEYGUARD_GOING_AWAY to indicate that it should animate keyguard going
             // away.
@@ -529,14 +537,6 @@ class KeyguardController {
         mWindowManager.dismissKeyguard(null /* callback */, null /* message */);
         final KeyguardDisplayState state = getDisplayState(displayId);
         state.mDismissalRequested = true;
-
-        // If we are about to unocclude the Keyguard, but we can dismiss it without security,
-        // we immediately dismiss the Keyguard so the activity gets shown without a flicker.
-        final DisplayContent dc = mRootWindowContainer.getDefaultDisplay();
-        if (state.mKeyguardShowing && canDismissKeyguard()
-                && dc.mAppTransition.containsTransitRequest(TRANSIT_KEYGUARD_UNOCCLUDE)) {
-            mWindowManager.executeAppTransition();
-        }
     }
 
     ActivityRecord getTopOccludingActivity(int displayId) {

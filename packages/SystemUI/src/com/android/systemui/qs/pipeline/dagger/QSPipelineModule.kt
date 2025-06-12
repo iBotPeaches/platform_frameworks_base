@@ -35,8 +35,8 @@ import com.android.systemui.qs.pipeline.domain.interactor.CurrentTilesInteractor
 import com.android.systemui.qs.pipeline.domain.interactor.CurrentTilesInteractorImpl
 import com.android.systemui.qs.pipeline.domain.startable.QSPipelineCoreStartable
 import com.android.systemui.qs.pipeline.shared.logging.QSPipelineLogger
-import com.android.systemui.qs.tiles.base.interactor.DisabledByPolicyInteractor
-import com.android.systemui.qs.tiles.base.interactor.DisabledByPolicyInteractorImpl
+import com.android.systemui.qs.tiles.base.domain.interactor.DisabledByPolicyInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.DisabledByPolicyInteractorImpl
 import dagger.Binds
 import dagger.Module
 import dagger.Provides

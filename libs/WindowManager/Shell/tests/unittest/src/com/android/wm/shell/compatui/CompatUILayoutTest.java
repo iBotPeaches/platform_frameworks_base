@@ -26,8 +26,6 @@ import android.app.ActivityManager;
 import android.app.TaskInfo;
 import android.graphics.Rect;
 import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.testing.AndroidTestingRunner;
 import android.util.Pair;
 import android.view.LayoutInflater;
@@ -49,7 +47,6 @@ import com.android.wm.shell.compatui.api.CompatUIEvent;
 import junit.framework.Assert;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -69,10 +66,6 @@ import java.util.function.Consumer;
 public class CompatUILayoutTest extends ShellTestCase {
 
     private static final int TASK_ID = 1;
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule =
-            DeviceFlagsValueProvider.createCheckFlagsRule();
 
     @Mock private SyncTransactionQueue mSyncTransactionQueue;
     @Mock private Consumer<CompatUIEvent> mCallback;

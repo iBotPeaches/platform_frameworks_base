@@ -541,24 +541,30 @@ public class WindowOnBackInvokedDispatcherTest {
             throws RemoteException, InterruptedException {
         // Setup a callback that unregisters itself after the gesture is finished but before the
         // progress is animated back to 0f
-        final AtomicBoolean unregisterOnProgressUpdate = new AtomicBoolean(false);
+        final AtomicBoolean unregisterOnNextCallbackInvocation = new AtomicBoolean(false);
         final AtomicInteger onBackInvokedCalled = new AtomicInteger(0);
         final CountDownLatch onBackCancelledCalled = new CountDownLatch(1);
         OnBackAnimationCallback onBackAnimationCallback = new OnBackAnimationCallback() {
             @Override
             public void onBackProgressed(@NonNull BackEvent backEvent) {
-                if (unregisterOnProgressUpdate.get()) {
+                if (unregisterOnNextCallbackInvocation.getAndSet(false)) {
                     mDispatcher.unregisterOnBackInvokedCallback(this);
                 }
             }
 
             @Override
             public void onBackInvoked() {
+                if (unregisterOnNextCallbackInvocation.getAndSet(false)) {
+                    mDispatcher.unregisterOnBackInvokedCallback(this);
+                }
                 onBackInvokedCalled.getAndIncrement();
             }
 
             @Override
             public void onBackCancelled() {
+                if (unregisterOnNextCallbackInvocation.getAndSet(false)) {
+                    mDispatcher.unregisterOnBackInvokedCallback(this);
+                }
                 onBackCancelledCalled.countDown();
             }
         };
@@ -572,7 +578,7 @@ public class WindowOnBackInvokedDispatcherTest {
 
         // simulate back gesture finished and onBackCancelled() called, which starts the progress
         // animation back to 0f. On the first progress emission, the callback will unregister itself
-        unregisterOnProgressUpdate.set(true);
+        unregisterOnNextCallbackInvocation.set(true);
         callbackInfo.getCallback().onBackCancelled();
         waitForIdle();
         onBackCancelledCalled.await(1000, TimeUnit.MILLISECONDS);

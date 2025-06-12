@@ -40,7 +40,6 @@ import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.internal.R;
-import com.android.settingslib.devicestate.DeviceStateRotationLockSettingsManager.SettableDeviceState;
 
 import com.google.common.truth.Expect;
 
@@ -152,8 +151,8 @@ public class DeviceStateRotationLockSettingsManagerTest {
                 new String[]{"2:1", "1:0:1", "0:2"});
 
         List<SettableDeviceState> settableDeviceStates =
-                DeviceStateRotationLockSettingsManager.getInstance(
-                        mMockContext).getSettableDeviceStates();
+                new DeviceStateRotationLockSettingsManager(mMockContext,
+                        mFakeSecureSettings).getSettableDeviceStates();
 
         assertThat(settableDeviceStates).containsExactly(
                 new SettableDeviceState(/* deviceState= */ 2, /* isSettable= */ true),

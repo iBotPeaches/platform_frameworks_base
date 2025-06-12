@@ -27,8 +27,6 @@ namespace renderthread {
 static bool gHasRenderThreadInstance = false;
 static JVMAttachHook gOnStartHook = nullptr;
 
-ASurfaceControlFunctions::ASurfaceControlFunctions() {}
-
 bool RenderThread::hasInstance() {
     return gHasRenderThreadInstance;
 }

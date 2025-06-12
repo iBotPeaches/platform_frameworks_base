@@ -17,8 +17,8 @@
 package com.android.systemui.qs.tiles.impl.screenrecord.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.screenrecord.data.model.ScreenRecordModel
 import com.android.systemui.screenrecord.data.repository.ScreenRecordRepository
 import javax.inject.Inject
@@ -28,13 +28,12 @@ import kotlinx.coroutines.flow.flowOf
 /** Observes screen record state changes providing the [ScreenRecordModel]. */
 class ScreenRecordTileDataInteractor
 @Inject
-constructor(
-    private val screenRecordRepository: ScreenRecordRepository,
-) : QSTileDataInteractor<ScreenRecordModel> {
+constructor(private val screenRecordRepository: ScreenRecordRepository) :
+    QSTileDataInteractor<ScreenRecordModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<ScreenRecordModel> = screenRecordRepository.screenRecordState
 
     override fun availability(user: UserHandle): Flow<Boolean> = flowOf(true)

@@ -594,7 +594,7 @@ public final class PictureInPictureParams implements Parcelable {
      * @see PictureInPictureParams.Builder#setSeamlessResizeEnabled(boolean)
      */
     public boolean isSeamlessResizeEnabled() {
-        return mSeamlessResizeEnabled == null ? true : mSeamlessResizeEnabled;
+        return mSeamlessResizeEnabled == null ? false : mSeamlessResizeEnabled;
     }
 
     /**

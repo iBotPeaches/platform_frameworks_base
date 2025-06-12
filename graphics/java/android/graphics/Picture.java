@@ -33,6 +33,7 @@ import java.io.OutputStream;
  * <p class="note"><strong>Note:</strong> Prior to API level 23 a picture cannot
  * be replayed on a hardware accelerated canvas.</p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Picture {
     private PictureCanvas mRecordingCanvas;
     // TODO: Figure out if this was a false-positive

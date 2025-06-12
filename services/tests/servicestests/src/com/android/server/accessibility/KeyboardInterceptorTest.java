@@ -21,8 +21,8 @@ import static junit.framework.Assert.assertTrue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -94,7 +94,7 @@ public class KeyboardInterceptorTest {
         when(mMockPolicy.interceptKeyBeforeDispatching((IBinder) argThat(nullValue()),
                 argThat(matchesKeyEvent(event)), eq(0))).thenReturn(-1L);
         mInterceptor.onKeyEvent(event, 0);
-        verify(mMockAms, times(0)).notifyKeyEvent(anyObject(), anyInt());
+        verify(mMockAms, times(0)).notifyKeyEvent(any(), anyInt());
         assertFalse(mHandler.hasMessages());
     }
 
@@ -106,7 +106,7 @@ public class KeyboardInterceptorTest {
         mInterceptor.onKeyEvent(event, 0);
 
         assertTrue(mHandler.hasMessages());
-        verify(mMockAms, times(0)).notifyKeyEvent(anyObject(), anyInt());
+        verify(mMockAms, times(0)).notifyKeyEvent(any(), anyInt());
 
         when(mMockPolicy.interceptKeyBeforeDispatching((IBinder) argThat(nullValue()),
                 argThat(matchesKeyEvent(event)), eq(0))).thenReturn(0L);
@@ -123,13 +123,13 @@ public class KeyboardInterceptorTest {
         mInterceptor.onKeyEvent(event, 0);
 
         assertTrue(mHandler.hasMessages());
-        verify(mMockAms, times(0)).notifyKeyEvent(anyObject(), anyInt());
+        verify(mMockAms, times(0)).notifyKeyEvent(any(), anyInt());
 
         when(mMockPolicy.interceptKeyBeforeDispatching((IBinder) argThat(nullValue()),
                 argThat(matchesKeyEvent(event)), eq(0))).thenReturn(-1L);
         mHandler.sendAllMessages();
 
-        verify(mMockAms, times(0)).notifyKeyEvent(anyObject(), anyInt());
+        verify(mMockAms, times(0)).notifyKeyEvent(any(), anyInt());
     }
 
     @Test

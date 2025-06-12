@@ -51,6 +51,7 @@ android_test {
 
     data: [
         ":DisplayManagerTestApp",
+        ":TopologyTestApp",
     ],
 
     certificate: "platform",

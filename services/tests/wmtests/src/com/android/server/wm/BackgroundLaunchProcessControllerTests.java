@@ -74,14 +74,14 @@ public class BackgroundLaunchProcessControllerTests {
 
     BackgroundActivityStartCallback mCallback = new BackgroundActivityStartCallback() {
         @Override
-        public boolean isActivityStartAllowed(Collection<IBinder> tokens, int uid,
-                String packageName) {
+        public BackgroundActivityStartCallbackResult isActivityStartAllowed(
+                Collection<IBinder> tokens, int uid, String packageName) {
             for (IBinder token : tokens) {
                 if (token == null || mActivityStartAllowed.contains(token)) {
-                    return true;
+                    return new BackgroundActivityStartCallbackResult(true, token);
                 }
             }
-            return false;
+            return RESULT_FALSE;
         }
 
         @Override

@@ -39,6 +39,21 @@ class PhoneCallPowerStatsProcessor extends PowerStatsProcessor {
         mTmpDeviceStats = new long[mDescriptor.statsArrayLength];
     }
 
+    private boolean unpackMobileRadioStatsDescriptor(PowerStats.Descriptor descriptor) {
+        if (descriptor == null) {
+            return false;
+        }
+
+        if (descriptor.equals(mMobileRadioStatsDescriptor)) {
+            return true;
+        }
+
+        mMobileRadioStatsDescriptor = descriptor;
+        mMobileRadioStatsLayout = new MobileRadioPowerStatsLayout(mMobileRadioStatsDescriptor);
+        mTmpMobileRadioDeviceStats = new long[mMobileRadioStatsDescriptor.statsArrayLength];
+        return true;
+    }
+
     @Override
     void finish(PowerComponentAggregatedPowerStats stats, long timestampMs) {
         stats.setPowerStatsDescriptor(mDescriptor);
@@ -50,16 +65,8 @@ class PhoneCallPowerStatsProcessor extends PowerStatsProcessor {
             return;
         }
 
-        if (mMobileRadioStatsDescriptor == null) {
-            mMobileRadioStatsDescriptor = mobileRadioStats.getPowerStatsDescriptor();
-            if (mMobileRadioStatsDescriptor == null) {
-                return;
-            }
-
-            mMobileRadioStatsLayout =
-                    new MobileRadioPowerStatsLayout(
-                            mMobileRadioStatsDescriptor);
-            mTmpMobileRadioDeviceStats = new long[mMobileRadioStatsDescriptor.statsArrayLength];
+        if (!unpackMobileRadioStatsDescriptor(mobileRadioStats.getPowerStatsDescriptor())) {
+            return;
         }
 
         MultiStateStats.States[] deviceStateConfig =
@@ -69,12 +76,15 @@ class PhoneCallPowerStatsProcessor extends PowerStatsProcessor {
         // processor. All that remains to be done is copy the estimates over.
         MultiStateStats.States.forEachTrackedStateCombination(deviceStateConfig,
                 states -> {
-                    mobileRadioStats.getDeviceStats(mTmpMobileRadioDeviceStats, states);
-                    double callPowerEstimate =
-                            mMobileRadioStatsLayout.getDeviceCallPowerEstimate(
-                                    mTmpMobileRadioDeviceStats);
-                    mStatsLayout.setDevicePowerEstimate(mTmpDeviceStats, callPowerEstimate);
-                    stats.setDeviceStats(states, mTmpDeviceStats);
+                    if (!mobileRadioStats.getDeviceStats(mTmpMobileRadioDeviceStats, states)) {
+                        return;
+                    }
+                    double callPowerEstimate = mMobileRadioStatsLayout.getDeviceCallPowerEstimate(
+                            mTmpMobileRadioDeviceStats);
+                    if (callPowerEstimate != 0) {
+                        mStatsLayout.setDevicePowerEstimate(mTmpDeviceStats, callPowerEstimate);
+                        stats.setDeviceStats(states, mTmpDeviceStats);
+                    }
                 });
     }
 }

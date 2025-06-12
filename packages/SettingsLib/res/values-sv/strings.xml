@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktiv (endast vänster)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktiv (endast höger)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktiv (vänster och höger)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Det gick inte att uppdatera omgivningsläget"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktiv (endast media). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktiv (endast media). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Gästenhet. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Gästenhet. V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Gästenhet (endast media). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Gästenhet (endast media). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Ansluten (ljuddelning stöds). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Ansluten (ljuddelning stöds). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Ansluten (ljuddelning stöds). Vänster: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Ansluten (ljuddelning stöds). Höger: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Ansluten (ljuddelning stöds)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Gästenhet (ljuddelning stöds). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Gästenhet (ljuddelning stöds). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Gästenhet (ljuddelning stöds)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktiv (endast media)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Gästenhet"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Gästenhet (endast media)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Ljuddelning stöds"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Gästenhet. Ljuddelning stöds"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktiv (endast media), endast vänster"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktiv (endast media), endast höger"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktiv (endast media), vänster och höger"</string>
@@ -287,9 +298,9 @@
     <string name="oem_unlock_enable_summary" msgid="5857388174390953829">"Tillåt att bootloadern låses upp"</string>
     <string name="confirm_enable_oem_unlock_title" msgid="8249318129774367535">"Vill du tillåta OEM-upplåsning?"</string>
     <string name="confirm_enable_oem_unlock_text" msgid="854131050791011970">"Varning! Funktionerna för enhetsskydd fungerar inte på enheten när den här inställningen är aktiverad."</string>
-    <string name="mock_location_app" msgid="6269380172542248304">"Välj app för påhittad plats"</string>
-    <string name="mock_location_app_not_set" msgid="6972032787262831155">"Ingen app för påhittad plats har angetts"</string>
-    <string name="mock_location_app_set" msgid="4706722469342913843">"App för påhittad plats: <xliff:g id="APP_NAME">%1$s</xliff:g>"</string>
+    <string name="mock_location_app" msgid="6269380172542248304">"Välj app för simulerad plats"</string>
+    <string name="mock_location_app_not_set" msgid="6972032787262831155">"Ingen app för simulerad plats har angetts"</string>
+    <string name="mock_location_app_set" msgid="4706722469342913843">"App för simulerad plats: <xliff:g id="APP_NAME">%1$s</xliff:g>"</string>
     <string name="debug_networking_category" msgid="6829757985772659599">"Nätverk"</string>
     <string name="wifi_display_certification" msgid="1805579519992520381">"Certifiering för wifi-skärmdelning"</string>
     <string name="wifi_verbose_logging" msgid="1785910450009679371">"Aktivera utförlig loggning för wifi"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Hårdvaruaccelererad rendering"</string>
     <string name="media_category" msgid="8122076702526144053">"Media"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Övervakning"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Fönsterhantering"</string>
     <string name="strict_mode" msgid="889864762140862437">"Strikt läge aktiverat"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Tänd skärm när app gör omfattande åtgärd på huvudtråd"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Pekarens plats"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Skala – övergångsanimering"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Längdskala för Animator"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simulera sekundär skärm"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Panelens placering på skärmen"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Appar"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Behåll inte aktiviteter"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Förstör aktiviteter så fort användaren lämnar dem"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView-implementering"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Ange WebView-implementering"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Det här alternativet är inte längre giltigt. Försök igen."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Verktyg för programmerare för WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView-paketet hittades inte."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Verktyg för programmerare kunde inte startas."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Färgläge för bilder"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Använd sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Inaktiverad"</string>
@@ -504,7 +520,7 @@
     <string name="power_charging_future_paused" msgid="1809543660923642799">"<xliff:g id="LEVEL">%1$s</xliff:g> – laddas"</string>
     <string name="power_fast_charging_duration_v2" msgid="3797735998640359490">"<xliff:g id="LEVEL">%1$s</xliff:g> – <xliff:g id="STATUS">%2$s</xliff:g> – fulladdad till <xliff:g id="TIME">%3$s</xliff:g>"</string>
     <string name="power_charging_duration_v2" msgid="2938998284074003248">"<xliff:g id="LEVEL">%1$s</xliff:g> – fulladdad till <xliff:g id="TIME">%2$s</xliff:g>"</string>
-    <string name="power_remaining_charging_duration_only_v2" msgid="5358176435722950193">"Fulladdad till <xliff:g id="TIME">%1$s</xliff:g>"</string>
+    <string name="power_remaining_charging_duration_only_v2" msgid="5358176435722950193">"Fulladdad kl. <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="power_remaining_fast_charging_duration_only_v2" msgid="6270950195810579563">"Fulladdad till <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="battery_info_status_unknown" msgid="268625384868401114">"Okänd"</string>
     <string name="battery_info_status_charging" msgid="4279958015430387405">"Laddar"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Snabbladdning"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Strys av administratören"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Styrs av spärrad inställning"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Ej tillgänglig under samtal"</string>
     <string name="disabled" msgid="8017887509554714950">"Inaktiverad"</string>
+    <string name="enabled" msgid="3997122818554810678">"Aktiverat"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Tillåts"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Tillåts inte"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Installera okända appar"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Inbyggd högtalare"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Tv-ljud"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Det gick inte att ansluta. Stäng av enheten och slå på den igen"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Det går inte att ansluta"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Ljudenhet med kabelanslutning"</string>
     <string name="help_label" msgid="3528360748637781274">"Hjälp och feedback"</string>
     <string name="storage_category" msgid="2287342585424631813">"Lagring"</string>

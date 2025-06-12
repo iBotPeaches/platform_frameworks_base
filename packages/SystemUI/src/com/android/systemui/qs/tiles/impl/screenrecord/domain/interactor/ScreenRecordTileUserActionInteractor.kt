@@ -28,9 +28,9 @@ import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.mediaprojection.MediaProjectionMetricsLogger
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.qs.pipeline.domain.interactor.PanelInteractor
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.screenrecord.RecordingController
 import com.android.systemui.screenrecord.data.model.ScreenRecordModel
 import com.android.systemui.screenrecord.data.repository.ScreenRecordRepository

@@ -37,8 +37,8 @@ key 0 {
 key 1 {
     label:                              '1'
     base:                               '1'
-    shift:                              '!'
-    ralt:                               '\u0303'
+    shift:                              '\''
+    ralt:                               '\u007e'
 }
 
 key 2 {
@@ -80,7 +80,7 @@ key 7 {
     label:                              '7'
     base:                               '7'
     shift:                              '='
-    ralt:                               '\u0300'
+    ralt:                               '`'
 }
 
 key 8 {
@@ -374,6 +374,7 @@ key M {
     base:                               'm'
     shift, capslock:                    'M'
     shift+capslock:                     'm'
+    ralt:                               '<'
 }
 
 key COMMA {
@@ -387,6 +388,7 @@ key PERIOD {
     label:                              '.'
     base:                               '.'
     shift:                              ':'
+    ralt:                               '>'
 }
 
 key MINUS {

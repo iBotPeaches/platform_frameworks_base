@@ -24,7 +24,7 @@ import android.os.Bundle;
 interface IScanSession {
     // Start a service scan.
     int startScan(int broadcastType, String countryCode, String operator, in int[] frequency,
-        String scanType, String languageCode);
+        String scanType, String languageCode, in Bundle optionalScanParams);
     // Reset the scan information held in TIS.
     int resetScan();
     // Cancel scan.

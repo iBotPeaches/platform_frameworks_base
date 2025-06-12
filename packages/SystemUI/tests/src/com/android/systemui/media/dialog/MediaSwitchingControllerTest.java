@@ -39,7 +39,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.media.AudioDeviceAttributes;
@@ -61,13 +60,13 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.FlagsParameterization;
 import android.service.notification.StatusBarNotification;
 import android.testing.TestableLooper;
 import android.text.TextUtils;
 import android.view.View;
 
 import androidx.core.graphics.drawable.IconCompat;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.media.flags.Flags;
@@ -102,14 +101,18 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4;
+import platform.test.runner.parameterized.Parameters;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @SmallTest
-@RunWith(AndroidJUnit4.class)
+@RunWith(ParameterizedAndroidJunit4.class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 public class MediaSwitchingControllerTest extends SysuiTestCase {
     private static final String TEST_DEVICE_1_ID = "test_device_1_id";
@@ -149,8 +152,10 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
     private MediaDevice mMediaDevice1;
     @Mock
     private MediaDevice mMediaDevice2;
-    @Mock
-    private NearbyDevice mNearbyDevice1;
+    @Mock private MediaDevice mMediaDevice3;
+    @Mock private MediaDevice mMediaDevice4;
+    @Mock private MediaDevice mMediaDevice5;
+    @Mock private NearbyDevice mNearbyDevice1;
     @Mock
     private NearbyDevice mNearbyDevice2;
     @Mock
@@ -201,6 +206,17 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
     private List<NearbyDevice> mNearbyDevices = new ArrayList<>();
     private MediaDescription mMediaDescription;
     private List<RoutingSessionInfo> mRoutingSessionInfos = new ArrayList<>();
+
+    @Parameters(name = "{0}")
+    public static List<FlagsParameterization> getParams() {
+        return FlagsParameterization.allCombinationsOf(
+                Flags.FLAG_FIX_OUTPUT_MEDIA_ITEM_LIST_INDEX_OUT_OF_BOUNDS_EXCEPTION,
+                Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING);
+    }
+
+    public MediaSwitchingControllerTest(FlagsParameterization flags) {
+        mSetFlagsRule.setFlagsParameterization(flags);
+    }
 
     @Before
     public void setUp() {
@@ -260,7 +276,6 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
         when(mMediaDevice2.getId()).thenReturn(TEST_DEVICE_2_ID);
         mMediaDevices.add(mMediaDevice1);
         mMediaDevices.add(mMediaDevice2);
-
 
         when(mNearbyDevice1.getMediaRoute2Id()).thenReturn(TEST_DEVICE_1_ID);
         when(mNearbyDevice1.getRangeZone()).thenReturn(NearbyDevice.RANGE_FAR);
@@ -690,7 +705,7 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
 
         mMediaSwitchingController.start(mCb);
         reset(mCb);
-        mMediaSwitchingController.getMediaItemList().clear();
+        mMediaSwitchingController.clearMediaItemList();
         mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
         final List<MediaDevice> devices = new ArrayList<>();
         int dividerSize = 0;
@@ -889,6 +904,13 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
 
         testMediaSwitchingController.removeDeviceFromPlayMedia(mMediaDevice2);
         verify(mockLocalMediaManager).removeDeviceFromPlayMedia(mMediaDevice2);
+    }
+
+    @Test
+    public void getTransferableMediaDevice_triggersFromLocalMediaManager() {
+        mMediaSwitchingController.getTransferableMediaDevices();
+
+        verify(mLocalMediaManager).getTransferableMediaDevices();
     }
 
     @Test
@@ -1286,13 +1308,6 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
     }
 
     @Test
-    public void setColorFilter_setColorFilterToDrawable() {
-        mMediaSwitchingController.setColorFilter(mDrawable, true);
-
-        verify(mDrawable).setColorFilter(any(PorterDuffColorFilter.class));
-    }
-
-    @Test
     public void resetGroupMediaDevices_clearGroupDevices() {
         final MediaDevice selectedMediaDevice1 = mock(MediaDevice.class);
         final MediaDevice selectedMediaDevice2 = mock(MediaDevice.class);
@@ -1468,6 +1483,44 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
         verify(mLocalMediaManager, atLeastOnce()).connectDevice(outputMediaDevice);
     }
 
+    @Test
+    public void connectDeviceButton_remoteDevice_noButton() {
+        when(mMediaDevice1.getFeatures()).thenReturn(
+                ImmutableList.of(MediaRoute2Info.FEATURE_REMOTE_PLAYBACK));
+        when(mLocalMediaManager.getCurrentConnectedDevice()).thenReturn(mMediaDevice1);
+        mMediaSwitchingController.start(mCb);
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> resultList = mMediaSwitchingController.getMediaItemList();
+
+        assertThat(getNumberOfConnectDeviceButtons(resultList)).isEqualTo(0);
+    }
+
+    @Test
+    public void connectDeviceButton_localDevice_hasButton() {
+        when(mLocalMediaManager.getCurrentConnectedDevice()).thenReturn(mMediaDevice1);
+        mMediaSwitchingController.start(mCb);
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> resultList = mMediaSwitchingController.getMediaItemList();
+
+        assertThat(getNumberOfConnectDeviceButtons(resultList)).isEqualTo(1);
+        assertThat(resultList.get(resultList.size() - 1).getMediaItemType()).isEqualTo(
+                MediaItem.MediaItemType.TYPE_PAIR_NEW_DEVICE);
+    }
+
+    @Test
+    public void connectDeviceButton_localDeviceButtonDisabledByParam_noButton() {
+        when(mLocalMediaManager.getCurrentConnectedDevice()).thenReturn(mMediaDevice1);
+        mMediaSwitchingController.start(mCb);
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> resultList = mMediaSwitchingController.getMediaItemList(
+                false /* addConnectDeviceButton */);
+
+        assertThat(getNumberOfConnectDeviceButtons(resultList)).isEqualTo(0);
+    }
+
     @DisableFlags(Flags.FLAG_ENABLE_AUDIO_INPUT_DEVICE_ROUTING_AND_VOLUME_CONTROL)
     @Test
     public void connectDeviceButton_presentAtAllTimesForNonGroupOutputs() {
@@ -1480,7 +1533,8 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
                 .getSelectedMediaDevice();
 
         // Verify that there is initially one "Connect a device" button present.
-        assertThat(getNumberOfConnectDeviceButtons()).isEqualTo(1);
+        assertThat(getNumberOfConnectDeviceButtons(
+                mMediaSwitchingController.getMediaItemList())).isEqualTo(1);
 
         // Change the selected device, and verify that there is still one "Connect a device" button
         // present.
@@ -1489,7 +1543,8 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
                 .getSelectedMediaDevice();
         mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
 
-        assertThat(getNumberOfConnectDeviceButtons()).isEqualTo(1);
+        assertThat(getNumberOfConnectDeviceButtons(
+                mMediaSwitchingController.getMediaItemList())).isEqualTo(1);
     }
 
     @EnableFlags(Flags.FLAG_ENABLE_AUDIO_INPUT_DEVICE_ROUTING_AND_VOLUME_CONTROL)
@@ -1508,7 +1563,8 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
         doReturn(selectedInputMediaDevice).when(mInputRouteManager).getSelectedInputDevice();
 
         // Verify that there is initially one "Connect a device" button present.
-        assertThat(getNumberOfConnectDeviceButtons()).isEqualTo(1);
+        assertThat(getNumberOfConnectDeviceButtons(
+                mMediaSwitchingController.getMediaItemList())).isEqualTo(1);
 
         // Change the selected device, and verify that there is still one "Connect a device" button
         // present.
@@ -1517,12 +1573,169 @@ public class MediaSwitchingControllerTest extends SysuiTestCase {
                 .getSelectedMediaDevice();
         mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
 
-        assertThat(getNumberOfConnectDeviceButtons()).isEqualTo(1);
+        assertThat(getNumberOfConnectDeviceButtons(
+                mMediaSwitchingController.getMediaItemList())).isEqualTo(1);
     }
 
-    private int getNumberOfConnectDeviceButtons() {
+    @EnableFlags(Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING)
+    @Test
+    public void selectedDevicesAddedInSameOrder() {
+        when(mLocalMediaManager.isPreferenceRouteListingExist()).thenReturn(true);
+        doReturn(mMediaDevices)
+                .when(mLocalMediaManager)
+                .getSelectedMediaDevice();
+        mMediaSwitchingController.start(mCb);
+        reset(mCb);
+        mMediaSwitchingController.clearMediaItemList();
+
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> items = mMediaSwitchingController.getMediaItemList();
+        assertThat(items.get(0).getMediaDevice().get()).isEqualTo(mMediaDevice1);
+        assertThat(items.get(1).getMediaDevice().get()).isEqualTo(mMediaDevice2);
+    }
+
+    @EnableFlags(Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING)
+    @Test
+    public void selectedDevicesAddedInSameOrderWhenRlpDoesNotExist() {
+        setUpSelectedDevicesAndOrdering();
+
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaDevice> devices =
+                mMediaSwitchingController.getMediaItemList().stream()
+                        .filter(item -> item.getMediaDevice().isPresent())
+                        .map(item -> item.getMediaDevice().orElse(null))
+                        .collect(Collectors.toList());
+        assertThat(devices)
+                .containsExactly(
+                        mMediaDevice4,
+                        mMediaDevice3,
+                        mMediaDevice5,
+                        mMediaDevice1,
+                        mMediaDevice2)
+                .inOrder();
+    }
+
+    @DisableFlags(Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING)
+    @Test
+    public void selectedDevicesAddedInSortedOrderWhenRlpDoesNotExist() {
+        setUpSelectedDevicesAndOrdering();
+
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaDevice> devices =
+                mMediaSwitchingController.getMediaItemList().stream()
+                        .filter(item -> item.getMediaDevice().isPresent())
+                        .map(item -> item.getMediaDevice().orElse(null))
+                        .collect(Collectors.toList());
+
+        assertThat(devices)
+                .containsExactly(
+                        mMediaDevice5,
+                        mMediaDevice4,
+                        mMediaDevice3,
+                        mMediaDevice1,
+                        mMediaDevice2)
+                .inOrder();
+    }
+
+    private void setUpSelectedDevicesAndOrdering() {
+        when(mMediaDevice1.getId()).thenReturn(TEST_DEVICE_1_ID);
+        when(mMediaDevice2.getId()).thenReturn(TEST_DEVICE_2_ID);
+        when(mMediaDevice3.getId()).thenReturn(TEST_DEVICE_3_ID);
+        when(mMediaDevice4.getId()).thenReturn(TEST_DEVICE_4_ID);
+        when(mMediaDevice5.getId()).thenReturn(TEST_DEVICE_5_ID);
+        mMediaDevices.clear();
+        Collections.addAll(
+                mMediaDevices,
+                mMediaDevice2,
+                mMediaDevice1,
+                mMediaDevice4,
+                mMediaDevice3,
+                mMediaDevice5);
+        List<MediaDevice> selectedMediaDevices = new ArrayList<>();
+        Collections.addAll(selectedMediaDevices, mMediaDevice3, mMediaDevice4, mMediaDevice5);
+        doReturn(selectedMediaDevices).when(mLocalMediaManager).getSelectedMediaDevice();
+        // Sort the media devices in the order they appear in the deviceOrder list
+        List<MediaDevice> deviceOrder = new ArrayList<>();
+        Collections.addAll(
+                deviceOrder,
+                mMediaDevice1,
+                mMediaDevice2,
+                mMediaDevice3,
+                mMediaDevice4,
+                mMediaDevice5);
+        for (int i = 0; i < deviceOrder.size(); i++) {
+            for (int j = i + 1; j < deviceOrder.size(); j++) {
+                when(deviceOrder.get(i).compareTo(deviceOrder.get(j))).thenReturn(-1);
+                when(deviceOrder.get(j).compareTo(deviceOrder.get(i))).thenReturn(1);
+            }
+        }
+        when(mLocalMediaManager.isPreferenceRouteListingExist()).thenReturn(false);
+        mMediaSwitchingController.start(mCb);
+        reset(mCb);
+        mMediaSwitchingController.clearMediaItemList();
+    }
+
+    @DisableFlags(Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING)
+    @Test
+    public void selectedDevicesAddedInReverseOrder() {
+        when(mLocalMediaManager.isPreferenceRouteListingExist()).thenReturn(true);
+        doReturn(mMediaDevices)
+                .when(mLocalMediaManager)
+                .getSelectedMediaDevice();
+        mMediaSwitchingController.start(mCb);
+        reset(mCb);
+        mMediaSwitchingController.clearMediaItemList();
+
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> items = mMediaSwitchingController.getMediaItemList();
+        assertThat(items.get(0).getMediaDevice().get()).isEqualTo(mMediaDevice2);
+        assertThat(items.get(1).getMediaDevice().get()).isEqualTo(mMediaDevice1);
+    }
+
+    @EnableFlags(Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING)
+    @Test
+    public void firstSelectedDeviceIsFirstDeviceInGroupIsTrue() {
+        when(mLocalMediaManager.isPreferenceRouteListingExist()).thenReturn(true);
+        doReturn(mMediaDevices)
+                .when(mLocalMediaManager)
+                .getSelectedMediaDevice();
+        mMediaSwitchingController.start(mCb);
+        reset(mCb);
+        mMediaSwitchingController.clearMediaItemList();
+
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> items = mMediaSwitchingController.getMediaItemList();
+        assertThat(items.get(0).isFirstDeviceInGroup()).isTrue();
+        assertThat(items.get(1).isFirstDeviceInGroup()).isFalse();
+    }
+
+    @EnableFlags(Flags.FLAG_ENABLE_OUTPUT_SWITCHER_DEVICE_GROUPING)
+    @Test
+    public void deviceListUpdateWithDifferentDevices_firstSelectedDeviceIsFirstDeviceInGroup() {
+        when(mLocalMediaManager.isPreferenceRouteListingExist()).thenReturn(true);
+        doReturn(mMediaDevices)
+                .when(mLocalMediaManager)
+                .getSelectedMediaDevice();
+        mMediaSwitchingController.start(mCb);
+        reset(mCb);
+        mMediaSwitchingController.clearMediaItemList();
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+        mMediaDevices.clear();
+        mMediaDevices.add(mMediaDevice2);
+        mMediaSwitchingController.onDeviceListUpdate(mMediaDevices);
+
+        List<MediaItem> items = mMediaSwitchingController.getMediaItemList();
+        assertThat(items.get(0).isFirstDeviceInGroup()).isTrue();
+    }
+
+    private int getNumberOfConnectDeviceButtons(List<MediaItem> itemList) {
         int numberOfConnectDeviceButtons = 0;
-        for (MediaItem item : mMediaSwitchingController.getMediaItemList()) {
+        for (MediaItem item : itemList) {
             if (item.getMediaItemType() == MediaItem.MediaItemType.TYPE_PAIR_NEW_DEVICE) {
                 numberOfConnectDeviceButtons++;
             }

@@ -20,7 +20,6 @@ import android.content.Context
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.view.WindowManager
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.keyboard.docking.ui.KeyboardDockingIndicationView
@@ -38,7 +37,7 @@ constructor(
     context: Context,
     @Application private val applicationScope: CoroutineScope,
     private val viewModel: KeyboardDockingIndicationViewModel,
-    private val windowManager: ViewCaptureAwareWindowManager,
+    private val windowManager: WindowManager
 ) {
 
     private val windowLayoutParams =

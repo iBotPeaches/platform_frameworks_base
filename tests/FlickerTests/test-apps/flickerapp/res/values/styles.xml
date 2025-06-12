@@ -36,10 +36,6 @@
         <item name="android:windowLayoutInDisplayCutoutMode">default</item>
     </style>
 
-    <style name="CutoutShortEdges" parent="@style/DefaultTheme">
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-    </style>
-
     <style name="CutoutNever" parent="@style/DefaultTheme">
         <item name="android:windowLayoutInDisplayCutoutMode">never</item>
     </style>

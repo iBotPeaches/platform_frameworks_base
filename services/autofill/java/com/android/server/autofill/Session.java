@@ -41,6 +41,7 @@ import static android.service.autofill.FillRequest.FLAG_VIEW_REQUESTS_CREDMAN_SE
 import static android.service.autofill.FillRequest.INVALID_REQUEST_ID;
 import static android.service.autofill.Flags.highlightAutofillSingleField;
 import static android.service.autofill.Flags.improveFillDialogAconfig;
+import static android.service.autofill.Flags.metricsFixes;
 import static android.view.autofill.AutofillManager.ACTION_RESPONSE_EXPIRED;
 import static android.view.autofill.AutofillManager.ACTION_START_SESSION;
 import static android.view.autofill.AutofillManager.ACTION_VALUE_CHANGED;
@@ -63,6 +64,7 @@ import static com.android.server.autofill.FillResponseEventLogger.DETECTION_PREF
 import static com.android.server.autofill.FillResponseEventLogger.DETECTION_PREFER_PCC;
 import static com.android.server.autofill.FillResponseEventLogger.DETECTION_PREFER_UNKNOWN;
 import static com.android.server.autofill.FillResponseEventLogger.HAVE_SAVE_TRIGGER_ID;
+import static com.android.server.autofill.FillResponseEventLogger.RESPONSE_STATUS_CANCELLED;
 import static com.android.server.autofill.FillResponseEventLogger.RESPONSE_STATUS_FAILURE;
 import static com.android.server.autofill.FillResponseEventLogger.RESPONSE_STATUS_SESSION_DESTROYED;
 import static com.android.server.autofill.FillResponseEventLogger.RESPONSE_STATUS_SUCCESS;
@@ -79,6 +81,13 @@ import static com.android.server.autofill.PresentationStatsEventLogger.AUTHENTIC
 import static com.android.server.autofill.PresentationStatsEventLogger.AUTHENTICATION_RESULT_SUCCESS;
 import static com.android.server.autofill.PresentationStatsEventLogger.AUTHENTICATION_TYPE_DATASET_AUTHENTICATION;
 import static com.android.server.autofill.PresentationStatsEventLogger.AUTHENTICATION_TYPE_FULL_AUTHENTICATION;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_DELAY_AFTER_ANIMATION_END;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_FILL_DIALOG_DISABLED;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_LAST_TRIGGERED_ID_CHANGED;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_SCREEN_HAS_CREDMAN_FIELD;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_SINCE_IME_ANIMATED;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_UNKNOWN;
+import static com.android.server.autofill.PresentationStatsEventLogger.FILL_DIALOG_NOT_SHOWN_REASON_WAIT_FOR_IME_ANIMATION;
 import static com.android.server.autofill.PresentationStatsEventLogger.NOT_SHOWN_REASON_ANY_SHOWN;
 import static com.android.server.autofill.PresentationStatsEventLogger.NOT_SHOWN_REASON_NO_FOCUS;
 import static com.android.server.autofill.PresentationStatsEventLogger.NOT_SHOWN_REASON_REQUEST_FAILED;
@@ -439,6 +448,9 @@ final class Session
      */
     @GuardedBy("mLock")
     private Bundle mClientState;
+
+    @GuardedBy("mLock")
+    private Bundle mClientStateForSecondary;
 
     @GuardedBy("mLock")
     boolean mDestroyed;
@@ -979,13 +991,19 @@ final class Session
                         mergePreviousSessionLocked(/* forSave= */ false);
                 final List<String> hints = getTypeHintsForProvider();
 
+                Bundle sendBackClientState = mClientState;
+                if (Flags.multipleFillHistory()
+                        && mRequestId.isSecondaryProvider(requestId)) {
+                    sendBackClientState = mClientStateForSecondary;
+                }
+
                 mDelayedFillPendingIntent = createPendingIntent(requestId);
                 request =
                         new FillRequest(
                                 requestId,
                                 contexts,
                                 hints,
-                                mClientState,
+                                sendBackClientState,
                                 flags,
                                 /* inlineSuggestionsRequest= */ null,
                                 /* delayedFillIntentSender= */ mDelayedFillPendingIntent == null
@@ -1406,6 +1424,15 @@ final class Session
 
         // Remove the FillContext as there will never be a response for the service
         if (canceledRequest != INVALID_REQUEST_ID && mContexts != null) {
+            // Start a new FillResponse logger for the cancellation case.
+            mFillResponseEventLogger.startLogForNewResponse();
+            mFillResponseEventLogger.maybeSetRequestId(canceledRequest);
+            mFillResponseEventLogger.maybeSetAppPackageUid(uid);
+            mFillResponseEventLogger.maybeSetResponseStatus(RESPONSE_STATUS_CANCELLED);
+            mFillResponseEventLogger.maybeSetLatencyFillResponseReceivedMillis(
+                    (int) (SystemClock.elapsedRealtime() - mLatencyBaseTime));
+            mFillResponseEventLogger.logAndEndEvent();
+
             final int numContexts = mContexts.size();
 
             // It is most likely the last context, hence search backwards
@@ -1961,7 +1988,7 @@ final class Session
 
             if (mLogViewEntered) {
                 mLogViewEntered = false;
-                mService.logViewEntered(id, null, mCurrentViewId);
+                mService.logViewEntered(id, null, mCurrentViewId, shouldAddEventToHistory());
             }
         }
 
@@ -2865,7 +2892,12 @@ final class Session
                 forceRemoveFromServiceLocked();
                 return;
             }
-            mService.setAuthenticationSelected(id, mClientState, uiType, mCurrentViewId);
+            mService.setAuthenticationSelected(
+                    id,
+                    mClientState,
+                    uiType,
+                    mCurrentViewId,
+                    shouldAddEventToHistory());
         }
 
 
@@ -2940,7 +2972,12 @@ final class Session
                 if (!mLoggedInlineDatasetShown) {
                     // Chip inflation already logged, do not log again.
                     // This is needed because every chip inflation will call this.
-                    mService.logDatasetShown(this.id, mClientState, uiType, mCurrentViewId);
+                    mService.logDatasetShown(
+                            this.id,
+                            mClientState,
+                            uiType,
+                            mCurrentViewId,
+                            shouldAddEventToHistory());
                     Slog.d(TAG, "onShown(): " + uiType + ", " + numDatasetsShown);
                 }
                 mLoggedInlineDatasetShown = true;
@@ -2948,7 +2985,12 @@ final class Session
                 mPresentationStatsEventLogger.logWhenDatasetShown(numDatasetsShown);
                 // Explicitly sets maybeSetSuggestionPresentedTimestampMs
                 mPresentationStatsEventLogger.maybeSetSuggestionPresentedTimestampMs();
-                mService.logDatasetShown(this.id, mClientState, uiType, mCurrentViewId);
+                mService.logDatasetShown(
+                        this.id,
+                        mClientState,
+                        uiType,
+                        mCurrentViewId,
+                        shouldAddEventToHistory());
                 Slog.d(TAG, "onShown(): " + uiType + ", " + numDatasetsShown);
             }
         }
@@ -3301,7 +3343,7 @@ final class Session
                         AUTHENTICATION_RESULT_SUCCESS);
                 if (newClientState != null) {
                     if (sDebug) Slog.d(TAG, "Updating client state from auth dataset");
-                    mClientState = newClientState;
+                    setClientState(newClientState, requestId);
                 }
                 Dataset datasetFromResult = getEffectiveDatasetForAuthentication((Dataset) result);
                 final Dataset oldDataset = authenticatedResponse.getDatasets().get(datasetIdx);
@@ -3741,8 +3783,13 @@ final class Session
         final FillResponse lastResponse = getLastResponseLocked("logContextCommited(%s)");
         if (lastResponse == null) return;
 
-        mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
-                PresentationStatsEventLogger.getNoPresentationEventReason(commitReason));
+        if (metricsFixes()) {
+            mPresentationStatsEventLogger.maybeSetNoPresentationEventReasonIfNoReasonExists(
+                    PresentationStatsEventLogger.getNoPresentationEventReason(commitReason));
+        } else {
+            mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
+                    PresentationStatsEventLogger.getNoPresentationEventReason(commitReason));
+        }
         mPresentationStatsEventLogger.logAndEndEvent("Context committed");
 
         final int flags = lastResponse.getFlags();
@@ -3937,7 +3984,8 @@ final class Session
                 detectedFieldClassifications,
                 mComponentName,
                 mCompatMode,
-                saveDialogNotShowReason);
+                saveDialogNotShowReason,
+                shouldAddEventToHistory());
         mSessionCommittedEventLogger.maybeSetCommitReason(commitReason);
         mSessionCommittedEventLogger.maybeSetRequestCount(mRequestCount);
         mSaveEventLogger.maybeSetSaveUiNotShownReason(saveDialogNotShowReason);
@@ -4584,7 +4632,7 @@ final class Session
     }
 
     private void logSaveShown() {
-        mService.logSaveShown(id, mClientState);
+        mService.logSaveShown(id, mClientState, shouldAddEventToHistory());
     }
 
     @Nullable
@@ -5125,6 +5173,13 @@ final class Session
                     mPreviouslyFillDialogPotentiallyStarted = false;
                 } else {
                     mPreviouslyFillDialogPotentiallyStarted = true;
+                    if (metricsFixes()) {
+                        // Set the default reason for now if the user doesn't trigger any focus
+                        // event on the autofillable view. This can be changed downstream when
+                        // more information is available or session is committed.
+                        mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
+                                NOT_SHOWN_REASON_NO_FOCUS);
+                    }
                 }
                 Optional<Integer> maybeRequestId =
                         requestNewFillResponseLocked(
@@ -5235,7 +5290,8 @@ final class Session
                         // so this calling logViewEntered will be a nop.
                         // Calling logViewEntered() twice will only log it once
                         // TODO(271181979): this is broken for multiple partitions
-                        mService.logViewEntered(this.id, null, mCurrentViewId);
+                        mService.logViewEntered(
+                                this.id, null, mCurrentViewId, shouldAddEventToHistory());
                     }
 
                     // If this is the first time view is entered for inline, the last
@@ -5291,6 +5347,10 @@ final class Session
                     if (maybeNewRequestId.isPresent()) {
                         mPresentationStatsEventLogger.maybeSetRequestId(maybeNewRequestId.get());
                     }
+                    if (metricsFixes()) {
+                        mPresentationStatsEventLogger
+                                .maybeSetNoPresentationEventReasonSuggestionsFiltered(value);
+                    }
                 }
 
                 logPresentationStatsOnViewEnteredLocked(
@@ -5325,8 +5385,14 @@ final class Session
 
                     // It's not necessary that there's no more presentation for this view. It could
                     // be that the user chose some suggestion, in which case, view exits.
-                    mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
-                            NOT_SHOWN_REASON_VIEW_FOCUS_CHANGED);
+                    if (metricsFixes()) {
+                        mPresentationStatsEventLogger
+                                .maybeSetNoPresentationEventReasonIfNoReasonExists(
+                                        NOT_SHOWN_REASON_VIEW_FOCUS_CHANGED);
+                    } else {
+                        mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
+                                NOT_SHOWN_REASON_VIEW_FOCUS_CHANGED);
+                    }
                 }
                 break;
             default:
@@ -5563,6 +5629,10 @@ final class Session
                 synchronized (mLock) {
                     final ViewState currentView = mViewStates.get(mCurrentViewId);
                     currentView.setState(ViewState.STATE_FILL_DIALOG_SHOWN);
+                    // Set fill_dialog_not_shown_reason to unknown (a.k.a shown). It is needed due
+                    // to possible SHOW_FILL_DIALOG_WAIT.
+                    mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                            FILL_DIALOG_NOT_SHOWN_REASON_UNKNOWN);
                 }
                 // Just show fill dialog once per fill request, so disabled after shown.
                 // Note: Cannot disable before requestShowFillDialog() because the method
@@ -5666,6 +5736,15 @@ final class Session
 
     private boolean isFillDialogUiEnabled() {
         synchronized (mLock) {
+            if (mSessionFlags.mFillDialogDisabled) {
+                mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                        FILL_DIALOG_NOT_SHOWN_REASON_FILL_DIALOG_DISABLED);
+            }
+            if (mSessionFlags.mScreenHasCredmanField) {
+                // Prefer to log "HAS_CREDMAN_FIELD" over "FILL_DIALOG_DISABLED".
+                mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                        FILL_DIALOG_NOT_SHOWN_REASON_SCREEN_HAS_CREDMAN_FIELD);
+            }
             return !mSessionFlags.mFillDialogDisabled && !mSessionFlags.mScreenHasCredmanField;
         }
     }
@@ -5730,6 +5809,8 @@ final class Session
                     || !ArrayUtils.contains(mLastFillDialogTriggerIds, filledId)) {
                 // Last fill dialog triggered ids are changed.
                 if (sDebug) Log.w(TAG, "Last fill dialog triggered ids are changed.");
+                mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                        FILL_DIALOG_NOT_SHOWN_REASON_LAST_TRIGGERED_ID_CHANGED);
                 return SHOW_FILL_DIALOG_NO;
             }
 
@@ -5756,6 +5837,8 @@ final class Session
                     // we need to wait for animation to happen. We can't return from here yet.
                     // This is the situation #2 described above.
                     Log.d(TAG, "Waiting for ime animation to complete before showing fill dialog");
+                    mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                            FILL_DIALOG_NOT_SHOWN_REASON_WAIT_FOR_IME_ANIMATION);
                     mFillDialogRunnable = createFillDialogEvalRunnable(
                             response, filledId, filterText, flags);
                     return SHOW_FILL_DIALOG_WAIT;
@@ -5765,9 +5848,15 @@ final class Session
                 // max of start input time or the ime finish time
                 long effectiveDuration = currentTimestampMs
                         - Math.max(mLastInputStartTime, mImeAnimationFinishTimeMs);
+                mPresentationStatsEventLogger.maybeSetFillDialogReadyToShowMs(
+                        currentTimestampMs);
+                mPresentationStatsEventLogger.maybeSetImeAnimationFinishMs(
+                        Math.max(mLastInputStartTime, mImeAnimationFinishTimeMs));
                 if (effectiveDuration >= mFillDialogTimeoutMs) {
                     Log.d(TAG, "Fill dialog not shown since IME has been up for more time than "
                             + mFillDialogTimeoutMs + "ms");
+                    mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                            FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_SINCE_IME_ANIMATED);
                     return SHOW_FILL_DIALOG_NO;
                 } else if (effectiveDuration < mFillDialogMinWaitAfterImeAnimationMs) {
                     // we need to wait for some time after animation ends
@@ -5775,6 +5864,8 @@ final class Session
                             response, filledId, filterText, flags);
                     mHandler.postDelayed(runnable,
                             mFillDialogMinWaitAfterImeAnimationMs - effectiveDuration);
+                    mPresentationStatsEventLogger.maybeSetFillDialogNotShownReason(
+                            FILL_DIALOG_NOT_SHOWN_REASON_DELAY_AFTER_ANIMATION_END);
                     return SHOW_FILL_DIALOG_WAIT;
                 }
             }
@@ -6660,6 +6751,18 @@ final class Session
     }
 
     @GuardedBy("mLock")
+    private void setClientState(@Nullable Bundle newClientState, int requestId) {
+        if (Flags.multipleFillHistory()
+                && mRequestId.isSecondaryProvider(requestId)) {
+            // Set the secondary clientstate
+            mClientStateForSecondary = newClientState;
+        } else {
+            // The old way - only set the primary provider clientstate
+            mClientState = newClientState;
+        }
+    }
+
+    @GuardedBy("mLock")
     private void processResponseLocked(
             @NonNull FillResponse newResponse, @Nullable Bundle newClientState, int flags) {
         // Make sure we are hiding the UI which will be shown
@@ -6694,7 +6797,9 @@ final class Session
             mResponses = new SparseArray<>(2);
         }
         mResponses.put(requestId, newResponse);
-        mClientState = newClientState != null ? newClientState : newResponse.getClientState();
+
+        setClientState(newClientState != null ? newClientState : newResponse.getClientState(),
+                requestId);
 
         boolean webviewRequestedCredman =
                 newClientState != null
@@ -6840,8 +6945,13 @@ final class Session
             // Autofill it directly...
             if (dataset.getAuthentication() == null) {
                 if (generateEvent) {
-                    mService.logDatasetSelected(dataset.getId(), id, mClientState, uiType,
-                            mCurrentViewId);
+                    mService.logDatasetSelected(
+                            dataset.getId(),
+                            id,
+                            mClientState,
+                            uiType,
+                            mCurrentViewId,
+                            shouldAddEventToHistory());
                 }
                 if (mCurrentViewId != null) {
                     mInlineSessionController.hideInlineSuggestionsUiLocked(mCurrentViewId);
@@ -6852,7 +6962,7 @@ final class Session
 
             // ...or handle authentication.
             mService.logDatasetAuthenticationSelected(dataset.getId(), id, mClientState, uiType,
-                        mCurrentViewId);
+                        mCurrentViewId, shouldAddEventToHistory());
             mPresentationStatsEventLogger.maybeSetAuthenticationType(
                     AUTHENTICATION_TYPE_DATASET_AUTHENTICATION);
             // does not matter the value of isPrimary because null response won't be overridden.
@@ -6935,11 +7045,15 @@ final class Session
     private void startNewEventForPresentationStatsEventLogger() {
         synchronized (mLock) {
             mPresentationStatsEventLogger.startNewEvent();
-            // Set the default reason for now if the user doesn't trigger any focus event
-            // on the autofillable view. This can be changed downstream when more
-            // information is available or session is committed.
-            mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
-                    NOT_SHOWN_REASON_NO_FOCUS);
+            // This is a fill dialog only state, moved to when we set
+            // mPreviouslyFillDialogPotentiallyStarted = true
+            if (!metricsFixes()) {
+                // Set the default reason for now if the user doesn't trigger any focus event
+                // on the autofillable view. This can be changed downstream when more
+                // information is available or session is committed.
+                mPresentationStatsEventLogger.maybeSetNoPresentationEventReason(
+                        NOT_SHOWN_REASON_NO_FOCUS);
+            }
             mPresentationStatsEventLogger.maybeSetDetectionPreference(
                     getDetectionPreferenceForLogging());
             mPresentationStatsEventLogger.maybeSetAutofillServiceUid(getAutofillServiceUid());
@@ -7696,7 +7810,11 @@ final class Session
         if (sVerbose) {
             Slog.v(TAG, "logAllEvents(" + id + "): commitReason: " + val);
         }
-        mSessionCommittedEventLogger.maybeSetCommitReason(val);
+        if (metricsFixes()) {
+            mSessionCommittedEventLogger.maybeSetCommitReasonIfUnset(val);
+        } else {
+            mSessionCommittedEventLogger.maybeSetCommitReason(val);
+        }
         mSessionCommittedEventLogger.maybeSetRequestCount(mRequestCount);
         mSessionCommittedEventLogger.maybeSetSessionDurationMillis(
                 SystemClock.elapsedRealtime() - mStartTime);
@@ -7985,6 +8103,32 @@ final class Session
                         + " i="
                         + isInline;
         mService.getMaster().logRequestLocked(historyItem);
+    }
+
+    /**
+     * Don't add secondary providers to FillEventHistory
+     */
+    boolean shouldAddEventToHistory() {
+
+        FillResponse lastResponse = null;
+
+        synchronized (mLock) {
+            lastResponse = getLastResponseLocked("shouldAddEventToHistory(%s)");
+        }
+
+        // There might be events (like TYPE_VIEW_REQUESTED_AUTOFILL) that are
+        // generated before FillRequest/FillResponse mechanism are started, so
+        // still need to log it
+        if (lastResponse == null) {
+            return true;
+        }
+
+        if (mRequestId.isSecondaryProvider(lastResponse.getRequestId())) {
+            // The request was to a secondary provider - don't log these events
+            return false;
+        }
+
+        return true;
     }
 
     private void wtf(@Nullable Exception e, String fmt, Object... args) {

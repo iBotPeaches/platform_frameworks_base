@@ -34,11 +34,13 @@ import java.util.List;
 /**
  * This class is responsible for associating frames received from SurfaceFlinger to active widget
  * states and logging those states back to the platform.
+ *
  * @hide
  */
 @FlaggedApi(Flags.FLAG_DETAILED_APP_JANK_METRICS_API)
 public class JankDataProcessor {
-
+    private static final String TAG = "JankDataProcessor";
+    private static final boolean DEBUG_LOGGING = false;
     private static final int MAX_IN_MEMORY_STATS = 25;
     private static final int LOG_BATCH_FREQUENCY = 50;
     private int mCurrentBatchCount = 0;
@@ -54,9 +56,10 @@ public class JankDataProcessor {
 
     /**
      * Called once per batch of JankData.
-     * @param jankData data received from SurfaceFlinger to be processed
+     *
+     * @param jankData     data received from SurfaceFlinger to be processed
      * @param activityName name of the activity that is tracking jank metrics.
-     * @param appUid the uid of the app.
+     * @param appUid       the uid of the app.
      */
     public void processJankData(List<JankData> jankData, String activityName, int appUid) {
         // add all the previous and active states to the pending states list.
@@ -111,7 +114,7 @@ public class JankDataProcessor {
         pendingStat.mTotalFrames += jankStat.getTotalFrameCount();
 
         mergeOverrunHistograms(pendingStat.mFrameOverrunBuckets,
-                jankStat.getFrameOverrunHistogram().getBucketCounters());
+                jankStat.getRelativeFrameTimeHistogram().getBucketCounters());
     }
 
     private void mergeNewStat(String stateKey, String activityName, AppJankStats jankStats) {
@@ -136,7 +139,7 @@ public class JankDataProcessor {
         pendingStat.mJankyFrames = jankStats.getJankyFrameCount();
 
         mergeOverrunHistograms(pendingStat.mFrameOverrunBuckets,
-                jankStats.getFrameOverrunHistogram().getBucketCounters());
+                jankStats.getRelativeFrameTimeHistogram().getBucketCounters());
 
         mPendingJankStats.put(stateKey, pendingStat);
     }
@@ -211,8 +214,6 @@ public class JankDataProcessor {
      * clear any pending widget states.
      */
     public void logMetricCounts() {
-        //TODO b/374607503 when api changes are in add enum mapping for category and state.
-
         try {
             mPendingJankStats.values().forEach(stat -> {
                         FrameworkStatsLog.write(
@@ -221,15 +222,16 @@ public class JankDataProcessor {
                                 /*activity name*/ stat.getActivityName(),
                                 /*widget id*/ stat.getWidgetId(),
                                 /*refresh rate*/ stat.getRefreshRate(),
-                                /*widget category*/ 0,
-                                /*widget state*/ 0,
+                                /*widget category*/ widgetCategoryToInt(stat.getWidgetCategory()),
+                                /*widget state*/ widgetStateToInt(stat.getWidgetState()),
                                 /*total frames*/ stat.getTotalFrames(),
                                 /*janky frames*/ stat.getJankyFrames(),
-                                /*histogram*/ stat.mFrameOverrunBuckets);
+                                /*histogram*/ stat.getFrameOverrunBuckets());
                         Log.d(stat.mActivityName, stat.toString());
                         // return the pending stat to the pool it will be reset the next time its
                         // used.
                         mPendingJankStatsPool.release(stat);
+
                     }
             );
             // All stats have been recorded and added back to the pool for reuse, clear the pending
@@ -238,6 +240,96 @@ public class JankDataProcessor {
             mCurrentBatchCount = 0;
         } catch (Exception exception) {
             // TODO b/374608358 handle logging exceptions.
+        }
+    }
+
+    private int widgetCategoryToInt(String widgetCategory) {
+        switch (widgetCategory) {
+            case AppJankStats.WIDGET_CATEGORY_SCROLL -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__SCROLLING;
+            }
+            case AppJankStats.WIDGET_CATEGORY_ANIMATION -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_TYPE__ANIMATION;
+            }
+            case AppJankStats.WIDGET_CATEGORY_MEDIA -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_TYPE__MEDIA;
+            }
+            case AppJankStats.WIDGET_CATEGORY_NAVIGATION -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_TYPE__NAVIGATION;
+            }
+            case AppJankStats.WIDGET_CATEGORY_KEYBOARD -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_TYPE__KEYBOARD;
+            }
+            case AppJankStats.WIDGET_CATEGORY_OTHER -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_TYPE__OTHER;
+            }
+            default -> {
+                if (DEBUG_LOGGING) {
+                    Log.d(TAG, "Default Category Logged: "
+                            + AppJankStats.WIDGET_CATEGORY_UNSPECIFIED);
+                }
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_TYPE__WIDGET_CATEGORY_UNSPECIFIED;
+            }
+        }
+    }
+
+    private int widgetStateToInt(String widgetState) {
+        switch (widgetState) {
+            case AppJankStats.WIDGET_STATE_NONE -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__NONE;
+            }
+            case AppJankStats.WIDGET_STATE_SCROLLING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__SCROLLING;
+            }
+            case AppJankStats.WIDGET_STATE_FLINGING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__FLINGING;
+            }
+            case AppJankStats.WIDGET_STATE_SWIPING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__SWIPING;
+            }
+            case AppJankStats.WIDGET_STATE_DRAGGING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__DRAGGING;
+            }
+            case AppJankStats.WIDGET_STATE_ZOOMING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__ZOOMING;
+            }
+            case AppJankStats.WIDGET_STATE_ANIMATING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__ANIMATING;
+            }
+            case AppJankStats.WIDGET_STATE_PLAYBACK -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__PLAYBACK;
+            }
+            case AppJankStats.WIDGET_STATE_TAPPING -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__TAPPING;
+            }
+            case AppJankStats.WIDGET_STATE_PREDICTIVE_BACK -> {
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__PREDICTIVE_BACK;
+            }
+            default -> {
+                if (DEBUG_LOGGING) {
+                    Log.d(TAG, "Default State Logged: "
+                            + AppJankStats.WIDGET_STATE_UNSPECIFIED);
+                }
+                return FrameworkStatsLog
+                        .JANK_FRAME_COUNT_BY_WIDGET_REPORTED__WIDGET_STATE__WIDGET_STATE_UNSPECIFIED;
+            }
         }
     }
 
@@ -268,16 +360,18 @@ public class JankDataProcessor {
 
         private int mRefreshRate;
 
-        private static final int[] sFrameOverrunHistogramBounds =  {
+        private static final int[] sFrameOverrunHistogramBounds = {
                 Integer.MIN_VALUE, -200, -150, -100, -90, -80, -70, -60, -50, -40, -30, -25, -20,
                 -18, -16, -14, -12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25,
-                30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000
+                30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+                Integer.MAX_VALUE
         };
-        private final int[] mFrameOverrunBuckets = new int[sFrameOverrunHistogramBounds.length];
+        private final int[] mFrameOverrunBuckets = new int[sFrameOverrunHistogramBounds.length - 1];
 
         // Histogram of frame duration overruns encoded in predetermined buckets.
         public PendingJankStat() {
         }
+
         public long getProcessedVsyncId() {
             return processedVsyncId;
         }
@@ -414,10 +508,10 @@ public class JankDataProcessor {
             if (overrunTime < 200) {
                 return (overrunTime - 50) / 100 + 41;
             }
-            if (overrunTime < 1000) {
+            if (overrunTime <= 1000) {
                 return (overrunTime - 200) / 100 + 43;
             }
-            return sFrameOverrunHistogramBounds.length - 1;
+            return mFrameOverrunBuckets.length - 1;
         }
 
     }

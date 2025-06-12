@@ -24,7 +24,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Log;
 
@@ -46,7 +46,7 @@ import java.io.IOException;
  * Test whether Binder calls inherit thread priorities correctly.
  */
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ActivityManager.class)
+@DisabledOnRavenwood(blockedBy = ActivityManager.class)
 public class BinderThreadPriorityTest {
     private static final String TAG = "BinderThreadPriorityTest";
 

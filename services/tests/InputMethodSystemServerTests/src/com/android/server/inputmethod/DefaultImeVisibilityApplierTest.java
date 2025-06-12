@@ -196,7 +196,7 @@ public class DefaultImeVisibilityApplierTest extends InputMethodManagerServiceTe
     @RequiresFlagsDisabled(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)
     public void testApplyImeVisibility_hideImeFromTargetOnSecondaryDisplay() {
         // Init a IME target client on the secondary display to show IME.
-        mInputMethodManagerService.addClient(mMockInputMethodClient, mMockRemoteInputConnection,
+        mInputMethodManagerService.addClient(mMockInputMethodClient, mMockFallbackInputConnection,
                 10 /* selfReportedDisplayId */);
         synchronized (ImfLock.class) {
             setAttachedClientLocked(null);
@@ -283,10 +283,11 @@ public class DefaultImeVisibilityApplierTest extends InputMethodManagerServiceTe
                 softInputMode /* softInputMode */,
                 0 /* windowFlags */,
                 mEditorInfo /* editorInfo */,
-                mMockRemoteInputConnection /* inputConnection */,
+                mMockFallbackInputConnection /* fallbackInputConnection */,
                 mMockRemoteAccessibilityInputConnection /* remoteAccessibilityInputConnection */,
                 mTargetSdkVersion /* unverifiedTargetSdkVersion */,
                 mUserId /* userId */,
-                mMockImeOnBackInvokedDispatcher /* imeDispatcher */);
+                mMockImeOnBackInvokedDispatcher /* imeDispatcher */,
+                true /* imeRequestedVisible */);
     }
 }

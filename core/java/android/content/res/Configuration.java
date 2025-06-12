@@ -2358,8 +2358,13 @@ public final class Configuration implements Parcelable, Comparable<Configuration
      * @param locales The locale list. If null, an empty LocaleList will be assigned.
      */
     public void setLocales(@Nullable LocaleList locales) {
+        LocaleList oldList = mLocaleList;
         mLocaleList = locales == null ? LocaleList.getEmptyLocaleList() : locales;
         locale = mLocaleList.get(0);
+        if (!mLocaleList.equals(oldList)) {
+            Slog.v(TAG, "Updating configuration, locales updated from " + oldList
+                    + " to " + mLocaleList);
+        }
         setLayoutDirection(locale);
     }
 

@@ -15,7 +15,7 @@
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.android.tests.packagewatchdog" >
+    package="com.android.server" >
 
     <application android:debuggable="true">
         <uses-library android:name="android.test.runner" />
@@ -23,6 +23,6 @@
 
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-                     android:targetPackage="com.android.tests.packagewatchdog"
-                     android:label="PackageWatchdog Test"/>
+        android:targetPackage="com.android.server"
+        android:label="PackageWatchdog Test"/>
 </manifest>

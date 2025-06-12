@@ -66,6 +66,9 @@ data class EditTileViewModel(
 ) : CategoryAndName {
     override val name
         get() = label.text
+
+    val isRemovable
+        get() = availableEditActions.contains(AvailableEditActions.REMOVE)
 }
 
 enum class AvailableEditActions {

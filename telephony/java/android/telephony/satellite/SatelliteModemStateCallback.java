@@ -27,13 +27,11 @@ import com.android.internal.telephony.flags.Flags;
  * @hide
  */
 @SystemApi
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public interface SatelliteModemStateCallback {
     /**
      * Called when satellite modem state changes.
      * @param state The new satellite modem state.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     void onSatelliteModemStateChanged(@SatelliteManager.SatelliteModemState int state);
 
     /**

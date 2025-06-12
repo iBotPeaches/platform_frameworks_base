@@ -767,6 +767,7 @@ void SerializeCompiledFileToPb(const ResourceFile& file, pb::internal::CompiledF
     out_file->set_flag_negated(file.flag->negated);
     out_file->set_flag_name(file.flag->name);
   }
+  out_file->set_uses_readwrite_feature_flags(file.uses_readwrite_feature_flags);
 
   for (const SourcedResourceName& exported : file.exported_symbols) {
     pb::internal::CompiledFile_Symbol* pb_symbol = out_file->add_exported_symbol();

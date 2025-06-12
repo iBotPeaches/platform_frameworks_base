@@ -16,6 +16,7 @@
 
 package com.android.internal.widget;
 
+import static android.app.Flags.notificationsRedesignTemplates;
 import static android.app.Notification.CallStyle.DEBUG_NEW_ACTION_LAYOUT;
 import static android.app.Flags.evenlyDividedCallStyleActionLayout;
 
@@ -368,12 +369,17 @@ public class NotificationActionListLayout extends LinearLayout {
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
-        mDefaultPaddingBottom = getPaddingBottom();
-        mDefaultPaddingTop = getPaddingTop();
-        updateHeights();
+        if (!notificationsRedesignTemplates()) {
+            mDefaultPaddingBottom = getPaddingBottom();
+            mDefaultPaddingTop = getPaddingTop();
+            updateHeights();
+        }
     }
 
     private void updateHeights() {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
         int inset = getResources().getDimensionPixelSize(
                 com.android.internal.R.dimen.button_inset_vertical_material);
         mEmphasizedPaddingTop = getResources().getDimensionPixelSize(
@@ -440,6 +446,9 @@ public class NotificationActionListLayout extends LinearLayout {
      */
     @RemotableViewMethod
     public void setEmphasizedMode(boolean emphasizedMode) {
+        if (notificationsRedesignTemplates()) {
+            return;
+        }
         mEmphasizedMode = emphasizedMode;
         int height;
         if (emphasizedMode) {
@@ -462,7 +471,9 @@ public class NotificationActionListLayout extends LinearLayout {
     }
 
     public int getExtraMeasureHeight() {
-        if (mEmphasizedMode) {
+        // Note: the emphasized height is no longer different from the regular height when the
+        // notificationsRedesignTemplates flag is on.
+        if (!notificationsRedesignTemplates() && mEmphasizedMode) {
             return mEmphasizedHeight - mRegularHeight;
         }
         return 0;

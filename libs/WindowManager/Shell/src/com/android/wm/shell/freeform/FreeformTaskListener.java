@@ -24,11 +24,13 @@ import android.app.ActivityManager.RunningTaskInfo;
 import android.content.Context;
 import android.util.SparseArray;
 import android.view.SurfaceControl;
+import android.window.DesktopExperienceFlags;
 import android.window.DesktopModeFlags;
 
 import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.LaunchAdjacentController;
+import com.android.wm.shell.desktopmode.DesktopModeLoggerTransitionObserver;
 import com.android.wm.shell.desktopmode.DesktopRepository;
 import com.android.wm.shell.desktopmode.DesktopTasksController;
 import com.android.wm.shell.desktopmode.DesktopUserRepositories;
@@ -52,6 +54,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
     private final ShellTaskOrganizer mShellTaskOrganizer;
     private final Optional<DesktopUserRepositories> mDesktopUserRepositories;
     private final Optional<DesktopTasksController> mDesktopTasksController;
+    private final DesktopModeLoggerTransitionObserver mDesktopModeLoggerTransitionObserver;
     private final WindowDecorViewModel mWindowDecorationViewModel;
     private final LaunchAdjacentController mLaunchAdjacentController;
     private final Optional<TaskChangeListener> mTaskChangeListener;
@@ -64,6 +67,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
             ShellTaskOrganizer shellTaskOrganizer,
             Optional<DesktopUserRepositories> desktopUserRepositories,
             Optional<DesktopTasksController> desktopTasksController,
+            DesktopModeLoggerTransitionObserver desktopModeLoggerTransitionObserver,
             LaunchAdjacentController launchAdjacentController,
             WindowDecorViewModel windowDecorationViewModel,
             Optional<TaskChangeListener> taskChangeListener) {
@@ -72,6 +76,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
         mWindowDecorationViewModel = windowDecorationViewModel;
         mDesktopUserRepositories = desktopUserRepositories;
         mDesktopTasksController = desktopTasksController;
+        mDesktopModeLoggerTransitionObserver = desktopModeLoggerTransitionObserver;
         mLaunchAdjacentController = launchAdjacentController;
         mTaskChangeListener = taskChangeListener;
         if (shellInit != null) {
@@ -127,9 +132,12 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
                 // triggered on a task and the task is closing. It will be marked as minimized in
                 // [DesktopTasksTransitionObserver] before it gets here.
                 repository.removeClosingTask(taskInfo.taskId);
-                repository.removeFreeformTask(taskInfo.displayId, taskInfo.taskId);
+                repository.removeTask(taskInfo.displayId, taskInfo.taskId);
             }
         }
+        // TODO: b/367268649 - This listener shouldn't need to call the transition observer directly
+        // for logging once the logic in the observer is moved.
+        mDesktopModeLoggerTransitionObserver.onTaskVanished(taskInfo);
         mWindowDecorationViewModel.onTaskVanished(taskInfo);
         updateLaunchAdjacentController();
     }
@@ -160,6 +168,11 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
     }
 
     private void updateLaunchAdjacentController() {
+        if (DesktopExperienceFlags.ENABLE_MULTIPLE_DESKTOPS_BACKEND.isTrue()) {
+            // With multiple desks, freeform tasks are children of a root task controlled by
+            // DesksOrganizer, so toggling launch-adjacent should be managed there.
+            return;
+        }
         for (int i = 0; i < mTasks.size(); i++) {
             if (mTasks.valueAt(i).mTaskInfo.isVisible) {
                 mLaunchAdjacentController.setLaunchAdjacentEnabled(false);
@@ -171,7 +184,8 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
 
     @Override
     public void onFocusTaskChanged(RunningTaskInfo taskInfo) {
-        if (taskInfo.getWindowingMode() != WINDOWING_MODE_FREEFORM) {
+        if (taskInfo.getWindowingMode() != WINDOWING_MODE_FREEFORM
+                || DesktopModeFlags.ENABLE_WINDOWING_TRANSITION_HANDLERS_OBSERVERS.isTrue()) {
             return;
         }
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TASK_ORG,

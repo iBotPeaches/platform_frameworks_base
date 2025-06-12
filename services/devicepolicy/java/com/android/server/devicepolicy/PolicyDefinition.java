@@ -34,6 +34,7 @@ import android.app.admin.PackagePolicyKey;
 import android.app.admin.PolicyKey;
 import android.app.admin.PolicyValue;
 import android.app.admin.UserRestrictionPolicyKey;
+import android.app.admin.flags.Flags;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.IntentFilter;
@@ -282,7 +283,9 @@ final class PolicyDefinition<V> {
 
     static PolicyDefinition<Set<String>> PERMITTED_INPUT_METHODS = new PolicyDefinition<>(
             new NoArgsPolicyKey(DevicePolicyIdentifiers.PERMITTED_INPUT_METHODS_POLICY),
-            new MostRecent<>(),
+            (Flags.usePolicyIntersectionForPermittedInputMethods()
+                ? new StringSetIntersection()
+                : new MostRecent<>()),
             POLICY_FLAG_LOCAL_ONLY_POLICY | POLICY_FLAG_INHERITABLE,
             PolicyEnforcerCallbacks::noOp,
             new PackageSetPolicySerializer());

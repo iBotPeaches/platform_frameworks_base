@@ -2,7 +2,7 @@
 <resources>
     <string name="str">none</string>
     <string name="str2">none</string>
-    <integer name="overlaid">0</integer>
+    <integer name="overlaidInt">0</integer>
     <integer name="matrix_100000">100</integer>
     <integer name="matrix_100001">100</integer>
     <integer name="matrix_100010">100</integer>
@@ -57,6 +57,8 @@
         <item>17</item>
         <item>19</item>
     </integer-array>
+
+    <item name="overlaidFloat" format="float" type="dimen">0</item>
 
     <attr name="customAttribute" />
     <id name="view_1" />

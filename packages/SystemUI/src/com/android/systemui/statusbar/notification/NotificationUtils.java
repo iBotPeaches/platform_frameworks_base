@@ -24,7 +24,9 @@ import android.widget.ImageView;
 
 import com.android.internal.util.ContrastColorUtil;
 import com.android.systemui.res.R;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.util.Compile;
 
@@ -79,7 +81,7 @@ public class NotificationUtils {
     private static final boolean INCLUDE_HASH_CODE_IN_LIST_ENTRY_LOG_KEY = false;
 
     /** Get the notification key, reformatted for logging, for the (optional) entry */
-    public static String logKey(ListEntry entry) {
+    public static String logKey(PipelineEntry entry) {
         if (entry == null) {
             return "null";
         }
@@ -92,7 +94,7 @@ public class NotificationUtils {
 
     /** Get the notification key, reformatted for logging, for the (optional) row */
     public static String logKey(ExpandableNotificationRow row) {
-        return row == null ? "null" : logKey(row.getEntry());
+        return row == null ? "null" : row.getLoggingKey();
     }
 
     /** Removes newlines from the notification key to prettify apps that have these in the tag */

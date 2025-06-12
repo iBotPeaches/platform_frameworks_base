@@ -108,19 +108,24 @@ public class SystemSettings {
                 Settings.System.AUTO_LAUNCH_MEDIA_CONTROLS,
                 Settings.System.LOCALE_PREFERENCES,
                 Settings.System.MOUSE_REVERSE_VERTICAL_SCROLLING,
+                Settings.System.MOUSE_SCROLLING_ACCELERATION,
+                Settings.System.MOUSE_SCROLLING_SPEED,
                 Settings.System.MOUSE_SWAP_PRIMARY_BUTTON,
+                Settings.System.MOUSE_POINTER_ACCELERATION_ENABLED,
                 Settings.System.TOUCHPAD_POINTER_SPEED,
                 Settings.System.TOUCHPAD_NATURAL_SCROLLING,
                 Settings.System.TOUCHPAD_TAP_TO_CLICK,
                 Settings.System.TOUCHPAD_TAP_DRAGGING,
                 Settings.System.TOUCHPAD_RIGHT_CLICK_ZONE,
+                Settings.System.TOUCHPAD_ACCELERATION_ENABLED,
                 Settings.System.CAMERA_FLASH_NOTIFICATION,
                 Settings.System.SCREEN_FLASH_NOTIFICATION,
                 Settings.System.SCREEN_FLASH_NOTIFICATION_COLOR,
                 Settings.System.NOTIFICATION_COOLDOWN_ENABLED,
                 Settings.System.NOTIFICATION_COOLDOWN_ALL,
                 Settings.System.NOTIFICATION_COOLDOWN_VIBRATE_UNLOCKED,
-                Settings.System.PREFERRED_REGION
+                Settings.System.PREFERRED_REGION,
+                Settings.System.CV_ENABLED
         ));
         if (Flags.backUpSmoothDisplayAndForcePeakRefreshRate()) {
             settings.add(Settings.System.PEAK_REFRESH_RATE);

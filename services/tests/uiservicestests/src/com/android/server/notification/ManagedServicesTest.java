@@ -17,12 +17,17 @@ package com.android.server.notification;
 
 import static android.content.Context.DEVICE_POLICY_SERVICE;
 import static android.app.Flags.FLAG_LIFETIME_EXTENSION_REFACTOR;
+import static android.os.UserHandle.USER_ALL;
+import static android.os.UserHandle.USER_CURRENT;
 import static android.os.UserManager.USER_TYPE_FULL_SECONDARY;
 import static android.os.UserManager.USER_TYPE_PROFILE_CLONE;
 import static android.os.UserManager.USER_TYPE_PROFILE_MANAGED;
 import static android.os.UserManager.USER_TYPE_PROFILE_PRIVATE;
 import static android.service.notification.NotificationListenerService.META_DATA_DEFAULT_AUTOBIND;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
+import static com.android.server.notification.Flags.FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER;
+import static com.android.server.notification.Flags.managedServicesConcurrentMultiuser;
 import static com.android.server.notification.ManagedServices.APPROVAL_BY_COMPONENT;
 import static com.android.server.notification.ManagedServices.APPROVAL_BY_PACKAGE;
 import static com.android.server.notification.NotificationManagerService.privateSpaceFlagsEnabled;
@@ -35,10 +40,10 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -66,7 +71,9 @@ import android.os.IInterface;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArrayMap;
@@ -83,6 +90,7 @@ import com.android.server.UiServiceTestCase;
 import com.google.android.collect.Lists;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -104,6 +112,9 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 public class ManagedServicesTest extends UiServiceTestCase {
+
+    @Rule
+    public SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Mock
     private IPackageManager mIpm;
@@ -155,6 +166,7 @@ public class ManagedServicesTest extends UiServiceTestCase {
         users.add(new UserInfo(11, "11", 0));
         users.add(new UserInfo(12, "12", 0));
         users.add(new UserInfo(13, "13", 0));
+        users.add(new UserInfo(99, "99", 0));
         for (UserInfo user : users) {
             when(mUm.getUserInfo(eq(user.id))).thenReturn(user);
         }
@@ -804,6 +816,7 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void rebindServices_onlyBindsExactMatchesIfComponent() throws Exception {
         // If the primary and secondary lists contain component names, only those components within
         // the package should be matched
@@ -841,6 +854,45 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void rebindServices_onlyBindsExactMatchesIfComponent_concurrent_multiUser()
+            throws Exception {
+        // If the primary and secondary lists contain component names, only those components within
+        // the package should be matched
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles,
+                mIpm,
+                ManagedServices.APPROVAL_BY_COMPONENT);
+
+        List<String> packages = new ArrayList<>();
+        packages.add("package");
+        packages.add("anotherPackage");
+        addExpectedServices(service, packages, 0);
+
+        // only 2 components are approved per package
+        mExpectedPrimaryComponentNames.clear();
+        mExpectedPrimaryComponentNames.put(0, "package/C1:package/C2");
+        mExpectedSecondaryComponentNames.clear();
+        mExpectedSecondaryComponentNames.put(0, "anotherPackage/C1:anotherPackage/C2");
+
+        loadXml(service);
+        // verify the 2 components per package are enabled (bound)
+        verifyExpectedBoundEntries(service, true, 0);
+        verifyExpectedBoundEntries(service, false, 0);
+
+        // verify the last component per package is not enabled/we don't try to bind to it
+        for (String pkg : packages) {
+            ComponentName unapprovedAdditionalComponent =
+                    ComponentName.unflattenFromString(pkg + "/C3");
+            assertFalse(
+                    service.isComponentEnabledForUser(
+                            unapprovedAdditionalComponent, 0));
+            verify(mIpm, never()).getServiceInfo(
+                    eq(unapprovedAdditionalComponent), anyLong(), anyInt());
+        }
+    }
+
+    @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void rebindServices_bindsEverythingInAPackage() throws Exception {
         // If the primary and secondary lists contain packages, all components within those packages
         // should be bound
@@ -863,6 +915,32 @@ public class ManagedServicesTest extends UiServiceTestCase {
         // verify the 3 components per package are enabled (bound)
         verifyExpectedBoundEntries(service, true);
         verifyExpectedBoundEntries(service, false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void rebindServices_bindsEverythingInAPackage_concurrent_multiUser() throws Exception {
+        // If the primary and secondary lists contain packages, all components within those packages
+        // should be bound
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_PACKAGE);
+
+        List<String> packages = new ArrayList<>();
+        packages.add("package");
+        packages.add("packagea");
+        addExpectedServices(service, packages, 0);
+
+        // 2 approved packages
+        mExpectedPrimaryPackages.clear();
+        mExpectedPrimaryPackages.put(0, "package");
+        mExpectedSecondaryPackages.clear();
+        mExpectedSecondaryPackages.put(0, "packagea");
+
+        loadXml(service);
+
+        // verify the 3 components per package are enabled (bound)
+        verifyExpectedBoundEntries(service, true, 0);
+        verifyExpectedBoundEntries(service, false, 0);
     }
 
     @Test
@@ -1118,6 +1196,7 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void testUpgradeAppBindsNewServices() throws Exception {
         // If the primary and secondary lists contain component names, only those components within
         // the package should be matched
@@ -1159,6 +1238,49 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testUpgradeAppBindsNewServices_concurrent_multiUser() throws Exception {
+        // If the primary and secondary lists contain component names, only those components within
+        // the package should be matched
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles,
+                mIpm,
+                ManagedServices.APPROVAL_BY_PACKAGE);
+
+        List<String> packages = new ArrayList<>();
+        packages.add("package");
+        addExpectedServices(service, packages, 0);
+
+        // only 2 components are approved per package
+        mExpectedPrimaryComponentNames.clear();
+        mExpectedPrimaryPackages.clear();
+        mExpectedPrimaryComponentNames.put(0, "package/C1:package/C2");
+        mExpectedSecondaryComponentNames.clear();
+        mExpectedSecondaryPackages.clear();
+
+        loadXml(service);
+
+        // new component expected
+        mExpectedPrimaryComponentNames.put(0, "package/C1:package/C2:package/C3");
+
+        service.onPackagesChanged(false, new String[]{"package"}, new int[]{0});
+
+        // verify the 3 components per package are enabled (bound)
+        verifyExpectedBoundEntries(service, true, 0);
+
+        // verify the last component per package is not enabled/we don't try to bind to it
+        for (String pkg : packages) {
+            ComponentName unapprovedAdditionalComponent =
+                    ComponentName.unflattenFromString(pkg + "/C3");
+            assertFalse(
+                    service.isComponentEnabledForUser(
+                            unapprovedAdditionalComponent, 0));
+            verify(mIpm, never()).getServiceInfo(
+                    eq(unapprovedAdditionalComponent), anyLong(), anyInt());
+        }
+    }
+
+    @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void testUpgradeAppNoPermissionNoRebind() throws Exception {
         Context context = spy(getContext());
         doReturn(true).when(context).bindServiceAsUser(any(), any(), anyInt(), any());
@@ -1208,6 +1330,59 @@ public class ManagedServicesTest extends UiServiceTestCase {
 
         assertFalse(service.isComponentEnabledForCurrentProfiles(unapprovedComponent));
         assertTrue(service.isComponentEnabledForCurrentProfiles(approvedComponent));
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testUpgradeAppNoPermissionNoRebind_concurrent_multiUser() throws Exception {
+        Context context = spy(getContext());
+        doReturn(true).when(context).bindServiceAsUser(any(), any(), anyInt(), any());
+
+        ManagedServices service = new TestManagedServices(context, mLock, mUserProfiles,
+                mIpm,
+                APPROVAL_BY_COMPONENT);
+
+        List<String> packages = new ArrayList<>();
+        packages.add("package");
+        addExpectedServices(service, packages, 0);
+
+        final ComponentName unapprovedComponent = ComponentName.unflattenFromString("package/C1");
+        final ComponentName approvedComponent = ComponentName.unflattenFromString("package/C2");
+
+        // Both components are approved initially
+        mExpectedPrimaryComponentNames.clear();
+        mExpectedPrimaryPackages.clear();
+        mExpectedPrimaryComponentNames.put(0, "package/C1:package/C2");
+        mExpectedSecondaryComponentNames.clear();
+        mExpectedSecondaryPackages.clear();
+
+        loadXml(service);
+
+        //Component package/C1 loses bind permission
+        when(mIpm.getServiceInfo(any(), anyLong(), anyInt())).thenAnswer(
+                (Answer<ServiceInfo>) invocation -> {
+                    ComponentName invocationCn = invocation.getArgument(0);
+                    if (invocationCn != null) {
+                        ServiceInfo serviceInfo = new ServiceInfo();
+                        serviceInfo.packageName = invocationCn.getPackageName();
+                        serviceInfo.name = invocationCn.getClassName();
+                        if (invocationCn.equals(unapprovedComponent)) {
+                            serviceInfo.permission = "none";
+                        } else {
+                            serviceInfo.permission = service.getConfig().bindPermission;
+                        }
+                        serviceInfo.metaData = null;
+                        return serviceInfo;
+                    }
+                    return null;
+                }
+        );
+
+        // Trigger package update
+        service.onPackagesChanged(false, new String[]{"package"}, new int[]{0});
+
+        assertFalse(service.isComponentEnabledForUser(unapprovedComponent, 0));
+        assertTrue(service.isComponentEnabledForUser(approvedComponent, 0));
     }
 
     @Test
@@ -1517,6 +1692,201 @@ public class ManagedServicesTest extends UiServiceTestCase {
         assertTrue(componentsToBind.get(10).contains(ComponentName.unflattenFromString("c/c")));
     }
 
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testPopulateComponentsToBindWithNonProfileUser() {
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_COMPONENT);
+        spyOn(service);
+
+        SparseArray<ArraySet<ComponentName>> approvedComponentsByUser = new SparseArray<>();
+        ArraySet<ComponentName> allowed0 = new ArraySet<>();
+        allowed0.add(ComponentName.unflattenFromString("a/a"));
+        approvedComponentsByUser.put(0, allowed0);
+        ArraySet<ComponentName> allowed10 = new ArraySet<>();
+        allowed10.add(ComponentName.unflattenFromString("b/b"));
+        approvedComponentsByUser.put(10, allowed10);
+
+        int nonProfileUser = 99;
+        ArraySet<ComponentName> allowedForNonProfileUser = new ArraySet<>();
+        allowedForNonProfileUser.add(ComponentName.unflattenFromString("c/c"));
+        approvedComponentsByUser.put(nonProfileUser, allowedForNonProfileUser);
+
+        IntArray users = new IntArray();
+        users.add(nonProfileUser);
+        users.add(10);
+        users.add(0);
+
+        SparseArray<Set<ComponentName>> componentsToBind = new SparseArray<>();
+        spyOn(service.mUmInternal);
+        when(service.mUmInternal.isVisibleBackgroundFullUser(nonProfileUser)).thenReturn(true);
+
+        service.populateComponentsToBind(componentsToBind, users, approvedComponentsByUser);
+
+        assertTrue(service.isComponentEnabledForUser(
+                ComponentName.unflattenFromString("a/a"), 0));
+        assertTrue(service.isComponentEnabledForPackage("a", 0));
+        assertTrue(service.isComponentEnabledForUser(
+                ComponentName.unflattenFromString("b/b"), 10));
+        assertTrue(service.isComponentEnabledForPackage("b", 0));
+        assertTrue(service.isComponentEnabledForPackage("b", 10));
+        assertTrue(service.isComponentEnabledForUser(
+                ComponentName.unflattenFromString("c/c"), nonProfileUser));
+        assertTrue(service.isComponentEnabledForPackage("c", nonProfileUser));
+    }
+
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testRebindService_profileUser() throws Exception {
+        final int profileUserId = 10;
+        when(mUserProfiles.isProfileUser(profileUserId, mContext)).thenReturn(true);
+        spyOn(mService);
+        ArgumentCaptor<IntArray> captor = ArgumentCaptor.forClass(
+                IntArray.class);
+        when(mService.allowRebindForParentUser()).thenReturn(true);
+
+        mService.rebindServices(false, profileUserId);
+
+        verify(mService).populateComponentsToBind(any(), captor.capture(), any());
+        assertTrue(captor.getValue().contains(0));
+        assertTrue(captor.getValue().contains(profileUserId));
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testRebindService_nonProfileUser() throws Exception {
+        final int userId = 99;
+        when(mUserProfiles.isProfileUser(userId, mContext)).thenReturn(false);
+        spyOn(mService);
+        ArgumentCaptor<IntArray> captor = ArgumentCaptor.forClass(
+                IntArray.class);
+        when(mService.allowRebindForParentUser()).thenReturn(true);
+
+        mService.rebindServices(false, userId);
+
+        verify(mService).populateComponentsToBind(any(), captor.capture(), any());
+        assertFalse(captor.getValue().contains(0));
+        assertTrue(captor.getValue().contains(userId));
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testRebindService_userAll() throws Exception {
+        final int userId = 99;
+        spyOn(mService);
+        spyOn(mService.mUmInternal);
+        when(mService.mUmInternal.isVisibleBackgroundFullUser(userId)).thenReturn(true);
+        ArgumentCaptor<IntArray> captor = ArgumentCaptor.forClass(
+                IntArray.class);
+        when(mService.allowRebindForParentUser()).thenReturn(true);
+
+        mService.rebindServices(false, USER_ALL);
+
+        verify(mService).populateComponentsToBind(any(), captor.capture(), any());
+        assertTrue(captor.getValue().contains(0));
+        assertTrue(captor.getValue().contains(userId));
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testOnUserStoppedWithVisibleBackgroundUser() throws Exception {
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_COMPONENT);
+        spyOn(service);
+        int userId = 99;
+        SparseArray<ArraySet<ComponentName>> approvedComponentsByUser = new SparseArray<>();
+        ArraySet<ComponentName> allowedForNonProfileUser = new ArraySet<>();
+        allowedForNonProfileUser.add(ComponentName.unflattenFromString("a/a"));
+        approvedComponentsByUser.put(userId, allowedForNonProfileUser);
+        IntArray users = new IntArray();
+        users.add(userId);
+        SparseArray<Set<ComponentName>> componentsToBind = new SparseArray<>();
+        spyOn(service.mUmInternal);
+        when(service.mUmInternal.isVisibleBackgroundFullUser(userId)).thenReturn(true);
+        service.populateComponentsToBind(componentsToBind, users, approvedComponentsByUser);
+        assertTrue(service.isComponentEnabledForUser(
+                ComponentName.unflattenFromString("a/a"), userId));
+        assertTrue(service.isComponentEnabledForPackage("a", userId));
+
+        service.onUserStopped(userId);
+
+        assertFalse(service.isComponentEnabledForUser(
+                ComponentName.unflattenFromString("a/a"), userId));
+        assertFalse(service.isComponentEnabledForPackage("a", userId));
+        verify(service).unbindUserServices(eq(userId));
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testUnbindServicesImpl_serviceOfForegroundUser() throws Exception {
+        int switchingUserId = 10;
+        int userId = 99;
+
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_COMPONENT);
+        spyOn(service);
+        spyOn(service.mUmInternal);
+        when(service.mUmInternal.isVisibleBackgroundFullUser(userId)).thenReturn(false);
+
+        IInterface iInterface = mock(IInterface.class);
+        when(iInterface.asBinder()).thenReturn(mock(IBinder.class));
+
+        ManagedServices.ManagedServiceInfo serviceInfo = service.new ManagedServiceInfo(
+                iInterface, ComponentName.unflattenFromString("a/a"), userId, false,
+                mock(ServiceConnection.class), 26, 34);
+
+        Set<ManagedServices.ManagedServiceInfo> removableBoundServices = new ArraySet<>();
+        removableBoundServices.add(serviceInfo);
+
+        when(service.getRemovableConnectedServices()).thenReturn(removableBoundServices);
+        ArgumentCaptor<SparseArray<Set<ComponentName>>> captor = ArgumentCaptor.forClass(
+                SparseArray.class);
+
+        service.unbindServicesImpl(switchingUserId, true);
+
+        verify(service).unbindFromServices(captor.capture());
+
+        assertEquals(captor.getValue().size(), 1);
+        assertTrue(captor.getValue().indexOfKey(userId) != -1);
+        assertTrue(captor.getValue().get(userId).contains(
+                ComponentName.unflattenFromString("a/a")));
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testUnbindServicesImpl_serviceOfVisibleBackgroundUser() throws Exception {
+        int switchingUserId = 10;
+        int userId = 99;
+
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_COMPONENT);
+        spyOn(service);
+        spyOn(service.mUmInternal);
+        when(service.mUmInternal.isVisibleBackgroundFullUser(userId)).thenReturn(true);
+
+        IInterface iInterface = mock(IInterface.class);
+        when(iInterface.asBinder()).thenReturn(mock(IBinder.class));
+
+        ManagedServices.ManagedServiceInfo serviceInfo = service.new ManagedServiceInfo(
+                iInterface, ComponentName.unflattenFromString("a/a"), userId,
+                false, mock(ServiceConnection.class), 26, 34);
+
+        Set<ManagedServices.ManagedServiceInfo> removableBoundServices = new ArraySet<>();
+        removableBoundServices.add(serviceInfo);
+
+        when(service.getRemovableConnectedServices()).thenReturn(removableBoundServices);
+        ArgumentCaptor<SparseArray<Set<ComponentName>>> captor = ArgumentCaptor.forClass(
+                SparseArray.class);
+
+        service.unbindServicesImpl(switchingUserId, true);
+
+        verify(service).unbindFromServices(captor.capture());
+
+        assertEquals(captor.getValue().size(), 0);
+    }
+
     @Test
     public void testOnNullBinding() throws Exception {
         Context context = mock(Context.class);
@@ -1681,6 +2051,7 @@ public class ManagedServicesTest extends UiServiceTestCase {
         assertFalse(service.isBound(cn, mZero.id));
         assertFalse(service.isBound(cn, mTen.id));
     }
+
     @Test
     public void testOnPackagesChanged_nullValuesPassed_noNullPointers() {
         for (int approvalLevel : new int[] {APPROVAL_BY_COMPONENT, APPROVAL_BY_PACKAGE}) {
@@ -2012,6 +2383,7 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void isComponentEnabledForCurrentProfiles_isThreadSafe() throws InterruptedException {
         for (UserInfo userInfo : mUm.getUsers()) {
             mService.addApprovedList("pkg1/cmp1:pkg2/cmp2:pkg3/cmp3", userInfo.id, true);
@@ -2024,6 +2396,20 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void isComponentEnabledForUser_isThreadSafe() throws InterruptedException {
+        for (UserInfo userInfo : mUm.getUsers()) {
+            mService.addApprovedList("pkg1/cmp1:pkg2/cmp2:pkg3/cmp3", userInfo.id, true);
+        }
+        testThreadSafety(() -> {
+            mService.rebindServices(false, 0);
+            assertThat(mService.isComponentEnabledForUser(
+                    new ComponentName("pkg1", "cmp1"), 0)).isTrue();
+        }, 20, 30);
+    }
+
+    @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void isComponentEnabledForCurrentProfiles_profileUserId() {
         final int profileUserId = 10;
         when(mUserProfiles.isProfileUser(profileUserId, mContext)).thenReturn(true);
@@ -2037,6 +2423,24 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void isComponentEnabledForUser_profileUserId() {
+        final int profileUserId = 10;
+        when(mUserProfiles.isProfileUser(profileUserId, mContext)).thenReturn(true);
+        spyOn(mService);
+        doReturn(USER_CURRENT).when(mService).resolveUserId(anyInt());
+
+        // Only approve for parent user (0)
+        mService.addApprovedList("pkg1/cmp1:pkg2/cmp2:pkg3/cmp3", 0, true);
+
+        // Test that the component is enabled after calling rebindServices with profile userId (10)
+        mService.rebindServices(false, profileUserId);
+        assertThat(mService.isComponentEnabledForUser(
+                new ComponentName("pkg1", "cmp1"), profileUserId)).isTrue();
+    }
+
+    @Test
+    @DisableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
     public void isComponentEnabledForCurrentProfiles_profileUserId_NAS() {
         final int profileUserId = 10;
         when(mUserProfiles.isProfileUser(profileUserId, mContext)).thenReturn(true);
@@ -2054,6 +2458,25 @@ public class ManagedServicesTest extends UiServiceTestCase {
     }
 
     @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void isComponentEnabledForUser_profileUserId_NAS() {
+        final int profileUserId = 10;
+        when(mUserProfiles.isProfileUser(profileUserId, mContext)).thenReturn(true);
+        // Do not rebind for parent users (NAS use-case)
+        ManagedServices service = spy(mService);
+        when(service.allowRebindForParentUser()).thenReturn(false);
+        doReturn(USER_CURRENT).when(service).resolveUserId(anyInt());
+
+        // Only approve for parent user (0)
+        service.addApprovedList("pkg1/cmp1:pkg2/cmp2:pkg3/cmp3", 0, true);
+
+        // Test that the component is disabled after calling rebindServices with profile userId (10)
+        service.rebindServices(false, profileUserId);
+        assertThat(service.isComponentEnabledForUser(
+                new ComponentName("pkg1", "cmp1"), profileUserId)).isFalse();
+    }
+
+    @Test
     @EnableFlags(FLAG_LIFETIME_EXTENSION_REFACTOR)
     public void testManagedServiceInfoIsSystemUi() {
         ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
@@ -2067,6 +2490,48 @@ public class ManagedServicesTest extends UiServiceTestCase {
         assertThat(service0.isSystemUi()).isTrue();
         service0.isSystemUi = false;
         assertThat(service0.isSystemUi()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testUserMatchesAndEnabled_profileUser() throws Exception {
+        int currentUserId = 10;
+        int profileUserId = 11;
+
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_COMPONENT);
+        ManagedServices.ManagedServiceInfo listener = spy(service.new ManagedServiceInfo(
+                mock(IInterface.class), ComponentName.unflattenFromString("a/a"), currentUserId,
+                false, mock(ServiceConnection.class), 26, 34));
+
+        doReturn(currentUserId).when(service.mUmInternal).getProfileParentId(profileUserId);
+        doReturn(currentUserId).when(service.mUmInternal).getProfileParentId(currentUserId);
+        doReturn(true).when(listener).isEnabledForUser();
+        doReturn(true).when(mUserProfiles).isCurrentProfile(anyInt());
+
+        assertThat(listener.enabledAndUserMatches(profileUserId)).isTrue();
+    }
+
+    @Test
+    @EnableFlags(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public void testUserMatchesAndDisabled_visibleBackgroudUser() throws Exception {
+        int currentUserId = 10;
+        int profileUserId = 11;
+        int visibleBackgroundUserId = 12;
+
+        ManagedServices service = new TestManagedServices(getContext(), mLock, mUserProfiles, mIpm,
+                APPROVAL_BY_COMPONENT);
+        ManagedServices.ManagedServiceInfo listener = spy(service.new ManagedServiceInfo(
+                mock(IInterface.class), ComponentName.unflattenFromString("a/a"), profileUserId,
+                false, mock(ServiceConnection.class), 26, 34));
+
+        doReturn(currentUserId).when(service.mUmInternal).getProfileParentId(profileUserId);
+        doReturn(currentUserId).when(service.mUmInternal).getProfileParentId(currentUserId);
+        doReturn(visibleBackgroundUserId).when(service.mUmInternal)
+                .getProfileParentId(visibleBackgroundUserId);
+        doReturn(true).when(listener).isEnabledForUser();
+
+        assertThat(listener.enabledAndUserMatches(visibleBackgroundUserId)).isFalse();
     }
 
     private void mockServiceInfoWithMetaData(List<ComponentName> componentNames,
@@ -2247,26 +2712,47 @@ public class ManagedServicesTest extends UiServiceTestCase {
 
     private void verifyExpectedBoundEntries(ManagedServices service, boolean primary)
             throws Exception {
+        verifyExpectedBoundEntries(service, primary, UserHandle.USER_CURRENT);
+    }
+
+    private void verifyExpectedBoundEntries(ManagedServices service, boolean primary,
+            int targetUserId) throws Exception {
         ArrayMap<Integer, String> verifyMap = primary ? mExpectedPrimary.get(service.mApprovalLevel)
                 : mExpectedSecondary.get(service.mApprovalLevel);
         for (int userId : verifyMap.keySet()) {
             for (String packageOrComponent : verifyMap.get(userId).split(":")) {
                 if (!TextUtils.isEmpty(packageOrComponent)) {
                     if (service.mApprovalLevel == APPROVAL_BY_PACKAGE) {
-                        assertTrue(packageOrComponent,
-                                service.isComponentEnabledForPackage(packageOrComponent));
+                        if (managedServicesConcurrentMultiuser()) {
+                            assertTrue(packageOrComponent,
+                                    service.isComponentEnabledForPackage(packageOrComponent,
+                                            targetUserId));
+                        } else {
+                            assertTrue(packageOrComponent,
+                                    service.isComponentEnabledForPackage(packageOrComponent));
+                        }
                         for (int i = 1; i <= 3; i++) {
                             ComponentName componentName = ComponentName.unflattenFromString(
                                     packageOrComponent +"/C" + i);
-                            assertTrue(service.isComponentEnabledForCurrentProfiles(
-                                    componentName));
+                            if (managedServicesConcurrentMultiuser()) {
+                                assertTrue(service.isComponentEnabledForUser(
+                                        componentName, targetUserId));
+                            } else {
+                                assertTrue(service.isComponentEnabledForCurrentProfiles(
+                                        componentName));
+                            }
                             verify(mIpm, times(1)).getServiceInfo(
                                     eq(componentName), anyLong(), anyInt());
                         }
                     } else {
                         ComponentName componentName =
                                 ComponentName.unflattenFromString(packageOrComponent);
-                        assertTrue(service.isComponentEnabledForCurrentProfiles(componentName));
+                        if (managedServicesConcurrentMultiuser()) {
+                            assertTrue(service.isComponentEnabledForUser(componentName,
+                                    targetUserId));
+                        } else {
+                            assertTrue(service.isComponentEnabledForCurrentProfiles(componentName));
+                        }
                         verify(mIpm, times(1)).getServiceInfo(
                                 eq(componentName), anyLong(), anyInt());
                     }

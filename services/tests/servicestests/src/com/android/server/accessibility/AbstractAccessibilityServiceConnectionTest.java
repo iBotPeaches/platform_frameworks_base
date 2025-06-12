@@ -46,12 +46,11 @@ import static android.view.accessibility.AccessibilityNodeInfo.AccessibilityActi
 import static android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT;
 import static android.view.accessibility.AccessibilityNodeInfo.ROOT_NODE_ID;
 
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -90,14 +89,20 @@ import android.os.Process;
 import android.os.RemoteCallback;
 import android.os.RemoteException;
 import android.os.test.FakePermissionEnforcer;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.Pair;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.MagnificationSpec;
+import android.view.SurfaceControl;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.view.accessibility.IAccessibilityInteractionConnection;
 import android.view.accessibility.IAccessibilityInteractionConnectionCallback;
+import android.view.accessibility.IWindowSurfaceInfoCallback;
+import android.window.ScreenCapture;
 
 import com.android.server.accessibility.AccessibilityWindowManager.RemoteAccessibilityConnection;
 import com.android.server.accessibility.magnification.MagnificationProcessor;
@@ -105,6 +110,7 @@ import com.android.server.accessibility.test.MessageCapturingHandler;
 import com.android.server.wm.WindowManagerInternal;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -121,6 +127,10 @@ import java.util.concurrent.Callable;
  * Tests for the AbstractAccessibilityServiceConnection
  */
 public class AbstractAccessibilityServiceConnectionTest {
+
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
+
     private static final ComponentName COMPONENT_NAME = new ComponentName(
             "com.android.server.accessibility", ".AbstractAccessibilityServiceConnectionTest");
     private static final String PACKAGE_NAME1 = "com.android.server.accessibility1";
@@ -264,7 +274,7 @@ public class AbstractAccessibilityServiceConnectionTest {
 
     @Test
     public void getCapabilities() {
-        assertThat(mServiceConnection.getCapabilities(), is(A11Y_SERVICE_CAPABILITY));
+        assertThat(mServiceConnection.getCapabilities()).isEqualTo(A11Y_SERVICE_CAPABILITY);
     }
 
     @Test
@@ -329,7 +339,7 @@ public class AbstractAccessibilityServiceConnectionTest {
                 0, null, 0);
 
         mServiceConnection.setServiceInfo(serviceInfo);
-        assertThat(mServiceConnection.canReceiveEventsLocked(), is(true));
+        assertThat(mServiceConnection.canReceiveEventsLocked()).isTrue();
     }
 
     @Test
@@ -348,9 +358,11 @@ public class AbstractAccessibilityServiceConnectionTest {
                 mServiceConnection.getWindows();
 
         assertEquals(2, allWindows.size());
-        assertThat(allWindows.get(Display.DEFAULT_DISPLAY), is(mA11yWindowInfos));
+        assertThat(allWindows.get(Display.DEFAULT_DISPLAY))
+                .containsExactlyElementsIn(mA11yWindowInfos);
         assertEquals(2, allWindows.get(Display.DEFAULT_DISPLAY).size());
-        assertThat(allWindows.get(SECONDARY_DISPLAY_ID), is(mA11yWindowInfosOnSecondDisplay));
+        assertThat(allWindows.get(SECONDARY_DISPLAY_ID))
+                .containsExactlyElementsIn(mA11yWindowInfosOnSecondDisplay);
         assertEquals(1, allWindows.get(SECONDARY_DISPLAY_ID).size());
     }
 
@@ -358,12 +370,12 @@ public class AbstractAccessibilityServiceConnectionTest {
     public void getWindows_returnNull() {
         // no canRetrieveWindows, should return null
         when(mMockSecurityPolicy.canRetrieveWindowsLocked(mServiceConnection)).thenReturn(false);
-        assertThat(mServiceConnection.getWindows(), is(nullValue()));
+        assertThat(mServiceConnection.getWindows()).isNull();
 
         // no checkAccessibilityAccess, should return null
         when(mMockSecurityPolicy.canRetrieveWindowsLocked(mServiceConnection)).thenReturn(true);
         when(mMockSecurityPolicy.checkAccessibilityAccess(mServiceConnection)).thenReturn(false);
-        assertThat(mServiceConnection.getWindows(), is(nullValue()));
+        assertThat(mServiceConnection.getWindows()).isNull();
     }
 
     @Test
@@ -378,19 +390,19 @@ public class AbstractAccessibilityServiceConnectionTest {
 
     @Test
     public void getWindow() {
-        assertThat(mServiceConnection.getWindow(WINDOWID), is(mA11yWindowInfos.get(0)));
+        assertThat(mServiceConnection.getWindow(WINDOWID)).isEqualTo(mA11yWindowInfos.get(0));
     }
 
     @Test
     public void getWindow_returnNull() {
         // no canRetrieveWindows, should return null
         when(mMockSecurityPolicy.canRetrieveWindowsLocked(mServiceConnection)).thenReturn(false);
-        assertThat(mServiceConnection.getWindow(WINDOWID), is(nullValue()));
+        assertThat(mServiceConnection.getWindow(WINDOWID)).isNull();
 
         // no checkAccessibilityAccess, should return null
         when(mMockSecurityPolicy.canRetrieveWindowsLocked(mServiceConnection)).thenReturn(true);
         when(mMockSecurityPolicy.checkAccessibilityAccess(mServiceConnection)).thenReturn(false);
-        assertThat(mServiceConnection.getWindow(WINDOWID), is(nullValue()));
+        assertThat(mServiceConnection.getWindow(WINDOWID)).isNull();
     }
 
     @Test
@@ -405,8 +417,8 @@ public class AbstractAccessibilityServiceConnectionTest {
 
     @Test
     public void getWindow_onNonDefaultDisplay() {
-        assertThat(mServiceConnection.getWindow(WINDOWID_ONSECONDDISPLAY),
-                is(mA11yWindowInfosOnSecondDisplay.get(0)));
+        assertThat(mServiceConnection.getWindow(WINDOWID_ONSECONDDISPLAY))
+                .isEqualTo(mA11yWindowInfosOnSecondDisplay.get(0));
     }
 
     @Test
@@ -415,9 +427,9 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSecurityPolicy.canGetAccessibilityNodeInfoLocked(
                 USER_ID, mServiceConnection, WINDOWID)).thenReturn(false);
         for (int i = 0; i < mFindA11yNodesFunctions.length; i++) {
-            assertThat(mFindA11yNodesFunctions[i].call(), is(nullValue()));
+            assertThat(mFindA11yNodesFunctions[i].call()).isNull();
         }
-        assertThat(mPerformA11yAction.call(), is(false));
+        assertThat(mPerformA11yAction.call()).isFalse();
 
         verifyNoMoreInteractions(mMockIA11yInteractionConnection);
         verify(mMockSecurityPolicy, never()).computeValidReportedPackages(any(), anyInt());
@@ -428,9 +440,9 @@ public class AbstractAccessibilityServiceConnectionTest {
             throws Exception {
         when(mMockSecurityPolicy.checkAccessibilityAccess(mServiceConnection)).thenReturn(false);
         for (int i = 0; i < mFindA11yNodesFunctions.length; i++) {
-            assertThat(mFindA11yNodesFunctions[i].call(), is(nullValue()));
+            assertThat(mFindA11yNodesFunctions[i].call()).isNull();
         }
-        assertThat(mPerformA11yAction.call(), is(false));
+        assertThat(mPerformA11yAction.call()).isFalse();
 
         verifyNoMoreInteractions(mMockIA11yInteractionConnection);
         verify(mMockSecurityPolicy, never()).computeValidReportedPackages(any(), anyInt());
@@ -441,9 +453,9 @@ public class AbstractAccessibilityServiceConnectionTest {
             throws Exception {
         when(mMockA11yWindowManager.getConnectionLocked(USER_ID, WINDOWID)).thenReturn(null);
         for (int i = 0; i < mFindA11yNodesFunctions.length; i++) {
-            assertThat(mFindA11yNodesFunctions[i].call(), is(nullValue()));
+            assertThat(mFindA11yNodesFunctions[i].call()).isNull();
         }
-        assertThat(mPerformA11yAction.call(), is(false));
+        assertThat(mPerformA11yAction.call()).isFalse();
 
         verifyNoMoreInteractions(mMockIA11yInteractionConnection);
         verify(mMockSecurityPolicy, never()).computeValidReportedPackages(any(), anyInt());
@@ -562,7 +574,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockFingerprintGestureDispatcher.isFingerprintGestureDetectionAvailable())
                 .thenReturn(true);
         final boolean result = mServiceConnection.isFingerprintGestureDetectionAvailable();
-        assertThat(result, is(true));
+        assertThat(result).isTrue();
     }
 
     @Test
@@ -573,14 +585,14 @@ public class AbstractAccessibilityServiceConnectionTest {
         // Return false if device does not support fingerprint
         when(mMockPackageManager.hasSystemFeature(FEATURE_FINGERPRINT)).thenReturn(false);
         boolean result = mServiceConnection.isFingerprintGestureDetectionAvailable();
-        assertThat(result, is(false));
+        assertThat(result).isFalse();
 
         // Return false if service does not have flag
         when(mMockPackageManager.hasSystemFeature(FEATURE_FINGERPRINT)).thenReturn(true);
         mSpyServiceInfo.flags = A11Y_SERVICE_FLAG & ~FLAG_REQUEST_FINGERPRINT_GESTURES;
         mServiceConnection.setServiceInfo(mSpyServiceInfo);
         result = mServiceConnection.isFingerprintGestureDetectionAvailable();
-        assertThat(result, is(false));
+        assertThat(result).isFalse();
     }
 
     @Test
@@ -590,7 +602,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockMagnificationProcessor.getScale(displayId)).thenReturn(scale);
 
         final float result = mServiceConnection.getMagnificationScale(displayId);
-        assertThat(result, is(scale));
+        assertThat(result).isEqualTo(scale);
     }
 
     @Test
@@ -601,7 +613,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSystemSupport.getCurrentUserIdLocked()).thenReturn(USER_ID2);
 
         final float result = mServiceConnection.getMagnificationScale(displayId);
-        assertThat(result, is(1.0f));
+        assertThat(result).isEqualTo(1.0f);
     }
 
     @Test
@@ -616,7 +628,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSystemSupport.getCurrentUserIdLocked()).thenReturn(USER_ID2);
 
         final Region result = mServiceConnection.getMagnificationRegion(displayId);
-        assertThat(result.isEmpty(), is(true));
+        assertWithMessage("Non-empty region: " + result).that(result.isEmpty()).isTrue();
     }
 
     @Test
@@ -642,7 +654,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSystemSupport.getCurrentUserIdLocked()).thenReturn(USER_ID2);
 
         final float result = mServiceConnection.getMagnificationCenterX(displayId);
-        assertThat(result, is(0.0f));
+        assertThat(result).isEqualTo(0.0f);
     }
 
     @Test
@@ -654,7 +666,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSystemSupport.getCurrentUserIdLocked()).thenReturn(USER_ID2);
 
         final float result = mServiceConnection.getMagnificationCenterY(displayId);
-        assertThat(result, is(0.0f));
+        assertThat(result).isEqualTo(0.0f);
     }
 
     @Test
@@ -664,7 +676,7 @@ public class AbstractAccessibilityServiceConnectionTest {
                 true);
 
         final boolean result = mServiceConnection.resetMagnification(displayId, true);
-        assertThat(result, is(true));
+        assertThat(result).isTrue();
     }
 
     @Test
@@ -675,7 +687,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSecurityPolicy.canControlMagnification(mServiceConnection)).thenReturn(false);
 
         final boolean result = mServiceConnection.resetMagnification(displayId, true);
-        assertThat(result, is(false));
+        assertThat(result).isFalse();
     }
 
     @Test
@@ -686,7 +698,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         when(mMockSystemSupport.getCurrentUserIdLocked()).thenReturn(USER_ID2);
 
         final boolean result = mServiceConnection.resetMagnification(displayId, true);
-        assertThat(result, is(false));
+        assertThat(result).isFalse();
     }
 
     @Test
@@ -765,6 +777,134 @@ public class AbstractAccessibilityServiceConnectionTest {
                         == bundle.getInt(KEY_ACCESSIBILITY_SCREENSHOT_STATUS)));
     }
 
+    private void setPreinstalledA11yTool(boolean isPreinstalledA11yTool) {
+        when(mSpyServiceInfo.getResolveInfo().serviceInfo.applicationInfo.isSystemApp())
+                .thenReturn(isPreinstalledA11yTool);
+        when(mSpyServiceInfo.isAccessibilityTool()).thenReturn(isPreinstalledA11yTool);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ALLOW_SECURE_SCREENSHOTS)
+    public void takeScreenshot_standardService_cannotCaptureSecureLayers() {
+        setPreinstalledA11yTool(false);
+
+        takeScreenshotOfDisplay();
+
+        final ArgumentCaptor<ScreenCapture.CaptureArgs> displayArgsCaptor =
+                ArgumentCaptor.forClass(ScreenCapture.CaptureArgs.class);
+        verify(mMockWindowManagerInternal).captureDisplay(
+                eq(Display.DEFAULT_DISPLAY), displayArgsCaptor.capture(), any());
+        assertThat(displayArgsCaptor.getValue().mCaptureSecureLayers).isFalse();
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ALLOW_SECURE_SCREENSHOTS)
+    public void takeScreenshot_preinstalledA11yTool_canCaptureSecureLayers() {
+        setPreinstalledA11yTool(true);
+
+        takeScreenshotOfDisplay();
+
+        final ArgumentCaptor<ScreenCapture.CaptureArgs> displayArgsCaptor =
+                ArgumentCaptor.forClass(ScreenCapture.CaptureArgs.class);
+        verify(mMockWindowManagerInternal).captureDisplay(
+                anyInt(), displayArgsCaptor.capture(), any());
+        assertThat(displayArgsCaptor.getValue().mCaptureSecureLayers).isTrue();
+    }
+
+    private void takeScreenshotOfDisplay() {
+        when(mMockSecurityPolicy.canTakeScreenshotLocked(mServiceConnection)).thenReturn(true);
+        when(mMockSecurityPolicy.checkAccessibilityAccess(mServiceConnection)).thenReturn(true);
+
+        final DisplayManager displayManager = new DisplayManager(mMockContext);
+        when(mMockContext.getSystemService(Context.DISPLAY_SERVICE)).thenReturn(displayManager);
+
+        mServiceConnection.takeScreenshot(Display.DEFAULT_DISPLAY,
+                new RemoteCallback(mMockListener));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ALLOW_SECURE_SCREENSHOTS)
+    public void takeScreenshotOfWindow_standardWindow_standardService_cannotCaptureSecureLayers()
+            throws Exception {
+        setPreinstalledA11yTool(false);
+
+        takeScreenshotOfWindow(/*windowFlags=*/0);
+
+        // Screenshot was allowed
+        final ArgumentCaptor<ScreenCapture.LayerCaptureArgs> layerArgsCaptor =
+                ArgumentCaptor.forClass(ScreenCapture.LayerCaptureArgs.class);
+        verify(mMockSystemSupport).performScreenCapture(layerArgsCaptor.capture(), any());
+        // ...without secure layers included
+        assertThat(layerArgsCaptor.getValue().mCaptureSecureLayers).isFalse();
+        // No error sent to callback
+        verifyNoMoreInteractions(mMockCallback);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ALLOW_SECURE_SCREENSHOTS)
+    public void takeScreenshotOfWindow_standardWindow_preinstalledA11yTool_canCaptureSecureLayers()
+            throws Exception {
+        setPreinstalledA11yTool(true);
+
+        takeScreenshotOfWindow(/*windowFlags=*/0);
+
+        // Screenshot was allowed
+        final ArgumentCaptor<ScreenCapture.LayerCaptureArgs> layerArgsCaptor =
+                ArgumentCaptor.forClass(ScreenCapture.LayerCaptureArgs.class);
+        verify(mMockSystemSupport).performScreenCapture(layerArgsCaptor.capture(), any());
+        // ...with secure layers included
+        assertThat(layerArgsCaptor.getValue().mCaptureSecureLayers).isTrue();
+        // No error sent to callback
+        verifyNoMoreInteractions(mMockCallback);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ALLOW_SECURE_SCREENSHOTS)
+    public void takeScreenshotOfWindow_secureWindow_standardService_sendsCallbackError()
+            throws Exception {
+        setPreinstalledA11yTool(false);
+
+        takeScreenshotOfWindow(WindowManager.LayoutParams.FLAG_SECURE);
+
+        // Screenshot was not allowed
+        verify(mMockSystemSupport, never()).performScreenCapture(any(), any());
+        // Error sent to callback
+        verify(mMockCallback).sendTakeScreenshotOfWindowError(
+                AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW, INTERACTION_ID);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ALLOW_SECURE_SCREENSHOTS)
+    public void takeScreenshotOfWindow_secureWindow_preinstalledA11yTool_canCaptureSecureLayers()
+            throws Exception {
+        setPreinstalledA11yTool(true);
+
+        takeScreenshotOfWindow(WindowManager.LayoutParams.FLAG_SECURE);
+
+        // Screenshot was allowed
+        final ArgumentCaptor<ScreenCapture.LayerCaptureArgs> layerArgsCaptor =
+                ArgumentCaptor.forClass(ScreenCapture.LayerCaptureArgs.class);
+        verify(mMockSystemSupport).performScreenCapture(layerArgsCaptor.capture(), any());
+        // ...with secure layers included
+        assertThat(layerArgsCaptor.getValue().mCaptureSecureLayers).isTrue();
+        // No error sent to callback
+        verifyNoMoreInteractions(mMockCallback);
+    }
+
+    private void takeScreenshotOfWindow(int windowFlags) throws Exception {
+        when(mMockSecurityPolicy.canTakeScreenshotLocked(mServiceConnection)).thenReturn(true);
+        when(mMockSecurityPolicy.checkAccessibilityAccess(mServiceConnection)).thenReturn(true);
+
+        mServiceConnection.takeScreenshotOfWindow(
+                WINDOWID, INTERACTION_ID, /*listener=*/null, mMockCallback);
+        final ArgumentCaptor<IWindowSurfaceInfoCallback> windowSurfaceCallbackCaptor =
+                ArgumentCaptor.forClass(IWindowSurfaceInfoCallback.class);
+        verify(mMockIA11yInteractionConnection).getWindowSurfaceInfo(
+                windowSurfaceCallbackCaptor.capture());
+        windowSurfaceCallbackCaptor.getValue().provideWindowSurfaceInfo(
+                windowFlags, /*appUid=*/0, new SurfaceControl());
+    }
+
     private void updateServiceInfo(AccessibilityServiceInfo serviceInfo, int eventType,
             int feedbackType, int flags, String[] packageNames, int notificationTimeout) {
         serviceInfo.eventTypes = eventType;
@@ -837,8 +977,8 @@ public class AbstractAccessibilityServiceConnectionTest {
                 ArgumentCaptor.forClass(AccessibilityNodeInfo.class);
         verify(mMockCallback).setFindAccessibilityNodeInfoResult(captor.capture(),
                 eq(INTERACTION_ID));
-        assertThat(captor.getValue().getActionList(),
-                hasItems(AccessibilityAction.ACTION_CLICK, AccessibilityAction.ACTION_EXPAND));
+        assertThat(captor.getValue().getActionList()).containsAtLeast(
+                AccessibilityAction.ACTION_CLICK, AccessibilityAction.ACTION_EXPAND);
     }
 
     private static class TestAccessibilityServiceConnection

@@ -23,6 +23,7 @@ import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCA
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER;
 import static android.content.pm.ActivityInfo.isFixedOrientation;
 import static android.content.pm.ActivityInfo.isFixedOrientationLandscape;
+import static android.content.pm.ActivityInfo.isFixedOrientationPortrait;
 import static android.content.pm.ActivityInfo.screenOrientationToString;
 
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.TAG_ATM;
@@ -54,7 +55,7 @@ class AppCompatOrientationPolicy {
     @ActivityInfo.ScreenOrientation
     int overrideOrientationIfNeeded(@ActivityInfo.ScreenOrientation int candidate) {
         final AppCompatAspectRatioOverrides aspectRatioOverrides =
-                mAppCompatOverrides.getAppCompatAspectRatioOverrides();
+                mAppCompatOverrides.getAspectRatioOverrides();
         // Ignore all orientation requests of activities for eligible virtual displays.
         if (aspectRatioOverrides.shouldIgnoreActivitySizeRestrictionsForDisplay()) {
             return SCREEN_ORIENTATION_USER;
@@ -66,6 +67,7 @@ class AppCompatOrientationPolicy {
         final boolean shouldCameraCompatControlOrientation =
                 AppCompatCameraPolicy.shouldCameraCompatControlOrientation(mActivityRecord);
         if (hasFullscreenOverride && isIgnoreOrientationRequestEnabled
+                && (isFixedOrientationLandscape(candidate) || isFixedOrientationPortrait(candidate))
                 // Do not override orientation to fullscreen for camera activities.
                 // Fixed-orientation activities are rarely tested in other orientations, and it
                 // often results in sideways or stretched previews. As the camera compat treatment
@@ -92,13 +94,13 @@ class AppCompatOrientationPolicy {
             return SCREEN_ORIENTATION_PORTRAIT;
         }
 
-        if (mAppCompatOverrides.getAppCompatOrientationOverrides()
+        if (mAppCompatOverrides.getOrientationOverrides()
                 .isAllowOrientationOverrideOptOut()) {
             return candidate;
         }
 
         if (displayContent != null
-                && mAppCompatOverrides.getAppCompatCameraOverrides()
+                && mAppCompatOverrides.getCameraOverrides()
                     .isOverrideOrientationOnlyForCameraEnabled()
                 && !AppCompatCameraPolicy
                     .isActivityEligibleForOrientationOverride(mActivityRecord)) {
@@ -106,7 +108,7 @@ class AppCompatOrientationPolicy {
         }
 
         final AppCompatOrientationOverrides.OrientationOverridesState capabilityState =
-                mAppCompatOverrides.getAppCompatOrientationOverrides()
+                mAppCompatOverrides.getOrientationOverrides()
                         .mOrientationOverridesState;
 
         if (capabilityState.mIsOverrideToReverseLandscapeOrientationEnabled
@@ -168,7 +170,7 @@ class AppCompatOrientationPolicy {
     boolean shouldIgnoreRequestedOrientation(
             @ActivityInfo.ScreenOrientation int requestedOrientation) {
         final AppCompatOrientationOverrides orientationOverrides =
-                mAppCompatOverrides.getAppCompatOrientationOverrides();
+                mAppCompatOverrides.getOrientationOverrides();
         if (orientationOverrides.shouldEnableIgnoreOrientationRequest()) {
             if (orientationOverrides.getIsRelaunchingAfterRequestedOrientationChanged()) {
                 Slog.w(TAG, "Ignoring orientation update to "
@@ -178,10 +180,7 @@ class AppCompatOrientationPolicy {
                 return true;
             }
 
-            final AppCompatCameraPolicy cameraPolicy = AppCompatCameraPolicy
-                    .getAppCompatCameraPolicy(mActivityRecord);
-            if (cameraPolicy != null
-                    && cameraPolicy.isTreatmentEnabledForActivity(mActivityRecord)) {
+            if (AppCompatCameraPolicy.isTreatmentEnabledForActivity(mActivityRecord)) {
                 Slog.w(TAG, "Ignoring orientation update to "
                         + screenOrientationToString(requestedOrientation)
                         + " due to camera compat treatment for " + mActivityRecord);

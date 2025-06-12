@@ -211,6 +211,16 @@ flag {
 }
 
 flag {
+    name: "place_add_user_dialog_within_activity"
+    namespace: "multiuser"
+    description: "Display dialog within activity to make it traversable by Accessibility"
+    bug: "376815882"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
     name: "property_invalidated_cache_bypass_mismatched_uids"
     namespace: "multiuser"
     description: "Bypass the cache when the process UID does not match the binder UID."
@@ -374,6 +384,16 @@ flag {
   is_fixed_read_only: true
 }
 
+flag {
+    name: "require_pin_before_user_deletion"
+    namespace: "multiuser"
+    description: "Require credential authentication when a user tries to delete themselves or another user"
+    bug: "342395399"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+  }
+}
+
 # This flag guards the private space feature and all its implementations excluding the APIs. APIs are guarded by android.os.Flags.allow_private_profile.
 flag {
     name: "enable_private_space_features"
@@ -490,6 +510,16 @@ flag {
 }
 
 flag {
+  name: "get_user_switchability_permission"
+  namespace: "multiuser"
+  description: "Update permissions for getUserSwitchability"
+  bug: "390458180"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
     name: "restrict_quiet_mode_credential_bug_fix_to_managed_profiles"
     namespace: "profile_experiences"
     description: "Use user states to check the state of quiet mode for managed profiles only"
@@ -594,4 +624,42 @@ flag {
     description: "Add support for LauncherUserInfo configs"
     bug: "346553745"
     is_exported: true
+}
+
+flag {
+     name: "logout_user_api"
+     namespace: "multiuser"
+     description: "Add API to logout user"
+     bug: "350045389"
+}
+
+flag {
+    name: "enable_moving_content_into_private_space"
+    namespace: "profile_experiences"
+    description: "Enable moving content into the Private Space"
+    bug: "360066001"
+}
+
+flag {
+    name: "allow_supervising_profile"
+    namespace: "supervision"
+    description: "Enables support for new supervising user type"
+    bug: "389712089"
+}
+
+flag {
+    name: "use_unified_resources"
+    namespace: "multiuser"
+    description: "Use same resources"
+    bug: "392972139"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+     name: "profiles_for_all"
+     namespace: "multiuser"
+     description: "Allows any regular user to have profiles"
+     bug: "374832167"
 }

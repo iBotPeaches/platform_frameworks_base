@@ -145,3 +145,34 @@ flag {
         purpose: PURPOSE_FEATURE
     }
 }
+
+flag {
+    namespace: "haptics"
+    name: "fix_vibration_thread_callback_handling"
+    description: "Fix how the VibrationThread handles late callbacks from the vibrator HAL"
+    bug: "395005081"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "haptics"
+    name: "fix_external_vibration_system_update_aware"
+    description: "Fix the audio-coupled haptics handling of system updates."
+    bug: "372241975"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "haptics"
+    name: "remove_hidl_support"
+    description: "Remove framework code to support HIDL vibrator HALs."
+    bug: "308452413"
+    is_fixed_read_only: true
+    metadata {
+      purpose: PURPOSE_FEATURE
+    }
+}

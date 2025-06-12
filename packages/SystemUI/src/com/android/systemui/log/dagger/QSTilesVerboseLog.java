@@ -26,8 +26,7 @@ import java.lang.annotation.Retention;
 import javax.inject.Qualifier;
 
 /**
- * A {@link LogBuffer} for QS tiles messages. It's used exclusively in
- * {@link com.android.systemui.qs.tiles.base.logging.QSTileLogger}
+ * A {@link LogBuffer} for QS tiles messages. It's used exclusively in @link QSTileLogger}.
  */
 @Qualifier
 @Documented

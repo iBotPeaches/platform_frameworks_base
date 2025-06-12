@@ -60,6 +60,7 @@ filegroup {
         "src-release/**/*.kt",
         "src-release/**/*.java",
     ],
+    path: "src-release",
     visibility: ["//visibility:private"],
 }
 
@@ -69,6 +70,7 @@ filegroup {
         "src-debug/**/*.kt",
         "src-debug/**/*.java",
     ],
+    path: "src-debug",
     visibility: ["//visibility:private"],
 }
 
@@ -85,10 +87,13 @@ filegroup {
 filegroup {
     name: "SystemUI-tests-broken-robofiles-run",
     srcs: [
+        "tests/src/**/systemui/keyguard/data/repository/KeyguardTransitionRepositoryTest.kt",
+        "tests/src/**/systemui/power/PowerNotificationWarningsTest.java",
+        "tests/src/**/systemui/user/domain/interactor/RefreshUsersSchedulerTest.kt",
+        "tests/src/**/systemui/dreams/touch/CommunalTouchHandlerTest.java",
         "tests/src/**/systemui/shade/NotificationShadeWindowViewControllerTest.kt",
         "tests/src/**/systemui/keyguard/domain/interactor/KeyguardQuickAffordanceInteractorSceneContainerTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/ui/model/SignalIconModelParameterizedTest.kt",
-        "tests/src/**/systemui/education/domain/interactor/KeyboardTouchpadEduInteractorTest.kt",
         "tests/src/**/systemui/biometrics/udfps/SinglePointerTouchProcessorTest.kt",
         "tests/src/**/systemui/animation/back/FlingOnBackAnimationCallbackTest.kt",
         "tests/src/**/systemui/education/domain/ui/view/ContextualEduDialogTest.kt",
@@ -204,6 +209,8 @@ filegroup {
         "tests/src/**/systemui/statusbar/notification/row/NotificationConversationInfoTest.java",
         "tests/src/**/systemui/statusbar/notification/row/NotificationGutsManagerWithScenesTest.kt",
         "tests/src/**/systemui/statusbar/notification/row/wrapper/NotificationTemplateViewWrapperTest.kt",
+        "tests/src/**/systemui/statusbar/notification/row/NotificationCustomContentMemoryVerifierTest.java",
+        "tests/src/**/systemui/statusbar/notification/row/NotificationCustomContentMemoryVerifierDisabledTest.java",
         "tests/src/**/systemui/statusbar/notification/stack/NotificationStackScrollLayoutTest.java",
         "tests/src/**/systemui/statusbar/phone/CentralSurfacesImplTest.java",
         "tests/src/**/systemui/statusbar/phone/fragment/CollapsedStatusBarFragmentTest.java",
@@ -213,6 +220,7 @@ filegroup {
         "tests/src/**/systemui/statusbar/phone/StatusBarBoundsProviderTest.kt",
         "tests/src/**/systemui/statusbar/phone/StatusBarMoveFromCenterAnimationControllerTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/airplane/ui/viewmodel/AirplaneModeViewModelImplTest.kt",
+        "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/MobileConnectionsRepositoryKairosAdapterTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/MobileConnectionsRepositoryTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/ui/view/ModernStatusBarMobileViewTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/wifi/ui/view/ModernStatusBarWifiViewTest.kt",
@@ -269,7 +277,7 @@ filegroup {
         "tests/src/**/systemui/stylus/StylusManagerTest.kt",
         "tests/src/**/systemui/recents/OverviewProxyServiceTest.kt",
         "tests/src/**/systemui/DisplayCutoutBaseViewTest.kt",
-        "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/CarrierConfigRepositoryTest.kt",
+        "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/CarrierConfigRepositoryImplTest.kt",
         "tests/src/**/systemui/statusbar/policy/BatteryControllerTest.java",
         "tests/src/**/systemui/statusbar/policy/SensitiveNotificationProtectionControllerTest.kt",
         "tests/src/**/systemui/statusbar/KeyboardShortcutsReceiverTest.java",
@@ -277,13 +285,14 @@ filegroup {
         "tests/src/**/systemui/media/controls/domain/pipeline/LegacyMediaDataManagerImplTest.kt",
         "tests/src/**/systemui/temporarydisplay/chipbar/SwipeChipbarAwayGestureHandlerTest.kt",
         "tests/src/**/systemui/qs/tiles/HotspotTileTest.java",
-        "tests/src/**/systemui/qs/tiles/dialog/InternetDialogDelegateTest.java",
+        "tests/src/**/systemui/qs/tiles/dialog/InternetDialogDelegateLegacyTest.java",
         "tests/src/**/systemui/navigationbar/NavigationBarControllerImplTest.java",
         "tests/src/**/systemui/wmshell/BubblesTest.java",
         "tests/src/**/systemui/statusbar/phone/StatusBarNotificationActivityStarterTest.java",
         "tests/src/**/systemui/statusbar/phone/KeyguardClockPositionAlgorithmTest.java",
         "tests/src/**/systemui/shared/system/RemoteTransitionTest.java",
-        "tests/src/**/systemui/qs/tiles/dialog/InternetDialogDelegateControllerTest.java",
+        "tests/src/**/systemui/qs/tiles/dialog/InternetDetailsContentControllerTest.java",
+        "tests/src/**/systemui/qs/tiles/dialog/InternetDetailsContentManagerTest.kt",
         "tests/src/**/systemui/qs/external/TileLifecycleManagerTest.java",
         "tests/src/**/systemui/ScreenDecorationsTest.java",
         "tests/src/**/systemui/statusbar/policy/BatteryControllerStartableTest.java",
@@ -309,10 +318,11 @@ filegroup {
         "tests/src/**/systemui/temporarydisplay/TemporaryViewDisplayControllerTest.kt",
         "tests/src/**/systemui/statusbar/policy/WalletControllerImplTest.kt",
         "tests/src/**/keyguard/ClockEventControllerTest.kt",
+        "tests/src/**/systemui/bluetooth/qsdialog/BluetoothDetailsContentManagerTest.kt",
+        "tests/src/**/systemui/bluetooth/qsdialog/BluetoothDetailsContentViewModelTest.kt",
         "tests/src/**/systemui/bluetooth/qsdialog/BluetoothStateInteractorTest.kt",
         "tests/src/**/systemui/bluetooth/qsdialog/BluetoothTileDialogDelegateTest.kt",
         "tests/src/**/systemui/bluetooth/qsdialog/BluetoothTileDialogRepositoryTest.kt",
-        "tests/src/**/systemui/bluetooth/qsdialog/BluetoothTileDialogViewModelTest.kt",
         "tests/src/**/systemui/bluetooth/qsdialog/DeviceItemFactoryTest.kt",
         "tests/src/**/systemui/bluetooth/qsdialog/DeviceItemInteractorTest.kt",
         "tests/src/**/systemui/broadcast/UserBroadcastDispatcherTest.kt",
@@ -347,7 +357,9 @@ filegroup {
         "tests/src/**/systemui/qs/tiles/AlarmTileTest.kt",
         "tests/src/**/systemui/qs/tiles/BluetoothTileTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/FullMobileConnectionRepositoryTest.kt",
+        "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/MobileConnectionRepositoryKairosAdapterTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/MobileConnectionRepositoryTest.kt",
+        "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/MobileConnectionKairosAdapterTelephonySmokeTests.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/prod/MobileConnectionTelephonySmokeTests.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/data/repository/MobileRepositorySwitcherTest.kt",
         "tests/src/**/systemui/statusbar/pipeline/mobile/data/model/SystemUiCarrierConfigTest.kt",
@@ -418,14 +430,27 @@ android_library {
         "androidx.slice_slice-view",
     ],
     manifest: "AndroidManifest-res.xml",
+    flags_packages: [
+        "android.app.flags-aconfig",
+        "com_android_systemui_flags",
+    ],
+}
+
+filegroup {
+    name: "SystemUI-core-srcs",
+    srcs: [
+        "src/**/*.kt",
+        "src/**/*.java",
+        "src/**/I*.aidl",
+    ],
+    path: "src",
+    visibility: ["//visibility:private"],
 }
 
 android_library {
     name: "SystemUI-core",
     srcs: [
-        "src/**/*.kt",
-        "src/**/*.java",
-        "src/**/I*.aidl",
+        ":SystemUI-core-srcs",
         ":ReleaseJavaFiles",
         "compose/features/src/**/*.kt",
         "compose/facade/enabled/src/**/*.kt",
@@ -440,9 +465,9 @@ android_library {
     resource_dirs: [],
     static_libs: [
         "//frameworks/libs/systemui:compilelib",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/dagger:api",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/util/settings:api",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail:impl",
+        "com.android.systemui.dagger-api",
+        "com.android.systemui.util.settings-api",
+        "com.android.systemui.retail-impl",
         "SystemUI-res",
         "WifiTrackerLib",
         "WindowManager-Shell",
@@ -512,6 +537,9 @@ android_library {
         "androidx.activity_activity-compose",
         "androidx.compose.animation_animation-graphics",
         "androidx.lifecycle_lifecycle-viewmodel-compose",
+        "kairos",
+        "displaylib",
+        "aconfig_settings_flags_lib",
     ],
     libs: [
         "keepanno-annotations",
@@ -525,7 +553,11 @@ android_library {
         "-Adagger.useBindingGraphFix=ENABLED",
         "-Aroom.schemaLocation=frameworks/base/packages/SystemUI/schemas",
     ],
-    kotlincflags: ["-Xjvm-default=all"],
+    kotlincflags: [
+        "-Xjvm-default=all",
+        "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+        "-P plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
+    ],
 
     plugins: [
         "androidx.room_room-compiler-plugin",
@@ -537,6 +569,11 @@ android_library {
         warning_checks: ["MissingApacheLicenseDetector"],
         baseline_filename: "lint-baseline.xml",
     },
+}
+
+platform_compat_config {
+    name: "SystemUI-core-compat-config",
+    src: ":SystemUI-core",
 }
 
 filegroup {
@@ -694,6 +731,9 @@ android_library {
         "androidx.lifecycle_lifecycle-viewmodel-compose",
         "TraceurCommon",
         "Traceur-res",
+        "aconfig_settings_flags_lib",
+        "kairos",
+        "displaylib",
     ],
 }
 
@@ -709,9 +749,7 @@ android_library {
     srcs: [
         "tests/src/**/*.kt",
         "tests/src/**/*.java",
-        "src/**/*.kt",
-        "src/**/*.java",
-        "src/**/I*.aidl",
+        ":SystemUI-core-srcs",
         ":ReleaseJavaFiles",
         ":SystemUI-tests-multivalent",
         ":SystemUI-tests-utils",
@@ -720,9 +758,9 @@ android_library {
     ],
     static_libs: [
         "//frameworks/libs/systemui:compilelib",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/dagger:api",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/util/settings:api",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail:impl",
+        "com.android.systemui.dagger-api",
+        "com.android.systemui.util.settings-api",
+        "com.android.systemui.retail-impl",
         "SystemUI-tests-base",
         "androidx.test.uiautomator_uiautomator",
         "androidx.core_core-animation-testing",
@@ -736,9 +774,12 @@ android_library {
         "PlatformMotionTesting",
         "SystemUICustomizationTestUtils",
         "androidx.compose.runtime_runtime",
+        "kairos",
         "kosmos",
+        "displaylib",
         "testables",
         "androidx.test.rules",
+        "platform-compat-test-rules",
     ],
     libs: [
         "android.test.runner.stubs.system",
@@ -750,6 +791,7 @@ android_library {
         "-Xjvm-default=all",
         // TODO(b/352363800): Why do we need this?
         "-J-Xmx8192M",
+        "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
     ],
     javacflags: [
         "-Adagger.useBindingGraphFix=ENABLED",
@@ -816,7 +858,7 @@ java_library {
         "androidx.test.uiautomator_uiautomator",
         "androidx.core_core-animation-testing",
         "androidx.test.ext.junit",
-        "inline-mockito-robolectric-prebuilt",
+        "inline-mockito5-robolectric-prebuilt",
         "mockito-kotlin-nodeps",
         "platform-parametric-runner-lib",
         "SystemUICustomizationTestUtils",
@@ -872,6 +914,7 @@ android_robolectric_test {
     static_libs: [
         "RoboTestLibraries",
         "androidx.compose.runtime_runtime",
+        "platform-compat-test-rules",
     ],
     libs: [
         "android.test.runner.impl",
@@ -916,6 +959,7 @@ android_ravenwood_test {
         "android.test.mock.impl",
     ],
     auto_gen_config: true,
+    team: "trendy_team_ravenwood",
     plugins: [
         "dagger2-compiler",
     ],

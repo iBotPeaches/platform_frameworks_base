@@ -108,7 +108,7 @@ class FoldStateListenerTest : SysuiTestCase() {
     private fun setGoToSleepStates(vararg states: Int) {
         mContext.orCreateTestableResources.addOverride(
             R.array.config_deviceStatesOnWhichToSleep,
-            states
+            states,
         )
     }
 
@@ -117,9 +117,10 @@ class FoldStateListenerTest : SysuiTestCase() {
     }
 
     companion object {
-        private val DEVICE_STATE_FOLDED = Kosmos().foldedDeviceStateList.first()
-        private val DEVICE_STATE_HALF_FOLDED = Kosmos().halfFoldedDeviceState
-        private val DEVICE_STATE_UNFOLDED = Kosmos().unfoldedDeviceState
+        private val kosmos = Kosmos()
+        private val DEVICE_STATE_FOLDED = kosmos.foldedDeviceStateList.first()
+        private val DEVICE_STATE_HALF_FOLDED = kosmos.halfFoldedDeviceState
+        private val DEVICE_STATE_UNFOLDED = kosmos.unfoldedDeviceState
 
         private const val FOLDED = true
         private const val NOT_FOLDED = false

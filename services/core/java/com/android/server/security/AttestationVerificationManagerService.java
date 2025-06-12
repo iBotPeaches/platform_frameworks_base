@@ -99,11 +99,6 @@ public class AttestationVerificationManagerService extends SystemService {
         @Override
         protected void dump(@NonNull FileDescriptor fd, @NonNull PrintWriter writer,
                 @Nullable String[] args) {
-            if (!android.security.Flags.dumpAttestationVerifications()) {
-                super.dump(fd, writer, args);
-                return;
-            }
-
             if (!DumpUtils.checkDumpAndUsageStatsPermission(getContext(), TAG, writer)) return;
 
             final IndentingPrintWriter fout = new IndentingPrintWriter(writer, "    ");

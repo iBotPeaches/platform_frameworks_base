@@ -38,14 +38,14 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.qs.external.componentName
 import com.android.systemui.qs.external.iQSTileService
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.intentInputs
-import com.android.systemui.qs.tiles.base.actions.pendingIntentInputs
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx.click
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx.longClick
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.intentInputs
+import com.android.systemui.qs.tiles.base.domain.actions.pendingIntentInputs
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx.click
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx.longClick
 import com.android.systemui.qs.tiles.impl.custom.customTileServiceInteractor
 import com.android.systemui.qs.tiles.impl.custom.customTileSpec
-import com.android.systemui.qs.tiles.impl.custom.domain.entity.CustomTileDataModel
+import com.android.systemui.qs.tiles.impl.custom.domain.model.CustomTileDataModel
 import com.android.systemui.qs.tiles.impl.custom.qsTileLogger
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.repository.fakeUserRepository
@@ -144,7 +144,7 @@ class CustomTileUserActionInteractorTest : SysuiTestCase() {
                     assertThat(
                             intent.getParcelableExtra(
                                 Intent.EXTRA_COMPONENT_NAME,
-                                ComponentName::class.java
+                                ComponentName::class.java,
                             )
                         )
                         .isEqualTo(componentName)

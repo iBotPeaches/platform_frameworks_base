@@ -27,7 +27,7 @@ import static android.view.Surface.FRAME_RATE_CATEGORY_LOW;
 import static android.view.Surface.FRAME_RATE_CATEGORY_NORMAL;
 import static android.view.Surface.FRAME_RATE_CATEGORY_NO_PREFERENCE;
 import static android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
-import static android.view.Surface.FRAME_RATE_COMPATIBILITY_GTE;
+import static android.view.Surface.FRAME_RATE_COMPATIBILITY_AT_LEAST;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static android.view.accessibility.AccessibilityEvent.CONTENT_CHANGE_TYPE_UNDEFINED;
 import static android.view.accessibility.Flags.FLAG_DEPRECATE_ACCESSIBILITY_ANNOUNCEMENT_APIS;
@@ -66,6 +66,7 @@ import static com.android.internal.util.FrameworkStatsLog.TOUCH_GESTURE_CLASSIFI
 import static com.android.internal.util.FrameworkStatsLog.TOUCH_GESTURE_CLASSIFIED__CLASSIFICATION__UNKNOWN_CLASSIFICATION;
 import static com.android.window.flags.Flags.FLAG_DELEGATE_UNHANDLED_DRAGS;
 import static com.android.window.flags.Flags.FLAG_SUPPORTS_DRAG_ASSISTANT_TO_MULTIWINDOW;
+import static com.android.window.flags.Flags.reduceChangedExclusionRectsMsgs;
 
 import static java.lang.Math.max;
 
@@ -247,6 +248,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -5177,9 +5179,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
          * This lives here since it's only valid for interactive views. This list is null
          * until its first use.
          */
-        private List<Rect> mSystemGestureExclusionRects = null;
-        private List<Rect> mKeepClearRects = null;
-        private List<Rect> mUnrestrictedKeepClearRects = null;
+        private ArrayList<Rect> mSystemGestureExclusionRects = null;
+        private ArrayList<Rect> mKeepClearRects = null;
+        private ArrayList<Rect> mUnrestrictedKeepClearRects = null;
         private boolean mPreferKeepClear = false;
         private Rect mHandwritingArea = null;
 
@@ -12888,15 +12890,33 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (rects.isEmpty() && mListenerInfo == null) return;
 
         final ListenerInfo info = getListenerInfo();
-        if (info.mSystemGestureExclusionRects != null) {
-            info.mSystemGestureExclusionRects.clear();
-            info.mSystemGestureExclusionRects.addAll(rects);
-        } else {
-            info.mSystemGestureExclusionRects = new ArrayList<>(rects);
+        final boolean rectsChanged = !reduceChangedExclusionRectsMsgs()
+                || !Objects.deepEquals(info.mSystemGestureExclusionRects, rects);
+        if (info.mSystemGestureExclusionRects == null) {
+            info.mSystemGestureExclusionRects = new ArrayList<>();
         }
+        if (rectsChanged) {
+            deepCopyRectsObjectRecycling(info.mSystemGestureExclusionRects, rects);
+            updatePositionUpdateListener();
+            postUpdate(this::updateSystemGestureExclusionRects);
+        }
+    }
 
-        updatePositionUpdateListener();
-        postUpdate(this::updateSystemGestureExclusionRects);
+    private void deepCopyRectsObjectRecycling(@NonNull ArrayList<Rect> dest, List<Rect> src) {
+        dest.ensureCapacity(src.size());
+        for (int i = 0; i < src.size(); i++) {
+            if (i < dest.size()) {
+                // Replace if there is an old rect to refresh
+                dest.get(i).set(src.get(i));
+            } else {
+                // Add a rect if the list enlarged
+                dest.add(Rect.copyOrNull(src.get(i)));
+            }
+        }
+        while (dest.size() > src.size()) {
+            // Remove elements if the list shrank
+            dest.removeLast();
+        }
     }
 
     private void updatePositionUpdateListener() {
@@ -13024,14 +13044,16 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public final void setPreferKeepClearRects(@NonNull List<Rect> rects) {
         final ListenerInfo info = getListenerInfo();
-        if (info.mKeepClearRects != null) {
-            info.mKeepClearRects.clear();
-            info.mKeepClearRects.addAll(rects);
-        } else {
-            info.mKeepClearRects = new ArrayList<>(rects);
+        final boolean rectsChanged = !reduceChangedExclusionRectsMsgs()
+                || !Objects.deepEquals(info.mKeepClearRects, rects);
+        if (info.mKeepClearRects == null) {
+            info.mKeepClearRects = new ArrayList<>();
         }
-        updatePositionUpdateListener();
-        postUpdate(this::updateKeepClearRects);
+        if (rectsChanged) {
+            deepCopyRectsObjectRecycling(info.mKeepClearRects, rects);
+            updatePositionUpdateListener();
+            postUpdate(this::updateKeepClearRects);
+        }
     }
 
     /**
@@ -13069,14 +13091,16 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @RequiresPermission(android.Manifest.permission.SET_UNRESTRICTED_KEEP_CLEAR_AREAS)
     public final void setUnrestrictedPreferKeepClearRects(@NonNull List<Rect> rects) {
         final ListenerInfo info = getListenerInfo();
-        if (info.mUnrestrictedKeepClearRects != null) {
-            info.mUnrestrictedKeepClearRects.clear();
-            info.mUnrestrictedKeepClearRects.addAll(rects);
-        } else {
-            info.mUnrestrictedKeepClearRects = new ArrayList<>(rects);
+        final boolean rectsChanged = !reduceChangedExclusionRectsMsgs()
+                || !Objects.deepEquals(info.mUnrestrictedKeepClearRects, rects);
+        if (info.mUnrestrictedKeepClearRects == null) {
+            info.mUnrestrictedKeepClearRects = new ArrayList<>();
         }
-        updatePositionUpdateListener();
-        postUpdate(this::updateKeepClearRects);
+        if (rectsChanged) {
+            deepCopyRectsObjectRecycling(info.mUnrestrictedKeepClearRects, rects);
+            updatePositionUpdateListener();
+            postUpdate(this::updateKeepClearRects);
+        }
     }
 
     /**
@@ -16653,6 +16677,16 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 && (event.getFlags() & MotionEvent.FLAG_WINDOW_IS_OBSCURED) != 0) {
             // Window is obscured, drop this touch.
             return false;
+        }
+        if (android.view.accessibility.Flags.preventA11yNontoolFromInjectingIntoSensitiveViews()) {
+            if (event.isInjectedFromAccessibilityService()
+                    // If the event came from an Accessibility Service that does *not* declare
+                    // itself as AccessibilityServiceInfo#isAccessibilityTool and this View is
+                    // declared sensitive then drop the event.
+                    // Only Accessibility Tools are allowed to interact with sensitive Views.
+                    && !event.isInjectedFromAccessibilityTool() && isAccessibilityDataSensitive()) {
+                return false;
+            }
         }
         return true;
     }
@@ -28365,10 +28399,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 if (android.os.Flags.adpfMeasureDuringInputEventBoost()) {
                     final boolean notifyRenderer = hasExpensiveMeasuresDuringInputEvent();
                     if (notifyRenderer) {
-                        Trace.traceBegin(Trace.TRACE_TAG_VIEW,
-                                "CPU_LOAD_UP: " + "hasExpensiveMeasuresDuringInputEvent");
-                        getViewRootImpl().notifyRendererOfExpensiveFrame();
-                        Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+                        getViewRootImpl().notifyRendererOfExpensiveFrame(
+                                "ADPF_SendHint: hasExpensiveMeasuresDuringInputEvent");
                     }
                 }
                 // measure ourselves, this should set the measured dimension flag back
@@ -34199,7 +34231,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 && viewRootImpl.shouldCheckFrameRateCategory()
                 && parent instanceof View
                 && ((View) parent).getFrameContentVelocity() <= 0
-                && !isInputMethodWindowType) {
+                && !isInputMethodWindowType
+                && viewRootImpl.getFrameRateCompatibility() != FRAME_RATE_COMPATIBILITY_AT_LEAST) {
 
             return FRAME_RATE_CATEGORY_HIGH_HINT | FRAME_RATE_CATEGORY_REASON_BOOST;
         }
@@ -34251,10 +34284,16 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 compatibility = FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
                 frameRateToSet = frameRate;
             } else {
-                compatibility = FRAME_RATE_COMPATIBILITY_GTE;
+                compatibility = FRAME_RATE_COMPATIBILITY_AT_LEAST;
                 frameRateToSet = velocityFrameRate;
             }
             viewRootImpl.votePreferredFrameRate(frameRateToSet, compatibility);
+
+            if (Trace.isTagEnabled(TRACE_TAG_VIEW)) {
+                Trace.instant(TRACE_TAG_VIEW,
+                        getClass().getSimpleName()
+                            + " - votePreferredFrameRate: " + frameRateToSet);
+            }
         }
 
         if (viewRootImpl.shouldCheckFrameRateCategory()) {
@@ -34289,6 +34328,13 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                         frameRateCategory = category
                                 | FRAME_RATE_CATEGORY_REASON_INVALID;
                     }
+                }
+
+                if (Trace.isTagEnabled(TRACE_TAG_VIEW)) {
+                    Trace.instant(TRACE_TAG_VIEW,
+                            getClass().getSimpleName() + " - votePreferredFrameRate: "
+                                + viewRootImpl.categoryToString(
+                                    frameRateCategory & ~FRAME_RATE_CATEGORY_REASON_MASK));
                 }
             } else {
                 // Category doesn't control it. It is directly controlled by frame rate
@@ -34447,7 +34493,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @FlaggedApi(android.app.jank.Flags.FLAG_DETAILED_APP_JANK_METRICS_API)
     public void reportAppJankStats(@NonNull AppJankStats appJankStats) {
-        getRootView().reportAppJankStats(appJankStats);
+        View rootView = getRootView();
+        if (rootView == this) return;
+
+        rootView.reportAppJankStats(appJankStats);
     }
 
     /**
@@ -34455,6 +34504,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @hide
      */
     public @Nullable JankTracker getJankTracker() {
-        return getRootView().getJankTracker();
+        View rootView = getRootView();
+        if (rootView == this) {
+            return null;
+        }
+        return rootView.getJankTracker();
     }
 }

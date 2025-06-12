@@ -19,6 +19,7 @@ package com.android.systemui.keyguard
 import android.annotation.WorkerThread
 import android.content.ComponentCallbacks2
 import android.util.Log
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -31,7 +32,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /**
  * Releases cached resources on allocated by keyguard.
@@ -54,7 +54,7 @@ constructor(
         Log.d(LOG_TAG, "Resource trimmer registered.")
         applicationScope.launch(context = bgDispatcher) {
             keyguardTransitionInteractor
-                .isFinishedIn(scene = Scenes.Gone, stateWithoutSceneContainer = GONE)
+                .isFinishedIn(content = Scenes.Gone, stateWithoutSceneContainer = GONE)
                 .filter { isOnGone -> isOnGone }
                 .collect { onKeyguardGone() }
         }

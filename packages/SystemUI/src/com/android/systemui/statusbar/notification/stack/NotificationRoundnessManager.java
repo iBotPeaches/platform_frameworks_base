@@ -71,10 +71,8 @@ public class NotificationRoundnessManager implements Dumpable {
             Roundable viewBefore,
             ExpandableView viewSwiped,
             Roundable viewAfter) {
-        // This method requires you to change the roundness of the current View targets and reset
-        // the roundness of the old View targets (if any) to 0f.
-        // To avoid conflicts, it generates a set of old Views and removes the current Views
-        // from this set.
+        // This method caches a new set of current View targets and reset the roundness of the old
+        // View targets (if any) to 0f.
         HashSet<Roundable> oldViews = new HashSet<>();
         if (mViewBeforeSwipedView != null) oldViews.add(mViewBeforeSwipedView);
         if (mSwipedView != null) oldViews.add(mSwipedView);
@@ -83,24 +81,49 @@ public class NotificationRoundnessManager implements Dumpable {
         mViewBeforeSwipedView = viewBefore;
         if (viewBefore != null) {
             oldViews.remove(viewBefore);
-            viewBefore.requestRoundness(/* top = */ 0f, /* bottom = */ 1f, DISMISS_ANIMATION);
         }
 
         mSwipedView = viewSwiped;
         if (viewSwiped != null) {
             oldViews.remove(viewSwiped);
-            viewSwiped.requestRoundness(/* top = */ 1f, /* bottom = */ 1f, DISMISS_ANIMATION);
         }
 
         mViewAfterSwipedView = viewAfter;
         if (viewAfter != null) {
             oldViews.remove(viewAfter);
-            viewAfter.requestRoundness(/* top = */ 1f, /* bottom = */ 0f, DISMISS_ANIMATION);
         }
 
         // After setting the current Views, reset the views that are still present in the set.
         for (Roundable oldView : oldViews) {
             oldView.requestRoundnessReset(DISMISS_ANIMATION);
+        }
+    }
+
+    void setRoundnessForAffectedViews(float roundness) {
+        if (mViewBeforeSwipedView != null) {
+            mViewBeforeSwipedView.requestBottomRoundness(roundness, DISMISS_ANIMATION);
+        }
+
+        if (mSwipedView != null) {
+            mSwipedView.requestRoundness(roundness, roundness, DISMISS_ANIMATION);
+        }
+
+        if (mViewAfterSwipedView != null) {
+            mViewAfterSwipedView.requestTopRoundness(roundness, DISMISS_ANIMATION);
+        }
+    }
+
+    void setRoundnessForAffectedViews(float roundness, boolean animate) {
+        if (mViewBeforeSwipedView != null) {
+            mViewBeforeSwipedView.requestBottomRoundness(roundness, DISMISS_ANIMATION, animate);
+        }
+
+        if (mSwipedView != null) {
+            mSwipedView.requestRoundness(roundness, roundness, DISMISS_ANIMATION, animate);
+        }
+
+        if (mViewAfterSwipedView != null) {
+            mViewAfterSwipedView.requestTopRoundness(roundness, DISMISS_ANIMATION, animate);
         }
     }
 
@@ -137,5 +160,9 @@ public class NotificationRoundnessManager implements Dumpable {
 
     public void setShouldRoundPulsingViews(boolean shouldRoundPulsingViews) {
         mRoundForPulsingViews = shouldRoundPulsingViews;
+    }
+
+    public boolean isSwipedViewSet() {
+        return mSwipedView != null;
     }
 }

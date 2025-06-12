@@ -16,6 +16,8 @@
 
 package com.android.server.inputmethod;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.os.IBinder;
 import android.util.SparseArray;
 import android.view.inputmethod.InputBinding;
@@ -24,12 +26,17 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.inputmethod.IRemoteInputConnection;
 
 final class ClientState {
+
+    @NonNull
     final IInputMethodClientInvoker mClient;
+    @NonNull
     final IRemoteInputConnection mFallbackInputConnection;
     final int mUid;
     final int mPid;
     final int mSelfReportedDisplayId;
+    @NonNull
     final InputBinding mBinding;
+    @NonNull
     final IBinder.DeathRecipient mClientDeathRecipient;
 
     @GuardedBy("ImfLock.class")
@@ -39,30 +46,31 @@ final class ClientState {
     boolean mSessionRequestedForAccessibility;
 
     @GuardedBy("ImfLock.class")
+    @Nullable
     InputMethodManagerService.SessionState mCurSession;
 
     @GuardedBy("ImfLock.class")
-    SparseArray<InputMethodManagerService.AccessibilitySessionState> mAccessibilitySessions =
+    @NonNull
+    final SparseArray<InputMethodManagerService.AccessibilitySessionState> mAccessibilitySessions =
             new SparseArray<>();
 
-    @Override
-    public String toString() {
-        return "ClientState{" + Integer.toHexString(
-                System.identityHashCode(this)) + " mUid=" + mUid
-                + " mPid=" + mPid + " mSelfReportedDisplayId=" + mSelfReportedDisplayId + "}";
-    }
-
-    ClientState(IInputMethodClientInvoker client,
-            IRemoteInputConnection fallbackInputConnection,
-            int uid, int pid, int selfReportedDisplayId,
-            IBinder.DeathRecipient clientDeathRecipient) {
+    ClientState(@NonNull IInputMethodClientInvoker client,
+            @NonNull IRemoteInputConnection fallbackInputConnection, int uid, int pid,
+            int selfReportedDisplayId, @NonNull IBinder.DeathRecipient clientDeathRecipient) {
         mClient = client;
         mFallbackInputConnection = fallbackInputConnection;
         mUid = uid;
         mPid = pid;
         mSelfReportedDisplayId = selfReportedDisplayId;
-        mBinding = new InputBinding(null /*conn*/, mFallbackInputConnection.asBinder(), mUid,
+        mBinding = new InputBinding(null /* conn */, fallbackInputConnection.asBinder(), mUid,
                 mPid);
         mClientDeathRecipient = clientDeathRecipient;
+    }
+
+    @Override
+    public String toString() {
+        return "ClientState{" + Integer.toHexString(System.identityHashCode(this))
+                + " mUid=" + mUid + " mPid=" + mPid
+                + " mSelfReportedDisplayId=" + mSelfReportedDisplayId + "}";
     }
 }

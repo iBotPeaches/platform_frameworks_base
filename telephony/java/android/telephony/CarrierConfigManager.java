@@ -3219,7 +3219,6 @@ public class CarrierConfigManager {
      * The roaming indicator will be shown if this is {@code true} and will not be shown if this is
      * {@code false}.
      */
-    @FlaggedApi(Flags.FLAG_HIDE_ROAMING_ICON)
     public static final String KEY_SHOW_ROAMING_INDICATOR_BOOL = "show_roaming_indicator_bool";
 
     /**
@@ -3917,6 +3916,22 @@ public class CarrierConfigManager {
      */
     public static final String KEY_5G_ICON_DISPLAY_SECONDARY_GRACE_PERIOD_STRING =
             "5g_icon_display_secondary_grace_period_string";
+
+    /**
+     * When an NR advanced connection is lost and a Physical Cell ID (PCI) change occurs within
+     * the primary timer{@link #KEY_5G_ICON_DISPLAY_GRACE_PERIOD_STRING}, delay updating the network
+     * icon.
+     *
+     * <p>This delay is implemented because a rapid PCI change often indicates the device is
+     * switching to a nearby cell tower to quickly restore the NR advanced connection. Displaying
+     * an intermediate network icon (like 4G/LTE) might be misleading if the 5G connection is
+     * restored shortly after. This value sets the delay in seconds; 0 disables the feature.</p>
+     *
+     * @hide
+     */
+    public static final String KEY_NR_ADVANCED_PCI_CHANGE_SECONDARY_TIMER_SECONDS_INT =
+            "nr_advanced_pci_change_secondary_timer_seconds_int";
+
 
     /**
      * The secondary grace periods in seconds to use if NR advanced icon was shown due to connecting
@@ -9787,7 +9802,6 @@ public class CarrierConfigManager {
      * <p>
      * This config is empty by default.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_CARRIER_SUPPORTED_SATELLITE_SERVICES_PER_PROVIDER_BUNDLE =
             "carrier_supported_satellite_services_per_provider_bundle";
 
@@ -9827,7 +9841,6 @@ public class CarrierConfigManager {
      *
      * The default value is false.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_SATELLITE_ATTACH_SUPPORTED_BOOL =
             "satellite_attach_supported_bool";
 
@@ -9849,7 +9862,6 @@ public class CarrierConfigManager {
      * <p>
      * The default value is 180 seconds.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_SATELLITE_CONNECTION_HYSTERESIS_SEC_INT =
             "satellite_connection_hysteresis_sec_int";
 
@@ -9864,7 +9876,6 @@ public class CarrierConfigManager {
      * See SignalStrength#MAX_LTE_RSRP and SignalStrength#MIN_LTE_RSRP. Any signal level outside
      * these boundaries is considered invalid.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_NTN_LTE_RSRP_THRESHOLDS_INT_ARRAY =
             "ntn_lte_rsrp_thresholds_int_array";
 
@@ -9884,7 +9895,6 @@ public class CarrierConfigManager {
      * This key is considered invalid if the format is violated. If the key is invalid or
      * not configured, a default value set will apply.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_NTN_LTE_RSRQ_THRESHOLDS_INT_ARRAY =
             "ntn_lte_rsrq_thresholds_int_array";
 
@@ -9902,7 +9912,6 @@ public class CarrierConfigManager {
      * This key is considered invalid if the format is violated. If the key is invalid or
      * not configured, a default value set will apply.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_NTN_LTE_RSSNR_THRESHOLDS_INT_ARRAY =
             "ntn_lte_rssnr_thresholds_int_array";
 
@@ -9927,7 +9936,6 @@ public class CarrierConfigManager {
      * If the key is invalid or not configured, a default value (RSRP = 1 << 0) will apply.
      *
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_PARAMETERS_USED_FOR_NTN_LTE_SIGNAL_BAR_INT =
             "parameters_used_for_ntn_lte_signal_bar_int";
 
@@ -9988,6 +9996,19 @@ public class CarrierConfigManager {
             "satellite_data_support_mode_int";
 
     /**
+     * Determines whether data roaming off setting should be ignored and satellite data should be
+     * allowed even when data roaming is off.
+     *
+     * If the carrier would like to allow the device to use satellite connection when data roaming
+     * is off, this key should be set to {@code true}.
+     *
+     * The default value is {@code false} i.e. disallow satellite data when data roaming is off.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_25Q4_APIS)
+    public static final String KEY_SATELLITE_IGNORE_DATA_ROAMING_SETTING_BOOL =
+        "satellite_ignore_data_roaming_setting_bool";
+
+    /**
      * Determine whether to override roaming Wi-Fi Calling preference when device is connected to
      * non-terrestrial network.
      * {@code true}  - roaming preference cannot be changed by user independently.
@@ -10006,7 +10027,6 @@ public class CarrierConfigManager {
      *
      * The default value is 7 days.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_SATELLITE_ENTITLEMENT_STATUS_REFRESH_DAYS_INT =
             "satellite_entitlement_status_refresh_days_int";
 
@@ -10017,7 +10037,6 @@ public class CarrierConfigManager {
      *
      * The default value is false.
      */
-    @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_SATELLITE_ENTITLEMENT_SUPPORTED_BOOL =
             "satellite_entitlement_supported_bool";
 
@@ -10193,6 +10212,17 @@ public class CarrierConfigManager {
     @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
     public static final String KEY_CARRIER_SUPPORTED_SATELLITE_NOTIFICATION_HYSTERESIS_SEC_INT =
             "carrier_supported_satellite_notification_hysteresis_sec_int";
+
+    /**
+     * Satellite notification display restriction reset time in seconds.
+     *
+     * The device shows a notification when it connects to a satellite.  If the user interacts
+     * with the notification, it won't be shown again immediately.  Instead, the notification
+     * will only reappear after below key mentioned amount of time has passed.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_25Q4_APIS)
+    public static final String KEY_SATELLITE_CONNECTED_NOTIFICATION_THROTTLE_MILLIS_INT =
+            "satellite_connected_notification_throttle_millis_int";
 
     /**
      * An integer key holds the timeout duration in seconds used to determine whether to exit
@@ -10583,6 +10613,8 @@ public class CarrierConfigManager {
      *     <!-- Handover from 4G to IWLAN is not allowed if the device has capability in either IMS
      *     or EIMS-->
      *     <item value="source=EUTRAN, target=IWLAN, type=disallowed, capabilities=IMS|EIMS"/>
+     *     <!-- Handover from IWLAN to 5G is not allowed if the device is incall. -->
+     *     <item value="source=IWLAN, target=NGRAN, incall=true, type=disallowed"/>
      *     <!-- Handover is always allowed in any condition. -->
      *     <item value="source=GERAN|UTRAN|EUTRAN|NGRAN|IWLAN|UNKNOWN,
      *         target=GERAN|UTRAN|EUTRAN|NGRAN|IWLAN, type=allowed"/>
@@ -10946,7 +10978,7 @@ public class CarrierConfigManager {
         sDefaults.putInt(KEY_MMS_SMS_TO_MMS_TEXT_THRESHOLD_INT, -1);
         sDefaults.putInt(KEY_MMS_SUBJECT_MAX_LENGTH_INT, 40);
         sDefaults.putInt(KEY_MMS_NETWORK_RELEASE_TIMEOUT_MILLIS_INT, 5 * 1000);
-        sDefaults.putInt(KEY_MMS_MAX_NTN_PAYLOAD_SIZE_BYTES_INT, 3 * 1000);
+        sDefaults.putInt(KEY_MMS_MAX_NTN_PAYLOAD_SIZE_BYTES_INT, -1);
         sDefaults.putString(KEY_MMS_EMAIL_GATEWAY_NUMBER_STRING, "");
         sDefaults.putString(KEY_MMS_HTTP_PARAMS_STRING, "");
         sDefaults.putString(KEY_MMS_NAI_SUFFIX_STRING, "");
@@ -11206,6 +11238,7 @@ public class CarrierConfigManager {
                         + "not_restricted_rrc_con:5G");
         sDefaults.putString(KEY_5G_ICON_DISPLAY_GRACE_PERIOD_STRING, "");
         sDefaults.putString(KEY_5G_ICON_DISPLAY_SECONDARY_GRACE_PERIOD_STRING, "");
+        sDefaults.putInt(KEY_NR_ADVANCED_PCI_CHANGE_SECONDARY_TIMER_SECONDS_INT, 0);
         sDefaults.putInt(KEY_NR_ADVANCED_BANDS_SECONDARY_TIMER_SECONDS_INT, 0);
         sDefaults.putBoolean(KEY_NR_TIMERS_RESET_IF_NON_ENDC_AND_RRC_IDLE_BOOL, false);
         sDefaults.putBoolean(KEY_NR_TIMERS_RESET_ON_VOICE_QOS_BOOL, false);
@@ -11388,6 +11421,7 @@ public class CarrierConfigManager {
         sDefaults.putBoolean(KEY_REMOVE_SATELLITE_PLMN_IN_MANUAL_NETWORK_SCAN_BOOL, true);
         sDefaults.putInt(KEY_SATELLITE_DATA_SUPPORT_MODE_INT,
                 CarrierConfigManager.SATELLITE_DATA_SUPPORT_ONLY_RESTRICTED);
+        sDefaults.putBoolean(KEY_SATELLITE_IGNORE_DATA_ROAMING_SETTING_BOOL, false);
         sDefaults.putBoolean(KEY_OVERRIDE_WFC_ROAMING_MODE_WHILE_USING_NTN_BOOL, true);
         sDefaults.putInt(KEY_SATELLITE_ENTITLEMENT_STATUS_REFRESH_DAYS_INT, 7);
         sDefaults.putBoolean(KEY_SATELLITE_ENTITLEMENT_SUPPORTED_BOOL, false);
@@ -11413,6 +11447,10 @@ public class CarrierConfigManager {
         sDefaults.putInt(KEY_CARRIER_ROAMING_NTN_EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_INT,
                 SatelliteManager.EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_T911);
         sDefaults.putInt(KEY_CARRIER_SUPPORTED_SATELLITE_NOTIFICATION_HYSTERESIS_SEC_INT, 180);
+        if (Flags.starlinkDataBugfix()) {
+            sDefaults.putLong(KEY_SATELLITE_CONNECTED_NOTIFICATION_THROTTLE_MILLIS_INT,
+                    TimeUnit.DAYS.toMillis(7));
+        }
         sDefaults.putInt(KEY_SATELLITE_ROAMING_SCREEN_OFF_INACTIVITY_TIMEOUT_SEC_INT, 30);
         sDefaults.putInt(KEY_SATELLITE_ROAMING_P2P_SMS_INACTIVITY_TIMEOUT_SEC_INT, 180);
         sDefaults.putInt(KEY_SATELLITE_ROAMING_ESOS_INACTIVITY_TIMEOUT_SEC_INT, 600);
@@ -11455,17 +11493,17 @@ public class CarrierConfigManager {
                         + "target=GERAN|UTRAN|EUTRAN|NGRAN|IWLAN, type=allowed"});
         PersistableBundle auto_data_switch_rat_signal_score_string_bundle = new PersistableBundle();
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
-                "NR_SA_MMWAVE", new int[]{10000, 13227, 16000, 18488, 20017});
+                "NR_SA_MMWAVE", new int[]{6300, 10227, 16000, 18488, 19017});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
-                "NR_NSA_MMWAVE", new int[]{8000, 10227, 12488, 15017, 15278});
+                "NR_NSA_MMWAVE", new int[]{5700, 9227, 12488, 13517, 15978});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
                 "LTE", new int[]{3731, 5965, 8618, 11179, 13384});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
-                "LTE_CA", new int[]{3831, 6065, 8718, 11379, 13484});
+                "LTE_CA", new int[]{3831, 6065, 8718, 11379, 14484});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
-                "NR_SA", new int[]{5288, 6795, 6955, 7562, 9713});
+                "NR_SA", new int[]{2288, 6795, 6955, 7562, 15484});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
-                "NR_NSA", new int[]{5463, 6827, 8029, 9007, 9428});
+                "NR_NSA", new int[]{2463, 6827, 8029, 9007, 15884});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(
                 "UMTS", new int[]{100, 169, 183, 192, 300});
         auto_data_switch_rat_signal_score_string_bundle.putIntArray(

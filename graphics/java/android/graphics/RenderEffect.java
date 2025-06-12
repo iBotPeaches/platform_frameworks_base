@@ -30,6 +30,7 @@ import libcore.util.NativeAllocationRegistry;
  * Additionally a {@link RenderEffect} can be applied to a View's backing RenderNode through
  * {@link android.view.View#setRenderEffect(RenderEffect)}
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class RenderEffect {
 
     private static class RenderEffectHolder {

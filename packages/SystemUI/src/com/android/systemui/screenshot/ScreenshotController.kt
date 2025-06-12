@@ -35,7 +35,6 @@ import android.util.Log
 import android.view.Display
 import android.view.ScrollCaptureResponse
 import android.view.ViewRootImpl.ActivityConfigCallback
-import android.view.WindowManager
 import android.view.WindowManager.TAKE_SCREENSHOT_PROVIDED_IMAGE
 import android.widget.Toast
 import android.window.WindowContext
@@ -47,7 +46,6 @@ import com.android.systemui.broadcast.BroadcastSender
 import com.android.systemui.clipboardoverlay.ClipboardOverlayController
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.res.R
-import com.android.systemui.screenshot.ActionIntentCreator.createLongScreenshotIntent
 import com.android.systemui.screenshot.ScreenshotShelfViewProxy.ScreenshotViewCallback
 import com.android.systemui.screenshot.scroll.ScrollCaptureController.LongScreenshot
 import com.android.systemui.screenshot.scroll.ScrollCaptureExecutor
@@ -85,6 +83,7 @@ internal constructor(
     private val messageContainerController: MessageContainerController,
     private val announcementResolver: AnnouncementResolver,
     @Main private val mainExecutor: Executor,
+    private val actionIntentCreator: ActionIntentCreator,
     @Assisted private val display: Display,
 ) : InteractiveScreenshotHandler {
     private val context: WindowContext
@@ -218,9 +217,7 @@ internal constructor(
         window.setFocusable(true)
         viewProxy.requestFocus()
 
-        if (screenshot.type != WindowManager.TAKE_SCREENSHOT_PROVIDED_IMAGE) {
-            enqueueScrollCaptureRequest(requestId, screenshot.userHandle)
-        }
+        enqueueScrollCaptureRequest(requestId, screenshot.userHandle)
 
         window.attachWindow()
 
@@ -411,7 +408,7 @@ internal constructor(
         scrollCaptureExecutor.executeBatchScrollCapture(
             response,
             {
-                val intent = createLongScreenshotIntent(owner, context)
+                val intent = actionIntentCreator.createLongScreenshotIntent(owner)
                 context.startActivity(intent)
             },
             { viewProxy.restoreNonScrollingUi() },

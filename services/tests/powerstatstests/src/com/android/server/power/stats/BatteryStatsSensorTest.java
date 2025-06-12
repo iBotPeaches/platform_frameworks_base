@@ -22,12 +22,10 @@ import static org.junit.Assert.assertNull;
 
 import android.app.ActivityManager;
 import android.os.BatteryStats;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.view.Display;
 
 import androidx.test.filters.SmallTest;
 
-import org.junit.Rule;
 import org.junit.Test;
 
 /**
@@ -35,11 +33,6 @@ import org.junit.Test;
  */
 @SmallTest
 public class BatteryStatsSensorTest {
-
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     private static final int UID = 10500;
     private static final int UID_2 = 10501; // second uid for testing pool usage

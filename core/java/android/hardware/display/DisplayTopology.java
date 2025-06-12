@@ -21,21 +21,27 @@ import static android.hardware.display.DisplayTopology.TreeNode.POSITION_LEFT;
 import static android.hardware.display.DisplayTopology.TreeNode.POSITION_RIGHT;
 import static android.hardware.display.DisplayTopology.TreeNode.POSITION_TOP;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.Nullable;
+import android.annotation.TestApi;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.DisplayMetrics;
 import android.util.IndentingPrintWriter;
 import android.util.MathUtils;
 import android.util.Pair;
 import android.util.Slog;
+import android.util.SparseArray;
+import android.util.SparseIntArray;
 import android.view.Display;
 
 import androidx.annotation.NonNull;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.display.feature.flags.Flags;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -56,9 +62,12 @@ import java.util.Queue;
  *
  * @hide
  */
+@TestApi
+@FlaggedApi(Flags.FLAG_DISPLAY_TOPOLOGY)
 public final class DisplayTopology implements Parcelable {
     private static final String TAG = "DisplayTopology";
     private static final float EPSILON = 0.0001f;
+    private static final float MAX_GAP = 5;
 
     @android.annotation.NonNull
     public static final Creator<DisplayTopology> CREATOR =
@@ -75,6 +84,26 @@ public final class DisplayTopology implements Parcelable {
             };
 
     /**
+     * @param px The value in logical pixels
+     * @param dpi The logical density of the display
+     * @return The value in density-independent pixels
+     * @hide
+     */
+    public static float pxToDp(float px, int dpi) {
+        return px * DisplayMetrics.DENSITY_DEFAULT / dpi;
+    }
+
+    /**
+     * @param dp The value in density-independent pixels
+     * @param dpi The logical density of the display
+     * @return The value in logical pixels
+     * @hide
+     */
+    public static float dpToPx(float dp, int dpi) {
+        return dp * dpi / DisplayMetrics.DENSITY_DEFAULT;
+    }
+
+    /**
      * The topology tree
      */
     @Nullable
@@ -86,10 +115,15 @@ public final class DisplayTopology implements Parcelable {
      */
     private int mPrimaryDisplayId = Display.INVALID_DISPLAY;
 
+    /**
+     * @hide
+     */
     public DisplayTopology() {}
 
-    @VisibleForTesting
-    public DisplayTopology(TreeNode root, int primaryDisplayId) {
+    /**
+     * @hide
+     */
+    public DisplayTopology(@Nullable TreeNode root, int primaryDisplayId) {
         mRoot = root;
         if (mRoot != null) {
             // Set mRoot's position and offset to predictable values, just so we don't leak state
@@ -103,15 +137,24 @@ public final class DisplayTopology implements Parcelable {
         mPrimaryDisplayId = primaryDisplayId;
     }
 
+    /**
+     * @hide
+     */
     public DisplayTopology(Parcel source) {
         this(source.readTypedObject(TreeNode.CREATOR), source.readInt());
     }
 
+    /**
+     * @hide
+     */
     @Nullable
     public TreeNode getRoot() {
         return mRoot;
     }
 
+    /**
+     * @hide
+     */
     public int getPrimaryDisplayId() {
         return mPrimaryDisplayId;
     }
@@ -123,9 +166,50 @@ public final class DisplayTopology implements Parcelable {
      * @param displayId The logical display ID
      * @param width The width of the display
      * @param height The height of the display
+     * @hide
      */
     public void addDisplay(int displayId, float width, float height) {
-        addDisplay(displayId, width, height, /* shouldLog= */ true);
+        if (findDisplay(displayId, mRoot) != null) {
+            return;
+        }
+        if (mRoot == null) {
+            mRoot = new TreeNode(displayId, width, height, POSITION_LEFT, /* offset= */ 0);
+            mPrimaryDisplayId = displayId;
+        } else if (mRoot.mChildren.isEmpty()) {
+            // This is the 2nd display. Align the middles of the top and bottom edges.
+            float offset = mRoot.mWidth / 2 - width / 2;
+            TreeNode display = new TreeNode(displayId, width, height, POSITION_TOP, offset);
+            mRoot.mChildren.add(display);
+        } else {
+            TreeNode rightMostDisplay = findRightMostDisplay(mRoot, mRoot.mWidth).first;
+            TreeNode newDisplay = new TreeNode(displayId, width, height, POSITION_RIGHT,
+                    /* offset= */ 0);
+            rightMostDisplay.mChildren.add(newDisplay);
+        }
+    }
+
+    /**
+     * Update the size of a display and normalize the topology.
+     * @param displayId The logical display ID
+     * @param width The new width
+     * @param height The new height
+     * @return True if the topology has changed.
+     * @hide
+     */
+    public boolean updateDisplay(int displayId, float width, float height) {
+        TreeNode display = findDisplay(displayId, mRoot);
+        if (display == null) {
+            return false;
+        }
+        if (floatEquals(display.mWidth, width) && floatEquals(display.mHeight, height)) {
+            return false;
+        }
+        display.mWidth = width;
+        display.mHeight = height;
+        normalize();
+        Slog.i(TAG, "Display with ID " + displayId + " updated, new width: " + width
+                + ", new height: " + height);
+        return true;
     }
 
     /**
@@ -133,32 +217,34 @@ public final class DisplayTopology implements Parcelable {
      * The default topology is created from the remaining displays, as if they were reconnected
      * one by one.
      * @param displayId The logical display ID
+     * @return True if the display was present in the topology and removed.
+     * @hide
      */
-    public void removeDisplay(int displayId) {
+    public boolean removeDisplay(int displayId) {
         if (findDisplay(displayId, mRoot) == null) {
-            return;
+            return false;
         }
+
+        // Re-add the other displays to a new tree
         Queue<TreeNode> queue = new ArrayDeque<>();
         queue.add(mRoot);
         mRoot = null;
         while (!queue.isEmpty()) {
             TreeNode node = queue.poll();
             if (node.mDisplayId != displayId) {
-                addDisplay(node.mDisplayId, node.mWidth, node.mHeight, /* shouldLog= */ false);
+                addDisplay(node.mDisplayId, node.mWidth, node.mHeight);
             }
             queue.addAll(node.mChildren);
         }
+
         if (mPrimaryDisplayId == displayId) {
             if (mRoot != null) {
                 mPrimaryDisplayId = mRoot.mDisplayId;
             } else {
                 mPrimaryDisplayId = Display.INVALID_DISPLAY;
             }
-            Slog.i(TAG,  "Primary display with ID " + displayId
-                    + " removed, new primary display: " + mPrimaryDisplayId);
-        } else {
-            Slog.i(TAG, "Display with ID " + displayId + " removed");
         }
+        return true;
     }
 
     /**
@@ -172,8 +258,12 @@ public final class DisplayTopology implements Parcelable {
      *               are the display IDs.
      * @throws IllegalArgumentException if the keys in {@code positions} are not the exact display
      *                                  IDs in this topology, no more, no less
+     * @hide
      */
     public void rearrange(Map<Integer, PointF> newPos) {
+        if (mRoot == null) {
+            return;
+        }
         var availableParents = new ArrayList<TreeNode>();
 
         availableParents.addLast(mRoot);
@@ -201,10 +291,9 @@ public final class DisplayTopology implements Parcelable {
         // The optimal pair is the pair which has the smallest deviation. The deviation consists of
         // an x-axis component and a y-axis component, called xDeviation and yDeviation.
         //
-        // The deviations are like distances but a little different. They are calculated in two
-        // steps. The first step calculates both axes in a similar way. The next step compares the
-        // two values and chooses which axis to attach along. Depending on which axis is chosen,
-        // the deviation for one axis is updated. See below for details.
+        // The deviations are like distances but a little different. When they are calculated, each
+        // dimension is treated differently, depending on which edges (left+right or top+bottom) are
+        // attached.
         while (!needsParent.isEmpty()) {
             double bestDist = Double.POSITIVE_INFINITY;
             TreeNode bestChild = null, bestParent = null;
@@ -218,33 +307,32 @@ public final class DisplayTopology implements Parcelable {
                     float parentRight = parentPos.x + parent.getWidth();
                     float parentBottom = parentPos.y + parent.getHeight();
 
-                    // This is the smaller of the two ranges minus the amount of overlap shared
-                    // between them. The "amount of overlap" is negative if there is no overlap, but
-                    // this does not make a parenting ineligible, because we allow for attaching at
-                    // the corner and for floating point error. The overlap is more negative the
-                    // farther apart the closest corner pair is.
-                    //
-                    // For each axis, this calculates (SmallerRange - Overlap). If one range lies
-                    // completely in the other (or they are equal), the axis' deviation will be
-                    // zero.
-                    //
-                    // The "SmallerRange," which refers to smaller of the widths of the two rects,
-                    // or smaller of the heights of the two rects, is added to the deviation so that
-                    // a maximum overlap results in a deviation of zero.
-                    float xSmallerRange = Math.min(child.getWidth(), parent.getWidth());
-                    float ySmallerRange = Math.min(child.getHeight(), parent.getHeight());
-                    float xOverlap
-                            = Math.min(parentRight, childRight)
-                            - Math.max(parentPos.x, childPos.x);
-                    float yOverlap
-                            = Math.min(parentBottom, childBottom)
-                            - Math.max(parentPos.y, childPos.y);
-                    float xDeviation = xSmallerRange - xOverlap;
-                    float yDeviation = ySmallerRange - yOverlap;
+                    // The "amount of overlap" indicates how much of one display is within the other
+                    // (considering one axis only). It's zero if they only share an edge and
+                    // negative if they're away from each other.
+                    // A zero or negative overlap does not make a parenting ineligible, because we
+                    // allow for attaching at the corner and for floating point error.
+                    float xOverlap =
+                            Math.min(parentRight, childRight) - Math.max(parentPos.x, childPos.x);
+                    float yOverlap =
+                            Math.min(parentBottom, childBottom) - Math.max(parentPos.y, childPos.y);
+                    float xDeviation, yDeviation;
 
                     float offset;
                     int pos;
-                    if (xDeviation <= yDeviation) {
+                    if (xOverlap > yOverlap) {
+                        // Deviation in each dimension is a penalty in the potential parenting. To
+                        // get the X deviation, overlap is subtracted from the lesser width so that
+                        // a maximum overlap results in a deviation of zero.
+                        // Note that because xOverlap is *subtracted* from the lesser width, no
+                        // overlap in X becomes a *penalty* if we are attaching on the top+bottom
+                        // edges.
+                        //
+                        // The Y deviation is simply the distance from the clamping edges.
+                        //
+                        // Treatment of the X and Y deviations are swapped for
+                        // POSITION_LEFT/POSITION_RIGHT attachments in the "else" block below.
+                        xDeviation = Math.min(child.getWidth(), parent.getWidth()) - xOverlap;
                         if (childPos.y < parentPos.y) {
                             yDeviation = childBottom - parentPos.y;
                             pos = POSITION_TOP;
@@ -254,6 +342,7 @@ public final class DisplayTopology implements Parcelable {
                         }
                         offset = childPos.x - parentPos.x;
                     } else {
+                        yDeviation = Math.min(child.getHeight(), parent.getHeight()) - yOverlap;
                         if (childPos.x < parentPos.x) {
                             xDeviation = childRight - parentPos.x;
                             pos = POSITION_LEFT;
@@ -295,6 +384,7 @@ public final class DisplayTopology implements Parcelable {
 
     /**
      * Clamp offsets and remove any overlaps between displays.
+     * @hide
      */
     public void normalize() {
         if (mRoot == null) {
@@ -404,11 +494,11 @@ public final class DisplayTopology implements Parcelable {
             // Check that the offset is within bounds
             areTouching &= switch (targetDisplay.mPosition) {
                 case POSITION_LEFT, POSITION_RIGHT ->
-                        childBounds.bottom + EPSILON >= parentBounds.top
-                                && childBounds.top <= parentBounds.bottom + EPSILON;
+                        childBounds.bottom + EPSILON > parentBounds.top
+                                && childBounds.top < parentBounds.bottom + EPSILON;
                 case POSITION_TOP, POSITION_BOTTOM ->
-                        childBounds.right + EPSILON >= parentBounds.left
-                                && childBounds.left <= parentBounds.right + EPSILON;
+                        childBounds.right + EPSILON > parentBounds.left
+                                && childBounds.left < parentBounds.right + EPSILON;
                 default -> throw new IllegalStateException(
                         "Unexpected value: " + targetDisplay.mPosition);
             };
@@ -443,10 +533,28 @@ public final class DisplayTopology implements Parcelable {
 
     /**
      * @return A deep copy of the topology that will not be modified by the system.
+     * @hide
      */
     public DisplayTopology copy() {
         TreeNode rootCopy = mRoot == null ? null : mRoot.copy();
         return new DisplayTopology(rootCopy, mPrimaryDisplayId);
+    }
+
+    /**
+     * Assign absolute bounds to each display. The top-left corner of the root is at position
+     * (0, 0).
+     * @return Map from logical display ID to the display's absolute bounds
+     */
+    @NonNull
+    public SparseArray<RectF> getAbsoluteBounds() {
+        Map<TreeNode, RectF> bounds = new HashMap<>();
+        getInfo(bounds, /* depths= */ null, /* parents= */ null, mRoot, /* x= */ 0, /* y= */ 0,
+                /* depth= */ 0);
+        SparseArray<RectF> boundsById = new SparseArray<>();
+        for (Map.Entry<TreeNode, RectF> entry : bounds.entrySet()) {
+            boundsById.append(entry.getKey().mDisplayId, entry.getValue());
+        }
+        return boundsById;
     }
 
     @Override
@@ -462,6 +570,7 @@ public final class DisplayTopology implements Parcelable {
 
     /**
      * Print the object's state and debug information into the given stream.
+     * @hide
      * @param pw The stream to dump information to.
      */
     public void dump(PrintWriter pw) {
@@ -481,43 +590,24 @@ public final class DisplayTopology implements Parcelable {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof DisplayTopology)) {
+            return false;
+        }
+        return obj.toString().equals(toString());
+    }
+
+    @Override
+    public int hashCode() {
+        return toString().hashCode();
+    }
+
+    @Override
     public String toString() {
         StringWriter out = new StringWriter();
         PrintWriter writer = new PrintWriter(out);
         dump(writer);
         return out.toString();
-    }
-
-    private void addDisplay(int displayId, float width, float height, boolean shouldLog) {
-        if (findDisplay(displayId, mRoot) != null) {
-            throw new IllegalArgumentException(
-                    "DisplayTopology: attempting to add a display that already exists");
-        }
-        if (mRoot == null) {
-            mRoot = new TreeNode(displayId, width, height, /* position= */ 0, /* offset= */ 0);
-            mPrimaryDisplayId = displayId;
-            if (shouldLog) {
-                Slog.i(TAG, "First display added: " + mRoot);
-            }
-        } else if (mRoot.mChildren.isEmpty()) {
-            // This is the 2nd display. Align the middles of the top and bottom edges.
-            float offset = mRoot.mWidth / 2 - width / 2;
-            TreeNode display = new TreeNode(displayId, width, height, POSITION_TOP, offset);
-            mRoot.mChildren.add(display);
-            if (shouldLog) {
-                Slog.i(TAG, "Second display added: " + display + ", parent ID: "
-                        + mRoot.mDisplayId);
-            }
-        } else {
-            TreeNode rightMostDisplay = findRightMostDisplay(mRoot, mRoot.mWidth).first;
-            TreeNode newDisplay = new TreeNode(displayId, width, height, POSITION_RIGHT,
-                    /* offset= */ 0);
-            rightMostDisplay.mChildren.add(newDisplay);
-            if (shouldLog) {
-                Slog.i(TAG, "Display added: " + newDisplay + ", parent ID: "
-                        + rightMostDisplay.mDisplayId);
-            }
-        }
     }
 
     /**
@@ -549,8 +639,11 @@ public final class DisplayTopology implements Parcelable {
         return result;
     }
 
+    /**
+     * @hide
+     */
     @Nullable
-    private static TreeNode findDisplay(int displayId, TreeNode startingNode) {
+    public static TreeNode findDisplay(int displayId, @Nullable TreeNode startingNode) {
         if (startingNode == null) {
             return null;
         }
@@ -567,8 +660,8 @@ public final class DisplayTopology implements Parcelable {
     }
 
     /**
-     * Get information about the topology that will be used for the normalization algorithm.
-     * Assigns origins to each display to compute the bounds.
+     * Get information about the topology.
+     * Assigns positions to each display to compute the bounds. The root is at position (0, 0).
      * @param bounds The map where the bounds of each display will be put
      * @param depths The map where the depths of each display in the tree will be put
      * @param parents The map where the parent of each display will be put
@@ -577,12 +670,22 @@ public final class DisplayTopology implements Parcelable {
      * @param y The starting y position
      * @param depth The starting depth
      */
-    private static void getInfo(Map<TreeNode, RectF> bounds, Map<TreeNode, Integer> depths,
-            Map<TreeNode, TreeNode> parents, TreeNode display, float x, float y, int depth) {
-        bounds.put(display, new RectF(x, y, x + display.mWidth, y + display.mHeight));
-        depths.put(display, depth);
+    private static void getInfo(@Nullable Map<TreeNode, RectF> bounds,
+            @Nullable Map<TreeNode, Integer> depths, @Nullable Map<TreeNode, TreeNode> parents,
+            @Nullable TreeNode display, float x, float y, int depth) {
+        if (display == null) {
+            return;
+        }
+        if (bounds != null) {
+            bounds.put(display, new RectF(x, y, x + display.mWidth, y + display.mHeight));
+        }
+        if (depths != null) {
+            depths.put(display, depth);
+        }
         for (TreeNode child : display.mChildren) {
-            parents.put(child, display);
+            if (parents != null) {
+                parents.put(child, display);
+            }
             if (child.mPosition == POSITION_LEFT) {
                 getInfo(bounds, depths, parents, child, x - child.mWidth, y + child.mOffset,
                         depth + 1);
@@ -599,18 +702,117 @@ public final class DisplayTopology implements Parcelable {
         }
     }
 
-    /** Returns the graph representation of the topology */
-    public DisplayTopologyGraph getGraph() {
-        // TODO(b/364907904): implement
-        return new DisplayTopologyGraph(mPrimaryDisplayId,
-                new DisplayTopologyGraph.DisplayNode[] { new DisplayTopologyGraph.DisplayNode(
-                        mRoot == null ? Display.DEFAULT_DISPLAY : mRoot.mDisplayId,
-                        new DisplayTopologyGraph.AdjacentDisplay[0])});
+    /**
+     * Check if two displays are touching.
+     * If the gap between two edges is <= {@link MAX_GAP}, they are still considered adjacent.
+     * The position indicates where the second display is touching the first one and the offset
+     * indicates where along the first display the second display is located.
+     * @param bounds1 The bounds of the first display
+     * @param bounds2 The bounds of the second display
+     * @return Empty list if the displays are not adjacent;
+     * List of one Pair(position, offset) if the displays are adjacent but not by a corner;
+     * List of two Pair(position, offset) if the displays are adjacent by a corner.
+     */
+    private List<Pair<Integer, Float>> findDisplayPlacements(RectF bounds1, RectF bounds2) {
+        List<Pair<Integer, Float>> placements = new ArrayList<>();
+        if (bounds1.top <= bounds2.bottom + MAX_GAP && bounds2.top <= bounds1.bottom + MAX_GAP) {
+            if (MathUtils.abs(bounds1.left - bounds2.right) <= MAX_GAP) {
+                placements.add(new Pair<>(POSITION_LEFT, bounds2.top - bounds1.top));
+            }
+            if (MathUtils.abs(bounds1.right - bounds2.left) <= MAX_GAP) {
+                placements.add(new Pair<>(POSITION_RIGHT, bounds2.top - bounds1.top));
+            }
+        }
+        if (bounds1.left <= bounds2.right + MAX_GAP && bounds2.left <= bounds1.right + MAX_GAP) {
+            if (MathUtils.abs(bounds1.top - bounds2.bottom) < MAX_GAP) {
+                placements.add(new Pair<>(POSITION_TOP, bounds2.left - bounds1.left));
+            }
+            if (MathUtils.abs(bounds1.bottom - bounds2.top) < MAX_GAP) {
+                placements.add(new Pair<>(POSITION_BOTTOM, bounds2.left - bounds1.left));
+            }
+        }
+        return placements;
     }
 
     /**
-     * Tests whether two brightness float values are within a small enough tolerance
-     * of each other.
+     * @param densityPerDisplay The logical display densities, indexed by logical display ID
+     * @return The graph representation of the topology. If there is a corner adjacency, the same
+     * display will appear twice in the list of adjacent displays with both possible placements.
+     * @hide
+     */
+    @Nullable
+    public DisplayTopologyGraph getGraph(SparseIntArray densityPerDisplay) {
+        // Sort the displays by position
+        SparseArray<RectF> bounds = getAbsoluteBounds();
+        Comparator<Integer> comparator = (displayId1, displayId2) -> {
+            RectF bounds1 = bounds.get(displayId1);
+            RectF bounds2 = bounds.get(displayId2);
+
+            int compareX = Float.compare(bounds1.left, bounds2.left);
+            if (compareX != 0) {
+                return compareX;
+            }
+            return Float.compare(bounds1.top, bounds2.top);
+        };
+        List<Integer> displayIds = new ArrayList<>(bounds.size());
+        for (int i = 0; i < bounds.size(); i++) {
+            displayIds.add(bounds.keyAt(i));
+        }
+        displayIds.sort(comparator);
+
+        SparseArray<List<DisplayTopologyGraph.AdjacentDisplay>> adjacentDisplaysPerId =
+                new SparseArray<>();
+        for (int id : displayIds) {
+            if (densityPerDisplay.get(id) == 0) {
+                Slog.e(TAG, "Cannot construct graph, no density for display " + id);
+                return null;
+            }
+            adjacentDisplaysPerId.append(id, new ArrayList<>(Math.min(10, displayIds.size())));
+        }
+
+        // Find touching displays
+        for (int i = 0; i < displayIds.size(); i++) {
+            int displayId1 = displayIds.get(i);
+            RectF bounds1 = bounds.get(displayId1);
+            List<DisplayTopologyGraph.AdjacentDisplay> adjacentDisplays1 =
+                    adjacentDisplaysPerId.get(displayId1);
+
+            for (int j = i + 1; j < displayIds.size(); j++) {
+                int displayId2 = displayIds.get(j);
+                RectF bounds2 = bounds.get(displayId2);
+                List<DisplayTopologyGraph.AdjacentDisplay> adjacentDisplays2 =
+                        adjacentDisplaysPerId.get(displayId2);
+
+                List<Pair<Integer, Float>> placements1 = findDisplayPlacements(bounds1, bounds2);
+                List<Pair<Integer, Float>> placements2 = findDisplayPlacements(bounds2, bounds1);
+                for (Pair<Integer, Float> placement : placements1) {
+                    adjacentDisplays1.add(new DisplayTopologyGraph.AdjacentDisplay(displayId2,
+                            /* position= */ placement.first, /* offsetDp= */ placement.second));
+                }
+                for (Pair<Integer, Float> placement : placements2) {
+                    adjacentDisplays2.add(new DisplayTopologyGraph.AdjacentDisplay(displayId1,
+                            /* position= */ placement.first, /* offsetDp= */ placement.second));
+                }
+                if (bounds2.left >= bounds1.right + EPSILON) {
+                    // This and the subsequent displays are already too far away
+                    break;
+                }
+            }
+        }
+
+        DisplayTopologyGraph.DisplayNode[] nodes =
+                new DisplayTopologyGraph.DisplayNode[adjacentDisplaysPerId.size()];
+        for (int i = 0; i < nodes.length; i++) {
+            int displayId = adjacentDisplaysPerId.keyAt(i);
+            nodes[i] = new DisplayTopologyGraph.DisplayNode(displayId,
+                    densityPerDisplay.get(displayId), adjacentDisplaysPerId.valueAt(i).toArray(
+                            new DisplayTopologyGraph.AdjacentDisplay[0]));
+        }
+        return new DisplayTopologyGraph(mPrimaryDisplayId, nodes);
+    }
+
+    /**
+     * Tests whether two float values are within a small enough tolerance of each other.
      * @param a first float to compare
      * @param b second float to compare
      * @return whether the two values are within a small enough tolerance value
@@ -637,7 +839,7 @@ public final class DisplayTopology implements Parcelable {
      * Ensure that the offsets of all displays within the given tree are within bounds.
      * @param display The starting node
      */
-    private void clampOffsets(TreeNode display) {
+    private void clampOffsets(@Nullable TreeNode display) {
         if (display == null) {
             return;
         }
@@ -651,6 +853,9 @@ public final class DisplayTopology implements Parcelable {
         }
     }
 
+    /**
+     * @hide
+     */
     public static final class TreeNode implements Parcelable {
         public static final int POSITION_LEFT = 0;
         public static final int POSITION_TOP = 1;
@@ -685,12 +890,12 @@ public final class DisplayTopology implements Parcelable {
         /**
          * The width of the display in density-independent pixels (dp).
          */
-        private final float mWidth;
+        private float mWidth;
 
         /**
          * The height of the display in density-independent pixels (dp).
          */
-        private final float mHeight;
+        private float mHeight;
 
         /**
          * The position of this display relative to its parent.
@@ -706,16 +911,22 @@ public final class DisplayTopology implements Parcelable {
          */
         private float mOffset;
 
-        private final List<TreeNode> mChildren = new ArrayList<>();
+        private final List<TreeNode> mChildren;
 
         @VisibleForTesting
         public TreeNode(int displayId, float width, float height, @Position int position,
                 float offset) {
+            this(displayId, width, height, position, offset, List.of());
+        }
+
+        public TreeNode(int displayId, float width, float height, int position,
+                        float offset, List<TreeNode> children) {
             mDisplayId = displayId;
             mWidth = width;
             mHeight = height;
             mPosition = position;
             mOffset = offset;
+            mChildren = new ArrayList<>(children);
         }
 
         public TreeNode(Parcel source) {

@@ -83,10 +83,11 @@ class FontScalingDialogDelegateTest : SysuiTestCase() {
         MockitoAnnotations.initMocks(this)
         testableLooper = TestableLooper.get(this)
         val mainHandler = Handler(testableLooper.looper)
-        systemSettings = FakeSettings()
+        val fakeSettings = FakeSettings()
+        systemSettings = fakeSettings
         // Guarantee that the systemSettings always starts with the default font scale.
         systemSettings.putFloatForUser(Settings.System.FONT_SCALE, 1.0f, userTracker.userId)
-        secureSettings = FakeSettings()
+        secureSettings = fakeSettings
         systemClock = FakeSystemClock()
         backgroundDelayableExecutor = FakeExecutor(systemClock)
         whenever(sysuiState.setFlag(anyLong(), anyBoolean())).thenReturn(sysuiState)
@@ -207,9 +208,9 @@ class FontScalingDialogDelegateTest : SysuiTestCase() {
         dialog.show()
 
         val iconStartFrame: ViewGroup = dialog.findViewById(R.id.icon_start_frame)!!
-        secureSettings.putIntForUser(
+        secureSettings.putStringForUser(
             Settings.Secure.ACCESSIBILITY_FONT_SCALING_HAS_BEEN_CHANGED,
-            OFF,
+            OFF.toString(),
             userTracker.userId,
         )
 
@@ -220,12 +221,11 @@ class FontScalingDialogDelegateTest : SysuiTestCase() {
         backgroundDelayableExecutor.runAllReady()
 
         val currentSettings =
-            secureSettings.getIntForUser(
+            secureSettings.getStringForUser(
                 Settings.Secure.ACCESSIBILITY_FONT_SCALING_HAS_BEEN_CHANGED,
-                /* def = */ OFF,
                 userTracker.userId,
             )
-        assertThat(currentSettings).isEqualTo(ON)
+        assertThat(currentSettings).isEqualTo(ON.toString())
 
         dialog.dismiss()
     }
@@ -316,5 +316,7 @@ class FontScalingDialogDelegateTest : SysuiTestCase() {
         dialog.onConfigurationChanged(config)
         testableLooper.processAllMessages()
         assertThat(doneButton.isEnabled).isTrue()
+
+        dialog.dismiss()
     }
 }

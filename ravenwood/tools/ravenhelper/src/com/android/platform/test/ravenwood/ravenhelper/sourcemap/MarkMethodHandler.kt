@@ -35,7 +35,7 @@ import java.io.FileReader
  */
 class MarkMethodHandler : SubcommandHandler {
     override fun handle(args: List<String>) {
-        val options = MapOptions.parseArgs(args)
+        val options = MapOptions().apply { parseArgs(args) }
 
         log.i("Options: $options")
 

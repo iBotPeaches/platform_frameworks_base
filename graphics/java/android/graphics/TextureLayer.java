@@ -29,6 +29,7 @@ import com.android.internal.util.VirtualRefBasePtr;
  *
  * @hide TODO: Make this a SystemApi for b/155905258
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class TextureLayer implements AutoCloseable {
     private HardwareRenderer mRenderer;
     private VirtualRefBasePtr mFinalizer;

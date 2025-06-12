@@ -16,7 +16,6 @@
 
 package android.telephony;
 
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -39,7 +38,6 @@ import android.telephony.data.ApnSetting;
 import android.telephony.data.DataCallResponse;
 import android.telephony.data.Qos;
 
-import com.android.internal.telephony.flags.Flags;
 import com.android.internal.telephony.util.TelephonyUtils;
 
 import java.lang.annotation.Retention;
@@ -89,35 +87,30 @@ public final class PreciseDataConnectionState implements Parcelable {
      * Unsupported. The unsupported state is used when the data network cannot support the network
      * validation function for the current data connection state.
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public static final int NETWORK_VALIDATION_UNSUPPORTED = 0;
 
     /**
      * Not Requested. The not requested status is used when the data network supports the network
      * validation function, but no network validation is being performed yet.
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public static final int NETWORK_VALIDATION_NOT_REQUESTED = 1;
 
     /**
      * In progress. The in progress state is used when the network validation process for the data
      * network is in progress. This state is followed by either success or failure.
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public static final int NETWORK_VALIDATION_IN_PROGRESS = 2;
 
     /**
      * Success. The Success status is used when network validation has been completed for the data
      * network and the result is successful.
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public static final int NETWORK_VALIDATION_SUCCESS = 3;
 
     /**
      * Failure. The Failure status is used when network validation has been completed for the data
      * network and the result is failure.
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public static final int NETWORK_VALIDATION_FAILURE = 4;
 
     /**
@@ -360,7 +353,6 @@ public final class PreciseDataConnectionState implements Parcelable {
      *
      * @return the network validation status of the data call
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public @NetworkValidationStatus int getNetworkValidationStatus() {
         return mNetworkValidationStatus;
     }
@@ -615,7 +607,6 @@ public final class PreciseDataConnectionState implements Parcelable {
          * @param networkValidationStatus the network validation status of the data call
          * @return The builder
          */
-        @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
         public @NonNull Builder setNetworkValidationStatus(
                 @NetworkValidationStatus int networkValidationStatus) {
             mNetworkValidationStatus = networkValidationStatus;

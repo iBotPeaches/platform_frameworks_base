@@ -20,29 +20,24 @@ import com.android.compose.animation.scene.Back
 import com.android.compose.animation.scene.Swipe
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
-import com.android.systemui.bouncer.domain.interactor.BouncerInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.ui.viewmodel.UserActionsViewModel
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
-import kotlinx.coroutines.flow.map
 
 /**
  * Models UI state for user actions that can lead to navigation to other scenes when showing the
- * bouncer scene.
+ * bouncer overlay.
  */
-class BouncerUserActionsViewModel
-@AssistedInject
-constructor(private val bouncerInteractor: BouncerInteractor) : UserActionsViewModel() {
+class BouncerUserActionsViewModel @AssistedInject constructor() : UserActionsViewModel() {
 
     override suspend fun hydrateActions(setActions: (Map<UserAction, UserActionResult>) -> Unit) {
-        bouncerInteractor.dismissDestination
-            .map { prevScene ->
-                mapOf(
-                    Back to UserActionResult(prevScene),
-                    Swipe.Down to UserActionResult(prevScene),
-                )
-            }
-            .collect { actions -> setActions(actions) }
+        setActions(
+            mapOf(
+                Back to UserActionResult.HideOverlay(Overlays.Bouncer),
+                Swipe.Down to UserActionResult.HideOverlay(Overlays.Bouncer),
+            )
+        )
     }
 
     @AssistedFactory

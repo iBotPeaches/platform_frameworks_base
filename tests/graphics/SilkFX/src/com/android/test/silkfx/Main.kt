@@ -30,6 +30,7 @@ import com.android.test.silkfx.app.EXTRA_COMMON_CONTROLS
 import com.android.test.silkfx.app.EXTRA_LAYOUT
 import com.android.test.silkfx.app.EXTRA_TITLE
 import com.android.test.silkfx.hdr.GlowActivity
+import com.android.test.silkfx.hdr.LutTestActivity
 import com.android.test.silkfx.materials.GlassActivity
 import com.android.test.silkfx.materials.BackgroundBlurActivity
 import kotlin.reflect.KClass
@@ -57,7 +58,8 @@ private val AllDemos = listOf(
                 Demo("Gainmap Image", R.layout.gainmap_image),
                 Demo("Gainmap Decode Test", R.layout.gainmap_decode_test, commonControls = false),
                 Demo("Gainmap Transform Test", R.layout.gainmap_transform_test,
-                        commonControls = false)
+                        commonControls = false),
+                Demo("Lut Test", LutTestActivity::class)
         )),
         DemoGroup("Materials", listOf(
                 Demo("Glass", GlassActivity::class),

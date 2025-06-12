@@ -25,13 +25,12 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.logging.InstanceId
 import com.android.internal.logging.testing.UiEventLoggerFake
+import com.android.systemui.res.R
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dump.DumpManager
-import com.android.systemui.res.R
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener
 import com.android.systemui.util.concurrency.DelayableExecutor
@@ -78,7 +77,7 @@ class TemporaryViewDisplayControllerTest : SysuiTestCase() {
     @Mock
     private lateinit var dumpManager: DumpManager
     @Mock
-    private lateinit var windowManager: ViewCaptureAwareWindowManager
+    private lateinit var windowManager: WindowManager
     @Mock
     private lateinit var powerManager: PowerManager
 
@@ -1143,7 +1142,7 @@ class TemporaryViewDisplayControllerTest : SysuiTestCase() {
     inner class TestController(
         context: Context,
         logger: TemporaryViewLogger<ViewInfo>,
-        viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
+        windowManager: WindowManager,
         @Main mainExecutor: DelayableExecutor,
         accessibilityManager: AccessibilityManager,
         configurationController: ConfigurationController,
@@ -1155,7 +1154,7 @@ class TemporaryViewDisplayControllerTest : SysuiTestCase() {
     ) : TemporaryViewDisplayController<ViewInfo, TemporaryViewLogger<ViewInfo>>(
         context,
         logger,
-        viewCaptureAwareWindowManager,
+        windowManager,
         mainExecutor,
         accessibilityManager,
         configurationController,

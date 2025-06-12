@@ -238,7 +238,8 @@ class LoadedPackage {
   // Populates a set of strings representing locales.
   // If `canonicalize` is set to true, each locale is transformed into its canonical format
   // before being inserted into the set. This may cause some equivalent locales to de-dupe.
-  void CollectLocales(bool canonicalize, std::set<std::string>* out_locales) const;
+  using Locales = std::set<std::string, std::less<>>;
+  void CollectLocales(bool canonicalize, Locales* out_locales) const;
 
   // type_idx is TT - 1 from 0xPPTTEEEE.
   inline const TypeSpec* GetTypeSpecByTypeIndex(uint8_t type_index) const {

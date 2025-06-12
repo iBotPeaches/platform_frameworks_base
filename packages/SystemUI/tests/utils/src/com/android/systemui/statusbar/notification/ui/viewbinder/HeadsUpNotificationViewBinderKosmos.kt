@@ -17,7 +17,13 @@
 package com.android.systemui.statusbar.notification.ui.viewbinder
 
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.statusbar.chips.ui.viewmodel.ongoingActivityChipsViewModel
 import com.android.systemui.statusbar.notification.stack.ui.viewmodel.notificationListViewModel
 
 val Kosmos.headsUpNotificationViewBinder by
-    Kosmos.Fixture { HeadsUpNotificationViewBinder(viewModel = notificationListViewModel) }
+    Kosmos.Fixture {
+        HeadsUpNotificationViewBinder(
+            viewModel = notificationListViewModel,
+            ongoingActivityChipsViewModel = ongoingActivityChipsViewModel,
+        )
+    }

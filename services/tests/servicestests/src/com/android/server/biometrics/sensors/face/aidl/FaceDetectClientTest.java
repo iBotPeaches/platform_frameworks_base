@@ -24,7 +24,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.hardware.biometrics.BiometricFaceConstants;
@@ -172,7 +172,7 @@ public class FaceDetectClientTest {
         client.onInteractionDetected();
         client.stopHalOperation();
 
-        verifyZeroInteractions(mVibrator);
+        verifyNoMoreInteractions(mVibrator);
     }
 
     private FaceDetectClient createClient() throws RemoteException {

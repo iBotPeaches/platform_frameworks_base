@@ -16,7 +16,6 @@
 
 package android.app;
 
-import static android.app.Flags.FLAG_PIC_CACHE_NULLS;
 import static android.app.Flags.FLAG_PIC_ISOLATE_CACHE_BY_UID;
 import static android.app.PropertyInvalidatedCache.NONCE_UNSET;
 import static android.app.PropertyInvalidatedCache.MODULE_BLUETOOTH;
@@ -38,9 +37,10 @@ import android.app.PropertyInvalidatedCache.Args;
 import android.app.PropertyInvalidatedCache.NonceWatcher;
 import android.app.PropertyInvalidatedCache.NonceStore;
 import android.os.Binder;
+import android.util.Log;
 import com.android.internal.os.ApplicationSharedMemory;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
@@ -195,38 +195,38 @@ public class PropertyInvalidatedCacheTests {
                         new ServerQuery(tester));
 
         // Caches are enabled upon creation.
-        assertEquals(false, cache1.getDisabledState());
-        assertEquals(false, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertFalse(cache1.isDisabled());
+        assertFalse(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Disable the cache1 instance.  Only cache1 is disabled
         cache1.disableInstance();
-        assertEquals(true, cache1.getDisabledState());
-        assertEquals(false, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertTrue(cache1.isDisabled());
+        assertFalse(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Disable cache1.  This will disable cache1 and cache2 because they share the
         // same name.  cache3 has a different name and will not be disabled.
         cache1.disableLocal();
-        assertEquals(true, cache1.getDisabledState());
-        assertEquals(true, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertTrue(cache1.isDisabled());
+        assertTrue(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Create a new cache1.  Verify that the new instance is disabled.
         cache1 = new PropertyInvalidatedCache<>(4, MODULE, API, "cache1",
                 new ServerQuery(tester));
-        assertEquals(true, cache1.getDisabledState());
+        assertTrue(cache1.isDisabled());
 
         // Remove the record of caches being locally disabled.  This is a clean-up step.
         cache1.forgetDisableLocal();
-        assertEquals(true, cache1.getDisabledState());
-        assertEquals(true, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertTrue(cache1.isDisabled());
+        assertTrue(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Create a new cache1.  Verify that the new instance is not disabled.
         cache1 = new PropertyInvalidatedCache<>(4, MODULE, API, "cache1",
                 new ServerQuery(tester));
-        assertEquals(false, cache1.getDisabledState());
+        assertFalse(cache1.isDisabled());
     }
 
     private static class TestQuery
@@ -281,7 +281,7 @@ public class PropertyInvalidatedCacheTests {
     public void testCacheRecompute() {
         TestCache cache = new TestCache();
         cache.invalidateCache();
-        assertEquals(cache.isDisabled(), false);
+        assertFalse(cache.isDisabled());
         assertEquals("foo5", cache.query(5));
         assertEquals(1, cache.getRecomputeCount());
         assertEquals("foo5", cache.query(5));
@@ -384,15 +384,15 @@ public class PropertyInvalidatedCacheTests {
     @Test
     public void testLocalProcessDisable() {
         TestCache cache = new TestCache();
-        assertEquals(cache.isDisabled(), false);
+        assertFalse(cache.isDisabled());
         cache.invalidateCache();
         assertEquals("foo5", cache.query(5));
         assertEquals(1, cache.getRecomputeCount());
         assertEquals("foo5", cache.query(5));
         assertEquals(1, cache.getRecomputeCount());
-        assertEquals(cache.isDisabled(), false);
+        assertFalse(cache.isDisabled());
         cache.disableLocal();
-        assertEquals(cache.isDisabled(), true);
+        assertTrue(cache.isDisabled());
         assertEquals("foo5", cache.query(5));
         assertEquals("foo5", cache.query(5));
         assertEquals(3, cache.getRecomputeCount());
@@ -411,19 +411,25 @@ public class PropertyInvalidatedCacheTests {
 
     // Verify that invalidating the cache from an app process would fail due to lack of permissions.
     @Test
-    @android.platform.test.annotations.DisabledOnRavenwood(
-            reason = "SystemProperties doesn't have permission check")
+    @DisabledOnRavenwood(reason = "SystemProperties doesn't have permission check")
     public void testPermissionFailure() {
-        // Create a cache that will write a system nonce.
-        TestCache sysCache = new TestCache(MODULE_SYSTEM, "mode1");
         try {
-            // Invalidate the cache, which writes the system property.  There must be a permission
-            // failure.
-            sysCache.invalidateCache();
-            fail("expected permission failure");
-        } catch (RuntimeException e) {
-            // The expected exception is a bare RuntimeException.  The test does not attempt to
-            // validate the text of the exception message.
+            // Disable the test mode for this test, but ensure that it will be enabled when the
+            // test exits.
+            PropertyInvalidatedCache.setTestMode(false);
+            // Create a cache that will write a system nonce.
+            TestCache sysCache = new TestCache(MODULE_SYSTEM, "mode1");
+            try {
+                // Invalidate the cache, which writes the system property.  There must be a
+                // permission failure.
+                sysCache.invalidateCache();
+                fail("expected permission failure");
+            } catch (RuntimeException e) {
+                // The expected exception is a bare RuntimeException.  The test does not attempt
+                // to validate the text of the exception message.
+            }
+        } finally {
+            PropertyInvalidatedCache.setTestMode(true);
         }
     }
 
@@ -557,8 +563,7 @@ public class PropertyInvalidatedCacheTests {
     // storing nonces in shared memory.
     @RequiresFlagsEnabled(FLAG_APPLICATION_SHARED_MEMORY_ENABLED)
     @Test
-    @android.platform.test.annotations.DisabledOnRavenwood(
-            reason = "PIC doesn't use SharedMemory on Ravenwood")
+    @DisabledOnRavenwood(reason = "PIC doesn't use SharedMemory on Ravenwood")
     public void testSharedMemoryStorage() {
         // Fetch a shared memory instance for testing.
         ApplicationSharedMemory shmem = ApplicationSharedMemory.create();
@@ -599,6 +604,49 @@ public class PropertyInvalidatedCacheTests {
 
         // The names are different, so the indices must be different.
         assertNotEquals(index1, index2);
+
+        shmem.close();
+    }
+
+    // Verify that the configured number of nonce slots is actually available.  This test
+    // hard-codes the configured number of slots, which means that this test must be changed
+    // whenever the shared memory configuration changes.
+    @RequiresFlagsEnabled(FLAG_APPLICATION_SHARED_MEMORY_ENABLED)
+    @Test
+    @DisabledOnRavenwood(reason = "PIC doesn't use SharedMemory on Ravenwood")
+    public void testSharedMemoryNonceConfig() {
+        // The two configured constants.  These are private to this method since they are only
+        // used here.
+        // LINT.IfChange(system_nonce_config)
+        final int maxNonce = 128;
+        final int maxByte = 8192;
+        // LINT.ThenChange(/core/jni/android_app_PropertyInvalidatedCache.h:system_nonce_config)
+
+        // Fetch a shared memory instance for testing.
+        ApplicationSharedMemory shmem = ApplicationSharedMemory.create();
+
+        // Create a server-side store.
+        NonceStore server = new NonceStore(shmem.getSystemNonceBlock(), true);
+
+        // Verify that the configured limits are as expected.
+        assertEquals(server.mMaxNonce, maxNonce);
+        assertEquals(server.mMaxByte, maxByte);
+
+        // Create mMaxNonce nonces.  These all succeed.
+        for (int i = 0; i < server.mMaxNonce; i++) {
+            String name = String.format("name_%03d", i);
+            assertEquals(i, server.storeName(name));
+        }
+
+        // Verify that we cannot create a nonce over the limit.
+        try {
+          int i = server.mMaxNonce;
+          String name = String.format("name_%03d", i);
+          server.storeName(name);
+          fail("expected a RuntimeException");
+        } catch (RuntimeException e) {
+          // Okay
+        }
 
         shmem.close();
     }
@@ -711,7 +759,6 @@ public class PropertyInvalidatedCacheTests {
         }
     }
 
-    @RequiresFlagsEnabled(FLAG_PIC_CACHE_NULLS)
     @Test
     public void testCachingNulls() {
         TestCache cache = new TestCache(new Args(MODULE_TEST)

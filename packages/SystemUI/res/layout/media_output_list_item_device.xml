@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (C) 2025 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/item_layout"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:baselineAligned="false"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/main_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:background="?android:attr/selectableItemBackground"
+        android:focusable="true"
+        android:orientation="horizontal"
+        android:layout_marginHorizontal="@dimen/media_output_dialog_margin_horizontal"
+        android:paddingVertical="@dimen/media_output_item_content_vertical_margin">
+
+        <ImageView
+            android:id="@+id/title_icon"
+            style="@style/MediaOutput.Item.Icon"
+            android:layout_marginEnd="@dimen/media_output_item_horizontal_gap"
+            android:importantForAccessibility="no"
+            tools:src="@drawable/ic_smartphone"
+            tools:visibility="visible"/>
+
+        <LinearLayout
+            android:id="@+id/text_container"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:minHeight="@dimen/media_output_item_icon_size"
+            android:layout_gravity="start"
+            android:gravity="center_vertical|start"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="variable-title-small"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="variable-title-small"
+                android:alpha="@dimen/media_output_item_subtitle_alpha"
+                android:maxLines="1"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/status_icon"
+            style="@style/MediaOutput.Item.Icon"
+            android:layout_marginStart="@dimen/media_output_item_horizontal_gap"
+            android:importantForAccessibility="no"
+            android:visibility="gone"
+            app:tint="@color/media_dialog_on_surface_variant"
+            tools:src="@drawable/media_output_status_failed"
+            tools:visibility="visible" />
+
+        <ProgressBar
+            android:id="@+id/loading_indicator"
+            style="?android:attr/progressBarStyleSmallTitle"
+            android:layout_width="@dimen/media_output_item_icon_size"
+            android:layout_height="@dimen/media_output_item_icon_size"
+            android:padding="@dimen/media_output_item_icon_padding"
+            android:scaleType="fitCenter"
+            android:layout_marginStart="@dimen/media_output_item_horizontal_gap"
+            android:indeterminate="true"
+            android:indeterminateOnly="true"
+            android:visibility="gone"
+            tools:indeterminateTint="@color/media_dialog_on_surface_variant"
+            tools:visibility="visible" />
+
+        <View
+            android:id="@+id/divider"
+            android:layout_width="1dp"
+            android:layout_height="@dimen/media_output_item_icon_size"
+            android:layout_marginStart="@dimen/media_output_item_horizontal_gap"
+            android:background="@color/media_dialog_outline"
+            android:visibility="visible"
+            />
+
+        <ImageButton
+            android:id="@+id/ongoing_session_button"
+            style="@style/MediaOutput.Item.Icon"
+            android:src="@drawable/ic_sound_bars_anim"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:focusable="true"
+            android:contentDescription="@string/accessibility_open_application"
+            android:layout_marginStart="@dimen/media_output_item_horizontal_gap"
+            android:visibility="gone"
+            tools:visibility="visible"/>
+
+        <ImageButton
+            android:id="@+id/group_button"
+            style="@style/MediaOutput.Item.Icon"
+            android:layout_marginStart="@dimen/media_output_item_horizontal_gap"
+            android:src="@drawable/ic_add_circle_rounded"
+            android:background="@drawable/media_output_dialog_round_button_ripple"
+            android:focusable="true"
+            android:contentDescription="@null"
+            android:visibility="gone"
+            tools:visibility="visible"/>
+    </LinearLayout>
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/volume_seekbar"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginVertical="3dp"
+        android:theme="@style/Theme.Material3.DynamicColors.DayNight"
+        app:labelBehavior="gone"
+        app:tickVisible="false"
+        app:trackCornerSize="12dp"
+        app:trackHeight="32dp"
+        app:trackIconSize="20dp"
+        app:trackStopIndicatorSize="0dp" />
+</LinearLayout>

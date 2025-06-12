@@ -23,7 +23,7 @@
     <string name="keyguard_enter_your_pin" msgid="5429932527814874032">"ನಿಮ್ಮ ಪಿನ್ ನಮೂದಿಸಿ"</string>
     <string name="keyguard_enter_pin" msgid="8114529922480276834">"ಪಿನ್ ನಮೂದಿಸಿ"</string>
     <string name="keyguard_enter_your_pattern" msgid="351503370332324745">"ನಿಮ್ಮ ಪ್ಯಾಟರ್ನ್ ನಮೂದಿಸಿ"</string>
-    <string name="keyguard_enter_pattern" msgid="7616595160901084119">"ಪ್ಯಾಟರ್ನ್ ಅನ್ನು ಬಿಡಿಸಿ"</string>
+    <string name="keyguard_enter_pattern" msgid="7616595160901084119">"ಪ್ಯಾಟರ್ನ್ ಅನ್ನು ಬರೆಯಿರಿ"</string>
     <string name="keyguard_enter_your_password" msgid="7225626204122735501">"ನಿಮ್ಮ ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ"</string>
     <string name="keyguard_enter_password" msgid="6483623792371009758">"ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ"</string>
     <string name="keyguard_sim_error_message_short" msgid="633630844240494070">"ಅಮಾನ್ಯ ಕಾರ್ಡ್."</string>

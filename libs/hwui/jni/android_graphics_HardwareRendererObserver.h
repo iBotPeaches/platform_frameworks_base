@@ -43,7 +43,7 @@ public:
      */
     bool getNextBuffer(JNIEnv* env, jlongArray metrics, int* dropCount);
 
-    void notify(const int64_t* stats) override;
+    void notify(const uirenderer::FrameInfoBuffer& stats) override;
 
 private:
     static constexpr int kBufferSize = static_cast<int>(uirenderer::FrameInfoIndex::NumIndexes);

@@ -29,6 +29,8 @@ import android.ravenwood.annotation.RavenwoodKeepWholeClass;
 import android.util.TypedValue;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.pm.pkg.component.AconfigFlags;
+import com.android.internal.pm.pkg.parsing.ParsingPackageUtils;
 import com.android.internal.util.XmlUtils;
 
 import dalvik.annotation.optimization.CriticalNative;
@@ -50,18 +52,21 @@ import java.io.Reader;
 @RavenwoodClassLoadHook(RavenwoodClassLoadHook.LIBANDROID_LOADING_HOOK)
 public final class XmlBlock implements AutoCloseable {
     private static final boolean DEBUG=false;
+    public static final String ANDROID_RESOURCES = "http://schemas.android.com/apk/res/android";
 
     @UnsupportedAppUsage
     public XmlBlock(byte[] data) {
         mAssets = null;
         mNative = nativeCreate(data, 0, data.length);
         mStrings = new StringBlock(nativeGetStringBlock(mNative), false);
+        mUsesFeatureFlags = true;
     }
 
     public XmlBlock(byte[] data, int offset, int size) {
         mAssets = null;
         mNative = nativeCreate(data, offset, size);
         mStrings = new StringBlock(nativeGetStringBlock(mNative), false);
+        mUsesFeatureFlags = true;
     }
 
     @Override
@@ -343,6 +348,24 @@ public final class XmlBlock implements AutoCloseable {
             if (ev == ERROR_BAD_DOCUMENT) {
                 throw new XmlPullParserException("Corrupt XML binary file");
             }
+
+            if (useLayoutReadwrite() && mUsesFeatureFlags && ev == START_TAG) {
+                AconfigFlags flags = ParsingPackageUtils.getAconfigFlags();
+                if (flags.skipCurrentElement(/* pkg= */ null, this)) {
+                    int depth = 1;
+                    while (depth > 0) {
+                        int ev2 = nativeNext(mParseState);
+                        if (ev2 == ERROR_BAD_DOCUMENT) {
+                            throw new XmlPullParserException("Corrupt XML binary file");
+                        } else if (ev2 == START_TAG) {
+                            depth++;
+                        } else if (ev2 == END_TAG) {
+                            depth--;
+                        }
+                    }
+                    return next();
+                }
+            }
             if (mDecNextDepth) {
                 mDepth--;
                 mDecNextDepth = false;
@@ -368,6 +391,18 @@ public final class XmlBlock implements AutoCloseable {
             }
             return ev;
         }
+
+        // Until ravenwood supports AconfigFlags, we just don't do layoutReadwriteFlags().
+        @android.ravenwood.annotation.RavenwoodReplace(
+                bug = 396458006, blockedBy = AconfigFlags.class)
+        private static boolean useLayoutReadwrite() {
+            return Flags.layoutReadwriteFlags();
+        }
+
+        private static boolean useLayoutReadwrite$ravenwood() {
+            return false;
+        }
+
         public void require(int type, String namespace, String name) throws XmlPullParserException,IOException {
             if (type != getEventType()
                 || (namespace != null && !namespace.equals( getNamespace () ) )
@@ -646,10 +681,11 @@ public final class XmlBlock implements AutoCloseable {
      *  are doing!  The given native object must exist for the entire lifetime
      *  of this newly creating XmlBlock.
      */
-    XmlBlock(@Nullable AssetManager assets, long xmlBlock) {
+    XmlBlock(@Nullable AssetManager assets, long xmlBlock, boolean usesFeatureFlags) {
         mAssets = assets;
         mNative = xmlBlock;
         mStrings = new StringBlock(nativeGetStringBlock(xmlBlock), false);
+        mUsesFeatureFlags = usesFeatureFlags;
     }
 
     private @Nullable final AssetManager mAssets;
@@ -657,6 +693,8 @@ public final class XmlBlock implements AutoCloseable {
     /*package*/ final StringBlock mStrings;
     private boolean mOpen = true;
     private int mOpenCount = 1;
+
+    private final boolean mUsesFeatureFlags;
 
     private static final native long nativeCreate(byte[] data,
                                                  int offset,

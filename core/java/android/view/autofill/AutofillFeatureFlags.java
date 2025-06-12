@@ -16,9 +16,12 @@
 
 package android.view.autofill;
 
+import static android.service.autofill.Flags.improveFillDialogAconfig;
+
 import android.annotation.SuppressLint;
 import android.annotation.TestApi;
 import android.provider.DeviceConfig;
+import android.service.autofill.Flags;
 import android.text.TextUtils;
 import android.util.ArraySet;
 import android.view.View;
@@ -346,6 +349,14 @@ public class AutofillFeatureFlags {
     // END AUTOFILL REMOVE PRE_TRIGGER FLAGS
 
     /**
+     * Whether per Session FillEventHistory is enabled.
+     *
+     * @hide
+     */
+    public static final String DEVICE_CONFIG_SESSION_FILL_EVENT_HISTORY =
+            "session_fill_event_history";
+
+    /**
      * Define the max input length for autofill to show suggesiton UI
      *
      * E.g. if flag is set to 3, autofill will only show suggestions when user inputs less than 3
@@ -401,10 +412,17 @@ public class AutofillFeatureFlags {
     public static final boolean DEFAULT_IMPROVE_FILL_DIALOG_ENABLED = true;
     // Default for whether the pre trigger removal is enabled.
     /** @hide */
-    public static final long DEFAULT_FILL_DIALOG_TIMEOUT_MS = 300; // 300 ms
+    public static final long DEFAULT_FILL_DIALOG_TIMEOUT_MS = 400; // 400 ms
     /** @hide */
     public static final long DEFAULT_FILL_DIALOG_MIN_WAIT_AFTER_IME_ANIMATION_END_MS = 0; // 0 ms
     // END AUTOFILL REMOVE PRE_TRIGGER FLAGS DEFAULTS
+
+    /**
+     * Default for whether per Session FillEventHistory is enabled
+     *
+     * @hide
+     */
+    public static final boolean DEFAULT_SESSION_FILL_EVENT_HISTORY_ENABLED = true;
 
     /**
      * @hide
@@ -662,7 +680,7 @@ public class AutofillFeatureFlags {
     public static boolean isImproveFillDialogEnabled() {
         // TODO(b/266379948): Add condition for checking whether device has PCC first
 
-        return DeviceConfig.getBoolean(
+        return improveFillDialogAconfig() && DeviceConfig.getBoolean(
                 DeviceConfig.NAMESPACE_AUTOFILL,
                 DEVICE_CONFIG_IMPROVE_FILL_DIALOG_ENABLED,
                 DEFAULT_IMPROVE_FILL_DIALOG_ENABLED);
@@ -694,5 +712,21 @@ public class AutofillFeatureFlags {
                 DeviceConfig.NAMESPACE_AUTOFILL,
                 DEVICE_CONFIG_FILL_DIALOG_MIN_WAIT_AFTER_IME_ANIMATION_END_MS,
                 DEFAULT_FILL_DIALOG_MIN_WAIT_AFTER_IME_ANIMATION_END_MS);
+    }
+
+    /**
+     * Whether tracking FillEventHistory per Session is enabled
+     *
+     * @hide
+     */
+    public static boolean isMultipleFillEventHistoryEnabled() {
+        if (!Flags.multipleFillHistory()) {
+            return false;
+        }
+
+        return DeviceConfig.getBoolean(
+                DeviceConfig.NAMESPACE_AUTOFILL,
+                DEVICE_CONFIG_SESSION_FILL_EVENT_HISTORY,
+                DEFAULT_SESSION_FILL_EVENT_HISTORY_ENABLED);
     }
 }

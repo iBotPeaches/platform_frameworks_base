@@ -68,6 +68,8 @@ public class RavenwoodCommonUtils {
             RAVENWOOD_RUNTIME_PATH + "ravenwood-data/ravenwood-empty-res.apk";
 
     public static final String RAVENWOOD_VERSION_JAVA_SYSPROP = "android.ravenwood.version";
+    public static final String RAVENWOOD_RUNTIME_PATH_JAVA_SYSPROP =
+            "android.ravenwood.runtime_path";
 
     /**
      * @return if we're running on Ravenwood.

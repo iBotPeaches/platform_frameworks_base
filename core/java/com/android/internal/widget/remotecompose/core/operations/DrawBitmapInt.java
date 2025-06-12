@@ -25,6 +25,7 @@ import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
 import com.android.internal.widget.remotecompose.core.semantics.AccessibleComponent;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
@@ -131,6 +132,21 @@ public class DrawBitmapInt extends PaintOperation implements AccessibleComponent
         return OP_CODE;
     }
 
+    /**
+     * Draw a bitmap using integer coordinates
+     *
+     * @param buffer the buffer to write to
+     * @param imageId the id of the bitmap
+     * @param srcLeft the left most pixel in the bitmap
+     * @param srcTop the top most pixel in the bitmap
+     * @param srcRight the right most pixel in the bitmap
+     * @param srcBottom the bottom most pixel in the bitmap
+     * @param dstLeft the left most pixel in the destination
+     * @param dstTop the top most pixel in the destination
+     * @param dstRight the right most pixel in the destination
+     * @param dstBottom the bottom most pixel in the destination
+     * @param cdId the content discription id
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int imageId,
@@ -214,5 +230,21 @@ public class DrawBitmapInt extends PaintOperation implements AccessibleComponent
                 mDstRight,
                 mDstBottom,
                 mContentDescId);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("imageId", mImageId)
+                .add("contentDescriptionId", mContentDescId)
+                .add("srcLeft", mSrcLeft)
+                .add("srcTop", mSrcTop)
+                .add("srcRight", mSrcRight)
+                .add("srcBottom", mSrcBottom)
+                .add("dstLeft", mDstLeft)
+                .add("dstTop", mDstTop)
+                .add("dstRight", mDstRight)
+                .add("dstBottom", mDstBottom);
     }
 }

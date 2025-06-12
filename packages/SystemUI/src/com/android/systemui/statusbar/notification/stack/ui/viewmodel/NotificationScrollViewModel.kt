@@ -15,6 +15,8 @@
  *
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.android.systemui.statusbar.notification.stack.ui.viewmodel
 
 import com.android.compose.animation.scene.ContentKey
@@ -22,7 +24,9 @@ import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.ObservableTransitionState.Idle
 import com.android.compose.animation.scene.ObservableTransitionState.Transition
 import com.android.compose.animation.scene.ObservableTransitionState.Transition.ChangeScene
+import com.android.compose.animation.scene.OverlayKey
 import com.android.compose.animation.scene.SceneKey
+import com.android.systemui.bouncer.domain.interactor.BouncerInteractor
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.lifecycle.ExclusiveActivatable
@@ -31,6 +35,7 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.statusbar.domain.interactor.RemoteInputInteractor
 import com.android.systemui.statusbar.notification.stack.domain.interactor.NotificationStackAppearanceInteractor
@@ -45,22 +50,29 @@ import com.android.systemui.util.kotlin.ActivatableFlowDumperImpl
 import dagger.Lazy
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.combineTransform
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+
+private typealias ShadeScrimShapeConsumer = (ShadeScrimShape?) -> Unit
 
 /** ViewModel which represents the state of the NSSL/Controller in the world of flexiglass */
 class NotificationScrollViewModel
 @AssistedInject
 constructor(
     dumpManager: DumpManager,
-    stackAppearanceInteractor: NotificationStackAppearanceInteractor,
+    private val stackAppearanceInteractor: NotificationStackAppearanceInteractor,
     shadeInteractor: ShadeInteractor,
+    shadeModeInteractor: ShadeModeInteractor,
+    bouncerInteractor: BouncerInteractor,
     private val remoteInputInteractor: RemoteInputInteractor,
     private val sceneInteractor: SceneInteractor,
     // TODO(b/336364825) Remove Lazy when SceneContainerFlag is released -
@@ -122,12 +134,15 @@ constructor(
     private fun expandFractionDuringOverlayTransition(
         transition: Transition,
         currentScene: SceneKey,
+        currentOverlays: Set<OverlayKey>,
         shadeExpansion: Float,
     ): Float {
         return if (currentScene == Scenes.Lockscreen) {
             1f
         } else if (transition.isTransitioningFromOrTo(Overlays.NotificationsShade)) {
             shadeExpansion
+        } else if (Overlays.NotificationsShade in currentOverlays) {
+            1f
         } else {
             0f
         }
@@ -138,7 +153,7 @@ constructor(
         sceneInteractor.transitionState.map { transition: ObservableTransitionState ->
             transition is Transition &&
                 transition.fromContent == Scenes.Lockscreen &&
-                (transition.toContent == Scenes.Bouncer || transition.toContent == Scenes.Gone)
+                (transition.toContent == Overlays.Bouncer || transition.toContent == Scenes.Gone)
         }
 
     /**
@@ -149,15 +164,16 @@ constructor(
     val expandFraction: Flow<Float> =
         combine(
                 shadeInteractor.shadeExpansion,
-                shadeInteractor.shadeMode,
                 shadeInteractor.qsExpansion,
+                shadeModeInteractor.shadeMode,
                 sceneInteractor.transitionState,
-            ) { shadeExpansion, _, qsExpansion, transitionState ->
+                sceneInteractor.currentOverlays,
+            ) { shadeExpansion, qsExpansion, _, transitionState, currentOverlays ->
                 when (transitionState) {
                     is Idle ->
                         if (
                             expandedInScene(transitionState.currentScene) ||
-                                Overlays.NotificationsShade in transitionState.currentOverlays
+                                Overlays.NotificationsShade in currentOverlays
                         ) {
                             1f
                         } else {
@@ -173,12 +189,14 @@ constructor(
                         expandFractionDuringOverlayTransition(
                             transition = transitionState,
                             currentScene = transitionState.currentScene,
+                            currentOverlays = currentOverlays,
                             shadeExpansion = shadeExpansion,
                         )
                     is Transition.ReplaceOverlay ->
                         expandFractionDuringOverlayTransition(
                             transition = transitionState,
                             currentScene = transitionState.currentScene,
+                            currentOverlays = currentOverlays,
                             shadeExpansion = shadeExpansion,
                         )
                 }
@@ -189,14 +207,45 @@ constructor(
     val qsExpandFraction: Flow<Float> =
         shadeInteractor.qsExpansion.dumpWhileCollecting("qsExpandFraction")
 
+    val isOccluded: Flow<Boolean> =
+        bouncerInteractor.bouncerExpansion
+            .map { it == 1f }
+            .distinctUntilChanged()
+            .dumpWhileCollecting("isOccluded")
+
+    /** Blur radius to be applied to Notifications. */
+    fun blurRadius(maxBlurRadius: Flow<Int>) =
+        combine(blurFraction, maxBlurRadius) { fraction, maxRadius -> fraction * maxRadius }
+
+    /**
+     * Scale of the blur effect that should be applied to Notifications.
+     *
+     * 0 -> don't blur (default, removes all blur render effects) 1 -> do the full blur (apply a
+     * render effect with the max blur radius)
+     */
+    private val blurFraction: Flow<Float> =
+        if (SceneContainerFlag.isEnabled) {
+            shadeModeInteractor.shadeMode.flatMapLatest { shadeMode ->
+                when (shadeMode) {
+                    ShadeMode.Dual ->
+                        combineTransform(
+                            shadeInteractor.shadeExpansion,
+                            shadeInteractor.qsExpansion,
+                        ) { notificationShadeExpansion, qsExpansion ->
+                            if (notificationShadeExpansion == 0f) {
+                                // Blur out notifications as the QS overlay panel expands
+                                emit(qsExpansion)
+                            }
+                        }
+                    else -> flowOf(0f)
+                }
+            }
+        } else {
+            flowOf(0f)
+        }
+
     /** Whether we should close any open notification guts. */
     val shouldCloseGuts: Flow<Boolean> = stackAppearanceInteractor.shouldCloseGuts
-
-    val shouldResetStackTop: Flow<Boolean> =
-        sceneInteractor.transitionState
-            .mapNotNull { state -> state is Idle && state.currentScene == Scenes.Gone }
-            .distinctUntilChanged()
-            .dumpWhileCollecting("shouldResetStackTop")
 
     /** Whether the Notification Stack is visibly on the lockscreen scene. */
     val isShowingStackOnLockscreen: Flow<Boolean> =
@@ -214,9 +263,10 @@ constructor(
         sceneInteractor.isSceneInFamily(scene, this)
 
     private val qsAllowsClipping: Flow<Boolean> =
-        combine(shadeInteractor.shadeMode, shadeInteractor.qsExpansion) { shadeMode, qsExpansion ->
+        combine(shadeModeInteractor.shadeMode, shadeInteractor.qsExpansion) { shadeMode, qsExpansion
+                ->
                 when (shadeMode) {
-                    is ShadeMode.Dual -> false
+                    is ShadeMode.Dual,
                     is ShadeMode.Split -> true
                     is ShadeMode.Single -> qsExpansion < 0.5f
                 }
@@ -227,7 +277,7 @@ constructor(
     private val shadeScrimClipping: Flow<ShadeScrimClipping?> =
         combine(
                 qsAllowsClipping,
-                stackAppearanceInteractor.shadeScrimBounds,
+                stackAppearanceInteractor.notificationShadeScrimBounds,
                 stackAppearanceInteractor.shadeScrimRounding,
             ) { qsAllowsClipping, bounds, rounding ->
                 bounds?.takeIf { qsAllowsClipping }?.let { ShadeScrimClipping(it, rounding) }
@@ -235,7 +285,7 @@ constructor(
             .distinctUntilChanged()
             .dumpWhileCollecting("stackClipping")
 
-    fun shadeScrimShape(
+    fun notificationScrimShape(
         cornerRadius: Flow<Int>,
         viewLeftOffset: Flow<Int>,
     ): Flow<ShadeScrimShape?> =
@@ -248,6 +298,13 @@ constructor(
                 )
             }
             .dumpWhileCollecting("shadeScrimShape")
+
+    /**
+     * Sets a consumer to be notified when the QuickSettings Overlay panel changes size or position.
+     */
+    fun setQsScrimShapeConsumer(consumer: ShadeScrimShapeConsumer?) {
+        stackAppearanceInteractor.setQsPanelShapeConsumer(consumer)
+    }
 
     /**
      * Max alpha to apply directly to the view based on the compose placeholder.

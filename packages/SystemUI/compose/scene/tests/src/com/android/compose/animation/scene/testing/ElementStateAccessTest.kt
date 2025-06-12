@@ -58,17 +58,24 @@ class ElementStateAccessTest {
                 assertThat(semanticNode.lastScaleForTesting).isEqualTo(Scale(1f, 1f))
             }
 
+            at(16) {
+                val semanticNode = onElement(TestElements.Foo).fetchSemanticsNode()
+                assertThat(semanticNode.lastAlphaForTesting).isEqualTo(0.75f)
+                assertThat(semanticNode.lastScaleForTesting).isEqualTo(Scale(0.75f, 0.75f))
+            }
+
             at(32) {
                 val semanticNode = onElement(TestElements.Foo).fetchSemanticsNode()
                 assertThat(semanticNode.lastAlphaForTesting).isEqualTo(0.5f)
                 assertThat(semanticNode.lastScaleForTesting).isEqualTo(Scale(0.5f, 0.5f))
             }
 
-            at(64) {
+            at(48) {
                 val semanticNode = onElement(TestElements.Foo).fetchSemanticsNode()
-                assertThat(semanticNode.lastAlphaForTesting).isEqualTo(0f)
-                assertThat(semanticNode.lastScaleForTesting).isEqualTo(Scale(0f, 0f))
+                assertThat(semanticNode.lastAlphaForTesting).isEqualTo(0.25f)
+                assertThat(semanticNode.lastScaleForTesting).isEqualTo(Scale(0.25f, 0.25f))
             }
+
             after { onElement(TestElements.Foo).assertDoesNotExist() }
         }
     }

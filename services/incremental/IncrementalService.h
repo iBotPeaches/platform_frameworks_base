@@ -26,7 +26,7 @@
 #include <android/os/incremental/BnStorageLoadingProgressListener.h>
 #include <android/os/incremental/PerUidReadTimeouts.h>
 #include <android/os/incremental/StorageHealthCheckParams.h>
-#include <binder/IAppOpsCallback.h>
+#include <binder/AppOpsManager.h>
 #include <binder/PersistableBundle.h>
 #include <utils/String16.h>
 #include <utils/StrongPointer.h>
@@ -200,11 +200,12 @@ public:
 
     void getMetrics(int32_t storageId, android::os::PersistableBundle* _aidl_return);
 
-    class AppOpsListener : public android::BnAppOpsCallback {
+    class AppOpsListener : public com::android::internal::app::BnAppOpsCallback {
     public:
         AppOpsListener(IncrementalService& incrementalService, std::string packageName)
               : incrementalService(incrementalService), packageName(std::move(packageName)) {}
-        void opChanged(int32_t op, const String16& packageName) final;
+        binder::Status opChanged(int32_t op, int32_t uid, const String16& packageName,
+                                 const String16& persistentDeviceId) final;
 
     private:
         IncrementalService& incrementalService;

@@ -20,7 +20,7 @@
     android:id="@+id/desktop_mode_caption"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:gravity="center_horizontal">
+    android:gravity="center">
 
     <com.android.wm.shell.windowdecor.HandleImageButton
         android:id="@+id/caption_handle"

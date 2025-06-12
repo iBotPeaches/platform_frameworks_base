@@ -22,6 +22,7 @@ import static com.android.server.om.OverlayManagerService.TAG;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.UserIdInt;
+import android.content.om.OverlayConstraint;
 import android.content.om.OverlayInfo;
 import android.content.om.OverlayableInfo;
 import android.os.Build.VERSION_CODES;
@@ -102,7 +103,8 @@ final class IdmapManager {
      */
     @IdmapStatus int createIdmap(@NonNull final AndroidPackage targetPackage,
             @NonNull PackageState overlayPackageState, @NonNull final AndroidPackage overlayPackage,
-            String overlayBasePath, String overlayName, @UserIdInt int userId) {
+            String overlayBasePath, String overlayName, @UserIdInt int userId,
+            @NonNull final List<OverlayConstraint> constraints) {
         if (DEBUG) {
             Slog.d(TAG, "create idmap for " + targetPackage.getPackageName() + " and "
                     + overlayPackage.getPackageName());
@@ -112,12 +114,13 @@ final class IdmapManager {
             int policies = calculateFulfilledPolicies(targetPackage, overlayPackageState,
                     overlayPackage, userId);
             boolean enforce = enforceOverlayable(overlayPackageState, overlayPackage);
+            android.os.OverlayConstraint[] idmapConstraints = toIdmapConstraints(constraints);
             if (mIdmapDaemon.verifyIdmap(targetPath, overlayBasePath, overlayName, policies,
-                    enforce, userId)) {
+                    enforce, userId, idmapConstraints)) {
                 return IDMAP_IS_VERIFIED;
             }
             final boolean idmapCreated = mIdmapDaemon.createIdmap(targetPath, overlayBasePath,
-                    overlayName, policies, enforce, userId) != null;
+                    overlayName, policies, enforce, userId, idmapConstraints) != null;
             return (idmapCreated) ? IDMAP_IS_MODIFIED | IDMAP_IS_VERIFIED : IDMAP_NOT_EXIST;
         } catch (Exception e) {
             Slog.w(TAG, "failed to generate idmap for " + targetPath + " and "
@@ -274,5 +277,20 @@ final class IdmapManager {
         }
 
         return false;
+    }
+
+    @NonNull
+    private static android.os.OverlayConstraint[] toIdmapConstraints(
+            @NonNull final List<OverlayConstraint> constraints) {
+        android.os.OverlayConstraint[] idmapConstraints =
+                new android.os.OverlayConstraint[constraints.size()];
+        int index = 0;
+        for (OverlayConstraint constraint : constraints) {
+            android.os.OverlayConstraint idmapConstraint = new android.os.OverlayConstraint();
+            idmapConstraint.type = constraint.getType();
+            idmapConstraint.value = constraint.getValue();
+            idmapConstraints[index++] = idmapConstraint;
+        }
+        return idmapConstraints;
     }
 }

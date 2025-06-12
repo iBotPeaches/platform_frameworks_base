@@ -15,11 +15,11 @@
  */
 package com.android.platform.test.ravenwood.ravenhelper.sourcemap
 
-import com.android.hoststubgen.ArgIterator
 import com.android.hoststubgen.ArgumentsException
-import com.android.hoststubgen.SetOnce
-import com.android.hoststubgen.ensureFileExists
-import com.android.hoststubgen.log
+import com.android.hoststubgen.utils.ArgIterator
+import com.android.hoststubgen.utils.BaseOptions
+import com.android.hoststubgen.utils.SetOnce
+import com.android.hoststubgen.utils.ensureFileExists
 
 /**
  * Options for the "ravenhelper map" subcommand.
@@ -36,60 +36,36 @@ class MapOptions(
 
     /** Text to insert. */
     var text: SetOnce<String?> = SetOnce(null),
-) {
-    companion object {
-        fun parseArgs(args: List<String>): MapOptions {
-            val ret = MapOptions()
-            val ai = ArgIterator.withAtFiles(args.toTypedArray())
+) : BaseOptions() {
 
-            while (true) {
-                val arg = ai.nextArgOptional() ?: break
+    override fun parseOption(option: String, args: ArgIterator): Boolean {
+        fun nextArg(): String = args.nextArgRequired(option)
 
-                fun nextArg(): String = ai.nextArgRequired(arg)
+        when (option) {
+            // TODO: Write help
+            "-h", "--help" -> TODO("Help is not implemented yet")
+            "-s", "--src" -> sourceFilesOrDirectories.add(nextArg().ensureFileExists())
+            "-i", "--input" -> targetMethodFiles.add(nextArg().ensureFileExists())
+            "-o", "--output-script" -> outputScriptFile.set(nextArg())
+            "-t", "--text" -> text.set(nextArg())
+            else -> return false
+        }
 
-                if (log.maybeHandleCommandLineArg(arg) { nextArg() }) {
-                    continue
-                }
-                try {
-                    when (arg) {
-                        // TODO: Write help
-                        "-h", "--help" -> TODO("Help is not implemented yet")
+        return true
+    }
 
-                        "-s", "--src" ->
-                            ret.sourceFilesOrDirectories.add(nextArg().ensureFileExists())
-
-                        "-i", "--input" ->
-                            ret.targetMethodFiles.add(nextArg().ensureFileExists())
-
-                        "-o", "--output-script" ->
-                            ret.outputScriptFile.set(nextArg())
-
-                        "-t", "--text" ->
-                            ret.text.set(nextArg())
-
-                        else -> throw ArgumentsException("Unknown option: $arg")
-                    }
-                } catch (e: SetOnce.SetMoreThanOnceException) {
-                    throw ArgumentsException("Duplicate or conflicting argument found: $arg")
-                }
-            }
-
-            if (ret.sourceFilesOrDirectories.size == 0) {
-                throw ArgumentsException("Must specify at least one source path")
-            }
-
-            return ret
+    override fun checkArgs() {
+        if (sourceFilesOrDirectories.size == 0) {
+            throw ArgumentsException("Must specify at least one source path")
         }
     }
 
-    override fun toString(): String {
+    override fun dumpFields(): String {
         return """
-            PtaOptions{
-              sourceFilesOrDirectories=$sourceFilesOrDirectories
-              targetMethods=$targetMethodFiles
-              outputScriptFile=$outputScriptFile
-              text=$text
-            }
-            """.trimIndent()
+            sourceFilesOrDirectories=$sourceFilesOrDirectories
+            targetMethods=$targetMethodFiles
+            outputScriptFile=$outputScriptFile
+            text=$text
+        """.trimIndent()
     }
 }

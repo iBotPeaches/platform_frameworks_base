@@ -17,11 +17,15 @@
 package com.android.systemui.volume.dialog.ringer.ui.viewmodel
 
 import android.content.applicationContext
+import com.android.internal.logging.uiEventLogger
 import com.android.systemui.haptics.vibratorHelper
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.statusbar.notification.domain.interactor.notificationsSoundPolicyInteractor
+import com.android.systemui.statusbar.policy.configurationController
+import com.android.systemui.util.time.fakeSystemClock
+import com.android.systemui.util.time.systemClock
 import com.android.systemui.volume.dialog.domain.interactor.volumeDialogVisibilityInteractor
 import com.android.systemui.volume.dialog.ringer.domain.volumeDialogRingerInteractor
 import com.android.systemui.volume.dialog.shared.volumeDialogLogger
@@ -37,5 +41,8 @@ val Kosmos.volumeDialogRingerDrawerViewModel by
             vibrator = vibratorHelper,
             volumeDialogLogger = volumeDialogLogger,
             visibilityInteractor = volumeDialogVisibilityInteractor,
+            configurationController = configurationController,
+            uiEventLogger = uiEventLogger,
+            systemClock = fakeSystemClock,
         )
     }

@@ -41,6 +41,7 @@ import android.util.SparseArray;
 import android.util.Xml;
 
 import com.android.internal.os.CpuScalingPolicies;
+import com.android.internal.os.MonotonicClock;
 import com.android.internal.os.PowerProfile;
 import com.android.internal.power.EnergyConsumerStats;
 
@@ -65,6 +66,7 @@ public class BatteryUsageStatsRule implements TestRule {
 
     private final PowerProfile mPowerProfile;
     private final MockClock mMockClock = new MockClock();
+    private final MonotonicClock mMonotonicClock = new MonotonicClock(666777, mMockClock);
     private String mTestName;
     private boolean mCreateTempDirectory;
     private File mHistoryDir;
@@ -84,6 +86,7 @@ public class BatteryUsageStatsRule implements TestRule {
     private String[] mCustomPowerComponentNames;
     private Throwable mThrowable;
     private final BatteryStatsImpl.BatteryStatsConfig.Builder mBatteryStatsConfigBuilder;
+    private BatteryStatsImpl.BatteryStatsConfig mBatteryStatsConfig;
 
     public BatteryUsageStatsRule() {
         this(0);
@@ -117,9 +120,8 @@ public class BatteryUsageStatsRule implements TestRule {
             }
             clearDirectory();
         }
-        mBatteryStats = new MockBatteryStatsImpl(mBatteryStatsConfigBuilder.build(),
-                mMockClock, mHistoryDir, mHandler, new PowerStatsUidResolver());
-        mBatteryStats.setPowerProfile(mPowerProfile);
+        mBatteryStats = new MockBatteryStatsImpl(getBatteryStatsConfig(), mMockClock,
+                mMonotonicClock, mHistoryDir, mHandler, mPowerProfile, new PowerStatsUidResolver());
         mBatteryStats.setCpuScalingPolicies(new CpuScalingPolicies(mCpusByPolicy, mFreqsByPolicy));
         synchronized (mBatteryStats) {
             mBatteryStats.initEnergyConsumerStatsLocked(mSupportedStandardBuckets,
@@ -140,8 +142,23 @@ public class BatteryUsageStatsRule implements TestRule {
         }
     }
 
+    /**
+     * Returns the BatteryStatsConfig, which is wrapped into a Mockito.spy, so it can be
+     * observed and/or mocked.
+     */
+    public BatteryStatsImpl.BatteryStatsConfig getBatteryStatsConfig() {
+        if (mBatteryStatsConfig == null) {
+            mBatteryStatsConfig = spy(mBatteryStatsConfigBuilder.build());
+        }
+        return mBatteryStatsConfig;
+    }
+
     public MockClock getMockClock() {
         return mMockClock;
+    }
+
+    public MonotonicClock getMonotonicClock() {
+        return mMonotonicClock;
     }
 
     public Handler getHandler() {
@@ -323,7 +340,7 @@ public class BatteryUsageStatsRule implements TestRule {
     }
 
     private void before() {
-        BatteryUsageStats.DEBUG_INSTANCE_COUNT = true;
+        BatteryUsageStats.enableInstanceLeakDetection();
         HandlerThread bgThread = new HandlerThread("bg thread");
         bgThread.setUncaughtExceptionHandler((thread, throwable)-> {
             mThrowable = throwable;

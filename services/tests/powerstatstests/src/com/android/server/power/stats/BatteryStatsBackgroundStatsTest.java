@@ -25,24 +25,17 @@ import static org.junit.Assert.assertTrue;
 import android.app.ActivityManager;
 import android.os.BatteryStats;
 import android.os.WorkSource;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.ArrayMap;
 import android.view.Display;
 
 import androidx.test.filters.SmallTest;
 
-import org.junit.Rule;
 import org.junit.Test;
 
 /**
  * Test BatteryStatsImpl onBatteryBackgroundTimeBase TimeBase.
  */
 public class BatteryStatsBackgroundStatsTest {
-
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     private static final int UID = 10500;
 

@@ -17,8 +17,8 @@
 package com.android.systemui.statusbar.events
 
 import android.content.testableContext
+import android.view.fakeWindowManager
 import android.view.layoutInflater
-import com.android.app.viewcapture.realCaptureAwareWindowManager
 import com.android.systemui.concurrency.fakeExecutor
 import com.android.systemui.decor.privacyDotDecorProviderFactory
 import com.android.systemui.kosmos.Kosmos
@@ -28,7 +28,7 @@ var Kosmos.privacyDotWindowController by
         PrivacyDotWindowController(
             testableContext.displayId,
             privacyDotViewController,
-            realCaptureAwareWindowManager,
+            fakeWindowManager,
             layoutInflater,
             fakeExecutor,
             privacyDotDecorProviderFactory,

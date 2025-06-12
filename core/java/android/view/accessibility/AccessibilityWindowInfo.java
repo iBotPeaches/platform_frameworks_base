@@ -160,6 +160,9 @@ public final class AccessibilityWindowInfo implements Parcelable {
 
     /**
      * Gets the title of the window.
+     * <p>
+     * This is taken from the {@link android.view.Window}'s title, or its {@link
+     * android.view.WindowManager.LayoutParams} if that is unset.
      *
      * @return The title of the window, or {@code null} if none is available.
      */

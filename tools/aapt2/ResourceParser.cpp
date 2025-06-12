@@ -547,7 +547,8 @@ bool ResourceParser::ParseResource(xml::XmlPullParser* parser,
   });
 
   std::string_view resource_type = parser->element_name();
-  if (auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, "featureFlag"))) {
+  if (auto flag =
+          ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, xml::kAttrFeatureFlag))) {
     if (options_.flag) {
       diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number()))
                    << "Resource flag are not allowed both in the path and in the file");
@@ -1529,7 +1530,7 @@ bool ResourceParser::ParseStyleItem(xml::XmlPullParser* parser, Style* style) {
   ResolvePackage(parser, &maybe_key.value());
   maybe_key.value().SetSource(source);
 
-  auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, "featureFlag"));
+  auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, xml::kAttrFeatureFlag));
 
   std::unique_ptr<Item> value = ParseXml(parser, 0, kAllowRawString);
   if (!value) {
@@ -1674,7 +1675,7 @@ bool ResourceParser::ParseArrayImpl(xml::XmlPullParser* parser,
     const std::string& element_namespace = parser->element_namespace();
     const std::string& element_name = parser->element_name();
     if (element_namespace.empty() && element_name == "item") {
-      auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, "featureFlag"));
+      auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, xml::kAttrFeatureFlag));
       std::unique_ptr<Item> item = ParseXml(parser, typeMask, kNoRawString);
       if (!item) {
         diag_->Error(android::DiagMessage(item_source) << "could not parse array item");

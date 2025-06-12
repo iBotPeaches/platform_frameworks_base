@@ -32,6 +32,7 @@ import android.os.UserHandle;
 import android.view.KeyEvent;
 import android.service.notification.StatusBarNotification;
 
+import com.android.internal.statusbar.DisableStates;
 import com.android.internal.statusbar.IAddTileResultCallback;
 import com.android.internal.statusbar.IUndoMediaTransferCallback;
 import com.android.internal.statusbar.LetterboxDetails;
@@ -44,6 +45,7 @@ oneway interface IStatusBar
     void setIcon(String slot, in StatusBarIcon icon);
     void removeIcon(String slot);
     void disable(int displayId, int state1, int state2);
+    void disableForAllDisplays(in DisableStates disableStates);
     void animateExpandNotificationsPanel();
     void animateExpandSettingsPanel(String subPanel);
     void animateCollapsePanels();
@@ -51,6 +53,14 @@ oneway interface IStatusBar
 
     void showWirelessChargingAnimation(int batteryLevel);
 
+    /**
+     * Sets the new IME window status.
+     *
+     * @param displayId The id of the display to which the IME is bound.
+     * @param vis The IME window visibility.
+     * @param backDisposition The IME back disposition mode.
+     * @param showImeSwitcher Whether the IME Switcher button should be shown.
+     */
     void setImeWindowStatus(int displayId, int vis, int backDisposition, boolean showImeSwitcher);
     void setWindowState(int display, int window, int state);
 
@@ -74,7 +84,7 @@ oneway interface IStatusBar
      * Notify system UI the immersive mode changed. This shall be removed when client immersive is
      * enabled.
      */
-    void immersiveModeChanged(int rootDisplayAreaId, boolean isImmersiveMode);
+    void immersiveModeChanged(int rootDisplayAreaId, boolean isImmersiveMode, int windowType);
 
     void dismissKeyboardShortcutsMenu();
     void toggleKeyboardShortcutsMenu(int deviceId);
@@ -122,6 +132,11 @@ oneway interface IStatusBar
      * @param source the identifier for the gesture, see {@link StatusBarManager}
      */
     void onCameraLaunchGestureDetected(int source);
+
+    /**
+     * Notifies the status bar that a wallet launch gesture has been detected.
+     */
+    void onWalletLaunchGestureDetected();
 
     /**
      * Notifies the status bar that the Emergency Action launch gesture has been detected.
@@ -204,9 +219,14 @@ oneway interface IStatusBar
     void setUdfpsRefreshRateCallback(in IUdfpsRefreshRateRequestCallback callback);
 
     /**
-     * Notifies System UI that the display is ready to show system decorations.
+     * Notifies System UI that the system decorations should be added on the display.
      */
-    void onDisplayReady(int displayId);
+    void onDisplayAddSystemDecorations(int displayId);
+
+    /**
+     * Notifies System UI that the system decorations should be removed from the display.
+     */
+    void onDisplayRemoveSystemDecorations(int displayId);
 
     /**
      * Notifies System UI side of system bar attribute change on the specified display.

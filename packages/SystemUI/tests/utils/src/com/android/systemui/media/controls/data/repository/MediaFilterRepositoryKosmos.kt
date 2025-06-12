@@ -16,16 +16,8 @@
 
 package com.android.systemui.media.controls.data.repository
 
-import android.content.applicationContext
 import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.media.controls.util.mediaSmartspaceLogger
 import com.android.systemui.util.time.systemClock
 
 val Kosmos.mediaFilterRepository by
-    Kosmos.Fixture {
-        MediaFilterRepository(
-            applicationContext = applicationContext,
-            systemClock = systemClock,
-            smartspaceLogger = mediaSmartspaceLogger,
-        )
-    }
+    Kosmos.Fixture { MediaFilterRepository(systemClock = systemClock) }

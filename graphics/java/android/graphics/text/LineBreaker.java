@@ -91,6 +91,7 @@ import java.lang.annotation.RetentionPolicy;
  * </pre>
  * </p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class LineBreaker {
     /** @hide */
     @IntDef(prefix = { "BREAK_STRATEGY_" }, value = {

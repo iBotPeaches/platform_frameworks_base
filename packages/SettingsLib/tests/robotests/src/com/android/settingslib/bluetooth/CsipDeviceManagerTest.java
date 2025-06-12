@@ -377,6 +377,7 @@ public class CsipDeviceManagerTest {
                 BluetoothLeBroadcastReceiveState.class);
         when(state.getBisSyncState()).thenReturn(ImmutableList.of(1L));
         when(mAssistant.getAllSources(mDevice2)).thenReturn(ImmutableList.of(state));
+        when(mAssistant.getConnectionStatus(mDevice1)).thenReturn(BluetoothAdapter.STATE_CONNECTED);
         when(mContext.getSystemService(UserManager.class)).thenReturn(mUserManager);
         when(mUserManager.isManagedProfile()).thenReturn(true);
 
@@ -407,6 +408,7 @@ public class CsipDeviceManagerTest {
                 BluetoothLeBroadcastReceiveState.class);
         when(state.getBisSyncState()).thenReturn(ImmutableList.of(1L));
         when(mAssistant.getAllSources(mDevice2)).thenReturn(ImmutableList.of(state));
+        when(mAssistant.getConnectionStatus(mDevice1)).thenReturn(BluetoothAdapter.STATE_CONNECTED);
 
         assertThat(mCsipDeviceManager.addMemberDevicesIntoMainDevice(GROUP1, preferredDevice))
                 .isTrue();
@@ -474,6 +476,8 @@ public class CsipDeviceManagerTest {
                 BluetoothLeBroadcastReceiveState.class);
         when(state.getBisSyncState()).thenReturn(ImmutableList.of(1L));
         when(mAssistant.getAllSources(mDevice1)).thenReturn(ImmutableList.of(state));
+        when(mAssistant.getConnectionStatus(mDevice2)).thenReturn(BluetoothAdapter.STATE_CONNECTED);
+        when(mAssistant.getConnectionStatus(mDevice3)).thenReturn(BluetoothAdapter.STATE_CONNECTED);
 
         assertThat(mCsipDeviceManager.addMemberDevicesIntoMainDevice(GROUP1, preferredDevice))
                 .isTrue();

@@ -361,14 +361,18 @@ base::expected<std::monostate, IOError> LoadedPackage::CollectConfigurations(
   return {};
 }
 
-void LoadedPackage::CollectLocales(bool canonicalize, std::set<std::string>* out_locales) const {
-  char temp_locale[RESTABLE_MAX_LOCALE_LEN];
+void LoadedPackage::CollectLocales(bool canonicalize,
+                                   Locales* out_locales) const {
   for (const auto& type_spec : type_specs_) {
     for (const auto& type_entry : type_spec.second.type_entries) {
       if (type_entry.config.locale != 0) {
+        char temp_locale[RESTABLE_MAX_LOCALE_LEN];
         type_entry.config.getBcp47Locale(temp_locale, canonicalize);
-        std::string locale(temp_locale);
-        out_locales->insert(std::move(locale));
+        auto locale_sv = std::string_view(temp_locale);
+        if (auto it = out_locales->lower_bound(locale_sv);
+            it == out_locales->end() || *it != locale_sv) {
+          out_locales->emplace_hint(it, locale_sv);
+        }
       }
     }
   }

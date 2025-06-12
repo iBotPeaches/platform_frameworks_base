@@ -76,6 +76,14 @@ flag {
 }
 
 flag {
+    name: "rro_constraints"
+    is_exported: false
+    namespace: "resource_manager"
+    description: "Feature flag for setting constraints for a RRO"
+    bug: "371801644"
+}
+
+flag {
     name: "rro_control_for_android_no_overlayable"
     is_exported: true
     namespace: "resource_manager"
@@ -121,4 +129,23 @@ flag {
     namespace: "customization_picker"
     description: "Fixes bug in Launcher preview by enabling overlays targeting 'android'"
     bug: "377545987"
+}
+
+flag {
+    name: "always_false"
+    is_exported: true
+    namespace: "resource_manager"
+    description: "flag always meant to be false, for testing resource flagging within cts tests"
+    bug: "377974898"
+}
+
+flag {
+    name: "use_new_aconfig_storage"
+    is_exported: true
+    namespace: "resource_manager"
+    description: "Retrieve flag values from new Aconfig flag storage in AconfigFlags.java"
+    bug: "352348353"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }

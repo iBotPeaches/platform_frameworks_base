@@ -28,7 +28,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.media.soundtrigger.RecognitionStatus;
 import android.media.soundtrigger_middleware.RecognitionEventSys;
@@ -76,7 +75,7 @@ public class SoundTriggerHalConcurrentCaptureHandlerTest {
         assertEquals(event.halEventReceivedMillis, -1);
         assertEquals(event.recognitionEvent.status, RecognitionStatus.ABORTED);
         assertFalse(event.recognitionEvent.recognitionStillActive);
-        verifyZeroInteractions(mGlobalCallback);
+        verifyNoMoreInteractions(mGlobalCallback);
         clearInvocations(callback, mUnderlying);
 
         mNotifier.setActive(false);

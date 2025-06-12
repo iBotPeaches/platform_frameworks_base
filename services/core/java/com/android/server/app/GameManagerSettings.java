@@ -221,9 +221,7 @@ public class GameManagerSettings {
             return false;
         }
 
-        try {
-            final FileInputStream str = mSettingsFile.openRead();
-
+        try (FileInputStream str = mSettingsFile.openRead()) {
             final TypedXmlPullParser parser = Xml.resolvePullParser(str);
             int type;
             while ((type = parser.next()) != XmlPullParser.START_TAG
@@ -251,7 +249,6 @@ public class GameManagerSettings {
                             + type);
                 }
             }
-            str.close();
         } catch (XmlPullParserException | java.io.IOException e) {
             Slog.wtf(TAG, "Error reading game manager settings", e);
             return false;

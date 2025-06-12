@@ -47,6 +47,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.keyguard.TestScopeProvider;
+import com.android.settingslib.volume.MediaSessions;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.SysuiTestCaseExtKt;
 import com.android.systemui.broadcast.BroadcastDispatcher;
@@ -268,13 +269,15 @@ public class VolumeDialogControllerImplTest extends SysuiTestCase {
     @Test
     public void testOnRemoteVolumeChanged_newStream_noNullPointer() {
         MediaSession.Token token = new MediaSession.Token(Process.myUid(), null);
-        mVolumeController.mMediaSessionsCallbacksW.onRemoteVolumeChanged(token, 0);
+        var sessionId = MediaSessions.SessionId.Companion.from(token);
+        mVolumeController.mMediaSessionsCallbacksW.onRemoteVolumeChanged(sessionId, 0);
     }
 
     @Test
     public void testOnRemoteRemove_newStream_noNullPointer() {
         MediaSession.Token token = new MediaSession.Token(Process.myUid(), null);
-        mVolumeController.mMediaSessionsCallbacksW.onRemoteRemoved(token);
+        var sessionId = MediaSessions.SessionId.Companion.from(token);
+        mVolumeController.mMediaSessionsCallbacksW.onRemoteRemoved(sessionId);
     }
 
     @Test

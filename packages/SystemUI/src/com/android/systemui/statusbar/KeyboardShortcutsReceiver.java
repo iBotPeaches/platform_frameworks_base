@@ -24,6 +24,7 @@ import android.content.Intent;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.flags.Flags;
 import com.android.systemui.shared.recents.utilities.Utilities;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import javax.inject.Inject;
 
@@ -31,10 +32,13 @@ import javax.inject.Inject;
 public class KeyboardShortcutsReceiver extends BroadcastReceiver {
 
     private final FeatureFlags mFeatureFlags;
+    private final WindowManagerProvider mWindowManagerProvider;
 
     @Inject
-    public KeyboardShortcutsReceiver(FeatureFlags featureFlags) {
+    public KeyboardShortcutsReceiver(FeatureFlags featureFlags,
+            WindowManagerProvider windowManagerProvider) {
         mFeatureFlags = featureFlags;
+        mWindowManagerProvider = windowManagerProvider;
     }
 
     @Override
@@ -44,13 +48,14 @@ public class KeyboardShortcutsReceiver extends BroadcastReceiver {
         }
         if (isTabletLayoutFlagEnabled() && Utilities.isLargeScreen(context)) {
             if (Intent.ACTION_SHOW_KEYBOARD_SHORTCUTS.equals(intent.getAction())) {
-                KeyboardShortcutListSearch.show(context, -1 /* deviceId unknown */);
+                KeyboardShortcutListSearch.show(context, -1 /* deviceId unknown */,
+                        mWindowManagerProvider);
             } else if (Intent.ACTION_DISMISS_KEYBOARD_SHORTCUTS.equals(intent.getAction())) {
                 KeyboardShortcutListSearch.dismiss();
             }
         } else {
             if (Intent.ACTION_SHOW_KEYBOARD_SHORTCUTS.equals(intent.getAction())) {
-                KeyboardShortcuts.show(context, -1 /* deviceId unknown */);
+                KeyboardShortcuts.show(context, -1 /* deviceId unknown */, mWindowManagerProvider);
             } else if (Intent.ACTION_DISMISS_KEYBOARD_SHORTCUTS.equals(intent.getAction())) {
                 KeyboardShortcuts.dismiss();
             }

@@ -116,7 +116,7 @@ interface NativeInputManagerService {
     void setMinTimeBetweenUserActivityPokes(long millis);
 
     boolean transferTouchGesture(IBinder fromChannelToken, IBinder toChannelToken,
-            boolean isDragDrop);
+            boolean isDragDrop, boolean transferEntireGesture);
 
     /**
      * Transfer the current touch gesture to the window identified by 'destChannelToken' positioned
@@ -130,11 +130,17 @@ interface NativeInputManagerService {
 
     void setPointerSpeed(int speed);
 
-    void setMousePointerAccelerationEnabled(int displayId, boolean enabled);
+    void setMouseScalingEnabled(int displayId, boolean enabled);
 
     void setMouseReverseVerticalScrollingEnabled(boolean enabled);
 
+    void setMouseScrollingAccelerationEnabled(boolean enabled);
+
+    void setMouseScrollingSpeed(int speed);
+
     void setMouseSwapPrimaryButtonEnabled(boolean enabled);
+
+    void setMouseAccelerationEnabled(boolean enabled);
 
     void setTouchpadPointerSpeed(int speed);
 
@@ -151,6 +157,8 @@ interface NativeInputManagerService {
     void setTouchpadThreeFingerTapShortcutEnabled(boolean enabled);
 
     void setTouchpadSystemGesturesEnabled(boolean enabled);
+
+    void setTouchpadAccelerationEnabled(boolean enabled);
 
     void setShowTouches(boolean enabled);
 
@@ -264,6 +272,9 @@ interface NativeInputManagerService {
     /** Set whether showing a pointer icon for styluses is enabled. */
     void setStylusPointerIconEnabled(boolean enabled);
 
+    /** Get the sysfs root path of an input device if known, otherwise return null. */
+    @Nullable String getSysfsRootPath(int deviceId);
+
     /**
      * Report sysfs node changes. This may result in recreation of the corresponding InputDevice.
      * The recreated device may contain new associated peripheral devices like Light, Battery, etc.
@@ -306,6 +317,16 @@ interface NativeInputManagerService {
      * Returns true if setting power wakeup was successful.
      */
     boolean setKernelWakeEnabled(int deviceId, boolean enabled);
+
+    /**
+     * Set whether the accessibility pointer motion filter is enabled.
+     * <p>
+     * Once enabled, {@link InputManagerService#filterPointerMotion} is called for evety motion
+     * event from pointer devices.
+     *
+     * @param enabled {@code true} if the filter is enabled, {@code false} otherwise.
+     */
+    void setAccessibilityPointerMotionFilterEnabled(boolean enabled);
 
     /** The native implementation of InputManagerService methods. */
     class NativeImpl implements NativeInputManagerService {
@@ -402,7 +423,7 @@ interface NativeInputManagerService {
 
         @Override
         public native boolean transferTouchGesture(IBinder fromChannelToken, IBinder toChannelToken,
-                boolean isDragDrop);
+                boolean isDragDrop, boolean transferEntireGesture);
 
         @Override
         @Deprecated
@@ -415,13 +436,22 @@ interface NativeInputManagerService {
         public native void setPointerSpeed(int speed);
 
         @Override
-        public native void setMousePointerAccelerationEnabled(int displayId, boolean enabled);
+        public native void setMouseScalingEnabled(int displayId, boolean enabled);
 
         @Override
         public native void setMouseReverseVerticalScrollingEnabled(boolean enabled);
 
         @Override
+        public native void setMouseScrollingAccelerationEnabled(boolean enabled);
+
+        @Override
+        public native void setMouseScrollingSpeed(int speed);
+
+        @Override
         public native void setMouseSwapPrimaryButtonEnabled(boolean enabled);
+
+        @Override
+        public native void setMouseAccelerationEnabled(boolean enabled);
 
         @Override
         public native void setTouchpadPointerSpeed(int speed);
@@ -446,6 +476,9 @@ interface NativeInputManagerService {
 
         @Override
         public native void setTouchpadSystemGesturesEnabled(boolean enabled);
+
+        @Override
+        public native void setTouchpadAccelerationEnabled(boolean enabled);
 
         @Override
         public native void setShowTouches(boolean enabled);
@@ -589,6 +622,9 @@ interface NativeInputManagerService {
         public native void setStylusPointerIconEnabled(boolean enabled);
 
         @Override
+        public native String getSysfsRootPath(int deviceId);
+
+        @Override
         public native void sysfsNodeChanged(String sysfsNodePath);
 
         @Override
@@ -608,5 +644,8 @@ interface NativeInputManagerService {
 
         @Override
         public native boolean setKernelWakeEnabled(int deviceId, boolean enabled);
+
+        @Override
+        public native void setAccessibilityPointerMotionFilterEnabled(boolean enabled);
     }
 }

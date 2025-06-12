@@ -24,6 +24,7 @@ import android.hardware.location.GeofenceHardware;
 import android.hardware.location.GeofenceHardwareImpl;
 import android.location.FusedBatchOptions;
 import android.location.GnssAntennaInfo;
+import android.location.GnssAssistance;
 import android.location.GnssCapabilities;
 import android.location.GnssMeasurementCorrections;
 import android.location.GnssMeasurementRequest;
@@ -35,6 +36,8 @@ import android.location.IGnssStatusListener;
 import android.location.IGpsGeofenceHardware;
 import android.location.Location;
 import android.location.LocationManager;
+import android.location.flags.Flags;
+import android.location.provider.IGnssAssistanceCallback;
 import android.location.util.identity.CallerIdentity;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -47,12 +50,13 @@ import com.android.internal.app.IBatteryStats;
 import com.android.server.FgThread;
 import com.android.server.location.gnss.hal.GnssNative;
 import com.android.server.location.injector.Injector;
+import com.android.server.location.provider.proxy.ProxyGnssAssistanceProvider;
 
 import java.io.FileDescriptor;
 import java.util.List;
 
 /** Manages Gnss providers and related Gnss functions for LocationManagerService. */
-public class GnssManagerService {
+public class GnssManagerService implements GnssNative.GnssAssistanceCallbacks {
 
     public static final String TAG = "GnssManager";
     public static final boolean D = Log.isLoggable(TAG, Log.DEBUG);
@@ -74,6 +78,8 @@ public class GnssManagerService {
     private final GnssCapabilitiesHalModule mCapabilitiesHalModule;
 
     private final GnssMetrics mGnssMetrics;
+
+    private @Nullable ProxyGnssAssistanceProvider mProxyGnssAssistanceProvider = null;
 
     public GnssManagerService(Context context, Injector injector, GnssNative gnssNative) {
         mContext = context.createAttributionContext(ATTRIBUTION_ID);
@@ -100,6 +106,16 @@ public class GnssManagerService {
     /** Called when system is ready. */
     public void onSystemReady() {
         mGnssLocationProvider.onSystemReady();
+
+        if (Flags.gnssAssistanceInterfaceJni()) {
+            mProxyGnssAssistanceProvider =
+                    ProxyGnssAssistanceProvider.createAndRegister(mContext);
+            if (mProxyGnssAssistanceProvider == null) {
+                Log.e(TAG, "no gnss assistance provider found");
+            } else {
+                mGnssNative.setGnssAssistanceCallbacks(this);
+            }
+        }
     }
 
     /** Retrieve the GnssLocationProvider. */
@@ -321,6 +337,29 @@ public class GnssManagerService {
             powerStats.dump(fd, ipw, args, mGnssNative.getCapabilities());
             ipw.decreaseIndent();
         }
+    }
+
+    @Override
+    public void onRequestGnssAssistanceInject() {
+        if (!Flags.gnssAssistanceInterfaceJni()) {
+            return;
+        }
+        if (mProxyGnssAssistanceProvider == null) {
+            Log.e(TAG, "ProxyGnssAssistanceProvider is null");
+            return;
+        }
+        mProxyGnssAssistanceProvider.request(new IGnssAssistanceCallback.Stub() {
+            @Override
+            public void onError() {
+                Log.e(TAG, "GnssAssistanceCallback.onError");
+            }
+
+            @Override
+            public void onResult(GnssAssistance gnssAssistance) {
+                Log.d(TAG, "GnssAssistanceCallback.onResult");
+                mGnssNative.injectGnssAssistance(gnssAssistance);
+            }
+        });
     }
 
     private class GnssCapabilitiesHalModule implements GnssNative.BaseCallbacks {

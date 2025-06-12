@@ -29,8 +29,7 @@ import org.junit.Test
 /**
  * Tests for custom keyboard glyph map configuration.
  *
- * Build/Install/Run:
- * atest InputTests:CustomInputGestureManagerTests
+ * Build/Install/Run: atest InputTests:CustomInputGestureManagerTests
  */
 @Presubmit
 class InputGestureManagerTests {
@@ -48,163 +47,144 @@ class InputGestureManagerTests {
 
     @Test
     fun addRemoveCustomGesture() {
-        val customGesture = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_H,
-                    KeyEvent.META_META_ON
+        val customGesture =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                .build()
         val result = inputGestureManager.addCustomInputGesture(USER_ID, customGesture)
         assertEquals(InputManager.CUSTOM_INPUT_GESTURE_RESULT_SUCCESS, result)
         assertEquals(
             listOf(customGesture),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
 
         inputGestureManager.removeCustomInputGesture(USER_ID, customGesture)
         assertEquals(
             listOf<InputGestureData>(),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
     }
 
     @Test
     fun removeNonExistentGesture() {
-        val customGesture = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_H,
-                    KeyEvent.META_META_ON
+        val customGesture =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                .build()
         val result = inputGestureManager.removeCustomInputGesture(USER_ID, customGesture)
         assertEquals(InputManager.CUSTOM_INPUT_GESTURE_RESULT_ERROR_DOES_NOT_EXIST, result)
         assertEquals(
             listOf<InputGestureData>(),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
     }
 
     @Test
     fun addAlreadyExistentGesture() {
-        val customGesture = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_H,
-                    KeyEvent.META_META_ON
+        val customGesture =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                .build()
         inputGestureManager.addCustomInputGesture(USER_ID, customGesture)
-        val customGesture2 = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_H,
-                    KeyEvent.META_META_ON
+        val customGesture2 =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                .build()
         val result = inputGestureManager.addCustomInputGesture(USER_ID, customGesture2)
         assertEquals(InputManager.CUSTOM_INPUT_GESTURE_RESULT_ERROR_ALREADY_EXISTS, result)
         assertEquals(
             listOf(customGesture),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
     }
 
     @Test
     fun addRemoveAllExistentGestures() {
-        val customGesture = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_H,
-                    KeyEvent.META_META_ON
+        val customGesture =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                .build()
         inputGestureManager.addCustomInputGesture(USER_ID, customGesture)
-        val customGesture2 = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_DEL,
-                    KeyEvent.META_META_ON
+        val customGesture2 =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_DEL, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                .build()
         inputGestureManager.addCustomInputGesture(USER_ID, customGesture2)
 
         assertEquals(
             listOf(customGesture, customGesture2),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
 
-        inputGestureManager.removeAllCustomInputGestures(USER_ID, /* filter = */null)
+        inputGestureManager.removeAllCustomInputGestures(USER_ID, /* filter= */ null)
         assertEquals(
             listOf<InputGestureData>(),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
     }
 
     @Test
     fun filteringBasedOnTouchpadOrKeyGestures() {
-        val customKeyGesture = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createKeyTrigger(
-                    KeyEvent.KEYCODE_H,
-                    KeyEvent.META_META_ON
+        val customKeyGesture =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                .build()
         inputGestureManager.addCustomInputGesture(USER_ID, customKeyGesture)
-        val customTouchpadGesture = InputGestureData.Builder()
-            .setTrigger(
-                InputGestureData.createTouchpadTrigger(
-                    InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+        val customTouchpadGesture =
+            InputGestureData.Builder()
+                .setTrigger(
+                    InputGestureData.createTouchpadTrigger(
+                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                    )
                 )
-            )
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-            .build()
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                .build()
         inputGestureManager.addCustomInputGesture(USER_ID, customTouchpadGesture)
 
         assertEquals(
             listOf(customTouchpadGesture, customKeyGesture),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
         assertEquals(
             listOf(customKeyGesture),
-            inputGestureManager.getCustomInputGestures(USER_ID, InputGestureData.Filter.KEY)
+            inputGestureManager.getCustomInputGestures(USER_ID, InputGestureData.Filter.KEY),
         )
         assertEquals(
             listOf(customTouchpadGesture),
-            inputGestureManager.getCustomInputGestures(
-                USER_ID,
-                InputGestureData.Filter.TOUCHPAD
-            )
+            inputGestureManager.getCustomInputGestures(USER_ID, InputGestureData.Filter.TOUCHPAD),
         )
 
         inputGestureManager.removeAllCustomInputGestures(USER_ID, InputGestureData.Filter.KEY)
         assertEquals(
             listOf(customTouchpadGesture),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
 
-        inputGestureManager.removeAllCustomInputGestures(
-            USER_ID,
-            InputGestureData.Filter.TOUCHPAD
-        )
+        inputGestureManager.removeAllCustomInputGestures(USER_ID, InputGestureData.Filter.TOUCHPAD)
         assertEquals(
             listOf<InputGestureData>(),
-            inputGestureManager.getCustomInputGestures(USER_ID, /* filter = */null)
+            inputGestureManager.getCustomInputGestures(USER_ID, /* filter= */ null),
         )
     }
 }

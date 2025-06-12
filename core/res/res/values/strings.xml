@@ -246,6 +246,8 @@
     <string name="NetworkPreferenceSwitchSummary">Try changing preferred network. Tap to change.</string>
     <!-- Displayed to tell the user that emergency calls might not be available. -->
     <string name="EmergencyCallWarningTitle">Emergency calling unavailable</string>
+    <!-- Displayed to tell the user that the notification can be permanently turned off -->
+    <string name="emergency_calling_do_not_show_again">Do Not Show Again</string>
     <!-- Displayed to tell the user that emergency calls might not be available; this is shown to
          the user when only WiFi calling is available and the carrier does not support emergency
          calls over WiFi calling. -->
@@ -737,6 +739,9 @@
     <!-- label for screenshot item in power menu [CHAR LIMIT=24]-->
     <string name="global_action_screenshot">Screenshot</string>
 
+    <!-- label for standby item in power menu [CHAR LIMIT=24]-->
+    <string name="global_action_standby">Standby</string>
+
     <!-- Take bug report menu title [CHAR LIMIT=30] -->
     <string name="bugreport_title">Bug report</string>
     <!-- Message in bugreport dialog describing what it does [CHAR LIMIT=NONE] -->
@@ -851,6 +856,9 @@
     <!-- Text shown when viewing channel settings for notifications related to vpn status -->
     <string name="notification_channel_vpn">VPN status</string>
 
+    <!-- Text shown when viewing channel settings for notifications related to system time -->
+    <string name="notification_channel_system_time">Time and time zones</string>
+
     <!-- Notification channel name. This channel sends high-priority alerts from the user's IT admin for key updates about the user's work device or work profile. -->
     <string name="notification_channel_device_admin">Alerts from your IT admin</string>
 
@@ -877,6 +885,10 @@
     <!-- Text shown when viewing channel settings for notifications related to accessibility
          magnification. [CHAR_LIMIT=NONE]-->
     <string name="notification_channel_accessibility_magnification">Magnification</string>
+
+    <!-- Text shown when viewing channel settings for notifications related to accessibility
+     hearing device. [CHAR_LIMIT=NONE]-->
+    <string name="notification_channel_accessibility_hearing_device">Hearing device</string>
 
     <!-- Text shown when viewing channel settings for notifications related to accessibility
          security policy. [CHAR_LIMIT=NONE]-->
@@ -1001,6 +1013,16 @@
     <string name="permgrouplab_notifications">Notifications</string>
     <!-- Description of a category of application permissions, listed so the user can choose whether they want to allow the application to do this. [CHAR LIMIT=NONE]-->
     <string name="permgroupdesc_notifications">show notifications</string>
+
+    <!-- Title of a category of application permissions, listed so the user can choose whether they want to allow the application to do this. [CHAR LIMIT=40]-->
+    <string name="permgrouplab_xr_tracking">XR tracking data</string>
+    <!-- Description of a category of application permissions, listed so the user can choose whether they want to allow the application to do this. [CHAR LIMIT=NONE]-->
+    <string name="permgroupdesc_xr_tracking">access XR data about you and the environment around you</string>
+
+    <!-- Title of a category of application permissions, listed so the user can choose whether they want to allow the application to do this. [CHAR LIMIT=40]-->
+    <string name="permgrouplab_xr_tracking_sensitive">sensitive XR tracking data</string>
+    <!-- Description of a category of application permissions, listed so the user can choose whether they want to allow the application to do this. [CHAR LIMIT=NONE]-->
+    <string name="permgroupdesc_xr_tracking_sensitive">access sensitive tracking data, such as eye gaze</string>
 
     <!-- Title for the capability of an accessibility service to retrieve window content. -->
     <string name="capability_title_canRetrieveWindowContent">Retrieve window content</string>
@@ -1865,6 +1887,45 @@
     <string name="permlab_mediaLocation">read locations from your media collection</string>
     <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
     <string name="permdesc_mediaLocation">Allows the app to read locations from your media collection.</string>
+
+    <string name="permlab_eye_tracking_coarse">track your approximate eye gaze</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_eye_tracking_coarse">Allows the app to track your approximate eye gaze.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_eye_tracking_fine">track where you are looking</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_eye_tracking_fine">Allows the app to access precise eye gaze data.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_face_tracking">track your face</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_face_tracking">Allows the app to access face tracking data.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_hand_tracking">track your hands</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_hand_tracking">Allows the app to access hand tracking data.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_head_tracking">track your head</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_head_tracking">Allows the app to access head tracking data.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_scene_understanding_coarse">understand your immediate environment</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_scene_understanding_coarse">Allows the app to access tracking data about the environment directly around you.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_scene_understanding_fine">understand your immediate environment at high detail</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_scene_understanding_fine">Allows the app to access tracking data about the environment directly around you with very high detail.</string>
+
+    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permlab_xr_tracking_in_background">access XR data while not in the foreground</string>
+    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+    <string name="permdesc_xr_tracking_in_background">Allows the app to access XR data while not in the foreground.</string>
 
     <!-- Name for an app setting that lets the user authenticate for that app using biometrics (e.g. fingerprint or face). [CHAR LIMIT=30] -->
     <string name="biometric_app_setting_name">Use biometrics</string>
@@ -3873,6 +3934,12 @@
     <string name="carrier_app_notification_title">New SIM inserted</string>
     <string name="carrier_app_notification_text">Tap to set it up</string>
 
+    <!-- Time zone notification strings -->
+    <!-- Title for time zone change notifications -->
+    <string name="time_zone_change_notification_title">Your time zone changed</string>
+    <!-- Body for time zone change notifications -->
+    <string name="time_zone_change_notification_body">You\'re now in <xliff:g id="time_zone_display_name">%1$s</xliff:g> (<xliff:g id="time_zone_offset">%2$s</xliff:g>)</string>
+
     <!-- Date/Time picker dialogs strings -->
 
     <!-- The title of the time picker dialog. [CHAR LIMIT=NONE] -->
@@ -4945,6 +5012,21 @@
     <!-- Title of hearing aids feature, shown in the warning dialog about the accessibility shortcut. [CHAR LIMIT=none] -->
     <string name="hearing_aids_feature_name">Hearing devices</string>
 
+    <!-- Title of autoclick feature, shown in the warning dialog about the accessibility shortcut. [CHAR LIMIT=none] -->
+    <string name="autoclick_feature_name">Autoclick</string>
+
+    <!-- Text of hearing device disconnected state. [CHAR LIMIT=20] -->
+    <string name="hearing_device_status_disconnected">Disconnected</string>
+
+    <!-- Text of hearing device connected state. [CHAR LIMIT=20] -->
+    <string name="hearing_device_status_connected">Connected</string>
+
+    <!-- Text of hearing device active state. Active means device is currently connected and able to streaming the sound. [CHAR LIMIT=20] -->
+    <string name="hearing_device_status_active">Active</string>
+
+    <!-- Text of hearing device loading state. Loading means device is not available yet, it might be in connecting or disconnecting. [CHAR LIMIT=20] -->
+    <string name="hearing_device_status_loading">Loading</string>
+
     <!-- Text in toast to alert the user that the accessibility shortcut turned on an accessibility service. [CHAR LIMIT=none] -->
     <string name="accessibility_shortcut_enabling_service">Held volume keys. <xliff:g id="service_name" example="TalkBack">%1$s</xliff:g> turned on.</string>
 
@@ -4971,8 +5053,19 @@
     <!-- Text used to describe system navigation features, shown within a UI allowing a user to assign system magnification features to the Accessibility button in the navigation bar. -->
     <string name="accessibility_magnification_chooser_text">Magnification</string>
 
-    <!-- Text spoken when the current user is switched if accessibility is enabled. [CHAR LIMIT=none] -->
-    <string name="user_switched">Current user <xliff:g id="name" example="Bob">%1$s</xliff:g>.</string>
+    <!-- Notification title for switching input to the phone's microphone. It will be shown when making a phone call with the hearing device. [CHAR LIMIT=none] -->
+    <string name="hearing_device_switch_phone_mic_notification_title">Switch to phone mic?</string>
+    <!-- Notification title for switching input to the hearing device's microphone. It will be shown when making a phone call with the hearing device. [CHAR LIMIT=none] -->
+    <string name="hearing_device_switch_hearing_mic_notification_title">Switch to hearing aid mic?</string>
+    <!-- Notification content for switching input to the phone's microphone. It will be shown when making a phone call with the hearing device. [CHAR LIMIT=none] -->
+    <string name="hearing_device_switch_phone_mic_notification_text">For better sound or if your hearing aid battery is low. This only switches your mic during the call.</string>
+    <!-- Notification content for switching input to the hearing device's microphone. It will be shown when making a phone call with the hearing device. [CHAR LIMIT=none] -->
+    <string name="hearing_device_switch_hearing_mic_notification_text">You can use your hearing aid microphone for hands-free calling. This only switches your mic during the call.</string>
+    <!-- Notification action button. Click it will switch the input between phone's microphone and hearing device's microphone. It will be shown when making a phone call with the hearing device. [CHAR LIMIT=none] -->
+    <string name="hearing_device_notification_switch_button">Switch</string>
+    <!-- Notification action button. Click it will open the bluetooth device details page for this hearing device. It will be shown when making a phone call with the hearing device. [CHAR LIMIT=none] -->
+    <string name="hearing_device_notification_settings_button">Settings</string>
+
     <!-- Message shown when switching to a user [CHAR LIMIT=none] -->
     <string name="user_switching_message">Switching to <xliff:g id="name" example="Bob">%1$s</xliff:g>\u2026</string>
     <!-- Message when logging out a user on a split user system -->
@@ -5322,7 +5415,7 @@
     <!-- Notification shown when device owner silently installs a package [CHAR LIMIT=NONE] -->
     <string name="package_installed_device_owner">Installed by your admin.\nGo to settings to view granted permissions</string>
     <!-- Notification shown when device owner silently updates a package [CHAR LIMIT=NONE] -->
-    <string name="package_updated_device_owner">Updated by your admin</string>
+    <string name="package_updated_device_owner">Updated by your admin.\nGo to settings to view granted permissions</string>
     <!-- Notification shown when device owner silently deletes a package [CHAR LIMIT=NONE] -->
     <string name="package_deleted_device_owner">Deleted by your admin</string>
 
@@ -5704,6 +5797,16 @@
     <string name="unpin_specific_target">Unpin <xliff:g id="label" example="Tweet">%1$s</xliff:g></string>
     <!-- View application info for a target. -->
     <string name="app_info">App info</string>
+    <!-- Accessibility announcement for the shortcut group (https://developer.android.com/training/sharing/direct-share-targets)
+     in the list of targets. [CHAR LIMIT=NONE]-->
+    <string name="shortcut_group_a11y_title">Direct share targets</string>
+    <!-- Accessibility announcement for the suggested application group in the list of targets.
+    [CHAR LIMIT=NONE] -->
+    <string name="suggested_apps_group_a11y_title">App suggestions</string>
+    <!-- Accessibility announcement for the all-applications group in the list of targets.
+    [CHAR LIMIT=NONE] -->
+    <string name="all_apps_group_a11y_title">App list</string>
+
 
     <!-- The representation of a time duration when negative. An example is -1:14. This can be used with a countdown timer for example.-->
     <string name="negative_duration">\u2212<xliff:g id="time" example="1:14">%1$s</xliff:g></string>
@@ -6108,6 +6211,36 @@
     <string name="accessibility_system_action_dpad_right_label">Dpad Right</string>
     <!-- Label for Dpad center action [CHAR LIMIT=NONE] -->
     <string name="accessibility_system_action_dpad_center_label">Dpad Center</string>
+
+    <!-- Accessibility autoclick related strings -->
+    <!-- Label for autoclick type settings panel [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_type_settings_panel_title">Autoclick type settings panel</string>
+    <!-- Label for autoclick left click button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_left_click">Left click</string>
+    <!-- Label for autoclick right click button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_right_click">Right click</string>
+    <!-- Label for autoclick double click button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_double_click">Double click</string>
+    <!-- Label for autoclick drag button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_drag">Drag</string>
+    <!-- Label for autoclick scroll button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll">Scroll</string>
+    <!-- Label for autoclick pause button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_pause">Pause</string>
+    <!-- Label for autoclick position button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_position">Position</string>
+    <!-- Label for autoclick scroll up button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll_up">Scroll Up</string>
+    <!-- Label for autoclick scroll down button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll_down">Scroll Down</string>
+    <!-- Label for autoclick scroll left button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll_left">Scroll Left</string>
+    <!-- Label for autoclick scroll right button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll_right">Scroll Right</string>
+    <!-- Label for autoclick scroll exit button [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll_exit">Exit Scroll Mode</string>
+    <!-- Label for autoclick scroll panel title [CHAR LIMIT=NONE] -->
+    <string name="accessibility_autoclick_scroll_panel_title">Scroll Panel</string>
 
     <!-- Text to tell the user that a package has been forced by themselves in the RESTRICTED bucket. [CHAR LIMIT=NONE] -->
     <string name="as_app_forced_to_restricted_bucket">
@@ -6580,6 +6713,8 @@ ul.</string>
     <string name="profile_label_test">Test</string>
     <!-- Communal profile label on a screen. This can be used as a tab label for this profile in tabbed views and can be used to represent the profile in sharing surfaces, etc. [CHAR LIMIT=20] -->
     <string name="profile_label_communal">Communal</string>
+    <!-- Supervising profile label on a screen. This can be used as a tab label for this profile in tabbed views and can be used to represent the profile in sharing surfaces, etc. [CHAR LIMIT=20] -->
+    <string name="profile_label_supervising">Supervising</string>
 
     <!-- Accessibility label for managed profile user type [CHAR LIMIT=30] -->
     <string name="accessibility_label_managed_profile">Work profile</string>
@@ -6606,6 +6741,8 @@ ul.</string>
     <string name="satellite_notification_title">Auto connected to satellite</string>
     <!-- Notification summary when satellite service is auto connected. [CHAR LIMIT=NONE] -->
     <string name="satellite_notification_summary">You can send and receive messages without a mobile or Wi-Fi network</string>
+    <!-- Notification summary when satellite service connected with data service supported. [CHAR LIMIT=NONE] -->
+    <string name="satellite_notification_summary_with_data">You can send and receive messages and use limited data by satellite</string>
     <!-- Notification title when satellite service can be manually enabled. -->
     <string name="satellite_notification_manual_title">Use satellite messaging?</string>
     <!-- Notification summary when satellite service can be manually enabled. [CHAR LIMIT=NONE] -->
@@ -6724,4 +6861,16 @@ ul.</string>
 
     <!-- Fingerprint loe notification string -->
     <string name="fingerprint_loe_notification_msg">Your fingerprints can no longer be recognized. Set up Fingerprint Unlock again.</string>
+
+    <!--  AdvancedProtectionService USB notifications -->
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_title">USB device plugged in when locked</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_text">USB device is plugged in when Android is locked. To use device, please unlock Android first and then reinsert USB device to use it.</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_title">Suspicious USB activity</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_text">USB data signal has been disabled.</string>
+
+    <!-- Fingerprint failed rate too high notification title -->
+    <string name="fingerprint_frr_notification_title">Having trouble with Fingerprint Unlock?</string>
+    <!-- Fingerprint failed rate too high notification msg -->
+    <string name="fingerprint_frr_notification_msg">Tap to review tips to improve your unlocking experience</string>
+
 </resources>

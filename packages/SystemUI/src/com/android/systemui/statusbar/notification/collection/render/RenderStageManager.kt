@@ -19,7 +19,7 @@ package com.android.systemui.statusbar.notification.collection.render
 import com.android.app.tracing.traceSection
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.PipelineDumpable
 import com.android.systemui.statusbar.notification.collection.PipelineDumper
@@ -46,11 +46,11 @@ class RenderStageManager @Inject constructor() : PipelineDumpable {
         listBuilder.setOnRenderListListener(::onRenderList)
     }
 
-    private fun onRenderList(notifList: List<ListEntry>) {
+    private fun onRenderList(notifList: List<PipelineEntry>) {
         traceSection("RenderStageManager.onRenderList") {
             val viewRenderer = viewRenderer ?: return
             viewRenderer.onRenderList(notifList)
-            dispatchOnAfterRenderList(viewRenderer, notifList)
+            dispatchOnAfterRenderList(notifList)
             dispatchOnAfterRenderGroups(viewRenderer, notifList)
             dispatchOnAfterRenderEntries(viewRenderer, notifList)
             viewRenderer.onDispatchComplete()
@@ -85,21 +85,15 @@ class RenderStageManager @Inject constructor() : PipelineDumpable {
             dump("onAfterRenderEntryListeners", onAfterRenderEntryListeners)
         }
 
-    private fun dispatchOnAfterRenderList(
-        viewRenderer: NotifViewRenderer,
-        entries: List<ListEntry>,
-    ) {
+    private fun dispatchOnAfterRenderList(entries: List<PipelineEntry>) {
         traceSection("RenderStageManager.dispatchOnAfterRenderList") {
-            val stackController = viewRenderer.getStackController()
-            onAfterRenderListListeners.forEach { listener ->
-                listener.onAfterRenderList(entries, stackController)
-            }
+            onAfterRenderListListeners.forEach { listener -> listener.onAfterRenderList(entries) }
         }
     }
 
     private fun dispatchOnAfterRenderGroups(
         viewRenderer: NotifViewRenderer,
-        entries: List<ListEntry>,
+        entries: List<PipelineEntry>,
     ) {
         traceSection("RenderStageManager.dispatchOnAfterRenderGroups") {
             if (onAfterRenderGroupListeners.isEmpty()) {
@@ -116,7 +110,7 @@ class RenderStageManager @Inject constructor() : PipelineDumpable {
 
     private fun dispatchOnAfterRenderEntries(
         viewRenderer: NotifViewRenderer,
-        entries: List<ListEntry>,
+        entries: List<PipelineEntry>,
     ) {
         traceSection("RenderStageManager.dispatchOnAfterRenderEntries") {
             if (onAfterRenderEntryListeners.isEmpty()) {
@@ -135,7 +129,7 @@ class RenderStageManager @Inject constructor() : PipelineDumpable {
      * Performs a forward, depth-first traversal of the list where the group's summary immediately
      * precedes the group's children.
      */
-    private inline fun List<ListEntry>.forEachNotificationEntry(
+    private inline fun List<PipelineEntry>.forEachNotificationEntry(
         action: (NotificationEntry) -> Unit
     ) {
         forEach { entry ->

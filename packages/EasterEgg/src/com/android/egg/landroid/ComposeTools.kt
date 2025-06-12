@@ -20,9 +20,19 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.Text
+import androidx.compose.material.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import kotlin.random.Random
 
 @Composable fun Dp.toLocalPx() = with(LocalDensity.current) { this@toLocalPx.toPx() }
@@ -36,6 +46,40 @@ val flickerFadeIn =
         animationSpec =
             tween(
                 durationMillis = 1000,
-                easing = CubicBezierEasing(0f, 1f, 1f, 0f) * flickerFadeEasing(Random)
+                easing = CubicBezierEasing(0f, 1f, 1f, 0f) * flickerFadeEasing(Random),
             )
     )
+
+fun flickerFadeInAfterDelay(delay: Int = 0) =
+    fadeIn(
+        animationSpec =
+            tween(
+                durationMillis = 1000,
+                delayMillis = delay,
+                easing = CubicBezierEasing(0f, 1f, 1f, 0f) * flickerFadeEasing(Random),
+            )
+    )
+
+@Composable
+fun ConsoleButton(
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = TextStyle.Default,
+    color: Color,
+    bgColor: Color,
+    borderColor: Color,
+    text: String,
+    onClick: () -> Unit,
+) {
+    Text(
+        style = textStyle,
+        color = color,
+        modifier =
+            modifier
+                .clickable { onClick() }
+                .background(color = bgColor)
+                .border(width = 1.dp, color = borderColor)
+                .padding(6.dp)
+                .minimumInteractiveComponentSize(),
+        text = text,
+    )
+}

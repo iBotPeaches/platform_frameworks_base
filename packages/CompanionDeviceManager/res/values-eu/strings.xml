@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Gailu osagarriaren kudeatzailea"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; gailua erabiltzeko baimena eman nahi diozu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aplikazioari?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Ziurtatu <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> honen <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> aktibatuta dagoela, eta eduki <xliff:g id="PROFILE_NAME">%3$s</xliff:g> hurbil."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Ez da aurkitu gailurik. Saiatu berriro geroago."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetootha"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wifia"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetootha eta wifia"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"erlojua"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Aukeratu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aplikazioak kudeatu behar duen gailua"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Aukeratu konfiguratu nahi duzun <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"<xliff:g id="PROFILE_NAME">%1$s</xliff:g> baten bila"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Informazioa sinkronizatzeko (esate baterako, deitzaileen izenak) eta hauetarako baimenak izango ditu aplikazioak <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> erabiltzean:"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; kudeatzeko baimena eman nahi diozu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aplikazioari?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"gailua"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aplikazioari zure <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> gailuko aplikazioak <xliff:g id="DEVICE_NAME">%3$s</xliff:g> gailura zuzenean igortzeko baimena eman nahi diozu?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> aplikazioak <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> gailuan ikusgai dagoen edo erreproduzitzen den eduki guztia atzitu ahal izango du, audioa, argazkiak, ordainketa-informazioa, pasahitzak eta mezuak barne.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> gailura aplikazioak zuzenean igortzeko gai izango da, baimen hori kentzen diozun arte."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="DEVICE_TYPE">%3$s</xliff:g> gailutik aplikazioak zuzenean igortzeko baimena eskatzen ari da <xliff:g id="APP_NAME">%1$s</xliff:g>, <xliff:g id="DEVICE_NAME">%2$s</xliff:g> gailuaren izenean"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Zure <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> eta &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; gailuen artean audioa eta sistemaren eginbideak zuzenean igortzeko baimena eman nahi diozu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aplikazioari?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> aplikazioak <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> gailuan erreproduzitzen den eduki guztia atzitu ahal izango du.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> gailura audioa zuzenean igortzeko gai izango da, baimen hori kentzen diozun arte."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"gailua"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Telefonoaren eta hautatutako gailuaren artean informazioa sinkronizatzeko gai izango da aplikazioa (esate baterako, deitzaileen izenak)"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Eman baimena"</string>
     <string name="consent_no" msgid="2640796915611404382">"Ez eman baimenik"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Utzi"</string>
     <string name="consent_back" msgid="2560683030046918882">"Atzera"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Egin behera zerrendan"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Beheranzko gezia"</string>
     <string name="permission_expand" msgid="893185038020887411">"Zabaldu <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Tolestu <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"&lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; gailuan dituzten baimen berberak eman nahi dizkiezu &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; gailuko aplikazioei?"</string>

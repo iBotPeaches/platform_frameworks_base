@@ -12,7 +12,7 @@
     <string name="mobile_data_status_notification_channel_name" msgid="833999690121305708">"મોબાઇલ ડેટાની સ્થિતિ"</string>
     <string name="action_bar_label" msgid="4290345990334377177">"મોબાઇલ નેટવર્કમાં સાઇન ઇન કરો"</string>
     <string name="ssl_error_warning" msgid="3127935140338254180">"તમે જોડાવાનો પ્રયાસ કરી રહ્યા છો તે નેટવર્કમાં સુરક્ષા સંબંધી સમસ્યાઓ છે."</string>
-    <string name="ssl_error_example" msgid="6188711843183058764">"ઉદાહરણ તરીકે, લોગિન પૃષ્ઠ બતાવવામાં આવેલી સંસ્થાનું ન પણ હોય."</string>
+    <string name="ssl_error_example" msgid="6188711843183058764">"ઉદાહરણ તરીકે, લૉગ ઇન પેજ બતાવવામાં આવેલી સંસ્થાનું ન પણ હોય."</string>
     <string name="ssl_error_continue" msgid="1138548463994095584">"તો પણ બ્રાઉઝર મારફતે ચાલુ રાખો"</string>
     <string name="performance_boost_notification_channel" msgid="3475440855635538592">"પર્ફોર્મન્સ બૂસ્ટ"</string>
     <string name="performance_boost_notification_title" msgid="3126203390685781861">"તમારા મોબાઇલ ઑપરેટર તરફથી 5G વિકલ્પો"</string>

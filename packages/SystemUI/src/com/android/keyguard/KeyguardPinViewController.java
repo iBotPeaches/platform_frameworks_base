@@ -18,6 +18,7 @@ package com.android.keyguard;
 
 import static com.android.systemui.flags.Flags.LOCKSCREEN_ENABLE_LANDSCAPE;
 
+import android.hardware.input.InputManager;
 import android.view.View;
 
 import com.android.internal.logging.UiEvent;
@@ -29,7 +30,6 @@ import com.android.keyguard.domain.interactor.KeyguardKeyboardInteractor;
 import com.android.systemui.bouncer.ui.helper.BouncerHapticPlayer;
 import com.android.systemui.classifier.FalsingCollector;
 import com.android.systemui.flags.FeatureFlags;
-import com.android.systemui.flags.Flags;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.policy.DevicePostureController;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
@@ -57,18 +57,20 @@ public class KeyguardPinViewController
             SecurityMode securityMode, LockPatternUtils lockPatternUtils,
             KeyguardSecurityCallback keyguardSecurityCallback,
             KeyguardMessageAreaController.Factory messageAreaControllerFactory,
-            LatencyTracker latencyTracker, LiftToActivateListener liftToActivateListener,
+            LatencyTracker latencyTracker,
             EmergencyButtonController emergencyButtonController,
             FalsingCollector falsingCollector,
             DevicePostureController postureController, FeatureFlags featureFlags,
             SelectedUserInteractor selectedUserInteractor, UiEventLogger uiEventLogger,
             KeyguardKeyboardInteractor keyguardKeyboardInteractor,
             BouncerHapticPlayer bouncerHapticPlayer,
-            UserActivityNotifier userActivityNotifier) {
+            UserActivityNotifier userActivityNotifier,
+            InputManager inputManager) {
         super(view, keyguardUpdateMonitor, securityMode, lockPatternUtils, keyguardSecurityCallback,
-                messageAreaControllerFactory, latencyTracker, liftToActivateListener,
+                messageAreaControllerFactory, latencyTracker,
                 emergencyButtonController, falsingCollector, featureFlags, selectedUserInteractor,
-                keyguardKeyboardInteractor, bouncerHapticPlayer, userActivityNotifier);
+                keyguardKeyboardInteractor, bouncerHapticPlayer, userActivityNotifier, inputManager
+        );
         mKeyguardUpdateMonitor = keyguardUpdateMonitor;
         mPostureController = postureController;
         mLockPatternUtils = lockPatternUtils;
@@ -93,10 +95,8 @@ public class KeyguardPinViewController
         mPasswordEntry.setUserActivityListener(this::onUserInput);
         mView.onDevicePostureChanged(mPostureController.getDevicePosture());
         mPostureController.addCallback(mPostureCallback);
-        if (mFeatureFlags.isEnabled(Flags.AUTO_PIN_CONFIRMATION)) {
-            mPasswordEntry.setUsePinShapes(true);
-            updateAutoConfirmationState();
-        }
+        mPasswordEntry.setUsePinShapes(true);
+        updateAutoConfirmationState();
     }
 
     protected void onUserInput() {

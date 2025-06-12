@@ -17,7 +17,7 @@
 package com.android.systemui.retail.domain.interactor
 
 /** Interactor to determine if the device is currently in retail mode */
-interface RetailModeInteractor {
+public interface RetailModeInteractor {
     /** Whether the device is currently in retail mode */
-    val isInRetailMode: Boolean
+    public val isInRetailMode: Boolean
 }

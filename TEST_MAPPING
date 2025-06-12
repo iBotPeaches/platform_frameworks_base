@@ -25,6 +25,12 @@
       "name": "FrameworksUiServicesTests"
     },
     {
+      "name": "FrameworksUiServicesNotificationTests"
+    },
+    {
+      "name": "FrameworksUiServicesZenTests"
+    },
+    {
       "name": "FrameworksInputMethodSystemServerTests_server_inputmethod"
     },
     {

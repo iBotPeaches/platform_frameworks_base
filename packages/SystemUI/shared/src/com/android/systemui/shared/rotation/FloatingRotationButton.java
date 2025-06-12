@@ -16,9 +16,6 @@
 
 package com.android.systemui.shared.rotation;
 
-import static com.android.app.viewcapture.ViewCaptureFactory.getViewCaptureAwareWindowManagerInstance;
-import static com.android.systemui.Flags.enableViewCaptureTracing;
-
 import android.annotation.DimenRes;
 import android.annotation.IdRes;
 import android.annotation.LayoutRes;
@@ -33,6 +30,7 @@ import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
@@ -40,8 +38,8 @@ import android.widget.FrameLayout;
 import androidx.annotation.BoolRes;
 import androidx.core.view.OneShotPreDrawListener;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.systemui.shared.rotation.FloatingRotationButtonPositionCalculator.Position;
+import com.android.systemui.utils.windowmanager.WindowManagerUtils;
 
 /**
  * Containing logic for the rotation button on the physical left bottom corner of the screen.
@@ -50,7 +48,7 @@ public class FloatingRotationButton implements RotationButton {
 
     private static final int MARGIN_ANIMATION_DURATION_MILLIS = 300;
 
-    private final ViewCaptureAwareWindowManager mWindowManager;
+    private final WindowManager mWindowManager;
     private final ViewGroup mKeyButtonContainer;
     private final FloatingRotationButtonView mKeyButtonView;
 
@@ -91,8 +89,7 @@ public class FloatingRotationButton implements RotationButton {
             @DimenRes int taskbarBottomMargin, @DimenRes int buttonDiameter,
             @DimenRes int rippleMaxWidth, @BoolRes int floatingRotationBtnPositionLeftResource) {
         mContext = context;
-        mWindowManager = getViewCaptureAwareWindowManagerInstance(mContext,
-                enableViewCaptureTracing());
+        mWindowManager = WindowManagerUtils.getWindowManager(mContext);
         mKeyButtonContainer = (ViewGroup) LayoutInflater.from(mContext).inflate(layout, null);
         mKeyButtonView = mKeyButtonContainer.findViewById(keyButtonId);
         mKeyButtonView.setVisibility(View.VISIBLE);

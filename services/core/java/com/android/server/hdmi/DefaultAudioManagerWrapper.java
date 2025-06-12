@@ -94,18 +94,6 @@ public class DefaultAudioManagerWrapper implements AudioManagerWrapper {
     }
 
     @Override
-    @AudioManager.DeviceVolumeBehavior
-    public int getDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device) {
-        return mAudioManager.getDeviceVolumeBehavior(device);
-    }
-
-    @Override
-    public void setDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device,
-            @AudioManager.DeviceVolumeBehavior int deviceVolumeBehavior) {
-        mAudioManager.setDeviceVolumeBehavior(device, deviceVolumeBehavior);
-    }
-
-    @Override
     @NonNull
     public List<AudioDeviceAttributes> getDevicesForAttributes(
             @NonNull AudioAttributes attributes) {

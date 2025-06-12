@@ -64,4 +64,9 @@ oneway interface IDisplayWindowListener {
      * Called when the keep clear ares on a display have changed.
      */
     void onKeepClearAreasChanged(int displayId, in List<Rect> restricted, in List<Rect> unrestricted);
+
+    /**
+     * Called when the eligibility of the desktop mode for a display have changed.
+     */
+    void onDesktopModeEligibleChanged(int displayId);
 }

@@ -25,11 +25,13 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.operations.TextData;
 import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ModifierOperation;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.ArrayList;
+import java.util.Vector;
 
 public abstract class ListActionsOperation extends PaintOperation
-        implements ModifierOperation, DecoratorComponent {
+        implements Container, ModifierOperation, DecoratorComponent {
 
     String mOperationName;
     protected float mWidth = 0;
@@ -43,6 +45,7 @@ public abstract class ListActionsOperation extends PaintOperation
 
     public ArrayList<Operation> mList = new ArrayList<>();
 
+    @NonNull
     public ArrayList<Operation> getList() {
         return mList;
     }
@@ -87,6 +90,18 @@ public abstract class ListActionsOperation extends PaintOperation
         }
     }
 
+    /**
+     * Execute the list of actions
+     *
+     * @param context the RemoteContext
+     * @param document the current document
+     * @param component the component we belong to
+     * @param x the x touch down coordinate
+     * @param y the y touch down coordinate
+     * @param force if true, will apply the actions even if the component is not visible / not
+     *     containing the touch down coordinates
+     * @return true if we applied the actions, false otherwise
+     */
     public boolean applyActions(
             RemoteContext context,
             CoreDocument document,
@@ -109,5 +124,11 @@ public abstract class ListActionsOperation extends PaintOperation
             }
         }
         return true;
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        // TODO: Pass in the list once all operations implement Serializable
+        serializer.add("actions", new Vector<>());
     }
 }

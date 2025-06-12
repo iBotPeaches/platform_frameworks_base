@@ -25,6 +25,12 @@ import com.android.compose.animation.scene.OverlayKey
  */
 object Overlays {
     /**
+     * The bouncer is the overlay that displays authentication challenges like PIN, password, or
+     * pattern.
+     */
+    @JvmField val Bouncer = OverlayKey("bouncer")
+
+    /**
      * The notifications shade overlay primarily shows a scrollable list of notifications.
      *
      * It's used only in the dual shade configuration, where there are two separate shades: one for

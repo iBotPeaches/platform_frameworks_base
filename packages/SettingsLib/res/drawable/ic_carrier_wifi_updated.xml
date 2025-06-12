@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (C) 2025 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="19.0dp"
+    android:height="12.38dp"
+    android:viewportHeight="10.26"
+    android:viewportWidth="15.75">
+
+    <path
+        android:fillColor="#000"
+        android:pathData="M2.864,10.259C2.598,10.259 2.358,10.168 2.143,9.986C1.929,9.804 1.793,9.589 1.737,9.342L0.036,1.208C-0.043,0.877 0.013,0.594 0.204,0.361C0.4,0.128 0.657,0.011 0.974,0.011C1.208,0.011 1.418,0.093 1.604,0.256C1.791,0.419 1.908,0.611 1.954,0.83L2.885,5.828L3.039,6.92L3.088,6.92L3.249,5.828L4.278,0.851C4.325,0.622 4.446,0.424 4.642,0.256C4.843,0.088 5.065,0.004 5.307,0.004C5.55,0.004 5.769,0.088 5.965,0.256C6.166,0.424 6.292,0.625 6.343,0.858L7.358,5.814L7.526,6.913L7.575,6.913L7.729,5.814L8.653,0.781C8.695,0.571 8.805,0.391 8.982,0.242C9.16,0.093 9.356,0.018 9.57,0.018C9.874,0.018 10.114,0.128 10.291,0.347C10.473,0.566 10.529,0.828 10.459,1.131L8.765,9.342C8.709,9.594 8.574,9.811 8.359,9.993C8.145,10.17 7.902,10.259 7.631,10.259C7.37,10.259 7.132,10.17 6.917,9.993C6.703,9.811 6.57,9.594 6.518,9.342L5.44,4.19L5.279,3.133L5.23,3.133L5.069,4.183L3.977,9.342C3.926,9.589 3.793,9.804 3.578,9.986C3.364,10.168 3.126,10.259 2.864,10.259Z" />
+
+    <path
+        android:fillColor="#000"
+        android:pathData="M13.676,4.396C13.497,4.396 13.342,4.332 13.212,4.204C13.084,4.073 13.02,3.917 13.02,3.736L13.02,0.792C13.02,0.611 13.084,0.456 13.212,0.328C13.342,0.197 13.497,0.132 13.676,0.132C13.854,0.132 14.008,0.197 14.136,0.328C14.264,0.456 14.328,0.611 14.328,0.792L14.328,3.736C14.328,3.917 14.264,4.073 14.136,4.204C14.008,4.332 13.854,4.396 13.676,4.396ZM12.252,2.908C12.073,2.908 11.92,2.845 11.792,2.72C11.664,2.592 11.6,2.44 11.6,2.264C11.6,2.088 11.664,1.937 11.792,1.812C11.92,1.684 12.073,1.62 12.252,1.62L15.1,1.62C15.278,1.62 15.432,1.684 15.56,1.812C15.688,1.937 15.752,2.088 15.752,2.264C15.752,2.44 15.688,2.592 15.56,2.72C15.432,2.845 15.278,2.908 15.1,2.908L12.252,2.908Z" />
+
+</vector>

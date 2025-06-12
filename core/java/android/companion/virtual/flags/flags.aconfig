@@ -1,42 +1,14 @@
+# VirtualDeviceManager flags
 #
-# Copyright (C) 2023 The Android Open Source Project
+# This file contains flags guarding features that are in development.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Once a flag is launched or abandoned and there are no more references to it in
+# the codebase, it should be either:
+#  - deleted, or
+#  - moved to launched_flags.aconfig if it was launched and used for API flagging.
 
 package: "android.companion.virtualdevice.flags"
 container: "system"
-
-flag {
-     namespace: "virtual_devices"
-     name: "virtual_camera_service_discovery"
-     description: "Enable discovery of the Virtual Camera HAL without a VINTF entry"
-     bug: "305170199"
-}
-
-flag {
-     namespace: "virtual_devices"
-     name: "device_aware_record_audio_permission"
-     description: "Enable device-aware RECORD_AUDIO permission"
-     bug: "291737188"
-     is_fixed_read_only: true
-}
-
-flag {
-     namespace: "virtual_devices"
-     name: "media_projection_keyguard_restrictions"
-     description: "Auto-stop MP when the device locks"
-     bug: "348335290"
-}
 
 flag {
     namespace: "virtual_devices"
@@ -55,26 +27,11 @@ flag {
 }
 
 flag {
-     namespace: "virtual_devices"
-     name: "camera_device_awareness"
-     description: "Enable device awareness in camera service"
-     bug: "305170199"
-}
-
-flag {
     name: "virtual_rotary"
     is_exported: true
     namespace: "virtual_devices"
     description: "Enable virtual rotary input"
     bug: "320328752"
-}
-
-flag {
-    namespace: "virtual_devices"
-    name: "device_aware_drm"
-    description: "Makes MediaDrm APIs device-aware"
-    bug: "303535376"
-    is_fixed_read_only: true
 }
 
 flag {
@@ -163,8 +120,56 @@ flag {
 }
 
 flag {
+    name: "correct_virtual_display_power_state"
+    namespace: "virtual_devices"
+    description: "Fix the virtual display power state"
+    bug: "371125136"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "vdm_settings"
     namespace: "virtual_devices"
     description: "Show virtual devices in Settings"
     bug: "338974320"
+}
+
+flag {
+    name: "migrate_viewconfiguration_constants_to_resources"
+    namespace: "virtual_devices"
+    description: "Use resources instead of constants in ViewConfiguration"
+    is_fixed_read_only: true
+    bug: "370928384"
+}
+
+flag {
+    name: "device_aware_settings_override"
+    namespace: "virtual_devices"
+    description: "Settings override for virtual devices"
+    bug: "371801645"
+}
+
+flag {
+    namespace: "virtual_devices"
+    name: "viewconfiguration_apis"
+    description: "APIs for setting ViewConfiguration attributes on virtual devices"
+    bug: "370720522"
+    is_exported: true
+}
+
+flag {
+    name: "virtual_sensor_additional_info"
+    namespace: "virtual_devices"
+    description: "API for injecting SensorAdditionalInfo for VirtualSensor"
+    bug: "393517834"
+    is_exported: true
+}
+
+flag {
+    name: "external_virtual_cameras"
+    namespace: "virtual_devices"
+    description: "Allow external virtual cameras visible only in the Context of the virtual device"
+    bug: "375609768"
 }

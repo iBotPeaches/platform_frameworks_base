@@ -17,7 +17,6 @@
 package com.android.systemui.statusbar.pipeline.mobile.data.model
 
 import android.os.PersistableBundle
-import android.telephony.CarrierConfigManager
 import android.telephony.CarrierConfigManager.KEY_INFLATE_SIGNAL_STRENGTH_BOOL
 import android.telephony.CarrierConfigManager.KEY_SHOW_5G_SLICE_ICON_BOOL
 import android.telephony.CarrierConfigManager.KEY_SHOW_OPERATOR_NAME_IN_STATUSBAR_BOOL
@@ -25,12 +24,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class SystemUiCarrierConfigTest : SysuiTestCase() {
@@ -39,7 +36,7 @@ class SystemUiCarrierConfigTest : SysuiTestCase() {
 
     @Before
     fun setUp() {
-        underTest = SystemUiCarrierConfig(SUB_1_ID, createTestConfig())
+        underTest = SystemUiCarrierConfig(SUB_1_ID, testCarrierConfig())
     }
 
     @Test
@@ -48,7 +45,7 @@ class SystemUiCarrierConfigTest : SysuiTestCase() {
         assertThat(underTest.isUsingDefault).isTrue()
 
         // ANY new config means we're no longer tracking defaults
-        underTest.processNewCarrierConfig(createTestConfig())
+        underTest.processNewCarrierConfig(testCarrierConfig())
 
         assertThat(underTest.isUsingDefault).isFalse()
     }
@@ -60,7 +57,7 @@ class SystemUiCarrierConfigTest : SysuiTestCase() {
         assertThat(underTest.allowNetworkSliceIndicator.value).isTrue()
 
         underTest.processNewCarrierConfig(
-            configWithOverrides(
+            testCarrierConfigWithOverrides(
                 KEY_INFLATE_SIGNAL_STRENGTH_BOOL to true,
                 KEY_SHOW_OPERATOR_NAME_IN_STATUSBAR_BOOL to true,
                 KEY_SHOW_5G_SLICE_ICON_BOOL to false,
@@ -83,11 +80,11 @@ class SystemUiCarrierConfigTest : SysuiTestCase() {
         underTest =
             SystemUiCarrierConfig(
                 SUB_1_ID,
-                configWithOverrides(
+                testCarrierConfigWithOverrides(
                     KEY_INFLATE_SIGNAL_STRENGTH_BOOL to true,
                     KEY_SHOW_OPERATOR_NAME_IN_STATUSBAR_BOOL to true,
                     KEY_SHOW_5G_SLICE_ICON_BOOL to true,
-                )
+                ),
             )
 
         assertThat(underTest.isUsingDefault).isTrue()
@@ -106,26 +103,5 @@ class SystemUiCarrierConfigTest : SysuiTestCase() {
 
     companion object {
         private const val SUB_1_ID = 1
-
-        /**
-         * In order to keep us from having to update every place that might want to create a config,
-         * make sure to add new keys here
-         */
-        fun createTestConfig() =
-            PersistableBundle().also {
-                it.putBoolean(CarrierConfigManager.KEY_INFLATE_SIGNAL_STRENGTH_BOOL, false)
-                it.putBoolean(CarrierConfigManager.KEY_SHOW_OPERATOR_NAME_IN_STATUSBAR_BOOL, false)
-                it.putBoolean(CarrierConfigManager.KEY_SHOW_5G_SLICE_ICON_BOOL, true)
-            }
-
-        /** Override the default config with the given (key, value) pair */
-        fun configWithOverride(key: String, override: Boolean): PersistableBundle =
-            createTestConfig().also { it.putBoolean(key, override) }
-
-        /** Override any number of configs from the default */
-        fun configWithOverrides(vararg overrides: Pair<String, Boolean>) =
-            createTestConfig().also { config ->
-                overrides.forEach { (key, value) -> config.putBoolean(key, value) }
-            }
     }
 }

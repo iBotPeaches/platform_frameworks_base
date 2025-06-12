@@ -29,11 +29,13 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.Arrays;
 import java.util.List;
 
-public class PathCreate extends PaintOperation implements VariableSupport {
+public class PathCreate extends PaintOperation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.PATH_CREATE;
     private static final String CLASS_NAME = "PathCreate";
     int mInstanceId;
@@ -131,6 +133,14 @@ public class PathCreate extends PaintOperation implements VariableSupport {
         return OP_CODE;
     }
 
+    /**
+     * add a create path operation
+     *
+     * @param buffer buffer to add to
+     * @param id the id of the path
+     * @param startX the start x of the path (moveTo x,y)
+     * @param startY the start y of the path (moveTo x,y)
+     */
     public static void apply(@NonNull WireBuffer buffer, int id, float startX, float startY) {
         buffer.start(OP_CODE);
         buffer.writeInt(id);
@@ -165,6 +175,12 @@ public class PathCreate extends PaintOperation implements VariableSupport {
                 .field(FLOAT, "startX", "initial start y");
     }
 
+    /**
+     * convert a path to a string
+     *
+     * @param path path to convert (expressed as an array of floats)
+     * @return the text representing the path
+     */
     @NonNull
     public static String pathString(@Nullable float[] path) {
         if (path == null) {
@@ -222,5 +238,10 @@ public class PathCreate extends PaintOperation implements VariableSupport {
     @Override
     public void apply(@NonNull RemoteContext context) {
         context.loadPathData(mInstanceId, mOutputPath);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("id", mInstanceId).addPath("path", mFloatPath);
     }
 }

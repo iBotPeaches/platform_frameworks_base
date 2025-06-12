@@ -233,6 +233,7 @@ public final class CurrentUserServiceSupplier extends BroadcastReceiver implemen
     private final boolean mMatchSystemAppsOnly;
 
     private volatile ServiceChangedListener mListener;
+    private @Nullable String mUnstableService;
 
     private CurrentUserServiceSupplier(Context context, String action,
             @Nullable String explicitPackage, @Nullable String callerPermission,
@@ -330,12 +331,37 @@ public final class CurrentUserServiceSupplier extends BroadcastReceiver implemen
                 }
             }
 
+            // Prefer any service over the unstable service.
+            if (mUnstableService != null && serviceInfo != null && bestServiceInfo != null) {
+              if (mUnstableService.equals(serviceInfo.toString())) {
+                  Log.d(TAG, "Not choosing unstable service " + mUnstableService
+                          + " as we already have a service " + bestServiceInfo.toString());
+                  continue;
+              } else if (mUnstableService.equals(bestServiceInfo.toString())) {
+                  Log.d(TAG, "Choosing service " + serviceInfo.toString()
+                          + " over the unstable service " + mUnstableService);
+                  bestServiceInfo = serviceInfo;
+                  continue;
+              }
+            }
+
             if (sBoundServiceInfoComparator.compare(serviceInfo, bestServiceInfo) > 0) {
                 bestServiceInfo = serviceInfo;
             }
         }
 
         return bestServiceInfo;
+    }
+
+    /**
+     * Alerts the supplier that the given service is unstable.
+     *
+     * The service marked as unstable will be unpreferred over any other services,
+     * which will last until the next device restart.
+     */
+    @Override
+    public void alertUnstableService(String unstableService) {
+        mUnstableService = unstableService;
     }
 
     @Override

@@ -1,6 +1,29 @@
 // Signature format: 2.0
 package android.location {
 
+  @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class AuxiliaryInformation implements android.os.Parcelable {
+    method public int describeContents();
+    method @NonNull public java.util.List<android.location.GnssSignalType> getAvailableSignalTypes();
+    method @IntRange(from=0xfffffff9, to=6) public int getFrequencyChannelNumber();
+    method public int getSatType();
+    method @IntRange(from=1) public int getSvid();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field public static final int BDS_B1C_ORBIT_TYPE_GEO = 1; // 0x1
+    field public static final int BDS_B1C_ORBIT_TYPE_IGSO = 2; // 0x2
+    field public static final int BDS_B1C_ORBIT_TYPE_MEO = 3; // 0x3
+    field public static final int BDS_B1C_ORBIT_TYPE_UNDEFINED = 0; // 0x0
+    field @NonNull public static final android.os.Parcelable.Creator<android.location.AuxiliaryInformation> CREATOR;
+  }
+
+  public static final class AuxiliaryInformation.Builder {
+    ctor public AuxiliaryInformation.Builder();
+    method @NonNull public android.location.AuxiliaryInformation build();
+    method @NonNull public android.location.AuxiliaryInformation.Builder setAvailableSignalTypes(@NonNull java.util.List<android.location.GnssSignalType>);
+    method @NonNull public android.location.AuxiliaryInformation.Builder setFrequencyChannelNumber(@IntRange(from=0xfffffff9, to=6) int);
+    method @NonNull public android.location.AuxiliaryInformation.Builder setSatType(int);
+    method @NonNull public android.location.AuxiliaryInformation.Builder setSvid(@IntRange(from=1) int);
+  }
+
   public abstract class BatchedLocationCallback {
     ctor public BatchedLocationCallback();
     method public void onLocationBatch(java.util.List<android.location.Location>);
@@ -9,6 +32,7 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class BeidouAssistance implements android.os.Parcelable {
     method public int describeContents();
     method @Nullable public android.location.GnssAlmanac getAlmanac();
+    method @NonNull public java.util.List<android.location.AuxiliaryInformation> getAuxiliaryInformation();
     method @Nullable public android.location.KlobucharIonosphericModel getIonosphericModel();
     method @Nullable public android.location.LeapSecondsModel getLeapSecondsModel();
     method @NonNull public java.util.List<android.location.RealTimeIntegrityModel> getRealTimeIntegrityModels();
@@ -24,22 +48,23 @@ package android.location {
     ctor public BeidouAssistance.Builder();
     method @NonNull public android.location.BeidouAssistance build();
     method @NonNull public android.location.BeidouAssistance.Builder setAlmanac(@Nullable android.location.GnssAlmanac);
+    method @NonNull public android.location.BeidouAssistance.Builder setAuxiliaryInformation(@NonNull java.util.List<android.location.AuxiliaryInformation>);
     method @NonNull public android.location.BeidouAssistance.Builder setIonosphericModel(@Nullable android.location.KlobucharIonosphericModel);
     method @NonNull public android.location.BeidouAssistance.Builder setLeapSecondsModel(@Nullable android.location.LeapSecondsModel);
-    method @NonNull public android.location.BeidouAssistance.Builder setRealTimeIntegrityModels(@Nullable java.util.List<android.location.RealTimeIntegrityModel>);
-    method @NonNull public android.location.BeidouAssistance.Builder setSatelliteCorrections(@Nullable java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
-    method @NonNull public android.location.BeidouAssistance.Builder setSatelliteEphemeris(@Nullable java.util.List<android.location.BeidouSatelliteEphemeris>);
-    method @NonNull public android.location.BeidouAssistance.Builder setTimeModels(@Nullable java.util.List<android.location.TimeModel>);
+    method @NonNull public android.location.BeidouAssistance.Builder setRealTimeIntegrityModels(@NonNull java.util.List<android.location.RealTimeIntegrityModel>);
+    method @NonNull public android.location.BeidouAssistance.Builder setSatelliteCorrections(@NonNull java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
+    method @NonNull public android.location.BeidouAssistance.Builder setSatelliteEphemeris(@NonNull java.util.List<android.location.BeidouSatelliteEphemeris>);
+    method @NonNull public android.location.BeidouAssistance.Builder setTimeModels(@NonNull java.util.List<android.location.TimeModel>);
     method @NonNull public android.location.BeidouAssistance.Builder setUtcModel(@Nullable android.location.UtcModel);
   }
 
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class BeidouSatelliteEphemeris implements android.os.Parcelable {
     method public int describeContents();
-    method @IntRange(from=1, to=63) public int getPrn();
     method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteClockModel getSatelliteClockModel();
     method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime getSatelliteEphemerisTime();
     method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteHealth getSatelliteHealth();
     method @NonNull public android.location.KeplerianOrbitModel getSatelliteOrbitModel();
+    method @IntRange(from=1, to=63) public int getSvid();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.BeidouSatelliteEphemeris> CREATOR;
   }
@@ -71,8 +96,8 @@ package android.location {
 
   public static final class BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime implements android.os.Parcelable {
     method public int describeContents();
+    method @IntRange(from=0, to=31) public int getAode();
     method @IntRange(from=0) public int getBeidouWeekNumber();
-    method @IntRange(from=0, to=31) public int getIode();
     method @IntRange(from=0, to=604792) public int getToeSeconds();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime> CREATOR;
@@ -81,8 +106,8 @@ package android.location {
   public static final class BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime.Builder {
     ctor public BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime.Builder();
     method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime build();
+    method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime.Builder setAode(int);
     method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime.Builder setBeidouWeekNumber(@IntRange(from=0) int);
-    method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime.Builder setIode(int);
     method @NonNull public android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime.Builder setToeSeconds(@IntRange(from=0, to=604792) int);
   }
 
@@ -104,11 +129,11 @@ package android.location {
   public static final class BeidouSatelliteEphemeris.Builder {
     ctor public BeidouSatelliteEphemeris.Builder();
     method @NonNull public android.location.BeidouSatelliteEphemeris build();
-    method @NonNull public android.location.BeidouSatelliteEphemeris.Builder setPrn(int);
     method @NonNull public android.location.BeidouSatelliteEphemeris.Builder setSatelliteClockModel(@NonNull android.location.BeidouSatelliteEphemeris.BeidouSatelliteClockModel);
     method @NonNull public android.location.BeidouSatelliteEphemeris.Builder setSatelliteEphemerisTime(@NonNull android.location.BeidouSatelliteEphemeris.BeidouSatelliteEphemerisTime);
     method @NonNull public android.location.BeidouSatelliteEphemeris.Builder setSatelliteHealth(@NonNull android.location.BeidouSatelliteEphemeris.BeidouSatelliteHealth);
     method @NonNull public android.location.BeidouSatelliteEphemeris.Builder setSatelliteOrbitModel(@NonNull android.location.KeplerianOrbitModel);
+    method @NonNull public android.location.BeidouSatelliteEphemeris.Builder setSvid(int);
   }
 
   public final class CorrelationVector implements android.os.Parcelable {
@@ -151,7 +176,8 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GalileoAssistance implements android.os.Parcelable {
     method public int describeContents();
     method @Nullable public android.location.GnssAlmanac getAlmanac();
-    method @Nullable public android.location.KlobucharIonosphericModel getIonosphericModel();
+    method @NonNull public java.util.List<android.location.AuxiliaryInformation> getAuxiliaryInformation();
+    method @Nullable public android.location.GalileoIonosphericModel getIonosphericModel();
     method @Nullable public android.location.LeapSecondsModel getLeapSecondsModel();
     method @NonNull public java.util.List<android.location.RealTimeIntegrityModel> getRealTimeIntegrityModels();
     method @NonNull public java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections> getSatelliteCorrections();
@@ -166,12 +192,13 @@ package android.location {
     ctor public GalileoAssistance.Builder();
     method @NonNull public android.location.GalileoAssistance build();
     method @NonNull public android.location.GalileoAssistance.Builder setAlmanac(@Nullable android.location.GnssAlmanac);
-    method @NonNull public android.location.GalileoAssistance.Builder setIonosphericModel(@Nullable android.location.KlobucharIonosphericModel);
+    method @NonNull public android.location.GalileoAssistance.Builder setAuxiliaryInformation(@NonNull java.util.List<android.location.AuxiliaryInformation>);
+    method @NonNull public android.location.GalileoAssistance.Builder setIonosphericModel(@Nullable android.location.GalileoIonosphericModel);
     method @NonNull public android.location.GalileoAssistance.Builder setLeapSecondsModel(@Nullable android.location.LeapSecondsModel);
-    method @NonNull public android.location.GalileoAssistance.Builder setRealTimeIntegrityModels(@Nullable java.util.List<android.location.RealTimeIntegrityModel>);
-    method @NonNull public android.location.GalileoAssistance.Builder setSatelliteCorrections(@Nullable java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
-    method @NonNull public android.location.GalileoAssistance.Builder setSatelliteEphemeris(@Nullable java.util.List<android.location.GalileoSatelliteEphemeris>);
-    method @NonNull public android.location.GalileoAssistance.Builder setTimeModels(@Nullable java.util.List<android.location.TimeModel>);
+    method @NonNull public android.location.GalileoAssistance.Builder setRealTimeIntegrityModels(@NonNull java.util.List<android.location.RealTimeIntegrityModel>);
+    method @NonNull public android.location.GalileoAssistance.Builder setSatelliteCorrections(@NonNull java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
+    method @NonNull public android.location.GalileoAssistance.Builder setSatelliteEphemeris(@NonNull java.util.List<android.location.GalileoSatelliteEphemeris>);
+    method @NonNull public android.location.GalileoAssistance.Builder setTimeModels(@NonNull java.util.List<android.location.TimeModel>);
     method @NonNull public android.location.GalileoAssistance.Builder setUtcModel(@Nullable android.location.UtcModel);
   }
 
@@ -195,10 +222,10 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GalileoSatelliteEphemeris implements android.os.Parcelable {
     method public int describeContents();
     method @NonNull public java.util.List<android.location.GalileoSatelliteEphemeris.GalileoSatelliteClockModel> getSatelliteClockModels();
-    method @IntRange(from=1, to=36) public int getSatelliteCodeNumber();
     method @NonNull public android.location.SatelliteEphemerisTime getSatelliteEphemerisTime();
     method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth getSatelliteHealth();
     method @NonNull public android.location.KeplerianOrbitModel getSatelliteOrbitModel();
+    method @IntRange(from=1, to=36) public int getSvid();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GalileoSatelliteEphemeris> CREATOR;
   }
@@ -207,10 +234,10 @@ package android.location {
     ctor public GalileoSatelliteEphemeris.Builder();
     method @NonNull public android.location.GalileoSatelliteEphemeris build();
     method @NonNull public android.location.GalileoSatelliteEphemeris.Builder setSatelliteClockModels(@NonNull java.util.List<android.location.GalileoSatelliteEphemeris.GalileoSatelliteClockModel>);
-    method @NonNull public android.location.GalileoSatelliteEphemeris.Builder setSatelliteCodeNumber(@IntRange(from=1, to=36) int);
     method @NonNull public android.location.GalileoSatelliteEphemeris.Builder setSatelliteEphemerisTime(@NonNull android.location.SatelliteEphemerisTime);
     method @NonNull public android.location.GalileoSatelliteEphemeris.Builder setSatelliteHealth(@NonNull android.location.GalileoSatelliteEphemeris.GalileoSvHealth);
     method @NonNull public android.location.GalileoSatelliteEphemeris.Builder setSatelliteOrbitModel(@NonNull android.location.KeplerianOrbitModel);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.Builder setSvid(@IntRange(from=1, to=36) int);
   }
 
   public static final class GalileoSatelliteEphemeris.GalileoSatelliteClockModel implements android.os.Parcelable {
@@ -243,25 +270,31 @@ package android.location {
 
   public static final class GalileoSatelliteEphemeris.GalileoSvHealth implements android.os.Parcelable {
     method public int describeContents();
-    method @IntRange(from=0, to=1) public int getDataValidityStatusE1b();
-    method @IntRange(from=0, to=1) public int getDataValidityStatusE5a();
-    method @IntRange(from=0, to=1) public int getDataValidityStatusE5b();
-    method @IntRange(from=0, to=3) public int getSignalHealthStatusE1b();
-    method @IntRange(from=0, to=3) public int getSignalHealthStatusE5a();
-    method @IntRange(from=0, to=3) public int getSignalHealthStatusE5b();
+    method public int getDataValidityStatusE1b();
+    method public int getDataValidityStatusE5a();
+    method public int getDataValidityStatusE5b();
+    method public int getSignalHealthStatusE1b();
+    method public int getSignalHealthStatusE5a();
+    method public int getSignalHealthStatusE5b();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GalileoSatelliteEphemeris.GalileoSvHealth> CREATOR;
+    field public static final int DATA_STATUS_DATA_VALID = 0; // 0x0
+    field public static final int DATA_STATUS_WORKING_WITHOUT_GUARANTEE = 1; // 0x1
+    field public static final int HEALTH_STATUS_EXTENDED_OPERATION_MODE = 2; // 0x2
+    field public static final int HEALTH_STATUS_IN_TEST = 3; // 0x3
+    field public static final int HEALTH_STATUS_OK = 0; // 0x0
+    field public static final int HEALTH_STATUS_OUT_OF_SERVICE = 1; // 0x1
   }
 
   public static final class GalileoSatelliteEphemeris.GalileoSvHealth.Builder {
     ctor public GalileoSatelliteEphemeris.GalileoSvHealth.Builder();
     method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth build();
-    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setDataValidityStatusE1b(@IntRange(from=0, to=1) int);
-    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setDataValidityStatusE5a(@IntRange(from=0, to=1) int);
-    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setDataValidityStatusE5b(@IntRange(from=0, to=1) int);
-    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setSignalHealthStatusE1b(@IntRange(from=0, to=3) int);
-    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setSignalHealthStatusE5a(@IntRange(from=0, to=3) int);
-    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setSignalHealthStatusE5b(@IntRange(from=0, to=3) int);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setDataValidityStatusE1b(int);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setDataValidityStatusE5a(int);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setDataValidityStatusE5b(int);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setSignalHealthStatusE1b(int);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setSignalHealthStatusE5a(int);
+    method @NonNull public android.location.GalileoSatelliteEphemeris.GalileoSvHealth.Builder setSignalHealthStatusE5b(int);
   }
 
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GlonassAlmanac implements android.os.Parcelable {
@@ -275,17 +308,19 @@ package android.location {
 
   public static final class GlonassAlmanac.GlonassSatelliteAlmanac implements android.os.Parcelable {
     method public int describeContents();
+    method @IntRange(from=1, to=1461) public int getCalendarDayNumber();
     method @FloatRange(from=-0.067F, to=0.067f) public double getDeltaI();
     method @FloatRange(from=-3600.0F, to=3600.0f) public double getDeltaT();
     method @FloatRange(from=-0.004F, to=0.004f) public double getDeltaTDot();
     method @FloatRange(from=0.0f, to=0.03f) public double getEccentricity();
-    method @IntRange(from=0, to=31) public int getFreqChannel();
+    method @IntRange(from=0, to=31) public int getFrequencyChannelNumber();
+    method public int getHealthState();
     method @FloatRange(from=-1.0F, to=1.0f) public double getLambda();
     method @FloatRange(from=-1.0F, to=1.0f) public double getOmega();
     method @IntRange(from=1, to=25) public int getSlotNumber();
-    method @IntRange(from=0, to=1) public int getSvHealth();
     method @FloatRange(from=0.0f, to=44100.0f) public double getTLambda();
     method @FloatRange(from=-0.0019F, to=0.0019f) public double getTau();
+    method public boolean isGlonassM();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GlonassAlmanac.GlonassSatelliteAlmanac> CREATOR;
   }
@@ -293,15 +328,17 @@ package android.location {
   public static final class GlonassAlmanac.GlonassSatelliteAlmanac.Builder {
     ctor public GlonassAlmanac.GlonassSatelliteAlmanac.Builder();
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac build();
+    method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setCalendarDayNumber(@IntRange(from=1, to=1461) int);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setDeltaI(@FloatRange(from=-0.067F, to=0.067f) double);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setDeltaT(@FloatRange(from=-3600.0F, to=3600.0f) double);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setDeltaTDot(@FloatRange(from=-0.004F, to=0.004f) double);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setEccentricity(@FloatRange(from=0.0f, to=0.03f) double);
-    method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setFreqChannel(@IntRange(from=0, to=31) int);
+    method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setFrequencyChannelNumber(@IntRange(from=0, to=31) int);
+    method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setGlonassM(boolean);
+    method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setHealthState(int);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setLambda(@FloatRange(from=-1.0F, to=1.0f) double);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setOmega(@FloatRange(from=-1.0F, to=1.0f) double);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setSlotNumber(@IntRange(from=1, to=25) int);
-    method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setSvHealth(@IntRange(from=0, to=1) int);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setTLambda(@FloatRange(from=0.0f, to=44100.0f) double);
     method @NonNull public android.location.GlonassAlmanac.GlonassSatelliteAlmanac.Builder setTau(@FloatRange(from=-0.0019F, to=0.0019f) double);
   }
@@ -309,6 +346,8 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GlonassAssistance implements android.os.Parcelable {
     method public int describeContents();
     method @Nullable public android.location.GlonassAlmanac getAlmanac();
+    method @NonNull public java.util.List<android.location.AuxiliaryInformation> getAuxiliaryInformation();
+    method @NonNull public java.util.List<android.location.RealTimeIntegrityModel> getRealTimeIntegrityModels();
     method @NonNull public java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections> getSatelliteCorrections();
     method @NonNull public java.util.List<android.location.GlonassSatelliteEphemeris> getSatelliteEphemeris();
     method @NonNull public java.util.List<android.location.TimeModel> getTimeModels();
@@ -321,9 +360,11 @@ package android.location {
     ctor public GlonassAssistance.Builder();
     method @NonNull public android.location.GlonassAssistance build();
     method @NonNull public android.location.GlonassAssistance.Builder setAlmanac(@Nullable android.location.GlonassAlmanac);
-    method @NonNull public android.location.GlonassAssistance.Builder setSatelliteCorrections(@Nullable java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
-    method @NonNull public android.location.GlonassAssistance.Builder setSatelliteEphemeris(@Nullable java.util.List<android.location.GlonassSatelliteEphemeris>);
-    method @NonNull public android.location.GlonassAssistance.Builder setTimeModels(@Nullable java.util.List<android.location.TimeModel>);
+    method @NonNull public android.location.GlonassAssistance.Builder setAuxiliaryInformation(@NonNull java.util.List<android.location.AuxiliaryInformation>);
+    method @NonNull public android.location.GlonassAssistance.Builder setRealTimeIntegrityModels(@NonNull java.util.List<android.location.RealTimeIntegrityModel>);
+    method @NonNull public android.location.GlonassAssistance.Builder setSatelliteCorrections(@NonNull java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
+    method @NonNull public android.location.GlonassAssistance.Builder setSatelliteEphemeris(@NonNull java.util.List<android.location.GlonassSatelliteEphemeris>);
+    method @NonNull public android.location.GlonassAssistance.Builder setTimeModels(@NonNull java.util.List<android.location.TimeModel>);
     method @NonNull public android.location.GlonassAssistance.Builder setUtcModel(@Nullable android.location.UtcModel);
   }
 
@@ -331,12 +372,17 @@ package android.location {
     method public int describeContents();
     method @IntRange(from=0, to=31) public int getAgeInDays();
     method @FloatRange(from=0.0f) public double getFrameTimeSeconds();
-    method @IntRange(from=0, to=1) public int getHealthState();
+    method public int getHealthState();
     method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel getSatelliteClockModel();
     method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteOrbitModel getSatelliteOrbitModel();
     method @IntRange(from=1, to=25) public int getSlotNumber();
+    method @IntRange(from=0, to=60) public int getUpdateIntervalMinutes();
+    method public boolean isGlonassM();
+    method public boolean isUpdateIntervalOdd();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GlonassSatelliteEphemeris> CREATOR;
+    field public static final int HEALTH_STATUS_HEALTHY = 0; // 0x0
+    field public static final int HEALTH_STATUS_UNHEALTHY = 1; // 0x1
   }
 
   public static final class GlonassSatelliteEphemeris.Builder {
@@ -344,18 +390,23 @@ package android.location {
     method @NonNull public android.location.GlonassSatelliteEphemeris build();
     method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setAgeInDays(@IntRange(from=0, to=31) int);
     method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setFrameTimeSeconds(@FloatRange(from=0.0f) double);
-    method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setHealthState(@IntRange(from=0, to=1) int);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setGlonassM(boolean);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setHealthState(int);
     method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setSatelliteClockModel(@NonNull android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel);
     method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setSatelliteOrbitModel(@NonNull android.location.GlonassSatelliteEphemeris.GlonassSatelliteOrbitModel);
     method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setSlotNumber(@IntRange(from=1, to=25) int);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setUpdateIntervalMinutes(@IntRange(from=0, to=60) int);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.Builder setUpdateIntervalOdd(boolean);
   }
 
   public static final class GlonassSatelliteEphemeris.GlonassSatelliteClockModel implements android.os.Parcelable {
     method public int describeContents();
     method @FloatRange(from=-0.002F, to=0.002f) public double getClockBias();
     method @FloatRange(from=-9.32E-10F, to=9.32E-10f) public double getFrequencyBias();
-    method @IntRange(from=0xfffffff9, to=6) public int getFrequencyNumber();
+    method @IntRange(from=0xfffffff9, to=6) public int getFrequencyChannelNumber();
+    method @FloatRange(from=-1.4E-8F, to=1.4E-8f) public double getGroupDelayDiffSeconds();
     method @IntRange(from=0) public long getTimeOfClockSeconds();
+    method public boolean isGroupDelayDiffSecondsAvailable();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel> CREATOR;
   }
@@ -365,7 +416,9 @@ package android.location {
     method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel build();
     method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setClockBias(@FloatRange(from=-0.002F, to=0.002f) double);
     method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setFrequencyBias(@FloatRange(from=-9.32E-10F, to=9.32E-10f) double);
-    method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setFrequencyNumber(@IntRange(from=0xfffffff9, to=6) int);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setFrequencyChannelNumber(@IntRange(from=0xfffffff9, to=6) int);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setGroupDelayDiffSeconds(@FloatRange(from=-1.4E-8F, to=1.4E-8f) double);
+    method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setGroupDelayDiffSecondsAvailable(boolean);
     method @NonNull public android.location.GlonassSatelliteEphemeris.GlonassSatelliteClockModel.Builder setTimeOfClockSeconds(@IntRange(from=0) long);
   }
 
@@ -401,10 +454,11 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GnssAlmanac implements android.os.Parcelable {
     method public int describeContents();
     method @NonNull public java.util.List<android.location.GnssAlmanac.GnssSatelliteAlmanac> getGnssSatelliteAlmanacs();
-    method @IntRange(from=0) public int getIod();
+    method @IntRange(from=0) public int getIoda();
     method @IntRange(from=0) public long getIssueDateMillis();
     method @IntRange(from=0, to=604800) public int getToaSeconds();
     method @IntRange(from=0) public int getWeekNumber();
+    method public boolean isCompleteAlmanacProvided();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GnssAlmanac> CREATOR;
   }
@@ -412,8 +466,9 @@ package android.location {
   public static final class GnssAlmanac.Builder {
     ctor public GnssAlmanac.Builder();
     method @NonNull public android.location.GnssAlmanac build();
+    method @NonNull public android.location.GnssAlmanac.Builder setCompleteAlmanacProvided(boolean);
     method @NonNull public android.location.GnssAlmanac.Builder setGnssSatelliteAlmanacs(@NonNull java.util.List<android.location.GnssAlmanac.GnssSatelliteAlmanac>);
-    method @NonNull public android.location.GnssAlmanac.Builder setIod(@IntRange(from=0) int);
+    method @NonNull public android.location.GnssAlmanac.Builder setIoda(@IntRange(from=0) int);
     method @NonNull public android.location.GnssAlmanac.Builder setIssueDateMillis(@IntRange(from=0) long);
     method @NonNull public android.location.GnssAlmanac.Builder setToaSeconds(@IntRange(from=0, to=604800) int);
     method @NonNull public android.location.GnssAlmanac.Builder setWeekNumber(@IntRange(from=0) int);
@@ -664,6 +719,7 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GpsAssistance implements android.os.Parcelable {
     method public int describeContents();
     method @Nullable public android.location.GnssAlmanac getAlmanac();
+    method @NonNull public java.util.List<android.location.AuxiliaryInformation> getAuxiliaryInformation();
     method @Nullable public android.location.KlobucharIonosphericModel getIonosphericModel();
     method @Nullable public android.location.LeapSecondsModel getLeapSecondsModel();
     method @NonNull public java.util.List<android.location.RealTimeIntegrityModel> getRealTimeIntegrityModels();
@@ -679,12 +735,13 @@ package android.location {
     ctor public GpsAssistance.Builder();
     method @NonNull public android.location.GpsAssistance build();
     method @NonNull public android.location.GpsAssistance.Builder setAlmanac(@Nullable android.location.GnssAlmanac);
+    method @NonNull public android.location.GpsAssistance.Builder setAuxiliaryInformation(@NonNull java.util.List<android.location.AuxiliaryInformation>);
     method @NonNull public android.location.GpsAssistance.Builder setIonosphericModel(@Nullable android.location.KlobucharIonosphericModel);
     method @NonNull public android.location.GpsAssistance.Builder setLeapSecondsModel(@Nullable android.location.LeapSecondsModel);
-    method @NonNull public android.location.GpsAssistance.Builder setRealTimeIntegrityModels(@Nullable java.util.List<android.location.RealTimeIntegrityModel>);
-    method @NonNull public android.location.GpsAssistance.Builder setSatelliteCorrections(@Nullable java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
-    method @NonNull public android.location.GpsAssistance.Builder setSatelliteEphemeris(@Nullable java.util.List<android.location.GpsSatelliteEphemeris>);
-    method @NonNull public android.location.GpsAssistance.Builder setTimeModels(@Nullable java.util.List<android.location.TimeModel>);
+    method @NonNull public android.location.GpsAssistance.Builder setRealTimeIntegrityModels(@NonNull java.util.List<android.location.RealTimeIntegrityModel>);
+    method @NonNull public android.location.GpsAssistance.Builder setSatelliteCorrections(@NonNull java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
+    method @NonNull public android.location.GpsAssistance.Builder setSatelliteEphemeris(@NonNull java.util.List<android.location.GpsSatelliteEphemeris>);
+    method @NonNull public android.location.GpsAssistance.Builder setTimeModels(@NonNull java.util.List<android.location.TimeModel>);
     method @NonNull public android.location.GpsAssistance.Builder setUtcModel(@Nullable android.location.UtcModel);
   }
 
@@ -916,11 +973,11 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class GpsSatelliteEphemeris implements android.os.Parcelable {
     method public int describeContents();
     method @NonNull public android.location.GpsSatelliteEphemeris.GpsL2Params getGpsL2Params();
-    method @IntRange(from=1, to=32) public int getPrn();
     method @NonNull public android.location.GpsSatelliteEphemeris.GpsSatelliteClockModel getSatelliteClockModel();
     method @NonNull public android.location.SatelliteEphemerisTime getSatelliteEphemerisTime();
     method @NonNull public android.location.GpsSatelliteEphemeris.GpsSatelliteHealth getSatelliteHealth();
     method @NonNull public android.location.KeplerianOrbitModel getSatelliteOrbitModel();
+    method @IntRange(from=1, to=32) public int getSvid();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.GpsSatelliteEphemeris> CREATOR;
   }
@@ -929,11 +986,11 @@ package android.location {
     ctor public GpsSatelliteEphemeris.Builder();
     method @NonNull public android.location.GpsSatelliteEphemeris build();
     method @NonNull public android.location.GpsSatelliteEphemeris.Builder setGpsL2Params(@NonNull android.location.GpsSatelliteEphemeris.GpsL2Params);
-    method @NonNull public android.location.GpsSatelliteEphemeris.Builder setPrn(@IntRange(from=1, to=32) int);
     method @NonNull public android.location.GpsSatelliteEphemeris.Builder setSatelliteClockModel(@NonNull android.location.GpsSatelliteEphemeris.GpsSatelliteClockModel);
     method @NonNull public android.location.GpsSatelliteEphemeris.Builder setSatelliteEphemerisTime(@NonNull android.location.SatelliteEphemerisTime);
     method @NonNull public android.location.GpsSatelliteEphemeris.Builder setSatelliteHealth(@NonNull android.location.GpsSatelliteEphemeris.GpsSatelliteHealth);
     method @NonNull public android.location.GpsSatelliteEphemeris.Builder setSatelliteOrbitModel(@NonNull android.location.KeplerianOrbitModel);
+    method @NonNull public android.location.GpsSatelliteEphemeris.Builder setSvid(@IntRange(from=1, to=32) int);
   }
 
   public static final class GpsSatelliteEphemeris.GpsL2Params implements android.os.Parcelable {
@@ -1198,6 +1255,7 @@ package android.location {
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class QzssAssistance implements android.os.Parcelable {
     method public int describeContents();
     method @Nullable public android.location.GnssAlmanac getAlmanac();
+    method @NonNull public java.util.List<android.location.AuxiliaryInformation> getAuxiliaryInformation();
     method @Nullable public android.location.KlobucharIonosphericModel getIonosphericModel();
     method @Nullable public android.location.LeapSecondsModel getLeapSecondsModel();
     method @NonNull public java.util.List<android.location.RealTimeIntegrityModel> getRealTimeIntegrityModels();
@@ -1213,23 +1271,24 @@ package android.location {
     ctor public QzssAssistance.Builder();
     method @NonNull public android.location.QzssAssistance build();
     method @NonNull public android.location.QzssAssistance.Builder setAlmanac(@Nullable android.location.GnssAlmanac);
+    method @NonNull public android.location.QzssAssistance.Builder setAuxiliaryInformation(@NonNull java.util.List<android.location.AuxiliaryInformation>);
     method @NonNull public android.location.QzssAssistance.Builder setIonosphericModel(@Nullable android.location.KlobucharIonosphericModel);
     method @NonNull public android.location.QzssAssistance.Builder setLeapSecondsModel(@Nullable android.location.LeapSecondsModel);
-    method @NonNull public android.location.QzssAssistance.Builder setRealTimeIntegrityModels(@Nullable java.util.List<android.location.RealTimeIntegrityModel>);
-    method @NonNull public android.location.QzssAssistance.Builder setSatelliteCorrections(@Nullable java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
-    method @NonNull public android.location.QzssAssistance.Builder setSatelliteEphemeris(@Nullable java.util.List<android.location.QzssSatelliteEphemeris>);
-    method @NonNull public android.location.QzssAssistance.Builder setTimeModels(@Nullable java.util.List<android.location.TimeModel>);
+    method @NonNull public android.location.QzssAssistance.Builder setRealTimeIntegrityModels(@NonNull java.util.List<android.location.RealTimeIntegrityModel>);
+    method @NonNull public android.location.QzssAssistance.Builder setSatelliteCorrections(@NonNull java.util.List<android.location.GnssAssistance.GnssSatelliteCorrections>);
+    method @NonNull public android.location.QzssAssistance.Builder setSatelliteEphemeris(@NonNull java.util.List<android.location.QzssSatelliteEphemeris>);
+    method @NonNull public android.location.QzssAssistance.Builder setTimeModels(@NonNull java.util.List<android.location.TimeModel>);
     method @NonNull public android.location.QzssAssistance.Builder setUtcModel(@Nullable android.location.UtcModel);
   }
 
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class QzssSatelliteEphemeris implements android.os.Parcelable {
     method public int describeContents();
     method @NonNull public android.location.GpsSatelliteEphemeris.GpsL2Params getGpsL2Params();
-    method @IntRange(from=183, to=206) public int getPrn();
     method @NonNull public android.location.GpsSatelliteEphemeris.GpsSatelliteClockModel getSatelliteClockModel();
     method @NonNull public android.location.SatelliteEphemerisTime getSatelliteEphemerisTime();
     method @NonNull public android.location.GpsSatelliteEphemeris.GpsSatelliteHealth getSatelliteHealth();
     method @NonNull public android.location.KeplerianOrbitModel getSatelliteOrbitModel();
+    method @IntRange(from=183, to=206) public int getSvid();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.QzssSatelliteEphemeris> CREATOR;
   }
@@ -1238,22 +1297,22 @@ package android.location {
     ctor public QzssSatelliteEphemeris.Builder();
     method @NonNull public android.location.QzssSatelliteEphemeris build();
     method @NonNull public android.location.QzssSatelliteEphemeris.Builder setGpsL2Params(@NonNull android.location.GpsSatelliteEphemeris.GpsL2Params);
-    method @NonNull public android.location.QzssSatelliteEphemeris.Builder setPrn(@IntRange(from=183, to=206) int);
     method @NonNull public android.location.QzssSatelliteEphemeris.Builder setSatelliteClockModel(@NonNull android.location.GpsSatelliteEphemeris.GpsSatelliteClockModel);
     method @NonNull public android.location.QzssSatelliteEphemeris.Builder setSatelliteEphemerisTime(@NonNull android.location.SatelliteEphemerisTime);
     method @NonNull public android.location.QzssSatelliteEphemeris.Builder setSatelliteHealth(@NonNull android.location.GpsSatelliteEphemeris.GpsSatelliteHealth);
     method @NonNull public android.location.QzssSatelliteEphemeris.Builder setSatelliteOrbitModel(@NonNull android.location.KeplerianOrbitModel);
+    method @NonNull public android.location.QzssSatelliteEphemeris.Builder setSvid(@IntRange(from=183, to=206) int);
   }
 
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class RealTimeIntegrityModel implements android.os.Parcelable {
     method public int describeContents();
     method @NonNull public String getAdvisoryNumber();
     method @NonNull public String getAdvisoryType();
+    method @NonNull public java.util.List<android.location.GnssSignalType> getBadSignalTypes();
+    method @IntRange(from=1, to=206) public int getBadSvid();
     method @IntRange(from=0) public long getEndDateSeconds();
     method @IntRange(from=0) public long getPublishDateSeconds();
     method @IntRange(from=0) public long getStartDateSeconds();
-    method @IntRange(from=1, to=206) public int getSvid();
-    method public boolean isUsable();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.location.RealTimeIntegrityModel> CREATOR;
   }
@@ -1263,11 +1322,11 @@ package android.location {
     method @NonNull public android.location.RealTimeIntegrityModel build();
     method @NonNull public android.location.RealTimeIntegrityModel.Builder setAdvisoryNumber(@NonNull String);
     method @NonNull public android.location.RealTimeIntegrityModel.Builder setAdvisoryType(@NonNull String);
+    method @NonNull public android.location.RealTimeIntegrityModel.Builder setBadSignalTypes(@NonNull java.util.List<android.location.GnssSignalType>);
+    method @NonNull public android.location.RealTimeIntegrityModel.Builder setBadSvid(@IntRange(from=1, to=206) int);
     method @NonNull public android.location.RealTimeIntegrityModel.Builder setEndDateSeconds(@IntRange(from=0) long);
     method @NonNull public android.location.RealTimeIntegrityModel.Builder setPublishDateSeconds(@IntRange(from=0) long);
     method @NonNull public android.location.RealTimeIntegrityModel.Builder setStartDateSeconds(@IntRange(from=0) long);
-    method @NonNull public android.location.RealTimeIntegrityModel.Builder setSvid(@IntRange(from=1, to=206) int);
-    method @NonNull public android.location.RealTimeIntegrityModel.Builder setUsable(boolean);
   }
 
   @FlaggedApi("android.location.flags.gnss_assistance_interface") public final class SatelliteEphemerisTime implements android.os.Parcelable {
@@ -1433,6 +1492,13 @@ package android.location.provider {
     method public abstract void onForwardGeocode(@NonNull android.location.provider.ForwardGeocodeRequest, @NonNull android.os.OutcomeReceiver<java.util.List<android.location.Address>,java.lang.Throwable>);
     method public abstract void onReverseGeocode(@NonNull android.location.provider.ReverseGeocodeRequest, @NonNull android.os.OutcomeReceiver<java.util.List<android.location.Address>,java.lang.Throwable>);
     field public static final String ACTION_GEOCODE_PROVIDER = "com.android.location.service.GeocodeProvider";
+  }
+
+  @FlaggedApi("android.location.flags.gnss_assistance_interface") public abstract class GnssAssistanceProviderBase {
+    ctor public GnssAssistanceProviderBase(@NonNull android.content.Context, @NonNull String);
+    method @NonNull public final android.os.IBinder getBinder();
+    method public abstract void onRequest(@NonNull android.os.OutcomeReceiver<android.location.GnssAssistance,java.lang.Throwable>);
+    field public static final String ACTION_GNSS_ASSISTANCE_PROVIDER = "android.location.provider.action.GNSS_ASSISTANCE_PROVIDER";
   }
 
   public abstract class LocationProviderBase {

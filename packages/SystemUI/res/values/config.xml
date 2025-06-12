@@ -98,10 +98,6 @@
     TODO (b/293252410) - change this comment/resource when flag is enabled -->
     <integer name="small_land_lockscreen_quick_settings_max_rows">2</integer>
 
-    <!-- If the dp width of the available space is <= this value, potentially adjust the number
-         of media recommendation items-->
-    <integer name="default_qs_media_rec_width_dp">380</integer>
-
     <!-- The number of columns that the top level tiles span in the QuickSettings -->
 
     <!-- The default tiles to display in QuickSettings -->
@@ -119,7 +115,7 @@
 
     <!-- Tiles native to System UI. Order should match "quick_settings_tiles_default" -->
     <string name="quick_settings_tiles_stock" translatable="false">
-        internet,bt,flashlight,dnd,alarm,airplane,controls,wallet,rotation,battery,cast,screenrecord,mictoggle,cameratoggle,location,hotspot,inversion,saver,dark,work,night,reverse,reduce_brightness,qr_code_scanner,onehanded,color_correction,dream,font_scaling,record_issue,hearing_devices,notes
+        internet,bt,flashlight,dnd,modes_dnd,alarm,airplane,controls,wallet,rotation,battery,cast,screenrecord,mictoggle,cameratoggle,location,hotspot,inversion,saver,dark,work,night,reverse,reduce_brightness,qr_code_scanner,onehanded,color_correction,dream,font_scaling,record_issue,hearing_devices,notes,desktopeffects
     </string>
 
     <!-- The tiles to display in QuickSettings -->
@@ -174,6 +170,9 @@
 
     <!-- Minimum display time for a heads up notification if throttling is enabled, in milliseconds. -->
     <integer name="heads_up_notification_minimum_time_with_throttling">500</integer>
+
+    <!-- Minimum display time for a heads up notification that was shown from a user action (like tapping on a different part of the UI), in milliseconds. -->
+    <integer name="heads_up_notification_minimum_time_for_user_initiated">3000</integer>
 
     <!-- Display time for a sticky heads up notification, in milliseconds. -->
     <integer name="sticky_heads_up_notification_time">60000</integer>
@@ -498,7 +497,16 @@
     <!-- Smartspace trampoline activity that is used when the user taps smartspace. -->
     <string name="config_smartspaceTrampolineActivityComponent" translatable="false">com.google.android.apps.gsa.staticplugins.opa.smartspace.ExportedSmartspaceTrampolineActivity</string>
 
-    <!-- Screenshot editing default activity.  Must handle ACTION_EDIT image/png intents.
+    <!-- Screenshot editing default activity. Will only be used if the provided component exists and
+      is enabled.
+
+      Must handle ACTION_EDIT image/png intents.
+      Blank falls back to config_screenshotEditor.
+      This name is in the ComponentName flattened format (package/class)  -->
+    <string name="config_preferredScreenshotEditor" translatable="false"></string>
+
+    <!-- Screenshot editing activity used if config_preferredScreenshotEditor is not available.
+     Must handle ACTION_EDIT image/png intents.
          Blank sends the user to the Chooser first.
          This name is in the ComponentName flattened format (package/class)  -->
     <string name="config_screenshotEditor" translatable="false"></string>
@@ -1103,4 +1111,17 @@
     Whether the user switching can only happen by logging out and going through the system user (login screen).
     -->
     <bool name="config_userSwitchingMustGoThroughLoginScreen">false</bool>
+
+    <!-- The dream component used when the device is low light environment. -->
+    <string translatable="false" name="config_lowLightDreamComponent"/>
+
+    <!-- Configuration for wallpaper focal area -->
+    <bool name="center_align_focal_area_shape">false</bool>
+    <string name="focal_area_target" translatable="false" />
+
+    <!-- Configuration to swipe to open glanceable hub -->
+    <bool name="config_swipeToOpenGlanceableHub">false</bool>
+
+    <!-- Whether or not to show the UMO on the glanceable hub when media is playing. -->
+    <bool name="config_showUmoOnHub">false</bool>
 </resources>

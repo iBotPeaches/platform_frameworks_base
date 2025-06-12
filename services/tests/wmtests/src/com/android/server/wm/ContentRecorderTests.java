@@ -31,6 +31,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
+import static com.android.server.display.feature.flags.Flags.FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -51,6 +52,7 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.media.projection.StopReason;
 import android.os.IBinder;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.view.ContentRecordingSession;
 import android.view.Display;
@@ -556,6 +558,22 @@ public class ContentRecorderTests extends WindowTestsBase {
 
         // THEN recording does not start.
         assertThat(mContentRecorder.isCurrentlyRecording()).isTrue();
+    }
+
+    @EnableFlags(FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT)
+    @Test
+    public void testStartRecording_shouldShowSystemDecorations_recordingNotStarted() {
+        defaultInit();
+        mContentRecorder.setContentRecordingSession(mTaskSession);
+
+        spyOn(mVirtualDisplayContent.mDisplay);
+        doReturn(true).when(mVirtualDisplayContent.mDisplay).canHostTasks();
+
+        // WHEN a recording tries to start.
+        mContentRecorder.updateRecording();
+
+        // THEN recording does not start.
+        assertThat(mContentRecorder.isCurrentlyRecording()).isFalse();
     }
 
     @Test

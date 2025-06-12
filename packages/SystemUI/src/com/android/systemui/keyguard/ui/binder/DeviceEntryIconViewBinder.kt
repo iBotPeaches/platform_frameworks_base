@@ -29,7 +29,8 @@ import androidx.core.view.isInvisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.systemui.common.ui.view.LongPressHandlingView
+import com.android.systemui.Flags
+import com.android.systemui.common.ui.view.TouchHandlingView
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryBackgroundViewModel
 import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryForegroundViewModel
@@ -39,19 +40,19 @@ import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.VibratorHelper
 import com.android.systemui.util.kotlin.DisposableHandles
+import com.google.android.msdl.data.model.MSDLToken
+import com.google.android.msdl.domain.MSDLPlayer
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DisposableHandle
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import com.android.app.tracing.coroutines.launchTraced as launch
 
-@ExperimentalCoroutinesApi
 object DeviceEntryIconViewBinder {
     private const val TAG = "DeviceEntryIconViewBinder"
 
     /**
      * Updates UI for:
      * - device entry containing view (parent view for the below views)
-     *     - long-press handling view (transparent, no UI)
+     *     - touch handling view (transparent, no UI)
      *     - foreground icon view (lock/unlock/fingerprint)
      *     - background view (optional)
      */
@@ -59,20 +60,22 @@ object DeviceEntryIconViewBinder {
     @JvmStatic
     fun bind(
         applicationScope: CoroutineScope,
+        mainImmediateDispatcher: CoroutineDispatcher,
         view: DeviceEntryIconView,
         viewModel: DeviceEntryIconViewModel,
         fgViewModel: DeviceEntryForegroundViewModel,
         bgViewModel: DeviceEntryBackgroundViewModel,
         falsingManager: FalsingManager,
         vibratorHelper: VibratorHelper,
+        msdlPlayer: MSDLPlayer,
         overrideColor: Color? = null,
     ): DisposableHandle {
         val disposables = DisposableHandles()
-        val longPressHandlingView = view.longPressHandlingView
+        val touchHandlingView = view.touchHandlingView
         val fgIconView = view.iconView
         val bgView = view.bgView
-        longPressHandlingView.listener =
-            object : LongPressHandlingView.Listener {
+        touchHandlingView.listener =
+            object : TouchHandlingView.Listener {
                 override fun onLongPressDetected(
                     view: View,
                     x: Int,
@@ -89,11 +92,39 @@ object DeviceEntryIconViewBinder {
                         )
                         return
                     }
-                    vibratorHelper.performHapticFeedback(view, HapticFeedbackConstants.CONFIRM)
+                    if (!Flags.msdlFeedback()) {
+                        vibratorHelper.performHapticFeedback(view, HapticFeedbackConstants.CONFIRM)
+                    }
                     applicationScope.launch {
                         view.clearFocus()
                         view.clearAccessibilityFocus()
                         viewModel.onUserInteraction()
+                    }
+                }
+            }
+
+        disposables +=
+            view.repeatWhenAttached(mainImmediateDispatcher) {
+                repeatOnLifecycle(Lifecycle.State.CREATED) {
+                    launch("$TAG#viewModel.useBackgroundProtection") {
+                        viewModel.useBackgroundProtection.collect { useBackgroundProtection ->
+                            if (useBackgroundProtection) {
+                                bgView.visibility = View.VISIBLE
+                            } else {
+                                bgView.visibility = View.GONE
+                            }
+                        }
+                    }
+                    launch("$TAG#viewModel.burnInOffsets") {
+                        viewModel.burnInOffsets.collect { burnInOffsets ->
+                            view.translationX = burnInOffsets.x.toFloat()
+                            view.translationY = burnInOffsets.y.toFloat()
+                            view.aodFpDrawable.progress = burnInOffsets.progress
+                        }
+                    }
+
+                    launch("$TAG#viewModel.deviceEntryViewAlpha") {
+                        viewModel.deviceEntryViewAlpha.collect { alpha -> view.alpha = alpha }
                     }
                 }
             }
@@ -106,18 +137,18 @@ object DeviceEntryIconViewBinder {
                 repeatOnLifecycle(Lifecycle.State.CREATED) {
                     launch("$TAG#viewModel.isVisible") {
                         viewModel.isVisible.collect { isVisible ->
-                            longPressHandlingView.isInvisible = !isVisible
+                            touchHandlingView.isInvisible = !isVisible
                             view.isClickable = isVisible
                         }
                     }
                     launch("$TAG#viewModel.isLongPressEnabled") {
                         viewModel.isLongPressEnabled.collect { isEnabled ->
-                            longPressHandlingView.setLongPressHandlingEnabled(isEnabled)
+                            touchHandlingView.setLongPressHandlingEnabled(isEnabled)
                         }
                     }
                     launch("$TAG#viewModel.isUdfpsSupported") {
                         viewModel.isUdfpsSupported.collect { udfpsSupported ->
-                            longPressHandlingView.longPressDuration =
+                            touchHandlingView.longPressDuration =
                                 if (udfpsSupported) {
                                     {
                                         view.resources
@@ -140,10 +171,23 @@ object DeviceEntryIconViewBinder {
                             view.accessibilityHintType = hint
                             if (hint != DeviceEntryIconView.AccessibilityHintType.NONE) {
                                 view.setOnClickListener {
-                                    vibratorHelper.performHapticFeedback(
-                                        view,
-                                        HapticFeedbackConstants.CONFIRM,
-                                    )
+                                    if (Flags.msdlFeedback()) {
+                                        val token =
+                                            if (
+                                                hint ==
+                                                    DeviceEntryIconView.AccessibilityHintType.ENTER
+                                            ) {
+                                                MSDLToken.UNLOCK
+                                            } else {
+                                                MSDLToken.LONG_PRESS
+                                            }
+                                        msdlPlayer.playToken(token)
+                                    } else {
+                                        vibratorHelper.performHapticFeedback(
+                                            view,
+                                            HapticFeedbackConstants.CONFIRM,
+                                        )
+                                    }
                                     applicationScope.launch {
                                         view.clearFocus()
                                         view.clearAccessibilityFocus()
@@ -155,25 +199,15 @@ object DeviceEntryIconViewBinder {
                             }
                         }
                     }
-                    launch("$TAG#viewModel.useBackgroundProtection") {
-                        viewModel.useBackgroundProtection.collect { useBackgroundProtection ->
-                            if (useBackgroundProtection) {
-                                bgView.visibility = View.VISIBLE
-                            } else {
-                                bgView.visibility = View.GONE
+
+                    if (Flags.msdlFeedback()) {
+                        launch("$TAG#viewModel.isPrimaryBouncerShowing") {
+                            viewModel.deviceDidNotEnterFromDeviceEntryIcon.collect {
+                                // If we did not enter from the icon, we did not play device entry
+                                // haptics. Therefore, we play the token for long-press instead.
+                                msdlPlayer.playToken(MSDLToken.LONG_PRESS)
                             }
                         }
-                    }
-                    launch("$TAG#viewModel.burnInOffsets") {
-                        viewModel.burnInOffsets.collect { burnInOffsets ->
-                            view.translationX = burnInOffsets.x.toFloat()
-                            view.translationY = burnInOffsets.y.toFloat()
-                            view.aodFpDrawable.progress = burnInOffsets.progress
-                        }
-                    }
-
-                    launch("$TAG#viewModel.deviceEntryViewAlpha") {
-                        viewModel.deviceEntryViewAlpha.collect { alpha -> view.alpha = alpha }
                     }
                 }
             }
@@ -215,7 +249,7 @@ object DeviceEntryIconViewBinder {
             }
 
         disposables +=
-            bgView.repeatWhenAttached {
+            bgView.repeatWhenAttached(mainImmediateDispatcher) {
                 repeatOnLifecycle(Lifecycle.State.CREATED) {
                     launch("$TAG#bgViewModel.alpha") {
                         bgViewModel.alpha.collect { alpha -> bgView.alpha = alpha }

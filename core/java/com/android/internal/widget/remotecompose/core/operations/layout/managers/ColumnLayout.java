@@ -28,19 +28,21 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentStartOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.LayoutComponent;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.ComponentMeasure;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.MeasurePass;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.Size;
+import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.HeightInModifierOperation;
+import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ScrollModifierOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.utils.DebugLog;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
 /**
  * Simple Column layout implementation - also supports weight and horizontal/vertical positioning
  */
-public class ColumnLayout extends LayoutManager implements ComponentStartOperation {
+public class ColumnLayout extends LayoutManager {
     public static final int START = 1;
     public static final int CENTER = 2;
     public static final int END = 3;
@@ -94,7 +96,8 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
     @NonNull
     @Override
     public String toString() {
-        return "COLUMN ["
+        return getSerializedName()
+                + " ["
                 + mComponentId
                 + ":"
                 + mAnimationId
@@ -136,7 +139,7 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
         for (Component c : mChildrenComponents) {
             c.measure(context, 0f, maxWidth, 0f, currentMaxHeight, measure);
             ComponentMeasure m = measure.get(c);
-            if (m.getVisibility() != Visibility.GONE) {
+            if (!m.isGone()) {
                 size.setWidth(Math.max(size.getWidth(), m.getW()));
                 size.setHeight(size.getHeight() + m.getH());
                 visibleChildrens++;
@@ -162,7 +165,7 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
         for (Component child : mChildrenComponents) {
             child.measure(context, minWidth, maxWidth, minHeight, mh, measure);
             ComponentMeasure m = measure.get(child);
-            if (m.getVisibility() != Visibility.GONE) {
+            if (!m.isGone()) {
                 mh -= m.getH();
             }
         }
@@ -170,11 +173,11 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
     }
 
     @Override
-    public float intrinsicHeight(@NonNull RemoteContext context) {
+    public float minIntrinsicHeight(@NonNull RemoteContext context) {
         float height = computeModifierDefinedHeight(context);
         float componentHeights = 0f;
         for (Component c : mChildrenComponents) {
-            componentHeights += c.intrinsicHeight(context);
+            componentHeights += c.minIntrinsicHeight(context);
         }
         return Math.max(height, componentHeights);
     }
@@ -214,40 +217,63 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
             selfHeight =
                     mComponentModifiers.getVerticalScrollDimension() - mPaddingTop - mPaddingBottom;
         }
-        boolean hasWeights = false;
-        float totalWeights = 0f;
-        for (Component child : mChildrenComponents) {
-            ComponentMeasure childMeasure = measure.get(child);
-            if (childMeasure.getVisibility() == Visibility.GONE) {
-                continue;
-            }
-            if (child instanceof LayoutComponent
-                    && ((LayoutComponent) child).getHeightModifier().hasWeight()) {
-                hasWeights = true;
-                totalWeights += ((LayoutComponent) child).getHeightModifier().getValue();
-            } else {
-                childrenHeight += childMeasure.getH();
-            }
-        }
-        if (hasWeights) {
-            float availableSpace = selfHeight - childrenHeight;
+        boolean checkWeights = true;
+        while (checkWeights) {
+            checkWeights = false;
+            childrenWidth = 0f;
+            childrenHeight = 0f;
+            boolean hasWeights = false;
+            float totalWeights = 0f;
             for (Component child : mChildrenComponents) {
+                ComponentMeasure childMeasure = measure.get(child);
+                if (childMeasure.isGone()) {
+                    continue;
+                }
                 if (child instanceof LayoutComponent
                         && ((LayoutComponent) child).getHeightModifier().hasWeight()) {
-                    ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
-                        continue;
-                    }
-                    float weight = ((LayoutComponent) child).getHeightModifier().getValue();
-                    childMeasure.setH((weight * availableSpace) / totalWeights);
-                    child.measure(
-                            context,
-                            childMeasure.getW(),
-                            childMeasure.getW(),
-                            childMeasure.getH(),
-                            childMeasure.getH(),
-                            measure);
+                    hasWeights = true;
+                    totalWeights += ((LayoutComponent) child).getHeightModifier().getValue();
+                } else {
+                    childrenHeight += childMeasure.getH();
                 }
+            }
+            if (hasWeights) {
+                float availableSpace = selfHeight - childrenHeight;
+                for (Component child : mChildrenComponents) {
+                    if (child instanceof LayoutComponent
+                            && ((LayoutComponent) child).getHeightModifier().hasWeight()) {
+                        ComponentMeasure childMeasure = measure.get(child);
+                        if (childMeasure.isGone()) {
+                            continue;
+                        }
+                        float weight = ((LayoutComponent) child).getHeightModifier().getValue();
+                        float childHeight = (weight * availableSpace) / totalWeights;
+                        HeightInModifierOperation heightInConstraints =
+                                ((LayoutComponent) child).getHeightModifier().getHeightIn();
+                        if (heightInConstraints != null) {
+                            float min = heightInConstraints.getMin();
+                            float max = heightInConstraints.getMax();
+                            if (min != -1) {
+                                childHeight = Math.max(min, childHeight);
+                            }
+                            if (max != -1) {
+                                childHeight = Math.min(max, childHeight);
+                            }
+                        }
+                        childMeasure.setH(childHeight);
+                        child.measure(
+                                context,
+                                childMeasure.getW(),
+                                childMeasure.getW(),
+                                childMeasure.getH(),
+                                childMeasure.getH(),
+                                measure);
+                    }
+                }
+            }
+
+            if (applyVisibility(selfWidth, selfHeight, measure) && hasWeights) {
+                checkWeights = true;
             }
         }
 
@@ -255,7 +281,7 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
         int visibleChildrens = 0;
         for (Component child : mChildrenComponents) {
             ComponentMeasure childMeasure = measure.get(child);
-            if (childMeasure.getVisibility() == Visibility.GONE) {
+            if (childMeasure.isGone()) {
                 continue;
             }
             childrenWidth = Math.max(childrenWidth, childMeasure.getW());
@@ -282,17 +308,22 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
             case SPACE_BETWEEN:
                 for (Component child : mChildrenComponents) {
                     ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
+                    if (childMeasure.isGone()) {
                         continue;
                     }
                     total += childMeasure.getH();
                 }
-                verticalGap = (selfHeight - total) / (visibleChildrens - 1);
+                if (visibleChildrens > 1) {
+                    verticalGap = (selfHeight - total) / (visibleChildrens - 1);
+                } else {
+                    // we center the element
+                    ty = (selfHeight - childrenHeight) / 2f;
+                }
                 break;
             case SPACE_EVENLY:
                 for (Component child : mChildrenComponents) {
                     ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
+                    if (childMeasure.isGone()) {
                         continue;
                     }
                     total += childMeasure.getH();
@@ -303,7 +334,7 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
             case SPACE_AROUND:
                 for (Component child : mChildrenComponents) {
                     ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
+                    if (childMeasure.isGone()) {
                         continue;
                     }
                     total += childMeasure.getH();
@@ -328,7 +359,7 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
             }
             childMeasure.setX(tx);
             childMeasure.setY(ty);
-            if (childMeasure.getVisibility() == Visibility.GONE) {
+            if (childMeasure.isGone()) {
                 continue;
             }
             ty += childMeasure.getH();
@@ -340,6 +371,17 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
             ty += mSpacedBy;
         }
         DebugLog.e();
+    }
+
+    @Override
+    public void getLocationInWindow(@NonNull float[] value, boolean forSelf) {
+        super.getLocationInWindow(value, forSelf);
+
+        if (!forSelf && mVerticalScrollDelegate instanceof ScrollModifierOperation) {
+            ScrollModifierOperation smo = (ScrollModifierOperation) mVerticalScrollDelegate;
+
+            value[1] += smo.getScrollY();
+        }
     }
 
     /**
@@ -361,6 +403,16 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
         return Operations.LAYOUT_COLUMN;
     }
 
+    /**
+     * Write the operation to the buffer
+     *
+     * @param buffer wire buffer
+     * @param componentId component id
+     * @param animationId animation id (-1 if not set)
+     * @param horizontalPositioning horizontal positioning rules
+     * @param verticalPositioning vertical positioning rules
+     * @param spacedBy spaced by value
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int componentId,
@@ -368,7 +420,7 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
             int horizontalPositioning,
             int verticalPositioning,
             float spacedBy) {
-        buffer.start(Operations.LAYOUT_COLUMN);
+        buffer.start(id());
         buffer.writeInt(componentId);
         buffer.writeInt(animationId);
         buffer.writeInt(horizontalPositioning);
@@ -444,5 +496,36 @@ public class ColumnLayout extends LayoutManager implements ComponentStartOperati
                 mHorizontalPositioning,
                 mVerticalPositioning,
                 mSpacedBy);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        super.serialize(serializer);
+        serializer.add("verticalPositioning", getPositioningString(mVerticalPositioning));
+        serializer.add("horizontalPositioning", getPositioningString(mHorizontalPositioning));
+        serializer.add("spacedBy", mSpacedBy);
+    }
+
+    private String getPositioningString(int pos) {
+        switch (pos) {
+            case START:
+                return "START";
+            case CENTER:
+                return "CENTER";
+            case END:
+                return "END";
+            case TOP:
+                return "TOP";
+            case BOTTOM:
+                return "BOTTOM";
+            case SPACE_BETWEEN:
+                return "SPACE_BETWEEN";
+            case SPACE_EVENLY:
+                return "SPACE_EVENLY";
+            case SPACE_AROUND:
+                return "SPACE_AROUND";
+            default:
+                return "NONE";
+        }
     }
 }

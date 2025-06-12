@@ -27,10 +27,10 @@ import com.android.systemui.qs.external.CustomTileStatePersister
 import com.android.systemui.qs.external.PackageManagerAdapter
 import com.android.systemui.qs.external.TileServiceKey
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.impl.custom.commons.copy
-import com.android.systemui.qs.tiles.impl.custom.commons.setFrom
-import com.android.systemui.qs.tiles.impl.custom.data.entity.CustomTileDefaults
-import com.android.systemui.qs.tiles.impl.di.QSTileScope
+import com.android.systemui.qs.tiles.base.shared.model.QSTileScope
+import com.android.systemui.qs.tiles.impl.custom.data.model.CustomTileDefaults
+import com.android.systemui.qs.tiles.impl.custom.shared.model.copy
+import com.android.systemui.qs.tiles.impl.custom.shared.model.setFrom
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.channels.BufferOverflow
@@ -78,11 +78,7 @@ interface CustomTileRepository {
      * [user] differs from the cached one. [isPersistable] tile will be persisted to be possibly
      * loaded when the [restoreForTheUserIfNeeded].
      */
-    suspend fun updateWithTile(
-        user: UserHandle,
-        newTile: Tile,
-        isPersistable: Boolean,
-    )
+    suspend fun updateWithTile(user: UserHandle, newTile: Tile, isPersistable: Boolean)
 
     /**
      * Updates tile with the values from [defaults]. Overwrites the current cache when [user]
@@ -114,11 +110,7 @@ constructor(
         if (isPersistable && getCurrentTileWithUser()?.user != user) {
             withContext(backgroundContext) {
                 customTileStatePersister.readState(user.getKey())?.let {
-                    updateWithTile(
-                        user,
-                        it,
-                        true,
-                    )
+                    updateWithTile(user, it, true)
                 }
             }
         }
@@ -137,11 +129,8 @@ constructor(
         }
     }
 
-    override suspend fun updateWithTile(
-        user: UserHandle,
-        newTile: Tile,
-        isPersistable: Boolean,
-    ) = updateTile(user, isPersistable) { setFrom(newTile) }
+    override suspend fun updateWithTile(user: UserHandle, newTile: Tile, isPersistable: Boolean) =
+        updateTile(user, isPersistable) { setFrom(newTile) }
 
     override suspend fun updateWithDefaults(
         user: UserHandle,
@@ -182,7 +171,7 @@ constructor(
                     packageManagerAdapter.getServiceInfo(
                         tileSpec.componentName,
                         META_DATA_QUERY_FLAGS,
-                        getCurrentTileWithUser()?.user?.identifier ?: UserHandle.USER_CURRENT
+                        getCurrentTileWithUser()?.user?.identifier ?: UserHandle.USER_CURRENT,
                     )
                 info?.metaData?.getBoolean(TileService.META_DATA_TOGGLEABLE_TILE, false) == true
             } catch (e: RemoteException) {
@@ -193,7 +182,7 @@ constructor(
     private suspend fun updateTile(
         user: UserHandle,
         isPersistable: Boolean,
-        update: Tile.() -> Unit
+        update: Tile.() -> Unit,
     ): Unit =
         tileUpdateMutex.withLock {
             val currentTileWithUser = getCurrentTileWithUser()

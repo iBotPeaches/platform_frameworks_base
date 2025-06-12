@@ -16,14 +16,18 @@
 
 package com.android.packageinstaller.v2.ui.fragments;
 
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_MESSAGE;
+
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.fragment.app.DialogFragment;
+
 import com.android.packageinstaller.R;
 import com.android.packageinstaller.v2.model.InstallStage;
 import com.android.packageinstaller.v2.ui.InstallActionListener;
@@ -31,11 +35,25 @@ import com.android.packageinstaller.v2.ui.InstallActionListener;
 public class SimpleErrorFragment extends DialogFragment {
 
     private static final String LOG_TAG = SimpleErrorFragment.class.getSimpleName();
-    private final int mMessageResId;
+    private int mMessageResId;
     private InstallActionListener mInstallActionListener;
 
-    public SimpleErrorFragment(int messageResId) {
-        mMessageResId = messageResId;
+    public SimpleErrorFragment() {
+        // Required for DialogFragment
+    }
+
+    /**
+     * Create a new instance of this fragment with necessary data set as fragment arguments
+     *
+     * @return an instance of the fragment
+     */
+    public static SimpleErrorFragment newInstance(int messageResId) {
+        Bundle args = new Bundle();
+        args.putInt(ARGS_MESSAGE, messageResId);
+
+        SimpleErrorFragment fragment = new SimpleErrorFragment();
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @Override
@@ -47,6 +65,8 @@ public class SimpleErrorFragment extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
+        mMessageResId = requireArguments().getInt(ARGS_MESSAGE);
+
         Log.i(LOG_TAG, "Creating " + LOG_TAG + "\n" +
             "Dialog message: " + requireContext().getString(mMessageResId));
         return new AlertDialog.Builder(requireContext())

@@ -25,11 +25,13 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.pipeline.shared.TilesUpgradePath
 import com.android.systemui.settings.userFileManager
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.repository.fakeUserRepository
 import com.android.systemui.user.data.repository.userRepository
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,11 +77,11 @@ class QSPreferencesRepositoryTest : SysuiTestCase() {
     @Test
     fun setLargeTilesSpecs_inSharedPreferences() {
         val setA = setOf("tileA", "tileB")
-        underTest.setLargeTilesSpecs(setA.toTileSpecs())
+        underTest.writeLargeTileSpecs(setA.toTileSpecs())
         assertThat(getLargeTilesSpecsFromSharedPreferences()).isEqualTo(setA)
 
         val setB = setOf("tileA", "tileB")
-        underTest.setLargeTilesSpecs(setB.toTileSpecs())
+        underTest.writeLargeTileSpecs(setB.toTileSpecs())
         assertThat(getLargeTilesSpecsFromSharedPreferences()).isEqualTo(setB)
     }
 
@@ -91,16 +93,204 @@ class QSPreferencesRepositoryTest : SysuiTestCase() {
 
                 fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
                 val setA = setOf("tileA", "tileB")
-                underTest.setLargeTilesSpecs(setA.toTileSpecs())
+                underTest.writeLargeTileSpecs(setA.toTileSpecs())
                 assertThat(getLargeTilesSpecsFromSharedPreferences()).isEqualTo(setA)
 
                 fakeUserRepository.setSelectedUserInfo(ANOTHER_USER)
                 val setB = setOf("tileA", "tileB")
-                underTest.setLargeTilesSpecs(setB.toTileSpecs())
+                underTest.writeLargeTileSpecs(setB.toTileSpecs())
                 assertThat(getLargeTilesSpecsFromSharedPreferences()).isEqualTo(setB)
 
                 fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
                 assertThat(getLargeTilesSpecsFromSharedPreferences()).isEqualTo(setA)
+            }
+        }
+
+    @Test
+    fun setUpgradePathFromSettings_noLargeTiles_tilesSet() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+                val tiles = setOf("tileA", "tileB").toTileSpecs()
+
+                assertThat(getSharedPreferences().contains(LARGE_TILES_SPECS_KEY)).isFalse()
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.ReadFromSettings(tiles),
+                    PRIMARY_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(tiles)
+            }
+        }
+
+    @Test
+    fun setUpgradePathFromSettings_alreadyLargeTiles_tilesNotSet() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(ANOTHER_USER)
+                setLargeTilesSpecsInSharedPreferences(setOf("tileC"))
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.ReadFromSettings(setOf("tileA").toTileSpecs()),
+                    ANOTHER_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(setOf("tileC").toTileSpecs())
+            }
+        }
+
+    @Test
+    fun setUpgradePathFromSettings_emptyLargeTiles_tilesNotSet() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(ANOTHER_USER)
+                setLargeTilesSpecsInSharedPreferences(emptySet())
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.ReadFromSettings(setOf("tileA").toTileSpecs()),
+                    ANOTHER_USER_ID,
+                )
+
+                assertThat(largeTiles).isEmpty()
+            }
+        }
+
+    @Test
+    fun setUpgradePathFromSettings_nonCurrentUser_tilesSetForCorrectUser() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.ReadFromSettings(setOf("tileA").toTileSpecs()),
+                    ANOTHER_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(defaultLargeTilesRepository.defaultLargeTiles)
+
+                fakeUserRepository.setSelectedUserInfo(ANOTHER_USER)
+                assertThat(largeTiles).isEqualTo(setOf("tileA").toTileSpecs())
+            }
+        }
+
+    @Test
+    fun setUpgradePath_afterDefaultRead_noSetOnRepository_initialTilesCorrect() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+
+                val currentLargeTiles = underTest.largeTilesSpecs.first()
+
+                assertThat(currentLargeTiles).isNotEmpty()
+
+                val tiles = setOf("tileA", "tileB")
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.ReadFromSettings(tiles.toTileSpecs()),
+                    PRIMARY_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(tiles.toTileSpecs())
+            }
+        }
+
+    @Test
+    fun setUpgradePath_afterDefaultRead_largeTilesSetOnRepository_initialTilesCorrect() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+
+                val currentLargeTiles = underTest.largeTilesSpecs.first()
+
+                assertThat(currentLargeTiles).isNotEmpty()
+
+                underTest.writeLargeTileSpecs(setOf(TileSpec.create("tileC")))
+
+                val tiles = setOf("tileA", "tileB")
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.ReadFromSettings(tiles.toTileSpecs()),
+                    PRIMARY_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(setOf(TileSpec.create("tileC")))
+            }
+        }
+
+    @Test
+    fun setTilesRestored_noLargeTiles_tilesSet() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+                val tiles = setOf("tileA", "tileB").toTileSpecs()
+
+                assertThat(getSharedPreferences().contains(LARGE_TILES_SPECS_KEY)).isFalse()
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.RestoreFromBackup(tiles),
+                    PRIMARY_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(tiles)
+            }
+        }
+
+    @Test
+    fun setDefaultTilesInitial_defaultSetLarge() =
+        with(kosmos) {
+            testScope.runTest {
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.DefaultSet,
+                    PRIMARY_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(defaultLargeTilesRepository.defaultLargeTiles)
+            }
+        }
+
+    @Test
+    fun setTilesRestored_afterDefaultSet_tilesSet() =
+        with(kosmos) {
+            testScope.runTest {
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.DefaultSet,
+                    PRIMARY_USER_ID,
+                )
+                val largeTiles by collectLastValue(underTest.largeTilesSpecs)
+
+                fakeUserRepository.setUserInfos(USERS)
+                fakeUserRepository.setSelectedUserInfo(PRIMARY_USER)
+                val tiles = setOf("tileA", "tileB").toTileSpecs()
+
+                underTest.setInitialOrUpgradeLargeTiles(
+                    TilesUpgradePath.RestoreFromBackup(tiles),
+                    PRIMARY_USER_ID,
+                )
+
+                assertThat(largeTiles).isEqualTo(tiles)
             }
         }
 
@@ -121,20 +311,11 @@ class QSPreferencesRepositoryTest : SysuiTestCase() {
         return getSharedPreferences().getStringSet(LARGE_TILES_SPECS_KEY, emptySet())!!
     }
 
-    private fun setShowLabelsInSharedPreferences(value: Boolean) {
-        getSharedPreferences().edit().putBoolean(ICON_LABELS_KEY, value).apply()
-    }
-
-    private fun getShowLabelsFromSharedPreferences(defaultValue: Boolean): Boolean {
-        return getSharedPreferences().getBoolean(ICON_LABELS_KEY, defaultValue)
-    }
-
     private fun Set<String>.toTileSpecs(): Set<TileSpec> {
         return map { TileSpec.create(it) }.toSet()
     }
 
     companion object {
-        private const val ICON_LABELS_KEY = "show_icon_labels"
         private const val LARGE_TILES_SPECS_KEY = "large_tiles_specs"
         private const val PRIMARY_USER_ID = 0
         private val PRIMARY_USER = UserInfo(PRIMARY_USER_ID, "user 0", UserInfo.FLAG_MAIN)

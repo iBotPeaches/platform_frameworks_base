@@ -20,8 +20,8 @@ import static com.android.server.utils.PriorityDump.dump;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertSame;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.verify;
 
 import android.platform.test.annotations.Presubmit;

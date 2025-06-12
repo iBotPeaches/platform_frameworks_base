@@ -74,8 +74,9 @@ public class DateFormatTest {
         DateFormatSymbols dfs = DateFormat.getIcuDateFormatSymbols(Locale.US);
         assertEquals("AM", dfs.getAmPmStrings()[0]);
         assertEquals("PM", dfs.getAmPmStrings()[1]);
-        assertEquals("a", dfs.getAmpmNarrowStrings()[0]);
-        assertEquals("p", dfs.getAmpmNarrowStrings()[1]);
+        // getAmpmNarrowStrings() is a @CorePlatformApi that we should stop using in framework
+        // assertEquals("a", dfs.getAmpmNarrowStrings()[0]);
+        // assertEquals("p", dfs.getAmpmNarrowStrings()[1]);
     }
 
     @Test

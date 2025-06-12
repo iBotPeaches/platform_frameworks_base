@@ -32,24 +32,25 @@ import com.android.systemui.qs.tiles.HotspotTile
 import com.android.systemui.qs.tiles.InternetTile
 import com.android.systemui.qs.tiles.InternetTileNewImpl
 import com.android.systemui.qs.tiles.NfcTile
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
-import com.android.systemui.qs.tiles.base.viewmodel.QSTileViewModelFactory
-import com.android.systemui.qs.tiles.impl.airplane.domain.AirplaneModeMapper
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTilePolicy
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.dialog.InternetDetailsViewModel
 import com.android.systemui.qs.tiles.impl.airplane.domain.interactor.AirplaneModeTileDataInteractor
 import com.android.systemui.qs.tiles.impl.airplane.domain.interactor.AirplaneModeTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.airplane.domain.model.AirplaneModeTileModel
-import com.android.systemui.qs.tiles.impl.internet.domain.InternetTileMapper
+import com.android.systemui.qs.tiles.impl.airplane.ui.mapper.AirplaneModeTileMapper
 import com.android.systemui.qs.tiles.impl.internet.domain.interactor.InternetTileDataInteractor
 import com.android.systemui.qs.tiles.impl.internet.domain.interactor.InternetTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.internet.domain.model.InternetTileModel
-import com.android.systemui.qs.tiles.impl.saver.domain.DataSaverTileMapper
+import com.android.systemui.qs.tiles.impl.internet.ui.mapper.InternetTileMapper
 import com.android.systemui.qs.tiles.impl.saver.domain.interactor.DataSaverTileDataInteractor
 import com.android.systemui.qs.tiles.impl.saver.domain.interactor.DataSaverTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.saver.domain.model.DataSaverTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTilePolicy
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.impl.saver.ui.mapper.DataSaverTileMapper
 import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
@@ -160,15 +161,17 @@ interface ConnectivityModule {
         @StringKey(AIRPLANE_MODE_TILE_SPEC)
         fun provideAirplaneModeTileViewModel(
             factory: QSTileViewModelFactory.Static<AirplaneModeTileModel>,
-            mapper: AirplaneModeMapper,
+            mapper: AirplaneModeTileMapper,
             stateInteractor: AirplaneModeTileDataInteractor,
-            userActionInteractor: AirplaneModeTileUserActionInteractor
+            userActionInteractor: AirplaneModeTileUserActionInteractor,
+            internetDetailsViewModelFactory: InternetDetailsViewModel.Factory,
         ): QSTileViewModel =
             factory.create(
                 TileSpec.create(AIRPLANE_MODE_TILE_SPEC),
                 userActionInteractor,
                 stateInteractor,
                 mapper,
+                internetDetailsViewModelFactory.create(),
             )
 
         @Provides
@@ -194,7 +197,7 @@ interface ConnectivityModule {
             factory: QSTileViewModelFactory.Static<DataSaverTileModel>,
             mapper: DataSaverTileMapper,
             stateInteractor: DataSaverTileDataInteractor,
-            userActionInteractor: DataSaverTileUserActionInteractor
+            userActionInteractor: DataSaverTileUserActionInteractor,
         ): QSTileViewModel =
             factory.create(
                 TileSpec.create(DATA_SAVER_TILE_SPEC),
@@ -226,13 +229,15 @@ interface ConnectivityModule {
             factory: QSTileViewModelFactory.Static<InternetTileModel>,
             mapper: InternetTileMapper,
             stateInteractor: InternetTileDataInteractor,
-            userActionInteractor: InternetTileUserActionInteractor
+            userActionInteractor: InternetTileUserActionInteractor,
+            internetDetailsViewModelFactory: InternetDetailsViewModel.Factory,
         ): QSTileViewModel =
             factory.create(
                 TileSpec.create(INTERNET_TILE_SPEC),
                 userActionInteractor,
                 stateInteractor,
                 mapper,
+                internetDetailsViewModelFactory.create(),
             )
 
         @Provides

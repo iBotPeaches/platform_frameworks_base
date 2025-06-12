@@ -36,6 +36,7 @@ class NotificationShadeWindowState(
     @JvmField var notificationShadeFocusable: Boolean = false,
     @JvmField var bouncerShowing: Boolean = false,
     @JvmField var glanceableHubShowing: Boolean = false,
+    @JvmField var glanceableHubOrientationAware: Boolean = false,
     @JvmField var keyguardFadingAway: Boolean = false,
     @JvmField var keyguardGoingAway: Boolean = false,
     @JvmField var qsExpanded: Boolean = false,
@@ -81,6 +82,7 @@ class NotificationShadeWindowState(
             notificationShadeFocusable.toString(),
             bouncerShowing.toString(),
             glanceableHubShowing.toString(),
+            glanceableHubOrientationAware.toString(),
             keyguardFadingAway.toString(),
             keyguardGoingAway.toString(),
             qsExpanded.toString(),
@@ -122,6 +124,7 @@ class NotificationShadeWindowState(
             panelExpanded: Boolean,
             notificationShadeFocusable: Boolean,
             glanceableHubShowing: Boolean,
+            glanceableHubOrientationAware: Boolean,
             bouncerShowing: Boolean,
             keyguardFadingAway: Boolean,
             keyguardGoingAway: Boolean,
@@ -153,6 +156,7 @@ class NotificationShadeWindowState(
                 this.shadeOrQsExpanded = panelExpanded
                 this.notificationShadeFocusable = notificationShadeFocusable
                 this.glanceableHubShowing = glanceableHubShowing
+                this.glanceableHubOrientationAware = glanceableHubOrientationAware
                 this.bouncerShowing = bouncerShowing
                 this.keyguardFadingAway = keyguardFadingAway
                 this.keyguardGoingAway = keyguardGoingAway
@@ -202,6 +206,7 @@ class NotificationShadeWindowState(
                 "panelExpanded",
                 "notificationShadeFocusable",
                 "glanceableHubShowing",
+                "glanceableHubOrientationAware",
                 "bouncerShowing",
                 "keyguardFadingAway",
                 "keyguardGoingAway",
@@ -223,7 +228,7 @@ class NotificationShadeWindowState(
                 "dozing",
                 "scrimsVisibility",
                 "backgroundBlurRadius",
-                "communalVisible"
+                "communalVisible",
             )
     }
 }

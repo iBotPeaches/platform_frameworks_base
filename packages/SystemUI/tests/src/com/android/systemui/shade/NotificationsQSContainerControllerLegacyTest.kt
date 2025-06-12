@@ -16,7 +16,6 @@
 
 package com.android.systemui.shade
 
-import android.platform.test.annotations.DisableFlags
 import android.testing.AndroidTestingRunner
 import android.testing.TestableLooper
 import android.view.View
@@ -27,15 +26,14 @@ import androidx.annotation.IdRes
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.test.filters.SmallTest
-import com.android.systemui.Flags.FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.fragments.FragmentHostManager
 import com.android.systemui.fragments.FragmentService
 import com.android.systemui.navigationbar.NavigationModeController
 import com.android.systemui.navigationbar.NavigationModeController.ModeChangedListener
 import com.android.systemui.plugins.qs.QS
-import com.android.systemui.recents.OverviewProxyService
-import com.android.systemui.recents.OverviewProxyService.OverviewProxyListener
+import com.android.systemui.recents.LauncherProxyService
+import com.android.systemui.recents.LauncherProxyService.LauncherProxyListener
 import com.android.systemui.res.R
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController
@@ -65,10 +63,7 @@ import org.mockito.Mockito.reset
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 
-/**
- * Uses Flags.KEYGUARD_STATUS_VIEW_MIGRATE_NSSL set to false. If all goes well, this set of tests
- * will be deleted.
- */
+/** NotificationsQSContainerController tests */
 @RunWith(AndroidTestingRunner::class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 @SmallTest
@@ -76,7 +71,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
 
     private val view = mock<NotificationsQuickSettingsContainer>()
     private val navigationModeController = mock<NavigationModeController>()
-    private val overviewProxyService = mock<OverviewProxyService>()
+    private val mLauncherProxyService = mock<LauncherProxyService>()
     private val shadeHeaderController = mock<ShadeHeaderController>()
     private val shadeInteractor = mock<ShadeInteractor>()
     private val fragmentService = mock<FragmentService>()
@@ -86,7 +81,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
     private val largeScreenHeaderHelper = mock<LargeScreenHeaderHelper>()
 
     @Captor lateinit var navigationModeCaptor: ArgumentCaptor<ModeChangedListener>
-    @Captor lateinit var taskbarVisibilityCaptor: ArgumentCaptor<OverviewProxyListener>
+    @Captor lateinit var taskbarVisibilityCaptor: ArgumentCaptor<LauncherProxyListener>
     @Captor lateinit var windowInsetsCallbackCaptor: ArgumentCaptor<Consumer<WindowInsets>>
     @Captor lateinit var constraintSetCaptor: ArgumentCaptor<ConstraintSet>
     @Captor lateinit var attachStateListenerCaptor: ArgumentCaptor<View.OnAttachStateChangeListener>
@@ -94,7 +89,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
     lateinit var underTest: NotificationsQSContainerController
 
     private lateinit var navigationModeCallback: ModeChangedListener
-    private lateinit var taskbarVisibilityCallback: OverviewProxyListener
+    private lateinit var taskbarVisibilityCallback: LauncherProxyListener
     private lateinit var windowInsetsCallback: Consumer<WindowInsets>
     private lateinit var fakeSystemClock: FakeSystemClock
     private lateinit var delayableExecutor: FakeExecutor
@@ -115,14 +110,14 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
             NotificationsQSContainerController(
                 view,
                 navigationModeController,
-                overviewProxyService,
+                mLauncherProxyService,
                 shadeHeaderController,
                 shadeInteractor,
                 fragmentService,
                 delayableExecutor,
                 notificationStackScrollLayoutController,
                 ResourcesSplitShadeStateController(),
-                largeScreenHeaderHelperLazy = { largeScreenHeaderHelper }
+                largeScreenHeaderHelperLazy = { largeScreenHeaderHelper },
             )
 
         overrideResource(R.dimen.split_shade_notifications_scrim_margin_bottom, SCRIM_MARGIN)
@@ -132,7 +127,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         overrideResource(R.dimen.qs_footer_action_inset, FOOTER_ACTIONS_INSET)
         whenever(navigationModeController.addListener(navigationModeCaptor.capture()))
             .thenReturn(GESTURES_NAVIGATION)
-        doNothing().`when`(overviewProxyService).addCallback(taskbarVisibilityCaptor.capture())
+        doNothing().`when`(mLauncherProxyService).addCallback(taskbarVisibilityCaptor.capture())
         doNothing().`when`(view).setInsetsChangedListener(windowInsetsCallbackCaptor.capture())
         doNothing().`when`(view).applyConstraints(constraintSetCaptor.capture())
         doNothing().`when`(view).addOnAttachStateChangeListener(attachStateListenerCaptor.capture())
@@ -209,23 +204,23 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = true,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(
             expectedContainerPadding = 0, // taskbar should disappear when shade is expanded
             expectedNotificationsMargin = NOTIFICATIONS_MARGIN,
-            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET
+            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET,
         )
 
         given(
             taskbarVisible = true,
             navigationMode = BUTTONS_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(
             expectedContainerPadding = STABLE_INSET_BOTTOM,
             expectedNotificationsMargin = NOTIFICATIONS_MARGIN,
-            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET
+            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET,
         )
     }
 
@@ -237,22 +232,22 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = false,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(
             expectedContainerPadding = 0,
-            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET
+            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET,
         )
 
         given(
             taskbarVisible = false,
             navigationMode = BUTTONS_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(
             expectedContainerPadding = 0, // qs goes full height as it's not obscuring nav buttons
             expectedNotificationsMargin = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN,
-            expectedQsPadding = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET
+            expectedQsPadding = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET,
         )
     }
 
@@ -263,22 +258,22 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = false,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withCutout()
+            insets = windowInsets().withCutout(),
         )
         then(
             expectedContainerPadding = CUTOUT_HEIGHT,
-            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET
+            expectedQsPadding = NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET,
         )
 
         given(
             taskbarVisible = false,
             navigationMode = BUTTONS_NAVIGATION,
-            insets = windowInsets().withCutout().withStableBottom()
+            insets = windowInsets().withCutout().withStableBottom(),
         )
         then(
             expectedContainerPadding = 0,
             expectedNotificationsMargin = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN,
-            expectedQsPadding = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET
+            expectedQsPadding = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN - QS_PADDING_OFFSET,
         )
     }
 
@@ -289,18 +284,18 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = true,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(expectedContainerPadding = 0, expectedQsPadding = STABLE_INSET_BOTTOM)
 
         given(
             taskbarVisible = true,
             navigationMode = BUTTONS_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(
             expectedContainerPadding = STABLE_INSET_BOTTOM,
-            expectedQsPadding = STABLE_INSET_BOTTOM
+            expectedQsPadding = STABLE_INSET_BOTTOM,
         )
     }
 
@@ -314,19 +309,19 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = false,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withCutout().withStableBottom()
+            insets = windowInsets().withCutout().withStableBottom(),
         )
         then(expectedContainerPadding = CUTOUT_HEIGHT, expectedQsPadding = STABLE_INSET_BOTTOM)
 
         given(
             taskbarVisible = false,
             navigationMode = BUTTONS_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(
             expectedContainerPadding = 0,
             expectedNotificationsMargin = STABLE_INSET_BOTTOM + NOTIFICATIONS_MARGIN,
-            expectedQsPadding = STABLE_INSET_BOTTOM
+            expectedQsPadding = STABLE_INSET_BOTTOM,
         )
     }
 
@@ -339,7 +334,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = false,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(expectedContainerPadding = 0, expectedNotificationsMargin = 0)
 
@@ -355,7 +350,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         given(
             taskbarVisible = false,
             navigationMode = GESTURES_NAVIGATION,
-            insets = windowInsets().withStableBottom()
+            insets = windowInsets().withStableBottom(),
         )
         then(expectedContainerPadding = 0)
 
@@ -376,79 +371,11 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
     }
 
     @Test
-    @DisableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
-    fun testSplitShadeLayout_isAlignedToGuideline() {
-        enableSplitShade()
-        underTest.updateResources()
-        assertThat(getConstraintSetLayout(R.id.qs_frame).endToEnd).isEqualTo(R.id.qs_edge_guideline)
-        assertThat(getConstraintSetLayout(R.id.notification_stack_scroller).startToStart)
-            .isEqualTo(R.id.qs_edge_guideline)
-    }
-
-    @Test
-    @DisableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
-    fun testSinglePaneLayout_childrenHaveEqualMargins() {
-        disableSplitShade()
-        underTest.updateResources()
-        val qsStartMargin = getConstraintSetLayout(R.id.qs_frame).startMargin
-        val qsEndMargin = getConstraintSetLayout(R.id.qs_frame).endMargin
-        val notifStartMargin = getConstraintSetLayout(R.id.notification_stack_scroller).startMargin
-        val notifEndMargin = getConstraintSetLayout(R.id.notification_stack_scroller).endMargin
-        assertThat(
-                qsStartMargin == qsEndMargin &&
-                    notifStartMargin == notifEndMargin &&
-                    qsStartMargin == notifStartMargin
-            )
-            .isTrue()
-    }
-
-    @Test
-    @DisableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
-    fun testSplitShadeLayout_childrenHaveInsideMarginsOfZero() {
-        enableSplitShade()
-        underTest.updateResources()
-        assertThat(getConstraintSetLayout(R.id.qs_frame).endMargin).isEqualTo(0)
-        assertThat(getConstraintSetLayout(R.id.notification_stack_scroller).startMargin)
-            .isEqualTo(0)
-    }
-
-    @Test
     fun testSplitShadeLayout_qsFrameHasHorizontalMarginsOfZero() {
         enableSplitShade()
         underTest.updateResources()
         assertThat(getConstraintSetLayout(R.id.qs_frame).endMargin).isEqualTo(0)
         assertThat(getConstraintSetLayout(R.id.qs_frame).startMargin).isEqualTo(0)
-    }
-
-    @Test
-    @DisableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
-    fun testLargeScreenLayout_qsAndNotifsTopMarginIsOfHeaderHeightHelper() {
-        setLargeScreen()
-        val largeScreenHeaderResourceHeight = 100
-        val largeScreenHeaderHelperHeight = 200
-        whenever(largeScreenHeaderHelper.getLargeScreenHeaderHeight())
-            .thenReturn(largeScreenHeaderHelperHeight)
-        overrideResource(R.dimen.large_screen_shade_header_height, largeScreenHeaderResourceHeight)
-
-        // ensure the estimated height (would be 30 here) wouldn't impact this test case
-        overrideResource(R.dimen.large_screen_shade_header_min_height, 10)
-        overrideResource(R.dimen.new_qs_header_non_clickable_element_height, 10)
-
-        underTest.updateResources()
-
-        assertThat(getConstraintSetLayout(R.id.qs_frame).topMargin)
-            .isEqualTo(largeScreenHeaderHelperHeight)
-        assertThat(getConstraintSetLayout(R.id.notification_stack_scroller).topMargin)
-            .isEqualTo(largeScreenHeaderHelperHeight)
-    }
-
-    @Test
-    @DisableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
-    fun testSmallScreenLayout_qsAndNotifsTopMarginIsZero() {
-        setSmallScreen()
-        underTest.updateResources()
-        assertThat(getConstraintSetLayout(R.id.qs_frame).topMargin).isEqualTo(0)
-        assertThat(getConstraintSetLayout(R.id.notification_stack_scroller).topMargin).isEqualTo(0)
     }
 
     @Test
@@ -464,17 +391,6 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
     }
 
     @Test
-    @DisableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
-    fun testSinglePaneShadeLayout_isAlignedToParent() {
-        disableSplitShade()
-        underTest.updateResources()
-        assertThat(getConstraintSetLayout(R.id.qs_frame).endToEnd)
-            .isEqualTo(ConstraintSet.PARENT_ID)
-        assertThat(getConstraintSetLayout(R.id.notification_stack_scroller).startToStart)
-            .isEqualTo(ConstraintSet.PARENT_ID)
-    }
-
-    @Test
     fun testAllChildrenOfNotificationContainer_haveIds() {
         // set dimen to 0 to avoid triggering updating bottom spacing
         overrideResource(R.dimen.split_shade_notifications_scrim_margin_bottom, 0)
@@ -486,14 +402,14 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
             NotificationsQSContainerController(
                 container,
                 navigationModeController,
-                overviewProxyService,
+                mLauncherProxyService,
                 shadeHeaderController,
                 shadeInteractor,
                 fragmentService,
                 delayableExecutor,
                 notificationStackScrollLayoutController,
                 ResourcesSplitShadeStateController(),
-                largeScreenHeaderHelperLazy = { largeScreenHeaderHelper }
+                largeScreenHeaderHelperLazy = { largeScreenHeaderHelper },
             )
         controller.updateConstraints()
 
@@ -509,7 +425,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
             taskbarVisible = false,
             navigationMode = GESTURES_NAVIGATION,
             insets = emptyInsets(),
-            applyImmediately = false
+            applyImmediately = false,
         )
         fakeSystemClock.advanceTime(INSET_DEBOUNCE_MILLIS / 2)
         windowInsetsCallback.accept(windowInsets().withStableBottom())
@@ -576,7 +492,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         taskbarVisible: Boolean,
         navigationMode: Int,
         insets: WindowInsets,
-        applyImmediately: Boolean = true
+        applyImmediately: Boolean = true,
     ) {
         Mockito.clearInvocations(view)
         taskbarVisibilityCallback.onTaskbarStatusUpdated(taskbarVisible, false)
@@ -591,7 +507,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
     fun then(
         expectedContainerPadding: Int,
         expectedNotificationsMargin: Int = NOTIFICATIONS_MARGIN,
-        expectedQsPadding: Int = 0
+        expectedQsPadding: Int = 0,
     ) {
         verify(view).setPadding(anyInt(), anyInt(), anyInt(), eq(expectedContainerPadding))
         verify(view).setNotificationsMarginBottom(expectedNotificationsMargin)
@@ -623,7 +539,7 @@ class NotificationsQSContainerControllerLegacyTest : SysuiTestCase() {
         val layoutParams =
             ConstraintLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         // required as cloning ConstraintSet fails if view doesn't have layout params
         view.layoutParams = layoutParams

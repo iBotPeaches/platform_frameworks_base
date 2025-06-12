@@ -33,4 +33,9 @@ public interface BiometricNotification {
      * Sends a fingerprint enrollment notification.
      */
     void sendFpEnrollNotification(@NonNull Context context);
+
+    /**
+     * Sends a customized  fingerprint frr notification.
+     */
+    boolean sendCustomizeFpFrrNotification(@NonNull Context context);
 }

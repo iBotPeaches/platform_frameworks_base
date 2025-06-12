@@ -25,42 +25,41 @@ import javax.inject.Inject
 class NotificationClickerLogger @Inject constructor(
     @NotifInteractionLog private val buffer: LogBuffer
 ) {
-    fun logOnClick(entry: NotificationEntry) {
+    fun logOnClick(entry: String) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry.logKey
-            str2 = entry.ranking.channel.id
+            str1 = entry
         }, {
-            "CLICK $str1 (channel=$str2)"
+            "CLICK $str1"
         })
     }
 
-    fun logMenuVisible(entry: NotificationEntry) {
+    fun logMenuVisible(entry: String) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry.logKey
+            str1 = entry
         }, {
             "Ignoring click on $str1; menu is visible"
         })
     }
 
-    fun logParentMenuVisible(entry: NotificationEntry) {
+    fun logParentMenuVisible(entry: String) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry.logKey
+            str1 = entry
         }, {
             "Ignoring click on $str1; parent menu is visible"
         })
     }
 
-    fun logChildrenExpanded(entry: NotificationEntry) {
+    fun logChildrenExpanded(entry: String) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry.logKey
+            str1 = entry
         }, {
             "Ignoring click on $str1; children are expanded"
         })
     }
 
-    fun logGutsExposed(entry: NotificationEntry) {
+    fun logGutsExposed(entry: String) {
         buffer.log(TAG, LogLevel.DEBUG, {
-            str1 = entry.logKey
+            str1 = entry
         }, {
             "Ignoring click on $str1; guts are exposed"
         })

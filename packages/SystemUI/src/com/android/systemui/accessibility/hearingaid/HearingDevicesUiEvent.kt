@@ -29,7 +29,21 @@ enum class HearingDevicesUiEvent(private val id: Int) : UiEventLogger.UiEventEnu
     @UiEvent(doc = "Click on the device gear to enter device detail page")
     HEARING_DEVICES_GEAR_CLICK(1853),
     @UiEvent(doc = "Select a preset from preset spinner") HEARING_DEVICES_PRESET_SELECT(1854),
-    @UiEvent(doc = "Click on related tool") HEARING_DEVICES_RELATED_TOOL_CLICK(1856);
+    @UiEvent(doc = "Click on related tool") HEARING_DEVICES_RELATED_TOOL_CLICK(1856),
+    @UiEvent(doc = "Change the ambient volume with unified control")
+    HEARING_DEVICES_AMBIENT_CHANGE_UNIFIED(2149),
+    @UiEvent(doc = "Change the ambient volume with separated control")
+    HEARING_DEVICES_AMBIENT_CHANGE_SEPARATED(2150),
+    @UiEvent(doc = "Mute the ambient volume") HEARING_DEVICES_AMBIENT_MUTE(2151),
+    @UiEvent(doc = "Unmute the ambient volume") HEARING_DEVICES_AMBIENT_UNMUTE(2152),
+    @UiEvent(doc = "Expand the ambient volume controls")
+    HEARING_DEVICES_AMBIENT_EXPAND_CONTROLS(2153),
+    @UiEvent(doc = "Collapse the ambient volume controls")
+    HEARING_DEVICES_AMBIENT_COLLAPSE_CONTROLS(2154),
+    @UiEvent(doc = "Select a input routing option from input routing spinner")
+    HEARING_DEVICES_INPUT_ROUTING_SELECT(2155),
+    @UiEvent(doc = "Click on the device settings to enter hearing devices page")
+    HEARING_DEVICES_SETTINGS_CLICK(2172);
 
     override fun getId(): Int = this.id
 }

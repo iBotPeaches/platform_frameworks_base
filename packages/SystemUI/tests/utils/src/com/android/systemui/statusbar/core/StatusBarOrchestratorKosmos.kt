@@ -33,13 +33,28 @@ import com.android.systemui.statusbar.data.repository.lightBarControllerStore
 import com.android.systemui.statusbar.data.repository.privacyDotWindowControllerStore
 import com.android.systemui.statusbar.data.repository.statusBarModeRepository
 import com.android.systemui.statusbar.mockNotificationRemoteInputManager
+import com.android.systemui.statusbar.phone.fakeAutoHideControllerStore
 import com.android.systemui.statusbar.phone.mockAutoHideController
-import com.android.systemui.statusbar.phone.multiDisplayAutoHideControllerStore
 import com.android.systemui.statusbar.window.data.repository.fakeStatusBarWindowStatePerDisplayRepository
 import com.android.systemui.statusbar.window.data.repository.statusBarWindowStateRepositoryStore
 import com.android.systemui.statusbar.window.fakeStatusBarWindowController
 import com.android.systemui.statusbar.window.statusBarWindowControllerStore
 import com.android.wm.shell.bubbles.bubblesOptional
+
+val Kosmos.multiDisplayStatusBarOrchestratorStore by
+    Kosmos.Fixture {
+        MultiDisplayStatusBarOrchestratorStore(
+            applicationCoroutineScope,
+            displayRepository,
+            statusBarOrchestratorFactory,
+            statusBarWindowControllerStore,
+            statusBarModeRepository,
+            statusBarInitializerStore,
+            fakeAutoHideControllerStore,
+            displayScopeRepository,
+            statusBarWindowStateRepositoryStore,
+        )
+    }
 
 val Kosmos.statusBarOrchestrator by
     Kosmos.Fixture {
@@ -73,15 +88,9 @@ val Kosmos.multiDisplayStatusBarStarter by
     Kosmos.Fixture {
         MultiDisplayStatusBarStarter(
             applicationCoroutineScope,
-            displayScopeRepository,
-            statusBarOrchestratorFactory,
-            statusBarWindowStateRepositoryStore,
-            statusBarModeRepository,
+            multiDisplayStatusBarOrchestratorStore,
             displayRepository,
             statusBarInitializerStore,
-            statusBarWindowControllerStore,
-            statusBarInitializerStore,
-            multiDisplayAutoHideControllerStore,
             privacyDotWindowControllerStore,
             lightBarControllerStore,
         )

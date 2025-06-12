@@ -34,7 +34,6 @@ android_test_helper_app {
     srcs: ["**/*.java"],
 
     platform_apis: true,
-    certificate: "platform",
     dxflags: ["--multi-dex"],
     optimize: {
         enabled: false,

@@ -23,7 +23,9 @@ import static android.platform.test.ravenwood.RavenwoodSystemServer.ANDROID_PACK
 import static com.android.ravenwood.common.RavenwoodCommonUtils.RAVENWOOD_EMPTY_RESOURCES_APK;
 import static com.android.ravenwood.common.RavenwoodCommonUtils.RAVENWOOD_INST_RESOURCE_APK;
 import static com.android.ravenwood.common.RavenwoodCommonUtils.RAVENWOOD_RESOURCE_APK;
+import static com.android.ravenwood.common.RavenwoodCommonUtils.RAVENWOOD_RUNTIME_PATH_JAVA_SYSPROP;
 import static com.android.ravenwood.common.RavenwoodCommonUtils.RAVENWOOD_VERSION_JAVA_SYSPROP;
+import static com.android.ravenwood.common.RavenwoodCommonUtils.getRavenwoodRuntimePath;
 import static com.android.ravenwood.common.RavenwoodCommonUtils.parseNullableInt;
 import static com.android.ravenwood.common.RavenwoodCommonUtils.withDefault;
 
@@ -271,6 +273,13 @@ public class RavenwoodRuntimeEnvironmentController {
         dumpJavaProperties();
         dumpOtherInfo();
 
+        System.setProperty(RAVENWOOD_VERSION_JAVA_SYSPROP, "1");
+        var runtimePath = getRavenwoodRuntimePath();
+        System.setProperty(RAVENWOOD_RUNTIME_PATH_JAVA_SYSPROP, runtimePath);
+
+        Log.i(TAG, "PWD=" + System.getProperty("user.dir"));
+        Log.i(TAG, "RuntimePath=" + runtimePath);
+
         // Make sure libravenwood_runtime is loaded.
         System.load(RavenwoodCommonUtils.getJniLibraryPath(RAVENWOOD_NATIVE_RUNTIME_NAME));
 
@@ -310,12 +319,10 @@ public class RavenwoodRuntimeEnvironmentController {
         Objects.requireNonNull(Build.VERSION.SDK);
 
         // Fonts can only be initialized once
-        // AOSP only: typeface is not supported on AOSP.
-        // Typeface.init();
-        // Typeface.loadPreinstalledSystemFontMap();
-        // Typeface.loadNativeSystemFonts();
+        Typeface.init();
+        Typeface.loadPreinstalledSystemFontMap();
+        Typeface.loadNativeSystemFonts();
 
-        System.setProperty(RAVENWOOD_VERSION_JAVA_SYSPROP, "1");
         // This will let AndroidJUnit4 use the original runner.
         System.setProperty("android.junit.runner",
                 "androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner");

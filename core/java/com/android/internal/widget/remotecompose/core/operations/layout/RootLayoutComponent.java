@@ -32,11 +32,13 @@ import com.android.internal.widget.remotecompose.core.operations.layout.measure.
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.MeasurePass;
 import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ComponentModifiers;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.SerializeTags;
 
 import java.util.List;
 
 /** Represents the root layout component. Entry point to the component tree layout/paint. */
-public class RootLayoutComponent extends Component implements ComponentStartOperation {
+public class RootLayoutComponent extends Component {
     private int mCurrentId = -1;
     private boolean mHasTouchListeners = false;
 
@@ -75,7 +77,7 @@ public class RootLayoutComponent extends Component implements ComponentStartOper
                 + " x "
                 + mHeight
                 + ") "
-                + mVisibility;
+                + Visibility.toString(mVisibility);
     }
 
     @Override
@@ -95,7 +97,7 @@ public class RootLayoutComponent extends Component implements ComponentStartOper
                         + ", "
                         + mHeight
                         + "] "
-                        + mVisibility);
+                        + Visibility.toString(mVisibility));
     }
 
     /**
@@ -174,6 +176,11 @@ public class RootLayoutComponent extends Component implements ComponentStartOper
         context.restore();
     }
 
+    /**
+     * Display the component hierarchy
+     *
+     * @return a formatted string containing the component hierarchy
+     */
     @NonNull
     public String displayHierarchy() {
         StringSerializer serializer = new StringSerializer();
@@ -181,6 +188,13 @@ public class RootLayoutComponent extends Component implements ComponentStartOper
         return serializer.toString();
     }
 
+    /**
+     * Display the component hierarchy
+     *
+     * @param component the current component
+     * @param indent the current indentation level
+     * @param serializer the serializer we write to
+     */
     public void displayHierarchy(
             @NonNull Component component, int indent, @NonNull StringSerializer serializer) {
         component.serializeToString(indent, serializer);
@@ -214,6 +228,12 @@ public class RootLayoutComponent extends Component implements ComponentStartOper
         return Operations.LAYOUT_ROOT;
     }
 
+    /**
+     * Write the operation on the buffer
+     *
+     * @param buffer
+     * @param componentId
+     */
     public static void apply(@NonNull WireBuffer buffer, int componentId) {
         buffer.start(Operations.LAYOUT_ROOT);
         buffer.writeInt(componentId);
@@ -249,7 +269,19 @@ public class RootLayoutComponent extends Component implements ComponentStartOper
         apply(buffer, mComponentId);
     }
 
+    /**
+     * Returns true if we have components with a touch listener
+     *
+     * @return true if listeners, false otherwise
+     */
     public boolean hasTouchListeners() {
         return mHasTouchListeners;
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        super.serialize(serializer);
+        serializer.addTags(SerializeTags.COMPONENT);
+        serializer.addType("RootLayoutComponent");
     }
 }

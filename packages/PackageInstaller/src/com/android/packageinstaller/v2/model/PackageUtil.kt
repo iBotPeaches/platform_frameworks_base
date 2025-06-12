@@ -17,27 +17,59 @@
 package com.android.packageinstaller.v2.model
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
+import android.os.Parcel
+import android.os.Parcelable
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
 import android.util.Log
+import com.android.packageinstaller.v2.model.PackageUtil.getAppSnippet
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlinx.parcelize.Parceler
+import kotlinx.parcelize.Parcelize
 
 object PackageUtil {
     private val LOG_TAG = InstallRepository::class.java.simpleName
     private const val DOWNLOADS_AUTHORITY = "downloads"
     private const val SPLIT_BASE_APK_SUFFIX = "base.apk"
+    private const val SPLIT_APK_SUFFIX = ".apk"
     const val localLogv = false
+
+    const val ARGS_ABORT_REASON: String = "abort_reason"
+    const val ARGS_ACTION_REASON: String = "action_reason"
+    const val ARGS_ACTIVITY_RESULT_CODE: String = "activity_result_code"
+    const val ARGS_APP_DATA_SIZE: String = "app_data_size"
+    const val ARGS_APP_LABEL: String = "app_label"
+    const val ARGS_APP_SNIPPET: String = "app_snippet"
+    const val ARGS_ERROR_DIALOG_TYPE: String = "error_dialog_type"
+    const val ARGS_IS_ARCHIVE: String = "is_archive"
+    const val ARGS_IS_CLONE_USER: String = "clone_user"
+    const val ARGS_IS_UPDATING: String = "is_updating"
+    const val ARGS_LEGACY_CODE: String = "legacy_code"
+    const val ARGS_MESSAGE: String = "message"
+    const val ARGS_RESULT_INTENT: String = "result_intent"
+    const val ARGS_SHOULD_RETURN_RESULT: String = "should_return_result"
+    const val ARGS_SOURCE_APP: String = "source_app"
+    const val ARGS_STATUS_CODE: String = "status_code"
+    const val ARGS_TITLE: String = "title"
 
     /**
      * Determines if the UID belongs to the system downloads provider and returns the
@@ -238,7 +270,8 @@ object PackageUtil {
             context.resources,
             info.getAppIcon()
         ) else pm.defaultActivityIcon
-        return AppSnippet(label, icon)
+        val largeIconSize = getLargeIconSize(context)
+        return AppSnippet(label, icon, largeIconSize)
     }
 
     /**
@@ -247,8 +280,11 @@ object PackageUtil {
      */
     @JvmStatic
     fun getAppSnippet(context: Context, pkgInfo: PackageInfo): AppSnippet {
+        val largeIconSize = getLargeIconSize(context)
         return pkgInfo.applicationInfo?.let { getAppSnippet(context, it) } ?: run {
-            AppSnippet(pkgInfo.packageName, context.packageManager.defaultActivityIcon)
+            AppSnippet(
+                pkgInfo.packageName, context.packageManager.defaultActivityIcon, largeIconSize
+            )
         }
     }
 
@@ -261,7 +297,8 @@ object PackageUtil {
         val pm = context.packageManager
         val label = pm.getApplicationLabel(appInfo)
         val icon = pm.getApplicationIcon(appInfo)
-        return AppSnippet(label, icon)
+        val largeIconSize = getLargeIconSize(context)
+        return AppSnippet(label, icon, largeIconSize)
     }
 
     /**
@@ -270,14 +307,22 @@ object PackageUtil {
      */
     @JvmStatic
     fun getAppSnippet(context: Context, pkgInfo: PackageInfo, sourceFile: File): AppSnippet {
+        val largeIconSize = getLargeIconSize(context)
         pkgInfo.applicationInfo?.let {
             val appInfoFromFile = processAppInfoForFile(it, sourceFile)
             val label = getAppLabelFromFile(context, appInfoFromFile)
             val icon = getAppIconFromFile(context, appInfoFromFile)
-            return AppSnippet(label, icon)
+            return AppSnippet(label, icon, largeIconSize)
         } ?: run {
-            return AppSnippet(pkgInfo.packageName, context.packageManager.defaultActivityIcon)
+            return AppSnippet(
+                pkgInfo.packageName, context.packageManager.defaultActivityIcon, largeIconSize
+            )
         }
+    }
+
+    private fun getLargeIconSize(context: Context): Int {
+        val am = context.getSystemService<ActivityManager>(ActivityManager::class.java)
+        return am.launcherLargeIconSize
     }
 
     /**
@@ -398,9 +443,20 @@ object PackageUtil {
         var filePath = sourceFile.absolutePath
         if (filePath.endsWith(SPLIT_BASE_APK_SUFFIX)) {
             val dir = sourceFile.parentFile
-            if ((dir?.listFiles()?.size ?: 0) > 1) {
-                // split apks, use file directory to get archive info
-                filePath = dir.path
+            try {
+                Files.list(dir.toPath()).use { list ->
+                    val count: Long = list
+                        .filter { name: Path -> name.endsWith(SPLIT_APK_SUFFIX) }
+                        .limit(2)
+                        .count()
+                    if (count > 1) {
+                        // split apks, use file directory to get archive info
+                        filePath = dir.path
+                    }
+                }
+            } catch (ignored: Exception) {
+                // No access to the parent directory, proceed to read app snippet
+                // from the base apk only
             }
         }
         return try {
@@ -438,7 +494,69 @@ object PackageUtil {
      * The class to hold an incoming package's icon and label.
      * See [getAppSnippet]
      */
-    data class AppSnippet(var label: CharSequence?, var icon: Drawable?) {
+    @Parcelize
+    data class AppSnippet(
+        var label: CharSequence?,
+        var icon: Drawable?,
+        var iconSize: Int,
+    ) : Parcelable {
+        private companion object : Parceler<AppSnippet> {
+            override fun AppSnippet.write(dest: Parcel, flags: Int) {
+                dest.writeString(label.toString())
+
+                val bmp = getBitmapFromDrawable(icon!!)
+                dest.writeBlob(getBytesFromBitmap(bmp))
+                bmp.recycle()
+
+                dest.writeInt(iconSize)
+            }
+
+            @SuppressLint("UseKtx")
+            override fun create(parcel: Parcel): AppSnippet {
+                val label = parcel.readString()
+
+                val b: ByteArray = parcel.readBlob()!!
+                val bmp: Bitmap? = BitmapFactory.decodeByteArray(b, 0, b.size)
+                val icon = BitmapDrawable(Resources.getSystem(), bmp)
+
+                val iconSize = parcel.readInt()
+
+                return AppSnippet(label.toString(), icon, iconSize)
+            }
+        }
+
+        @SuppressLint("UseKtx")
+        private fun getBitmapFromDrawable(drawable: Drawable): Bitmap {
+            // Create an empty bitmap with the dimensions of our drawable
+            val bmp = Bitmap.createBitmap(
+                drawable.intrinsicWidth,
+                drawable.intrinsicHeight, Bitmap.Config.ARGB_8888
+            )
+            // Associate it with a canvas. This canvas will draw the icon on the bitmap
+            val canvas = Canvas(bmp)
+            // Draw the drawable in the canvas. The canvas will ultimately paint the drawable in the
+            // bitmap held within
+            drawable.draw(canvas)
+
+            // Scale it down if the icon is too large
+            if ((bmp.getWidth() > iconSize * 2) || (bmp.getHeight() > iconSize * 2)) {
+                val scaledBitmap = Bitmap.createScaledBitmap(bmp, iconSize, iconSize, true)
+                if (scaledBitmap != bmp) {
+                    bmp.recycle()
+                }
+                return scaledBitmap
+            }
+            return bmp
+        }
+
+        private fun getBytesFromBitmap(bmp: Bitmap): ByteArray? {
+            var baos = ByteArrayOutputStream()
+            baos.use {
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+            return baos.toByteArray()
+        }
+
         override fun toString(): String {
             return "AppSnippet[label = $label, hasIcon = ${icon != null}]"
         }

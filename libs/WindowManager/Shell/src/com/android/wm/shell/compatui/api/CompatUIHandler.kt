@@ -28,6 +28,11 @@ interface CompatUIHandler {
     fun onCompatInfoChanged(compatUIInfo: CompatUIInfo)
 
     /**
+     * Invoked when another component in Shell requests a CompatUI state change.
+     */
+    fun sendCompatUIRequest(compatUIRequest: CompatUIRequest)
+
+    /**
      * Optional reference to the object responsible to send {@link CompatUIEvent}
      */
     fun setCallback(compatUIEventSender: Consumer<CompatUIEvent>?)

@@ -16,6 +16,8 @@
 
 package android.view.inputmethod;
 
+import static android.view.inputmethod.InputMethodManager.INVALID_SEQ_ID;
+
 import static com.android.internal.inputmethod.InputConnectionProtoDumper.buildGetCursorCapsModeProto;
 import static com.android.internal.inputmethod.InputConnectionProtoDumper.buildGetExtractedTextProto;
 import static com.android.internal.inputmethod.InputConnectionProtoDumper.buildGetSelectedTextProto;
@@ -28,7 +30,6 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 import android.annotation.AnyThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.UiThread;
 import android.app.UriGrantsManager;
 import android.content.ContentProvider;
 import android.content.Intent;
@@ -38,6 +39,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.CancellationSignalBeamer;
+import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -276,8 +278,19 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
      * make sure that application code is not modifying text context in a reentrant manner.</p>
      */
     public void scheduleInvalidateInput() {
+        scheduleInvalidateInput(false /* isRestarting */);
+    }
+
+    /**
+     * @see #scheduleInvalidateInput()
+     * @param isRestarting when {@code true}, there is an in-progress restartInput that could race
+     *                    with {@link InputMethodManager#invalidateInput(View)}. To prevent race,
+     *                    fallback to calling {@link InputMethodManager#restartInput(View)}.
+     */
+    void scheduleInvalidateInput(boolean isRestarting) {
         if (mHasPendingInvalidation.compareAndSet(false, true)) {
-            final int nextSessionId = mCurrentSessionId.incrementAndGet();
+            final int nextSessionId =
+                    isRestarting ? INVALID_SEQ_ID : mCurrentSessionId.incrementAndGet();
             // By calling InputConnection#takeSnapshot() directly from the message loop, we can make
             // sure that application code is not modifying text context in a reentrant manner.
             // e.g. We may see methods like EditText#setText() in the callstack here.
@@ -329,6 +342,14 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
                                 }
                             }
                         }
+                    }
+                    if (isRestarting) {
+                        if (DEBUG) {
+                            Log.d(TAG, "scheduleInvalidateInput called with ongoing restartInput."
+                                    + " Fallback to calling restartInput().");
+                        }
+                        mParentInputMethodManager.restartInput(view);
+                        return;
                     }
 
                     if (!alwaysTrueEndBatchEditDetected) {
@@ -468,13 +489,27 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         });
     }
 
+    /**
+     * Returns {@code false} if there is a sessionId mismatch and logs the event.
+     */
+    private boolean checkSessionId(@NonNull InputConnectionCommandHeader header) {
+        if (header.mSessionId != mCurrentSessionId.get()) {
+            Log.w(TAG, "Session id mismatch header.sessionId: " + header.mSessionId
+                            + " currentSessionId: " + mCurrentSessionId.get() + " while calling "
+                    + Debug.getCaller());
+            //TODO(b/396066692): log metrics.
+            return false;  // cancelled
+        }
+        return true;
+    }
+
     @Dispatching(cancellable = true)
     @Override
     public void getTextAfterCursor(InputConnectionCommandHeader header, int length, int flags,
             AndroidFuture future /* T=CharSequence */) {
         dispatchWithTracing("getTextAfterCursor", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return null;  // cancelled
+            if (!checkSessionId(header)) {
+                return null;
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -495,8 +530,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void getTextBeforeCursor(InputConnectionCommandHeader header, int length, int flags,
             AndroidFuture future /* T=CharSequence */) {
         dispatchWithTracing("getTextBeforeCursor", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return null;  // cancelled
+            if (!checkSessionId(header)) {
+                return null;
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -517,8 +552,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void getSelectedText(InputConnectionCommandHeader header, int flags,
             AndroidFuture future /* T=CharSequence */) {
         dispatchWithTracing("getSelectedText", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return null;  // cancelled
+            if (!checkSessionId(header)) {
+                return null;
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -539,8 +574,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void getSurroundingText(InputConnectionCommandHeader header, int beforeLength,
             int afterLength, int flags, AndroidFuture future /* T=SurroundingText */) {
         dispatchWithTracing("getSurroundingText", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return null;  // cancelled
+            if (!checkSessionId(header)) {
+                return null;
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -567,8 +602,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void getCursorCapsMode(InputConnectionCommandHeader header, int reqModes,
             AndroidFuture future /* T=Integer */) {
         dispatchWithTracing("getCursorCapsMode", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return 0;  // cancelled
+            if (!checkSessionId(header)) {
+                return 0;
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -584,8 +619,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void getExtractedText(InputConnectionCommandHeader header, ExtractedTextRequest request,
             int flags, AndroidFuture future /* T=ExtractedText */) {
         dispatchWithTracing("getExtractedText", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return null;  // cancelled
+            if (!checkSessionId(header)) {
+                return null;
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -601,8 +636,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void commitText(InputConnectionCommandHeader header, CharSequence text,
             int newCursorPosition) {
         dispatchWithTracing("commitText", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return;
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -618,8 +653,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void commitTextWithTextAttribute(InputConnectionCommandHeader header, CharSequence text,
             int newCursorPosition, @Nullable TextAttribute textAttribute) {
         dispatchWithTracing("commitTextWithTextAttribute", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -634,8 +669,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void commitCompletion(InputConnectionCommandHeader header, CompletionInfo text) {
         dispatchWithTracing("commitCompletion", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -650,8 +685,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void commitCorrection(InputConnectionCommandHeader header, CorrectionInfo info) {
         dispatchWithTracing("commitCorrection", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -670,8 +705,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void setSelection(InputConnectionCommandHeader header, int start, int end) {
         dispatchWithTracing("setSelection", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -686,8 +721,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void performEditorAction(InputConnectionCommandHeader header, int id) {
         dispatchWithTracing("performEditorAction", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -702,8 +737,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void performContextMenuAction(InputConnectionCommandHeader header, int id) {
         dispatchWithTracing("performContextMenuAction", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -718,8 +753,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void setComposingRegion(InputConnectionCommandHeader header, int start, int end) {
         dispatchWithTracing("setComposingRegion", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -739,8 +774,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void setComposingRegionWithTextAttribute(InputConnectionCommandHeader header, int start,
             int end, @Nullable TextAttribute textAttribute) {
         dispatchWithTracing("setComposingRegionWithTextAttribute", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -756,8 +791,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void setComposingText(InputConnectionCommandHeader header, CharSequence text,
             int newCursorPosition) {
         dispatchWithTracing("setComposingText", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -773,8 +808,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void setComposingTextWithTextAttribute(InputConnectionCommandHeader header,
             CharSequence text, int newCursorPosition, @Nullable TextAttribute textAttribute) {
         dispatchWithTracing("setComposingTextWithTextAttribute", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -826,8 +861,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
                 }
                 return;
             }
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null && mDeactivateRequested.get()) {
@@ -842,8 +877,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void sendKeyEvent(InputConnectionCommandHeader header, KeyEvent event) {
         dispatchWithTracing("sendKeyEvent", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -858,8 +893,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void clearMetaKeyStates(InputConnectionCommandHeader header, int states) {
         dispatchWithTracing("clearMetaKeyStates", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -875,8 +910,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void deleteSurroundingText(InputConnectionCommandHeader header, int beforeLength,
             int afterLength) {
         dispatchWithTracing("deleteSurroundingText", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -892,8 +927,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void deleteSurroundingTextInCodePoints(InputConnectionCommandHeader header,
             int beforeLength, int afterLength) {
         dispatchWithTracing("deleteSurroundingTextInCodePoints", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -912,8 +947,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void beginBatchEdit(InputConnectionCommandHeader header) {
         dispatchWithTracing("beginBatchEdit", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -928,8 +963,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void endBatchEdit(InputConnectionCommandHeader header) {
         dispatchWithTracing("endBatchEdit", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -944,8 +979,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void performSpellCheck(InputConnectionCommandHeader header) {
         dispatchWithTracing("performSpellCheck", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -961,8 +996,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void performPrivateCommand(InputConnectionCommandHeader header, String action,
             Bundle data) {
         dispatchWithTracing("performPrivateCommand", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -995,12 +1030,12 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
             }
         }
         dispatchWithTracing("performHandwritingGesture", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
+            if (!checkSessionId(header)) {
                 if (resultReceiver != null) {
                     resultReceiver.send(
                             InputConnection.HANDWRITING_GESTURE_RESULT_CANCELLED, null);
                 }
-                return;  // cancelled
+                return; // cancelled
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -1038,9 +1073,9 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
                 (PreviewableHandwritingGesture) gestureContainer.get();
 
         dispatchWithTracing("previewHandwritingGesture", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()
+            if (!checkSessionId(header)
                     || (cancellationSignal != null && cancellationSignal.isCanceled())) {
-                return;  // cancelled
+                return; // cancelled
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -1065,8 +1100,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     public void requestCursorUpdates(InputConnectionCommandHeader header, int cursorUpdateMode,
             int imeDisplayId, AndroidFuture future /* T=Boolean */) {
         dispatchWithTracing("requestCursorUpdates", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return false;  // cancelled
+            if (!checkSessionId(header)) {
+                return false; // cancelled.
             }
             return requestCursorUpdatesInternal(
                     cursorUpdateMode, 0 /* cursorUpdateFilter */, imeDisplayId);
@@ -1079,8 +1114,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
             int cursorUpdateMode, int cursorUpdateFilter, int imeDisplayId,
             AndroidFuture future /* T=Boolean */) {
         dispatchWithTracing("requestCursorUpdates", future, () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return false;  // cancelled
+            if (!checkSessionId(header)) {
+                return false; // cancelled.
             }
             return requestCursorUpdatesInternal(
                     cursorUpdateMode, cursorUpdateFilter, imeDisplayId);
@@ -1123,9 +1158,9 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
             InputConnectionCommandHeader header, RectF bounds,
             @NonNull ResultReceiver resultReceiver) {
         dispatchWithTracing("requestTextBoundsInfo", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
+            if (!checkSessionId(header)) {
                 resultReceiver.send(TextBoundsInfoResult.CODE_CANCELLED, null);
-                return;  // cancelled
+                return; // cancelled
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -1168,8 +1203,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
                 return false;
             }
 
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return false;  // cancelled
+            if (!checkSessionId(header)) {
+                return false; // cancelled.
             }
             final InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -1193,8 +1228,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
     @Override
     public void setImeConsumesInput(InputConnectionCommandHeader header, boolean imeConsumesInput) {
         dispatchWithTracing("setImeConsumesInput", () -> {
-            if (header.mSessionId != mCurrentSessionId.get()) {
-                return;  // cancelled
+            if (!checkSessionId(header)) {
+                return; // cancelled.
             }
             InputConnection ic = getInputConnection();
             if (ic == null || mDeactivateRequested.get()) {
@@ -1217,8 +1252,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         dispatchWithTracing(
                 "replaceText",
                 () -> {
-                    if (header.mSessionId != mCurrentSessionId.get()) {
-                        return; // cancelled
+                    if (!checkSessionId(header)) {
+                        return; // cancelled.
                     }
                     InputConnection ic = getInputConnection();
                     if (ic == null || mDeactivateRequested.get()) {
@@ -1236,8 +1271,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         public void commitText(InputConnectionCommandHeader header, CharSequence text,
                 int newCursorPosition, @Nullable TextAttribute textAttribute) {
             dispatchWithTracing("commitTextFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1256,8 +1291,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         @Override
         public void setSelection(InputConnectionCommandHeader header, int start, int end) {
             dispatchWithTracing("setSelectionFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1273,8 +1308,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         public void getSurroundingText(InputConnectionCommandHeader header, int beforeLength,
                 int afterLength, int flags, AndroidFuture future /* T=SurroundingText */) {
             dispatchWithTracing("getSurroundingTextFromA11yIme", future, () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return null;  // cancelled
+                if (!checkSessionId(header)) {
+                    return null; // cancelled.
                 }
                 final InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1301,8 +1336,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         public void deleteSurroundingText(InputConnectionCommandHeader header, int beforeLength,
                 int afterLength) {
             dispatchWithTracing("deleteSurroundingTextFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1317,8 +1352,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         @Override
         public void sendKeyEvent(InputConnectionCommandHeader header, KeyEvent event) {
             dispatchWithTracing("sendKeyEventFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1333,8 +1368,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         @Override
         public void performEditorAction(InputConnectionCommandHeader header, int id) {
             dispatchWithTracing("performEditorActionFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1349,8 +1384,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         @Override
         public void performContextMenuAction(InputConnectionCommandHeader header, int id) {
             dispatchWithTracing("performContextMenuActionFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1366,8 +1401,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         public void getCursorCapsMode(InputConnectionCommandHeader header, int reqModes,
                 AndroidFuture future /* T=Integer */) {
             dispatchWithTracing("getCursorCapsModeFromA11yIme", future, () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return 0;  // cancelled
+                if (!checkSessionId(header)) {
+                    return 0; // cancelled.
                 }
                 final InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {
@@ -1382,8 +1417,8 @@ final class RemoteInputConnectionImpl extends IRemoteInputConnection.Stub {
         @Override
         public void clearMetaKeyStates(InputConnectionCommandHeader header, int states) {
             dispatchWithTracing("clearMetaKeyStatesFromA11yIme", () -> {
-                if (header.mSessionId != mCurrentSessionId.get()) {
-                    return;  // cancelled
+                if (!checkSessionId(header)) {
+                    return; // cancelled.
                 }
                 InputConnection ic = getInputConnection();
                 if (ic == null || mDeactivateRequested.get()) {

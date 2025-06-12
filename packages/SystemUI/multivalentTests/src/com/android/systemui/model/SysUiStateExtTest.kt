@@ -16,11 +16,9 @@
 
 package com.android.systemui.model
 
-import android.view.Display
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.settings.FakeDisplayTracker
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
@@ -32,23 +30,14 @@ class SysUiStateExtTest : SysuiTestCase() {
 
     private val kosmos = testKosmos()
 
-    private val underTest =
-        SysUiState(
-            FakeDisplayTracker(context),
-            kosmos.sceneContainerPlugin,
-        )
+    private val underTest = kosmos.sysUiState
 
     @Test
     fun updateFlags() {
-        underTest.updateFlags(
-            Display.DEFAULT_DISPLAY,
-            1L to true,
-            2L to false,
-            3L to true,
-        )
+        underTest.updateFlags(1L to true, 2L to false, 4L to true)
 
         assertThat(underTest.flags and 1L).isNotEqualTo(0L)
         assertThat(underTest.flags and 2L).isEqualTo(0L)
-        assertThat(underTest.flags and 3L).isNotEqualTo(0L)
+        assertThat(underTest.flags and 4L).isNotEqualTo(0L)
     }
 }

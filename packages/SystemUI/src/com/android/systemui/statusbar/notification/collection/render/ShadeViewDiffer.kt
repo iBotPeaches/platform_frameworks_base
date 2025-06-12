@@ -234,21 +234,21 @@ private class ShadeNode(val controller: NodeController) {
     fun getChildCount(): Int = controller.getChildCount()
 
     fun addChildAt(child: ShadeNode, index: Int) {
-        traceSection("ShadeNode#addChildAt") {
+        traceSection({ "ShadeNode#${controller::class.simpleName}#addChildAt" }) {
             controller.addChildAt(child.controller, index)
             child.controller.onViewAdded()
         }
     }
 
     fun moveChildTo(child: ShadeNode, index: Int) {
-        traceSection("ShadeNode#moveChildTo") {
+        traceSection({ "ShadeNode#${controller::class.simpleName}#moveChildTo" }) {
             controller.moveChildTo(child.controller, index)
             child.controller.onViewMoved()
         }
     }
 
     fun removeChild(child: ShadeNode, isTransfer: Boolean) {
-        traceSection("ShadeNode#removeChild") {
+        traceSection({ "ShadeNode#${controller::class.simpleName}#removeChild" }) {
             controller.removeChild(child.controller, isTransfer)
             child.controller.onViewRemoved()
         }

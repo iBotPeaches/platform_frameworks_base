@@ -20,3 +20,19 @@ package {
     // specify default_visibility:
     default_visibility: ["//visibility:private"],
 }
+
+java_defaults {
+    name: "SystemUI_pod_defaults",
+    libs: [
+        "jsr330",
+    ],
+    lint: {
+        extra_check_modules: ["SystemUILintChecker"],
+        warning_checks: ["MissingApacheLicenseDetector"],
+    },
+    kotlincflags: [
+        "-Xexplicit-api=strict",
+        "-Xjvm-default=all",
+    ],
+    defaults_visibility: [":__subpackages__"],
+}

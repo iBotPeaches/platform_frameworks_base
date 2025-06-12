@@ -50,7 +50,7 @@ class AppOpsPerfTest {
                 opPackageUid,
                 opPackageName,
                 null,
-                null
+                null,
             )
         }
     }
@@ -62,7 +62,7 @@ class AppOpsPerfTest {
             appOpsManager.unsafeCheckOp(
                 AppOpsManager.OPSTR_FINE_LOCATION,
                 opPackageUid,
-                opPackageName
+                opPackageName,
             )
         }
     }

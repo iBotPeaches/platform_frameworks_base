@@ -8,35 +8,6 @@ container: "system"
 
 flag {
     namespace: "input_native"
-    name: "keyboard_layout_preview_flag"
-    description: "Controls whether a preview will be shown in Settings when selecting a physical keyboard layout"
-    bug: "293579375"
-}
-
-
-flag {
-    namespace: "input_native"
-    name: "keyboard_a11y_sticky_keys_flag"
-    description: "Controls if the sticky keys accessibility feature for physical keyboard is available to the user"
-    bug: "294546335"
-}
-
-flag {
-    namespace: "input_native"
-    name: "keyboard_a11y_bounce_keys_flag"
-    description: "Controls if the bounce keys accessibility feature for physical keyboard is available to the user"
-    bug: "294546335"
-}
-
-flag {
-    namespace: "input_native"
-    name: "keyboard_a11y_slow_keys_flag"
-    description: "Controls if the slow keys accessibility feature for physical keyboard is available to the user"
-    bug: "294546335"
-}
-
-flag {
-    namespace: "input_native"
     name: "keyboard_glyph_map"
     description: "Allows system to provide keyboard specific key drawables and shortcuts via config files"
     bug: "345440920"
@@ -57,27 +28,17 @@ flag {
 }
 
 flag {
-    namespace: "input_native"
-    name: "keyboard_layout_manager_multi_user_ime_setup"
-    description: "Update KeyboardLayoutManager to work correctly with multi-user IME setup"
-    bug: "354333072"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
+    name: "modifier_shortcut_dump"
+    namespace: "input"
+    description: "Dump keyboard shortcuts in dumpsys window"
+    bug: "351963350"
 }
 
 flag {
-  name: "modifier_shortcut_dump"
-  namespace: "input"
-  description: "Dump keyboard shortcuts in dumpsys window"
-  bug: "351963350"
-}
-
-flag {
-  name: "modifier_shortcut_manager_refactor"
-  namespace: "input"
-  description: "Refactor ModifierShortcutManager internal representation of shortcuts."
-  bug: "358603902"
+    name: "modifier_shortcut_manager_refactor"
+    namespace: "input"
+    description: "Refactor ModifierShortcutManager internal representation of shortcuts."
+    bug: "358603902"
 }
 
 flag {
@@ -114,31 +75,31 @@ flag {
 }
 
 flag {
-  name: "keyboard_repeat_keys"
-  namespace: "input_native"
-  description: "Allow configurable timeout before key repeat and repeat delay rate for key repeats"
-  bug: "336585002"
+    name: "keyboard_repeat_keys"
+    namespace: "input_native"
+    description: "Allow configurable timeout before key repeat and repeat delay rate for key repeats"
+    bug: "336585002"
 }
 
 flag {
-  name: "mouse_reverse_vertical_scrolling"
-  namespace: "input"
-  description: "Controls whether external mouse vertical scrolling can be reversed"
-  bug: "352598211"
+    name: "mouse_reverse_vertical_scrolling"
+    namespace: "input"
+    description: "Controls whether external mouse vertical scrolling can be reversed"
+    bug: "352598211"
 }
 
 flag {
-  name: "mouse_swap_primary_button"
-  namespace: "input"
-  description: "Controls whether the connected mice's primary buttons, left and right, can be swapped."
-  bug: "352598211"
+    name: "mouse_swap_primary_button"
+    namespace: "input"
+    description: "Controls whether the connected mice's primary buttons, left and right, can be swapped."
+    bug: "352598211"
 }
 
 flag {
-  name: "keyboard_a11y_shortcut_control"
-  namespace: "input"
-  description: "Adds shortcuts to toggle and control a11y keyboard features"
-  bug: "373458181"
+    name: "keyboard_a11y_shortcut_control"
+    namespace: "input"
+    description: "Adds shortcuts to toggle and control a11y keyboard features"
+    bug: "373458181"
 }
 
 flag {
@@ -164,36 +125,107 @@ flag {
 }
 
 flag {
-  name: "override_power_key_behavior_in_focused_window"
-  namespace: "wallet_integration"
-  description: "Allows privileged focused windows to override the power key double tap behavior."
-  bug: "357144512"
+    name: "override_power_key_behavior_in_focused_window"
+    namespace: "wallet_integration"
+    description: "Allows privileged focused windows to override the power key double tap behavior."
+    bug: "357144512"
 }
 
 flag {
-  name: "touchpad_three_finger_tap_shortcut"
-  namespace: "input"
-  description: "Turns three-finger touchpad taps into a customizable shortcut."
-  bug: "365063048"
+    name: "touchpad_three_finger_tap_shortcut"
+    namespace: "input"
+    description: "Turns three-finger touchpad taps into a customizable shortcut."
+    bug: "365063048"
 }
 
 flag {
-  name: "enable_talkback_and_magnifier_key_gestures"
-  namespace: "input"
-  description: "Adds key gestures for talkback and magnifier"
-  bug: "375277034"
+    name: "enable_display_color_inversion_key_gestures"
+    namespace: "input"
+    description: "Adds key gestures for display color inversion for accessibility needs"
+    bug: "383730505"
 }
 
 flag {
-  name: "can_window_override_power_gesture_api"
-  namespace: "wallet_integration"
-  description: "Adds new API in WindowManager class to check if the window can override the power key double tap behavior."
-  bug: "378736024"
-  }
+    name: "enable_talkback_and_magnifier_key_gestures"
+    namespace: "input"
+    description: "Adds key gestures for talkback and magnifier"
+    bug: "375277034"
+}
+
+flag {
+    name: "enable_voice_access_key_gestures"
+    namespace: "input"
+    description: "Adds key gestures for voice access"
+    bug: "383734125"
+}
+
+flag {
+    name: "can_window_override_power_gesture_api"
+    namespace: "wallet_integration"
+    description: "Adds new API in WindowManager class to check if the window can override the power key double tap behavior."
+    bug: "378736024"
+}
 
 flag {
     name: "pointer_acceleration"
     namespace: "input"
     description: "Allows the user to disable pointer acceleration for mouse and touchpads."
     bug: "349006858"
+}
+
+flag {
+    name: "mouse_scrolling_acceleration"
+    namespace: "input"
+    description: "Allows the user to disable input scrolling acceleration for mouse."
+    bug: "383555305"
+}
+
+flag {
+    name: "remove_fallback_modifiers"
+    namespace: "input"
+    description: "Removes modifiers from the original key event that activated the fallback, ensuring that only the intended fallback event is sent."
+    bug: "382545048"
+}
+
+flag {
+    name: "abort_slow_multi_press"
+    namespace: "wear_frameworks"
+    description: "If a press that's a part of a multipress takes too long, the multipress gesture will be cancelled."
+    bug: "370095426"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "key_event_activity_detection"
+    namespace: "input"
+    is_exported: true
+    description: "Key Event Activity Detection"
+    bug: "356412905"
+}
+
+flag {
+   name: "enable_backup_and_restore_for_input_gestures"
+   namespace: "input"
+   description: "Adds backup and restore support for custom input gestures"
+   bug: "382184249"
+   is_fixed_read_only: true
+}
+
+flag {
+    name: "request_key_capture_api"
+    namespace: "input"
+    description: "Adds support for key capture APIs"
+    bug: "375435312"
+}
+
+flag {
+    name: "fix_search_modifier_fallbacks"
+    namespace: "input"
+    description: "Fixes a bug in which fallbacks from Search based key combinations were not activating."
+    bug: "384113980"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }

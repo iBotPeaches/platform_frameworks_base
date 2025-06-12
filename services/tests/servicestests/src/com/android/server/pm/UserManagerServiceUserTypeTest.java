@@ -106,6 +106,7 @@ public class UserManagerServiceUserTypeTest {
                 .setMaxAllowed(21)
                 .setBaseType(FLAG_PROFILE)
                 .setDefaultUserInfoPropertyFlags(FLAG_EPHEMERAL)
+                .setProfileParentRequired(true)
                 .setBadgeLabels(23, 24, 25)
                 .setBadgeColors(26, 27)
                 .setIconBadge(28)
@@ -125,6 +126,7 @@ public class UserManagerServiceUserTypeTest {
         assertTrue(type.isEnabled());
         assertEquals(21, type.getMaxAllowed());
         assertEquals(FLAG_PROFILE | FLAG_EPHEMERAL, type.getDefaultUserInfoFlags());
+        assertTrue(type.isProfileParentRequired());
         assertEquals(28, type.getIconBadge());
         assertEquals(29, type.getBadgePlain());
         assertEquals(30, type.getBadgeNoBackground());
@@ -452,9 +454,10 @@ public class UserManagerServiceUserTypeTest {
         assertTrue(aospType.getDefaultUserPropertiesReference().areItemsRestrictedOnHomeScreen());
 
         // userTypeOem1 should be created.
-        UserTypeDetails.Builder customType = builders.get(userTypeOem1);
-        assertNotNull(customType);
-        assertEquals(14, customType.createUserTypeDetails().getMaxAllowedPerParent());
+        assertNotNull(builders.get(userTypeOem1));
+        UserTypeDetails customType = builders.get(userTypeOem1).createUserTypeDetails();
+        assertEquals(14, customType.getMaxAllowedPerParent());
+        assertTrue(customType.isProfileParentRequired());
     }
 
     /** Tests {@link UserTypeFactory#customizeBuilders} for customizing a FULL user. */

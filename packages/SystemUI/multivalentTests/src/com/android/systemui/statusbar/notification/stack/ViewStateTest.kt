@@ -16,21 +16,32 @@
 
 package com.android.systemui.statusbar.notification.stack
 
+import android.animation.AnimatorTestRule
+import android.animation.ValueAnimator
+import android.view.View
+import androidx.test.annotation.UiThreadTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.log.assertDoesNotLogWtf
 import com.android.systemui.log.assertLogsWtf
-import kotlin.math.log2
-import kotlin.math.sqrt
+import com.android.systemui.statusbar.notification.PhysicsPropertyAnimator
+import com.android.systemui.statusbar.notification.PhysicsPropertyAnimator.Companion.TAG_ANIMATOR_TRANSLATION_Y
+import com.android.systemui.statusbar.notification.PhysicsPropertyAnimator.Companion.Y_TRANSLATION
 import org.junit.Assert
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.log2
+import kotlin.math.sqrt
 
 @RunWith(AndroidJUnit4::class)
 @SmallTest
+@UiThreadTest
 class ViewStateTest : SysuiTestCase() {
-    private val viewState = ViewState()
+    private val viewState = ViewState(true /* usePhysicsForMovement */)
+    @get:Rule
+    val animatorTestRule = AnimatorTestRule(this)
 
     @Suppress("DIVISION_BY_ZERO")
     @Test
@@ -63,5 +74,38 @@ class ViewStateTest : SysuiTestCase() {
 
         assertLogsWtf { viewState.scaleY = Float.POSITIVE_INFINITY * 0 }
         Assert.assertEquals(viewState.scaleY, 0.25f)
+    }
+
+    @Test
+    fun testUsingPhysics() {
+        val animatedView = View(context)
+        viewState.setUsePhysicsForMovement(true)
+        viewState.applyToView(animatedView)
+        viewState.yTranslation = 100f
+        val animationFilter = AnimationFilter().animateY()
+        val animationProperties = object : AnimationProperties() {
+            override fun getAnimationFilter(): AnimationFilter {
+                return animationFilter
+            }
+        }
+        viewState.animateTo(animatedView, animationProperties)
+        Assert.assertTrue(PhysicsPropertyAnimator.isAnimating(animatedView, Y_TRANSLATION))
+    }
+
+    @Test
+    fun testNotUsingPhysics() {
+        val animatedView = View(context)
+        viewState.setUsePhysicsForMovement(false)
+        viewState.applyToView(animatedView)
+        viewState.yTranslation = 100f
+        val animationFilter = AnimationFilter().animateY()
+        val animationProperties = object : AnimationProperties() {
+            override fun getAnimationFilter(): AnimationFilter {
+                return animationFilter
+            }
+        }
+        viewState.animateTo(animatedView, animationProperties)
+        val tag = animatedView.getTag(TAG_ANIMATOR_TRANSLATION_Y)
+        Assert.assertTrue(tag is ValueAnimator)
     }
 }

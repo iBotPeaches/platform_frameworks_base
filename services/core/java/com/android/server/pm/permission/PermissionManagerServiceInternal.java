@@ -18,6 +18,7 @@ package com.android.server.pm.permission;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeALL;
 import android.annotation.UserIdInt;
 import android.app.AppOpsManager;
 import android.content.pm.PackageInstaller.SessionParams;
@@ -325,7 +326,7 @@ public interface PermissionManagerServiceInternal extends PermissionManagerInter
     //@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     void onPackageUninstalled(@NonNull String packageName, int appId,
             @Nullable PackageState packageState, @Nullable AndroidPackage pkg,
-            @NonNull List<AndroidPackage> sharedUserPkgs, @UserIdInt int userId);
+            @NonNull List<AndroidPackage> sharedUserPkgs, @CanBeALL @UserIdInt int userId);
 
     /**
      * The permission-related parameters passed in for package installation.

@@ -34,11 +34,12 @@ import static com.android.server.display.DisplayAdapter.DISPLAY_DEVICE_EVENT_REM
 import static com.android.server.display.DisplayDeviceInfo.DIFF_EVERYTHING;
 import static com.android.server.display.DisplayDeviceInfo.FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY;
 import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_ADDED;
+import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_COMMITTED_STATE_CHANGED;
 import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_CONNECTED;
 import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_DISCONNECTED;
-import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_REFRESH_RATE_CHANGED;
 import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_REMOVED;
 import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_STATE_CHANGED;
+import static com.android.server.display.LogicalDisplayMapper.LOGICAL_DISPLAY_EVENT_REFRESH_RATE_CHANGED;
 import static com.android.server.display.layout.Layout.Display.POSITION_REAR;
 import static com.android.server.display.layout.Layout.Display.POSITION_UNKNOWN;
 import static com.android.server.utils.FoldSettingProvider.SETTING_VALUE_SELECTIVE_STAY_AWAKE;
@@ -222,7 +223,6 @@ public class LogicalDisplayMapperTest {
         when(mSyntheticModeManagerMock.createAppSupportedModes(any(), any(), anyBoolean()))
                 .thenAnswer(AdditionalAnswers.returnsSecondArg());
 
-        when(mFlagsMock.isConnectedDisplayManagementEnabled()).thenReturn(false);
         mLooper = new TestLooper();
         mHandler = new Handler(mLooper.getLooper());
         mLogicalDisplayMapper = new LogicalDisplayMapper(mContextMock, mFoldSettingProviderMock,
@@ -351,8 +351,7 @@ public class LogicalDisplayMapperTest {
     }
 
     @Test
-    public void testDisplayDeviceAddAndRemove_withDisplayManagement() {
-        when(mFlagsMock.isConnectedDisplayManagementEnabled()).thenReturn(true);
+    public void testDisplayDeviceAddAndRemove() {
         DisplayDevice device = createDisplayDevice(TYPE_INTERNAL, 600, 800,
                 FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY);
 
@@ -390,8 +389,7 @@ public class LogicalDisplayMapperTest {
     }
 
     @Test
-    public void testDisplayDisableEnable_withDisplayManagement() {
-        when(mFlagsMock.isConnectedDisplayManagementEnabled()).thenReturn(true);
+    public void testDisplayDisableEnable() {
         DisplayDevice device = createDisplayDevice(TYPE_INTERNAL, 600, 800,
                 FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY);
         LogicalDisplay displayAdded = add(device);
@@ -1170,24 +1168,34 @@ public class LogicalDisplayMapperTest {
 
     @Test
     public void updateAndGetMaskForDisplayPropertyChanges_getsPropertyChangedFlags() {
-        // Change the display state
+        // Change the refresh rate override
         DisplayInfo newDisplayInfo = new DisplayInfo();
+        newDisplayInfo.refreshRateOverride = 30;
+        assertEquals(LOGICAL_DISPLAY_EVENT_REFRESH_RATE_CHANGED,
+                mLogicalDisplayMapper.updateAndGetMaskForDisplayPropertyChanges(newDisplayInfo));
+
+        // Change the display state
+        when(mFlagsMock.isDisplayListenerPerformanceImprovementsEnabled()).thenReturn(true);
+        newDisplayInfo = new DisplayInfo();
         newDisplayInfo.state = STATE_OFF;
         assertEquals(LOGICAL_DISPLAY_EVENT_STATE_CHANGED,
                 mLogicalDisplayMapper.updateAndGetMaskForDisplayPropertyChanges(newDisplayInfo));
 
-        // Change the refresh rate override
+        // Change the display committed state
+        when(mFlagsMock.isCommittedStateSeparateEventEnabled()).thenReturn(true);
         newDisplayInfo = new DisplayInfo();
-        newDisplayInfo.refreshRateOverride = 30;
-        assertEquals(LOGICAL_DISPLAY_EVENT_REFRESH_RATE_CHANGED,
+        newDisplayInfo.committedState = STATE_OFF;
+        assertEquals(LOGICAL_DISPLAY_EVENT_COMMITTED_STATE_CHANGED,
                 mLogicalDisplayMapper.updateAndGetMaskForDisplayPropertyChanges(newDisplayInfo));
 
         // Change multiple properties
         newDisplayInfo = new DisplayInfo();
         newDisplayInfo.refreshRateOverride = 30;
         newDisplayInfo.state = STATE_OFF;
+        newDisplayInfo.committedState = STATE_OFF;
         assertEquals(LOGICAL_DISPLAY_EVENT_REFRESH_RATE_CHANGED
-                        | LOGICAL_DISPLAY_EVENT_STATE_CHANGED,
+                        | LOGICAL_DISPLAY_EVENT_STATE_CHANGED
+                        | LOGICAL_DISPLAY_EVENT_COMMITTED_STATE_CHANGED,
                 mLogicalDisplayMapper.updateAndGetMaskForDisplayPropertyChanges(newDisplayInfo));
     }
 
@@ -1348,9 +1356,14 @@ public class LogicalDisplayMapperTest {
         ArgumentCaptor<LogicalDisplay> displayCaptor =
                 ArgumentCaptor.forClass(LogicalDisplay.class);
         verify(mListenerMock).onLogicalDisplayEventLocked(
-                displayCaptor.capture(), eq(LOGICAL_DISPLAY_EVENT_ADDED));
+                displayCaptor.capture(), eq(LOGICAL_DISPLAY_EVENT_CONNECTED));
+        LogicalDisplay display = displayCaptor.getValue();
+        if (display.isEnabledLocked()) {
+            verify(mListenerMock).onLogicalDisplayEventLocked(
+                    eq(display), eq(LOGICAL_DISPLAY_EVENT_ADDED));
+        }
         clearInvocations(mListenerMock);
-        return displayCaptor.getValue();
+        return display;
     }
 
     private void testDisplayDeviceAddAndRemove_NonInternal(int type) {

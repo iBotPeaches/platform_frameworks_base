@@ -79,6 +79,7 @@ struct LinkOptions {
   std::unordered_set<std::string> extensions_to_not_compress;
   std::optional<std::regex> regex_to_not_compress;
   std::optional<std::string> extensions_to_not_compress_path;
+  bool no_compress_fonts = false;
   FeatureFlagValues feature_flag_values;
 
   // Static lib options.
@@ -164,9 +165,12 @@ class LinkCommand : public Command {
     AddOptionalSwitch("--no-resource-removal", "Disables automatic removal of resources without\n"
             "defaults. Use this only when building runtime resource overlay packages.",
         &options_.no_resource_removal);
-    AddOptionalSwitch("--enable-sparse-encoding",
-                      "This decreases APK size at the cost of resource retrieval performance.",
-                      &options_.use_sparse_encoding);
+    AddOptionalSwitch(
+        "--enable-sparse-encoding",
+        "Enables encoding sparse entries using a binary search tree.\n"
+        "This decreases APK size at the cost of resource retrieval performance.\n"
+        "Only applies sparse encoding if minSdk of the APK is >= 32",
+        &options_.use_sparse_encoding);
     AddOptionalSwitch("--enable-compact-entries",
         "This decreases APK size by using compact resource entries for simple data types.",
         &options_.table_flattener_options.use_compact_entries);
@@ -303,6 +307,14 @@ class LinkCommand : public Command {
             "use the '$' symbol for end of line. Uses a case-sensitive ECMAScript"
             "regular expression grammar.",
         &no_compress_regex);
+    AddOptionalSwitch("--no-compress-fonts",
+        "Do not compress files with common extensions for fonts.\n"
+            "This allows loading fonts directly from the APK, without needing to\n"
+            "decompress them first. Loading fonts will be faster and use less memory.\n"
+            "The downside is that the APK will be larger.\n"
+            "Passing this flag is functionally equivalent to passing the following flags:\n"
+            "-0 .ttf -0 .otf -0 .ttc",
+        &options_.no_compress_fonts);
     AddOptionalSwitch("--warn-manifest-validation",
         "Treat manifest validation errors as warnings.",
         &options_.manifest_fixer_options.warn_validation);

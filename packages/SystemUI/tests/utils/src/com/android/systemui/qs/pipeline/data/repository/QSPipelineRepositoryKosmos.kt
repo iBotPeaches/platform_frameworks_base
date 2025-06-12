@@ -26,7 +26,7 @@ val Kosmos.minimumTilesRepository: MinimumTilesRepository by
     Kosmos.Fixture { fakeMinimumTilesRepository }
 
 var Kosmos.fakeDefaultTilesRepository by Kosmos.Fixture { FakeDefaultTilesRepository() }
-val Kosmos.defaultTilesRepository: DefaultTilesRepository by
+var Kosmos.defaultTilesRepository: DefaultTilesRepository by
     Kosmos.Fixture { fakeDefaultTilesRepository }
 
 val Kosmos.fakeTileSpecRepository by

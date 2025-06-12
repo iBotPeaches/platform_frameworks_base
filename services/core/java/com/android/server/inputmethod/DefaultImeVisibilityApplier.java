@@ -22,6 +22,7 @@ import static com.android.internal.inputmethod.SoftInputShowHideReason.REMOVE_IM
 import static com.android.internal.inputmethod.SoftInputShowHideReason.SHOW_IME_SCREENSHOT_FROM_IMMS;
 import static com.android.server.EventLogTags.IMF_HIDE_IME;
 import static com.android.server.EventLogTags.IMF_SHOW_IME;
+import static com.android.server.inputmethod.ImeProtoLogGroup.IME_VISIBILITY_APPLIER_DEBUG;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME_EXPLICIT;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME_NOT_ALWAYS;
@@ -36,7 +37,6 @@ import android.annotation.UserIdInt;
 import android.os.IBinder;
 import android.os.ResultReceiver;
 import android.util.EventLog;
-import android.util.Slog;
 import android.view.MotionEvent;
 import android.view.inputmethod.Flags;
 import android.view.inputmethod.ImeTracker;
@@ -46,6 +46,7 @@ import android.view.inputmethod.InputMethodManager;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.inputmethod.InputMethodDebug;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
+import com.android.internal.protolog.ProtoLog;
 import com.android.server.LocalServices;
 import com.android.server.wm.ImeTargetVisibilityPolicy;
 import com.android.server.wm.WindowManagerInternal;
@@ -58,9 +59,7 @@ import java.util.Objects;
  */
 final class DefaultImeVisibilityApplier {
 
-    private static final String TAG = "DefaultImeVisibilityApplier";
-
-    private static final boolean DEBUG = InputMethodManagerService.DEBUG;
+    static final String TAG = "DefaultImeVisibilityApplier";
 
     private InputMethodManagerService mService;
 
@@ -93,11 +92,10 @@ final class DefaultImeVisibilityApplier {
         final var bindingController = userData.mBindingController;
         final IInputMethodInvoker curMethod = bindingController.getCurMethod();
         if (curMethod != null) {
-            if (DEBUG) {
-                Slog.v(TAG, "Calling " + curMethod + ".showSoftInput(" + showInputToken
-                        + ", " + showFlags + ", " + resultReceiver + ") for reason: "
-                        + InputMethodDebug.softInputDisplayReasonToString(reason));
-            }
+            ProtoLog.v(IME_VISIBILITY_APPLIER_DEBUG,
+                    "Calling %s.showSoftInput(%s, %s, %s) for reason: %s", curMethod,
+                    showInputToken, showFlags, resultReceiver,
+                    InputMethodDebug.softInputDisplayReasonToString(reason));
             // TODO(b/192412909): Check if we can always call onShowHideSoftInputRequested() or not.
             if (curMethod.showSoftInput(showInputToken, statsToken, showFlags, resultReceiver)) {
                 if (DEBUG_IME_VISIBILITY) {
@@ -136,11 +134,9 @@ final class DefaultImeVisibilityApplier {
             // delivered to the IME process as an IPC.  Hence the inconsistency between
             // IMMS#mInputShown and IMMS#mImeWindowVis should be resolved spontaneously in
             // the final state.
-            if (DEBUG) {
-                Slog.v(TAG, "Calling " + curMethod + ".hideSoftInput(0, " + hideInputToken
-                        + ", " + resultReceiver + ") for reason: "
-                        + InputMethodDebug.softInputDisplayReasonToString(reason));
-            }
+            ProtoLog.v(IME_VISIBILITY_APPLIER_DEBUG,
+                    "Calling %s.hideSoftInput(0, %s, %s) for reason: %s", curMethod, hideInputToken,
+                    resultReceiver, InputMethodDebug.softInputDisplayReasonToString(reason));
             // TODO(b/192412909): Check if we can always call onShowHideSoftInputRequested() or not.
             if (curMethod.hideSoftInput(hideInputToken, statsToken, 0, resultReceiver)) {
                 if (DEBUG_IME_VISIBILITY) {

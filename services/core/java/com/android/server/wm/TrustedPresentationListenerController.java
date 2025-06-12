@@ -20,6 +20,7 @@ import static android.graphics.Matrix.MSCALE_X;
 import static android.graphics.Matrix.MSCALE_Y;
 import static android.graphics.Matrix.MSKEW_X;
 import static android.graphics.Matrix.MSKEW_Y;
+import static android.view.Display.INVALID_DISPLAY;
 
 import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_TPL;
 
@@ -30,11 +31,13 @@ import android.graphics.Region;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.InputConfig;
 import android.os.RemoteException;
 import android.util.ArrayMap;
 import android.util.IntArray;
 import android.util.Pair;
 import android.util.Size;
+import android.util.SparseArray;
 import android.view.InputWindowHandle;
 import android.window.ITrustedPresentationListener;
 import android.window.TrustedPresentationThresholds;
@@ -251,18 +254,19 @@ public class TrustedPresentationListenerController {
         Rect tmpLogicalDisplaySize = new Rect();
         Matrix tmpInverseMatrix = new Matrix();
         float[] tmpMatrix = new float[9];
-        Region coveredRegionsAbove = new Region();
+        SparseArray<Region> coveredRegionsAboveByDisplay = new SparseArray<>();
         long currTimeMs = System.currentTimeMillis();
         ProtoLog.v(WM_DEBUG_TPL, "Checking %d windows", mLastWindowHandles.first.length);
 
         ArrayMap<ITrustedPresentationListener, Pair<IntArray, IntArray>> listenerUpdates =
                 new ArrayMap<>();
         for (var windowHandle : mLastWindowHandles.first) {
-            if (!windowHandle.canOccludePresentation) {
-                ProtoLog.v(WM_DEBUG_TPL, "Skipping %s", windowHandle.name);
+            var isInvisible = ((windowHandle.inputConfig & InputConfig.NOT_VISIBLE)
+                    == InputConfig.NOT_VISIBLE);
+            if (!windowHandle.canOccludePresentation || isInvisible) {
                 continue;
             }
-            var displayFound = false;
+            int displayId = INVALID_DISPLAY;
             tmpRectF.set(windowHandle.frame);
             for (var displayHandle : mLastWindowHandles.second) {
                 if (displayHandle.mDisplayId == windowHandle.displayId) {
@@ -273,17 +277,18 @@ public class TrustedPresentationListenerController {
                     tmpLogicalDisplaySize.set(0, 0, displayHandle.mLogicalSize.getWidth(),
                             displayHandle.mLogicalSize.getHeight());
                     tmpRect.intersect(tmpLogicalDisplaySize);
-                    displayFound = true;
+                    displayId = displayHandle.mDisplayId;
                     break;
                 }
             }
 
-            if (!displayFound) {
+            if (displayId == INVALID_DISPLAY) {
                 ProtoLog.v(WM_DEBUG_TPL, "Skipping %s, no associated display %d", windowHandle.name,
                         windowHandle.displayId);
                 continue;
             }
 
+            Region coveredRegionsAbove = coveredRegionsAboveByDisplay.get(displayId, new Region());
             var listeners = mRegisteredListeners.get(windowHandle.getWindowToken());
             if (listeners != null) {
                 Region region = new Region();
@@ -304,6 +309,7 @@ public class TrustedPresentationListenerController {
             }
 
             coveredRegionsAbove.op(tmpRect, Region.Op.UNION);
+            coveredRegionsAboveByDisplay.put(displayId, coveredRegionsAbove);
             ProtoLog.v(WM_DEBUG_TPL, "coveredRegionsAbove updated with %s frame:%s region:%s",
                     windowHandle.name, tmpRect.toShortString(), coveredRegionsAbove);
         }

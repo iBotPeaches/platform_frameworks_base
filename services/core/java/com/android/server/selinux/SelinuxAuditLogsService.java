@@ -16,6 +16,7 @@
 package com.android.server.selinux;
 
 import static com.android.sdksandbox.flags.Flags.selinuxSdkSandboxAudit;
+import static com.android.server.selinux.flags.Flags.selinuxLogsCollect;
 
 import android.app.job.JobInfo;
 import android.app.job.JobParameters;
@@ -49,6 +50,9 @@ public class SelinuxAuditLogsService extends JobService {
             "selinux_audit_job_frequency_hours";
     private static final String CONFIG_SELINUX_ENABLE_AUDIT_JOB = "selinux_enable_audit_job";
     private static final String CONFIG_SELINUX_AUDIT_CAP = "selinux_audit_cap";
+    private static final String DEVICE_CONFIG_SECURITY_NAMESPACE = "security";
+    private static final String CONFIG_SECURITY_SELINUX_AUDIT_JOB_ENABLED =
+            "selinux_audit_job_enabled";
     private static final int MAX_PERMITS_CAP_DEFAULT = 50000;
 
     private static final int SELINUX_AUDIT_JOB_ID = 25327386;
@@ -76,7 +80,7 @@ public class SelinuxAuditLogsService extends JobService {
 
     /** Schedule jobs with the {@link JobScheduler}. */
     public static void schedule(Context context) {
-        if (!selinuxSdkSandboxAudit()) {
+        if (!selinuxSdkSandboxAudit() && !enabledForAllDomains()) {
             Slog.d(TAG, "SelinuxAuditLogsService not enabled");
             return;
         }
@@ -86,13 +90,20 @@ public class SelinuxAuditLogsService extends JobService {
             return;
         }
 
-        LogsCollectorJobScheduler propertiesListener =
+        LogsCollectorJobScheduler scheduler =
                 new LogsCollectorJobScheduler(
                         context.getSystemService(JobScheduler.class)
                                 .forNamespace(SELINUX_AUDIT_NAMESPACE));
-        propertiesListener.schedule();
+        scheduler.schedule();
+
+        AdServicesPropertyMonitor adServicesProperties = new AdServicesPropertyMonitor(scheduler);
         DeviceConfig.addOnPropertiesChangedListener(
-                DeviceConfig.NAMESPACE_ADSERVICES, context.getMainExecutor(), propertiesListener);
+                DeviceConfig.NAMESPACE_ADSERVICES, context.getMainExecutor(), adServicesProperties);
+
+        SecurityPropertyMonitor securityProperties = new SecurityPropertyMonitor(scheduler);
+        DeviceConfig.addOnPropertiesChangedListener(
+                DEVICE_CONFIG_SECURITY_NAMESPACE, context.getMainExecutor(), securityProperties);
+
     }
 
     @Override
@@ -101,7 +112,7 @@ public class SelinuxAuditLogsService extends JobService {
             Slog.e(TAG, "The job id does not match the expected selinux job id.");
             return false;
         }
-        if (!selinuxSdkSandboxAudit()) {
+        if (!selinuxSdkSandboxAudit() && !enabledForAllDomains()) {
             Slog.i(TAG, "Selinux audit job disabled.");
             return false;
         }
@@ -123,17 +134,33 @@ public class SelinuxAuditLogsService extends JobService {
         return false;
     }
 
-    /**
-     * This class is in charge of scheduling the job service, and keeping the scheduling up to date
-     * when the parameters change.
-     */
-    private static final class LogsCollectorJobScheduler
+    /** Checks if the service is enabled for all domains */
+    public static final boolean enabledForAllDomains() {
+        if (selinuxLogsCollect()) {
+            return DeviceConfig.getBoolean(
+                    DEVICE_CONFIG_SECURITY_NAMESPACE,
+                    CONFIG_SECURITY_SELINUX_AUDIT_JOB_ENABLED,
+                    false);
+        }
+        return false;
+    }
+
+    /** Checks if the service is enabled for SDK Sandbox */
+    public static final boolean enabledForSdkSandbox() {
+        if (selinuxSdkSandboxAudit()) {
+            return DeviceConfig.getBoolean(
+                    DeviceConfig.NAMESPACE_ADSERVICES, CONFIG_SELINUX_ENABLE_AUDIT_JOB, false);
+        }
+        return false;
+    }
+
+    private static final class AdServicesPropertyMonitor
             implements DeviceConfig.OnPropertiesChangedListener {
 
-        private final JobScheduler mJobScheduler;
+        private final LogsCollectorJobScheduler mScheduler;
 
-        private LogsCollectorJobScheduler(JobScheduler jobScheduler) {
-            mJobScheduler = jobScheduler;
+        private AdServicesPropertyMonitor(LogsCollectorJobScheduler scheduler) {
+            mScheduler = scheduler;
         }
 
         @Override
@@ -149,19 +176,65 @@ public class SelinuxAuditLogsService extends JobService {
             if (keyset.contains(CONFIG_SELINUX_ENABLE_AUDIT_JOB)) {
                 boolean enabled =
                         changedProperties.getBoolean(
-                                CONFIG_SELINUX_ENABLE_AUDIT_JOB, /* defaultValue= */ false);
+                                CONFIG_SELINUX_ENABLE_AUDIT_JOB, /* defaultValue= */ false)
+                        || enabledForAllDomains();
                 if (enabled) {
-                    schedule();
+                    mScheduler.schedule();
                 } else {
-                    mJobScheduler.cancel(SELINUX_AUDIT_JOB_ID);
+                    mScheduler.cancel();
                 }
             } else if (keyset.contains(CONFIG_SELINUX_AUDIT_JOB_FREQUENCY_HOURS)) {
                 // The job frequency changed, reschedule.
-                schedule();
+                mScheduler.schedule();
             }
         }
+    }
 
-        private void schedule() {
+    private static final class SecurityPropertyMonitor
+            implements DeviceConfig.OnPropertiesChangedListener {
+
+        private final LogsCollectorJobScheduler mScheduler;
+
+        private SecurityPropertyMonitor(LogsCollectorJobScheduler scheduler) {
+            mScheduler = scheduler;
+        }
+
+        @Override
+        public void onPropertiesChanged(Properties changedProperties) {
+            Set<String> keyset = changedProperties.getKeyset();
+
+            if (keyset.contains(CONFIG_SECURITY_SELINUX_AUDIT_JOB_ENABLED)) {
+                boolean enabled =
+                        changedProperties.getBoolean(
+                                CONFIG_SECURITY_SELINUX_AUDIT_JOB_ENABLED,
+                                /* defaultValue= */ false)
+                        || enabledForSdkSandbox();
+                if (enabled) {
+                    mScheduler.schedule();
+                } else {
+                    mScheduler.cancel();
+                }
+            }
+        }
+    }
+
+    /**
+     * This class is in charge of scheduling the job service, and keeping the scheduling up to date
+     * when the parameters change.
+     */
+    private static final class LogsCollectorJobScheduler {
+
+        private final JobScheduler mJobScheduler;
+
+        private LogsCollectorJobScheduler(JobScheduler jobScheduler) {
+            mJobScheduler = jobScheduler;
+        }
+
+        public void cancel() {
+            mJobScheduler.cancel(SELINUX_AUDIT_JOB_ID);
+        }
+
+        public void schedule() {
             long frequencyMillis =
                     TimeUnit.HOURS.toMillis(
                             DeviceConfig.getInt(

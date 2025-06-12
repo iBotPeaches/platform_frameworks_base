@@ -16,7 +16,7 @@
   -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.android.inputmethod.imetests">
+          package="com.android.inputmethodservice">
 
     <!-- Permissions required for granting and logging -->
     <uses-permission android:name="android.permission.LOG_COMPAT_CHANGE"/>
@@ -32,8 +32,8 @@
         <uses-library android:name="android.test.runner" />
     </application>
 
-    <!-- The "targetPackage" reference the instruments APK package, which is the FakeImeApk, while
-    the test package is "com.android.inputmethod.imetests" (FrameworksImeTests.apk).-->
+    <!-- The "targetPackage" reference the instruments APK package, which is the SimpleTestIme.apk,
+    while the test package is "com.android.inputmethodservice" (FrameworksImeTests.apk).-->
     <instrumentation
         android:name="androidx.test.runner.AndroidJUnitRunner"
         android:targetPackage="com.android.apps.inputmethod.simpleime"

@@ -76,6 +76,16 @@
     <color name="media_dialog_seekbar_progress">@color/material_dynamic_secondary40</color>
     <color name="media_dialog_button_background">@color/material_dynamic_primary70</color>
     <color name="media_dialog_solid_button_text">@color/material_dynamic_secondary20</color>
+    <color name="media_dialog_primary">@android:color/system_primary_dark</color>
+    <color name="media_dialog_on_primary">@android:color/system_on_primary_dark</color>
+    <color name="media_dialog_secondary">@android:color/system_secondary_dark</color>
+    <color name="media_dialog_secondary_container">@android:color/system_secondary_container_dark</color>
+    <color name="media_dialog_surface_container">@android:color/system_surface_container_dark</color>
+    <color name="media_dialog_surface_container_high">@android:color/system_surface_container_high_dark</color>
+    <color name="media_dialog_on_surface">@android:color/system_on_surface_dark</color>
+    <color name="media_dialog_on_surface_variant">@android:color/system_on_surface_variant_dark</color>
+    <color name="media_dialog_outline">@android:color/system_outline_dark</color>
+    <color name="media_dialog_outline_variant">@android:color/system_outline_variant_dark</color>
 
     <!-- Biometric dialog colors -->
     <color name="biometric_dialog_gray">#ffcccccc</color>
@@ -107,6 +117,15 @@
     <color name="accessibility_floating_menu_message_text">@*android:color/primary_text_default_material_dark</color>
 
     <color name="people_tile_background">@color/material_dynamic_secondary20</color>
+
+    <!-- Dark theme base colors for notification shade/scrim, the alpha component is adjusted
+     programmatically to match the spec -->
+    <color name="shade_panel_base">@android:color/system_accent1_800</color>
+    <color name="notification_scrim_base">@android:color/system_accent1_800</color>
+
+    <!-- Dark theme fallback colors for notification shade/scrim -->
+    <color name="shade_panel_fallback">@android:color/system_accent2_800</color>
+    <color name="notification_scrim_fallback">@android:color/system_surface_dim_dark</color>
 
     <!-- Keyboard shortcut helper dialog -->
     <color name="ksh_key_item_color">@*android:color/system_on_surface_variant_dark</color>

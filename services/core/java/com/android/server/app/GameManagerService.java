@@ -361,6 +361,14 @@ public final class GameManagerService extends IGameManagerService.Stub {
                 case POPULATE_GAME_MODE_SETTINGS: {
                     removeEqualMessages(POPULATE_GAME_MODE_SETTINGS, msg.obj);
                     final int userId = (int) msg.obj;
+                    synchronized (mLock) {
+                        if (!mSettings.containsKey(userId)) {
+                            GameManagerSettings userSettings = new GameManagerSettings(
+                                    Environment.getDataSystemDeDirectory(userId));
+                            mSettings.put(userId, userSettings);
+                            userSettings.readPersistentDataLocked();
+                        }
+                    }
                     final String[] packageNames = getInstalledGamePackageNames(userId);
                     updateConfigsForUser(userId, false /*checkGamePackage*/, packageNames);
                     break;
@@ -990,8 +998,7 @@ public final class GameManagerService extends IGameManagerService.Stub {
         @Override
         public void onUserStarting(@NonNull TargetUser user) {
             Slog.d(TAG, "Starting user " + user.getUserIdentifier());
-            mService.onUserStarting(user,
-                    Environment.getDataSystemDeDirectory(user.getUserIdentifier()));
+            mService.onUserStarting(user, /*settingDataDirOverride*/ null);
         }
 
         @Override
@@ -1596,13 +1603,16 @@ public final class GameManagerService extends IGameManagerService.Stub {
         }
     }
 
-    void onUserStarting(@NonNull TargetUser user, File settingDataDir) {
+    void onUserStarting(@NonNull TargetUser user, File settingDataDirOverride) {
         final int userId = user.getUserIdentifier();
-        synchronized (mLock) {
-            if (!mSettings.containsKey(userId)) {
-                GameManagerSettings userSettings = new GameManagerSettings(settingDataDir);
-                mSettings.put(userId, userSettings);
-                userSettings.readPersistentDataLocked();
+        if (settingDataDirOverride != null) {
+            synchronized (mLock) {
+                if (!mSettings.containsKey(userId)) {
+                    GameManagerSettings userSettings = new GameManagerSettings(
+                            settingDataDirOverride);
+                    mSettings.put(userId, userSettings);
+                    userSettings.readPersistentDataLocked();
+                }
             }
         }
         sendUserMessage(userId, POPULATE_GAME_MODE_SETTINGS, EVENT_ON_USER_STARTING,

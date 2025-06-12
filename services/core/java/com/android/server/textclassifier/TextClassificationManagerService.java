@@ -177,6 +177,7 @@ public final class TextClassificationManagerService extends ITextClassifierServi
     private final String mDefaultTextClassifierPackage;
     @Nullable
     private final String mSystemTextClassifierPackage;
+    private final MyPackageMonitor mPackageMonitor;
 
     private TextClassificationManagerService(Context context) {
         mContext = Objects.requireNonNull(context);
@@ -187,50 +188,50 @@ public final class TextClassificationManagerService extends ITextClassifierServi
         mDefaultTextClassifierPackage = packageManager.getDefaultTextClassifierPackageName();
         mSystemTextClassifierPackage = packageManager.getSystemTextClassifierPackageName();
         mSessionCache = new SessionCache(mLock);
+        mPackageMonitor = new MyPackageMonitor();
     }
 
     private void startListenSettings() {
         mSettingsListener.registerObserver();
     }
 
+    private class MyPackageMonitor extends PackageMonitor {
+        @Override
+        public void onPackageAdded(String packageName, int uid) {
+            notifyPackageInstallStatusChange(packageName, /* installed*/ true);
+        }
+
+        @Override
+        public void onPackageRemoved(String packageName, int uid) {
+            notifyPackageInstallStatusChange(packageName, /* installed= */ false);
+        }
+
+        @Override
+        public void onPackageModified(String packageName) {
+            final int userId = getChangingUserId();
+            synchronized (mLock) {
+                final UserState userState = getUserStateLocked(userId);
+                final ServiceState serviceState = userState.getServiceStateLocked(packageName);
+                if (serviceState != null) {
+                    serviceState.onPackageModifiedLocked();
+                }
+            }
+        }
+
+        private void notifyPackageInstallStatusChange(String packageName, boolean installed) {
+            final int userId = getChangingUserId();
+            synchronized (mLock) {
+                final UserState userState = getUserStateLocked(userId);
+                final ServiceState serviceState = userState.getServiceStateLocked(packageName);
+                if (serviceState != null) {
+                    serviceState.onPackageInstallStatusChangeLocked(installed);
+                }
+            }
+        }
+    }
+
     void startTrackingPackageChanges() {
-        final PackageMonitor monitor = new PackageMonitor() {
-
-            @Override
-            public void onPackageAdded(String packageName, int uid) {
-                notifyPackageInstallStatusChange(packageName, /* installed*/ true);
-            }
-
-            @Override
-            public void onPackageRemoved(String packageName, int uid) {
-                notifyPackageInstallStatusChange(packageName, /* installed= */ false);
-            }
-
-            @Override
-            public void onPackageModified(String packageName) {
-                final int userId = getChangingUserId();
-                synchronized (mLock) {
-                    final UserState userState = getUserStateLocked(userId);
-                    final ServiceState serviceState = userState.getServiceStateLocked(packageName);
-                    if (serviceState != null) {
-                        serviceState.onPackageModifiedLocked();
-                    }
-                }
-            }
-
-            private void notifyPackageInstallStatusChange(String packageName, boolean installed) {
-                final int userId = getChangingUserId();
-                synchronized (mLock) {
-                    final UserState userState = getUserStateLocked(userId);
-                    final ServiceState serviceState = userState.getServiceStateLocked(packageName);
-                    if (serviceState != null) {
-                        serviceState.onPackageInstallStatusChangeLocked(installed);
-                    }
-                }
-            }
-        };
-
-        monitor.register(mContext, null,  UserHandle.ALL, true);
+       mPackageMonitor.register(mContext, null,  UserHandle.ALL, true);
     }
 
     @Override

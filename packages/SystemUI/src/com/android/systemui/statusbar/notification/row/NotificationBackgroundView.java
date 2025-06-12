@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.notification.row;
 
+import static com.android.systemui.Flags.notificationRowTransparency;
 import static com.android.systemui.util.ColorUtilKt.hexColorString;
 
 import android.content.Context;
@@ -23,6 +24,7 @@ import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -35,8 +37,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.internal.util.ContrastColorUtil;
-import com.android.settingslib.Utils;
 import com.android.systemui.Dumpable;
+import com.android.systemui.common.shared.colors.SurfaceEffectColors;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.notification.shared.NotificationAddXOnHoverToDismiss;
 import com.android.systemui.util.DrawableDumpKt;
@@ -69,7 +71,7 @@ public class NotificationBackgroundView extends View implements Dumpable,
     private int mDrawableAlpha = 255;
     private final ColorStateList mLightColoredStatefulColors;
     private final ColorStateList mDarkColoredStatefulColors;
-    private final int mNormalColor;
+    private int mNormalColor;
     private final int convexR = 9;
     private final int concaveR = 22;
 
@@ -83,8 +85,12 @@ public class NotificationBackgroundView extends View implements Dumpable,
                 R.color.notification_state_color_light);
         mDarkColoredStatefulColors = getResources().getColorStateList(
                 R.color.notification_state_color_dark);
-        mNormalColor = Utils.getColorAttrDefaultColor(mContext,
-                com.android.internal.R.attr.materialColorSurfaceContainerHigh);
+        if (notificationRowTransparency()) {
+            mNormalColor = SurfaceEffectColors.surfaceEffect1(getContext());
+        } else  {
+            mNormalColor = mContext.getColor(
+                    com.android.internal.R.color.materialColorSurfaceContainerHigh);
+        }
         mFocusOverlayStroke = getResources().getDimension(R.dimen.notification_focus_stroke_width);
     }
 
@@ -170,12 +176,12 @@ public class NotificationBackgroundView extends View implements Dumpable,
                 && !mExpandAnimationRunning) {
             bottom -= mClipBottomAmount;
         }
-        final boolean isRtl = isLayoutRtl();
+        final boolean alignedToRight = isAlignedToRight();
         final int width = getWidth();
         final int actualWidth = getActualWidth();
 
-        int left = isRtl ? width - actualWidth : 0;
-        int right = isRtl ? width : actualWidth;
+        int left = alignedToRight ? width - actualWidth : 0;
+        int right = alignedToRight ? width : actualWidth;
 
         if (mExpandAnimationRunning) {
             // Horizontally center this background view inside of the container
@@ -184,6 +190,15 @@ public class NotificationBackgroundView extends View implements Dumpable,
         }
 
         return new Rect(left, top, right, bottom);
+    }
+
+    /**
+     * @return Whether the background view should be right-aligned. This only matters if the
+     * actualWidth is different than the full (measured) width. In other words, this is used to
+     * define the short-shelf alignment.
+     */
+    protected boolean isAlignedToRight() {
+        return isLayoutRtl();
     }
 
     private void draw(Canvas canvas, Drawable drawable) {
@@ -197,12 +212,13 @@ public class NotificationBackgroundView extends View implements Dumpable,
                     && !mExpandAnimationRunning) {
                 bottom -= mClipBottomAmount;
             }
-            final boolean isRtl = isLayoutRtl();
+
+            final boolean alignedToRight = isAlignedToRight();
             final int width = getWidth();
             final int actualWidth = getActualWidth();
 
-            int left = isRtl ? width - actualWidth : 0;
-            int right = isRtl ? width : actualWidth;
+            int left = alignedToRight ? width - actualWidth : 0;
+            int right = alignedToRight ? width : actualWidth;
 
             if (mExpandAnimationRunning) {
                 // Horizontally center this background view inside of the container
@@ -271,7 +287,7 @@ public class NotificationBackgroundView extends View implements Dumpable,
         setCustomBackground(d);
     }
 
-    private Drawable getBaseBackgroundLayer() {
+    public Drawable getBaseBackgroundLayer() {
         return ((LayerDrawable) mBackground).getDrawable(0);
     }
 
@@ -281,8 +297,18 @@ public class NotificationBackgroundView extends View implements Dumpable,
 
     public void setTint(int tintColor) {
         Drawable baseLayer = getBaseBackgroundLayer();
-        baseLayer.mutate().setTintMode(PorterDuff.Mode.SRC_ATOP);
-        baseLayer.setTint(tintColor);
+        if (notificationRowTransparency()) {
+            // BG base layer being a drawable, there isn't a method like setColor() to color it.
+            // Instead, we set a color filter that essentially replaces every pixel of the drawable.
+            baseLayer.setColorFilter(
+                    new PorterDuffColorFilter(
+                            tintColor,
+                            // SRC operator discards the drawable's color+alpha
+                            PorterDuff.Mode.SRC));
+        } else {
+            baseLayer.mutate().setTintMode(PorterDuff.Mode.SRC_ATOP);
+            baseLayer.setTint(tintColor);
+        }
         mTintColor = tintColor;
         setStatefulColors();
         invalidate();

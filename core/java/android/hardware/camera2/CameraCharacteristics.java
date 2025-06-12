@@ -5198,12 +5198,6 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * </tr>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">UHD</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
      * <td style="text-align: center;">S720P</td>
      * <td style="text-align: center;">JPEG/JPEG_R</td>
      * <td style="text-align: center;">MAXIMUM_16_9</td>
@@ -5256,9 +5250,6 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * <p>DYNAMIC_RANGE_PROFILE: {STANDARD, HLG10}</p>
      * </li>
      * </ul>
-     * <p>All of the above configurations can be set up with a SessionConfiguration. The list of
-     * OutputConfiguration contains the stream configurations and DYNAMIC_RANGE_PROFILE, and
-     * the AE_TARGET_FPS_RANGE and VIDEO_STABILIZATION_MODE are set as session parameters.</p>
      * <p>When set to BAKLAVA, the additional stream combinations below are verified
      * by the compliance tests:</p>
      * <table>
@@ -5268,23 +5259,52 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * <th style="text-align: center;">Size</th>
      * <th style="text-align: center;">Target 2</th>
      * <th style="text-align: center;">Size</th>
+     * <th style="text-align: center;">Target 3</th>
+     * <th style="text-align: center;">Size</th>
      * </tr>
      * </thead>
      * <tbody>
      * <tr>
-     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">PRIV Preview</td>
      * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">PRIV Video</td>
      * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;"></td>
      * </tr>
      * <tr>
-     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">PRIV Preview</td>
      * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">PRIV Video</td>
      * <td style="text-align: center;">S1440P</td>
+     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;"></td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV Preview</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">PRIV Video</td>
+     * <td style="text-align: center;">UHD</td>
+     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;"></td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV Preview</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">YUV Analysis</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">PRIV Video</td>
+     * <td style="text-align: center;">1080P</td>
      * </tr>
      * </tbody>
      * </table>
+     * <ul>
+     * <li>VIDEO_STABILIZATION_MODE: {OFF, ON} for the newly added stream combinations given the
+     * presence of dedicated video stream</li>
+     * </ul>
+     * <p>All of the above configurations can be set up with a SessionConfiguration. The list of
+     * OutputConfiguration contains the stream configurations and DYNAMIC_RANGE_PROFILE, and
+     * the AE_TARGET_FPS_RANGE and VIDEO_STABILIZATION_MODE are set as session parameters.</p>
      * <p>This key is available on all devices.</p>
      */
     @PublicKey

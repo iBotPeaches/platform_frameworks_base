@@ -24,11 +24,12 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
-import android.app.ActivityThread;
 import android.os.Build;
 import android.os.LocaleList;
 import android.os.Parcel;
 import android.os.Parcelable;
+
+import dalvik.system.VMRuntime;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -41,6 +42,7 @@ import java.util.Objects;
  * <a href="https://www.w3.org/TR/css-text-3/#line-break-property" class="external">
  * line-break property</a> for more information.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class LineBreakConfig implements Parcelable {
     /**
      * No hyphenation preference is specified.
@@ -484,8 +486,7 @@ public final class LineBreakConfig implements Parcelable {
      * @hide
      */
     public static @LineBreakStyle int getResolvedLineBreakStyle(@Nullable LineBreakConfig config) {
-        final int targetSdkVersion = ActivityThread.currentApplication().getApplicationInfo()
-                .targetSdkVersion;
+        final int targetSdkVersion = VMRuntime.getRuntime().getTargetSdkVersion();
         final int defaultStyle;
         final int vicVersion = Build.VERSION_CODES.VANILLA_ICE_CREAM;
         if (targetSdkVersion >= vicVersion) {
@@ -519,8 +520,7 @@ public final class LineBreakConfig implements Parcelable {
      */
     public static @LineBreakWordStyle int getResolvedLineBreakWordStyle(
             @Nullable LineBreakConfig config) {
-        final int targetSdkVersion = ActivityThread.currentApplication().getApplicationInfo()
-                .targetSdkVersion;
+        final int targetSdkVersion = VMRuntime.getRuntime().getTargetSdkVersion();
         final int defaultWordStyle;
         final int vicVersion = Build.VERSION_CODES.VANILLA_ICE_CREAM;
         if (targetSdkVersion >= vicVersion) {

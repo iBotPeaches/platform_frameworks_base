@@ -20,7 +20,10 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -47,27 +50,30 @@ import java.util.function.BooleanSupplier;
 @Presubmit
 public class OptPropFactoryTest {
 
+    private static final String PACKAGE_NAME = "";
+    private static final int USER_ID = 10;
     private PackageManager mPackageManager;
     private OptPropFactory mOptPropFactory;
 
     @Before
     public void setUp() {
         mPackageManager = mock(PackageManager.class);
-        mOptPropFactory = new OptPropFactory(mPackageManager, "");
+        mOptPropFactory = new OptPropFactory(mPackageManager, PACKAGE_NAME, USER_ID);
     }
 
     @Test
     public void optProp_laziness() throws PackageManager.NameNotFoundException {
         initPropAs(/* propertyValue */ true);
         // When OptPropBuilder is created the PackageManager is not used
-        verify(mPackageManager, never()).getProperty(anyString(), anyString());
+        verify(mPackageManager, never()).getPropertyAsUser(anyString(), anyString(), isNull(),
+                anyInt());
 
         // Accessing the value multiple times only uses PackageManager once
         final OptProp optProp = createOptProp();
         optProp.isTrue();
         optProp.isFalse();
 
-        verify(mPackageManager).getProperty(anyString(), anyString());
+        verify(mPackageManager).getPropertyAsUser(anyString(), anyString(), isNull(), eq(USER_ID));
     }
 
     @Test
@@ -241,13 +247,15 @@ public class OptPropFactoryTest {
     private void initPropAs(boolean propertyValue) throws PackageManager.NameNotFoundException {
         Mockito.clearInvocations(mPackageManager);
         final PackageManager.Property prop = new PackageManager.Property(
-                "", /* value */ propertyValue, "", "");
-        when(mPackageManager.getProperty(anyString(), anyString())).thenReturn(prop);
+                "", /* value */ propertyValue, PACKAGE_NAME, "");
+        when(mPackageManager.getPropertyAsUser(anyString(), anyString(), isNull(), anyInt()))
+                .thenReturn(prop);
     }
 
     private void initPropAsWithException() throws PackageManager.NameNotFoundException {
         Mockito.clearInvocations(mPackageManager);
-        when(mPackageManager.getProperty("", "")).thenThrow(
+        when(mPackageManager.getPropertyAsUser("", PACKAGE_NAME,
+                null /* className */, USER_ID)).thenThrow(
                 new PackageManager.NameNotFoundException());
     }
 

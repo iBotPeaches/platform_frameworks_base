@@ -22,7 +22,7 @@ import org.json.JSONObject
 data class ClockSettings(
     val clockId: ClockId? = null,
     val seedColor: Int? = null,
-    val axes: List<ClockFontAxisSetting> = listOf(),
+    val axes: ClockAxisStyle = ClockAxisStyle(),
 ) {
     // Exclude metadata from equality checks
     var metadata: JSONObject = JSONObject()
@@ -38,15 +38,15 @@ data class ClockSettings(
                 put(KEY_CLOCK_ID, setting.clockId)
                 put(KEY_SEED_COLOR, setting.seedColor)
                 put(KEY_METADATA, setting.metadata)
-                put(KEY_AXIS_LIST, ClockFontAxisSetting.toJson(setting.axes))
+                put(KEY_AXIS_LIST, ClockAxisStyle.toJson(setting.axes))
             }
         }
 
         fun fromJson(json: JSONObject): ClockSettings {
             val clockId = if (!json.isNull(KEY_CLOCK_ID)) json.getString(KEY_CLOCK_ID) else null
             val seedColor = if (!json.isNull(KEY_SEED_COLOR)) json.getInt(KEY_SEED_COLOR) else null
-            val axisList = json.optJSONArray(KEY_AXIS_LIST)?.let(ClockFontAxisSetting::fromJson)
-            return ClockSettings(clockId, seedColor, axisList ?: listOf()).apply {
+            val axisList = json.optJSONArray(KEY_AXIS_LIST)?.let(ClockAxisStyle::fromJson)
+            return ClockSettings(clockId, seedColor, axisList ?: ClockAxisStyle()).apply {
                 metadata = json.optJSONObject(KEY_METADATA) ?: JSONObject()
             }
         }
@@ -54,57 +54,102 @@ data class ClockSettings(
 }
 
 @Keep
-/** Axis setting value for a clock */
-data class ClockFontAxisSetting(
-    /** Axis key; matches ClockFontAxis.key */
-    val key: String,
+class ClockAxisStyle {
+    private val settings: MutableMap<String, Float>
 
-    /** Value to set this axis to */
-    val value: Float,
-) {
+    // Iterable would be implemented on ClockAxisStyle directly,
+    // but that doesn't appear to work with plugins/dynamic libs.
+    val items: Iterable<Map.Entry<String, Float>>
+        get() = settings.asIterable()
+
+    val isEmpty: Boolean
+        get() = settings.isEmpty()
+
+    constructor(initialize: ClockAxisStyle.() -> Unit = {}) {
+        settings = mutableMapOf()
+        this.initialize()
+    }
+
+    constructor(style: ClockAxisStyle) {
+        settings = style.settings.toMutableMap()
+    }
+
+    constructor(items: Map<String, Float>) {
+        settings = items.toMutableMap()
+    }
+
+    constructor(key: String, value: Float) {
+        settings = mutableMapOf(key to value)
+    }
+
+    constructor(items: List<ClockFontAxis>) {
+        settings = items.associate { it.key to it.currentValue }.toMutableMap()
+    }
+
+    fun copy(initialize: ClockAxisStyle.() -> Unit): ClockAxisStyle {
+        return ClockAxisStyle(this).apply { initialize() }
+    }
+
+    operator fun get(key: String): Float? = settings[key]
+
+    operator fun set(key: String, value: Float) = put(key, value)
+
+    fun put(key: String, value: Float) {
+        settings.put(key, value)
+    }
+
+    fun toFVar(): String {
+        val sb = StringBuilder()
+        for (axis in settings) {
+            if (sb.length > 0) sb.append(", ")
+            sb.append("'${axis.key}' ${axis.value.toInt()}")
+        }
+        return sb.toString()
+    }
+
+    fun copyWith(replacements: ClockAxisStyle): ClockAxisStyle {
+        val result = ClockAxisStyle(this)
+        for ((key, value) in replacements.settings) {
+            result[key] = value
+        }
+        return result
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ClockAxisStyle) return false
+        return settings == other.settings
+    }
+
     companion object {
         private val KEY_AXIS_KEY = "key"
         private val KEY_AXIS_VALUE = "value"
 
-        fun toJson(setting: ClockFontAxisSetting): JSONObject {
-            return JSONObject().apply {
-                put(KEY_AXIS_KEY, setting.key)
-                put(KEY_AXIS_VALUE, setting.value)
-            }
-        }
-
-        fun toJson(settings: List<ClockFontAxisSetting>): JSONArray {
-            return JSONArray().apply {
-                for (axis in settings) {
-                    put(toJson(axis))
-                }
-            }
-        }
-
-        fun fromJson(jsonObj: JSONObject): ClockFontAxisSetting {
-            return ClockFontAxisSetting(
-                key = jsonObj.getString(KEY_AXIS_KEY),
-                value = jsonObj.getDouble(KEY_AXIS_VALUE).toFloat(),
-            )
-        }
-
-        fun fromJson(jsonArray: JSONArray): List<ClockFontAxisSetting> {
-            val result = mutableListOf<ClockFontAxisSetting>()
+        fun fromJson(jsonArray: JSONArray): ClockAxisStyle {
+            val result = ClockAxisStyle()
             for (i in 0..jsonArray.length() - 1) {
                 val obj = jsonArray.getJSONObject(i)
                 if (obj == null) continue
-                result.add(fromJson(obj))
+
+                result.put(
+                    key = obj.getString(KEY_AXIS_KEY),
+                    value = obj.getDouble(KEY_AXIS_VALUE).toFloat(),
+                )
             }
             return result
         }
 
-        fun toFVar(settings: List<ClockFontAxisSetting>): String {
-            val sb = StringBuilder()
-            for (axis in settings) {
-                if (sb.length > 0) sb.append(", ")
-                sb.append("'${axis.key}' ${axis.value.toInt()}")
+        fun toJson(style: ClockAxisStyle): JSONArray {
+            return JSONArray().apply {
+                for ((key, value) in style.settings) {
+                    put(
+                        JSONObject().apply {
+                            put(KEY_AXIS_KEY, key)
+                            put(KEY_AXIS_VALUE, value)
+                        }
+                    )
+                }
             }
-            return sb.toString()
         }
     }
 }

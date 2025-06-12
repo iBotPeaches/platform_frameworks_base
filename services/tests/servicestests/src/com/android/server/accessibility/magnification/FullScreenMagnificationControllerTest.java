@@ -30,7 +30,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -245,6 +248,40 @@ public class FullScreenMagnificationControllerTest {
 
         // Once for each display on unregister
         verify(mMockThumbnail, times(2)).hideThumbnail();
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_MAGNIFICATION_FOLLOWS_MOUSE_WITH_POINTER_MOTION_FILTER)
+    public void testRegister_RegistersPointerMotionFilter() {
+        register(DISPLAY_0);
+
+        verify(mMockInputManager).registerAccessibilityPointerMotionFilter(
+                any(InputManagerInternal.AccessibilityPointerMotionFilter.class));
+
+        // If a filter is already registered, adding a display won't invoke another filter
+        // registration.
+        clearInvocations(mMockInputManager);
+        register(DISPLAY_1);
+        register(INVALID_DISPLAY);
+
+        verify(mMockInputManager, times(0)).registerAccessibilityPointerMotionFilter(
+                any(InputManagerInternal.AccessibilityPointerMotionFilter.class));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_MAGNIFICATION_FOLLOWS_MOUSE_WITH_POINTER_MOTION_FILTER)
+    public void testUnregister_UnregistersPointerMotionFilter() {
+        register(DISPLAY_0);
+        register(DISPLAY_1);
+        clearInvocations(mMockInputManager);
+
+        mFullScreenMagnificationController.unregister(DISPLAY_1);
+        // There's still an active display. Don't unregister yet.
+        verify(mMockInputManager, times(0)).registerAccessibilityPointerMotionFilter(
+                nullable(InputManagerInternal.AccessibilityPointerMotionFilter.class));
+
+        mFullScreenMagnificationController.unregister(DISPLAY_0);
+        verify(mMockInputManager, times(1)).registerAccessibilityPointerMotionFilter(isNull());
     }
 
     @Test
@@ -695,6 +732,63 @@ public class FullScreenMagnificationControllerTest {
         mFullScreenMagnificationController.offsetMagnifiedRegion(displayId, 10, 10,
                 SERVICE_ID_1);
         assertThat(getCurrentMagnificationSpec(displayId), closeTo(lrSpec));
+        verifyNoMoreInteractions(mMockWindowManager);
+    }
+
+    @Test
+    public void testSetOffset_whileMagnifying_offsetsMove() {
+        for (int i = 0; i < DISPLAY_COUNT; i++) {
+            setOffset_whileMagnifying_offsetsMove(i);
+            resetMockWindowManager();
+        }
+    }
+
+    private void setOffset_whileMagnifying_offsetsMove(int displayId) {
+        register(displayId);
+        PointF startCenter = INITIAL_MAGNIFICATION_BOUNDS_CENTER;
+        for (final float scale : new float[]{2.0f, 2.5f, 3.0f}) {
+            assertTrue(mFullScreenMagnificationController
+                    .setScaleAndCenter(displayId, scale, startCenter.x, startCenter.y, true, false,
+                            SERVICE_ID_1));
+            mMessageCapturingHandler.sendAllMessages();
+
+            for (final PointF center : new PointF[]{
+                    INITIAL_BOUNDS_LOWER_RIGHT_2X_CENTER,
+                    INITIAL_BOUNDS_UPPER_LEFT_2X_CENTER}) {
+                Mockito.clearInvocations(mMockWindowManager);
+                PointF newOffsets = computeOffsets(INITIAL_MAGNIFICATION_BOUNDS, center, scale);
+                mFullScreenMagnificationController.setOffset(displayId, newOffsets.x, newOffsets.y,
+                        SERVICE_ID_1);
+                mMessageCapturingHandler.sendAllMessages();
+
+                MagnificationSpec expectedSpec = getMagnificationSpec(scale, newOffsets);
+                verify(mMockWindowManager)
+                        .setMagnificationSpec(eq(displayId), argThat(closeTo(expectedSpec)));
+                assertEquals(center.x, mFullScreenMagnificationController.getCenterX(displayId),
+                        0.0);
+                assertEquals(center.y, mFullScreenMagnificationController.getCenterY(displayId),
+                        0.0);
+                verify(mMockValueAnimator, times(0)).start();
+            }
+        }
+    }
+
+    @Test
+    public void testSetOffset_whileNotMagnifying_hasNoEffect() {
+        for (int i = 0; i < DISPLAY_COUNT; i++) {
+            setOffset_whileNotMagnifying_hasNoEffect(i);
+            resetMockWindowManager();
+        }
+    }
+
+    private void setOffset_whileNotMagnifying_hasNoEffect(int displayId) {
+        register(displayId);
+        Mockito.reset(mMockWindowManager);
+        MagnificationSpec startSpec = getCurrentMagnificationSpec(displayId);
+        mFullScreenMagnificationController.setOffset(displayId, 100, 100, SERVICE_ID_1);
+        assertThat(getCurrentMagnificationSpec(displayId), closeTo(startSpec));
+        mFullScreenMagnificationController.setOffset(displayId, 200, 200, SERVICE_ID_1);
+        assertThat(getCurrentMagnificationSpec(displayId), closeTo(startSpec));
         verifyNoMoreInteractions(mMockWindowManager);
     }
 

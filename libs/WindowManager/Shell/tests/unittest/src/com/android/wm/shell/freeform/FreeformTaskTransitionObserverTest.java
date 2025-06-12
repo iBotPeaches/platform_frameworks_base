@@ -34,7 +34,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.platform.test.annotations.EnableFlags;
-import android.platform.test.flag.junit.SetFlagsRule;
 import android.view.SurfaceControl;
 import android.window.IWindowContainerToken;
 import android.window.TransitionInfo;
@@ -43,11 +42,14 @@ import android.window.WindowContainerToken;
 import androidx.test.filters.SmallTest;
 
 import com.android.window.flags.Flags;
+import com.android.wm.shell.ShellTestCase;
 import com.android.wm.shell.desktopmode.DesktopImmersiveController;
+import com.android.wm.shell.desktopmode.multidesks.DesksTransitionObserver;
 import com.android.wm.shell.sysui.ShellInit;
 import com.android.wm.shell.transition.FocusTransitionObserver;
 import com.android.wm.shell.transition.TransitionInfoBuilder;
 import com.android.wm.shell.transition.Transitions;
+import com.android.wm.shell.util.StubTransaction;
 import com.android.wm.shell.windowdecor.WindowDecorViewModel;
 
 import org.junit.Before;
@@ -60,15 +62,15 @@ import java.util.Optional;
 
 /** Tests for {@link FreeformTaskTransitionObserver}. */
 @SmallTest
-public class FreeformTaskTransitionObserverTest {
+public class FreeformTaskTransitionObserverTest extends ShellTestCase {
 
-    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
     @Mock private ShellInit mShellInit;
     @Mock private Transitions mTransitions;
     @Mock private DesktopImmersiveController mDesktopImmersiveController;
     @Mock private WindowDecorViewModel mWindowDecorViewModel;
     @Mock private TaskChangeListener mTaskChangeListener;
     @Mock private FocusTransitionObserver mFocusTransitionObserver;
+    @Mock private DesksTransitionObserver mDesksTransitionObserver;
 
     private FreeformTaskTransitionObserver mTransitionObserver;
 
@@ -89,7 +91,8 @@ public class FreeformTaskTransitionObserverTest {
                         Optional.of(mDesktopImmersiveController),
                         mWindowDecorViewModel,
                         Optional.of(mTaskChangeListener),
-                        mFocusTransitionObserver);
+                        mFocusTransitionObserver,
+                        Optional.of(mDesksTransitionObserver));
 
         final ArgumentCaptor<Runnable> initRunnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(mShellInit).addInitCallback(initRunnableCaptor.capture(), same(mTransitionObserver));
@@ -356,6 +359,37 @@ public class FreeformTaskTransitionObserverTest {
         mTransitionObserver.onTransitionFinished(transition, /* aborted= */ false);
 
         verify(mDesktopImmersiveController).onTransitionFinished(transition, /* aborted= */ false);
+    }
+
+    @Test
+    public void onTransitionReady_forwardsToDesksTransitionObserver() {
+        final IBinder transition = mock(IBinder.class);
+        final TransitionInfo info = new TransitionInfoBuilder(TRANSIT_CLOSE, /* flags= */ 0)
+                .build();
+
+        mTransitionObserver.onTransitionReady(transition, info, new StubTransaction(),
+                new StubTransaction());
+
+        verify(mDesksTransitionObserver).onTransitionReady(transition, info);
+    }
+
+    @Test
+    public void onTransitionMerged_forwardsToDesksTransitionObserver() {
+        final IBinder merged = mock(IBinder.class);
+        final IBinder playing = mock(IBinder.class);
+
+        mTransitionObserver.onTransitionMerged(merged, playing);
+
+        verify(mDesksTransitionObserver).onTransitionMerged(merged, playing);
+    }
+
+    @Test
+    public void onTransitionFinished_forwardsToDesksTransitionObserver() {
+        final IBinder transition = mock(IBinder.class);
+
+        mTransitionObserver.onTransitionFinished(transition, /* aborted = */ false);
+
+        verify(mDesksTransitionObserver).onTransitionFinished(transition);
     }
 
     private static TransitionInfo.Change createChange(int mode, int taskId, int windowingMode) {

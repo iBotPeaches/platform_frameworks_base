@@ -31,6 +31,7 @@ import android.graphics.text.GraphemeBreak;
  * @see <a href="https://unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries">Unicode Text
  *     Segmentation - Grapheme Cluster Boundaries</a>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class GraphemeClusterSegmentFinder extends SegmentFinder {
     private static AutoGrowArray.FloatArray sTempAdvances = null;
     private final boolean[] mIsGraphemeBreak;

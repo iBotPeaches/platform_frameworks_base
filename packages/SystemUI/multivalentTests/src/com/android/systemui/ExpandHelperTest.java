@@ -32,7 +32,7 @@ import androidx.test.filters.SmallTest;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.animation.AnimatorTestRule;
 import com.android.systemui.flags.FakeFeatureFlagsClassic;
-import com.android.systemui.statusbar.NotificationMediaManager;
+import com.android.systemui.media.NotificationMediaManager;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.NotificationTestHelper;
 

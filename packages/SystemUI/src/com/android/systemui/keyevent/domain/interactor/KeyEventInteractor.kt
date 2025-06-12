@@ -32,4 +32,5 @@ constructor(
     repository: KeyEventRepository,
 ) {
     val isPowerButtonDown = repository.isPowerButtonDown
+    val isPowerButtonLongPressed = repository.isPowerButtonLongPressed
 }

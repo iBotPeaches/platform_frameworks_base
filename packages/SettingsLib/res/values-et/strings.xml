@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktiivne (ainult vasak)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktiivne (ainult parem)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktiivne (vasak ja parem)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Ümbritsevate helide seadeid ei saanud värskendada"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktiivne (ainult meedia). Aku <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktiivne (ainult meedia). Aku: V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Külalisseade. Aku: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Külalisseade. Aku: V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Külalisseade (ainult meedia). Aku: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Külalisseade (ainult meedia). Aku: V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Ühendatud (toetab heli jagamist). Aku <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Ühendatud (toetab heli jagamist). Aku: V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Ühendatud (toetab heli jagamist). Vasak: aku <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Ühendatud (toetab heli jagamist). Parem: aku <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Ühendatud (toetab heli jagamist)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Külalisseade (toetab heli jagamist). Aku: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Külalisseade (toetab heli jagamist). Aku: V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Külalisseade (toetab heli jagamist)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktiivne (ainult meedia)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Külalisseade"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Külalisseade (ainult meedia)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Toetab heli jagamist"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Külalisseade. Toetab heli jagamist."</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktiivne (ainult meedia), ainult vasak"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktiivne (ainult meedia), ainult parem"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktiivne (ainult meedia), vasak ja parem"</string>
@@ -128,7 +139,7 @@
     <string name="bluetooth_profile_hid" msgid="2969922922664315866">"Sisendseade"</string>
     <string name="bluetooth_profile_pan" msgid="1006235139308318188">"Juurdepääs internetile"</string>
     <string name="bluetooth_profile_pbap" msgid="2103406516858653017">"Luba juurdepääs kontaktidele ja kõneajale"</string>
-    <string name="bluetooth_profile_pbap_summary" msgid="402819589201138227">"Teavet kasutatakse kõne teadaannete ja muu jaoks"</string>
+    <string name="bluetooth_profile_pbap_summary" msgid="402819589201138227">"Teavet kasutatakse kõne teadaannete ja muu jaoks."</string>
     <string name="bluetooth_profile_pan_nap" msgid="7871974753822470050">"Interneti-ühenduse jagamine"</string>
     <string name="bluetooth_profile_map" msgid="8907204701162107271">"Tekstsõnumid"</string>
     <string name="bluetooth_profile_sap" msgid="8304170950447934386">"Juurdepääs SIM-ile"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Riistvarakiirendusega renderdamine"</string>
     <string name="media_category" msgid="8122076702526144053">"Meedia"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Jälgimine"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Akende haldamine"</string>
     <string name="strict_mode" msgid="889864762140862437">"Range režiim on lubatud"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Ekraan vilgub, kui rakendused teevad pealõimes pikki toiminguid"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Kursori asukoht"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Ülemineku animatsioonimastaap"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Animaatori kestuse mastaap"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Modelleeri teisi ekraane"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Varju kuvamise asukoht"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Rakendused"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Ära hoia tegevusi alles"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Hävita kõik tegevused kohe, kui kasutaja neist lahkub"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView\' rakendamine"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"WebView\' rakendamise seadistamine"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"See valik ei kehti enam. Proovige uuesti."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView\' arendaja tööriistad"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView\' paketti ei leitud."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Ei saanud arendaja tööriistu käivitada."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Pildi värvirežiim"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGB kasutamine"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Keelatud"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Kiirlaadimine"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Juhib administraator"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Haldavad piiranguga seaded"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Pole kõnede ajal saadaval"</string>
     <string name="disabled" msgid="8017887509554714950">"Keelatud"</string>
+    <string name="enabled" msgid="3997122818554810678">"Lubatud"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Lubatud"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Pole lubatud"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Tundmatute rakenduste installimine"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Sisseehitatud kõlar"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Teleri heli"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Probleem ühendamisel. Lülitage seade välja ja uuesti sisse"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Ei saa ühendada"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Juhtmega heliseade"</string>
     <string name="help_label" msgid="3528360748637781274">"Abi ja tagasiside"</string>
     <string name="storage_category" msgid="2287342585424631813">"Salvestusruum"</string>

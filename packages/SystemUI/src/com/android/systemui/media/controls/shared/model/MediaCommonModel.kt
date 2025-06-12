@@ -17,14 +17,8 @@
 package com.android.systemui.media.controls.shared.model
 
 /** Models any type of media. */
-sealed class MediaCommonModel {
-    data class MediaControl(
-        val mediaLoadedModel: MediaDataLoadingModel.Loaded,
-        val canBeRemoved: Boolean = false,
-        val isMediaFromRec: Boolean = false,
-        val updateTime: Long = 0L,
-    ) : MediaCommonModel()
-
-    data class MediaRecommendations(val recsLoadingModel: SmartspaceMediaLoadingModel) :
-        MediaCommonModel()
-}
+data class MediaCommonModel(
+    val mediaLoadedModel: MediaDataLoadingModel.Loaded,
+    val canBeRemoved: Boolean = false,
+    val updateTime: Long = 0L,
+)

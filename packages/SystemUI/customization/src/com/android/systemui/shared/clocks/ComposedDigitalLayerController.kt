@@ -18,25 +18,25 @@ package com.android.systemui.shared.clocks
 
 import android.graphics.Rect
 import androidx.annotation.VisibleForTesting
+import com.android.app.animation.Interpolators
 import com.android.systemui.log.core.Logger
 import com.android.systemui.plugins.clocks.AlarmData
 import com.android.systemui.plugins.clocks.ClockAnimations
+import com.android.systemui.plugins.clocks.ClockAxisStyle
 import com.android.systemui.plugins.clocks.ClockEvents
 import com.android.systemui.plugins.clocks.ClockFaceConfig
 import com.android.systemui.plugins.clocks.ClockFaceEvents
-import com.android.systemui.plugins.clocks.ClockFontAxisSetting
 import com.android.systemui.plugins.clocks.ThemeConfig
 import com.android.systemui.plugins.clocks.WeatherData
 import com.android.systemui.plugins.clocks.ZenData
 import com.android.systemui.shared.clocks.view.FlexClockView
-import com.android.systemui.shared.clocks.view.SimpleDigitalClockTextView
+import com.android.systemui.shared.clocks.view.HorizontalAlignment
+import com.android.systemui.shared.clocks.view.VerticalAlignment
 import java.util.Locale
 import java.util.TimeZone
 
-class ComposedDigitalLayerController(
-    private val clockCtx: ClockContext,
-    private val layer: ComposedDigitalHandLayer,
-) : SimpleClockLayerController {
+class ComposedDigitalLayerController(private val clockCtx: ClockContext) :
+    SimpleClockLayerController {
     private val logger =
         Logger(clockCtx.messageBuffer, ComposedDigitalLayerController::class.simpleName!!)
 
@@ -44,16 +44,42 @@ class ComposedDigitalLayerController(
     val dozeState = DefaultClockController.AnimationState(1F)
 
     override val view = FlexClockView(clockCtx)
+    override var onViewBoundsChanged by view::onViewBoundsChanged
 
     init {
-        layer.digitalLayers.forEach {
-            val childView = SimpleDigitalClockTextView(clockCtx)
-            val controller =
-                SimpleDigitalHandLayerController(clockCtx, it as DigitalHandLayer, childView)
-
-            view.addView(childView)
+        fun createController(cfg: LayerConfig) {
+            val controller = SimpleDigitalHandLayerController(clockCtx, cfg, isLargeClock = true)
+            view.addView(controller.view)
             layerControllers.add(controller)
         }
+
+        val layerCfg =
+            LayerConfig(
+                style = FontTextStyle(lineHeight = 147.25f),
+                alignment = DigitalAlignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER),
+                aodStyle =
+                    FontTextStyle(
+                        transitionInterpolator = Interpolators.EMPHASIZED,
+                        transitionDuration = 750,
+                    ),
+
+                // Placeholders
+                timespec = DigitalTimespec.TIME_FULL_FORMAT,
+                dateTimeFormat = "hh:mm",
+            )
+
+        createController(
+            layerCfg.copy(timespec = DigitalTimespec.FIRST_DIGIT, dateTimeFormat = "hh")
+        )
+        createController(
+            layerCfg.copy(timespec = DigitalTimespec.SECOND_DIGIT, dateTimeFormat = "hh")
+        )
+        createController(
+            layerCfg.copy(timespec = DigitalTimespec.FIRST_DIGIT, dateTimeFormat = "mm")
+        )
+        createController(
+            layerCfg.copy(timespec = DigitalTimespec.SECOND_DIGIT, dateTimeFormat = "mm")
+        )
     }
 
     private fun refreshTime() {
@@ -79,21 +105,11 @@ class ComposedDigitalLayerController(
                 refreshTime()
             }
 
-            override fun onWeatherDataChanged(data: WeatherData) {
-                view.onWeatherDataChanged(data)
-            }
+            override fun onWeatherDataChanged(data: WeatherData) {}
 
-            override fun onAlarmDataChanged(data: AlarmData) {
-                view.onAlarmDataChanged(data)
-            }
+            override fun onAlarmDataChanged(data: AlarmData) {}
 
-            override fun onZenDataChanged(data: ZenData) {
-                view.onZenDataChanged(data)
-            }
-
-            override fun onFontAxesChanged(axes: List<ClockFontAxisSetting>) {
-                view.updateAxes(axes)
-            }
+            override fun onZenDataChanged(data: ZenData) {}
 
             override var isReactiveTouchInteractionEnabled
                 get() = view.isReactiveTouchInteractionEnabled
@@ -123,14 +139,21 @@ class ComposedDigitalLayerController(
                 view.animateCharge()
             }
 
-            override fun onPositionUpdated(fromLeft: Int, direction: Int, fraction: Float) {
-                view.onPositionUpdated(fromLeft, direction, fraction)
-            }
+            override fun onPositionUpdated(fromLeft: Int, direction: Int, fraction: Float) {}
 
             override fun onPositionUpdated(distance: Float, fraction: Float) {}
 
-            override fun onPickerCarouselSwiping(swipingFraction: Float) {
-                view.onPickerCarouselSwiping(swipingFraction)
+            override fun onPickerCarouselSwiping(swipingFraction: Float) {}
+
+            override fun onFidgetTap(x: Float, y: Float) {
+                view.animateFidget(x, y)
+            }
+
+            private var hasFontAxes = false
+
+            override fun onFontAxesChanged(style: ClockAxisStyle) {
+                view.updateAxes(style, isAnimated = hasFontAxes)
+                hasFontAxes = true
             }
         }
 
@@ -141,15 +164,7 @@ class ComposedDigitalLayerController(
             }
 
             override fun onThemeChanged(theme: ThemeConfig) {
-                val color =
-                    when {
-                        theme.seedColor != null -> theme.seedColor!!
-                        theme.isDarkTheme ->
-                            clockCtx.resources.getColor(android.R.color.system_accent1_100)
-                        else -> clockCtx.resources.getColor(android.R.color.system_accent2_600)
-                    }
-
-                view.updateColor(color)
+                view.updateColor(theme.getDefaultColor(clockCtx.context))
             }
 
             override fun onFontSettingChanged(fontSizePx: Float) {
@@ -163,9 +178,8 @@ class ComposedDigitalLayerController(
 
     override val config =
         ClockFaceConfig(
-            hasCustomWeatherDataDisplay = view.hasCustomWeatherDataDisplay,
-            hasCustomPositionUpdatedAnimation = view.hasCustomPositionUpdatedAnimation,
-            useCustomClockScene = view.useCustomClockScene,
+            hasCustomWeatherDataDisplay = false,
+            hasCustomPositionUpdatedAnimation = true,
         )
 
     @VisibleForTesting

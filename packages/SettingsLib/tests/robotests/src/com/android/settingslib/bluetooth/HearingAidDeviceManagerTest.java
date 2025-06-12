@@ -17,7 +17,6 @@ package com.android.settingslib.bluetooth;
 
 import static android.bluetooth.BluetoothHearingAid.HI_SYNC_ID_INVALID;
 import static android.bluetooth.BluetoothLeAudio.AUDIO_LOCATION_FRONT_LEFT;
-import static android.bluetooth.BluetoothLeAudio.AUDIO_LOCATION_INVALID;
 
 import static com.android.settingslib.bluetooth.HapClientProfile.HearingAidType.TYPE_BINAURAL;
 import static com.android.settingslib.bluetooth.HapClientProfile.HearingAidType.TYPE_INVALID;
@@ -51,9 +50,14 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.media.audiopolicy.AudioProductStrategy;
 import android.os.Parcel;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.util.FeatureFlagUtils;
 
 import androidx.test.core.app.ApplicationProvider;
+
+import com.android.settingslib.bluetooth.HearingAidDeviceManager.ConnectionStatus;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -71,6 +75,8 @@ import java.util.List;
 public class HearingAidDeviceManagerTest {
     @Rule
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private static final long HISYNCID1 = 10;
     private static final long HISYNCID2 = 11;
@@ -113,7 +119,10 @@ public class HearingAidDeviceManagerTest {
     private BluetoothDevice mDevice1;
     @Mock
     private BluetoothDevice mDevice2;
-
+    @Mock
+    private HearingAidDeviceManager.ConnectionStatusListener mConnectionStatusListener;
+    @Mock
+    private HearingAidDeviceManager.ConnectionStatusListener mConnectionStatusListener2;
 
     private BluetoothClass createBtClass(int deviceClass) {
         Parcel p = Parcel.obtain();
@@ -141,6 +150,8 @@ public class HearingAidDeviceManagerTest {
         when(mLocalProfileManager.getHearingAidProfile()).thenReturn(mHearingAidProfile);
         when(mLocalProfileManager.getLeAudioProfile()).thenReturn(mLeAudioProfile);
         when(mLocalProfileManager.getHapClientProfile()).thenReturn(mHapClientProfile);
+        when(mHapClientProfile.getProfileId()).thenReturn(BluetoothProfile.HAP_CLIENT);
+        when(mLeAudioProfile.getProfileId()).thenReturn(BluetoothProfile.LE_AUDIO);
         when(mAudioStrategy.getAudioAttributesForLegacyStreamType(
                 AudioManager.STREAM_MUSIC))
                 .thenReturn((new AudioAttributes.Builder()).build());
@@ -272,14 +283,14 @@ public class HearingAidDeviceManagerTest {
      *
      * Conditions:
      *      1) LeAudio hearing aid
-     *      2) Invalid audio location and device type
+     *      2) Invalid device type
      * Result:
      *      Do not set hearing aid info to the device.
      */
     @Test
     public void initHearingAidDeviceIfNeeded_leAudio_invalidInfo_notToSetHearingAidInfo() {
         when(mCachedDevice1.getProfiles()).thenReturn(List.of(mLeAudioProfile, mHapClientProfile));
-        when(mLeAudioProfile.getAudioLocation(mDevice1)).thenReturn(AUDIO_LOCATION_INVALID);
+        when(mLeAudioProfile.getAudioLocation(mDevice1)).thenReturn(AUDIO_LOCATION_FRONT_LEFT);
         when(mHapClientProfile.getHearingAidType(mDevice1)).thenReturn(TYPE_INVALID);
 
         mHearingAidDeviceManager.initHearingAidDeviceIfNeeded(mCachedDevice1, null);
@@ -506,14 +517,14 @@ public class HearingAidDeviceManagerTest {
      *
      * Conditions:
      *      1) LeAudio hearing aid
-     *      2) Invalid audio location and device type
+     *      2) Invalid device type
      * Result:
      *      Do not set hearing aid info to the device.
      */
     @Test
     public void updateHearingAidsDevices_leAudio_invalidInfo_notToSetHearingAidInfo() {
         when(mCachedDevice1.getProfiles()).thenReturn(List.of(mLeAudioProfile, mHapClientProfile));
-        when(mLeAudioProfile.getAudioLocation(mDevice1)).thenReturn(AUDIO_LOCATION_INVALID);
+        when(mLeAudioProfile.getAudioLocation(mDevice1)).thenReturn(AUDIO_LOCATION_FRONT_LEFT);
         when(mHapClientProfile.getHearingAidType(mDevice1)).thenReturn(TYPE_INVALID);
         mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
 
@@ -730,7 +741,8 @@ public class HearingAidDeviceManagerTest {
 
     @Test
     public void onActiveDeviceChanged_connected_callSetStrategies() {
-        when(mHelper.getMatchedHearingDeviceAttributes(mCachedDevice1)).thenReturn(
+        when(mCachedDevice1.isConnectedHearingAidDevice()).thenReturn(true);
+        when(mHelper.getMatchedHearingDeviceAttributesForOutput(mCachedDevice1)).thenReturn(
                 mHearingDeviceAttribute);
         when(mCachedDevice1.isActiveDevice(BluetoothProfile.HEARING_AID)).thenReturn(true);
         doReturn(true).when(mHelper).setPreferredDeviceRoutingStrategies(anyList(),
@@ -744,7 +756,8 @@ public class HearingAidDeviceManagerTest {
 
     @Test
     public void onActiveDeviceChanged_disconnected_callSetStrategiesWithAutoValue() {
-        when(mHelper.getMatchedHearingDeviceAttributes(mCachedDevice1)).thenReturn(
+        when(mCachedDevice1.isConnectedHearingAidDevice()).thenReturn(false);
+        when(mHelper.getMatchedHearingDeviceAttributesForOutput(mCachedDevice1)).thenReturn(
                 mHearingDeviceAttribute);
         when(mCachedDevice1.isActiveDevice(BluetoothProfile.HEARING_AID)).thenReturn(false);
         doReturn(true).when(mHelper).setPreferredDeviceRoutingStrategies(anyList(), any(),
@@ -825,6 +838,157 @@ public class HearingAidDeviceManagerTest {
         mHearingAidDeviceManager.syncDeviceIfNeeded(mCachedDevice2);
 
         verify(mHapClientProfile).selectPreset(mDevice2, PRESET_INDEX_1);
+    }
+
+    @Test
+    public void getAssociatedCachedDevice_existSubDevice_returnSize2() {
+        mCachedDevice1.setSubDevice(mCachedDevice2);
+
+        //including self device
+        assertThat(mHearingAidDeviceManager.getAssociatedCachedDevice(
+                mCachedDevice1).size()).isEqualTo(2);
+    }
+
+    @Test
+    public void getAssociatedCachedDevice_existMemberDevice_returnSize2() {
+        mCachedDevice1.addMemberDevice(mCachedDevice2);
+
+        //including self device
+        assertThat(mHearingAidDeviceManager.getAssociatedCachedDevice(
+                mCachedDevice1).size()).isEqualTo(2);
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_connecting_connectingStatus() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_BONDED);
+        when(mCachedDevice1.getProfiles()).thenReturn(List.of(mHapClientProfile));
+        when(mHapClientProfile.getConnectionStatus(mDevice1)).thenReturn(
+                BluetoothProfile.STATE_CONNECTING);
+
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        assertThat(mHearingAidDeviceManager.getDevicesConnectionStatus()).isEqualTo(
+                ConnectionStatus.CONNECTING_OR_DISCONNECTING);
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_activeConnectedProfile_activeStatus() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_BONDED);
+        when(mCachedDevice1.getProfiles()).thenReturn(List.of(mHapClientProfile, mLeAudioProfile));
+        when(mLeAudioProfile.getConnectionStatus(mDevice1)).thenReturn(
+                BluetoothProfile.STATE_CONNECTED);
+        when(mCachedDevice1.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
+
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        assertThat(mHearingAidDeviceManager.getDevicesConnectionStatus()).isEqualTo(
+                ConnectionStatus.ACTIVE);
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_isConnected_connectedStatus() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_BONDED);
+        when(mCachedDevice1.getProfiles()).thenReturn(List.of(mHapClientProfile, mLeAudioProfile));
+        when(mCachedDevice1.isConnected()).thenReturn(true);
+
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        assertThat(mHearingAidDeviceManager.getDevicesConnectionStatus()).isEqualTo(
+                ConnectionStatus.CONNECTED);
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_bondedNotConnected_disconnectedStatus() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_BONDED);
+        when(mCachedDevice1.isConnected()).thenReturn(false);
+        when(mCachedDevice1.getProfiles()).thenReturn(List.of(mHapClientProfile));
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        assertThat(mHearingAidDeviceManager.getDevicesConnectionStatus()).isEqualTo(
+                ConnectionStatus.DISCONNECTED);
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_bondNone_noDeviceBondedStatus() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_NONE);
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        assertThat(mHearingAidDeviceManager.getDevicesConnectionStatus()).isEqualTo(
+                ConnectionStatus.NO_DEVICE_BONDED);
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_noRegisteredListener_noCallback() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_BONDED);
+        when(mCachedDevice1.getProfiles()).thenReturn(List.of(mHapClientProfile, mLeAudioProfile));
+        when(mCachedDevice1.isConnected()).thenReturn(true);
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+
+        mHearingAidDeviceManager.registerConnectionStatusListener(
+                mConnectionStatusListener, mContext.getMainExecutor());
+        mHearingAidDeviceManager.unregisterConnectionStatusListener(
+                mConnectionStatusListener);
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        verify(mConnectionStatusListener, never()).onDevicesConnectionStatusChanged(anyInt());
+    }
+
+    @Test
+    public void notifyDevicesConnectionStatusChanged_twoRegisteredListener_callbackEachConnected() {
+        when(mCachedDevice1.getBondState()).thenReturn(BluetoothDevice.BOND_BONDED);
+        when(mCachedDevice1.getProfiles()).thenReturn(List.of(mHapClientProfile, mLeAudioProfile));
+        when(mCachedDevice1.isConnected()).thenReturn(true);
+        mCachedDeviceManager.mCachedDevices.add(mCachedDevice1);
+
+        mHearingAidDeviceManager.registerConnectionStatusListener(
+                mConnectionStatusListener, mContext.getMainExecutor());
+        mHearingAidDeviceManager.registerConnectionStatusListener(
+                mConnectionStatusListener2, mContext.getMainExecutor());
+        mHearingAidDeviceManager.notifyDevicesConnectionStatusChanged();
+
+        verify(mConnectionStatusListener).onDevicesConnectionStatusChanged(
+                ConnectionStatus.CONNECTED);
+        verify(mConnectionStatusListener2).onDevicesConnectionStatusChanged(
+                ConnectionStatus.CONNECTED);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(
+            com.android.settingslib.flags.Flags.FLAG_HEARING_DEVICES_INPUT_ROUTING_CONTROL)
+    public void onActiveDeviceChanged_activeHearingAidProfile_callSetInputDeviceForCalls() {
+        when(mCachedDevice1.isConnectedHearingAidDevice()).thenReturn(true);
+        when(mCachedDevice1.isActiveDevice(BluetoothProfile.HEARING_AID)).thenReturn(true);
+        when(mDevice1.isMicrophonePreferredForCalls()).thenReturn(true);
+        doReturn(true).when(mHelper).setPreferredDeviceRoutingStrategies(anyList(), any(),
+                anyInt());
+
+        mHearingAidDeviceManager.onActiveDeviceChanged(mCachedDevice1);
+
+        verify(mHelper).setPreferredInputDeviceForCalls(
+                eq(mCachedDevice1), eq(HearingAidAudioRoutingConstants.RoutingValue.AUTO));
+
+    }
+
+    @Test
+    @RequiresFlagsEnabled(
+            com.android.settingslib.flags.Flags.FLAG_HEARING_DEVICES_INPUT_ROUTING_CONTROL)
+    public void onActiveDeviceChanged_notActiveHearingAidProfile_callClearInputDeviceForCalls() {
+        when(mCachedDevice1.isConnectedHearingAidDevice()).thenReturn(true);
+        when(mCachedDevice1.isActiveDevice(BluetoothProfile.HEARING_AID)).thenReturn(false);
+        when(mDevice1.isMicrophonePreferredForCalls()).thenReturn(true);
+        doReturn(true).when(mHelper).setPreferredDeviceRoutingStrategies(anyList(), any(),
+                anyInt());
+
+        mHearingAidDeviceManager.onActiveDeviceChanged(mCachedDevice1);
+
+        verify(mHelper).clearPreferredInputDeviceForCalls();
     }
 
     private HearingAidInfo getLeftAshaHearingAidInfo(long hiSyncId) {

@@ -22,8 +22,7 @@ import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.log.dagger.NotificationLog
 import com.android.systemui.log.dagger.NotificationRenderLog
-import com.android.systemui.statusbar.notification.collection.NotificationEntry
-import com.android.systemui.statusbar.notification.logKey
+import com.android.systemui.statusbar.notification.stack.MagneticNotificationRowManagerImpl
 import javax.inject.Inject
 
 class NotificationRowLogger
@@ -32,60 +31,60 @@ constructor(
     @NotificationLog private val buffer: LogBuffer,
     @NotificationRenderLog private val notificationRenderBuffer: LogBuffer,
 ) {
-    fun logKeepInParentChildDetached(child: NotificationEntry, oldParent: NotificationEntry?) {
+    fun logKeepInParentChildDetached(child: String, oldParent: String?) {
         buffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = child.logKey
-                str2 = oldParent.logKey
+                str1 = child
+                str2 = oldParent
             },
             { "Detach child $str1 kept in parent $str2" },
         )
     }
 
-    fun logSkipAttachingKeepInParentChild(child: NotificationEntry, newParent: NotificationEntry?) {
+    fun logSkipAttachingKeepInParentChild(child: String, newParent: String?) {
         buffer.log(
             TAG,
             LogLevel.WARNING,
             {
-                str1 = child.logKey
-                str2 = newParent.logKey
+                str1 = child
+                str2 = newParent
             },
             { "Skipping to attach $str1 to $str2, because it still flagged to keep in parent" },
         )
     }
 
     fun logRemoveTransientFromContainer(
-        childEntry: NotificationEntry,
-        containerEntry: NotificationEntry,
+        childEntry: String,
+        containerEntry: String,
     ) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.INFO,
             {
-                str1 = childEntry.logKey
-                str2 = containerEntry.logKey
+                str1 = childEntry
+                str2 = containerEntry
             },
             { "RemoveTransientRow from ChildrenContainer: childKey: $str1 -- containerKey: $str2" },
         )
     }
 
-    fun logRemoveTransientFromNssl(childEntry: NotificationEntry) {
+    fun logRemoveTransientFromNssl(childEntry: String) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.INFO,
-            { str1 = childEntry.logKey },
+            { str1 = childEntry },
             { "RemoveTransientRow from Nssl: childKey: $str1" },
         )
     }
 
-    fun logRemoveTransientFromViewGroup(childEntry: NotificationEntry, containerView: ViewGroup) {
+    fun logRemoveTransientFromViewGroup(childEntry: String, containerView: ViewGroup) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.WARNING,
             {
-                str1 = childEntry.logKey
+                str1 = childEntry
                 str2 = containerView.toString()
             },
             { "RemoveTransientRow from other ViewGroup: childKey: $str1 -- ViewGroup: $str2" },
@@ -93,94 +92,94 @@ constructor(
     }
 
     fun logAddTransientRow(
-        childEntry: NotificationEntry,
-        containerEntry: NotificationEntry,
+        childEntry: String,
+        containerEntry: String,
         index: Int,
     ) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.ERROR,
             {
-                str1 = childEntry.logKey
-                str2 = containerEntry.logKey
+                str1 = childEntry
+                str2 = containerEntry
                 int1 = index
             },
             { "addTransientRow to row: childKey: $str1 -- containerKey: $str2 -- index: $int1" },
         )
     }
 
-    fun logRemoveTransientRow(childEntry: NotificationEntry, containerEntry: NotificationEntry) {
+    fun logRemoveTransientRow(childEntry: String, containerEntry: String) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.ERROR,
             {
-                str1 = childEntry.logKey
-                str2 = containerEntry.logKey
+                str1 = childEntry
+                str2 = containerEntry
             },
             { "removeTransientRow from row: childKey: $str1 -- containerKey: $str2" },
         )
     }
 
-    fun logResetAllContentAlphas(entry: NotificationEntry) {
+    fun logResetAllContentAlphas(entry: String) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.INFO,
-            { str1 = entry.logKey },
+            { str1 = entry },
             { "resetAllContentAlphas: $str1" },
         )
     }
 
-    fun logSkipResetAllContentAlphas(entry: NotificationEntry) {
+    fun logSkipResetAllContentAlphas(entry: String) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.INFO,
-            { str1 = entry.logKey },
+            { str1 = entry },
             { "Skip resetAllContentAlphas: $str1" },
         )
     }
 
-    fun logStartAppearAnimation(entry: NotificationEntry, isAppear: Boolean) {
+    fun logStartAppearAnimation(entry: String, isAppear: Boolean) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 bool1 = isAppear
             },
             { "startAppearAnimation childKey: $str1 isAppear:$bool1" },
         )
     }
 
-    fun logCancelAppearDrawing(entry: NotificationEntry, wasDrawing: Boolean) {
+    fun logCancelAppearDrawing(entry: String, wasDrawing: Boolean) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.WARNING,
             {
-                str1 = entry.logKey
+                str1 = entry
                 bool1 = wasDrawing
             },
             { "cancelAppearDrawing childKey: $str1 wasDrawing:$bool1" },
         )
     }
 
-    fun logAppearAnimationStarted(entry: NotificationEntry, isAppear: Boolean) {
+    fun logAppearAnimationStarted(entry: String, isAppear: Boolean) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 bool1 = isAppear
             },
             { "onAppearAnimationStarted childKey: $str1 isAppear:$bool1" },
         )
     }
 
-    fun logAppearAnimationSkipped(entry: NotificationEntry, isAppear: Boolean) {
+    fun logAppearAnimationSkipped(entry: String, isAppear: Boolean) {
         notificationRenderBuffer.log(
             TAG,
             LogLevel.WARNING,
             {
-                str1 = entry.logKey
+                str1 = entry
                 bool1 = isAppear
             },
             { "Skipped an appear animation childKey: $str1 isAppear:$bool1" },
@@ -188,7 +187,7 @@ constructor(
     }
 
     fun logAppearAnimationFinished(
-        entry: NotificationEntry,
+        entry: String,
         isAppear: Boolean,
         cancelled: Boolean,
     ) {
@@ -196,11 +195,41 @@ constructor(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 bool1 = isAppear
                 bool2 = cancelled
             },
             { "onAppearAnimationFinished childKey: $str1 isAppear:$bool1 cancelled:$bool2" },
+        )
+    }
+
+    fun logMagneticAndRoundableTargetsNotSet(
+        state: MagneticNotificationRowManagerImpl.State,
+        entry: String,
+    ) {
+        buffer.log(
+            TAG,
+            LogLevel.ERROR,
+            {
+                str1 = entry
+                str2 = state.name
+            },
+            { "Failed to set magnetic and roundable targets for $str1 on state $str2." },
+        )
+    }
+
+    fun logMagneticRowTranslationNotSet(
+        state: MagneticNotificationRowManagerImpl.State,
+        entry: String,
+    ) {
+        buffer.log(
+            TAG,
+            LogLevel.ERROR,
+            {
+                str1 = entry
+                str2 = state.name
+            },
+            { "Failed to set magnetic row translation for $str1 on state $str2." },
         )
     }
 }

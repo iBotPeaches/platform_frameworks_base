@@ -55,6 +55,7 @@ import java.util.Objects;
  */
 @SystemApi
 @TestApi
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class FontConfig implements Parcelable {
     private final @NonNull List<FontFamily> mFamilies;
     private final @NonNull List<Alias> mAliases;

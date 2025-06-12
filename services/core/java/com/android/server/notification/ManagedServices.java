@@ -25,6 +25,8 @@ import static android.os.UserHandle.USER_ALL;
 import static android.os.UserHandle.USER_SYSTEM;
 import static android.service.notification.NotificationListenerService.META_DATA_DEFAULT_AUTOBIND;
 
+import static com.android.server.notification.Flags.FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER;
+import static com.android.server.notification.Flags.managedServicesConcurrentMultiuser;
 import static com.android.server.notification.NotificationManagerService.privateSpaceFlagsEnabled;
 
 import android.annotation.FlaggedApi;
@@ -75,7 +77,9 @@ import com.android.internal.util.XmlUtils;
 import com.android.internal.util.function.TriPredicate;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
+import com.android.server.LocalServices;
 import com.android.server.notification.NotificationManagerService.DumpFilter;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.utils.TimingsTraceAndSlog;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -134,6 +138,7 @@ abstract public class ManagedServices {
     private final UserProfiles mUserProfiles;
     protected final IPackageManager mPm;
     protected final UserManager mUm;
+    protected final UserManagerInternal mUmInternal;
     private final Config mConfig;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
@@ -157,12 +162,17 @@ abstract public class ManagedServices {
     protected final ArraySet<String> mDefaultPackages = new ArraySet<>();
 
     // lists the component names of all enabled (and therefore potentially connected)
-    // app services for current profiles.
+    // app services for each user. This is intended to support a concurrent multi-user environment.
+    // key value is the resolved userId.
     @GuardedBy("mMutex")
-    private final ArraySet<ComponentName> mEnabledServicesForCurrentProfiles = new ArraySet<>();
-    // Just the packages from mEnabledServicesForCurrentProfiles
+    private final SparseArray<ArraySet<ComponentName>> mEnabledServicesByUser =
+            new SparseArray<>();
+    // Just the packages from mEnabledServicesByUser
+    // This is intended to support a concurrent multi-user environment.
+    // key value is the resolved userId.
     @GuardedBy("mMutex")
-    private final ArraySet<String> mEnabledServicesPackageNames = new ArraySet<>();
+    private final SparseArray<ArraySet<String>> mEnabledServicesPackageNamesByUser =
+            new SparseArray<>();
     // Per user id, list of enabled packages that have nevertheless asked not to be run
     @GuardedBy("mSnoozing")
     private final SparseSetArray<ComponentName> mSnoozing = new SparseSetArray<>();
@@ -195,6 +205,10 @@ abstract public class ManagedServices {
         mConfig = getConfig();
         mApprovalLevel = APPROVAL_BY_COMPONENT;
         mUm = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
+        mUmInternal = LocalServices.getService(UserManagerInternal.class);
+        // Initialize for the current user.
+        mEnabledServicesByUser.put(UserHandle.USER_CURRENT, new ArraySet<>());
+        mEnabledServicesPackageNamesByUser.put(UserHandle.USER_CURRENT, new ArraySet<>());
     }
 
     abstract protected Config getConfig();
@@ -383,11 +397,30 @@ abstract public class ManagedServices {
         }
 
         synchronized (mMutex) {
-            pw.println("    All " + getCaption() + "s (" + mEnabledServicesForCurrentProfiles.size()
-                    + ") enabled for current profiles:");
-            for (ComponentName cmpt : mEnabledServicesForCurrentProfiles) {
-                if (filter != null && !filter.matches(cmpt)) continue;
-                pw.println("      " + cmpt);
+            if (managedServicesConcurrentMultiuser()) {
+                for (int i = 0; i < mEnabledServicesByUser.size(); i++) {
+                    final int userId = mEnabledServicesByUser.keyAt(i);
+                    final ArraySet<ComponentName> componentNames =
+                            mEnabledServicesByUser.get(userId);
+                    String userString = userId == UserHandle.USER_CURRENT
+                            ? "current profiles" : "user " + Integer.toString(userId);
+                    pw.println("    All " + getCaption() + "s (" + componentNames.size()
+                            + ") enabled for " +  userString + ":");
+                    for (ComponentName cmpt : componentNames) {
+                        if (filter != null && !filter.matches(cmpt)) continue;
+                        pw.println("      " + cmpt);
+                    }
+                }
+            } else {
+                final ArraySet<ComponentName> enabledServicesForCurrentProfiles =
+                        mEnabledServicesByUser.get(UserHandle.USER_CURRENT);
+                pw.println("    All " + getCaption() + "s ("
+                        + enabledServicesForCurrentProfiles.size()
+                        + ") enabled for current profiles:");
+                for (ComponentName cmpt : enabledServicesForCurrentProfiles) {
+                    if (filter != null && !filter.matches(cmpt)) continue;
+                    pw.println("      " + cmpt);
+                }
             }
 
             pw.println("    Live " + getCaption() + "s (" + mServices.size() + "):");
@@ -442,11 +475,24 @@ abstract public class ManagedServices {
             }
         }
 
-
         synchronized (mMutex) {
-            for (ComponentName cmpt : mEnabledServicesForCurrentProfiles) {
-                if (filter != null && !filter.matches(cmpt)) continue;
-                cmpt.dumpDebug(proto, ManagedServicesProto.ENABLED);
+            if (managedServicesConcurrentMultiuser()) {
+                for (int i = 0; i < mEnabledServicesByUser.size(); i++) {
+                    final int userId = mEnabledServicesByUser.keyAt(i);
+                    final ArraySet<ComponentName> componentNames =
+                            mEnabledServicesByUser.get(userId);
+                    for (ComponentName cmpt : componentNames) {
+                        if (filter != null && !filter.matches(cmpt)) continue;
+                        cmpt.dumpDebug(proto, ManagedServicesProto.ENABLED);
+                    }
+                }
+            } else {
+                final ArraySet<ComponentName> enabledServicesForCurrentProfiles =
+                        mEnabledServicesByUser.get(UserHandle.USER_CURRENT);
+                for (ComponentName cmpt : enabledServicesForCurrentProfiles) {
+                    if (filter != null && !filter.matches(cmpt)) continue;
+                    cmpt.dumpDebug(proto, ManagedServicesProto.ENABLED);
+                }
             }
             for (ManagedServiceInfo info : mServices) {
                 if (filter != null && !filter.matches(info.component)) continue;
@@ -841,9 +887,31 @@ abstract public class ManagedServices {
         }
     }
 
+    /** convenience method for looking in mEnabledServicesPackageNamesByUser
+     * for UserHandle.USER_CURRENT.
+     * This is a legacy API. When FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER becomes
+     * trunk stable,  this API should be deprecated.  Additionally, when this method
+     * is deprecated, the unit tests written using this method should also be revised.
+     *
+     * @param pkg target package name
+     * @return boolean value that indicates whether it is enabled for the current profiles
+     */
     protected boolean isComponentEnabledForPackage(String pkg) {
+        return isComponentEnabledForPackage(pkg, UserHandle.USER_CURRENT);
+    }
+
+    /** convenience method for looking in mEnabledServicesPackageNamesByUser
+     *
+     * @param pkg target package name
+     * @param userId the id of the target user
+     * @return boolean value that indicates whether it is enabled for the target user
+     */
+    @FlaggedApi(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    protected boolean isComponentEnabledForPackage(String pkg, int userId) {
         synchronized (mMutex) {
-            return mEnabledServicesPackageNames.contains(pkg);
+            ArraySet<String> enabledServicesPackageNames =
+                    mEnabledServicesPackageNamesByUser.get(resolveUserId(userId));
+            return enabledServicesPackageNames != null && enabledServicesPackageNames.contains(pkg);
         }
     }
 
@@ -1016,9 +1084,14 @@ abstract public class ManagedServices {
     public void onPackagesChanged(boolean removingPackage, String[] pkgList, int[] uidList) {
         if (DEBUG) {
             synchronized (mMutex) {
+                int resolvedUserId = (managedServicesConcurrentMultiuser()
+                        && (uidList != null && uidList.length > 0))
+                        ? resolveUserId(UserHandle.getUserId(uidList[0]))
+                        : UserHandle.USER_CURRENT;
                 Slog.d(TAG, "onPackagesChanged removingPackage=" + removingPackage
                         + " pkgList=" + (pkgList == null ? null : Arrays.asList(pkgList))
-                        + " mEnabledServicesPackageNames=" + mEnabledServicesPackageNames);
+                        + " mEnabledServicesPackageNames="
+                        + mEnabledServicesPackageNamesByUser.get(resolvedUserId));
             }
         }
 
@@ -1034,11 +1107,18 @@ abstract public class ManagedServices {
                 }
             }
             for (String pkgName : pkgList) {
-                if (isComponentEnabledForPackage(pkgName)) {
-                    anyServicesInvolved = true;
+                if (!managedServicesConcurrentMultiuser()) {
+                    if (isComponentEnabledForPackage(pkgName)) {
+                        anyServicesInvolved = true;
+                    }
                 }
                 if (uidList != null && uidList.length > 0) {
                     for (int uid : uidList) {
+                        if (managedServicesConcurrentMultiuser()) {
+                            if (isComponentEnabledForPackage(pkgName, UserHandle.getUserId(uid))) {
+                                anyServicesInvolved = true;
+                            }
+                        }
                         if (isPackageAllowed(pkgName, UserHandle.getUserId(uid))) {
                             anyServicesInvolved = true;
                             trimApprovedListsForInvalidServices(pkgName, UserHandle.getUserId(uid));
@@ -1063,6 +1143,36 @@ abstract public class ManagedServices {
             mSnoozing.remove(user);
         }
         unbindUserServices(user);
+    }
+
+    /**
+     * Call this method when a user is stopped
+     *
+     * @param user the id of the stopped user
+     */
+    public void onUserStopped(int user) {
+        if (!managedServicesConcurrentMultiuser()) {
+            return;
+        }
+        boolean hasAny = false;
+        synchronized (mMutex) {
+            if (mEnabledServicesByUser.contains(user)
+                    && mEnabledServicesPackageNamesByUser.contains(user)) {
+                // Through the ManagedServices.resolveUserId,
+                // we resolve UserHandle.USER_CURRENT as the key for users
+                // other than the visible background user.
+                // Therefore, the user IDs that exist as keys for each member variable
+                // correspond to the visible background user.
+                // We need to unbind services of the stopped visible background user.
+                mEnabledServicesByUser.remove(user);
+                mEnabledServicesPackageNamesByUser.remove(user);
+                hasAny = true;
+            }
+        }
+        if (hasAny) {
+            Slog.i(TAG, "Removing approved services for stopped user " + user);
+            unbindUserServices(user);
+        }
     }
 
     public void onUserSwitched(int user) {
@@ -1386,18 +1496,41 @@ abstract public class ManagedServices {
     protected void populateComponentsToBind(SparseArray<Set<ComponentName>> componentsToBind,
             final IntArray activeUsers,
             SparseArray<ArraySet<ComponentName>> approvedComponentsByUser) {
-        mEnabledServicesForCurrentProfiles.clear();
-        mEnabledServicesPackageNames.clear();
         final int nUserIds = activeUsers.size();
-
+        if (managedServicesConcurrentMultiuser()) {
+            for (int i = 0; i < nUserIds; ++i) {
+                final int resolvedUserId = resolveUserId(activeUsers.get(i));
+                if (mEnabledServicesByUser.get(resolvedUserId) != null) {
+                    mEnabledServicesByUser.get(resolvedUserId).clear();
+                }
+                if (mEnabledServicesPackageNamesByUser.get(resolvedUserId) != null) {
+                    mEnabledServicesPackageNamesByUser.get(resolvedUserId).clear();
+                }
+            }
+        } else {
+            mEnabledServicesByUser.get(UserHandle.USER_CURRENT).clear();
+            mEnabledServicesPackageNamesByUser.get(UserHandle.USER_CURRENT).clear();
+        }
         for (int i = 0; i < nUserIds; ++i) {
-            // decode the list of components
             final int userId = activeUsers.get(i);
+            // decode the list of components
             final ArraySet<ComponentName> userComponents = approvedComponentsByUser.get(userId);
             if (null == userComponents) {
                 componentsToBind.put(userId, new ArraySet<>());
                 continue;
             }
+
+            final int resolvedUserId = managedServicesConcurrentMultiuser()
+                    ? resolveUserId(userId)
+                    : UserHandle.USER_CURRENT;
+            ArraySet<ComponentName> enabledServices =
+                    mEnabledServicesByUser.contains(resolvedUserId)
+                    ? mEnabledServicesByUser.get(resolvedUserId)
+                    : new ArraySet<>();
+            ArraySet<String> enabledServicesPackageName =
+                    mEnabledServicesPackageNamesByUser.contains(resolvedUserId)
+                    ? mEnabledServicesPackageNamesByUser.get(resolvedUserId)
+                    : new ArraySet<>();
 
             final Set<ComponentName> add = new HashSet<>(userComponents);
             synchronized (mSnoozing) {
@@ -1409,12 +1542,12 @@ abstract public class ManagedServices {
 
             componentsToBind.put(userId, add);
 
-            mEnabledServicesForCurrentProfiles.addAll(userComponents);
-
+            enabledServices.addAll(userComponents);
             for (int j = 0; j < userComponents.size(); j++) {
-                final ComponentName component = userComponents.valueAt(j);
-                mEnabledServicesPackageNames.add(component.getPackageName());
+                enabledServicesPackageName.add(userComponents.valueAt(j).getPackageName());
             }
+            mEnabledServicesByUser.put(resolvedUserId, enabledServices);
+            mEnabledServicesPackageNamesByUser.put(resolvedUserId, enabledServicesPackageName);
         }
     }
 
@@ -1453,13 +1586,9 @@ abstract public class ManagedServices {
      */
     protected void rebindServices(boolean forceRebind, int userToRebind) {
         if (DEBUG) Slog.d(TAG, "rebindServices " + forceRebind + " " + userToRebind);
-        IntArray userIds = mUserProfiles.getCurrentProfileIds();
         boolean rebindAllCurrentUsers = mUserProfiles.isProfileUser(userToRebind, mContext)
                 && allowRebindForParentUser();
-        if (userToRebind != USER_ALL && !rebindAllCurrentUsers) {
-            userIds = new IntArray(1);
-            userIds.add(userToRebind);
-        }
+        IntArray userIds = getUserIdsForRebindServices(userToRebind, rebindAllCurrentUsers);
 
         final SparseArray<Set<ComponentName>> componentsToBind = new SparseArray<>();
         final SparseArray<Set<ComponentName>> componentsToUnbind = new SparseArray<>();
@@ -1481,6 +1610,23 @@ abstract public class ManagedServices {
 
         unbindFromServices(componentsToUnbind);
         bindToServices(componentsToBind);
+    }
+
+    private IntArray getUserIdsForRebindServices(int userToRebind, boolean rebindAllCurrentUsers) {
+        IntArray userIds = mUserProfiles.getCurrentProfileIds();
+        if (userToRebind != USER_ALL && !rebindAllCurrentUsers) {
+            userIds = new IntArray(1);
+            userIds.add(userToRebind);
+        } else if (managedServicesConcurrentMultiuser()
+                && userToRebind == USER_ALL) {
+            for (UserInfo user : mUm.getUsers()) {
+                if (mUmInternal.isVisibleBackgroundFullUser(user.id)
+                        && !userIds.contains(user.id)) {
+                    userIds.add(user.id);
+                }
+            }
+        }
+        return userIds;
     }
 
     /**
@@ -1506,7 +1652,11 @@ abstract public class ManagedServices {
         synchronized (mMutex) {
             final Set<ManagedServiceInfo> removableBoundServices = getRemovableConnectedServices();
             for (ManagedServiceInfo info : removableBoundServices) {
-                if ((allExceptUser && (info.userid != user))
+                // User switching is the event for the forground user.
+                // It should not affect the service of the visible background user.
+                if ((allExceptUser && (info.userid != user)
+                        && !(managedServicesConcurrentMultiuser()
+                            && info.isVisibleBackgroundUserService))
                         || (!allExceptUser && (info.userid == user))) {
                     Set<ComponentName> toUnbind =
                             componentsToUnbind.get(info.userid, new ArraySet<>());
@@ -1861,6 +2011,29 @@ abstract public class ManagedServices {
     }
 
     /**
+     * This method returns the mapped id for the incoming user id
+     * If the incoming id was not the id of the visible background user, it returns USER_CURRENT.
+     * In the other cases, it returns the same value as the input.
+     *
+     * @param userId the id of the user
+     * @return the user id if it is a visible background user, otherwise
+     * {@link UserHandle#USER_CURRENT}
+     */
+    @FlaggedApi(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    @VisibleForTesting
+    public int resolveUserId(int userId) {
+        if (managedServicesConcurrentMultiuser()) {
+            if (mUmInternal.isVisibleBackgroundFullUser(userId)) {
+                // The dataset of the visible background user should be managed independently.
+                return userId;
+            }
+        }
+        // The data of current user and its profile users need to  be managed
+        // in a dataset as before.
+        return UserHandle.USER_CURRENT;
+    }
+
+    /**
      * Returns true if services in the parent user should be rebound
      *  when rebindServices is called with a profile userId.
      * Must be false for NotificationAssistants.
@@ -1878,6 +2051,8 @@ abstract public class ManagedServices {
         public int targetSdkVersion;
         public Pair<ComponentName, Integer> mKey;
         public int uid;
+        @FlaggedApi(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+        public boolean isVisibleBackgroundUserService;
 
         public ManagedServiceInfo(IInterface service, ComponentName component,
                 int userid, boolean isSystem, ServiceConnection connection, int targetSdkVersion,
@@ -1889,6 +2064,10 @@ abstract public class ManagedServices {
             this.connection = connection;
             this.targetSdkVersion = targetSdkVersion;
             this.uid = uid;
+            if (managedServicesConcurrentMultiuser()) {
+                this.isVisibleBackgroundUserService = LocalServices
+                        .getService(UserManagerInternal.class).isVisibleBackgroundFullUser(userid);
+            }
             mKey = Pair.create(component, userid);
         }
 
@@ -1937,19 +2116,28 @@ abstract public class ManagedServices {
         }
 
         public boolean isSameUser(int userId) {
-            if (!isEnabledForCurrentProfiles()) {
+            if (!isEnabledForUser()) {
                 return false;
             }
             return userId == USER_ALL || userId == this.userid;
         }
 
         public boolean enabledAndUserMatches(int nid) {
-            if (!isEnabledForCurrentProfiles()) {
+            if (!isEnabledForUser()) {
                 return false;
             }
             if (this.userid == USER_ALL) return true;
             if (this.isSystem) return true;
             if (nid == USER_ALL || nid == this.userid) return true;
+            if (managedServicesConcurrentMultiuser()
+                    && mUmInternal.getProfileParentId(nid)
+                        != mUmInternal.getProfileParentId(this.userid)) {
+                // If the profile parent IDs do not match each other,
+                // it is determined that the users do not match.
+                // This situation may occur when comparing the current user's ID
+                // with the visible background user's ID.
+                return false;
+            }
             return supportsProfiles()
                     && mUserProfiles.isCurrentProfile(nid)
                     && isPermittedForProfile(nid);
@@ -1969,12 +2157,21 @@ abstract public class ManagedServices {
             removeServiceImpl(this.service, this.userid);
         }
 
-        /** convenience method for looking in mEnabledServicesForCurrentProfiles */
-        public boolean isEnabledForCurrentProfiles() {
+        /**
+         * convenience method for looking in mEnabledServicesByUser.
+         * If FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER is disabled, this manages the data using
+         * only UserHandle.USER_CURRENT as the key, in order to behave the same as the legacy logic.
+        */
+        public boolean isEnabledForUser() {
             if (this.isSystem) return true;
             if (this.connection == null) return false;
             synchronized (mMutex) {
-                return mEnabledServicesForCurrentProfiles.contains(this.component);
+                int resolvedUserId = managedServicesConcurrentMultiuser()
+                        ? resolveUserId(this.userid)
+                        : UserHandle.USER_CURRENT;
+                ArraySet<ComponentName> enabledServices =
+                        mEnabledServicesByUser.get(resolvedUserId);
+                return enabledServices != null && enabledServices.contains(this.component);
             }
         }
 
@@ -2017,10 +2214,30 @@ abstract public class ManagedServices {
         }
     }
 
-    /** convenience method for looking in mEnabledServicesForCurrentProfiles */
+    /** convenience method for looking in mEnabledServicesByUser for UserHandle.USER_CURRENT.
+     * This is a legacy API. When FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER becomes
+     * trunk stable,  this API should be deprecated.  Additionally, when this method
+     * is deprecated, the unit tests written using this method should also be revised.
+     *
+     * @param component target component name
+     * @return boolean value that indicates whether it is enabled for the current profiles
+     */
     public boolean isComponentEnabledForCurrentProfiles(ComponentName component) {
+        return isComponentEnabledForUser(component, UserHandle.USER_CURRENT);
+    }
+
+    /** convenience method for looking in mEnabledServicesForUser
+     *
+     * @param component target component name
+     * @param userId the id of the target user
+     * @return boolean value that indicates whether it is enabled for the target user
+    */
+    @FlaggedApi(FLAG_MANAGED_SERVICES_CONCURRENT_MULTIUSER)
+    public boolean isComponentEnabledForUser(ComponentName component, int userId) {
         synchronized (mMutex) {
-            return mEnabledServicesForCurrentProfiles.contains(component);
+            ArraySet<ComponentName> enabledServicesForUser =
+                    mEnabledServicesByUser.get(resolveUserId(userId));
+            return enabledServicesForUser != null && enabledServicesForUser.contains(component);
         }
     }
 

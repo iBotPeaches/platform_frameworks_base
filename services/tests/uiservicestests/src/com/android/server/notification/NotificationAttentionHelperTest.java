@@ -48,7 +48,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1114,8 +1113,8 @@ public class NotificationAttentionHelperTest extends UiServiceTestCase {
         verifyDelayedVibrate(
             mAttentionHelper.getVibratorHelper().createFallbackVibration(
                 /* insistent= */ false));
-        verify(mRingtonePlayer, never()).playAsync(anyObject(), anyObject(), anyBoolean(),
-            anyObject(), anyFloat());
+        verify(mRingtonePlayer, never()).playAsync(any(), any(), anyBoolean(),
+            any(), anyFloat());
         assertTrue(r.isInterruptive());
         assertNotEquals(-1, r.getLastAudiblyAlertedMs());
     }

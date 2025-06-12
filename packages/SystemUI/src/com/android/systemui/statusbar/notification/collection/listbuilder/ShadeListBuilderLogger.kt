@@ -23,7 +23,7 @@ import com.android.systemui.log.core.LogLevel.INFO
 import com.android.systemui.log.core.LogLevel.WARNING
 import com.android.systemui.statusbar.notification.NotifPipelineFlags
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.listbuilder.PipelineState.StateName
 import com.android.systemui.statusbar.notification.collection.listbuilder.PipelineState.getStateName
@@ -152,9 +152,9 @@ class ShadeListBuilderLogger @Inject constructor(
 
     fun logEntryAttachStateChanged(
         buildId: Int,
-        entry: ListEntry,
-        prevParent: GroupEntry?,
-        newParent: GroupEntry?
+        entry: PipelineEntry,
+        prevParent: PipelineEntry?,
+        newParent: PipelineEntry?
     ) {
         buffer.log(TAG, INFO, {
             long1 = buildId.toLong()
@@ -177,7 +177,7 @@ class ShadeListBuilderLogger @Inject constructor(
         })
     }
 
-    fun logParentChanged(buildId: Int, prevParent: GroupEntry?, newParent: GroupEntry?) {
+    fun logParentChanged(buildId: Int, prevParent: PipelineEntry?, newParent: PipelineEntry?) {
         buffer.log(TAG, INFO, {
             long1 = buildId.toLong()
             str1 = prevParent?.logKey
@@ -195,8 +195,8 @@ class ShadeListBuilderLogger @Inject constructor(
 
     fun logParentChangeSuppressedStarted(
         buildId: Int,
-        suppressedParent: GroupEntry?,
-        keepingParent: GroupEntry?
+        suppressedParent: PipelineEntry?,
+        keepingParent: PipelineEntry?
     ) {
         buffer.log(TAG, INFO, {
             long1 = buildId.toLong()
@@ -209,8 +209,8 @@ class ShadeListBuilderLogger @Inject constructor(
 
     fun logParentChangeSuppressedStopped(
             buildId: Int,
-            previouslySuppressedParent: GroupEntry?,
-            previouslyKeptParent: GroupEntry?
+            previouslySuppressedParent: PipelineEntry?,
+            previouslyKeptParent: PipelineEntry?
     ) {
         buffer.log(TAG, INFO, {
             long1 = buildId.toLong()
@@ -224,7 +224,7 @@ class ShadeListBuilderLogger @Inject constructor(
 
     fun logGroupPruningSuppressed(
         buildId: Int,
-        keepingParent: GroupEntry?
+        keepingParent: PipelineEntry?
     ) {
         buffer.log(TAG, INFO, {
             long1 = buildId.toLong()
@@ -310,7 +310,7 @@ class ShadeListBuilderLogger @Inject constructor(
 
     val logRankInFinalList = Compile.IS_DEBUG && notifPipelineFlags.isDevLoggingEnabled()
 
-    fun logFinalList(entries: List<ListEntry>) {
+    fun logFinalList(entries: List<PipelineEntry>) {
         if (entries.isEmpty()) {
             buffer.log(TAG, DEBUG, {}, { "(empty list)" })
         }

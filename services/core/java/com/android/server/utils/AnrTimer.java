@@ -134,7 +134,7 @@ public abstract class AnrTimer<V> implements AutoCloseable {
      * per-service basis.
      */
     private static boolean freezerFeatureEnabled() {
-        return Flags.anrTimerFreezer();
+        return false;
     }
 
     /**

@@ -32,6 +32,8 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -41,7 +43,7 @@ import java.util.List;
  * Operation to deal with bitmap data On getting an Image during a draw call the bitmap is
  * compressed and saved in playback the image is decompressed
  */
-public class ShaderData extends Operation implements VariableSupport {
+public class ShaderData extends Operation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.DATA_SHADER;
     private static final String CLASS_NAME = "ShaderData";
     int mShaderTextId; // the actual text of a shader
@@ -172,6 +174,9 @@ public class ShaderData extends Operation implements VariableSupport {
 
     @Override
     public void updateVariables(@NonNull RemoteContext context) {
+        if (mUniformRawFloatMap == null) {
+            return;
+        }
         for (String name : mUniformRawFloatMap.keySet()) { // TODO: potential npe
             float[] value = mUniformRawFloatMap.get(name);
             float[] out = null;
@@ -189,6 +194,9 @@ public class ShaderData extends Operation implements VariableSupport {
 
     @Override
     public void registerListening(@NonNull RemoteContext context) {
+        if (mUniformFloatMap == null) {
+            return;
+        }
         for (String name : mUniformRawFloatMap.keySet()) { // TODO: potential npe
             float[] value = mUniformRawFloatMap.get(name);
             for (float v : value) {
@@ -377,5 +385,16 @@ public class ShaderData extends Operation implements VariableSupport {
      */
     public void enable(boolean shaderValid) {
         mShaderValid = shaderValid;
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("shaderTextId", mShaderTextId)
+                .add("shaderID", mShaderID)
+                .add("uniformRawFloatMap", mUniformRawFloatMap)
+                .add("uniformFloatMap", mUniformFloatMap)
+                .add("uniformBitmapMap", mUniformBitmapMap);
     }
 }

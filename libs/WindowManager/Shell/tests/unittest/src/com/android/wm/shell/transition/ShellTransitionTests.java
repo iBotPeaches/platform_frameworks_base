@@ -37,6 +37,7 @@ import static android.view.WindowManager.TRANSIT_TO_BACK;
 import static android.view.WindowManager.TRANSIT_TO_FRONT;
 import static android.window.TransitionInfo.FLAG_DISPLAY_HAS_ALERT_WINDOWS;
 import static android.window.TransitionInfo.FLAG_IS_DISPLAY;
+import static android.window.TransitionInfo.FLAG_MOVED_TO_TOP;
 import static android.window.TransitionInfo.FLAG_SYNC;
 import static android.window.TransitionInfo.FLAG_TRANSLUCENT;
 
@@ -74,7 +75,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
-import android.platform.test.flag.junit.SetFlagsRule;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
 import android.util.ArraySet;
 import android.util.Pair;
 import android.view.Surface;
@@ -105,6 +107,7 @@ import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.ShellTestCase;
 import com.android.wm.shell.TestShellExecutor;
 import com.android.wm.shell.common.DisplayController;
+import com.android.wm.shell.common.DisplayInsetsController;
 import com.android.wm.shell.common.DisplayLayout;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.recents.IRecentsAnimationRunner;
@@ -117,7 +120,6 @@ import com.android.wm.shell.sysui.ShellInit;
 import com.android.wm.shell.util.StubTransaction;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Answers;
@@ -144,9 +146,9 @@ public class ShellTransitionTests extends ShellTestCase {
     private final ShellExecutor mAnimExecutor = new TestShellExecutor();
     private final TestTransitionHandler mDefaultHandler = new TestTransitionHandler();
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
-
-    @Rule
-    public final SetFlagsRule setFlagsRule = new SetFlagsRule();
+    private final Handler mAnimHandler = mock(Handler.class);
+    private final DisplayInsetsController mDisplayInsets =
+            mock(DisplayInsetsController.class);
 
     @Before
     public void setUp() {
@@ -158,9 +160,9 @@ public class ShellTransitionTests extends ShellTestCase {
     public void instantiate_addInitCallback() {
         ShellInit shellInit = mock(ShellInit.class);
         final Transitions t = new Transitions(mContext, shellInit, mock(ShellController.class),
-                mOrganizer, mTransactionPool, createTestDisplayController(), mMainExecutor,
-                mMainHandler, mAnimExecutor, mock(HomeTransitionObserver.class),
-                mock(FocusTransitionObserver.class));
+                mOrganizer, mTransactionPool, createTestDisplayController(), mDisplayInsets,
+                mMainExecutor, mMainHandler, mAnimExecutor, mAnimHandler,
+                mock(HomeTransitionObserver.class), mock(FocusTransitionObserver.class));
         // One from Transitions, one from RootTaskDisplayAreaOrganizer
         verify(shellInit).addInitCallback(any(), eq(t));
         verify(shellInit).addInitCallback(any(), isA(RootTaskDisplayAreaOrganizer.class));
@@ -171,9 +173,9 @@ public class ShellTransitionTests extends ShellTestCase {
         ShellInit shellInit = new ShellInit(mMainExecutor);
         ShellController shellController = mock(ShellController.class);
         final Transitions t = new Transitions(mContext, shellInit, shellController,
-                mOrganizer, mTransactionPool, createTestDisplayController(), mMainExecutor,
-                mMainHandler, mAnimExecutor, mock(HomeTransitionObserver.class),
-                mock(FocusTransitionObserver.class));
+                mOrganizer, mTransactionPool, createTestDisplayController(), mDisplayInsets,
+                mMainExecutor, mMainHandler, mAnimExecutor, mAnimHandler,
+                mock(HomeTransitionObserver.class), mock(FocusTransitionObserver.class));
         shellInit.init();
         verify(shellController, times(1)).addExternalInterface(
                 eq(IShellTransitions.DESCRIPTOR), any(), any());
@@ -553,7 +555,8 @@ public class ShellTransitionTests extends ShellTestCase {
     }
 
     @Test
-    public void testRegisteredRemoteTransitionTakeover() {
+    @DisableFlags(Flags.FLAG_RETURN_ANIMATION_FRAMEWORK_LONG_LIVED)
+    public void testRegisteredRemoteTransitionTakeover_flagDisabled() {
         Transitions transitions = createTestTransitions();
         transitions.replaceDefaultHandlerForTest(mDefaultHandler);
 
@@ -608,7 +611,6 @@ public class ShellTransitionTests extends ShellTestCase {
         mMainExecutor.flushAll();
 
         // Takeover shouldn't happen when the flag is disabled.
-        setFlagsRule.disableFlags(Flags.FLAG_RETURN_ANIMATION_FRAMEWORK_LONG_LIVED);
         IBinder transitToken = new Binder();
         transitions.requestStartTransition(transitToken,
                 new TransitionRequestInfo(TRANSIT_OPEN, null /* trigger */, null /* remote */));
@@ -621,12 +623,69 @@ public class ShellTransitionTests extends ShellTestCase {
         mDefaultHandler.finishAll();
         mMainExecutor.flushAll();
         verify(mOrganizer, times(1)).finishTransition(eq(transitToken), any());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_RETURN_ANIMATION_FRAMEWORK_LONG_LIVED)
+    public void testRegisteredRemoteTransitionTakeover_flagEnabled() {
+        Transitions transitions = createTestTransitions();
+        transitions.replaceDefaultHandlerForTest(mDefaultHandler);
+
+        IRemoteTransition testRemote = new RemoteTransitionStub() {
+            @Override
+            public void startAnimation(IBinder token, TransitionInfo info,
+                    SurfaceControl.Transaction t,
+                    IRemoteTransitionFinishedCallback finishCallback) throws RemoteException {
+                final Transitions.TransitionHandler takeoverHandler =
+                        transitions.getHandlerForTakeover(token, info);
+
+                if (takeoverHandler == null) {
+                    finishCallback.onTransitionFinished(null /* wct */, null /* sct */);
+                    return;
+                }
+
+                takeoverHandler.takeOverAnimation(token, info, new SurfaceControl.Transaction(),
+                        wct -> {
+                            try {
+                                finishCallback.onTransitionFinished(wct, null /* sct */);
+                            } catch (RemoteException e) {
+                                // Fail
+                            }
+                        }, new WindowAnimationState[info.getChanges().size()]);
+            }
+        };
+        final boolean[] takeoverRemoteCalled = new boolean[]{false};
+        IRemoteTransition testTakeoverRemote = new RemoteTransitionStub() {
+            @Override
+            public void startAnimation(IBinder token, TransitionInfo info,
+                    SurfaceControl.Transaction t,
+                    IRemoteTransitionFinishedCallback finishCallback) {}
+
+            @Override
+            public void takeOverAnimation(IBinder transition, TransitionInfo info,
+                    SurfaceControl.Transaction startTransaction,
+                    IRemoteTransitionFinishedCallback finishCallback, WindowAnimationState[] states)
+                    throws RemoteException {
+                takeoverRemoteCalled[0] = true;
+                finishCallback.onTransitionFinished(null /* wct */, null /* sct */);
+            }
+        };
+
+        TransitionFilter filter = new TransitionFilter();
+        filter.mRequirements =
+                new TransitionFilter.Requirement[]{new TransitionFilter.Requirement()};
+        filter.mRequirements[0].mModes = new int[]{TRANSIT_OPEN, TRANSIT_TO_FRONT};
+
+        transitions.registerRemote(filter, new RemoteTransition(testRemote, "Test"));
+        transitions.registerRemoteForTakeover(
+                filter, new RemoteTransition(testTakeoverRemote, "Test"));
+        mMainExecutor.flushAll();
 
         // Takeover should happen when the flag is enabled.
-        setFlagsRule.enableFlags(Flags.FLAG_RETURN_ANIMATION_FRAMEWORK_LONG_LIVED);
+        IBinder transitToken = new Binder();
         transitions.requestStartTransition(transitToken,
                 new TransitionRequestInfo(TRANSIT_OPEN, null /* trigger */, null /* remote */));
-        info = new TransitionInfoBuilder(TRANSIT_OPEN)
+        TransitionInfo info = new TransitionInfoBuilder(TRANSIT_OPEN)
                 .addChange(TRANSIT_OPEN).addChange(TRANSIT_CLOSE).build();
         transitions.onTransitionReady(transitToken, info, new StubTransaction(),
                 new StubTransaction());
@@ -634,7 +693,7 @@ public class ShellTransitionTests extends ShellTestCase {
         assertTrue(takeoverRemoteCalled[0]);
         mDefaultHandler.finishAll();
         mMainExecutor.flushAll();
-        verify(mOrganizer, times(2)).finishTransition(eq(transitToken), any());
+        verify(mOrganizer, times(1)).finishTransition(eq(transitToken), any());
     }
 
     @Test
@@ -1259,12 +1318,15 @@ public class ShellTransitionTests extends ShellTestCase {
         ShellInit shellInit = new ShellInit(mMainExecutor);
         final Transitions transitions =
                 new Transitions(mContext, shellInit, mock(ShellController.class), mOrganizer,
-                        mTransactionPool, createTestDisplayController(), mMainExecutor,
-                        mMainHandler, mAnimExecutor, mock(HomeTransitionObserver.class),
+                        mTransactionPool, createTestDisplayController(), mDisplayInsets,
+                        mMainExecutor, mMainHandler, mAnimExecutor, mAnimHandler,
+                        mock(HomeTransitionObserver.class),
                         mock(FocusTransitionObserver.class));
+        final RecentTasksController mockRecentsTaskController = mock(RecentTasksController.class);
+        doReturn(mContext).when(mockRecentsTaskController).getContext();
         final RecentsTransitionHandler recentsHandler =
                 new RecentsTransitionHandler(shellInit, mock(ShellTaskOrganizer.class), transitions,
-                        mock(RecentTasksController.class), mock(HomeTransitionObserver.class));
+                        mockRecentsTaskController, mock(HomeTransitionObserver.class));
         transitions.replaceDefaultHandlerForTest(mDefaultHandler);
         shellInit.init();
 
@@ -1686,6 +1748,53 @@ public class ShellTransitionTests extends ShellTestCase {
                 eq(R.styleable.WindowAnimation_activityCloseEnterAnimation), anyBoolean());
     }
 
+    @Test
+    public void testTransientHideWithMoveToTop() {
+        Transitions transitions = createTestTransitions();
+        transitions.replaceDefaultHandlerForTest(mDefaultHandler);
+        final TransitionAnimation transitionAnimation = new TransitionAnimation(mContext, false,
+                Transitions.TAG);
+        spyOn(transitionAnimation);
+
+        // Prepare for a TO_BACK transition
+        final RunningTaskInfo taskInfo = createTaskInfo(1);
+        final IBinder closeTransition = new Binder();
+        final SurfaceControl.Transaction closeTransitionFinishT =
+                mock(SurfaceControl.Transaction.class);
+
+        // Start a TO_BACK transition
+        transitions.requestStartTransition(closeTransition,
+                new TransitionRequestInfo(TRANSIT_TO_BACK, null /* trigger */, null /* remote */));
+        TransitionInfo closeInfo = new TransitionInfoBuilder(TRANSIT_TO_BACK)
+                .addChange(TRANSIT_TO_BACK, taskInfo)
+                .build();
+        transitions.onTransitionReady(closeTransition, closeInfo, new StubTransaction(),
+                closeTransitionFinishT);
+
+        // Verify that the transition hides the task surface in the finish transaction
+        verify(closeTransitionFinishT).hide(any());
+
+        // Prepare for a CHANGE transition
+        final IBinder changeTransition = new Binder();
+        final SurfaceControl.Transaction changeTransitionFinishT =
+                mock(SurfaceControl.Transaction.class);
+
+        // Start a CHANGE transition w/ MOVE_TO_FRONT that is merged into the TO_BACK
+        mDefaultHandler.setShouldMerge(changeTransition);
+        transitions.requestStartTransition(changeTransition,
+                new TransitionRequestInfo(TRANSIT_OPEN, null /* trigger */, null /* remote */));
+        TransitionInfo changeInfo = new TransitionInfoBuilder(TRANSIT_OPEN)
+                .addChange(TRANSIT_CHANGE, FLAG_MOVED_TO_TOP, taskInfo)
+                .build();
+        transitions.onTransitionReady(changeTransition, changeInfo, new StubTransaction(),
+                changeTransitionFinishT);
+
+        // Verify that the transition shows the task surface in the finish transaction so that the
+        // when the original transition finishes, the finish transaction does not clobber the
+        // visibility of the merged transition
+        verify(changeTransitionFinishT).show(any());
+    }
+
     class TestTransitionHandler implements Transitions.TransitionHandler {
         ArrayList<Pair<IBinder, Transitions.TransitionFinishCallback>> mFinishes =
                 new ArrayList<>();
@@ -1705,7 +1814,9 @@ public class ShellTransitionTests extends ShellTestCase {
 
         @Override
         public void mergeAnimation(@NonNull IBinder transition, @NonNull TransitionInfo info,
-                @NonNull SurfaceControl.Transaction t, @NonNull IBinder mergeTarget,
+                @NonNull SurfaceControl.Transaction startT,
+                @NonNull SurfaceControl.Transaction finishT,
+                @NonNull IBinder mergeTarget,
                 @NonNull Transitions.TransitionFinishCallback finishCallback) {
             if (mFinishOnSync && info.getType() == TRANSIT_SLEEP) {
                 for (int i = 0; i < mFinishes.size(); ++i) {
@@ -1781,6 +1892,7 @@ public class ShellTransitionTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(windowingMode);
         taskInfo.configuration.windowConfiguration.setActivityType(activityType);
         taskInfo.token = mock(WindowContainerToken.class);
+        taskInfo.baseIntent = mock(Intent.class);
         return taskInfo;
     }
 
@@ -1802,8 +1914,9 @@ public class ShellTransitionTests extends ShellTestCase {
     private Transitions createTestTransitions() {
         ShellInit shellInit = new ShellInit(mMainExecutor);
         final Transitions t = new Transitions(mContext, shellInit, mock(ShellController.class),
-                mOrganizer, mTransactionPool, createTestDisplayController(), mMainExecutor,
-                mMainHandler, mAnimExecutor, mock(HomeTransitionObserver.class),
+                mOrganizer, mTransactionPool, createTestDisplayController(), mDisplayInsets,
+                mMainExecutor, mMainHandler, mAnimExecutor, mAnimHandler,
+                mock(HomeTransitionObserver.class),
                 mock(FocusTransitionObserver.class));
         shellInit.init();
         return t;

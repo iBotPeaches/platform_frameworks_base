@@ -42,6 +42,7 @@ android_test {
         "PlatformMotionTestingCompose",
         "androidx.test.runner",
         "androidx.test.ext.junit",
+        "platform-parametric-runner-lib",
 
         "androidx.compose.runtime_runtime",
         "androidx.compose.ui_ui-test-junit4",

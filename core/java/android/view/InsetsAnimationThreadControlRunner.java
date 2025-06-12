@@ -89,7 +89,7 @@ public class InsetsAnimationThreadControlRunner implements InsetsAnimationContro
         }
     };
 
-    private SurfaceParamsApplier mSurfaceParamsApplier = new SurfaceParamsApplier() {
+    private final SurfaceParamsApplier mSurfaceParamsApplier = new SurfaceParamsApplier() {
 
         private final float[] mTmpFloat9 = new float[9];
 
@@ -165,6 +165,17 @@ public class InsetsAnimationThreadControlRunner implements InsetsAnimationContro
             // This is called from the UI thread, however, the surface position will be used on the
             // animation thread, so we need this critical section. See: scheduleApplyChangeInsets.
             mControl.updateSurfacePosition(controls);
+        }
+    }
+
+    @Override
+    @UiThread
+    public boolean willUpdateSurface() {
+        synchronized (mControl) {
+            // This is called from the UI thread, however, applyChangeInsets would be called on the
+            // animation thread, so we need this critical section to ensure this is not called
+            // during applyChangeInsets. See: scheduleApplyChangeInsets.
+            return mControl.willUpdateSurface();
         }
     }
 

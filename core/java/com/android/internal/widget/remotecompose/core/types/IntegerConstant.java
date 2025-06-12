@@ -25,17 +25,30 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Represents a single integer typically used for states or named for input into the system */
-public class IntegerConstant extends Operation {
-    private int mValue = 0;
-    private int mId;
+public class IntegerConstant extends Operation implements Serializable {
+    private static final String CLASS_NAME = "IntegerConstant";
+
+    private int mValue;
+    public final int mId;
 
     IntegerConstant(int id, int value) {
         mId = id;
         mValue = value;
+    }
+
+    /**
+     * Updates the value of the integer constant
+     *
+     * @param ic the integer constant to copy
+     */
+    public void update(IntegerConstant ic) {
+        mValue = ic.mValue;
     }
 
     @Override
@@ -115,5 +128,10 @@ public class IntegerConstant extends Operation {
                 .description("A integer and its associated id")
                 .field(DocumentedOperation.INT, "id", "id of Int")
                 .field(INT, "value", "32-bit int value");
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("id", mId).add("value", mValue);
     }
 }

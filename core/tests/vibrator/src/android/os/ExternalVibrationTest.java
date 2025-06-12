@@ -49,4 +49,22 @@ public class ExternalVibrationTest {
         assertThat(restored.getAudioAttributes()).isEqualTo(original.getAudioAttributes());
         assertThat(restored.getToken()).isEqualTo(original.getToken());
     }
+
+    @Test
+    public void testSerialization_systemUsage() {
+        ExternalVibration original =
+                new ExternalVibration(
+                        123,
+                        "pkg",
+                        new AudioAttributes.Builder()
+                                .setSystemUsage(AudioAttributes.USAGE_SPEAKER_CLEANUP)
+                                .build(),
+                        IExternalVibrationController.Stub.asInterface(new Binder()));
+        Parcel p = Parcel.obtain();
+        original.writeToParcel(p, 0);
+        p.setDataPosition(0);
+        ExternalVibration restored = ExternalVibration.CREATOR.createFromParcel(p);
+
+        assertThat(restored.getAudioAttributes()).isEqualTo(original.getAudioAttributes());
+    }
 }

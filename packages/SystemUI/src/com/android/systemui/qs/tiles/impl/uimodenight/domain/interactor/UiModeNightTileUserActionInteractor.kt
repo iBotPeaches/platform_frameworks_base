@@ -20,11 +20,11 @@ import android.app.UiModeManager
 import android.content.Intent
 import android.provider.Settings
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
-import com.android.systemui.qs.tiles.impl.uimodenight.domain.model.UiModeNightTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
+import com.android.systemui.qs.tiles.impl.uimodenight.domain.interactor.model.UiModeNightTileModel
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.withContext
@@ -51,7 +51,7 @@ constructor(
                 is QSTileUserAction.LongClick -> {
                     qsTileIntentUserActionHandler.handle(
                         action.expandable,
-                        Intent(Settings.ACTION_DARK_THEME_SETTINGS)
+                        Intent(Settings.ACTION_DARK_THEME_SETTINGS),
                     )
                 }
                 is QSTileUserAction.ToggleClick -> {}

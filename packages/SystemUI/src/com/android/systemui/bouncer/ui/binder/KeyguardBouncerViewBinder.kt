@@ -33,6 +33,7 @@ import com.android.systemui.bouncer.domain.interactor.BouncerMessageInteractor
 import com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants.EXPANSION_VISIBLE
 import com.android.systemui.bouncer.ui.BouncerViewDelegate
 import com.android.systemui.bouncer.ui.viewmodel.KeyguardBouncerViewModel
+import com.android.systemui.keyguard.ui.viewmodel.GlanceableHubToPrimaryBouncerTransitionViewModel
 import com.android.systemui.keyguard.ui.viewmodel.PrimaryBouncerToGoneTransitionViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.log.BouncerLogger
@@ -49,6 +50,8 @@ object KeyguardBouncerViewBinder {
         view: ViewGroup,
         viewModel: KeyguardBouncerViewModel,
         primaryBouncerToGoneTransitionViewModel: PrimaryBouncerToGoneTransitionViewModel,
+        glanceableHubToPrimaryBouncerTransitionViewModel:
+            GlanceableHubToPrimaryBouncerTransitionViewModel,
         componentFactory: KeyguardBouncerComponent.Factory,
         messageAreaControllerFactory: KeyguardMessageAreaController.Factory,
         bouncerMessageInteractor: BouncerMessageInteractor,
@@ -133,7 +136,20 @@ object KeyguardBouncerViewBinder {
                                         /* turningOff= */ false
                                     )
                                     securityContainerController.setInitialMessage()
-                                    securityContainerController.appear()
+                                    // Delay bouncer appearing animation when opening it from the
+                                    // glanceable hub in landscape, until after orientation changes
+                                    // to portrait. This prevents bouncer from showing in landscape
+                                    // layout, if bouncer rotation is not allowed.
+                                    if (
+                                        glanceableHubToPrimaryBouncerTransitionViewModel
+                                            .willDelayAppearAnimation(
+                                                securityContainerController.isLandscapeOrientation
+                                            )
+                                    ) {
+                                        securityContainerController.setupForDelayedAppear()
+                                    } else {
+                                        securityContainerController.appear()
+                                    }
                                     securityContainerController.onResume(
                                         KeyguardSecurityView.SCREEN_ON
                                     )
@@ -191,7 +207,6 @@ object KeyguardBouncerViewBinder {
                             .filter { it == EXPANSION_VISIBLE }
                             .collect {
                                 securityContainerController.onResume(KeyguardSecurityView.SCREEN_ON)
-                                view.announceForAccessibility(securityContainerController.title)
                             }
                     }
 

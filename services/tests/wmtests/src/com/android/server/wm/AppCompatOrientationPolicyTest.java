@@ -302,15 +302,15 @@ public class AppCompatOrientationPolicyTest extends WindowTestsBase {
     }
 
     @Test
-    public void testOverrideOrientationIfNeeded_userFullscreenOverride_returnsUser() {
+    public void testOverrideOrientationIfNeeded_userFullscreenOverride_notLetterboxed_unchanged() {
         runTestScenarioWithActivity((robot) -> {
             robot.applyOnActivity((a) -> {
                 a.setShouldApplyUserFullscreenOverride(true);
                 a.setIgnoreOrientationRequest(true);
             });
 
-            robot.checkOverrideOrientation(/* candidate */ SCREEN_ORIENTATION_UNSPECIFIED,
-                    /* expected */ SCREEN_ORIENTATION_USER);
+            robot.checkOverrideOrientation(/* candidate */ SCREEN_ORIENTATION_LOCKED,
+                    /* expected */ SCREEN_ORIENTATION_LOCKED);
         });
     }
 
@@ -555,8 +555,8 @@ public class AppCompatOrientationPolicyTest extends WindowTestsBase {
         @Override
         void onPostActivityCreation(@NonNull ActivityRecord activity) {
             super.onPostActivityCreation(activity);
-            spyOn(activity.mAppCompatController.getAppCompatAspectRatioOverrides());
-            spyOn(activity.mAppCompatController.getAppCompatAspectRatioPolicy());
+            spyOn(activity.mAppCompatController.getAspectRatioOverrides());
+            spyOn(activity.mAppCompatController.getAspectRatioPolicy());
         }
 
         @Override
@@ -601,8 +601,7 @@ public class AppCompatOrientationPolicyTest extends WindowTestsBase {
         }
 
         private AppCompatOrientationOverrides getTopOrientationOverrides() {
-            return activity().top().mAppCompatController.getAppCompatOverrides()
-                    .getAppCompatOrientationOverrides();
+            return activity().top().mAppCompatController.getOrientationOverrides();
         }
 
         private AppCompatOrientationPolicy getTopAppCompatOrientationPolicy() {

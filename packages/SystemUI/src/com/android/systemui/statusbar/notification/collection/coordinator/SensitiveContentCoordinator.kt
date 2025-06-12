@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.collection.coordinator
 
 import android.app.Notification
@@ -30,10 +28,11 @@ import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.NotificationLockscreenUserManager
+import com.android.systemui.statusbar.NotificationLockscreenUserManager.REDACTION_TYPE_NONE
 import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.notification.DynamicPrivacyController
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
@@ -47,7 +46,6 @@ import dagger.Binds
 import dagger.Module
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapNotNull
 
@@ -157,7 +155,7 @@ constructor(
             }
         }
 
-    override fun onBeforeRenderList(entries: List<ListEntry>) {
+    override fun onBeforeRenderList(entries: List<PipelineEntry>) {
         if (
             isKeyguardGoingAway ||
                 statusBarStateController.state == StatusBarState.KEYGUARD &&
@@ -211,7 +209,8 @@ constructor(
                 screenshareNotificationHiding() &&
                     sensitiveNotificationProtectionController.shouldProtectNotification(entry)
 
-            val needsRedaction = lockscreenUserManager.needsRedaction(entry)
+            val needsRedaction =
+                lockscreenUserManager.getRedactionType(entry) != REDACTION_TYPE_NONE
             val isSensitive = userPublic && needsRedaction
             entry.setSensitive(isSensitive || shouldProtectNotification, deviceSensitive)
             if (screenshareNotificationHiding()) {
@@ -221,13 +220,15 @@ constructor(
     }
 }
 
-private fun extractAllRepresentativeEntries(entries: List<ListEntry>): Sequence<NotificationEntry> =
+private fun extractAllRepresentativeEntries(entries: List<PipelineEntry>): Sequence<NotificationEntry> =
     entries.asSequence().flatMap(::extractAllRepresentativeEntries)
 
-private fun extractAllRepresentativeEntries(listEntry: ListEntry): Sequence<NotificationEntry> =
+private fun extractAllRepresentativeEntries(
+    pipelineEntry: PipelineEntry,
+): Sequence<NotificationEntry> =
     sequence {
-        listEntry.representativeEntry?.let { yield(it) }
-        if (listEntry is GroupEntry) {
-            yieldAll(extractAllRepresentativeEntries(listEntry.children))
+        pipelineEntry.representativeEntry?.let { yield(it) }
+        if (pipelineEntry is GroupEntry) {
+            yieldAll(extractAllRepresentativeEntries(pipelineEntry.children))
         }
     }

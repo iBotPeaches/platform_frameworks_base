@@ -68,11 +68,15 @@ class AmbientDisplayPowerStatsProcessor extends PowerStatsProcessor {
         // processor. All that remains to be done is copy the estimates over.
         MultiStateStats.States.forEachTrackedStateCombination(deviceStateConfig,
                 states -> {
-                    screenStats.getDeviceStats(mTmpScreenStats, states);
+                    if (!screenStats.getDeviceStats(mTmpScreenStats, states)) {
+                        return;
+                    }
                     double power =
                             mScreenPowerStatsLayout.getScreenDozePowerEstimate(mTmpScreenStats);
-                    mStatsLayout.setDevicePowerEstimate(mTmpDeviceStats, power);
-                    stats.setDeviceStats(states, mTmpDeviceStats);
+                    if (power != 0) {
+                        mStatsLayout.setDevicePowerEstimate(mTmpDeviceStats, power);
+                        stats.setDeviceStats(states, mTmpDeviceStats);
+                    }
                 });
     }
 }

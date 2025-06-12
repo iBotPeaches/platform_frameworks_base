@@ -117,21 +117,27 @@ public class InsetsSourceConsumerTest {
         mConsumer.setControl(
                 new InsetsSourceControl(ID_STATUS_BAR, statusBars(), mLeash,
                         true /* initialVisible */, new Point(), Insets.NONE),
-                new int[1], new int[1], new int[1]);
+                new int[1], new int[1], new int[1], new int[1]);
     }
 
     @Test
     public void testSetControl_cancelAnimation() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            final InsetsSourceControl newControl = new InsetsSourceControl(mConsumer.getControl());
+            final int[] cancelTypes = {0};
 
-            // Change the side of the insets hint.
-            newControl.setInsetsHint(Insets.of(0, 0, 0, 100));
+            // Change the side of the insets hint from NONE to BOTTOM.
+            final InsetsSourceControl newControl1 = new InsetsSourceControl(mConsumer.getControl());
+            newControl1.setInsetsHint(Insets.of(0, 0, 0, 100));
+            mConsumer.setControl(newControl1, new int[1], new int[1], cancelTypes, new int[1]);
 
-            int[] cancelTypes = {0};
-            mConsumer.setControl(newControl, new int[1], new int[1], cancelTypes);
+            assertEquals("The animation must not be cancelled", 0, cancelTypes[0]);
 
-            assertEquals(statusBars(), cancelTypes[0]);
+            // Change the side of the insets hint from BOTTOM to TOP.
+            final InsetsSourceControl newControl2 = new InsetsSourceControl(mConsumer.getControl());
+            newControl2.setInsetsHint(Insets.of(0, 100, 0, 0));
+            mConsumer.setControl(newControl2, new int[1], new int[1], cancelTypes, new int[1]);
+
+            assertEquals("The animation must be cancelled", statusBars(), cancelTypes[0]);
         });
 
     }
@@ -196,7 +202,7 @@ public class InsetsSourceConsumerTest {
     @Test
     public void testRestore() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            mConsumer.setControl(null, new int[1], new int[1], new int[1]);
+            mConsumer.setControl(null, new int[1], new int[1], new int[1], new int[1]);
             mSurfaceParamsApplied = false;
             mController.setRequestedVisibleTypes(0 /* visibleTypes */, statusBars());
             assertFalse(mSurfaceParamsApplied);
@@ -204,7 +210,7 @@ public class InsetsSourceConsumerTest {
             mConsumer.setControl(
                     new InsetsSourceControl(ID_STATUS_BAR, statusBars(), mLeash,
                             true /* initialVisible */, new Point(), Insets.NONE),
-                    new int[1], hideTypes, new int[1]);
+                    new int[1], hideTypes, new int[1], new int[1]);
             assertEquals(statusBars(), hideTypes[0]);
             assertFalse(mRemoveSurfaceCalled);
         });
@@ -214,7 +220,7 @@ public class InsetsSourceConsumerTest {
     public void testRestore_noAnimation() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             mController.setRequestedVisibleTypes(0 /* visibleTypes */, statusBars());
-            mConsumer.setControl(null, new int[1], new int[1], new int[1]);
+            mConsumer.setControl(null, new int[1], new int[1], new int[1], new int[1]);
             mLeash = new SurfaceControl.Builder(mSession)
                     .setName("testSurface")
                     .build();
@@ -223,8 +229,10 @@ public class InsetsSourceConsumerTest {
             mConsumer.setControl(
                     new InsetsSourceControl(ID_STATUS_BAR, statusBars(), mLeash,
                             false /* initialVisible */, new Point(), Insets.NONE),
-                    new int[1], hideTypes, new int[1]);
-            assertTrue(mRemoveSurfaceCalled);
+                    new int[1], hideTypes, new int[1], new int[1]);
+            if (!android.view.inputmethod.Flags.refactorInsetsController()) {
+                assertTrue(mRemoveSurfaceCalled);
+            }
             assertEquals(0, hideTypes[0]);
         });
 
@@ -252,7 +260,7 @@ public class InsetsSourceConsumerTest {
             // Initial IME insets source control with its leash.
             imeConsumer.setControl(new InsetsSourceControl(ID_IME, ime(), mLeash,
                     false /* initialVisible */, new Point(), Insets.NONE), new int[1], new int[1],
-                    new int[1]);
+                    new int[1], new int[1]);
             mSurfaceParamsApplied = false;
 
             // Verify when the app requests controlling show IME animation, the IME leash
@@ -262,7 +270,7 @@ public class InsetsSourceConsumerTest {
             assertEquals(ANIMATION_TYPE_USER, insetsController.getAnimationType(ime()));
             imeConsumer.setControl(new InsetsSourceControl(ID_IME, ime(), mLeash,
                     true /* initialVisible */, new Point(), Insets.NONE), new int[1], new int[1],
-                    new int[1]);
+                    new int[1], new int[1]);
             assertFalse(mSurfaceParamsApplied);
         });
     }

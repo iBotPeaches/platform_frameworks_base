@@ -60,10 +60,6 @@ import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.UserManager;
 import android.platform.test.annotations.Presubmit;
-import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.annotations.RequiresFlagsEnabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
@@ -74,7 +70,6 @@ import com.android.server.locksettings.ResumeOnRebootServiceProvider.ResumeOnReb
 import com.android.server.pm.UserManagerInternal;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -112,9 +107,6 @@ public class RebootEscrowManagerTests {
             0x70, 0x70, 0x75, 0x25, 0x27, 0x31, 0x49, 0x09,
             0x26, 0x52, 0x72, 0x63, 0x63, 0x61, 0x78, 0x23,
     };
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private Context mContext;
     private UserManager mUserManager;
@@ -847,53 +839,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsDisabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
-    public void loadRebootEscrowDataIfAvailable_ServerBasedIoError_RetryFailure() throws Exception {
-        setServerBasedRebootEscrowProvider();
-
-        when(mInjected.getBootCount()).thenReturn(0);
-        RebootEscrowListener mockListener = mock(RebootEscrowListener.class);
-        mService.setRebootEscrowListener(mockListener);
-        mService.prepareRebootEscrow();
-
-        clearInvocations(mServiceConnection);
-        callToRebootEscrowIfNeededAndWait(PRIMARY_USER_ID);
-        verify(mockListener).onPreparedForReboot(eq(true));
-        verify(mServiceConnection, never()).wrapBlob(any(), anyLong(), anyLong());
-
-        // Use x -> x for both wrap & unwrap functions.
-        when(mServiceConnection.wrapBlob(any(), anyLong(), anyLong()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        assertEquals(ARM_REBOOT_ERROR_NONE, mService.armRebootEscrowIfNeeded());
-        verify(mServiceConnection).wrapBlob(any(), anyLong(), anyLong());
-        assertTrue(mStorage.hasRebootEscrowServerBlob());
-
-        // pretend reboot happens here
-        when(mInjected.getBootCount()).thenReturn(1);
-        ArgumentCaptor<Boolean> metricsSuccessCaptor = ArgumentCaptor.forClass(Boolean.class);
-        ArgumentCaptor<Integer> metricsErrorCodeCaptor = ArgumentCaptor.forClass(Integer.class);
-        doNothing()
-                .when(mInjected)
-                .reportMetric(
-                        metricsSuccessCaptor.capture(),
-                        metricsErrorCodeCaptor.capture(),
-                        eq(2) /* Server based */,
-                        eq(2) /* attempt count */,
-                        anyInt(),
-                        eq(0) /* vbmeta status */,
-                        anyInt());
-        when(mServiceConnection.unwrap(any(), anyLong())).thenThrow(IOException.class);
-
-        mService.loadRebootEscrowDataIfAvailable(mHandler);
-        // Sleep 5s for the retry to complete
-        Thread.sleep(5 * 1000);
-        assertFalse(metricsSuccessCaptor.getValue());
-        assertEquals(
-                Integer.valueOf(RebootEscrowManager.ERROR_NO_NETWORK),
-                metricsErrorCodeCaptor.getValue());
-    }
-
-    @Test
     public void loadRebootEscrowDataIfAvailable_ServerBased_RetrySuccess() throws Exception {
         setServerBasedRebootEscrowProvider();
 
@@ -941,7 +886,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
     public void loadRebootEscrowDataIfAvailable_waitForInternet_networkUnavailable()
             throws Exception {
         setServerBasedRebootEscrowProvider();
@@ -989,7 +933,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
     public void loadRebootEscrowDataIfAvailable_waitForInternet_networkLost() throws Exception {
         setServerBasedRebootEscrowProvider();
 
@@ -1044,7 +987,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
     public void loadRebootEscrowDataIfAvailable_waitForInternet_networkAvailableWithDelay()
             throws Exception {
         setServerBasedRebootEscrowProvider();
@@ -1103,7 +1045,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
     public void loadRebootEscrowDataIfAvailable_waitForInternet_timeoutExhausted()
             throws Exception {
         setServerBasedRebootEscrowProvider();
@@ -1163,7 +1104,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
     public void loadRebootEscrowDataIfAvailable_serverBasedWaitForNetwork_retryCountExhausted()
             throws Exception {
         setServerBasedRebootEscrowProvider();
@@ -1219,7 +1159,6 @@ public class RebootEscrowManagerTests {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_WAIT_FOR_INTERNET_ROR)
     public void loadRebootEscrowDataIfAvailable_ServerBasedWaitForInternet_RetrySuccess()
             throws Exception {
         setServerBasedRebootEscrowProvider();

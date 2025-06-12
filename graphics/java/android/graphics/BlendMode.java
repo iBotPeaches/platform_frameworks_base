@@ -19,6 +19,7 @@ package android.graphics;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public enum BlendMode {
 
     /**

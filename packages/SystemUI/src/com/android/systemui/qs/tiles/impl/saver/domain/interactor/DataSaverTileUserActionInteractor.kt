@@ -22,17 +22,17 @@ import android.provider.Settings
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
-import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.saver.domain.DataSaverDialogDelegate
 import com.android.systemui.qs.tiles.impl.saver.domain.model.DataSaverTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import com.android.systemui.settings.UserFileManager
 import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.shade.domain.interactor.ShadeDialogContextInteractor
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.policy.DataSaverController
 import javax.inject.Inject
@@ -44,6 +44,7 @@ class DataSaverTileUserActionInteractor
 @Inject
 constructor(
     @ShadeDisplayAware private val context: Context,
+    private val contextInteractor: ShadeDialogContextInteractor,
     @Main private val coroutineContext: CoroutineContext,
     @Background private val backgroundContext: CoroutineContext,
     private val dataSaverController: DataSaverController,
@@ -79,18 +80,19 @@ constructor(
                         val dialogDelegate =
                             DataSaverDialogDelegate(
                                 systemUIDialogFactory,
-                                context,
+                                contextInteractor,
                                 backgroundContext,
                                 dataSaverController,
-                                sharedPreferences
+                                sharedPreferences,
                             )
-                        val dialog = systemUIDialogFactory.create(dialogDelegate, context)
+                        val dialog =
+                            systemUIDialogFactory.create(dialogDelegate, contextInteractor.context)
 
                         action.expandable
                             ?.dialogTransitionController(
                                 DialogCuj(
                                     InteractionJankMonitor.CUJ_SHADE_DIALOG_OPEN,
-                                    INTERACTION_JANK_TAG
+                                    INTERACTION_JANK_TAG,
                                 )
                             )
                             ?.let { controller ->
@@ -101,7 +103,7 @@ constructor(
                 is QSTileUserAction.LongClick -> {
                     qsTileIntentUserActionHandler.handle(
                         action.expandable,
-                        Intent(Settings.ACTION_DATA_SAVER_SETTINGS)
+                        Intent(Settings.ACTION_DATA_SAVER_SETTINGS),
                     )
                 }
                 is QSTileUserAction.ToggleClick -> {}

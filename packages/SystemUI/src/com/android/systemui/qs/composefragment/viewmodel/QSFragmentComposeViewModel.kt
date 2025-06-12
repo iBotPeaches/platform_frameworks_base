@@ -35,7 +35,6 @@ import com.android.systemui.animation.ShadeInterpolation
 import com.android.systemui.classifier.Classifier
 import com.android.systemui.classifier.domain.interactor.FalsingInteractor
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
-import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor
 import com.android.systemui.keyguard.shared.model.Edge
@@ -43,7 +42,6 @@ import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
 import com.android.systemui.log.table.TableLogBuffer
-import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager.Companion.LOCATION_QQS
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager.Companion.LOCATION_QS
 import com.android.systemui.media.controls.ui.view.MediaHost
@@ -59,9 +57,10 @@ import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsViewModel
 import com.android.systemui.qs.panels.domain.interactor.TileSquishinessInteractor
 import com.android.systemui.qs.panels.ui.viewmodel.InFirstPageViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.MediaInRowInLandscapeViewModel
+import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
 import com.android.systemui.qs.ui.viewmodel.QuickSettingsContainerViewModel
 import com.android.systemui.res.R
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.shade.LargeScreenHeaderHelper
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
@@ -81,7 +80,6 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import java.io.PrintWriter
 import javax.inject.Named
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
@@ -91,20 +89,20 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class QSFragmentComposeViewModel
 @AssistedInject
 constructor(
     containerViewModelFactory: QuickSettingsContainerViewModel.Factory,
-    @Main private val resources: Resources,
+    @ShadeDisplayAware private val resources: Resources,
+    quickQuickSettingsViewModelFactory: QuickQuickSettingsViewModel.Factory,
     footerActionsViewModelFactory: FooterActionsViewModel.Factory,
     private val footerActionsController: FooterActionsController,
     private val sysuiStatusBarStateController: SysuiStatusBarStateController,
     deviceEntryInteractor: DeviceEntryInteractor,
-    DisableFlagsInteractor: DisableFlagsInteractor,
+    disableFlagsInteractor: DisableFlagsInteractor,
     keyguardTransitionInteractor: KeyguardTransitionInteractor,
     private val largeScreenShadeInterpolator: LargeScreenShadeInterpolator,
-    private val shadeInteractor: ShadeInteractor,
+    shadeInteractor: ShadeInteractor,
     @ShadeDisplayAware configurationInteractor: ConfigurationInteractor,
     private val largeScreenHeaderHelper: LargeScreenHeaderHelper,
     private val squishinessInteractor: TileSquishinessInteractor,
@@ -119,7 +117,9 @@ constructor(
     @Assisted private val lifecycleScope: LifecycleCoroutineScope,
 ) : Dumpable, ExclusiveActivatable() {
 
-    val containerViewModel = containerViewModelFactory.create(true)
+    val containerViewModel = containerViewModelFactory.create(supportsBrightnessMirroring = true)
+    val quickQuickSettingsViewModel = quickQuickSettingsViewModelFactory.create()
+
     private val qqsMediaInRowViewModel = mediaInRowInLandscapeViewModelFactory.create(LOCATION_QQS)
     private val qsMediaInRowViewModel = mediaInRowInLandscapeViewModelFactory.create(LOCATION_QS)
 
@@ -197,8 +197,8 @@ constructor(
     val isQsEnabled by
         hydrator.hydratedStateOf(
             traceName = "isQsEnabled",
-            initialValue = DisableFlagsInteractor.disableFlags.value.isQuickSettingsEnabled(),
-            source = DisableFlagsInteractor.disableFlags.map { it.isQuickSettingsEnabled() },
+            initialValue = disableFlagsInteractor.disableFlags.value.isQuickSettingsEnabled(),
+            source = disableFlagsInteractor.disableFlags.map { it.isQuickSettingsEnabled() },
         )
 
     var isInSplitShade by mutableStateOf(false)
@@ -305,6 +305,17 @@ constructor(
 
     val animateTilesExpansion: Boolean
         get() = inFirstPage && !mediaSuddenlyAppearingInLandscape
+
+    val isEditing by
+        hydrator.hydratedStateOf(
+            traceName = "isEditing",
+            source = containerViewModel.editModeViewModel.isEditing,
+        )
+
+    /** True if we are not in an expansion (from Gone to QQS/QS) animation. */
+    val isNotTransitioning by derivedStateOf {
+        viewTranslationY == 0f && viewAlpha == 1f && constrainedSquishinessFraction == 1f
+    }
 
     private val inFirstPage: Boolean
         get() = inFirstPageViewModel.inFirstPage
@@ -432,7 +443,7 @@ constructor(
             initialValue = false,
             source =
                 keyguardTransitionInteractor.isInTransition(
-                    Edge.create(to = Scenes.Bouncer),
+                    Edge.create(to = Overlays.Bouncer),
                     Edge.create(to = KeyguardState.PRIMARY_BOUNCER),
                 ),
         )
@@ -477,6 +488,7 @@ constructor(
             }
             launch { hydrator.activate() }
             launch { containerViewModel.activate() }
+            launch { quickQuickSettingsViewModel.activate() }
             launch { qqsMediaInRowViewModel.activate() }
             launch { qsMediaInRowViewModel.activate() }
             awaitCancellation()
@@ -487,12 +499,12 @@ constructor(
         qqsMediaHost.apply {
             expansion = qqsMediaExpansion
             showsOnlyActiveMedia = true
-            init(MediaHierarchyManager.LOCATION_QQS)
+            init(LOCATION_QQS)
         }
         qsMediaHost.apply {
             expansion = MediaHostState.EXPANDED
             showsOnlyActiveMedia = false
-            init(MediaHierarchyManager.LOCATION_QS)
+            init(LOCATION_QS)
         }
     }
 

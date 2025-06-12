@@ -18,12 +18,16 @@ package com.android.server.wm;
 
 import static android.tools.traces.Utils.busyWaitForDataSourceRegistration;
 
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
+
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.times;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.verifyZeroInteractions;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.verifyNoMoreInteractions;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
@@ -34,11 +38,15 @@ import android.platform.test.annotations.Presubmit;
 import android.tools.ScenarioBuilder;
 import android.tools.traces.io.ResultWriter;
 import android.tools.traces.monitors.PerfettoTraceMonitor;
+import android.util.Log;
 import android.view.Choreographer;
 
+import androidx.test.filters.FlakyTest;
 import androidx.test.filters.SmallTest;
+import androidx.test.uiautomator.UiDevice;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -51,14 +59,15 @@ import java.io.IOException;
 /**
  * Test class for {@link WindowTracingPerfetto}.
  */
+@FlakyTest(bugId = 372558379)
 @SmallTest
 @Presubmit
 public class WindowTracingPerfettoTest {
     private static final String TEST_DATA_SOURCE_NAME = "android.windowmanager.test";
 
     private static WindowManagerService sWmMock;
-    private static Choreographer sChoreographer;
     private static WindowTracing sWindowTracing;
+    private static Boolean sIsDataSourceRegisteredSuccessfully;
 
     private PerfettoTraceMonitor mTraceMonitor;
 
@@ -66,19 +75,39 @@ public class WindowTracingPerfettoTest {
     public static void setUpOnce() throws Exception {
         sWmMock = Mockito.mock(WindowManagerService.class);
         Mockito.doNothing().when(sWmMock).dumpDebugLocked(Mockito.any(), Mockito.anyInt());
-        sChoreographer = Mockito.mock(Choreographer.class);
-        sWindowTracing = new WindowTracingPerfetto(sWmMock, sChoreographer,
+        sWindowTracing = new WindowTracingPerfetto(sWmMock, Mockito.mock(Choreographer.class),
                 new WindowManagerGlobalLock(), TEST_DATA_SOURCE_NAME);
-        busyWaitForDataSourceRegistration(TEST_DATA_SOURCE_NAME);
+    }
+
+    @AfterClass
+    public static void tearDownOnce() {
+        sWmMock = null;
+        sWindowTracing = null;
     }
 
     @Before
     public void setUp() throws IOException {
-        Mockito.clearInvocations(sWmMock);
+        if (sIsDataSourceRegisteredSuccessfully != null) {
+            assumeTrue("Failed to register data source", sIsDataSourceRegisteredSuccessfully);
+            return;
+        }
+        try {
+            busyWaitForDataSourceRegistration(TEST_DATA_SOURCE_NAME);
+            sIsDataSourceRegisteredSuccessfully = true;
+        } catch (Exception e) {
+            sIsDataSourceRegisteredSuccessfully = false;
+            final String perfettoStatus = UiDevice.getInstance(getInstrumentation())
+                    .executeShellCommand("perfetto --query");
+            Log.e(WindowTracingPerfettoTest.class.getSimpleName(),
+                    "Failed to register data source: " + perfettoStatus);
+            // Only fail once. The rest tests will be skipped by assumeTrue.
+            fail("Failed to register data source");
+        }
     }
 
     @After
     public void tearDown() throws IOException {
+        Mockito.clearInvocations(sWmMock);
         stopTracing();
     }
 
@@ -99,7 +128,7 @@ public class WindowTracingPerfettoTest {
     @Test
     public void trace_ignoresLogStateCalls_ifTracingIsDisabled() {
         sWindowTracing.logState("where");
-        verifyZeroInteractions(sWmMock);
+        verifyNoMoreInteractions(sWmMock);
     }
 
     @Test

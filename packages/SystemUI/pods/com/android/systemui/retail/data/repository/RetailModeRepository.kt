@@ -19,11 +19,11 @@ package com.android.systemui.retail.data.repository
 import kotlinx.coroutines.flow.StateFlow
 
 /** Repository to track if the device is in Retail mode */
-interface RetailModeRepository {
+public interface RetailModeRepository {
     /** Flow of whether the device is currently in retail mode. */
-    val retailMode: StateFlow<Boolean>
+    public val retailMode: StateFlow<Boolean>
 
     /** Last value of whether the device is in retail mode. */
-    val inRetailMode: Boolean
+    public val inRetailMode: Boolean
         get() = retailMode.value
 }

@@ -32,12 +32,10 @@ import com.android.systemui.plugins.qs.TileDetailsViewModel
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.qs.QSHost
 import com.android.systemui.qs.QsEventLogger
-import com.android.systemui.qs.flags.QsDetailedView
 import com.android.systemui.qs.logging.QSLogger
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.dialog.InternetDetailsViewModel
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
-import com.android.systemui.qs.tiles.dialog.WifiStateWorker
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.connectivity.AccessPointController
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.InternetTileBinder
@@ -59,8 +57,8 @@ constructor(
     qsLogger: QSLogger,
     viewModel: InternetTileViewModel,
     private val internetDialogManager: InternetDialogManager,
-    private val wifiStateWorker: WifiStateWorker,
     private val accessPointController: AccessPointController,
+    private val internetDetailsViewModelFactory: InternetDetailsViewModel.Factory,
 ) :
     QSTileImpl<QSTile.BooleanState>(
         host,
@@ -86,16 +84,10 @@ constructor(
         mContext.getString(R.string.quick_settings_internet_label)
 
     override fun newTileState(): QSTile.BooleanState {
-        return QSTile.BooleanState().also {
-            it.forceExpandIcon = true
-            it.handlesSecondaryClick = true
-        }
+        return QSTile.BooleanState().also { it.forceExpandIcon = true }
     }
 
     override fun handleClick(expandable: Expandable?) {
-        if (QsDetailedView.isEnabled) {
-            return
-        }
         mainHandler.post {
             internetDialogManager.create(
                 aboveStatusBar = true,
@@ -107,13 +99,7 @@ constructor(
     }
 
     override fun getDetailsViewModel(): TileDetailsViewModel {
-        return InternetDetailsViewModel { longClick(null) }
-    }
-
-    override fun handleSecondaryClick(expandable: Expandable?) {
-        // TODO(b/358352265): Figure out the correct action for the secondary click
-        // Toggle wifi
-        wifiStateWorker.isWifiEnabled = !wifiStateWorker.isWifiEnabled
+        return internetDetailsViewModelFactory.create()
     }
 
     override fun handleUpdateState(state: QSTile.BooleanState, arg: Any?) {

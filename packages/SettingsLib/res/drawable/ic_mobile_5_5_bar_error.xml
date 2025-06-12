@@ -1,27 +1,49 @@
+<!--
+     Copyright (C) 2025 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-        android:width="18dp"
-        android:height="14dp"
-        android:viewportWidth="18.0"
-        android:viewportHeight="14.0">
+    android:width="21dp"
+    android:height="12dp"
+    android:viewportHeight="12.0"
+    android:viewportWidth="20.5">
+    <!-- clip-out the circle which will contain the exclamation point (below this group) -->
+    <group>
+        <clip-path android:pathData="
+            M0,0
+            H20.5
+            V12.0
+            H0
+            Z
+            M19.499,13.5C22.261,13.5 24.499,11.261 24.499,8.5C24.499,5.739 22.261,3.5 19.499,3.5C16.738,3.5 14.499,5.739 14.499,8.5C14.499,11.261 16.738,13.5 19.499,13.5Z" />
+        <path
+            android:fillColor="#000"
+            android:pathData="M1.249,7C1.939,7 2.499,7.56 2.499,8.25L2.499,10.75C2.499,11.44 1.939,12 1.249,12C0.559,12 -0.001,11.44 -0.001,10.75L-0.001,8.25C-0.001,7.56 0.559,7 1.249,7Z" />
+        <path
+            android:fillColor="#000"
+            android:pathData="M5.749,5C6.439,5 6.999,5.56 6.999,6.25L6.999,10.75C6.999,11.44 6.439,12 5.749,12C5.059,12 4.499,11.44 4.499,10.75L4.499,6.25C4.499,5.56 5.059,5 5.749,5Z" />
+        <path
+            android:fillColor="#000"
+            android:pathData="M10.249,3C10.939,3 11.499,3.56 11.499,4.25L11.499,10.75C11.499,11.44 10.939,12 10.249,12C9.559,12 8.999,11.44 8.999,10.75L8.999,4.25C8.999,3.56 9.559,3 10.249,3Z" />
+        <path
+            android:fillColor="#000"
+            android:pathData="M14.749,1.5C15.439,1.5 15.999,2.06 15.999,2.75L15.999,10.75C15.999,11.44 15.439,12 14.749,12C14.059,12 13.499,11.44 13.499,10.75L13.499,2.75C13.499,2.06 14.059,1.5 14.749,1.5Z" />
+        <path
+            android:fillColor="#000"
+            android:pathData="M19.249,0C19.939,0 20.499,0.56 20.499,1.25L20.499,10.75C20.499,11.44 19.939,12 19.249,12C18.559,12 17.999,11.44 17.999,10.75L17.999,1.25C17.999,0.56 18.559,0 19.249,0Z" />
+    </group>
     <path
-        android:pathData="M7,5.5C7,5.224 7.224,5 7.5,5H8.5C8.776,5 9,5.224 9,5.5V13.5C9,13.776 8.776,14 8.5,14H7.5C7.224,14 7,13.776 7,13.5V5.5Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M10.5,2.5C10.5,2.224 10.724,2 11,2H12C12.276,2 12.5,2.224 12.5,2.5V13.5C12.5,13.776 12.276,14 12,14H11C10.724,14 10.5,13.776 10.5,13.5V2.5Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M0,11.5C0,11.224 0.224,11 0.5,11H1.5C1.776,11 2,11.224 2,11.5V13.5C2,13.776 1.776,14 1.5,14H0.5C0.224,14 0,13.776 0,13.5V11.5Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M3.5,8.5C3.5,8.224 3.724,8 4,8H5C5.276,8 5.5,8.224 5.5,8.5V13.5C5.5,13.776 5.276,14 5,14H4C3.724,14 3.5,13.776 3.5,13.5V8.5Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M14.5,0C14.224,0 14,0.224 14,0.5V3H16V0.5C16,0.224 15.776,0 15.5,0H14.5Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M16,13C16,12.448 16.448,12 17,12C17.552,12 18,12.448 18,13C18,13.552 17.552,14 17,14C16.448,14 16,13.552 16,13Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M16,5C16,4.724 16.224,4.5 16.5,4.5H17.5C17.776,4.5 18,4.724 18,5V10C18,10.276 17.776,10.5 17.5,10.5H16.5C16.224,10.5 16,10.276 16,10V5Z"
-        android:fillColor="#000"/>
+        android:fillColor="#000"
+        android:pathData="M19.499,5C19.089,5 18.749,5.34 18.749,5.75L18.749,8.75C18.749,9.16 19.089,9.5 19.499,9.5C19.909,9.5 20.249,9.16 20.249,8.75L20.249,5.75C20.249,5.34 19.909,5 19.499,5ZM19.499,12C19.909,12 20.249,11.66 20.249,11.25C20.249,10.84 19.909,10.5 19.499,10.5C19.089,10.5 18.749,10.84 18.749,11.25C18.749,11.66 19.089,12 19.499,12Z" />
 </vector>

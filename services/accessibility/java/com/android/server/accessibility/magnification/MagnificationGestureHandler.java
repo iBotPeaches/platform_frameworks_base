@@ -146,8 +146,7 @@ public abstract class MagnificationGestureHandler extends BaseEventStreamTransfo
             } break;
             case SOURCE_MOUSE:
             case SOURCE_STYLUS: {
-                if (magnificationShortcutExists()
-                        && Flags.enableMagnificationFollowsMouseBugfix()) {
+                if (magnificationShortcutExists()) {
                     handleMouseOrStylusEvent(event, rawEvent, policyFlags);
                 }
             }

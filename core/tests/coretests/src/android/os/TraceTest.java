@@ -16,7 +16,7 @@
 
 package android.os;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Log;
 
@@ -105,7 +105,7 @@ public class TraceTest {
 
     @Test
     @SmallTest
-    @IgnoreUnderRavenwood(blockedBy = Debug.class)
+    @DisabledOnRavenwood(blockedBy = Debug.class)
     public void testNativeTracingFromJava()
     {
         long start = System.currentTimeMillis();
@@ -126,7 +126,7 @@ public class TraceTest {
     
     // This should not run in the automated suite.
     @Suppress
-    @IgnoreUnderRavenwood(blockedBy = Debug.class)
+    @DisabledOnRavenwood(blockedBy = Debug.class)
     public void disableTestNativeTracingFromC()
     {
         long start = System.currentTimeMillis();
@@ -142,7 +142,7 @@ public class TraceTest {
     @Test
     @LargeTest
     @Suppress  // Failing.
-    @IgnoreUnderRavenwood(blockedBy = Debug.class)
+    @DisabledOnRavenwood(blockedBy = Debug.class)
     public void testMethodTracing()
     {
         long start = System.currentTimeMillis();

@@ -86,12 +86,13 @@ object RefactorFlagUtils {
      * Example usage:
      * ```
      * public void setSomeNewController(SomeController someController) {
-     *     SomeRefactor.assertInNewMode();
+     *     SomeRefactor.unsafeAssertInNewMode();
      *     mSomeController = someController;
      * }
      * ````
      */
-    inline fun assertInNewMode(isEnabled: Boolean, flagName: Any) =
+    @Deprecated("Avoid crashing.", ReplaceWith("if (this.isUnexpectedlyInLegacyMode()) return"))
+    inline fun unsafeAssertInNewMode(isEnabled: Boolean, flagName: Any) =
         check(isEnabled) { "New code path not supported when $flagName is disabled." }
 
     /**

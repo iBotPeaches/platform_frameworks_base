@@ -18,11 +18,7 @@ package com.android.fsverity;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.annotations.RootPermissionTest;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.host.HostFlagsValueProvider;
-import android.security.Flags;
 
 import com.android.blockdevicewriter.BlockDeviceWriter;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -31,32 +27,25 @@ import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
  * This test verifies fs-verity works end-to-end. There is a corresponding helper app.
  *
- * <p>The helper app uses a FileIntegrityManager API to enable fs-verity to a file. The host test
- * here * tampers with the file's backing storage, then tells the helper app to read and expect
+ * <p>The helper app uses a FileIntegrityManager API to enable fs-verity on a file. The host test
+ * here tampers with the file's backing storage, then tells the helper app to read and expect
  * success/failure on read.
  *
- * <p>In order to make sure a block of the file is readable only if the underlying block on disk
- * stay intact, the test needs to bypass the filesystem and tampers with the corresponding physical
- * address against the block device.
+ * <p>Since the filesystem by design provides no way to corrupt fs-verity files itself, the test
+ * needs to bypass the filesystem and write directly to the block device to corrupt the files.
  */
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
-@RequiresFlagsEnabled(Flags.FLAG_FSVERITY_API)
 public class FsVerityHostTest extends BaseHostJUnit4Test {
     private static final String TARGET_PACKAGE = "com.android.fsverity";
 
     private static final String BASENAME = "test.file";
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule =
-            HostFlagsValueProvider.createCheckFlagsRule(this::getDevice);
 
     @Test
     public void testFsVeritySmallFile() throws Exception {
@@ -67,7 +56,7 @@ public class FsVerityHostTest extends BaseHostJUnit4Test {
         BlockDeviceWriter.damageFileAgainstBlockDevice(device, getTargetFilePath(), 8192);
         BlockDeviceWriter.dropCaches(device);
 
-        verifyRead(getTargetFilePath(), "0,2");
+        verifyRead(getTargetFilePath(), "0,8192");
     }
 
     @Test
@@ -80,7 +69,7 @@ public class FsVerityHostTest extends BaseHostJUnit4Test {
         BlockDeviceWriter.damageFileAgainstBlockDevice(device, getTargetFilePath(), 128 * 4096 + 1);
         BlockDeviceWriter.dropCaches(device);
 
-        verifyRead(getTargetFilePath(), "1,100,128");
+        verifyRead(getTargetFilePath(), "4096,409600,524289");
     }
 
     private String getTargetFilePath() throws DeviceNotAvailableException {
@@ -97,11 +86,17 @@ public class FsVerityHostTest extends BaseHostJUnit4Test {
         assertThat(runDeviceTests(options)).isTrue();
     }
 
+    /**
+     * Verifies the read success/failure expectation given the corrupted byte indices in the file.
+     *
+     * @param path the remote file path to read.
+     * @param indicesCsv a comma-separated list of indices of bytes that were corrupted.
+     */
     private void verifyRead(String path, String indicesCsv) throws Exception {
         DeviceTestRunOptions options = new DeviceTestRunOptions(TARGET_PACKAGE);
         options.setTestClassName(TARGET_PACKAGE + ".Helper");
         options.setTestMethodName("verifyFileRead");
-        options.addInstrumentationArg("brokenBlockIndicesCsv", indicesCsv);
+        options.addInstrumentationArg("brokenByteIndicesCsv", indicesCsv);
         options.addInstrumentationArg("filePath", getTargetFilePath());
         assertThat(runDeviceTests(options)).isTrue();
     }

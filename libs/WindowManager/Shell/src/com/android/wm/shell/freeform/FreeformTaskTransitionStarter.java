@@ -38,10 +38,13 @@ public interface FreeformTaskTransitionStarter {
      * Starts window minimization transition
      *
      * @param wct the {@link WindowContainerTransaction} that changes the windowing mode
+     * @param taskId the task id of the task being minimized
+     * @param isLastTask true if the task being minimized is the last visible task
      *
      * @return the started transition
      */
-    IBinder startMinimizedModeTransition(WindowContainerTransaction wct);
+    IBinder startMinimizedModeTransition(
+            WindowContainerTransaction wct, int taskId, boolean isLastTask);
 
     /**
      * Starts close window transition

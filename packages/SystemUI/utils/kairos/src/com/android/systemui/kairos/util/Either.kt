@@ -18,97 +18,118 @@
 
 package com.android.systemui.kairos.util
 
+import com.android.systemui.kairos.util.Either.First
+import com.android.systemui.kairos.util.Either.Second
+
 /**
- * Contains a value of two possibilities: `Left<A>` or `Right<B>`
+ * Contains a value of two possibilities: `First<A>` or `Second<B>`
  *
  * [Either] generalizes sealed classes the same way that [Pair] generalizes data classes; if a
  * [Pair] is effectively an anonymous grouping of two instances, then an [Either] is an anonymous
  * set of two options.
  */
-sealed class Either<out A, out B>
+sealed interface Either<out A, out B> {
+    /** An [Either] that contains a [First] value. */
+    @JvmInline value class First<out A>(val value: A) : Either<A, Nothing>
 
-/** An [Either] that contains a [Left] value. */
-data class Left<out A>(val value: A) : Either<A, Nothing>()
+    /** An [Either] that contains a [Second] value. */
+    @JvmInline value class Second<out B>(val value: B) : Either<Nothing, B>
 
-/** An [Either] that contains a [Right] value. */
-data class Right<out B>(val value: B) : Either<Nothing, B>()
+    companion object {
+        /** Constructs an [Either] containing the first possibility. */
+        fun <A> first(value: A): Either<A, Nothing> = First(value)
 
-/**
- * Returns an [Either] containing the result of applying [transform] to the [Left] value, or the
- * [Right] value unchanged.
- */
-inline fun <A, B, C> Either<A, C>.mapLeft(transform: (A) -> B): Either<B, C> =
-    when (this) {
-        is Left -> Left(transform(value))
-        is Right -> this
+        /** Constructs a [Either] containing the second possibility. */
+        fun <B> second(value: B): Either<Nothing, B> = Second(value)
     }
-
-/**
- * Returns an [Either] containing the result of applying [transform] to the [Right] value, or the
- * [Left] value unchanged.
- */
-inline fun <A, B, C> Either<A, B>.mapRight(transform: (B) -> C): Either<A, C> =
-    when (this) {
-        is Left -> this
-        is Right -> Right(transform(value))
-    }
-
-/** Returns a [Maybe] containing the [Left] value held by this [Either], if present. */
-inline fun <A> Either<A, *>.leftMaybe(): Maybe<A> =
-    when (this) {
-        is Left -> just(value)
-        else -> None
-    }
-
-/** Returns the [Left] value held by this [Either], or `null` if this is a [Right] value. */
-inline fun <A> Either<A, *>.leftOrNull(): A? =
-    when (this) {
-        is Left -> value
-        else -> null
-    }
-
-/** Returns a [Maybe] containing the [Right] value held by this [Either], if present. */
-inline fun <B> Either<*, B>.rightMaybe(): Maybe<B> =
-    when (this) {
-        is Right -> just(value)
-        else -> None
-    }
-
-/** Returns the [Right] value held by this [Either], or `null` if this is a [Left] value. */
-inline fun <B> Either<*, B>.rightOrNull(): B? =
-    when (this) {
-        is Right -> value
-        else -> null
-    }
-
-/**
- * Partitions this sequence of [Either] into two lists; [Pair.first] contains all [Left] values, and
- * [Pair.second] contains all [Right] values.
- */
-fun <A, B> Sequence<Either<A, B>>.partitionEithers(): Pair<List<A>, List<B>> {
-    val lefts = mutableListOf<A>()
-    val rights = mutableListOf<B>()
-    for (either in this) {
-        when (either) {
-            is Left -> lefts.add(either.value)
-            is Right -> rights.add(either.value)
-        }
-    }
-    return lefts to rights
 }
 
 /**
- * Partitions this map of [Either] values into two maps; [Pair.first] contains all [Left] values,
- * and [Pair.second] contains all [Right] values.
+ * Returns an [Either] containing the result of applying [transform] to the [First] value, or the
+ * [Second] value unchanged.
  */
-fun <K, A, B> Map<K, Either<A, B>>.partitionEithers(): Pair<Map<K, A>, Map<K, B>> {
-    val lefts = mutableMapOf<K, A>()
-    val rights = mutableMapOf<K, B>()
-    for ((k, e) in this) {
-        when (e) {
-            is Left -> lefts[k] = e.value
-            is Right -> rights[k] = e.value
+inline fun <A, B, C> Either<A, C>.mapFirst(transform: (A) -> B): Either<B, C> =
+    when (this) {
+        is First -> First(transform(value))
+        is Second -> this
+    }
+
+/**
+ * Returns an [Either] containing the result of applying [transform] to the [Second] value, or the
+ * [First] value unchanged.
+ */
+inline fun <A, B, C> Either<A, B>.mapSecond(transform: (B) -> C): Either<A, C> =
+    when (this) {
+        is First -> this
+        is Second -> Second(transform(value))
+    }
+
+/** Returns a [Maybe] containing the [First] value held by this [Either], if present. */
+inline fun <A> Either<A, *>.firstMaybe(): Maybe<A> =
+    when (this) {
+        is First -> Maybe.present(value)
+        else -> Maybe.absent
+    }
+
+/** Returns the [First] value held by this [Either], or `null` if this is a [Second] value. */
+inline fun <A> Either<A, *>.firstOrNull(): A? =
+    when (this) {
+        is First -> value
+        else -> null
+    }
+
+/** Returns a [Maybe] containing the [Second] value held by this [Either], if present. */
+inline fun <B> Either<*, B>.secondMaybe(): Maybe<B> =
+    when (this) {
+        is Second -> Maybe.present(value)
+        else -> Maybe.absent
+    }
+
+/** Returns the [Second] value held by this [Either], or `null` if this is a [First] value. */
+inline fun <B> Either<*, B>.secondOrNull(): B? =
+    when (this) {
+        is Second -> value
+        else -> null
+    }
+
+/**
+ * Returns a [These] containing either the [First] value as [These.first], or the [Second] value as
+ * [These.second]. Will never return a [These.both].
+ */
+fun <A, B> Either<A, B>.asThese(): These<A, B> =
+    when (this) {
+        is Second -> These.second(value)
+        is First -> These.first(value)
+    }
+
+/**
+ * Partitions this sequence of [Either] into two lists; [Pair.first] contains all [First] values,
+ * and [Pair.second] contains all [Second] values.
+ */
+fun <A, B> Sequence<Either<A, B>>.partitionEithers(): Pair<List<A>, List<B>> {
+    val firsts = mutableListOf<A>()
+    val seconds = mutableListOf<B>()
+    for (either in this) {
+        when (either) {
+            is First -> firsts.add(either.value)
+            is Second -> seconds.add(either.value)
         }
     }
-    return lefts to rights
+    return firsts to seconds
+}
+
+/**
+ * Partitions this map of [Either] values into two maps; [Pair.first] contains all [First] values,
+ * and [Pair.second] contains all [Second] values.
+ */
+fun <K, A, B> Map<K, Either<A, B>>.partitionEithers(): Pair<Map<K, A>, Map<K, B>> {
+    val firsts = mutableMapOf<K, A>()
+    val seconds = mutableMapOf<K, B>()
+    for ((k, e) in this) {
+        when (e) {
+            is First -> firsts[k] = e.value
+            is Second -> seconds[k] = e.value
+        }
+    }
+    return firsts to seconds
 }

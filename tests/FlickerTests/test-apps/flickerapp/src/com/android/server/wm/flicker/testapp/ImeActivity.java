@@ -30,7 +30,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.WindowManager;
 
 public class ImeActivity extends Activity {
 
@@ -64,10 +63,6 @@ public class ImeActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        WindowManager.LayoutParams p = getWindow().getAttributes();
-        p.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        getWindow().setAttributes(p);
         setContentView(R.layout.activity_ime);
 
         final var filter = new IntentFilter();

@@ -18,10 +18,16 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Upravitelj spremljevalnih naprav"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Želite aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; dovoliti dostop do naprave &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Poskrbite, da ima <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> vklopljen <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>, <xliff:g id="PROFILE_NAME">%3$s</xliff:g> pa naj bo v bližini."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Ni naprav. Poskusite znova pozneje."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth in Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ura"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Izbira naprave, ki jo bo upravljala aplikacija &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Izberite profil naprave »<xliff:g id="PROFILE_NAME">%1$s</xliff:g>« za nastavitev"</string>
-    <string name="summary_watch" msgid="8134580124808507407">"Ta aplikacija bo lahko sinhronizirala podatke, na primer ime klicatelja, in dostopala do teh dovoljenj v napravi »<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>«."</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Izberite za nastavitev: <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Iskanje: <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="summary_watch" msgid="8134580124808507407">"Ta aplikacija bo lahko sinhronizirala podatke, na primer ime klicatelja, in dostopala do teh dovoljenj v: <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>."</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Želite aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; dovoliti upravljanje naprave &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"naprava"</string>
     <string name="summary_glasses" msgid="5469208629679579157">"Ta aplikacija bo lahko dostopala do teh dovoljenj v napravi »<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>«."</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Ali aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; dovolite, da pretočno predvaja aplikacije naprave <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> v napravi &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Aplikacija <xliff:g id="APP_NAME_0">%1$s</xliff:g> bo imela dostop do vsega, kar je prikazano ali se predvaja v napravi <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, vključno z zvokom, fotografijami, podatki za plačilo, gesli in sporočili.&lt;br/&gt;&lt;br/&gt;Aplikacija <xliff:g id="APP_NAME_2">%1$s</xliff:g> bo lahko pretočno predvajala aplikacije v napravo <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, dokler ne odstranite dostopa do tega dovoljenja."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Aplikacija <xliff:g id="APP_NAME">%1$s</xliff:g> v imenu naprave <xliff:g id="DEVICE_NAME">%2$s</xliff:g> zahteva dovoljenje za pretočno predvajanje aplikacij iz naprave <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Ali aplikaciji &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; dovolite pretočno predvajanje zvoka in sistemskih funkcij med napravo »<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>« in napravo &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Aplikacija <xliff:g id="APP_NAME_0">%2$s</xliff:g> bo imela dostop do vsega, kar se predvaja v napravi »<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>«.&lt;br/&gt;&lt;br/&gt;Aplikacija <xliff:g id="APP_NAME_2">%2$s</xliff:g> bo lahko pretočno predvajala zvok v napravo »<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>«, dokler ne odstranite dostopa do tega dovoljenja."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"naprava"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ta aplikacija bo lahko sinhronizirala podatke, na primer ime klicatelja, v telefonu in izbrani napravi."</string>
     <string name="consent_yes" msgid="8344487259618762872">"Dovoli"</string>
     <string name="consent_no" msgid="2640796915611404382">"Ne dovoli"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Prekliči"</string>
     <string name="consent_back" msgid="2560683030046918882">"Nazaj"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Pomikanje navzdol po seznamu"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Puščica navzdol"</string>
     <string name="permission_expand" msgid="893185038020887411">"Razširi dovoljenje »<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>«"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Strni dovoljenje »<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>«"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Ali želite aplikacijam v napravi &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; odobriti enaka dovoljenja kot v napravi &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

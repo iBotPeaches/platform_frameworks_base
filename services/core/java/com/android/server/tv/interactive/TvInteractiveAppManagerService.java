@@ -105,6 +105,7 @@ public class TvInteractiveAppManagerService extends SystemService {
     // A global lock.
     private final Object mLock = new Object();
     private final Context mContext;
+    private final MyPackageMonitor mPackageMonitor;
     // ID of the current user.
     @GuardedBy("mLock")
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
@@ -138,6 +139,7 @@ public class TvInteractiveAppManagerService extends SystemService {
         super(context);
         mContext = context;
         mUserManager = (UserManager) getContext().getSystemService(Context.USER_SERVICE);
+        mPackageMonitor = new MyPackageMonitor(/* supportsPackageRestartQuery */ true);
     }
 
     @GuardedBy("mLock")
@@ -518,86 +520,91 @@ public class TvInteractiveAppManagerService extends SystemService {
         }
     }
 
-    private void registerBroadcastReceivers() {
-        PackageMonitor monitor = new PackageMonitor(/* supportsPackageRestartQuery */ true) {
-            private void buildTvInteractiveAppServiceList(String[] packages) {
-                int userId = getChangingUserId();
-                synchronized (mLock) {
-                    if (mCurrentUserId == userId || mRunningProfiles.contains(userId)) {
-                        buildTvInteractiveAppServiceListLocked(userId, packages);
-                        buildAppLinkInfoLocked(userId);
-                    }
+    private class MyPackageMonitor extends PackageMonitor {
+        MyPackageMonitor(boolean supportsPackageRestartQuery) {
+            super(supportsPackageRestartQuery);
+        }
+
+        private void buildTvInteractiveAppServiceList(String[] packages) {
+            int userId = getChangingUserId();
+            synchronized (mLock) {
+                if (mCurrentUserId == userId || mRunningProfiles.contains(userId)) {
+                    buildTvInteractiveAppServiceListLocked(userId, packages);
+                    buildAppLinkInfoLocked(userId);
                 }
             }
-            private void buildTvAdServiceList(String[] packages) {
-                int userId = getChangingUserId();
-                synchronized (mLock) {
-                    if (mCurrentUserId == userId || mRunningProfiles.contains(userId)) {
-                        buildTvAdServiceListLocked(userId, packages);
-                    }
+        }
+        private void buildTvAdServiceList(String[] packages) {
+            int userId = getChangingUserId();
+            synchronized (mLock) {
+                if (mCurrentUserId == userId || mRunningProfiles.contains(userId)) {
+                    buildTvAdServiceListLocked(userId, packages);
                 }
             }
+        }
 
-            @Override
-            public void onPackageUpdateFinished(String packageName, int uid) {
-                if (DEBUG) Slogf.d(TAG, "onPackageUpdateFinished(packageName=" + packageName + ")");
-                // This callback is invoked when the TV interactive App service is reinstalled.
-                // In this case, isReplacing() always returns true.
-                buildTvInteractiveAppServiceList(new String[] { packageName });
-                buildTvAdServiceList(new String[] { packageName });
+        @Override
+        public void onPackageUpdateFinished(String packageName, int uid) {
+            if (DEBUG) Slogf.d(TAG, "onPackageUpdateFinished(packageName=" + packageName + ")");
+            // This callback is invoked when the TV interactive App service is reinstalled.
+            // In this case, isReplacing() always returns true.
+            buildTvInteractiveAppServiceList(new String[] { packageName });
+            buildTvAdServiceList(new String[] { packageName });
+        }
+
+        @Override
+        public void onPackagesAvailable(String[] packages) {
+            if (DEBUG) {
+                Slogf.d(TAG, "onPackagesAvailable(packages=" + Arrays.toString(packages) + ")");
             }
+            // This callback is invoked when the media on which some packages exist become
+            // available.
+            if (isReplacing()) {
+                buildTvInteractiveAppServiceList(packages);
+                buildTvAdServiceList(packages);
+            }
+        }
 
-            @Override
-            public void onPackagesAvailable(String[] packages) {
+        @Override
+        public void onPackagesUnavailable(String[] packages) {
+            // This callback is invoked when the media on which some packages exist become
+            // unavailable.
+            if (DEBUG)  {
+                Slogf.d(TAG, "onPackagesUnavailable(packages=" + Arrays.toString(packages)
+                        + ")");
+            }
+            if (isReplacing()) {
+                buildTvInteractiveAppServiceList(packages);
+                buildTvAdServiceList(packages);
+            }
+        }
+
+        @Override
+        public void onSomePackagesChanged() {
+            if (DEBUG) Slogf.d(TAG, "onSomePackagesChanged()");
+            if (isReplacing()) {
                 if (DEBUG) {
-                    Slogf.d(TAG, "onPackagesAvailable(packages=" + Arrays.toString(packages) + ")");
+                    Slogf.d(TAG, "Skipped building TV interactive App list due to replacing");
                 }
-                // This callback is invoked when the media on which some packages exist become
-                // available.
-                if (isReplacing()) {
-                    buildTvInteractiveAppServiceList(packages);
-                    buildTvAdServiceList(packages);
-                }
+                // When the package is updated, buildTvInteractiveAppServiceListLocked is called
+                // in other methods instead.
+                return;
             }
+            buildTvInteractiveAppServiceList(null);
+            buildTvAdServiceList(null);
+        }
 
-            @Override
-            public void onPackagesUnavailable(String[] packages) {
-                // This callback is invoked when the media on which some packages exist become
-                // unavailable.
-                if (DEBUG)  {
-                    Slogf.d(TAG, "onPackagesUnavailable(packages=" + Arrays.toString(packages)
-                            + ")");
-                }
-                if (isReplacing()) {
-                    buildTvInteractiveAppServiceList(packages);
-                    buildTvAdServiceList(packages);
-                }
-            }
+        @Override
+        public boolean onPackageChanged(String packageName, int uid, String[] components) {
+            // The interactive App list needs to be updated in any cases, regardless of whether
+            // it happened to the whole package or a specific component. Returning true so that
+            // the update can be handled in {@link #onSomePackagesChanged}.
+            return true;
+        }
+    }
 
-            @Override
-            public void onSomePackagesChanged() {
-                if (DEBUG) Slogf.d(TAG, "onSomePackagesChanged()");
-                if (isReplacing()) {
-                    if (DEBUG) {
-                        Slogf.d(TAG, "Skipped building TV interactive App list due to replacing");
-                    }
-                    // When the package is updated, buildTvInteractiveAppServiceListLocked is called
-                    // in other methods instead.
-                    return;
-                }
-                buildTvInteractiveAppServiceList(null);
-                buildTvAdServiceList(null);
-            }
-
-            @Override
-            public boolean onPackageChanged(String packageName, int uid, String[] components) {
-                // The interactive App list needs to be updated in any cases, regardless of whether
-                // it happened to the whole package or a specific component. Returning true so that
-                // the update can be handled in {@link #onSomePackagesChanged}.
-                return true;
-            }
-        };
-        monitor.register(mContext, null, UserHandle.ALL, true);
+    private void registerBroadcastReceivers() {
+        mPackageMonitor.register(mContext, null, UserHandle.ALL, true);
 
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_USER_SWITCHED);

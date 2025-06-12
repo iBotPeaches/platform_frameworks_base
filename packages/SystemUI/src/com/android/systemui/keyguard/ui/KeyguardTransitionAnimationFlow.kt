@@ -66,11 +66,14 @@ constructor(
          * range. This function maps the [startTime] and [duration] into [0, 1], when this subset is
          * valid.
          *
+         * Note that [onStep] accepts a null return value. When null, no animation information will
+         * be emitted, effectively saying "do not change the value on this frame"
+         *
          * Note that [onCancel] isn't used when the scene framework is enabled.
          */
         fun sharedFlow(
-            duration: Duration,
-            onStep: (Float) -> Float,
+            duration: Duration = transitionDuration,
+            onStep: (Float) -> Float?,
             startTime: Duration = 0.milliseconds,
             onStart: (() -> Unit)? = null,
             onCancel: (() -> Float)? = null,
@@ -102,7 +105,7 @@ constructor(
          */
         fun sharedFlowWithState(
             duration: Duration,
-            onStep: (Float) -> Float,
+            onStep: (Float) -> Float?,
             startTime: Duration = 0.milliseconds,
             onStart: (() -> Unit)? = null,
             onCancel: (() -> Float)? = null,

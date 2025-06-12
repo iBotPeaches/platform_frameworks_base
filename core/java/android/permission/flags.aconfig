@@ -57,7 +57,7 @@ flag {
     is_exported: true
     is_fixed_read_only: true
     namespace: "permissions"
-    description: "enable enhanced confirmation incall apis"
+    description: "DEPRECATED, does not gate any apis"
     bug: "364535720"
 }
 
@@ -68,6 +68,19 @@ flag {
     namespace: "permissions"
     description: "enable the blocking of certain app installs during an unknown call"
     bug: "364535720"
+}
+
+flag {
+    name: "unknown_call_setting_blocked_logging_enabled"
+    is_exported: true
+    is_fixed_read_only: true
+    namespace: "permissions"
+    description: "enable the metrics when blocking certain app installs during an unknown call"
+    bug: "364535720"
+
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -340,7 +353,7 @@ flag {
     is_fixed_read_only: true
     namespace: "health_fitness_aconfig"
     description: "This flag protects the permission that is required to call Health Connect backup and restore apis"
-    bug: "376014879" # android_fr bug
+    bug: "324019102" # android_fr bug
     is_exported: true
 }
 
@@ -358,7 +371,25 @@ flag {
     is_fixed_read_only: true
     is_exported: true
     namespace: "permissions"
-    description: "Enables SQlite for recording discrete and historical AppOp accesses"
+    description: "Enables SQlite for recording individual/discrete AppOp accesses"
+    bug: "377584611"
+}
+
+flag {
+    name: "enable_all_sqlite_appops_accesses"
+    is_fixed_read_only: true
+    is_exported: true
+    namespace: "permissions"
+    description: "Enables SQlite for storing aggregated & individual/discrete AppOp accesses"
+    bug: "377584611"
+}
+
+flag {
+    name: "record_all_runtime_appops_sqlite"
+    is_fixed_read_only: true
+    is_exported: true
+    namespace: "permissions"
+    description: "Enables recording of all runtime app ops into SQlite"
     bug: "377584611"
 }
 
@@ -467,15 +498,6 @@ flag {
 }
 
 flag {
-    name: "cross_user_role_platform_api_enabled"
-    is_exported: true
-    is_fixed_read_only: true
-    namespace: "permissions"
-    description: "Enable cross-user roles platform API"
-    bug: "367732307"
-}
-
-flag {
     name: "rate_limit_batched_note_op_async_callbacks_enabled"
     is_fixed_read_only: true
     is_exported: true
@@ -502,3 +524,42 @@ flag {
     bug: "341941666"
 }
 
+flag {
+    name: "sqlite_discrete_op_event_logging_enabled"
+    namespace: "permissions"
+    description: "Collect sqlite performance metrics for discrete ops."
+    bug: "377584611"
+}
+
+flag {
+    name: "app_ops_service_handler_fix"
+    is_fixed_read_only: true
+    namespace: "permissions"
+    description: "Use IoThread handler for AppOpsService background/IO work."
+    bug: "394380603"
+}
+
+flag {
+    name: "enforce_default_device_id_in_my_attribution_source"
+    namespace: "permissions"
+    description: "Force AttributionSource.myAttributionSource() to return a default device id"
+    bug: "343121936"
+}
+
+flag {
+    name: "grant_read_blocked_numbers_to_system_ui_intelligence"
+    is_exported: true
+    is_fixed_read_only: true
+    namespace: "permissions"
+    description: "This flag is used to add role protection to READ_BLOCKED_NUMBERS for SYSTEM_UI_INTELLIGENCE"
+    bug: "354758615"
+}
+
+flag {
+    name: "enable_system_supervision_role_behavior"
+    is_fixed_read_only: true
+    is_exported: true
+    namespace: "supervision"
+    description: "This flag is used to enable the role behavior for the system supervision role"
+    bug: "378102594"
+}

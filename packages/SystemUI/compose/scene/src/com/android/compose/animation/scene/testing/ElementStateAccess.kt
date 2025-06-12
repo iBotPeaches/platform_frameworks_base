@@ -16,9 +16,12 @@
 
 package com.android.compose.animation.scene.testing
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.unit.IntSize
 import com.android.compose.animation.scene.Element
 import com.android.compose.animation.scene.Element.Companion.AlphaUnspecified
+import com.android.compose.animation.scene.Element.Companion.SizeUnspecified
 import com.android.compose.animation.scene.ElementModifier
 import com.android.compose.animation.scene.Scale
 
@@ -27,6 +30,12 @@ val SemanticsNode.lastAlphaForTesting: Float?
 
 val SemanticsNode.lastScaleForTesting: Scale?
     get() = elementState.lastScale.takeIf { it != Scale.Unspecified }
+
+val SemanticsNode.lastOffsetForTesting: Offset?
+    get() = elementState.lastOffset.takeIf { it != Offset.Unspecified }
+
+val SemanticsNode.lastSizeForTesting: IntSize?
+    get() = elementState.lastSize.takeIf { it != SizeUnspecified }
 
 private val SemanticsNode.elementState: Element.State
     get() {

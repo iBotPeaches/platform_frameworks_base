@@ -47,8 +47,10 @@
 
 namespace android {
 
+constexpr const bool kDeviceEndiannessSame = dtohs(0x1001) == 0x1001;
+
 constexpr const uint32_t kIdmapMagic = 0x504D4449u;
-constexpr const uint32_t kIdmapCurrentVersion = 0x0000000Au;
+constexpr const uint32_t kIdmapCurrentVersion = 0x0000000Bu;
 
 // This must never change.
 constexpr const uint32_t kFabricatedOverlayMagic = 0x4f525246; // FRRO (big endian)
@@ -408,7 +410,16 @@ struct Res_value
     typedef uint32_t data_type;
     data_type data;
 
-    void copyFrom_dtoh(const Res_value& src);
+    void copyFrom_dtoh(const Res_value& src) {
+      if constexpr (kDeviceEndiannessSame) {
+        *this = src;
+      } else {
+        copyFrom_dtoh_slow(src);
+      }
+    }
+
+   private:
+    void copyFrom_dtoh_slow(const Res_value& src);
 };
 
 /**
@@ -1254,11 +1265,35 @@ struct ResTable_config
     // Varies in length from 3 to 8 chars. Zero-filled value.
     char localeNumberingSystem[8];
 
-    void copyFromDeviceNoSwap(const ResTable_config& o);
-    
-    void copyFromDtoH(const ResTable_config& o);
-    
-    void swapHtoD();
+    // Mark all padding explicitly so it's clear how much we can expand it.
+    char endPadding[3];
+
+    void copyFromDeviceNoSwap(const ResTable_config& o) {
+      const auto o_size = dtohl(o.size);
+      if (o_size >= sizeof(ResTable_config)) [[likely]] {
+        *this = o;
+      } else {
+        memcpy(this, &o, o_size);
+        memset(((uint8_t*)this) + o_size, 0, sizeof(ResTable_config) - o_size);
+      }
+      this->size = sizeof(*this);
+    }
+
+    void copyFromDtoH(const ResTable_config& o) {
+      if constexpr (kDeviceEndiannessSame) {
+        copyFromDeviceNoSwap(o);
+      } else {
+        copyFromDtoH_slow(o);
+      }
+    }
+
+    void swapHtoD() {
+      if constexpr (kDeviceEndiannessSame) {
+        ;  // noop
+      } else {
+        swapHtoD_slow();
+      }
+    }
 
     int compare(const ResTable_config& o) const;
     int compareLogical(const ResTable_config& o) const;
@@ -1381,10 +1416,24 @@ struct ResTable_config
     // match the requested configuration at all.
     bool isLocaleBetterThan(const ResTable_config& o, const ResTable_config* requested) const;
 
-    bool isBetterThanBeforeLocale(const ResTable_config& o, const ResTable_config* requested) const;
+    // The first part of isBetterThan() that only compares the fields that are higher priority than
+    // the locale. Use it when you need to do custom locale matching to filter out the configs prior
+    // to that.
+    bool isBetterThanBeforeLocale(const ResTable_config& o, const ResTable_config& requested) const;
 
     String8 toString() const;
+
+   private:
+    void copyFromDtoH_slow(const ResTable_config& o);
+    void swapHtoD_slow();
 };
+
+// Fix the struct size for backward compatibility
+static_assert(sizeof(ResTable_config) == 64);
+
+// Make sure there's no unaccounted padding in the structure.
+static_assert(offsetof(ResTable_config, endPadding) +
+                  sizeof(ResTable_config::endPadding) == sizeof(ResTable_config));
 
 /**
  * A specification of the resources defined by a particular type.
@@ -1547,6 +1596,8 @@ union ResTable_entry
         // If set, this is a compact entry with data type and value directly
         // encoded in the this entry, see ResTable_entry::compact
         FLAG_COMPACT = 0x0008,
+        // If set, this entry relies on read write android feature flags
+        FLAG_USES_FEATURE_FLAGS = 0x0010,
     };
 
     struct Full {
@@ -1576,6 +1627,7 @@ union ResTable_entry
     uint16_t flags()  const { return dtohs(full.flags); };
     bool is_compact() const { return flags() & FLAG_COMPACT; }
     bool is_complex() const { return flags() & FLAG_COMPLEX; }
+    bool uses_feature_flags() const { return flags() & FLAG_USES_FEATURE_FLAGS; }
 
     size_t size() const {
         return is_compact() ? sizeof(ResTable_entry) : dtohs(this->full.size);
@@ -1993,6 +2045,8 @@ public:
 
     bool getResourceFlags(uint32_t resID, uint32_t* outFlags) const;
 
+    bool getResourceEntryFlags(uint32_t resID, uint32_t* outFlags) const;
+
     /**
      * Returns whether or not the package for the given resource has been dynamically assigned.
      * If the resource can't be found, returns 'false'.
@@ -2267,7 +2321,7 @@ public:
             void** outData, size_t* outSize) const;
 
     static const size_t IDMAP_HEADER_SIZE_BYTES = 4 * sizeof(uint32_t) + 2 * 256;
-    static const uint32_t IDMAP_CURRENT_VERSION = 0x00000001;
+    static const size_t IDMAP_CONSTRAINTS_COUNT_SIZE_BYTES = sizeof(uint32_t);
 
     // Retrieve idmap meta-data.
     //

@@ -35,6 +35,8 @@ import com.android.internal.widget.remotecompose.core.operations.layout.RootLayo
 import com.android.internal.widget.remotecompose.core.operations.utilities.AnimatedFloatExpression;
 import com.android.internal.widget.remotecompose.core.operations.utilities.NanMap;
 import com.android.internal.widget.remotecompose.core.operations.utilities.touch.VelocityEasing;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,7 +46,8 @@ import java.util.List;
  * touch behaviours. Including animating to Notched, positions. and tweaking the dynamics of the
  * animation.
  */
-public class TouchExpression extends Operation implements VariableSupport, TouchListener {
+public class TouchExpression extends Operation
+        implements ComponentData, VariableSupport, TouchListener, Serializable {
     private static final int OP_CODE = Operations.TOUCH_EXPRESSION;
     private static final String CLASS_NAME = "TouchExpression";
     private float mDefValue;
@@ -97,10 +100,10 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
     /** Stop at a collection points described in percents of the range */
     public static final int STOP_NOTCHES_PERCENTS = 4;
 
-    /** Stop at a collectiond of point described in abslute cordnates */
+    /** Stop at a collection of point described in absolute cordnates */
     public static final int STOP_NOTCHES_ABSOLUTE = 5;
 
-    /** Jump to the absloute poition of the point */
+    /** Jump to the absolute poition of the point */
     public static final int STOP_ABSOLUTE_POS = 6;
 
     /**
@@ -112,9 +115,9 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
      * @param min the minimum value
      * @param max the maximum value
      * @param touchEffects the type of touch mode
-     * @param velocityId the valocity (not used)
-     * @param stopMode the behavour on touch oup
-     * @param stopSpec the paraameters that affect the touch up behavour
+     * @param velocityId the velocity (not used)
+     * @param stopMode the behaviour on touch oup
+     * @param stopSpec the parameters that affect the touch up behaviour
      * @param easingSpec the easing parameters for coming to a stop
      */
     public TouchExpression(
@@ -249,10 +252,10 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
     }
 
     private float getStopPosition(float pos, float slope) {
-        float target = pos + slope / mMaxAcceleration;
+        float target = pos + slope / 2f;
         if (mWrapMode) {
             pos = wrap(pos);
-            target = pos += +slope / mMaxAcceleration;
+            target = pos += +slope / 2f;
         } else {
             target = Math.max(Math.min(target, mOutMax), mOutMin);
         }
@@ -268,7 +271,6 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
                 int evenSpacing = (int) mOutStopSpec[0];
                 float notchMax = (mOutStopSpec.length > 1) ? mOutStopSpec[1] : mOutMax;
                 float step = (notchMax - min) / evenSpacing;
-
                 float notch = min + step * (int) (0.5f + (target - mOutMin) / step);
                 if (!mWrapMode) {
                     notch = Math.max(Math.min(notch, mOutMax), min);
@@ -369,6 +371,7 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
      *
      * @param component the component, or null if outside
      */
+    @Override
     public void setComponent(@Nullable Component component) {
         mComponent = component;
         if (mComponent != null) {
@@ -491,7 +494,7 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
         mTouchUpTime = context.getAnimationTime();
 
         float dest = getStopPosition(value, slope);
-        float time = mMaxTime * Math.abs(dest - value) / (2 * mMaxVelocity);
+        float time = Math.min(2, mMaxTime * Math.abs(dest - value) / (2 * mMaxVelocity));
         mEasyTouch.config(value, dest, slope, time, mMaxAcceleration, mMaxVelocity, null);
         mEasingToStop = true;
         context.needsRepaint();
@@ -708,5 +711,17 @@ public class TouchExpression extends Operation implements VariableSupport, Touch
     @Override
     public String deepToString(@NonNull String indent) {
         return indent + toString();
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("id", mId)
+                .add("defValue", mDefValue, mOutDefValue)
+                .add("min", mMin, mOutMin)
+                .add("max", mMax, mOutMax)
+                .add("mode", mMode)
+                .addFloatExpressionSrc("srcExp", mSrcExp);
     }
 }

@@ -17,8 +17,6 @@ package android.window;
 
 import static android.view.WindowManagerImpl.createWindowContextWindowManager;
 
-import static com.android.internal.annotations.VisibleForTesting.Visibility.PACKAGE;
-
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UiContext;
@@ -46,7 +44,8 @@ import java.lang.ref.Reference;
  * @hide
  */
 @UiContext
-public class WindowContext extends ContextWrapper implements WindowProvider {
+public class WindowContext extends ContextWrapper implements WindowProvider,
+        ConfigurationDispatcher {
     private final WindowManager mWindowManager;
     @WindowManager.LayoutParams.WindowType
     private final int mType;
@@ -155,7 +154,7 @@ public class WindowContext extends ContextWrapper implements WindowProvider {
     }
 
     /** Dispatch {@link Configuration} to each {@link ComponentCallbacks}. */
-    @VisibleForTesting(visibility = PACKAGE)
+    @Override
     public void dispatchConfigurationChanged(@NonNull Configuration newConfig) {
         mCallbacksController.dispatchConfigurationChanged(newConfig);
     }
@@ -169,5 +168,11 @@ public class WindowContext extends ContextWrapper implements WindowProvider {
     @Override
     public Bundle getWindowContextOptions() {
         return mOptions;
+    }
+
+    @Override
+    public boolean shouldReportPrivateChanges() {
+        // Always dispatch config changes to WindowContext.
+        return true;
     }
 }

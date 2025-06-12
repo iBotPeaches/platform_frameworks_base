@@ -24,11 +24,13 @@ flag {
 }
 
 flag {
-    name: "customization_packs_apis"
-    is_exported: true
-    namespace: "systemui"
-    description: "Move APIs related to bitmap and crops to @SystemApi."
-    bug: "372344184"
+  name: "notify_keyguard_events"
+  namespace: "systemui"
+  description: "Send keyguard showing/hiding/going-away events to wallpaper as wallpaper commands (guarded by permission)"
+  bug: "395897130"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -39,4 +41,11 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+  name: "enable_connected_displays_wallpaper"
+  namespace: "lse_desktop_experience"
+  description: "Enable wallpaper support in connected displays"
+  bug: "366461618"
 }

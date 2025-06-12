@@ -55,5 +55,6 @@ val Kosmos.userSwitcherInteractor by
             uiEventLogger = uiEventLogger,
             userRestrictionChecker = userRestrictionChecker,
             processWrapper = processWrapper,
+            userLogoutInteractor = userLogoutInteractor,
         )
     }

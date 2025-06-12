@@ -18,8 +18,9 @@ package com.android.systemui.statusbar.notification.data.model
 
 import android.app.PendingIntent
 import android.graphics.drawable.Icon
+import com.android.internal.logging.InstanceId
 import com.android.systemui.statusbar.StatusBarIconView
-import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModels
 import com.android.systemui.statusbar.notification.shared.ActiveNotificationModel
 import com.android.systemui.statusbar.notification.shared.CallType
 import com.android.systemui.statusbar.notification.stack.BUCKET_UNKNOWN
@@ -29,6 +30,8 @@ fun activeNotificationModel(
     key: String,
     groupKey: String? = null,
     whenTime: Long = 0L,
+    isForegroundService: Boolean = false,
+    isOngoingEvent: Boolean = false,
     isAmbient: Boolean = false,
     isRowDismissed: Boolean = false,
     isSilent: Boolean = false,
@@ -40,18 +43,21 @@ fun activeNotificationModel(
     statusBarIcon: Icon? = null,
     statusBarChipIcon: StatusBarIconView? = null,
     uid: Int = 0,
-    instanceId: Int? = null,
+    instanceId: InstanceId? = null,
     isGroupSummary: Boolean = false,
     packageName: String = "pkg",
+    appName: String = "appName",
     contentIntent: PendingIntent? = null,
     bucket: Int = BUCKET_UNKNOWN,
     callType: CallType = CallType.None,
-    promotedContent: PromotedNotificationContentModel? = null,
+    promotedContent: PromotedNotificationContentModels? = null,
 ) =
     ActiveNotificationModel(
         key = key,
         groupKey = groupKey,
         whenTime = whenTime,
+        isForegroundService = isForegroundService,
+        isOngoingEvent = isOngoingEvent,
         isAmbient = isAmbient,
         isRowDismissed = isRowDismissed,
         isSilent = isSilent,
@@ -64,6 +70,7 @@ fun activeNotificationModel(
         statusBarChipIconView = statusBarChipIcon,
         uid = uid,
         packageName = packageName,
+        appName = appName,
         contentIntent = contentIntent,
         instanceId = instanceId,
         isGroupSummary = isGroupSummary,

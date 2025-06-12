@@ -25,6 +25,7 @@ import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
+import static com.android.server.display.feature.flags.Flags.FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT;
 import static com.android.server.wm.ActivityInterceptorCallback.MAINLINE_FIRST_ORDERED_ID;
 import static com.android.server.wm.ActivityInterceptorCallback.SYSTEM_FIRST_ORDERED_ID;
 import static com.android.server.wm.ActivityInterceptorCallback.SYSTEM_LAST_ORDERED_ID;
@@ -67,6 +68,7 @@ import android.os.LocaleList;
 import android.os.PowerManagerInternal;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.view.Display;
 import android.view.DisplayInfo;
@@ -74,6 +76,8 @@ import android.view.IDisplayWindowListener;
 import android.view.WindowManager;
 
 import androidx.test.filters.MediumTest;
+
+import com.android.server.UiThread;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -164,11 +168,13 @@ public class ActivityTaskManagerServiceTests extends WindowTestsBase {
         verify(mClientLifecycleManager, never()).scheduleTransactionItem(any(), any());
     }
 
+    @EnableFlags(FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT)
     @Test
     public void testDisplayWindowListener() {
         final ArrayList<Integer> added = new ArrayList<>();
         final ArrayList<Integer> changed = new ArrayList<>();
         final ArrayList<Integer> removed = new ArrayList<>();
+        final ArrayList<Integer> desktopModeEligibleChanged = new ArrayList<>();
         IDisplayWindowListener listener = new IDisplayWindowListener.Stub() {
             @Override
             public void onDisplayAdded(int displayId) {
@@ -194,6 +200,11 @@ public class ActivityTaskManagerServiceTests extends WindowTestsBase {
             @Override
             public void onKeepClearAreasChanged(int displayId, List<Rect> restricted,
                     List<Rect> unrestricted) {}
+
+            @Override
+            public void onDesktopModeEligibleChanged(int displayId) {
+                desktopModeEligibleChanged.add(displayId);
+            }
         };
         int[] displayIds = mAtm.mWindowManager.registerDisplayWindowListener(listener);
         for (int i = 0; i < displayIds.length; i++) {
@@ -218,7 +229,25 @@ public class ActivityTaskManagerServiceTests extends WindowTestsBase {
         assertEquals(1, changed.size());
         assertEquals(0, removed.size());
         changed.clear();
+
+        // Check adding decoration
+        doReturn(true).when(newDisp1).allowContentModeSwitch();
+        doReturn(true).when(newDisp1).isSystemDecorationsSupported();
+        mAtm.mWindowManager.setShouldShowSystemDecors(newDisp1.mDisplayId, true);
+        waitHandlerIdle(UiThread.getHandler());
+        assertEquals(1, desktopModeEligibleChanged.size());
+        assertEquals(newDisp1.mDisplayId, (int) desktopModeEligibleChanged.get(0));
+        desktopModeEligibleChanged.clear();
+        // Check removing decoration
+        doReturn(false).when(newDisp1).isSystemDecorationsSupported();
+        mAtm.mWindowManager.setShouldShowSystemDecors(newDisp1.mDisplayId, false);
+        waitHandlerIdle(UiThread.getHandler());
+        assertEquals(1, desktopModeEligibleChanged.size());
+        assertEquals(newDisp1.mDisplayId, (int) desktopModeEligibleChanged.get(0));
+        desktopModeEligibleChanged.clear();
+
         // Check that removal is reported
+        changed.clear();
         newDisp1.remove();
         assertEquals(0, added.size());
         assertEquals(0, changed.size());
@@ -511,6 +540,7 @@ public class ActivityTaskManagerServiceTests extends WindowTestsBase {
     @Test
     public void testSupportsMultiWindow_nonResizable() {
         final ActivityRecord activity = new ActivityBuilder(mAtm)
+                .setComponent(getUniqueComponentName(mContext.getPackageName()))
                 .setCreateTask(true)
                 .setResizeMode(RESIZE_MODE_UNRESIZEABLE)
                 .build();

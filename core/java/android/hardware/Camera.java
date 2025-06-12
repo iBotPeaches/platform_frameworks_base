@@ -358,8 +358,7 @@ public class Camera {
             CameraInfo cameraInfo);
 
     private static int getDevicePolicyFromContext(Context context) {
-        if (context.getDeviceId() == DEVICE_ID_DEFAULT
-                || !android.companion.virtual.flags.Flags.virtualCamera()) {
+        if (context.getDeviceId() == DEVICE_ID_DEFAULT) {
             return DEVICE_POLICY_DEFAULT;
         }
 

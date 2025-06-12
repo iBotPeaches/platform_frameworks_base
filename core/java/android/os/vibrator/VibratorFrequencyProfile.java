@@ -51,8 +51,7 @@ public final class VibratorFrequencyProfile {
         Preconditions.checkArgument(!frequencyProfile.isEmpty(),
                 "Frequency profile must not be empty");
         mFrequencyProfile = frequencyProfile;
-        mFrequenciesOutputAcceleration = generateFrequencyToAccelerationMap(
-                frequencyProfile.getFrequenciesHz(), frequencyProfile.getOutputAccelerationsGs());
+        mFrequenciesOutputAcceleration = generateFrequencyToAccelerationMap(mFrequencyProfile);
     }
 
     /**
@@ -133,18 +132,21 @@ public final class VibratorFrequencyProfile {
     }
 
     private static SparseArray<Float> generateFrequencyToAccelerationMap(
-            float[] frequencies, float[] accelerations) {
-        SparseArray<Float> sparseArray = new SparseArray<>(frequencies.length);
-
+            VibratorInfo.FrequencyProfile frequencyProfile) {
+        float[] frequencies = frequencyProfile.getFrequenciesHz();
+        SparseArray<Float> frequencyToAcceleration = new SparseArray<>(frequencies.length);
+        int lastFrequency = -1;
         for (int i = 0; i < frequencies.length; i++) {
             int frequency = (int) frequencies[i];
-            float acceleration = accelerations[i];
-
-            sparseArray.put(frequency,
-                    Math.min(acceleration, sparseArray.get(frequency, Float.MAX_VALUE)));
+            if (frequency == lastFrequency) {
+                continue; // Skip duplicate frequencies
+            }
+            float acceleration = frequencyProfile.getOutputAccelerationGs(frequency);
+            frequencyToAcceleration.put(frequency, acceleration);
+            lastFrequency = frequency;
 
         }
 
-        return sparseArray;
+        return frequencyToAcceleration;
     }
 }

@@ -43,6 +43,8 @@ import com.android.internal.widget.LockPatternView;
 import com.android.settingslib.animation.AppearAnimationCreator;
 import com.android.settingslib.animation.AppearAnimationUtils;
 import com.android.settingslib.animation.DisappearAnimationUtils;
+import com.android.systemui.Flags;
+import com.android.systemui.bouncer.shared.constants.PatternBouncerConstants.ColorId;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.policy.DevicePostureController.DevicePostureInt;
 
@@ -227,6 +229,17 @@ public class KeyguardPatternView extends KeyguardInputView
         super.onFinishInflate();
 
         mLockPatternView = findViewById(R.id.lockPatternView);
+        if (Flags.bouncerUiRevamp2()) {
+            mLockPatternView.setDotColors(mContext.getColor(ColorId.dotColor), mContext.getColor(
+                    ColorId.activatedDotColor));
+            mLockPatternView.setColors(mContext.getColor(ColorId.pathColor), 0, 0);
+            mLockPatternView.setDotSizes(
+                    getResources().getDimensionPixelSize(R.dimen.keyguard_pattern_dot_size),
+                    getResources().getDimensionPixelSize(
+                            R.dimen.keyguard_pattern_activated_dot_size));
+            mLockPatternView.setPathWidth(
+                    getResources().getDimensionPixelSize(R.dimen.keyguard_pattern_stroke_width));
+        }
 
         mEcaView = findViewById(R.id.keyguard_selector_fade_container);
     }

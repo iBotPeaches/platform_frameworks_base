@@ -247,20 +247,20 @@ class PinInputViewModelTest : SysuiTestCase() {
 }
 
 private class PinInputSubject
-private constructor(metadata: FailureMetadata, private val actual: PinInputViewModel) :
+private constructor(metadata: FailureMetadata, private val actual: PinInputViewModel?) :
     Subject(metadata, actual) {
 
     fun matches(mnemonics: String) {
         val actualMnemonics =
-            actual.input
-                .map { entry ->
+            actual?.input
+                ?.map { entry ->
                     when (entry) {
                         is Digit -> entry.input.digitToChar()
                         is ClearAll -> 'C'
                         else -> throw IllegalArgumentException()
                     }
                 }
-                .joinToString(separator = "")
+                ?.joinToString(separator = "")
 
         if (mnemonics != actualMnemonics) {
             failWithActual(

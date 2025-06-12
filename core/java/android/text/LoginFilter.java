@@ -23,6 +23,7 @@ package android.text;
  * handle non-BMP characters.
  */
 @Deprecated
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class LoginFilter implements InputFilter {
     private boolean mAppendInvalid;  // whether to append or ignore invalid characters
     /**

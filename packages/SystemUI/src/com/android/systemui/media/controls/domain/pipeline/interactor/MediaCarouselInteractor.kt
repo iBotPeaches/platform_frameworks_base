@@ -35,20 +35,16 @@ import com.android.systemui.media.controls.domain.pipeline.MediaSessionBasedFilt
 import com.android.systemui.media.controls.domain.pipeline.MediaTimeoutListener
 import com.android.systemui.media.controls.domain.resume.MediaResumeListener
 import com.android.systemui.media.controls.shared.model.MediaCommonModel
-import com.android.systemui.media.controls.util.MediaFlags
-import com.android.systemui.media.controls.util.MediaSmartspaceLogger
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import java.io.PrintWriter
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** Encapsulates business logic for media pipeline. */
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class MediaCarouselInteractor
 @Inject
@@ -62,20 +58,13 @@ constructor(
     private val mediaDataCombineLatest: MediaDataCombineLatest,
     private val mediaDataFilter: MediaDataFilterImpl,
     private val mediaFilterRepository: MediaFilterRepository,
-    private val mediaFlags: MediaFlags,
 ) : MediaDataManager, CoreStartable {
 
     /** Are there any media notifications active, including the recommendations? */
+    // TODO(b/382680767): rename
     val hasActiveMediaOrRecommendation: StateFlow<Boolean> =
-        combine(
-                mediaFilterRepository.selectedUserEntries,
-                mediaFilterRepository.smartspaceMediaData,
-                mediaFilterRepository.reactivatedId
-            ) { entries, smartspaceMediaData, reactivatedKey ->
-                entries.any { it.value.active } ||
-                    (smartspaceMediaData.isActive &&
-                        (smartspaceMediaData.isValid() || reactivatedKey != null))
-            }
+        mediaFilterRepository.selectedUserEntries
+            .map { entries -> entries.any { it.value.active } }
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.WhileSubscribed(),
@@ -83,18 +72,10 @@ constructor(
             )
 
     /** Are there any media entries we should display, including the recommendations? */
+    // TODO(b/382680767): rename
     val hasAnyMediaOrRecommendation: StateFlow<Boolean> =
-        combine(
-                mediaFilterRepository.selectedUserEntries,
-                mediaFilterRepository.smartspaceMediaData
-            ) { entries, smartspaceMediaData ->
-                entries.isNotEmpty() ||
-                    (if (mediaFlags.isPersistentSsCardEnabled()) {
-                        smartspaceMediaData.isValid()
-                    } else {
-                        smartspaceMediaData.isActive && smartspaceMediaData.isValid()
-                    })
-            }
+        mediaFilterRepository.selectedUserEntries
+            .map { entries -> entries.isNotEmpty() }
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.WhileSubscribed(),
@@ -170,7 +151,7 @@ constructor(
         token: MediaSession.Token,
         appName: String,
         appIntent: PendingIntent,
-        packageName: String
+        packageName: String,
     ) {
         mediaDataProcessor.addResumptionControls(
             userId,
@@ -179,7 +160,7 @@ constructor(
             token,
             appName,
             appIntent,
-            packageName
+            packageName,
         )
     }
 
@@ -191,11 +172,7 @@ constructor(
         mediaDataProcessor.dismissMediaData(instanceId, delay, userInitiated = false)
     }
 
-    override fun dismissSmartspaceRecommendation(key: String, delay: Long) {
-        return mediaDataProcessor.dismissSmartspaceRecommendation(key, delay)
-    }
-
-    override fun setRecommendationInactive(key: String) = unsupported
+    override fun dismissSmartspaceRecommendation(key: String, delay: Long) {}
 
     override fun onNotificationRemoved(key: String) {
         mediaDataProcessor.onNotificationRemoved(key)
@@ -205,33 +182,22 @@ constructor(
         mediaDataProcessor.setMediaResumptionEnabled(isEnabled)
     }
 
-    override fun onSwipeToDismiss() = unsupported
-
-    fun onSwipeToDismiss(location: Int) {
-        mediaDataFilter.onSwipeToDismiss(MediaSmartspaceLogger.getSurface(location))
+    override fun onSwipeToDismiss() {
+        mediaDataFilter.onSwipeToDismiss()
     }
 
-    override fun hasActiveMediaOrRecommendation() =
-        mediaFilterRepository.hasActiveMediaOrRecommendation()
+    override fun hasActiveMediaOrRecommendation() = mediaFilterRepository.hasActiveMedia()
 
-    override fun hasAnyMediaOrRecommendation() = hasAnyMediaOrRecommendation.value
+    override fun hasAnyMediaOrRecommendation() = mediaFilterRepository.hasAnyMedia()
 
     override fun hasActiveMedia() = mediaFilterRepository.hasActiveMedia()
 
     override fun hasAnyMedia() = mediaFilterRepository.hasAnyMedia()
 
-    override fun isRecommendationActive() = mediaFilterRepository.isRecommendationActive()
+    override fun isRecommendationActive() = false
 
     fun reorderMedia() {
         mediaFilterRepository.setOrderedMedia()
-    }
-
-    fun logSmartspaceSeenCard(visibleIndex: Int, location: Int, isMediaCardUpdate: Boolean) {
-        mediaFilterRepository.logSmartspaceCardSeen(
-            MediaSmartspaceLogger.getSurface(location),
-            visibleIndex,
-            isMediaCardUpdate
-        )
     }
 
     /** Add a listener for internal events. */

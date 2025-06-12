@@ -18,11 +18,11 @@ package com.android.systemui.qs.tiles.impl.rotation.domain.interactor
 
 import android.content.Intent
 import android.provider.Settings
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.rotation.domain.model.RotationLockTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import com.android.systemui.statusbar.policy.RotationLockController
 import javax.inject.Inject
 
@@ -43,7 +43,7 @@ constructor(
                 is QSTileUserAction.LongClick -> {
                     qsTileIntentUserActionHandler.handle(
                         action.expandable,
-                        Intent(Settings.ACTION_AUTO_ROTATE_SETTINGS)
+                        Intent(Settings.ACTION_AUTO_ROTATE_SETTINGS),
                     )
                 }
                 is QSTileUserAction.ToggleClick -> {}

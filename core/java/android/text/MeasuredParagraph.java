@@ -68,6 +68,7 @@ import java.util.Arrays;
  * @hide
  */
 @TestApi
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class MeasuredParagraph {
     private static final char OBJECT_REPLACEMENT_CHARACTER = '\uFFFC';
 

@@ -26,7 +26,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.annotation.NonNull;
@@ -443,7 +442,7 @@ public class ContentProtectionEventProcessorTest {
         mTestLooper.dispatchAll();
         verify(mMockEventBuffer, never()).clear();
         verify(mMockEventBuffer, never()).toArray();
-        verifyZeroInteractions(mMockContentCaptureManager);
+        verifyNoMoreInteractions(mMockContentCaptureManager);
     }
 
     private void assertLoginDetected() throws Exception {

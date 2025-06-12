@@ -16,19 +16,29 @@
 
 package android.graphics;
 
-import android.hardware.HardwareBuffer;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import android.hardware.HardwareBuffer;
+import android.platform.test.annotations.DisabledOnRavenwood;
+
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 
-public class BitmapTest extends TestCase {
+@SmallTest
+@RunWith(AndroidJUnit4.class)
+public class BitmapTest {
 
-    @SmallTest
+    @Test
     public void testBasic() throws Exception {
         Bitmap bm1 = Bitmap.createBitmap(100, 200, Bitmap.Config.ARGB_8888);
         Bitmap bm2 = Bitmap.createBitmap(100, 200, Bitmap.Config.RGB_565);
@@ -63,7 +73,7 @@ public class BitmapTest extends TestCase {
         assertTrue("getConfig", bm3.getConfig() == Bitmap.Config.ARGB_8888);
     }
 
-    @SmallTest
+    @Test
     public void testMutability() throws Exception {
         Bitmap bm1 = Bitmap.createBitmap(100, 200, Bitmap.Config.ARGB_8888);
         Bitmap bm2 = Bitmap.createBitmap(new int[100 * 200], 100, 200,
@@ -82,7 +92,7 @@ public class BitmapTest extends TestCase {
         }
     }
 
-    @SmallTest
+    @Test
     public void testGetPixelsWithAlpha() throws Exception {
         int[] colors = new int[100];
         for (int i = 0; i < 100; i++) {
@@ -108,7 +118,7 @@ public class BitmapTest extends TestCase {
 
     }
 
-    @SmallTest
+    @Test
     public void testGetPixelsWithoutAlpha() throws Exception {
         int[] colors = new int[100];
         for (int i = 0; i < 100; i++) {
@@ -125,7 +135,7 @@ public class BitmapTest extends TestCase {
         }
     }
 
-    @SmallTest
+    @Test
     public void testSetPixelsWithAlpha() throws Exception {
         int[] colors = new int[100];
         for (int i = 0; i < 100; i++) {
@@ -151,7 +161,7 @@ public class BitmapTest extends TestCase {
         }
     }
 
-    @SmallTest
+    @Test
     public void testSetPixelsWithoutAlpha() throws Exception {
         int[] colors = new int[100];
         for (int i = 0; i < 100; i++) {
@@ -181,7 +191,7 @@ public class BitmapTest extends TestCase {
         return unpre;
     }
 
-    @SmallTest
+    @Test
     public void testSetPixelsWithNonOpaqueAlpha() throws Exception {
         int[] colors = new int[256];
         for (int i = 0; i < 256; i++) {
@@ -238,10 +248,14 @@ public class BitmapTest extends TestCase {
         }
     }
 
-    @SmallTest
+    private static final int GRAPHICS_USAGE =
+            GraphicBuffer.USAGE_HW_TEXTURE | GraphicBuffer.USAGE_SW_READ_OFTEN
+                    | GraphicBuffer.USAGE_SW_WRITE_OFTEN;
+
+    @Test
+    @DisabledOnRavenwood(blockedBy = HardwareBuffer.class)
     public void testWrapHardwareBufferWithSrgbColorSpace() {
-        GraphicBuffer buffer = GraphicBuffer.create(10, 10, PixelFormat.RGBA_8888,
-                GraphicBuffer.USAGE_HW_TEXTURE | GraphicBuffer.USAGE_SOFTWARE_MASK);
+        GraphicBuffer buffer = GraphicBuffer.create(10, 10, PixelFormat.RGBA_8888, GRAPHICS_USAGE);
         Canvas canvas = buffer.lockCanvas();
         canvas.drawColor(Color.YELLOW);
         buffer.unlockCanvasAndPost(canvas);
@@ -252,10 +266,10 @@ public class BitmapTest extends TestCase {
         assertEquals(ColorSpace.get(ColorSpace.Named.SRGB), hardwareBitmap.getColorSpace());
     }
 
-    @SmallTest
+    @Test
+    @DisabledOnRavenwood(blockedBy = HardwareBuffer.class)
     public void testWrapHardwareBufferWithDisplayP3ColorSpace() {
-        GraphicBuffer buffer = GraphicBuffer.create(10, 10, PixelFormat.RGBA_8888,
-                GraphicBuffer.USAGE_HW_TEXTURE | GraphicBuffer.USAGE_SOFTWARE_MASK);
+        GraphicBuffer buffer = GraphicBuffer.create(10, 10, PixelFormat.RGBA_8888, GRAPHICS_USAGE);
         Canvas canvas = buffer.lockCanvas();
         canvas.drawColor(Color.YELLOW);
         buffer.unlockCanvasAndPost(canvas);
@@ -267,7 +281,7 @@ public class BitmapTest extends TestCase {
         assertEquals(ColorSpace.get(ColorSpace.Named.DISPLAY_P3), hardwareBitmap.getColorSpace());
     }
 
-    @SmallTest
+    @Test
     public void testCopyWithDirectByteBuffer() {
         // Initialize Bitmap
         final int width = 2;
@@ -305,7 +319,7 @@ public class BitmapTest extends TestCase {
         assertTrue(bm2.sameAs(bm1));
     }
 
-    @SmallTest
+    @Test
     public void testCopyWithDirectShortBuffer() {
         // Initialize Bitmap
         final int width = 2;
@@ -344,7 +358,7 @@ public class BitmapTest extends TestCase {
         assertTrue(bm2.sameAs(bm1));
     }
 
-    @SmallTest
+    @Test
     public void testCopyWithDirectIntBuffer() {
         // Initialize Bitmap
         final int width = 2;
@@ -383,7 +397,7 @@ public class BitmapTest extends TestCase {
         assertTrue(bm2.sameAs(bm1));
     }
 
-    @SmallTest
+    @Test
     public void testCopyWithHeapByteBuffer() {
         // Initialize Bitmap
         final int width = 2;
@@ -420,7 +434,7 @@ public class BitmapTest extends TestCase {
         assertTrue(bm2.sameAs(bm1));
     }
 
-    @SmallTest
+    @Test
     public void testCopyWithHeapShortBuffer() {
         // Initialize Bitmap
         final int width = 2;
@@ -457,7 +471,7 @@ public class BitmapTest extends TestCase {
         assertTrue(bm2.sameAs(bm1));
     }
 
-    @SmallTest
+    @Test
     public void testCopyWithHeapIntBuffer() {
         // Initialize Bitmap
         final int width = 2;

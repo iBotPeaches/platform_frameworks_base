@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.domain.interactor
 
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryFaceAuthInteractor
@@ -25,9 +23,10 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.notification.data.repository.HeadsUpRepository
 import com.android.systemui.statusbar.notification.data.repository.HeadsUpRowRepository
+import com.android.systemui.statusbar.notification.domain.model.TopPinnedState
+import com.android.systemui.statusbar.notification.headsup.PinnedStatus
 import com.android.systemui.statusbar.notification.shared.HeadsUpRowKey
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -82,7 +81,7 @@ constructor(
         if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) {
             flowOf(emptySet())
         } else {
-            activeHeadsUpRows.map { it.map { (repo, _) -> repo }.toSet() }
+            activeHeadsUpRows.map { it.map { (repo, _) -> repo }.toSet() }.distinctUntilChanged()
         }
     }
 
@@ -91,22 +90,43 @@ constructor(
         if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) {
             flowOf(emptySet())
         } else {
-            activeHeadsUpRows.map {
-                it.filter { (_, isPinned) -> isPinned }.map { (repo, _) -> repo }.toSet()
-            }
+            activeHeadsUpRows
+                .map { it.filter { (_, isPinned) -> isPinned }.map { (repo, _) -> repo }.toSet() }
+                .distinctUntilChanged() // TODO(b/402428276) stop sending duplicate updates instead
         }
     }
 
-    /** Are there any pinned heads up rows to display? */
-    val hasPinnedRows: Flow<Boolean> =
+    /** What [PinnedStatus] and key does the top row have? */
+    private val topPinnedState: Flow<TopPinnedState> =
         headsUpRepository.activeHeadsUpRows.flatMapLatest { rows ->
             if (rows.isNotEmpty()) {
-                combine(rows.map { it.pinnedStatus }) { pinnedStatus ->
-                    pinnedStatus.any { it.isPinned }
+                // For each row, emits a (key, pinnedStatus) pair each time any row's
+                // `pinnedStatus` changes
+                val toCombine: List<Flow<Pair<String, PinnedStatus>>> =
+                    rows.map { row -> row.pinnedStatus.map { status -> row.key to status } }
+                combine(toCombine) { pairs ->
+                    val topPinnedRow: Pair<String, PinnedStatus>? =
+                        pairs.firstOrNull { it.second.isPinned }
+                    if (topPinnedRow != null) {
+                        TopPinnedState.Pinned(
+                            key = topPinnedRow.first,
+                            status = topPinnedRow.second,
+                        )
+                    } else {
+                        TopPinnedState.NothingPinned
+                    }
                 }
             } else {
-                // if the set is empty, there are no flows to combine
-                flowOf(false)
+                flowOf(TopPinnedState.NothingPinned)
+            }
+        }
+
+    /** Are there any pinned heads up rows to display? */
+    val hasPinnedRows: Flow<Boolean> =
+        topPinnedState.map {
+            when (it) {
+                is TopPinnedState.Pinned -> it.status.isPinned
+                is TopPinnedState.NothingPinned -> false
             }
         }
 
@@ -138,9 +158,26 @@ constructor(
             }
         }
 
-    val showHeadsUpStatusBar =
-        combine(hasPinnedRows, canShowHeadsUp) { hasPinnedRows, canShowHeadsUp ->
-            hasPinnedRows && canShowHeadsUp
+    /**
+     * Emits the pinned notification state as it relates to the status bar. Includes both the pinned
+     * status and key of the notification that's pinned (if there is a pinned notification).
+     */
+    val statusBarHeadsUpState: Flow<TopPinnedState> =
+        combine(topPinnedState, canShowHeadsUp) { topPinnedState, canShowHeadsUp ->
+            if (canShowHeadsUp) {
+                topPinnedState
+            } else {
+                TopPinnedState.NothingPinned
+            }
+        }
+
+    /** Emits the pinned notification status as it relates to the status bar. */
+    val statusBarHeadsUpStatus: Flow<PinnedStatus> =
+        statusBarHeadsUpState.map {
+            when (it) {
+                is TopPinnedState.Pinned -> it.status
+                is TopPinnedState.NothingPinned -> PinnedStatus.NotPinned
+            }
         }
 
     fun headsUpRow(key: HeadsUpRowKey): HeadsUpRowInteractor =

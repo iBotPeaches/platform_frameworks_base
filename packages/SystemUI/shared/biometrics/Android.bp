@@ -14,6 +14,9 @@ android_library {
         "src/**/*.java",
         "src/**/*.kt",
     ],
+    static_libs: [
+        "SystemUI-shared-utils",
+    ],
     resource_dirs: [
         "res",
     ],

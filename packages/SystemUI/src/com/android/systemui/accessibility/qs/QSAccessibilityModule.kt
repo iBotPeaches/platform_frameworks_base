@@ -29,40 +29,40 @@ import com.android.systemui.qs.tiles.HearingDevicesTile
 import com.android.systemui.qs.tiles.NightDisplayTile
 import com.android.systemui.qs.tiles.OneHandedModeTile
 import com.android.systemui.qs.tiles.ReduceBrightColorsTile
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
-import com.android.systemui.qs.tiles.base.viewmodel.QSTileViewModelFactory
-import com.android.systemui.qs.tiles.impl.colorcorrection.domain.ColorCorrectionTileMapper
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.base.ui.viewmodel.StubQSTileViewModel
 import com.android.systemui.qs.tiles.impl.colorcorrection.domain.interactor.ColorCorrectionTileDataInteractor
 import com.android.systemui.qs.tiles.impl.colorcorrection.domain.interactor.ColorCorrectionUserActionInteractor
 import com.android.systemui.qs.tiles.impl.colorcorrection.domain.model.ColorCorrectionTileModel
-import com.android.systemui.qs.tiles.impl.fontscaling.domain.FontScalingTileMapper
+import com.android.systemui.qs.tiles.impl.colorcorrection.ui.mapper.ColorCorrectionTileMapper
 import com.android.systemui.qs.tiles.impl.fontscaling.domain.interactor.FontScalingTileDataInteractor
 import com.android.systemui.qs.tiles.impl.fontscaling.domain.interactor.FontScalingTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.fontscaling.domain.model.FontScalingTileModel
-import com.android.systemui.qs.tiles.impl.hearingdevices.domain.HearingDevicesTileMapper
+import com.android.systemui.qs.tiles.impl.fontscaling.ui.mapper.FontScalingTileMapper
 import com.android.systemui.qs.tiles.impl.hearingdevices.domain.interactor.HearingDevicesTileDataInteractor
 import com.android.systemui.qs.tiles.impl.hearingdevices.domain.interactor.HearingDevicesTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.hearingdevices.domain.model.HearingDevicesTileModel
-import com.android.systemui.qs.tiles.impl.inversion.domain.ColorInversionTileMapper
+import com.android.systemui.qs.tiles.impl.hearingdevices.ui.mapper.HearingDevicesTileMapper
 import com.android.systemui.qs.tiles.impl.inversion.domain.interactor.ColorInversionTileDataInteractor
 import com.android.systemui.qs.tiles.impl.inversion.domain.interactor.ColorInversionUserActionInteractor
 import com.android.systemui.qs.tiles.impl.inversion.domain.model.ColorInversionTileModel
+import com.android.systemui.qs.tiles.impl.inversion.ui.mapper.ColorInversionTileMapper
 import com.android.systemui.qs.tiles.impl.night.domain.interactor.NightDisplayTileDataInteractor
 import com.android.systemui.qs.tiles.impl.night.domain.interactor.NightDisplayTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.night.domain.model.NightDisplayTileModel
-import com.android.systemui.qs.tiles.impl.night.ui.NightDisplayTileMapper
+import com.android.systemui.qs.tiles.impl.night.ui.mapper.NightDisplayTileMapper
 import com.android.systemui.qs.tiles.impl.onehanded.domain.OneHandedModeTileDataInteractor
 import com.android.systemui.qs.tiles.impl.onehanded.domain.OneHandedModeTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.onehanded.domain.model.OneHandedModeTileModel
-import com.android.systemui.qs.tiles.impl.onehanded.ui.OneHandedModeTileMapper
+import com.android.systemui.qs.tiles.impl.onehanded.ui.mapper.OneHandedModeTileMapper
 import com.android.systemui.qs.tiles.impl.reducebrightness.domain.interactor.ReduceBrightColorsTileDataInteractor
 import com.android.systemui.qs.tiles.impl.reducebrightness.domain.interactor.ReduceBrightColorsTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.reducebrightness.domain.model.ReduceBrightColorsTileModel
-import com.android.systemui.qs.tiles.impl.reducebrightness.ui.ReduceBrightColorsTileMapper
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
-import com.android.systemui.qs.tiles.viewmodel.StubQSTileViewModel
+import com.android.systemui.qs.tiles.impl.reducebrightness.ui.mapper.ReduceBrightColorsTileMapper
 import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
@@ -411,7 +411,7 @@ interface QSAccessibilityModule {
             stateInteractor: HearingDevicesTileDataInteractor,
             userActionInteractor: HearingDevicesTileUserActionInteractor,
         ): QSTileViewModel {
-            return if (Flags.hearingAidsQsTileDialog() && Flags.qsNewTilesFuture()) {
+            return if (Flags.qsNewTilesFuture()) {
                 factory.create(
                     TileSpec.create(HEARING_DEVICES_TILE_SPEC),
                     userActionInteractor,

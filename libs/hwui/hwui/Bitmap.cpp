@@ -16,9 +16,12 @@
 #include "Bitmap.h"
 
 #include <android-base/file.h>
+
+#include "FeatureFlags.h"
 #include "HardwareBitmapUploader.h"
 #include "Properties.h"
 #ifdef __ANDROID__  // Layoutlib does not support render thread
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <private/android/AHardwareBufferHelpers.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicBufferMapper.h>
@@ -161,8 +164,13 @@ std::string Bitmap::getAshmemId(const char* tag, uint64_t bitmapId,
         android::base::ReadFileToString("/proc/self/cmdline", &temp);
         return temp;
     }();
-    return std::format("bitmap/{}-id_{}-{}x{}-size_{}-{}",
-                       tag, bitmapId, width, height, size, sCmdline);
+    /* counter is to ensure the uniqueness of the ashmem filename,
+     * e.g. a bitmap with same mId could be sent multiple times, an
+     * ashmem region is created each time
+     */
+    static std::atomic<uint32_t> counter{0};
+    return std::format("bitmap/{}_{}_{}x{}_size-{}_id-{}_{}",
+                       tag, counter.fetch_add(1), width, height, size, bitmapId, sCmdline);
 }
 
 sk_sp<Bitmap> Bitmap::allocateAshmemBitmap(SkBitmap* bitmap) {
@@ -259,7 +267,7 @@ sk_sp<Bitmap> Bitmap::createFrom(AHardwareBuffer* hardwareBuffer, const SkImageI
 #endif
 
 sk_sp<Bitmap> Bitmap::createFrom(const SkImageInfo& info, size_t rowBytes, int fd, void* addr,
-                                 size_t size, bool readOnly) {
+                                 size_t size, bool readOnly, int64_t id) {
 #ifdef _WIN32 // ashmem not implemented on Windows
      return nullptr;
 #else
@@ -278,7 +286,7 @@ sk_sp<Bitmap> Bitmap::createFrom(const SkImageInfo& info, size_t rowBytes, int f
         }
     }
 
-    sk_sp<Bitmap> bitmap(new Bitmap(addr, fd, size, info, rowBytes));
+    sk_sp<Bitmap> bitmap(new Bitmap(addr, fd, size, info, rowBytes, id));
     if (readOnly) {
         bitmap->setImmutable();
     }
@@ -333,7 +341,7 @@ Bitmap::Bitmap(void* address, int fd, size_t mappedSize, const SkImageInfo& info
         : SkPixelRef(info.width(), info.height(), address, rowBytes)
         , mInfo(validateAlpha(info))
         , mPixelStorageType(PixelStorageType::Ashmem)
-        , mId(id != INVALID_BITMAP_ID ? id : getId(mPixelStorageType)) {
+        , mId(id != UNDEFINED_BITMAP_ID ? id : getId(mPixelStorageType)) {
     mPixelStorage.ashmem.address = address;
     mPixelStorage.ashmem.fd = fd;
     mPixelStorage.ashmem.size = mappedSize;
@@ -546,9 +554,16 @@ BitmapPalette Bitmap::computePalette(const SkImageInfo& info, const void* addr, 
     }
 
     ALOGV("samples = %d, hue [min = %f, max = %f, avg = %f]; saturation [min = %f, max = %f, avg = "
-          "%f]",
+          "%f] %d x %d",
           sampledCount, hue.min(), hue.max(), hue.average(), saturation.min(), saturation.max(),
-          saturation.average());
+          saturation.average(), info.width(), info.height());
+
+    if (CC_UNLIKELY(view_accessibility_flags::force_invert_color())) {
+        if (saturation.delta() > 0.1f ||
+            (hue.delta() > 20 && saturation.average() > 0.2f && value.average() < 0.9f)) {
+            return BitmapPalette::Colorful;
+        }
+    }
 
     if (hue.delta() <= 20 && saturation.delta() <= .1f) {
         if (value.average() >= .5f) {
@@ -562,7 +577,7 @@ BitmapPalette Bitmap::computePalette(const SkImageInfo& info, const void* addr, 
 
 bool Bitmap::compress(JavaCompressFormat format, int32_t quality, SkWStream* stream) {
 #ifdef __ANDROID__  // TODO: This isn't built for host for some reason?
-    if (hasGainmap() && format == JavaCompressFormat::Jpeg) {
+    if (hasGainmap()) {
         SkBitmap baseBitmap = getSkBitmap();
         SkBitmap gainmapBitmap = gainmap()->bitmap->getSkBitmap();
         if (gainmapBitmap.colorType() == SkColorType::kAlpha_8_SkColorType) {
@@ -572,12 +587,27 @@ bool Bitmap::compress(JavaCompressFormat format, int32_t quality, SkWStream* str
             greyGainmap.setPixelRef(sk_ref_sp(gainmapBitmap.pixelRef()), 0, 0);
             gainmapBitmap = std::move(greyGainmap);
         }
-        SkJpegEncoder::Options options{.fQuality = quality};
-        return SkJpegGainmapEncoder::EncodeHDRGM(stream, baseBitmap.pixmap(), options,
-                                                 gainmapBitmap.pixmap(), options, gainmap()->info);
+        switch (format) {
+            case JavaCompressFormat::Jpeg: {
+                SkJpegEncoder::Options options{.fQuality = quality};
+                return SkJpegGainmapEncoder::EncodeHDRGM(stream, baseBitmap.pixmap(), options,
+                                                         gainmapBitmap.pixmap(), options,
+                                                         gainmap()->info);
+            }
+            case JavaCompressFormat::Png: {
+                if (com::android::graphics::surfaceflinger::flags::true_hdr_screenshots()) {
+                    SkGainmapInfo info = gainmap()->info;
+                    SkPngEncoder::Options options{.fGainmap = &gainmapBitmap.pixmap(),
+                                                  .fGainmapInfo = &info};
+                    return SkPngEncoder::Encode(stream, baseBitmap.pixmap(), options);
+                }
+                // fallthrough if we're not supporting HDR screenshots
+            }
+            default:
+                ALOGI("Format: %d doesn't support gainmap compression!", format);
+        }
     }
 #endif
-
     SkBitmap skbitmap;
     getSkBitmap(&skbitmap);
     return compress(skbitmap, format, quality, stream);

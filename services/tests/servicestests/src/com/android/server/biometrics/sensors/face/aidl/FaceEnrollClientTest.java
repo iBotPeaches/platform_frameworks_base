@@ -19,6 +19,8 @@ package com.android.server.biometrics.sensors.face.aidl;
 import static android.hardware.biometrics.BiometricFaceConstants.FACE_ACQUIRED_START;
 import static android.hardware.biometrics.BiometricFaceConstants.FACE_ACQUIRED_TOO_DARK;
 
+import static com.android.server.biometrics.AuthenticationStatsCollector.ACTION_LAST_ENROLL_TIME_CHANGED;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +35,10 @@ import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.biometrics.BiometricFaceConstants;
 import android.hardware.biometrics.BiometricRequestConstants;
 import android.hardware.biometrics.BiometricSourceType;
@@ -56,6 +62,7 @@ import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.internal.R;
+import com.android.server.biometrics.AuthenticationStatsCollector;
 import com.android.server.biometrics.log.BiometricContext;
 import com.android.server.biometrics.log.BiometricLogger;
 import com.android.server.biometrics.log.OperationContextExt;
@@ -74,6 +81,8 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 @Presubmit
@@ -200,6 +209,26 @@ public class FaceEnrollClientTest {
                 eq(BiometricsProtoEnums.ENROLLMENT_SOURCE_SUW), eq(1));
     }
 
+    @Test
+    public void testEnrollWithBroadcastEnrollTime() throws RemoteException, InterruptedException {
+        final FaceEnrollClient client = createClient(4);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final EnrollmentTimeReceiver receiver = new EnrollmentTimeReceiver(countDownLatch);
+        mContext.registerReceiver(receiver, new IntentFilter(ACTION_LAST_ENROLL_TIME_CHANGED),
+                Context.RECEIVER_NOT_EXPORTED);
+
+        client.start(mCallback);
+        client.onEnrollResult(new Face("face", 1 /* faceId */, 20 /* deviceId */), 0);
+
+        assertThat(countDownLatch.await(2, TimeUnit.SECONDS)).isTrue();
+        final Intent intent = receiver.mIntent;
+        assertThat(intent).isNotNull();
+        assertThat(intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1)).isEqualTo(USER_ID);
+        assertThat(intent.getIntExtra(AuthenticationStatsCollector.EXTRA_MODALITY,
+                BiometricsProtoEnums.MODALITY_UNKNOWN))
+                .isEqualTo(BiometricsProtoEnums.MODALITY_FACE);
+    }
+
     private FaceEnrollClient createClient() throws RemoteException {
         return createClient(200 /* version */);
     }
@@ -295,4 +324,18 @@ public class FaceEnrollClientTest {
         );
     }
 
+    static final class EnrollmentTimeReceiver extends BroadcastReceiver {
+        final CountDownLatch mLatch;
+        Intent mIntent;
+
+        EnrollmentTimeReceiver(CountDownLatch latch) {
+            mLatch = latch;
+        }
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mIntent = intent;
+            mLatch.countDown();
+        }
+    }
 }

@@ -16,6 +16,7 @@
 
 package com.android.systemui.scene.session.shared
 
+import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -39,6 +40,9 @@ class SessionStorage {
 
     /** Clears the data store; any downstream usage within `@Composable`s will be recomposed. */
     fun clear() {
+        for (storageEntry in _storage.values) {
+            (storageEntry.stored as? RememberObserver)?.onForgotten()
+        }
         _storage = hashMapOf()
     }
 }

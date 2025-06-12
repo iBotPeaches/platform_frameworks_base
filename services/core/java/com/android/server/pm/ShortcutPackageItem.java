@@ -179,17 +179,12 @@ abstract class ShortcutPackageItem {
                 itemOut.endDocument();
 
                 os.flush();
-                file.finishWrite(os);
+                mShortcutUser.mService.injectFinishWrite(file, os);
             } catch (XmlPullParserException | IOException e) {
                 Slog.e(TAG, "Failed to write to file " + file.getBaseFile(), e);
                 file.failWrite(os);
             }
         }
-    }
-
-    @GuardedBy("mPackageItemLock")
-    void scheduleSaveToAppSearchLocked() {
-
     }
 
     public JSONObject dumpCheckin(boolean clear) throws JSONException {
@@ -221,10 +216,7 @@ abstract class ShortcutPackageItem {
         }
         synchronized (mPackageItemLock) {
             path.getParentFile().mkdirs();
-            // TODO: Since we are persisting shortcuts into AppSearch, we should read from/write to
-            //  AppSearch as opposed to maintaining a separate XML file.
             saveToFileLocked(path, false /*forBackup*/);
-            scheduleSaveToAppSearchLocked();
         }
     }
 

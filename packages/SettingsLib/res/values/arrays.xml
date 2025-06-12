@@ -667,4 +667,28 @@
         <item>3</item>
     </string-array>
 
+    <!-- Options for showing shade on external display for developers -->
+    <string-array name="shade_display_awareness_entries" >
+        <item>Device display only (Default)</item>
+        <item>External display</item>
+        <item>Latest status bar touch</item>
+        <item>Focus-based</item>
+    </string-array>
+
+    <!-- Options for showing shade on external display for developers -->
+    <string-array name="shade_display_awareness_summaries" >
+        <item>Show shade on device display only </item>
+        <item>Show shade on single external display</item>
+        <item>Show shade on display which last had its status bar interacted with</item>
+        <item>Show shade on last focused display</item>
+    </string-array>
+
+    <!-- Values for showing shade on external display for developers -->
+    <string-array name="shade_display_awareness_values" >
+        <item>default_display</item>
+        <item>any_external_display</item>
+        <item>status_bar_latest_touch</item>
+        <item>focused_display</item>
+    </string-array>
+
 </resources>

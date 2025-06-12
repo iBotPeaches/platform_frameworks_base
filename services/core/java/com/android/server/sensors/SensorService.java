@@ -19,6 +19,7 @@ package com.android.server.sensors;
 import static com.android.server.sensors.SensorManagerInternal.ProximityActiveListener;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.content.Context;
 import android.util.ArrayMap;
 
@@ -62,6 +63,9 @@ public class SensorService extends SystemService {
     private static native void unregisterRuntimeSensorNative(long ptr, int handle);
     private static native boolean sendRuntimeSensorEventNative(long ptr, int handle, int type,
             long timestampNanos, float[] values);
+    private static native boolean sendRuntimeSensorAdditionalInfoNative(long ptr, int handle,
+            int type, int serial, long timestampNanos, float[] values);
+
 
     public SensorService(Context ctx) {
         super(ctx);
@@ -125,6 +129,18 @@ public class SensorService extends SystemService {
                     return false;
                 }
                 return sendRuntimeSensorEventNative(mPtr, handle, type, timestampNanos, values);
+            }
+        }
+
+        @Override
+        public boolean sendSensorAdditionalInfo(int handle, int type, int serial,
+                long timestampNanos, @Nullable float[] values) {
+            synchronized (mLock) {
+                if (!mRuntimeSensorHandles.contains(handle)) {
+                    return false;
+                }
+                return sendRuntimeSensorAdditionalInfoNative(mPtr, handle, type, serial,
+                        timestampNanos, values);
             }
         }
 

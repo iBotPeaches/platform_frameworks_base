@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="accessibility_menu_service_name" msgid="730136711554740131">"அணுகல்தன்மை மெனு"</string>
+    <string name="accessibility_menu_service_name" msgid="730136711554740131">"மாற்றுத்திறன் மெனு"</string>
     <string name="accessibility_menu_intro" msgid="3164193281544042394">"அணுகல்தன்மை மெனுவானது உங்கள் சாதனத்தைக் கட்டுப்படுத்துவதற்கு, திரையில் தோன்றும் பெரிய மெனுவை வழங்குகிறது. சாதனத்தைப் பூட்டுதல், ஒலியளவையும் ஒளிர்வையும் மாற்றுதல், ஸ்கிரீன்ஷாட்களை எடுத்தல் போன்ற பலவற்றைச் செய்யலாம்."</string>
     <string name="assistant_label" msgid="6796392082252272356">"Assistant"</string>
     <string name="assistant_utterance" msgid="65509599221141377">"அசிஸ்டண்ட்"</string>

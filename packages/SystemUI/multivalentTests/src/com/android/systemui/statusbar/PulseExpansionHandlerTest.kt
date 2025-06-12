@@ -86,7 +86,7 @@ class PulseExpansionHandlerTest : SysuiTestCase() {
 
         pulseExpansionHandler.reset(expandableView, animationDuration = 0)
 
-        verify(expandableView, atLeast(1)).actualHeight = collapsedHeight
+        verify(expandableView, atLeast(1)).setFinalActualHeight(collapsedHeight)
     }
 
     @Test
@@ -95,6 +95,6 @@ class PulseExpansionHandlerTest : SysuiTestCase() {
 
         pulseExpansionHandler.reset(expandableView, animationDuration = 0)
 
-        verify(expandableView, never()).actualHeight = anyInt()
+        verify(expandableView, never()).setFinalActualHeight(anyInt())
     }
 }

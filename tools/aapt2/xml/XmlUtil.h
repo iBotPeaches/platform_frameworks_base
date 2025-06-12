@@ -30,6 +30,7 @@ constexpr const char* kSchemaPrivatePrefix = "http://schemas.android.com/apk/prv
 constexpr const char* kSchemaAndroid = "http://schemas.android.com/apk/res/android";
 constexpr const char* kSchemaTools = "http://schemas.android.com/tools";
 constexpr const char* kSchemaAapt = "http://schemas.android.com/aapt";
+constexpr const char* kAttrFeatureFlag = "featureFlag";
 
 // Result of extracting a package name from a namespace URI declaration.
 struct ExtractedPackage {

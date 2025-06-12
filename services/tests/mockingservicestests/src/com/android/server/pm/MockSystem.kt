@@ -16,6 +16,7 @@
 package com.android.server.pm
 
 import android.app.AppOpsManager
+import android.app.AppOpsManagerInternal
 import android.app.PropertyInvalidatedCache
 import android.content.Context
 import android.content.Intent
@@ -195,6 +196,7 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
         val componentResolver: ComponentResolver = mock()
         val permissionManagerInternal: PermissionManagerServiceInternal = mock()
         val appOpsManager: AppOpsManager = mock()
+        val appOpsManagerInternal: AppOpsManagerInternal = mock()
         val incrementalManager: IncrementalManager = mock()
         val platformCompat: PlatformCompat = mock()
         val settings: Settings = mock()
@@ -285,6 +287,9 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
         whenever(mocks.injector.componentResolver).thenReturn(mocks.componentResolver)
         whenever(mocks.injector.permissionManagerServiceInternal) {
             mocks.permissionManagerInternal
+        }
+        whenever(mocks.injector.appOpsManagerInternal) {
+            mocks.appOpsManagerInternal
         }
         whenever(mocks.injector.incrementalManager).thenReturn(mocks.incrementalManager)
         whenever(mocks.injector.compatibility).thenReturn(mocks.platformCompat)

@@ -103,7 +103,7 @@ class EmergencyButtonControllerTest : SysuiTestCase() {
     fun testUpdateEmergencyButton() {
         Mockito.`when`(telecomManager.isInCall).thenReturn(true)
         Mockito.`when`(lockPatternUtils.isSecure(anyInt())).thenReturn(true)
-        Mockito.`when`(packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY))
+        Mockito.`when`(packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_CALLING))
             .thenReturn(true)
         underTest.updateEmergencyCallButton()
         backgroundExecutor.runAllReady()
@@ -112,7 +112,7 @@ class EmergencyButtonControllerTest : SysuiTestCase() {
                 /* isInCall= */ any(),
                 /* hasTelephonyRadio= */ any(),
                 /* simLocked= */ any(),
-                /* isSecure= */ any()
+                /* isSecure= */ any(),
             )
         mainExecutor.runAllReady()
         verify(emergencyButton)
@@ -120,7 +120,7 @@ class EmergencyButtonControllerTest : SysuiTestCase() {
                 /* isInCall= */ eq(true),
                 /* hasTelephonyRadio= */ eq(true),
                 /* simLocked= */ any(),
-                /* isSecure= */ eq(true)
+                /* isSecure= */ eq(true),
             )
     }
 

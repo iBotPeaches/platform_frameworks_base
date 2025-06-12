@@ -61,8 +61,6 @@ public class SeamlessRotationActivity extends Activity {
     private void enableSeamlessRotation() {
         WindowManager.LayoutParams p = getWindow().getAttributes();
         p.rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS;
-        p.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);

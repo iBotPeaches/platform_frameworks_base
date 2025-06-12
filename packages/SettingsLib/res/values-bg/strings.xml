@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Активно (само лявото)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Активно (само дясното)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Активно (лявото и дясното)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Данните за околните звуци не бяха актуализирани"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Активно (само за мултимедия). Батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Активно (само за мултимедия). Л: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Д: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Устройство на гост. Батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Устройство на гост. Л: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Д: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Устройство на гост (само за мултимедия). Батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Устройство на гост (само за мултимедия). Л: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Д: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Свързано (поддържа споделяне на звука). Батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Свързано (поддържа споделяне на звука). Л: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Д: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Свързано (поддържа споделяне на звука). За ляво ухо. Батерия: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Свързано (поддържа споделяне на звука). За дясно ухо. Батерия: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Свързано (поддържа споделяне на звука)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Устройство на гост (поддържа споделяне на звука). Батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Устройство на гост (поддържа споделяне на звука). Л: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Д: батерия – <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Устройство на гост (поддържа споделяне на звука)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Активно (само за мултимедия)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Устройство на гост"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Устройство на гост (само за мултимедия)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Поддържа споделяне на звука"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Устройство на гост. Поддържа споделяне на звука"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Активно (само за мултимедия), само лявата"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Активно (само за мултимедия), само дясната"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Активно (само за мултимедия), лявата и дясната"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Хардуерно ускорено изобразяване"</string>
     <string name="media_category" msgid="8122076702526144053">"Мултимедия"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Наблюдение"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Управление на прозорците"</string>
     <string name="strict_mode" msgid="889864762140862437">"Активиран строг режим"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Примигване на екрана при дълги операции в главната нишка"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Mестопол. на показалеца"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Скала на преходната анимация"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Скала за Animator"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Симулиране на алтерн. дисплеи"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Позиция на показване на падащия панел"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Приложения"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Без съхран. на дейностите"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Унищож. на всяка дейност при напускане от потребител"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Внедряване на WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Задаване на внедряването на WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Този избор вече не е валиден. Опитайте отново."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"DevTools за WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Пакетът на WebView не е намерен."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevTools не се стартира."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Цветови режим за снимките"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Използване на sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Деактивирано"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Зарежда се бързо"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Контролира се от администратор"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Управлява се чрез ограничена настройка"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Заето по време на обаждания"</string>
     <string name="disabled" msgid="8017887509554714950">"Деактивирано"</string>
+    <string name="enabled" msgid="3997122818554810678">"Активирано"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Има разрешение"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Няма разрешение"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Инст. на неизвестни прилож."</string>
@@ -592,7 +610,7 @@
     <string name="media_transfer_default_device_name" msgid="4315604017399871828">"Свързано устройство"</string>
     <string name="media_transfer_this_phone" msgid="7194341457812151531">"Този телефон"</string>
     <string name="media_transfer_digital_line_name" msgid="312091711951124301">"S/PDIF"</string>
-    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Аналогов"</string>
+    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Аналогов аудиоизход"</string>
     <string name="media_transfer_aux_line_name" msgid="894135835967856689">"AUX"</string>
     <string name="media_output_status_unknown_error" msgid="5098565887497902222">"Възпроизвеждането не е възможно на това устройство"</string>
     <string name="media_output_status_require_premium" msgid="8411255800047014822">"Надстройте профила, за да превключите"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Вграден високоговорител"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Аудио на телевизора"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"При свързването възникна проблем. Изключете устройството и го включете отново"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Няма връзка"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Аудиоустройство с кабел"</string>
     <string name="help_label" msgid="3528360748637781274">"Помощ и отзиви"</string>
     <string name="storage_category" msgid="2287342585424631813">"Хранилище"</string>

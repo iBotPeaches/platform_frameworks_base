@@ -19,7 +19,7 @@ package com.android.systemui.camera.data.repository
 import android.hardware.SensorPrivacyManager
 import android.hardware.SensorPrivacyManager.Sensors.CAMERA
 import android.os.UserHandle
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background

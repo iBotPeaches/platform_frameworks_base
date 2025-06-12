@@ -26,11 +26,11 @@ import android.provider.Settings.Secure.ZEN_DURATION_FOREVER
 import android.provider.Settings.Secure.ZEN_DURATION_PROMPT
 import android.service.notification.ZenModeConfig
 import android.util.Log
-import com.android.settingslib.notification.modes.EnableZenModeDialog
-import com.android.settingslib.notification.modes.ZenModeDialogMetricsLogger
+import com.android.settingslib.notification.modes.EnableDndDialogFactory
+import com.android.settingslib.notification.modes.EnableDndDialogMetricsLogger
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.common.shared.model.ContentDescription
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.dagger.SysUISingleton
@@ -60,8 +60,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 
 @SysUISingleton
-class DoNotDisturbQuickAffordanceConfig
-constructor(
+class DoNotDisturbQuickAffordanceConfig(
     private val context: Context,
     private val controller: ZenModeController,
     private val interactor: ZenModeInteractor,
@@ -70,7 +69,7 @@ constructor(
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     @Background private val backgroundScope: CoroutineScope,
     private val testConditionId: Uri?,
-    testDialog: EnableZenModeDialog?,
+    testDialogFactory: EnableDndDialogFactory?,
 ) : KeyguardQuickAffordanceConfig {
 
     @Inject
@@ -99,7 +98,7 @@ constructor(
     private var settingsValue: Int = 0
 
     private val isAvailable: StateFlow<Boolean> by lazy {
-        ModesUi.assertInNewMode()
+        ModesUi.unsafeAssertInNewMode()
         interactor.isZenAvailable.stateIn(
             scope = backgroundScope,
             started = SharingStarted.Eagerly,
@@ -118,13 +117,13 @@ constructor(
                     )
                     .id
 
-    private val dialog: EnableZenModeDialog by lazy {
-        testDialog
-            ?: EnableZenModeDialog(
+    private val dialogFactory: EnableDndDialogFactory by lazy {
+        testDialogFactory
+            ?: EnableDndDialogFactory(
                 context,
                 R.style.Theme_SystemUI_Dialog,
                 true, /* cancelIsNeutral */
-                ZenModeDialogMetricsLogger(context),
+                EnableDndDialogMetricsLogger(context),
             )
     }
 
@@ -210,51 +209,51 @@ constructor(
     ): KeyguardQuickAffordanceConfig.OnTriggeredResult {
         return if (ModesUi.isEnabled) {
             if (!isAvailable.value) {
-                KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
             } else {
                 val dnd = interactor.dndMode.value
                 if (dnd == null) {
                     Log.wtf(TAG, "Triggered DND but it's null!?")
-                    return KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                    return KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 }
                 if (dnd.isActive) {
                     interactor.deactivateMode(dnd)
-                    return KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                    return KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 } else {
                     if (interactor.shouldAskForZenDuration(dnd)) {
                         // NOTE: The dialog handles turning on the mode itself.
                         return KeyguardQuickAffordanceConfig.OnTriggeredResult.ShowDialog(
-                            dialog.createDialog(),
+                            dialogFactory.createDialog(),
                             expandable,
                         )
                     } else {
                         interactor.activateMode(dnd)
-                        return KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                        return KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                     }
                 }
             }
         } else {
             when {
-                !oldIsAvailable -> KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                !oldIsAvailable -> KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 zenMode != ZEN_MODE_OFF -> {
                     controller.setZen(ZEN_MODE_OFF, null, TAG)
-                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 }
 
                 settingsValue == ZEN_DURATION_PROMPT ->
                     KeyguardQuickAffordanceConfig.OnTriggeredResult.ShowDialog(
-                        dialog.createDialog(),
+                        dialogFactory.createDialog(),
                         expandable,
                     )
 
                 settingsValue == ZEN_DURATION_FOREVER -> {
                     controller.setZen(ZEN_MODE_IMPORTANT_INTERRUPTIONS, null, TAG)
-                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 }
 
                 else -> {
                     controller.setZen(ZEN_MODE_IMPORTANT_INTERRUPTIONS, conditionUri, TAG)
-                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 }
             }
         }

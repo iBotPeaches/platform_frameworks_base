@@ -43,12 +43,15 @@ import android.support.v4.media.MediaMetadataCompat
 import android.text.TextUtils
 import android.util.Log
 import androidx.media.utils.MediaConstants
+import com.android.app.tracing.coroutines.asyncTraced as async
 import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.systemui.Flags
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.graphics.ImageLoader
+import com.android.systemui.media.NotificationMediaManager.isPlayingState
 import com.android.systemui.media.controls.shared.model.MediaAction
 import com.android.systemui.media.controls.shared.model.MediaButton
 import com.android.systemui.media.controls.shared.model.MediaData
@@ -58,7 +61,6 @@ import com.android.systemui.media.controls.util.MediaControllerFactory
 import com.android.systemui.media.controls.util.MediaDataUtils
 import com.android.systemui.media.controls.util.MediaFlags
 import com.android.systemui.res.R
-import com.android.systemui.statusbar.NotificationMediaManager.isPlayingState
 import com.android.systemui.statusbar.notification.row.HybridGroupManager
 import com.android.systemui.util.kotlin.logD
 import java.util.concurrent.ConcurrentHashMap
@@ -67,7 +69,6 @@ import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import com.android.app.tracing.coroutines.asyncTraced as async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -338,11 +339,7 @@ constructor(
                 desc.extras?.getLong(MediaConstants.METADATA_KEY_IS_EXPLICIT) ==
                     MediaConstants.METADATA_VALUE_ATTRIBUTE_PRESENT
 
-            val progress =
-                if (mediaFlags.isResumeProgressEnabled()) {
-                    MediaDataUtils.getDescriptionProgress(desc.extras)
-                } else null
-
+            val progress = MediaDataUtils.getDescriptionProgress(desc.extras)
             val mediaAction = getResumeMediaAction(resumeAction)
             return MediaDataLoaderResult(
                 appName = appName,
@@ -511,13 +508,21 @@ constructor(
         sbn.notification.extras.containsKey(Notification.EXTRA_MEDIA_REMOTE_DEVICE)
 
     private fun getResumeMediaAction(action: Runnable): MediaAction {
+        val iconId =
+            if (Flags.mediaControlsUiUpdate()) {
+                R.drawable.ic_media_play_button
+            } else {
+                R.drawable.ic_media_play
+            }
         return MediaAction(
-            Icon.createWithResource(context, R.drawable.ic_media_play)
-                .setTint(themeText)
-                .loadDrawable(context),
+            Icon.createWithResource(context, iconId).setTint(themeText).loadDrawable(context),
             action,
-            context.getString(R.string.controls_media_resume),
-            context.getDrawable(R.drawable.ic_media_play_container),
+            context.getString(R.string.controls_media_button_play),
+            if (Flags.mediaControlsUiUpdate()) {
+                context.getDrawable(R.drawable.ic_media_play_button_container)
+            } else {
+                context.getDrawable(R.drawable.ic_media_play_container)
+            },
         )
     }
 

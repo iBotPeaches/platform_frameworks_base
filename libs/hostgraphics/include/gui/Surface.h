@@ -34,6 +34,10 @@ public:
         ANativeWindow::query = hook_query;
     }
 
+    sp<IGraphicBufferProducer> getIGraphicBufferProducer() const {
+        return mBufferProducer;
+    }
+
     static bool isValid(const sp<Surface>& surface) {
         return surface != nullptr;
     }

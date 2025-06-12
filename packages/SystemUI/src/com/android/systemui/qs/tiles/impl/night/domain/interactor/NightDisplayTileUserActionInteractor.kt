@@ -22,12 +22,12 @@ import android.provider.Settings
 import com.android.systemui.accessibility.data.repository.NightDisplayRepository
 import com.android.systemui.accessibility.qs.QSAccessibilityModule
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
-import com.android.systemui.qs.tiles.base.logging.QSTileLogger
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.logging.QSTileLogger
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.night.domain.model.NightDisplayTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import javax.inject.Inject
 
 /** Handles night display tile clicks. */
@@ -52,7 +52,7 @@ constructor(
                 is QSTileUserAction.LongClick -> {
                     qsTileIntentUserActionHandler.handle(
                         action.expandable,
-                        Intent(Settings.ACTION_NIGHT_DISPLAY_SETTINGS)
+                        Intent(Settings.ACTION_NIGHT_DISPLAY_SETTINGS),
                     )
                 }
                 is QSTileUserAction.ToggleClick -> {}

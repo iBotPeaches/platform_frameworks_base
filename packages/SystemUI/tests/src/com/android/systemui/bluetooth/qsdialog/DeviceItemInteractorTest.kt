@@ -29,6 +29,7 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.testKosmos
 import com.android.systemui.util.time.FakeSystemClock
+import com.android.systemui.volume.domain.interactor.audioModeInteractor
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -102,7 +103,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -111,6 +111,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     emptyList(),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
 
             val latest by collectLastValue(interactor.deviceItemUpdate)
@@ -130,7 +131,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -139,6 +139,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     emptyList(),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
 
             val latest by collectLastValue(interactor.deviceItemUpdate)
@@ -158,7 +159,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -167,6 +167,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     emptyList(),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
 
             val latest by collectLastValue(interactor.deviceItemUpdate)
@@ -186,7 +187,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -198,6 +198,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     emptyList(),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
 
             val latest by collectLastValue(interactor.deviceItemUpdate)
@@ -217,7 +218,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -238,6 +238,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     ),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
             `when`(deviceItem1.type).thenReturn(DeviceItemType.CONNECTED_BLUETOOTH_DEVICE)
             `when`(deviceItem2.type).thenReturn(DeviceItemType.SAVED_BLUETOOTH_DEVICE)
@@ -259,7 +260,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -277,6 +277,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     listOf(DeviceItemType.CONNECTED_BLUETOOTH_DEVICE),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
             `when`(deviceItem1.type).thenReturn(DeviceItemType.CONNECTED_BLUETOOTH_DEVICE)
             `when`(deviceItem2.type).thenReturn(DeviceItemType.CONNECTED_BLUETOOTH_DEVICE)
@@ -300,7 +301,6 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                 DeviceItemInteractor(
                     bluetoothTileDialogRepository,
                     kosmos.audioSharingInteractor,
-                    audioManager,
                     adapter,
                     localBluetoothManager,
                     fakeSystemClock,
@@ -309,6 +309,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
                     emptyList(),
                     testScope.backgroundScope,
                     dispatcher,
+                    kosmos.audioModeInteractor,
                 )
             val latest by collectLastValue(interactor.deviceItemUpdate)
             val latestShowSeeAll by collectLastValue(interactor.showSeeAllUpdate)
@@ -327,7 +328,7 @@ class DeviceItemInteractorTest : SysuiTestCase() {
             override fun isFilterMatched(
                 context: Context,
                 cachedDevice: CachedBluetoothDevice,
-                audioManager: AudioManager,
+                isOngoingCall: Boolean,
                 audioSharingAvailable: Boolean,
             ) = isFilterMatchFunc(cachedDevice)
 

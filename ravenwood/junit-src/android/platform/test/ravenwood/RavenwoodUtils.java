@@ -128,28 +128,6 @@ public class RavenwoodUtils {
         runOnHandlerSync(getMainHandler(), r);
     }
 
-    public static class MockitoHelper {
-        private MockitoHelper() {
-        }
-
-        /**
-         * Allow verifyZeroInteractions to work on ravenwood. It was replaced with a different
-         * method on. (Maybe we should do it in Ravenizer.)
-         */
-        public static void verifyZeroInteractions(Object... mocks) {
-            if (RavenwoodRule.isOnRavenwood()) {
-                // Mockito 4 or later
-                reflectMethod("org.mockito.Mockito", "verifyNoInteractions", Object[].class)
-                        .callStatic(new Object[]{mocks});
-            } else {
-                // Mockito 2
-                reflectMethod("org.mockito.Mockito", "verifyZeroInteractions", Object[].class)
-                        .callStatic(new Object[]{mocks});
-            }
-        }
-    }
-
-
     /**
      * Wrap the given {@link Supplier} to become memoized.
      *

@@ -21,15 +21,11 @@ import static android.view.MotionEvent.ACTION_DOWN;
 import static android.view.MotionEvent.ACTION_HOVER_MOVE;
 import static android.view.MotionEvent.ACTION_UP;
 
-import static junit.framework.Assert.assertFalse;
-
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.testng.AssertJUnit.assertTrue;
 
 import android.annotation.NonNull;
-import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.provider.Settings;
@@ -39,7 +35,6 @@ import android.view.MotionEvent;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.accessibility.AccessibilityTraceManager;
-import com.android.server.accessibility.Flags;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -93,7 +88,6 @@ public class MagnificationGestureHandlerTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_MAGNIFICATION_FOLLOWS_MOUSE_BUGFIX)
     public void onMotionEvent_isFromMouse_handleMouseOrStylusEvent() {
         final MotionEvent mouseEvent = MotionEvent.obtain(0, 0, ACTION_HOVER_MOVE, 0, 0, 0);
         mouseEvent.setSource(InputDevice.SOURCE_MOUSE);
@@ -108,7 +102,6 @@ public class MagnificationGestureHandlerTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_MAGNIFICATION_FOLLOWS_MOUSE_BUGFIX)
     public void onMotionEvent_isFromStylus_handleMouseOrStylusEvent() {
         final MotionEvent stylusEvent = MotionEvent.obtain(0, 0, ACTION_HOVER_MOVE, 0, 0, 0);
         stylusEvent.setSource(InputDevice.SOURCE_STYLUS);
@@ -117,36 +110,6 @@ public class MagnificationGestureHandlerTest {
 
         try {
             assertTrue(mMgh.mIsHandleMouseOrStylusEventCalled);
-        } finally {
-            stylusEvent.recycle();
-        }
-    }
-
-    @Test
-    @RequiresFlagsDisabled(Flags.FLAG_ENABLE_MAGNIFICATION_FOLLOWS_MOUSE_BUGFIX)
-    public void onMotionEvent_isFromMouse_handleMouseOrStylusEventNotCalled() {
-        final MotionEvent mouseEvent = MotionEvent.obtain(0, 0, ACTION_HOVER_MOVE, 0, 0, 0);
-        mouseEvent.setSource(InputDevice.SOURCE_MOUSE);
-
-        mMgh.onMotionEvent(mouseEvent, mouseEvent, /* policyFlags= */ 0);
-
-        try {
-            assertFalse(mMgh.mIsHandleMouseOrStylusEventCalled);
-        } finally {
-            mouseEvent.recycle();
-        }
-    }
-
-    @Test
-    @RequiresFlagsDisabled(Flags.FLAG_ENABLE_MAGNIFICATION_FOLLOWS_MOUSE_BUGFIX)
-    public void onMotionEvent_isFromStylus_handleMouseOrStylusEventNotCalled() {
-        final MotionEvent stylusEvent = MotionEvent.obtain(0, 0, ACTION_HOVER_MOVE, 0, 0, 0);
-        stylusEvent.setSource(InputDevice.SOURCE_STYLUS);
-
-        mMgh.onMotionEvent(stylusEvent, stylusEvent, /* policyFlags= */ 0);
-
-        try {
-            assertFalse(mMgh.mIsHandleMouseOrStylusEventCalled);
         } finally {
             stylusEvent.recycle();
         }

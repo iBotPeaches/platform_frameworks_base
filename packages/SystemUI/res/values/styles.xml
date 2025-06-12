@@ -17,10 +17,15 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:androidprv="http://schemas.android.com/apk/prv/res/android">
 
-    <style name="TextAppearance.StatusBar.Clock" parent="@*android:style/TextAppearance.StatusBar.Icon">
+    <style name="TextAppearance.StatusBar.Default" parent="@*android:style/TextAppearance.StatusBar.Icon">
         <item name="android:textSize">@dimen/status_bar_clock_size</item>
-        <item name="android:fontFamily">@*android:string/config_headlineFontFamilyMedium</item>
+        <item name="android:fontFamily" android:featureFlag="!com.android.systemui.status_bar_font_updates">@*android:string/config_headlineFontFamilyMedium</item>
+        <item name="android:fontFamily" android:featureFlag="com.android.systemui.status_bar_font_updates">"variable-label-large-emphasized"</item>
         <item name="android:textColor">@color/status_bar_clock_color</item>
+    </style>
+
+    <style name="TextAppearance.StatusBar.Default.Clock">
+        <item name="android:fontFeatureSettings">tnum</item>
     </style>
 
     <style name="TextAppearance.StatusBar.UserChip" parent="@*android:style/TextAppearance.StatusBar.Icon">
@@ -73,6 +78,15 @@
     <style name="StatusBar" />
     <style name="StatusBar.Chip" />
 
+    <style name="StatusBar.Chip.RootView">
+        <item name="android:layout_width">wrap_content</item>
+        <!-- Have the root chip view match the parent height so that we get a larger touch area for
+             the chip. -->
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_gravity">center_vertical|start</item>
+        <item name="android:layout_marginStart">@dimen/ongoing_activity_chip_margin_start</item>
+    </style>
+
     <style name="StatusBar.Chip.Text">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
@@ -82,6 +96,19 @@
         <item name="android:textAppearance">@android:style/TextAppearance.Material.Small</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:textColor">?android:attr/colorPrimary</item>
+    </style>
+
+    <style name="StatusBar.EventChip">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_gravity">center</item>
+        <item name="android:gravity">center</item>
+        <item name="android:clipToOutline">true</item>
+        <item name="android:background">@drawable/statusbar_chip_bg</item>
+        <item name="android:minHeight">@dimen/ongoing_appops_chip_height</item>
+        <item name="android:maxWidth">@dimen/ongoing_appops_chip_max_width</item>
+        <item name="android:minWidth">@dimen/ongoing_appops_chip_min_width</item>
     </style>
 
     <style name="Chipbar" />
@@ -151,26 +178,24 @@
 
     <style name="TextAppearance.QS.UserSwitcher">
         <item name="android:textSize">@dimen/qs_tile_text_size</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
     </style>
 
-    <!-- This is hard coded to be sans-serif-condensed to match the icons -->
-
     <style name="TextAppearance.QS.Status">
-        <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
-        <item name="android:textColor">?attr/onSurface</item>
+        <item name="android:fontFamily" android:featureFlag="!com.android.systemui.shade_header_font_update">@*android:string/config_headlineFontFamily</item>
+        <item name="android:fontFamily" android:featureFlag="com.android.systemui.shade_header_font_update">variable-body-medium-emphasized</item>
+        <item name="android:textColor">@color/shade_header_text_color</item>
         <item name="android:textSize">14sp</item>
         <item name="android:letterSpacing">0.01</item>
     </style>
 
-    <style name="TextAppearance.QS.Status.Carriers" />
-
-    <style name="TextAppearance.QS.Status.Carriers.NoCarrierText">
-        <item name="android:textColor">?attr/onSurfaceVariant</item>
+    <style name="TextAppearance.QS.Status.Clock">
+        <item name="android:fontFamily" android:featureFlag="!com.android.systemui.shade_header_font_update">@*android:string/config_headlineFontFamily</item>
+        <item name="android:fontFamily" android:featureFlag="com.android.systemui.shade_header_font_update">variable-display-small-emphasized</item>
     </style>
 
     <style name="TextAppearance.QS.Status.Build">
-        <item name="android:textColor">?attr/onSurfaceVariant</item>
+        <item name="android:textColor">?attr/onShadeInactiveVariant</item>
     </style>
 
     <style name="TextAppearance.DeviceManagementDialog.Title" parent="@android:style/TextAppearance.DeviceDefault.DialogWindowTitle"/>
@@ -187,42 +212,42 @@
         <item name="android:fontFamily">@*android:string/config_bodyFontFamilyMedium</item>
         <item name="android:gravity">center_horizontal</item>
         <item name="android:maxLines">1</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
         <item name="android:ellipsize">end</item>
     </style>
 
     <style name="TextAppearance.AuthCredential.Title" parent="TextAppearance.Material3.HeadlineSmall" >
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthCredential.Subtitle" parent="TextAppearance.Material3.BodyMedium" >
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthCredential.Description" parent="TextAppearance.Material3.BodyMedium" >
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthCredential.VerticalListContentViewDescription" parent="TextAppearance.Material3.TitleSmall">
         <item name="android:fontFamily">@*android:string/config_bodyFontFamilyMedium</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthCredential.ContentViewWithButtonDescription" parent="TextAppearance.AuthCredential.Description" />
 
     <style name="TextAppearance.AuthCredential.ContentViewListItem" parent="TextAppearance.Material3.BodySmall">
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
         <item name="android:paddingTop">@dimen/biometric_prompt_content_list_item_padding_top</item>
         <item name="android:breakStrategy">high_quality</item>
     </style>
 
     <style name="TextAppearance.AuthCredential.Indicator" parent="TextAppearance.Material3.BodyMedium">
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:marqueeRepeatLimit">marquee_forever</item>
         <item name="android:singleLine">true</item>
         <item name="android:ellipsize">marquee</item>
@@ -246,23 +271,23 @@
     <style name="TextAppearance.AuthNonBioCredential.Title">
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:layout_marginTop">24dp</item>
-        <item name="android:textSize">36dp</item>
+        <item name="android:textSize">36sp</item>
         <item name="android:focusable">true</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthNonBioCredential.Subtitle">
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:layout_marginTop">20dp</item>
         <item name="android:textSize">18sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthNonBioCredential.Description">
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:layout_marginTop">20dp</item>
         <item name="android:textSize">18sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.AuthNonBioCredential.Error">
@@ -331,7 +356,7 @@
     </style>
 
     <style name="AuthNonCredentialPanelStyle">
-        <item name="android:background">?androidprv:attr/materialColorSurfaceBright</item>
+        <item name="android:background">@androidprv:color/materialColorSurfaceBright</item>
     </style>
 
     <style name="AuthCredentialPanelStyle" parent="AuthNonCredentialPanelStyle">
@@ -362,13 +387,13 @@
         <item name="android:minWidth">48dp</item>
         <item name="android:paddingLeft">0dp</item>
         <item name="android:paddingRight">12dp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorPrimary</item>
+        <item name="android:textColor">@androidprv:color/materialColorPrimary</item>
     </style>
 
     <style name="AuthCredentialNegativeButtonStyle" parent="TextAppearance.Material3.LabelLarge">
         <item name="android:fontFamily">@*android:string/config_bodyFontFamilyMedium</item>
         <item name="android:background">@color/transparent</item>
-        <item name="android:textColor">?androidprv:attr/materialColorPrimary</item>
+        <item name="android:textColor">@androidprv:color/materialColorPrimary</item>
     </style>
 
     <style name="DeviceManagementDialogTitle">
@@ -390,7 +415,7 @@
     </style>
 
     <style name="KeyboardShortcutHelper.BottomSheet.DragHandle" parent="Widget.Material3.BottomSheet.DragHandle">
-        <item name="tint">?androidprv:attr/materialColorOutlineVariant</item>
+        <item name="tint">@androidprv:color/materialColorOutlineVariant</item>
     </style>
 
     <style name="KeyboardShortcutHelper.BottomSheetDialogAnimation">
@@ -412,6 +437,7 @@
 
     <style name="Theme.SystemUI.MediaProjectionAppSelector"
         parent="@*android:style/Theme.DeviceDefault.Chooser">
+        <item name="android:colorBackground">@*android:color/materialColorSurfaceContainer</item>
     </style>
 
     <!-- Standard animations for hiding and showing the status bar. -->
@@ -489,23 +515,23 @@
         <item name="android:windowIsFloating">true</item>
         <item name="android:homeAsUpIndicator">@drawable/ic_arrow_back</item>
 
-        <item name="surfaceBright">?androidprv:attr/materialColorSurfaceBright</item>
+        <item name="surfaceBright">@androidprv:color/materialColorSurfaceBright</item>
         <item name="android:colorBackground">?attr/surfaceBright</item>
-        <item name="scHigh">?androidprv:attr/materialColorSurfaceContainerHigh</item>
-        <item name="primary">?androidprv:attr/materialColorPrimary</item>
-        <item name="tertiary">?androidprv:attr/materialColorTertiary</item>
-        <item name="onSurface">?androidprv:attr/materialColorOnSurface</item>
-        <item name="onSurfaceVariant">?androidprv:attr/materialColorOnSurfaceVariant</item>
-        <item name="outline">?androidprv:attr/materialColorOutline</item>
+        <item name="scHigh">@androidprv:color/materialColorSurfaceContainerHigh</item>
+        <item name="primary">@androidprv:color/materialColorPrimary</item>
+        <item name="tertiary">@androidprv:color/materialColorTertiary</item>
+        <item name="onSurface">@androidprv:color/materialColorOnSurface</item>
+        <item name="onSurfaceVariant">@androidprv:color/materialColorOnSurfaceVariant</item>
+        <item name="outline">@androidprv:color/materialColorOutline</item>
 
-        <item name="shadeActive">?androidprv:attr/customColorShadeActive</item>
-        <item name="onShadeActive">?androidprv:attr/customColorOnShadeActive</item>
-        <item name="onShadeActiveVariant">?androidprv:attr/customColorOnShadeActiveVariant</item>
-        <item name="shadeInactive">?androidprv:attr/customColorShadeInactive</item>
-        <item name="onShadeInactive">?androidprv:attr/customColorOnShadeInactive</item>
-        <item name="onShadeInactiveVariant">?androidprv:attr/customColorOnShadeInactiveVariant</item>
-        <item name="shadeDisabled">?androidprv:attr/customColorShadeDisabled</item>
-        <item name="underSurface">?androidprv:attr/customColorUnderSurface</item>
+        <item name="shadeActive">@androidprv:color/customColorShadeActive</item>
+        <item name="onShadeActive">@androidprv:color/customColorOnShadeActive</item>
+        <item name="onShadeActiveVariant">@androidprv:color/customColorOnShadeActiveVariant</item>
+        <item name="shadeInactive">@androidprv:color/customColorShadeInactive</item>
+        <item name="onShadeInactive">@androidprv:color/customColorOnShadeInactive</item>
+        <item name="onShadeInactiveVariant">@androidprv:color/customColorOnShadeInactiveVariant</item>
+        <item name="shadeDisabled">@androidprv:color/customColorShadeDisabled</item>
+        <item name="underSurface">@androidprv:color/customColorUnderSurface</item>
         <item name="android:itemTextAppearance">@style/Control.MenuItem</item>
     </style>
 
@@ -540,24 +566,19 @@
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:showWhenLocked">true</item>
         <item name="android:windowBackground">@color/transparent</item>
-        <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:windowNoTitle">true</item>
     </style>
 
-    <style name="SystemUI.Material3.Slider.Volume">
-        <item name="trackHeight">40dp</item>
-        <item name="thumbHeight">52dp</item>
-    </style>
-
     <style name="SystemUI.Material3.Slider" parent="@style/Widget.Material3.Slider">
         <item name="labelStyle">@style/Widget.Material3.Slider.Label</item>
-        <item name="thumbColor">@color/slider_thumb_color</item>
-        <item name="tickColorActive">@color/slider_inactive_track_color</item>
-        <item name="tickColorInactive">@color/slider_active_track_color</item>
-        <item name="trackColorActive">@color/slider_active_track_color</item>
-        <item name="trackColorInactive">@color/slider_inactive_track_color</item>
+        <item name="thumbColor">@color/thumb_color</item>
+        <item name="tickColorActive">@color/on_active_track_color</item>
+        <item name="tickColorInactive">@color/on_inactive_track_color</item>
+        <item name="trackColorActive">@color/active_track_color</item>
+        <item name="trackColorInactive">@color/inactive_track_color</item>
+        <item name="trackIconActiveColor">@color/on_active_track_color</item>
     </style>
 
     <style name="Theme.SystemUI.DayNightDialog" parent="@android:style/Theme.DeviceDefault.Light.Dialog"/>
@@ -567,7 +588,7 @@
         <item name="android:buttonBarPositiveButtonStyle">@style/Widget.Dialog.Button</item>
         <item name="android:buttonBarNegativeButtonStyle">@style/Widget.Dialog.Button.BorderButton</item>
         <item name="android:buttonBarNeutralButtonStyle">@style/Widget.Dialog.Button.BorderButton</item>
-        <item name="android:colorBackground">?androidprv:attr/materialColorSurfaceBright</item>
+        <item name="android:colorBackground">@androidprv:color/materialColorSurfaceBright</item>
         <item name="android:alertDialogStyle">@style/ScrollableAlertDialogStyle</item>
         <item name="android:buttonBarStyle">@style/ButtonBarStyle</item>
         <item name="android:buttonBarButtonStyle">@style/Widget.Dialog.Button.Large</item>
@@ -687,6 +708,33 @@
         <item name="android:colorBackground">@color/media_dialog_background</item>
     </style>
 
+    <style name="MediaOutput" />
+    <style name="MediaOutput.Dialog" />
+    <style name="MediaOutput.Dialog.QuickAccessButton" parent="@style/Widget.Material3.Button.OutlinedButton.Icon">
+        <item name="theme">@style/Theme.Material3.DynamicColors.DayNight</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:minHeight">32dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textColor">@color/media_dialog_on_surface_variant</item>
+        <item name="iconSize">18dp</item>
+        <item name="iconTint">@color/media_dialog_primary</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Small</item>
+        <item name="strokeColor">@color/media_dialog_outline_variant</item>
+    </style>
+
+    <style name="MediaOutput.Item" />
+    <style name="MediaOutput.Item.Icon">
+        <item name="android:layout_width">@dimen/media_output_item_icon_size</item>
+        <item name="android:layout_height">@dimen/media_output_item_icon_size</item>
+        <item name="android:padding">@dimen/media_output_item_icon_padding</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="tint">@color/media_dialog_on_surface</item>
+    </style>
+
     <style name="MediaOutputItemInactiveTitle">
         <item name="android:textSize">16sp</item>
         <item name="android:textColor">@color/media_dialog_item_main_content</item>
@@ -723,34 +771,34 @@
     <style name="TextAppearance.NotificationImportanceChannel">
         <item name="android:textSize">@dimen/notification_importance_channel_text</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamilyMedium</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textSize">@dimen/notification_importance_channel_text</item>
     </style>
 
     <style name="TextAppearance.NotificationImportanceChannelGroup">
         <item name="android:textSize">@dimen/notification_importance_channel_group_text</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textSize">@dimen/notification_importance_channel_group_text</item>
     </style>
 
     <style name="TextAppearance.NotificationImportanceApp">
         <item name="android:textSize">@dimen/notification_importance_channel_group_text</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
         <item name="android:textSize">@dimen/notification_importance_channel_group_text</item>
     </style>
 
     <style name="TextAppearance.NotificationImportanceHeader">
         <item name="android:textSize">@dimen/notification_importance_header_text</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.NotificationImportanceDetail">
         <item name="android:textSize">@dimen/notification_importance_description_text</item>
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
         <item name="android:gravity">center</item>
     </style>
 
@@ -764,7 +812,7 @@
     <style
         name="TextAppearance.NotificationSectionHeaderLabel"
         parent="@android:style/Widget.DeviceDefault.Button.Borderless">
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textSize">14sp</item>
         <item name="android:minWidth">0dp</item>
@@ -773,7 +821,7 @@
     <style
         name="TextAppearance.NotificationSectionHeaderButton"
         parent="@android:style/Widget.DeviceDefault.Button.Borderless">
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textSize">14sp</item>
         <item name="android:minWidth">0dp</item>
@@ -782,7 +830,7 @@
     <style
         name="TextAppearance.NotificationFooterButton"
         parent="@android:style/Widget.DeviceDefault.Button.Borderless">
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textSize">14sp</item>
         <item name="android:minWidth">0dp</item>
@@ -791,12 +839,20 @@
     <style
         name="TextAppearance.NotificationFooterButtonRedesign"
         parent="@android:style/Widget.DeviceDefault.Button.Borderless">
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
-        <item name="android:drawableTint">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
+        <item name="android:drawableTint">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textSize">16sp</item>
         <item name="android:minWidth">0dp</item>
     </style>
+
+    <style name="TextAppearance.NotificationMenuButtonText">
+        <item name="android:textSize">@dimen/notification_importance_header_text</item>
+        <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
+        <item name="android:gravity">center</item>
+    </style>
+
 
     <style name="TextAppearance.HeadsUpStatusBarText"
         parent="@*android:style/TextAppearance.DeviceDefault.Notification.Info">
@@ -810,33 +866,28 @@
         <item name="android:textColor">?attr/onSurfaceVariant</item>
     </style>
 
-    <style name="TextAppearance.QSEditTitle" >
-        <item name="android:fontFamily">"gsf-title-medium-emphasized"</item>
-        <item name="android:textColor">?attr/onSurfaceVariant</item>
-    </style>
-
     <style name="QSCustomizeToolbar" parent="@*android:style/Widget.DeviceDefault.Toolbar">
         <item name="android:textColor">?attr/onSurface</item>
         <item name="android:elevation">10dp</item>
     </style>
 
-    <!-- Media controls always have light background -->
+    <!-- Media controls always have dark background -->
     <style name="MediaPlayer" parent="@*android:style/Theme.DeviceDefault.Light">
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <item name="android:backgroundTint">@color/material_dynamic_secondary95</item>
+        <item name="android:textColor">@color/media_on_background</item>
+        <item name="android:backgroundTint">@android:color/system_on_surface_light</item>
     </style>
 
     <style name="MediaPlayer.ProgressBar" parent="@android:style/Widget.ProgressBar.Horizontal">
         <item name="android:thumb">@drawable/media_seekbar_thumb</item>
-        <item name="android:thumbTint">?android:attr/textColorPrimary</item>
+        <item name="android:thumbTint">@color/media_on_background</item>
         <item name="android:progressDrawable">@drawable/media_squiggly_progress</item>
-        <item name="android:progressTint">?android:attr/textColorPrimary</item>
-        <item name="android:progressBackgroundTint">?android:attr/textColorTertiary</item>
+        <item name="android:progressTint">@color/media_on_background</item>
+        <item name="android:progressBackgroundTint">@android:color/system_primary_dark</item>
         <item name="android:splitTrack">false</item>
     </style>
 
     <style name="MediaPlayer.Subtitle" parent="MediaPlayer">
-        <item name="android:textColor">?android:attr/textColorSecondary</item>
+        <item name="android:textColor">@color/media_on_background</item>
     </style>
 
     <style name="MediaPlayer.ScrubbingTime">
@@ -845,21 +896,10 @@
         <item name="android:gravity">center</item>
     </style>
 
-    <style name="MediaPlayer.Action" parent="@android:style/Widget.Material.Button.Borderless.Small">
-        <item name="android:background">@drawable/qs_media_light_source</item>
-        <item name="android:tint">?android:attr/textColorPrimary</item>
-        <item name="android:stateListAnimator">@anim/media_button_state_list_animator</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingStart">12dp</item>
-        <item name="android:paddingEnd">12dp</item>
-        <item name="android:paddingBottom">16dp</item>
-        <item name="android:scaleType">centerInside</item>
-    </style>
-
     <style name="MediaPlayer.SessionAction"
         parent="@android:style/Widget.Material.Button.Borderless.Small">
         <item name="android:background">@drawable/qs_media_light_source</item>
-        <item name="android:tint">?android:attr/textColorPrimary</item>
+        <item name="android:tint">@color/media_on_background</item>
         <item name="android:paddingTop">12dp</item>
         <item name="android:paddingStart">12dp</item>
         <item name="android:paddingEnd">12dp</item>
@@ -868,6 +908,7 @@
     </style>
 
     <style name="MediaPlayer.SessionAction.Primary" parent="MediaPlayer.SessionAction">
+        <item name="android:tint">@android:color/system_on_primary_dark</item>
         <item name="android:background">@drawable/qs_media_round_button_background</item>
         <item name="android:backgroundTint">@color/media_player_solid_button_bg</item>
     </style>
@@ -878,8 +919,8 @@
 
     <style name="MediaPlayer.OutlineButton">
         <item name="android:background">@drawable/qs_media_outline_button</item>
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <item name="android:backgroundTint">@color/media_player_outline_button_bg</item>
+        <item name="android:textColor">@color/media_on_background</item>
+        <item name="android:backgroundTint">@android:color/system_primary_dark</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamilyMedium</item>
         <item name="android:layout_gravity">center</item>
         <item name="android:singleLine">true</item>
@@ -887,60 +928,9 @@
 
     <style name="MediaPlayer.SolidButton">
         <item name="android:backgroundTint">@color/media_player_solid_button_bg</item>
-        <item name="android:tint">?android:attr/colorPrimary</item>
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:tint">@android:color/system_on_primary_dark</item>
+        <item name="android:textColor">@android:color/system_on_primary_dark</item>
     </style>
-
-    <style name="MediaPlayer.Recommendation"/>
-
-    <style name="MediaPlayer.Recommendation.Header">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">@dimen/qs_media_padding</item>
-        <item name="android:layout_marginStart">@dimen/qs_media_padding</item>
-        <item name="android:fontFamily">=@*android:string/config_headlineFontFamilyMedium</item>
-        <item name="android:singleLine">true</item>
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-    </style>
-
-    <style name="MediaPlayer.Recommendation.AlbumContainer">
-        <item name="android:layout_width">@dimen/qs_media_rec_album_size</item>
-        <item name="android:layout_height">@dimen/qs_media_rec_album_size</item>
-        <item name="android:background">@drawable/qs_media_light_source</item>
-        <item name="android:layout_marginTop">@dimen/qs_media_padding</item>
-        <item name="android:layout_marginBottom">@dimen/qs_media_rec_album_bottom_margin</item>
-    </style>
-
-    <style name="MediaPlayer.Recommendation.AlbumContainer.Updated">
-        <item name="android:layout_width">@dimen/qs_media_rec_album_width</item>
-        <item name="android:minWidth">@dimen/qs_media_rec_album_width</item>
-        <item name="android:minHeight">@dimen/qs_media_rec_album_height_collapsed</item>
-        <item name="android:background">@drawable/qs_media_light_source</item>
-        <item name="android:layout_marginTop">@dimen/qs_media_info_spacing</item>
-    </style>
-
-    <style name="MediaPlayer.Recommendation.Album">
-        <item name="android:backgroundTint">@color/media_player_album_bg</item>
-    </style>
-
-    <style name="MediaPlayer.Recommendation.Text">
-        <item name="android:layout_width">@dimen/qs_media_rec_album_size</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:ellipsize">end</item>
-        <item name="android:textSize">14sp</item>
-        <item name="android:gravity">start</item>
-    </style>
-
-    <style name="MediaPlayer.Recommendation.Text.Title">
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-    </style>
-
-    <style name="MediaPlayer.Recommendation.Text.Subtitle">
-        <item name="android:textColor">?android:attr/textColorSecondary</item>
-    </style>
-
 
     <!-- Used to style charging animation AVD animation -->
     <style name="ChargingAnim" />
@@ -988,12 +978,12 @@
     </style>
 
     <style name="LongScreenshotActivity" parent="@android:style/Theme.DeviceDefault.DayNight">
-        <item name="android:colorBackground">?androidprv:attr/materialColorSurfaceContainer</item>
+        <item name="android:colorBackground">@androidprv:color/materialColorSurfaceContainer</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:statusBarColor">?androidprv:attr/materialColorSurfaceContainer</item>
-        <item name="android:navigationBarColor">?androidprv:attr/materialColorSurfaceContainerHighest</item>
+        <item name="android:statusBarColor">@androidprv:color/materialColorSurfaceContainer</item>
+        <item name="android:navigationBarColor">@androidprv:color/materialColorSurfaceContainerHighest</item>
         <item name="android:windowActivityTransitions">true</item>
     </style>
 
@@ -1071,7 +1061,7 @@
 
     <style name="Theme.VolumePanel.Popup" parent="@style/Theme.SystemUI.Dialog">
         <item name="android:dialogCornerRadius">44dp</item>
-        <item name="android:colorBackground">?androidprv:attr/materialColorSurfaceContainerHigh
+        <item name="android:colorBackground">@androidprv:color/materialColorSurfaceContainerHigh
         </item>
     </style>
 
@@ -1282,7 +1272,7 @@
     </style>
 
     <style name="TextAppearance.Dialog.Title" parent="@android:style/TextAppearance.DeviceDefault.Large">
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textSize">@dimen/dialog_title_text_size</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:lineHeight">32sp</item>
@@ -1292,7 +1282,7 @@
     </style>
 
     <style name="TextAppearance.Dialog.Body" parent="@android:style/TextAppearance.DeviceDefault.Medium">
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
         <item name="android:textSize">14sp</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:lineHeight">20sp</item>
@@ -1387,7 +1377,7 @@
 
     <style name="InternetDialog.NetworkTitle.Active">
         <item name="android:textAppearance">@style/TextAppearance.InternetDialog.Active</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnPrimaryContainer</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnPrimaryContainer</item>
     </style>
 
     <style name="InternetDialog.NetworkSummary">
@@ -1400,27 +1390,27 @@
     <style name="InternetDialog.NetworkSummary.Active">
         <item name="android:textAppearance">@style/TextAppearance.InternetDialog.Secondary.Active
         </item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnPrimaryContainer</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnPrimaryContainer</item>
     </style>
 
     <style name="TextAppearance.InternetDialog">
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:textSize">16sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:textDirection">locale</item>
     </style>
 
     <style name="TextAppearance.InternetDialog.Secondary">
         <item name="android:textSize">14sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
     </style>
 
     <style name="TextAppearance.InternetDialog.Active">
-        <item name="android:textColor">?androidprv:attr/materialColorOnPrimaryContainer</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnPrimaryContainer</item>
     </style>
 
     <style name="TextAppearance.InternetDialog.Secondary.Active">
-        <item name="android:textColor">?androidprv:attr/materialColorOnPrimaryContainer</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnPrimaryContainer</item>
     </style>
 
     <style name="FgsManagerDialogTitle">
@@ -1457,18 +1447,18 @@
         <item name="android:orientation">horizontal</item>
         <item name="android:focusable">true</item>
         <item name="android:clickable">true</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.BluetoothTileDialog">
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
         <item name="android:textDirection">locale</item>
         <item name="android:textAlignment">gravity</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.BluetoothTileDialog.Active">
-        <item name="android:textColor">?androidprv:attr/materialColorOnPrimaryContainer</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnPrimaryContainer</item>
     </style>
 
     <style name="BluetoothTileDialog.AudioSharingButton" parent="Widget.Dialog.Button">
@@ -1665,7 +1655,7 @@
     <style name="ShortCutButton" parent="@android:style/Widget.Material.Button">
         <item name="android:background">@drawable/shortcut_button_colored</item>
         <item name="android:textSize">16sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:layout_marginEnd">12dp</item>
         <item name="android:paddingLeft">24dp</item>
         <item name="android:paddingRight">24dp</item>
@@ -1691,18 +1681,18 @@
         parent="@android:style/TextAppearance.DeviceDefault.Medium">
         <item name="android:textSize">14sp</item>
         <item name="android:lineHeight">20sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
 
     <style name="TextAppearance.PrivacyDialog.Item.Summary"
         parent="@android:style/TextAppearance.DeviceDefault.Small">
         <item name="android:textSize">14sp</item>
         <item name="android:lineHeight">20sp</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
     </style>
 
     <style name="Theme.PrivacyDialog" parent="@style/Theme.SystemUI.Dialog">
-        <item name="android:colorBackground">?androidprv:attr/materialColorSurfaceContainer</item>
+        <item name="android:colorBackground">@androidprv:color/materialColorSurfaceContainer</item>
     </style>
 
     <style name="Theme.SystemUI.Dialog.StickyKeys" parent="@style/Theme.SystemUI.Dialog">

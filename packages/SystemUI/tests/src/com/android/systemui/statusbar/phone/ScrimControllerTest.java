@@ -30,7 +30,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -45,11 +44,8 @@ import static org.mockito.Mockito.when;
 
 import android.animation.Animator;
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.platform.test.annotations.DisableFlags;
-import android.platform.test.annotations.EnableFlags;
 import android.testing.TestableLooper;
 import android.testing.ViewUtils;
 import android.util.MathUtils;
@@ -62,10 +58,12 @@ import com.android.internal.colorextraction.ColorExtractor.GradientColors;
 import com.android.keyguard.BouncerPanelExpansionCalculator;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.DejankUtils;
+import com.android.systemui.Flags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.animation.ShadeInterpolation;
 import com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants;
 import com.android.systemui.dock.DockManager;
+import com.android.systemui.flags.DisableSceneContainer;
 import com.android.systemui.flags.EnableSceneContainer;
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
 import com.android.systemui.keyguard.data.repository.FakeKeyguardTransitionRepository;
@@ -74,12 +72,12 @@ import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInterac
 import com.android.systemui.keyguard.shared.model.KeyguardState;
 import com.android.systemui.keyguard.shared.model.TransitionState;
 import com.android.systemui.keyguard.shared.model.TransitionStep;
+import com.android.systemui.keyguard.ui.transitions.BlurConfig;
 import com.android.systemui.keyguard.ui.viewmodel.AlternateBouncerToGoneTransitionViewModel;
 import com.android.systemui.keyguard.ui.viewmodel.PrimaryBouncerToGoneTransitionViewModel;
 import com.android.systemui.kosmos.KosmosJavaAdapter;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.scrim.ScrimView;
-import com.android.systemui.shade.shared.flag.DualShade;
 import com.android.systemui.shade.transition.LargeScreenShadeInterpolator;
 import com.android.systemui.shade.transition.LinearLargeScreenShadeInterpolator;
 import com.android.systemui.statusbar.policy.FakeConfigurationController;
@@ -113,15 +111,16 @@ import java.util.Map;
 @RunWith(AndroidJUnit4.class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 @SmallTest
+// TODO(b/381263619) there are more changes and tweaks required to match the new bouncer/shade specs
+// Disabling for now but it will be fixed before the flag is fully ramped up.
+@DisableFlags({Flags.FLAG_BOUNCER_UI_REVAMP, Flags.FLAG_NOTIFICATION_SHADE_BLUR})
 public class ScrimControllerTest extends SysuiTestCase {
 
     @Rule public Expect mExpect = Expect.create();
     private final KosmosJavaAdapter mKosmos = new KosmosJavaAdapter(this);
 
-    private final FakeConfigurationController mConfigurationController =
-            new FakeConfigurationController();
-    private final LargeScreenShadeInterpolator
-            mLinearLargeScreenShadeInterpolator = new LinearLargeScreenShadeInterpolator();
+    private FakeConfigurationController mConfigurationController;
+    private LargeScreenShadeInterpolator mLinearLargeScreenShadeInterpolator;
 
     private final TestScope mTestScope = mKosmos.getTestScope();
     private final JavaAdapter mJavaAdapter = new JavaAdapter(mTestScope.getBackgroundScope());
@@ -137,6 +136,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     private boolean mAlwaysOnEnabled;
     private TestableLooper mLooper;
     private Context mContext;
+
     @Mock private DozeParameters mDozeParameters;
     @Mock private LightBarController mLightBarController;
     @Mock private DelayedWakeLock.Factory mDelayedWakeLockFactory;
@@ -149,12 +149,10 @@ public class ScrimControllerTest extends SysuiTestCase {
     @Mock private PrimaryBouncerToGoneTransitionViewModel mPrimaryBouncerToGoneTransitionViewModel;
     @Mock private AlternateBouncerToGoneTransitionViewModel
             mAlternateBouncerToGoneTransitionViewModel;
-    private final KeyguardTransitionInteractor mKeyguardTransitionInteractor =
-            mKosmos.getKeyguardTransitionInteractor();
-    private final FakeKeyguardTransitionRepository mKeyguardTransitionRepository =
-            mKosmos.getKeyguardTransitionRepository();
     @Mock private KeyguardInteractor mKeyguardInteractor;
-    @Mock private TypedArray mMockTypedArray;
+
+    private KeyguardTransitionInteractor mKeyguardTransitionInteractor;
+    private FakeKeyguardTransitionRepository mKeyguardTransitionRepository;
 
     // TODO(b/204991468): Use a real PanelExpansionStateManager object once this bug is fixed. (The
     //   event-dispatch-on-registration pattern caused some of these unit tests to fail.)
@@ -236,12 +234,11 @@ public class ScrimControllerTest extends SysuiTestCase {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         mContext = spy(getContext());
-        when(mContext.obtainStyledAttributes(
-                new int[]{com.android.internal.R.attr.materialColorSurface}))
-                .thenReturn(mMockTypedArray);
+        when(mContext.getColor(com.android.internal.R.color.materialColorSurface))
+                .thenAnswer(invocation -> mSurfaceColor);
 
-        when(mMockTypedArray.getColorStateList(anyInt()))
-                .thenAnswer((invocation) -> ColorStateList.valueOf(mSurfaceColor));
+        mConfigurationController = new FakeConfigurationController();
+        mLinearLargeScreenShadeInterpolator = new LinearLargeScreenShadeInterpolator();
 
         mScrimBehind = spy(new ScrimView(mContext));
         mScrimInFront = new ScrimView(mContext);
@@ -275,6 +272,9 @@ public class ScrimControllerTest extends SysuiTestCase {
         when(mAlternateBouncerToGoneTransitionViewModel.getScrimAlpha())
                 .thenReturn(emptyFlow());
 
+        mKeyguardTransitionRepository = mKosmos.getKeyguardTransitionRepository();
+        mKeyguardTransitionInteractor = mKosmos.getKeyguardTransitionInteractor();
+
         mScrimController = new ScrimController(
                 mLightBarController,
                 mDozeParameters,
@@ -294,7 +294,10 @@ public class ScrimControllerTest extends SysuiTestCase {
                 mKeyguardTransitionInteractor,
                 mKeyguardInteractor,
                 mKosmos.getTestDispatcher(),
-                mLinearLargeScreenShadeInterpolator);
+                mLinearLargeScreenShadeInterpolator,
+                new BlurConfig(0.0f, 0.0f),
+                mContext,
+                mKosmos::getWindowRootViewBlurInteractor);
         mScrimController.setScrimVisibleListener(visible -> mScrimVisibility = visible);
         mScrimController.attachViews(mScrimBehind, mNotificationsScrim, mScrimInFront);
         mScrimController.setAnimatorListener(mAnimatorListener);
@@ -325,6 +328,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToKeyguard() {
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
         finishAnimationsImmediately();
@@ -340,6 +344,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToShadeLocked() {
         mScrimController.legacyTransitionTo(SHADE_LOCKED);
         mScrimController.setQsPosition(1f, 0);
@@ -358,8 +363,7 @@ public class ScrimControllerTest extends SysuiTestCase {
 
     @Test
     @EnableSceneContainer
-    @DisableFlags(DualShade.FLAG_NAME)
-    public void transitionToShadeLocked_sceneContainer_dualShadeOff() {
+    public void transitionToShadeLocked_sceneContainer() {
         mScrimController.transitionTo(SHADE_LOCKED);
         mScrimController.setQsPosition(1f, 0);
         finishAnimationsImmediately();
@@ -377,27 +381,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableSceneContainer
-    @EnableFlags(DualShade.FLAG_NAME)
-    public void transitionToShadeLocked_sceneContainer_dualShadeOn() {
-        mScrimController.transitionTo(SHADE_LOCKED);
-        mScrimController.setQsPosition(1f, 0);
-        finishAnimationsImmediately();
-
-        assertScrimAlpha(Map.of(
-                mNotificationsScrim, TRANSPARENT,
-                mScrimInFront, TRANSPARENT,
-                mScrimBehind, TRANSPARENT
-        ));
-
-        assertScrimTinted(Map.of(
-                mScrimInFront, false,
-                mNotificationsScrim, false,
-                mScrimBehind, false
-        ));
-    }
-
-    @Test
+    @DisableSceneContainer
     public void transitionToShadeLocked_clippingQs() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.legacyTransitionTo(SHADE_LOCKED);
@@ -416,6 +400,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToOff() {
         mScrimController.legacyTransitionTo(ScrimState.OFF);
         finishAnimationsImmediately();
@@ -431,6 +416,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToAod_withRegularWallpaper() {
         mScrimController.legacyTransitionTo(ScrimState.AOD);
         finishAnimationsImmediately();
@@ -446,6 +432,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToAod_withFrontAlphaUpdates() {
         // Assert that setting the AOD front scrim alpha doesn't take effect in a non-AOD state.
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -490,6 +477,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToAod_afterDocked_ignoresAlwaysOnAndUpdatesFrontAlpha() {
         // Assert that setting the AOD front scrim alpha doesn't take effect in a non-AOD state.
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -531,6 +519,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToPulsing_withFrontAlphaUpdates() {
         // Pre-condition
         // Need to go to AoD first because PULSING doesn't change
@@ -576,6 +565,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToKeyguardBouncer() {
         mScrimController.legacyTransitionTo(BOUNCER);
         finishAnimationsImmediately();
@@ -596,6 +586,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void lockscreenToHubTransition_setsBehindScrimAlpha() {
         // Start on lockscreen.
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -642,6 +633,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void hubToLockscreenTransition_setsViewAlpha() {
         // Start on glanceable hub.
         mScrimController.legacyTransitionTo(ScrimState.GLANCEABLE_HUB);
@@ -688,6 +680,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToHub() {
         mScrimController.setRawPanelExpansionFraction(0f);
         mScrimController.setBouncerHiddenFraction(KeyguardBouncerConstants.EXPANSION_HIDDEN);
@@ -702,6 +695,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void openBouncerOnHub() {
         mScrimController.legacyTransitionTo(ScrimState.GLANCEABLE_HUB);
 
@@ -731,6 +725,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void openShadeOnHub() {
         mScrimController.legacyTransitionTo(ScrimState.GLANCEABLE_HUB);
 
@@ -759,6 +754,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToHubOverDream() {
         mScrimController.setRawPanelExpansionFraction(0f);
         mScrimController.setBouncerHiddenFraction(KeyguardBouncerConstants.EXPANSION_HIDDEN);
@@ -773,6 +769,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void openBouncerOnHubOverDream() {
         mScrimController.legacyTransitionTo(ScrimState.GLANCEABLE_HUB_OVER_DREAM);
 
@@ -802,6 +799,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void openShadeOnHubOverDream() {
         mScrimController.legacyTransitionTo(ScrimState.GLANCEABLE_HUB_OVER_DREAM);
 
@@ -830,6 +828,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void onThemeChange_bouncerBehindTint_isUpdatedToSurfaceColor() {
         assertEquals(BOUNCER.getBehindTint(), 0x112233);
         mSurfaceColor = 0x223344;
@@ -838,6 +837,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void onThemeChangeWhileClipQsScrim_bouncerBehindTint_remainsBlack() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.legacyTransitionTo(BOUNCER);
@@ -850,6 +850,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToKeyguardBouncer_clippingQs() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.legacyTransitionTo(BOUNCER);
@@ -870,6 +871,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void disableClipQsScrimWithoutStateTransition_updatesTintAndAlpha() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.legacyTransitionTo(BOUNCER);
@@ -892,6 +894,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void enableClipQsScrimWithoutStateTransition_updatesTintAndAlpha() {
         mScrimController.setClipsQsScrim(false);
         mScrimController.legacyTransitionTo(BOUNCER);
@@ -914,6 +917,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToBouncer() {
         mScrimController.legacyTransitionTo(ScrimState.BOUNCER_SCRIMMED);
         finishAnimationsImmediately();
@@ -927,6 +931,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToUnlocked_clippedQs() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.setRawPanelExpansionFraction(0f);
@@ -958,8 +963,7 @@ public class ScrimControllerTest extends SysuiTestCase {
 
     @Test
     @EnableSceneContainer
-    @DisableFlags(DualShade.FLAG_NAME)
-    public void transitionToUnlocked_sceneContainer_dualShadeOff() {
+    public void transitionToUnlocked_sceneContainer() {
         mScrimController.setRawPanelExpansionFraction(0f);
         mScrimController.transitionTo(ScrimState.UNLOCKED);
         finishAnimationsImmediately();
@@ -986,35 +990,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableSceneContainer
-    @EnableFlags(DualShade.FLAG_NAME)
-    public void transitionToUnlocked_sceneContainer_dualShadeOn() {
-        mScrimController.setRawPanelExpansionFraction(0f);
-        mScrimController.transitionTo(ScrimState.UNLOCKED);
-        finishAnimationsImmediately();
-
-        assertScrimAlpha(Map.of(
-                mScrimInFront, TRANSPARENT,
-                mNotificationsScrim, TRANSPARENT,
-                mScrimBehind, TRANSPARENT
-        ));
-
-        mScrimController.setRawPanelExpansionFraction(0.5f);
-        assertScrimAlpha(Map.of(
-                mScrimInFront, TRANSPARENT,
-                mNotificationsScrim, TRANSPARENT,
-                mScrimBehind, TRANSPARENT
-        ));
-
-        mScrimController.setRawPanelExpansionFraction(1f);
-        assertScrimAlpha(Map.of(
-                mScrimInFront, TRANSPARENT,
-                mNotificationsScrim, TRANSPARENT,
-                mScrimBehind, TRANSPARENT
-        ));
-    }
-
-    @Test
+    @DisableSceneContainer
     public void transitionToUnlocked_nonClippedQs_followsLargeScreensInterpolator() {
         mScrimController.setClipsQsScrim(false);
         mScrimController.setRawPanelExpansionFraction(0f);
@@ -1054,6 +1030,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void scrimStateCallback() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         finishAnimationsImmediately();
@@ -1069,6 +1046,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void panelExpansion() {
         mScrimController.setRawPanelExpansionFraction(0f);
         mScrimController.setRawPanelExpansionFraction(0.5f);
@@ -1091,6 +1069,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void qsExpansion() {
         reset(mScrimBehind);
         mScrimController.setQsPosition(1f, 999 /* value doesn't matter */);
@@ -1103,6 +1082,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void qsExpansion_clippingQs() {
         reset(mScrimBehind);
         mScrimController.setClipsQsScrim(true);
@@ -1116,6 +1096,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void qsExpansion_half_clippingQs() {
         reset(mScrimBehind);
         mScrimController.setClipsQsScrim(true);
@@ -1129,6 +1110,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void panelExpansionAffectsAlpha() {
         mScrimController.setRawPanelExpansionFraction(0f);
         mScrimController.setRawPanelExpansionFraction(0.5f);
@@ -1151,6 +1133,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToUnlockedFromOff() {
         // Simulate unlock with fingerprint without AOD
         mScrimController.legacyTransitionTo(ScrimState.OFF);
@@ -1173,6 +1156,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToUnlockedFromAod() {
         // Simulate unlock with fingerprint
         mScrimController.legacyTransitionTo(ScrimState.AOD);
@@ -1195,6 +1179,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void scrimBlanksBeforeLeavingAod() {
         // Simulate unlock with fingerprint
         mScrimController.legacyTransitionTo(ScrimState.AOD);
@@ -1218,6 +1203,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void scrimBlankCallbackWhenUnlockingFromPulse() {
         boolean[] blanked = {false};
         // Simulate unlock with fingerprint
@@ -1236,6 +1222,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void blankingNotRequired_leavingAoD() {
         // GIVEN display does NOT need blanking
         when(mDozeParameters.getDisplayNeedsBlanking()).thenReturn(false);
@@ -1259,7 +1246,10 @@ public class ScrimControllerTest extends SysuiTestCase {
                 mKeyguardTransitionInteractor,
                 mKeyguardInteractor,
                 mKosmos.getTestDispatcher(),
-                mLinearLargeScreenShadeInterpolator);
+                mLinearLargeScreenShadeInterpolator,
+                new BlurConfig(0.0f, 0.0f),
+                mContext,
+                mKosmos::getWindowRootViewBlurInteractor);
         mScrimController.setScrimVisibleListener(visible -> mScrimVisibility = visible);
         mScrimController.attachViews(mScrimBehind, mNotificationsScrim, mScrimInFront);
         mScrimController.setAnimatorListener(mAnimatorListener);
@@ -1289,6 +1279,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimCallback() {
         int[] callOrder = {0, 0, 0};
         int[] currentCall = {0};
@@ -1315,12 +1306,14 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimCallbacksWithoutAmbientDisplay() {
         mAlwaysOnEnabled = false;
         testScrimCallback();
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimCallbackCancelled() {
         boolean[] cancelledCalled = {false};
         mScrimController.legacyTransitionTo(ScrimState.AOD, new ScrimController.Callback() {
@@ -1334,6 +1327,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testHoldsWakeLock_whenAOD() {
         mScrimController.legacyTransitionTo(ScrimState.AOD);
         verify(mWakeLock).acquire(anyString());
@@ -1343,6 +1337,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testDoesNotHoldWakeLock_whenUnlocking() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         finishAnimationsImmediately();
@@ -1350,6 +1345,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testCallbackInvokedOnSameStateTransition() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         finishAnimationsImmediately();
@@ -1359,6 +1355,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testConservesExpansionOpacityAfterTransition() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         mScrimController.setRawPanelExpansionFraction(0.5f);
@@ -1376,6 +1373,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testCancelsOldAnimationBeforeBlanking() {
         mScrimController.legacyTransitionTo(ScrimState.AOD);
         finishAnimationsImmediately();
@@ -1388,6 +1386,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimsAreNotFocusable() {
         assertFalse("Behind scrim should not be focusable", mScrimBehind.isFocusable());
         assertFalse("Front scrim should not be focusable", mScrimInFront.isFocusable());
@@ -1396,6 +1395,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testEatsTouchEvent() {
         HashSet<ScrimState> eatsTouches =
                 new HashSet<>(Collections.singletonList(ScrimState.AOD));
@@ -1412,6 +1412,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testAnimatesTransitionToAod() {
         when(mDozeParameters.shouldControlScreenOff()).thenReturn(false);
         ScrimState.AOD.prepare(ScrimState.KEYGUARD);
@@ -1426,14 +1427,14 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testIsLowPowerMode() {
         HashSet<ScrimState> lowPowerModeStates = new HashSet<>(Arrays.asList(
                 ScrimState.OFF, ScrimState.AOD, ScrimState.PULSING));
         HashSet<ScrimState> regularStates = new HashSet<>(Arrays.asList(
                 ScrimState.UNINITIALIZED, ScrimState.KEYGUARD, BOUNCER,
                 ScrimState.DREAMING, ScrimState.BOUNCER_SCRIMMED, ScrimState.BRIGHTNESS_MIRROR,
-                ScrimState.UNLOCKED, SHADE_LOCKED, ScrimState.AUTH_SCRIMMED,
-                ScrimState.AUTH_SCRIMMED_SHADE, ScrimState.GLANCEABLE_HUB,
+                ScrimState.UNLOCKED, SHADE_LOCKED, ScrimState.GLANCEABLE_HUB,
                 ScrimState.GLANCEABLE_HUB_OVER_DREAM));
 
         for (ScrimState state : ScrimState.values()) {
@@ -1444,6 +1445,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimsOpaque_whenShadeFullyExpanded() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         mScrimController.setRawPanelExpansionFraction(1);
@@ -1458,79 +1460,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
-    public void testAuthScrim_setClipQSScrimTrue_notifScrimOpaque_whenShadeFullyExpanded() {
-        // GIVEN device has an activity showing ('UNLOCKED' state can occur on the lock screen
-        // with the camera app occluding the keyguard)
-        mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
-        mScrimController.setClipsQsScrim(true);
-        mScrimController.setRawPanelExpansionFraction(1);
-        // notifications scrim alpha change require calling setQsPosition
-        mScrimController.setQsPosition(0, 300);
-        finishAnimationsImmediately();
-
-        // WHEN the user triggers the auth bouncer
-        mScrimController.legacyTransitionTo(ScrimState.AUTH_SCRIMMED_SHADE);
-        finishAnimationsImmediately();
-
-        assertEquals("Behind scrim should be opaque",
-                mScrimBehind.getViewAlpha(), 1, 0.0);
-        assertEquals("Notifications scrim should be opaque",
-                mNotificationsScrim.getViewAlpha(), 1, 0.0);
-
-        assertScrimTinted(Map.of(
-                mScrimInFront, true,
-                mScrimBehind, true,
-                mNotificationsScrim, false
-        ));
-    }
-
-
-    @Test
-    public void testAuthScrim_setClipQSScrimFalse_notifScrimOpaque_whenShadeFullyExpanded() {
-        // GIVEN device has an activity showing ('UNLOCKED' state can occur on the lock screen
-        // with the camera app occluding the keyguard)
-        mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
-        mScrimController.setClipsQsScrim(false);
-        mScrimController.setRawPanelExpansionFraction(1);
-        // notifications scrim alpha change require calling setQsPosition
-        mScrimController.setQsPosition(0, 300);
-        finishAnimationsImmediately();
-
-        // WHEN the user triggers the auth bouncer
-        mScrimController.legacyTransitionTo(ScrimState.AUTH_SCRIMMED_SHADE);
-        finishAnimationsImmediately();
-
-        assertEquals("Behind scrim should be opaque",
-                mScrimBehind.getViewAlpha(), 1, 0.0);
-        assertEquals("Notifications scrim should be opaque",
-                mNotificationsScrim.getViewAlpha(), 1, 0.0);
-
-        assertScrimTinted(Map.of(
-                mScrimInFront, true,
-                mScrimBehind, true,
-                mNotificationsScrim, false
-        ));
-    }
-
-    @Test
-    public void testAuthScrimKeyguard() {
-        // GIVEN device is on the keyguard
-        mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
-        finishAnimationsImmediately();
-
-        // WHEN the user triggers the auth bouncer
-        mScrimController.legacyTransitionTo(ScrimState.AUTH_SCRIMMED);
-        finishAnimationsImmediately();
-
-        // THEN the front scrim is updated and the KEYGUARD scrims are the same as the
-        // KEYGUARD scrim state
-        assertScrimAlpha(Map.of(
-                mScrimInFront, SEMI_TRANSPARENT,
-                mScrimBehind, SEMI_TRANSPARENT,
-                mNotificationsScrim, TRANSPARENT));
-    }
-
-    @Test
+    @DisableSceneContainer
     public void testScrimsVisible_whenShadeVisible() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
@@ -1546,6 +1476,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testDoesntAnimate_whenUnlocking() {
         // LightRevealScrim will animate the transition, we should only hide the keyguard scrims.
         ScrimState.UNLOCKED.prepare(ScrimState.KEYGUARD);
@@ -1566,6 +1497,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimsVisible_whenShadeVisible_clippingQs() {
         mScrimController.setClipsQsScrim(true);
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
@@ -1581,6 +1513,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testScrimsVisible_whenShadeVisibleOnLockscreen() {
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
         mScrimController.setQsPosition(0.25f, 300);
@@ -1592,6 +1525,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testNotificationScrimTransparent_whenOnLockscreen() {
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
         // even if shade is not pulled down, panel has expansion of 1 on the lockscreen
@@ -1604,6 +1538,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testNotificationScrimVisible_afterOpeningShadeFromLockscreen() {
         mScrimController.setRawPanelExpansionFraction(1);
         mScrimController.legacyTransitionTo(SHADE_LOCKED);
@@ -1615,6 +1550,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void qsExpansion_BehindTint_shadeLocked_bouncerActive_usesBouncerProgress() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(true);
         // clipping doesn't change tested logic but allows to assert scrims more in line with
@@ -1631,6 +1567,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void expansionNotificationAlpha_shadeLocked_bouncerActive_usesBouncerInterpolator() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(true);
 
@@ -1647,6 +1584,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void expansionNotificationAlpha_shadeLocked_bouncerNotActive_usesShadeInterpolator() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(false);
 
@@ -1662,6 +1600,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationAlpha_unnocclusionAnimating_bouncerNotActive_usesKeyguardNotifAlpha() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(false);
 
@@ -1681,6 +1620,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationAlpha_inKeyguardState_bouncerActive_usesInvertedBouncerInterpolator() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(true);
         mScrimController.setClipsQsScrim(true);
@@ -1701,6 +1641,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationAlpha_inKeyguardState_bouncerNotActive_usesInvertedShadeInterpolator() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(false);
         mScrimController.setClipsQsScrim(true);
@@ -1721,6 +1662,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void behindTint_inKeyguardState_bouncerNotActive_usesKeyguardBehindTint() {
         when(mStatusBarKeyguardViewManager.isPrimaryBouncerInTransit()).thenReturn(false);
         mScrimController.setClipsQsScrim(false);
@@ -1732,6 +1674,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testNotificationTransparency_followsTransitionToFullShade() {
         mScrimController.setClipsQsScrim(true);
 
@@ -1773,6 +1716,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationTransparency_followsNotificationScrimProgress() {
         mScrimController.legacyTransitionTo(SHADE_LOCKED);
         mScrimController.setRawPanelExpansionFraction(1.0f);
@@ -1789,6 +1733,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationAlpha_qsNotClipped_alphaMatchesNotificationExpansionProgress() {
         mScrimController.setClipsQsScrim(false);
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -1824,6 +1769,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void setNotificationsOverScrollAmount_setsTranslationYOnNotificationsScrim() {
         int overScrollAmount = 10;
 
@@ -1833,6 +1779,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void setNotificationsOverScrollAmount_doesNotSetTranslationYOnBehindScrim() {
         int overScrollAmount = 10;
 
@@ -1842,6 +1789,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void setNotificationsOverScrollAmount_doesNotSetTranslationYOnFrontScrim() {
         int overScrollAmount = 10;
 
@@ -1851,6 +1799,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationBoundsTopGetsPassedToKeyguard() {
         mScrimController.legacyTransitionTo(SHADE_LOCKED);
         mScrimController.setQsPosition(1f, 0);
@@ -1861,6 +1810,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationBoundsTopDoesNotGetPassedToKeyguardWhenNotifScrimIsNotVisible() {
         mScrimController.setKeyguardOccluded(true);
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -1871,6 +1821,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void transitionToDreaming() {
         mScrimController.setRawPanelExpansionFraction(0f);
         mScrimController.setBouncerHiddenFraction(KeyguardBouncerConstants.EXPANSION_HIDDEN);
@@ -1890,6 +1841,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void keyguardGoingAwayUpdateScrims() {
         when(mKeyguardStateController.isKeyguardGoingAway()).thenReturn(true);
         mScrimController.updateScrims();
@@ -1899,6 +1851,7 @@ public class ScrimControllerTest extends SysuiTestCase {
 
 
     @Test
+    @DisableSceneContainer
     public void setUnOccludingAnimationKeyguard() {
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
         finishAnimationsImmediately();
@@ -1913,6 +1866,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testHidesScrimFlickerInActivity() {
         mScrimController.setKeyguardOccluded(true);
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -1931,6 +1885,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void notificationAlpha_inKeyguardState_bouncerNotActive_clipsQsScrimFalse() {
         mScrimController.setClipsQsScrim(false);
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
@@ -1940,6 +1895,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void aodStateSetsFrontScrimToNotBlend() {
         mScrimController.legacyTransitionTo(ScrimState.AOD);
         assertFalse("Front scrim should not blend with main color",
@@ -1947,6 +1903,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void applyState_unlocked_bouncerShowing() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         mScrimController.setBouncerHiddenFraction(0.99f);
@@ -1956,6 +1913,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void ignoreTransitionRequestWhileKeyguardTransitionRunning() {
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
         mScrimController.mBouncerToGoneTransition.accept(
@@ -1968,6 +1926,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void primaryBouncerToGoneOnFinishCallsKeyguardFadedAway() {
         when(mKeyguardStateController.isKeyguardFadingAway()).thenReturn(true);
         mScrimController.mBouncerToGoneTransition.accept(
@@ -1978,6 +1937,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void primaryBouncerToGoneOnFinishCallsLightBarController() {
         reset(mLightBarController);
         mScrimController.mBouncerToGoneTransition.accept(
@@ -1989,6 +1949,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testDoNotAnimateChangeIfOccludeAnimationPlaying() {
         mScrimController.setOccludeAnimationPlaying(true);
         mScrimController.legacyTransitionTo(ScrimState.UNLOCKED);
@@ -1997,6 +1958,7 @@ public class ScrimControllerTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableSceneContainer
     public void testNotifScrimAlpha_1f_afterUnlockFinishedAndExpanded() {
         mScrimController.legacyTransitionTo(ScrimState.KEYGUARD);
         when(mKeyguardUnlockAnimationController.isPlayingCannedUnlockAnimation()).thenReturn(true);
@@ -2069,9 +2031,9 @@ public class ScrimControllerTest extends SysuiTestCase {
 
         // Check combined scrim visibility.
         final int visibility;
-        if (scrimToAlpha.values().contains(OPAQUE)) {
+        if (scrimToAlpha.containsValue(OPAQUE)) {
             visibility = OPAQUE;
-        } else if (scrimToAlpha.values().contains(SEMI_TRANSPARENT)) {
+        } else if (scrimToAlpha.containsValue(SEMI_TRANSPARENT)) {
             visibility = SEMI_TRANSPARENT;
         } else {
             visibility = TRANSPARENT;

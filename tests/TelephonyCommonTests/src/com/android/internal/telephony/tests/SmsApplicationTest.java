@@ -231,7 +231,7 @@ public class SmsApplicationTest {
                 .replacePreferredActivity(intentFilterCaptor.capture(),
                         eq(IntentFilter.MATCH_CATEGORY_SCHEME
                                 | IntentFilter.MATCH_ADJUSTMENT_NORMAL),
-                        isNotNull(List.class),
+                        (List<ComponentName>)isNotNull(),
                         eq(new ComponentName(TEST_COMPONENT_NAME.getPackageName(), SEND_TO_NAME)));
 
         Set<String> capturedSchemes = intentFilterCaptor.getAllValues().stream()

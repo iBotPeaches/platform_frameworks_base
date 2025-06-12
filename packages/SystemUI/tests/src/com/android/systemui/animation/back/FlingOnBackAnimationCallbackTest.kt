@@ -69,9 +69,11 @@ class FlingOnBackAnimationCallbackTest : SysuiTestCase() {
         callback.onBackProgressed(backEventOf(0.6f, 32))
         assertTrue("Assert onBackProgressedCompat called", callback.backProgressedCalled)
         assertEquals("Assert interpolated progress", 0.6f, callback.progressEvent?.progress)
-        getInstrumentation().runOnMainSync { callback.onBackInvoked() }
-        // Assert that onBackInvoked is not called immediately...
-        assertFalse(callback.backInvokedCalled)
+        getInstrumentation().runOnMainSync {
+            callback.onBackInvoked()
+            // Assert that onBackInvoked is not called immediately.
+            assertFalse(callback.backInvokedCalled)
+        }
         // Instead the fling animation is played and eventually onBackInvoked is called.
         callback.backInvokedLatch.await(1000, TimeUnit.MILLISECONDS)
         assertTrue(callback.backInvokedCalled)

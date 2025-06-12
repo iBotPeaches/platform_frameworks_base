@@ -34,6 +34,7 @@ import android.text.TextUtils;
  * <img src="{@docRoot}reference/android/images/text/style/relativesizespan.png" />
  * <figcaption>Text increased by 50% with <code>RelativeSizeSpan</code>.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class RelativeSizeSpan extends MetricAffectingSpan implements ParcelableSpan {
 
     private final float mProportion;

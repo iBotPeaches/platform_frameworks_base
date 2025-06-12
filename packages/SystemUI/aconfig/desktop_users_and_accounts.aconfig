@@ -1,0 +1,9 @@
+package: "com.android.systemui"
+container: "system"
+
+flag {
+    name: "user_switcher_add_sign_out_option"
+    namespace: "desktop_users_and_accounts"
+    description: "Add a sign out option to the user switcher menu if sign out is possible"
+    bug: "381478261"
+}

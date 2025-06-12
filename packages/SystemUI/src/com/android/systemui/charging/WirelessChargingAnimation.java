@@ -28,10 +28,10 @@ import android.util.Slog;
 import android.view.Gravity;
 import android.view.WindowManager;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.logging.UiEvent;
 import com.android.internal.logging.UiEventLogger;
 import com.android.systemui.surfaceeffects.ripple.RippleShader.RippleShape;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 /**
  * A WirelessChargingAnimation is a view containing view + animation for wireless charging.
@@ -60,11 +60,11 @@ public class WirelessChargingAnimation {
      */
     private WirelessChargingAnimation(@NonNull Context context, @Nullable Looper looper,
             int transmittingBatteryLevel, int batteryLevel, Callback callback, boolean isDozing,
-            RippleShape rippleShape, UiEventLogger uiEventLogger,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+            RippleShape rippleShape, UiEventLogger uiEventLogger, WindowManager windowManager,
+            WindowManagerProvider windowManagerProvider) {
         mCurrentWirelessChargingView = new WirelessChargingView(context, looper,
                 transmittingBatteryLevel, batteryLevel, callback, isDozing,
-                rippleShape, uiEventLogger, viewCaptureAwareWindowManager);
+                rippleShape, uiEventLogger, windowManager, windowManagerProvider);
     }
 
     /**
@@ -75,11 +75,11 @@ public class WirelessChargingAnimation {
     public static WirelessChargingAnimation makeWirelessChargingAnimation(@NonNull Context context,
             @Nullable Looper looper, int transmittingBatteryLevel, int batteryLevel,
             Callback callback, boolean isDozing, RippleShape rippleShape,
-            UiEventLogger uiEventLogger,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+            UiEventLogger uiEventLogger, WindowManager windowManager,
+            WindowManagerProvider windowManagerProvider) {
         return new WirelessChargingAnimation(context, looper, transmittingBatteryLevel,
-                batteryLevel, callback, isDozing, rippleShape, uiEventLogger,
-                viewCaptureAwareWindowManager);
+                batteryLevel, callback, isDozing, rippleShape, uiEventLogger, windowManager,
+                windowManagerProvider);
     }
 
     /**
@@ -88,10 +88,10 @@ public class WirelessChargingAnimation {
      */
     public static WirelessChargingAnimation makeChargingAnimationWithNoBatteryLevel(
             @NonNull Context context, RippleShape rippleShape, UiEventLogger uiEventLogger,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+            WindowManager windowManager, WindowManagerProvider windowManagerProvider) {
         return makeWirelessChargingAnimation(context, null,
                 UNKNOWN_BATTERY_LEVEL, UNKNOWN_BATTERY_LEVEL, null, false,
-                rippleShape, uiEventLogger, viewCaptureAwareWindowManager);
+                rippleShape, uiEventLogger, windowManager, windowManagerProvider);
     }
 
     /**
@@ -123,19 +123,21 @@ public class WirelessChargingAnimation {
         private int mGravity;
         private WirelessChargingLayout mView;
         private WirelessChargingLayout mNextView;
-        private ViewCaptureAwareWindowManager mWM;
+        private WindowManager mWM;
         private Callback mCallback;
+        private WindowManagerProvider mWindowManagerProvider;
 
         public WirelessChargingView(Context context, @Nullable Looper looper,
                 int transmittingBatteryLevel, int batteryLevel, Callback callback,
                 boolean isDozing, RippleShape rippleShape, UiEventLogger uiEventLogger,
-                ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+                WindowManager windowManager, WindowManagerProvider windowManagerProvider) {
             mCallback = callback;
             mNextView = new WirelessChargingLayout(context, transmittingBatteryLevel, batteryLevel,
                     isDozing, rippleShape);
             mGravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER;
             mUiEventLogger = uiEventLogger;
-            mWM = viewCaptureAwareWindowManager;
+            mWM = windowManager;
+            mWindowManagerProvider = windowManagerProvider;
 
             final WindowManager.LayoutParams params = mParams;
             params.height = WindowManager.LayoutParams.MATCH_PARENT;
@@ -207,6 +209,7 @@ public class WirelessChargingAnimation {
                 if (context == null) {
                     context = mView.getContext();
                 }
+                mWM = mWindowManagerProvider.getWindowManager(context);
                 mParams.packageName = packageName;
                 mParams.hideTimeoutMilliseconds = DURATION;
 

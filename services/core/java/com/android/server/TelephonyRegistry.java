@@ -2816,13 +2816,12 @@ public class TelephonyRegistry extends ITelephonyRegistry.Stub {
         if (!checkNotifyPermission("notifyEmergencyNumberList()")) {
             return;
         }
-        if (Flags.enforceTelephonyFeatureMappingForPublicApis()) {
-            if (!mContext.getPackageManager().hasSystemFeature(
-                    PackageManager.FEATURE_TELEPHONY_CALLING)) {
-                // TelephonyManager.getEmergencyNumberList() throws an exception if
-                // FEATURE_TELEPHONY_CALLING is not defined.
-                return;
-            }
+        if (!mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+                && !mContext.getPackageManager()
+                        .hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING)) {
+            // TelephonyManager.getEmergencyNumberList() throws an exception if
+            // FEATURE_TELEPHONY_CALLING or FEATURE_TELEPHONY_MESSAGING is not defined.
+            return;
         }
 
         synchronized (mRecords) {

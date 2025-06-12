@@ -22,6 +22,7 @@ import android.hardware.devicestate.DeviceStateManager
 import android.os.Trace
 import android.util.Log
 import com.android.internal.util.LatencyTracker
+import com.android.systemui.Flags.unfoldLatencyTrackingFix
 import com.android.systemui.dagger.qualifiers.UiBackground
 import com.android.systemui.keyguard.ScreenLifecycle
 import com.android.systemui.unfold.UnfoldTransitionProgressProvider.TransitionProgressListener
@@ -63,7 +64,7 @@ constructor(
 
     /** Registers for relevant events only if the device is foldable. */
     fun init() {
-        if (!isFoldable) {
+        if (unfoldLatencyTrackingFix() || !isFoldable) {
             return
         }
         deviceStateManager.registerCallback(uiBgExecutor, foldStateListener)
@@ -85,7 +86,7 @@ constructor(
         if (DEBUG) {
             Log.d(
                 TAG,
-                "onScreenTurnedOn: folded = $folded, isTransitionEnabled = $isTransitionEnabled"
+                "onScreenTurnedOn: folded = $folded, isTransitionEnabled = $isTransitionEnabled",
             )
         }
 
@@ -109,7 +110,7 @@ constructor(
         if (DEBUG) {
             Log.d(
                 TAG,
-                "onTransitionStarted: folded = $folded, isTransitionEnabled = $isTransitionEnabled"
+                "onTransitionStarted: folded = $folded, isTransitionEnabled = $isTransitionEnabled",
             )
         }
 
@@ -161,7 +162,7 @@ constructor(
                     Log.d(
                         TAG,
                         "Starting ACTION_SWITCH_DISPLAY_UNFOLD, " +
-                            "isTransitionEnabled = $isTransitionEnabled"
+                            "isTransitionEnabled = $isTransitionEnabled",
                     )
                 }
             }

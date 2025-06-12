@@ -24,11 +24,10 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toCollection
 import kotlinx.coroutines.test.runCurrent
@@ -36,15 +35,13 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class NotesTileDataInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val testUser = UserHandle.of(1)
     private lateinit var underTest: NotesTileDataInteractor
-
 
     @EnableFlags(Flags.FLAG_NOTES_ROLE_QS_TILE)
     @Test
@@ -94,7 +91,7 @@ class NotesTileDataInteractorTest : SysuiTestCase() {
     fun tileData_notEmpty() = runTest {
         underTest = NotesTileDataInteractor(isNoteTaskEnabled = true)
         val flowValue by
-        collectLastValue(underTest.tileData(testUser, flowOf(DataUpdateTrigger.InitialRequest)))
+            collectLastValue(underTest.tileData(testUser, flowOf(DataUpdateTrigger.InitialRequest)))
 
         runCurrent()
 

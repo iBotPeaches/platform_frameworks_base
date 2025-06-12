@@ -257,10 +257,12 @@ public abstract class ConfigurationContainer<E extends ConfigurationContainer> {
         // This should be the only place override the configuration for ActivityRecord. Override
         // the value if not calculated yet.
         Rect outAppBounds = inOutConfig.windowConfiguration.getAppBounds();
+        Rect outConfigBounds = new Rect(outAppBounds);
         if (outAppBounds == null || outAppBounds.isEmpty()) {
             inOutConfig.windowConfiguration.setAppBounds(
                     newParentConfiguration.windowConfiguration.getBounds());
             outAppBounds = inOutConfig.windowConfiguration.getAppBounds();
+            outConfigBounds.set(outAppBounds);
             if (task != null) {
                 task = task.getCreatedByOrganizerTask();
                 if (task != null && (task.mOffsetYForInsets != 0 || task.mOffsetXForInsets != 0)) {
@@ -279,6 +281,12 @@ public abstract class ConfigurationContainer<E extends ConfigurationContainer> {
                     outAppBounds.inset(decor.mOverrideNonDecorInsets);
                 }
             }
+            if (!outConfigBounds.intersect(decor.mOverrideConfigFrame)) {
+                if (inOutConfig.windowConfiguration.getWindowingMode()
+                        == WINDOWING_MODE_MULTI_WINDOW) {
+                    outAppBounds.inset(decor.mOverrideConfigInsets);
+                }
+            }
             if (task != null && (task.mOffsetYForInsets != 0 || task.mOffsetXForInsets != 0)) {
                 outAppBounds.offset(-task.mOffsetXForInsets, -task.mOffsetYForInsets);
             }
@@ -289,10 +297,10 @@ public abstract class ConfigurationContainer<E extends ConfigurationContainer> {
         }
         density *= DisplayMetrics.DENSITY_DEFAULT_SCALE;
         if (inOutConfig.screenWidthDp == Configuration.SCREEN_WIDTH_DP_UNDEFINED) {
-            inOutConfig.screenWidthDp = (int) (outAppBounds.width() / density + 0.5f);
+            inOutConfig.screenWidthDp = (int) (outConfigBounds.width() / density + 0.5f);
         }
         if (inOutConfig.screenHeightDp == Configuration.SCREEN_HEIGHT_DP_UNDEFINED) {
-            inOutConfig.screenHeightDp = (int) (outAppBounds.height() / density + 0.5f);
+            inOutConfig.screenHeightDp = (int) (outConfigBounds.height() / density + 0.5f);
         }
         if (inOutConfig.smallestScreenWidthDp == Configuration.SMALLEST_SCREEN_WIDTH_DP_UNDEFINED
                 && parentWindowingMode == WINDOWING_MODE_FULLSCREEN) {

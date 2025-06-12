@@ -64,7 +64,7 @@ public class FastDataTest {
 
     @Parameters(name = "use4ByteSequence={0}")
     public static Collection<Object[]> data() {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             // TODO: 4-byte sequences are only supported on ART
             return Arrays.asList(new Object[][]{{false}});
         } else {

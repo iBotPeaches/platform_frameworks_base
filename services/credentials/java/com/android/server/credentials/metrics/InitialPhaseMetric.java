@@ -55,6 +55,9 @@ public class InitialPhaseMetric {
     // The request id of autofill if the request is from autofill, defaults to -1
     private int mAutofillRequestId = -1;
 
+    // Indicates if this API call used the prepare flow, defaults to false
+    private boolean mApiUsedPrepareFlow = false;
+
 
     public InitialPhaseMetric(int sessionIdTrackOne) {
         mSessionIdCaller = sessionIdTrackOne;
@@ -172,5 +175,18 @@ public class InitialPhaseMetric {
      */
     public int[] getUniqueRequestCounts() {
         return mRequestCounts.values().stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /* ------ API Prepared ------ */
+
+    public void setApiUsedPrepareFlow(boolean apiUsedPrepareFlow) {
+        mApiUsedPrepareFlow = apiUsedPrepareFlow;
+    }
+
+    /**
+     * @return a boolean indicating if this API call utilized a prepare flow
+     */
+    public boolean hasApiUsedPrepareFlow() {
+        return mApiUsedPrepareFlow;
     }
 }

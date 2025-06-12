@@ -16,7 +16,6 @@
 
 package android.telephony.satellite;
 
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
@@ -24,8 +23,6 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import androidx.annotation.NonNull;
-
-import com.android.internal.telephony.flags.Flags;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -35,22 +32,16 @@ import java.lang.annotation.RetentionPolicy;
  * @hide
  */
 @SystemApi
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public final class NtnSignalStrength implements Parcelable {
     /** Non-terrestrial network signal strength is not available. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int NTN_SIGNAL_STRENGTH_NONE = 0;
     /** Non-terrestrial network signal strength is poor. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int NTN_SIGNAL_STRENGTH_POOR = 1;
     /** Non-terrestrial network signal strength is moderate. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int NTN_SIGNAL_STRENGTH_MODERATE = 2;
     /** Non-terrestrial network signal strength is good. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int NTN_SIGNAL_STRENGTH_GOOD = 3;
     /** Non-terrestrial network signal strength is great. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int NTN_SIGNAL_STRENGTH_GREAT = 4;
     @NtnSignalStrengthLevel private int mLevel;
 
@@ -69,7 +60,6 @@ public final class NtnSignalStrength implements Parcelable {
      * Create a parcelable object to inform the current non-terrestrial signal strength
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public NtnSignalStrength(@NtnSignalStrengthLevel int level) {
         this.mLevel = level;
     }
@@ -77,7 +67,6 @@ public final class NtnSignalStrength implements Parcelable {
     /**
      * This constructor is used to create a copy of an existing NtnSignalStrength object.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public NtnSignalStrength(@Nullable NtnSignalStrength source) {
         this.mLevel = (source == null) ? NTN_SIGNAL_STRENGTH_NONE : source.getLevel();
     }
@@ -89,7 +78,6 @@ public final class NtnSignalStrength implements Parcelable {
     /**
      * Returns notified non-terrestrial network signal strength level.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     @NtnSignalStrengthLevel public int getLevel() {
         return mLevel;
     }
@@ -98,7 +86,6 @@ public final class NtnSignalStrength implements Parcelable {
      * @return 0
      */
     @Override
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public int describeContents() {
         return 0;
     }
@@ -109,7 +96,6 @@ public final class NtnSignalStrength implements Parcelable {
      *              May be 0 or {@link #PARCELABLE_WRITE_RETURN_VALUE}.
      */
     @Override
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public void writeToParcel(@NonNull Parcel out, int flags) {
         out.writeInt(mLevel);
     }
@@ -118,7 +104,6 @@ public final class NtnSignalStrength implements Parcelable {
         mLevel = in.readInt();
     }
 
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     @NonNull public static final Creator<NtnSignalStrength> CREATOR =
             new Creator<NtnSignalStrength>() {
                 @Override public NtnSignalStrength createFromParcel(Parcel in) {

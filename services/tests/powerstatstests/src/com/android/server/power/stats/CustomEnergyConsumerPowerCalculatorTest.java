@@ -21,7 +21,6 @@ import static com.google.common.truth.Truth.assertThat;
 import android.os.BatteryConsumer;
 import android.os.Process;
 import android.os.UidBatteryConsumer;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.SparseLongArray;
 
 import androidx.test.filters.SmallTest;
@@ -35,16 +34,11 @@ import org.junit.runner.RunWith;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class CustomEnergyConsumerPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
 
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .initMeasuredEnergyStatsLocked(new String[]{"CUSTOM_COMPONENT1", "CUSTOM_COMPONENT2"});
 

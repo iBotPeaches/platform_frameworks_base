@@ -47,7 +47,7 @@ constructor(
 ) : CoreStartable {
 
     override fun start() {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
         val resultPerDisplay: Map<String, RegisterStatusBarResult> =
             try {
                 barService.registerStatusBarForAllDisplays(commandQueue)
@@ -72,7 +72,7 @@ constructor(
 
     private fun initializeStatusBarForDisplay(displayId: Int, result: RegisterStatusBarResult) {
         if ((result.mTransientBarTypes and WindowInsets.Type.statusBars()) != 0) {
-            statusBarModeRepository.forDisplay(displayId).showTransient()
+            statusBarModeRepository.forDisplay(displayId)?.showTransient()
         }
         val commandQueueCallbacks = commandQueueCallbacksLazy.get()
         commandQueueCallbacks.onSystemBarAttributesChanged(

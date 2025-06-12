@@ -22,6 +22,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 
+import android.annotation.NonNull;
 import android.content.Context;
 import android.content.om.FabricatedOverlay;
 import android.content.om.OverlayIdentifier;
@@ -44,14 +45,17 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 @RunWith(JUnit4.class)
 @MediumTest
 public class FabricatedOverlaysTest {
     private static final String TAG = "FabricatedOverlaysTest";
-    private final String TEST_RESOURCE = "integer/overlaid";
-    private final String TEST_OVERLAY_NAME = "Test";
+    private static final String TEST_INT_RESOURCE = "integer/overlaidInt";
+    private static final String TEST_FLOAT_RESOURCE = "dimen/overlaidFloat";
+    private static final String TEST_OVERLAY_NAME = "Test";
 
     private Context mContext;
     private Resources mResources;
@@ -84,10 +88,10 @@ public class FabricatedOverlaysTest {
     public void testFabricatedOverlay() throws Exception {
         final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 mContext.getPackageName(), TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                 .registerFabricatedOverlay(overlay)
                 .build());
@@ -104,63 +108,63 @@ public class FabricatedOverlaysTest {
         assertNotNull(info);
         assertTrue(info.isEnabled());
 
-        waitForResourceValue(1);
+        waitForIntResourceValue(1);
         mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                 .unregisterFabricatedOverlay(overlay.getIdentifier())
                 .build());
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
     }
 
     @Test
     public void testRegisterEnableAtomic() throws Exception {
         final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 mContext.getPackageName(), TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                 .registerFabricatedOverlay(overlay)
                 .setEnabled(overlay.getIdentifier(), true, mUserId)
                 .build());
 
-        waitForResourceValue(1);
+        waitForIntResourceValue(1);
     }
 
     @Test
     public void testRegisterTwice() throws Exception {
         FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 mContext.getPackageName(), TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                 .registerFabricatedOverlay(overlay)
                 .setEnabled(overlay.getIdentifier(), true, mUserId)
                 .build());
 
-        waitForResourceValue(1);
+        waitForIntResourceValue(1);
         overlay = new FabricatedOverlay.Builder(
                 mContext.getPackageName(), TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 2)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 2)
                 .build();
 
         mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                 .registerFabricatedOverlay(overlay)
                 .build());
-        waitForResourceValue(2);
+        waitForIntResourceValue(2);
     }
 
     @Test
     public void testInvalidOwningPackageName() throws Exception {
         final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 "android", TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         assertThrows(SecurityException.class, () ->
             mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                     .registerFabricatedOverlay(overlay)
@@ -174,10 +178,10 @@ public class FabricatedOverlaysTest {
     public void testInvalidOverlayName() throws Exception {
         final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 mContext.getPackageName(), "invalid@name", mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         assertThrows(SecurityException.class, () ->
                 mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                         .registerFabricatedOverlay(overlay)
@@ -195,7 +199,7 @@ public class FabricatedOverlaysTest {
         {
             FabricatedOverlay overlay = new FabricatedOverlay.Builder(mContext.getPackageName(),
                     longestName, mContext.getPackageName())
-                    .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                    .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                     .build();
 
             mOverlayManager.commit(new OverlayManagerTransaction.Builder()
@@ -206,7 +210,7 @@ public class FabricatedOverlaysTest {
         {
             FabricatedOverlay overlay = new FabricatedOverlay.Builder(mContext.getPackageName(),
                     longestName + "a", mContext.getPackageName())
-                    .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                    .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                     .build();
 
             assertThrows(SecurityException.class, () ->
@@ -267,11 +271,11 @@ public class FabricatedOverlaysTest {
     public void testInvalidResourceValues() throws Exception {
         final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 "android", TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .setResourceValue("color/something", TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         assertThrows(SecurityException.class, () ->
                 mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                         .registerFabricatedOverlay(overlay)
@@ -285,10 +289,10 @@ public class FabricatedOverlaysTest {
     public void testTransactionFailRollback() throws Exception {
         final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
                 mContext.getPackageName(), TEST_OVERLAY_NAME, mContext.getPackageName())
-                .setResourceValue(TEST_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
+                .setResourceValue(TEST_INT_RESOURCE, TypedValue.TYPE_INT_DEC, 1)
                 .build();
 
-        waitForResourceValue(0);
+        waitForIntResourceValue(0);
         assertThrows(SecurityException.class, () ->
                 mOverlayManager.commit(new OverlayManagerTransaction.Builder()
                         .registerFabricatedOverlay(overlay)
@@ -299,16 +303,40 @@ public class FabricatedOverlaysTest {
         assertNull(mOverlayManager.getOverlayInfo(overlay.getIdentifier(), mUserHandle));
     }
 
-    void waitForResourceValue(final int expectedValue) throws TimeoutException {
+    @Test
+    public void setResourceValue_forFloatType_succeeds() throws Exception {
+        final float overlaidValue = 5.7f;
+        final FabricatedOverlay overlay = new FabricatedOverlay.Builder(
+                mContext.getPackageName(), TEST_OVERLAY_NAME, mContext.getPackageName()).build();
+        overlay.setResourceValue(TEST_FLOAT_RESOURCE, overlaidValue, null /*  configuration */);
+
+        waitForFloatResourceValue(0);
+        mOverlayManager.commit(new OverlayManagerTransaction.Builder()
+                .registerFabricatedOverlay(overlay)
+                .setEnabled(overlay.getIdentifier(), true, mUserId)
+                .build());
+
+        waitForFloatResourceValue(overlaidValue);
+    }
+
+    private void waitForIntResourceValue(final int expectedValue) throws TimeoutException {
+        waitForResourceValue(expectedValue, TEST_INT_RESOURCE, id -> mResources.getInteger(id));
+    }
+
+    private void waitForFloatResourceValue(final float expectedValue) throws TimeoutException {
+        waitForResourceValue(expectedValue, TEST_FLOAT_RESOURCE, id -> mResources.getFloat(id));
+    }
+
+    private <T> void waitForResourceValue(final T expectedValue, final String resourceName,
+            @NonNull Function<Integer, T> resourceValueEmitter) throws TimeoutException {
         final long timeOutDuration = 10000;
         final long endTime = System.currentTimeMillis() + timeOutDuration;
-        final String resourceName = TEST_RESOURCE;
         final int resourceId = mResources.getIdentifier(resourceName, "",
                 mContext.getPackageName());
-        int resourceValue = 0;
+        T resourceValue = null;
         while (System.currentTimeMillis() < endTime) {
-            resourceValue = mResources.getInteger(resourceId);
-            if (resourceValue == expectedValue) {
+            resourceValue = resourceValueEmitter.apply(resourceId);
+            if (Objects.equals(expectedValue, resourceValue)) {
                 return;
             }
         }

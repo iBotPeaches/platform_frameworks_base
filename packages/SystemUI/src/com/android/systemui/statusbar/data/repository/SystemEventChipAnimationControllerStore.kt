@@ -23,7 +23,6 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.events.SystemEventChipAnimationController
 import com.android.systemui.statusbar.events.SystemEventChipAnimationControllerImpl
@@ -53,20 +52,26 @@ constructor(
     private val statusBarContentInsetsProviderStore: StatusBarContentInsetsProviderStore,
 ) :
     SystemEventChipAnimationControllerStore,
-    PerDisplayStoreImpl<SystemEventChipAnimationController>(
+    StatusBarPerDisplayStoreImpl<SystemEventChipAnimationController>(
         backgroundApplicationScope,
         displayRepository,
     ) {
 
     init {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
     }
 
-    override fun createInstanceForDisplay(displayId: Int): SystemEventChipAnimationController {
+    override fun createInstanceForDisplay(displayId: Int): SystemEventChipAnimationController? {
+        val displayWindowProperties =
+            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR) ?: return null
+        val statusBarWindowController =
+            statusBarWindowControllerStore.forDisplay(displayId) ?: return null
+        val contentInsetsProvider =
+            statusBarContentInsetsProviderStore.forDisplay(displayId) ?: return null
         return factory.create(
-            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR).context,
-            statusBarWindowControllerStore.forDisplay(displayId),
-            statusBarContentInsetsProviderStore.forDisplay(displayId),
+            displayWindowProperties.context,
+            statusBarWindowController,
+            contentInsetsProvider,
         )
     }
 

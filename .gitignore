@@ -6,3 +6,8 @@ gen/
 .vscode/
 *.code-workspace
 .gradle/
+# .classpath and .settings/ are configurations
+# used by the IDE and java development tools
+# to configure filepaths + project settings
+.classpath
+.settings/

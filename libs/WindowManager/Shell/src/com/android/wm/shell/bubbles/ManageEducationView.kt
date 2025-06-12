@@ -27,6 +27,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import com.android.internal.R.color.system_neutral1_900
 import com.android.wm.shell.R
+import com.android.wm.shell.shared.TypefaceUtils
 import com.android.wm.shell.shared.animation.Interpolators
 
 /**
@@ -53,6 +54,12 @@ class ManageEducationView(
 
     init {
         LayoutInflater.from(context).inflate(R.layout.bubbles_manage_button_education, this)
+        TypefaceUtils.setTypeface(findViewById(R.id.user_education_title),
+            TypefaceUtils.FontFamily.GSF_HEADLINE_SMALL_EMPHASIZED)
+        TypefaceUtils.setTypeface(findViewById(R.id.user_education_description),
+            TypefaceUtils.FontFamily.GSF_BODY_MEDIUM)
+        TypefaceUtils.setTypeface(manageButton, TypefaceUtils.FontFamily.GSF_LABEL_LARGE_EMPHASIZED)
+        TypefaceUtils.setTypeface(gotItButton, TypefaceUtils.FontFamily.GSF_LABEL_LARGE_EMPHASIZED)
         visibility = View.GONE
         elevation = resources.getDimensionPixelSize(R.dimen.bubble_elevation).toFloat()
 

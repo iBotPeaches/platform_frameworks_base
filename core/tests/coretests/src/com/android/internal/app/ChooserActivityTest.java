@@ -79,6 +79,7 @@ import android.graphics.drawable.Icon;
 import android.metrics.LogMaker;
 import android.net.Uri;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.DeviceConfig;
 import android.service.chooser.ChooserTarget;
 import android.util.Pair;
@@ -3178,7 +3179,11 @@ public class ChooserActivityTest {
     }
 
     private void markWorkProfileUserAvailable() {
-        ChooserActivityOverrideData.getInstance().workProfileUserHandle = UserHandle.of(10);
+        if (UserManager.isHeadlessSystemUserMode()) {
+            ChooserActivityOverrideData.getInstance().workProfileUserHandle = UserHandle.of(11);
+        } else {
+            ChooserActivityOverrideData.getInstance().workProfileUserHandle = UserHandle.of(10);
+        }
     }
 
     private void markCloneProfileUserAvailable() {

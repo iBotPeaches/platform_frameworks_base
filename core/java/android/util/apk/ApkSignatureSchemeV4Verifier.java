@@ -88,7 +88,7 @@ public class ApkSignatureSchemeV4Verifier {
             if (signatureBytes != null && signatureBytes.length > 0) {
                 needsConsistencyCheck = false;
                 signature = V4Signature.readFrom(signatureBytes);
-            } else if (android.security.Flags.extendVbChainToUpdatedApk()) {
+            } else {
                 // 2. Try fs-verity next. fs-verity checks against the Merkle tree, but the
                 // v4 signature file (including a raw root hash) is managed separately. We need to
                 // ensure the signed data from the file is consistent with the actual file.
@@ -101,9 +101,6 @@ public class ApkSignatureSchemeV4Verifier {
                     throw new SignatureNotFoundException(
                             "Failed to obtain signature bytes from .idsig");
                 }
-            } else {
-                throw new SignatureNotFoundException(
-                        "Failed to obtain signature bytes from IncFS.");
             }
             if (!signature.isVersionSupported()) {
                 throw new SecurityException(

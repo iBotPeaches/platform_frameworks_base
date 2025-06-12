@@ -64,7 +64,7 @@
                     android:lineHeight="32dp"
                     android:textFontWeight="400"
                     android:textSize="24sp"
-                    android:textColor="?androidprv:attr/materialColorOnSurfaceVariant"
+                    android:textColor="@androidprv:color/materialColorOnSurfaceVariant"
                     tools:text="Gmail" />
 
                 <TextView
@@ -72,10 +72,10 @@
                     android:layout_height="wrap_content"
                     android:textSize="12sp"
                     android:textFontWeight="400"
-                    android:lineHeight="16dp"
+                    android:lineHeight="28dp"
                     android:layout_gravity="center_horizontal"
                     android:layout_marginBottom="16dp"
-                    android:textColor="?androidprv:attr/materialColorOnSurfaceVariant"
+                    android:textColor="@androidprv:color/materialColorOnSurfaceVariant"
                     android:text="@string/open_by_default_dialog_subheader_text"/>
 
                 <RadioGroup
@@ -113,15 +113,16 @@
                 <Button
                     android:id="@+id/open_by_default_settings_dialog_confirm_button"
                     android:layout_width="wrap_content"
-                    android:layout_height="36dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:text="@string/open_by_default_dialog_dismiss_button_text"
                     android:layout_gravity="end"
                     android:layout_marginHorizontal="24dp"
-                    android:layout_marginTop="32dp"
-                    android:layout_marginBottom="24dp"
+                    android:layout_marginTop="26dp"
+                    android:layout_marginBottom="18dp"
                     android:textSize="14sp"
                     android:textFontWeight="500"
-                    android:textColor="?androidprv:attr/materialColorOnPrimary"
+                    android:textColor="@androidprv:color/materialColorOnPrimary"
                     android:background="@drawable/open_by_default_settings_dialog_confirm_button_background"/>
             </LinearLayout>
         </ScrollView>

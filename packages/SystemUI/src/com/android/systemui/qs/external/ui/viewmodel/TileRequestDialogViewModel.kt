@@ -26,6 +26,7 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.qs.external.TileData
+import com.android.systemui.qs.panels.ui.viewmodel.toIconProvider
 import com.android.systemui.qs.panels.ui.viewmodel.toUiState
 import com.android.systemui.qs.tileimpl.QSTileImpl.DrawableIcon
 import com.android.systemui.qs.tileimpl.QSTileImpl.ResourceIcon
@@ -57,6 +58,8 @@ constructor(
             }
 
     val uiState by derivedStateOf { state.toUiState(dialogContext.resources) }
+
+    val iconProvider by derivedStateOf { state.toIconProvider() }
 
     override suspend fun onActivated(): Nothing {
         withContext(backgroundDispatcher) {

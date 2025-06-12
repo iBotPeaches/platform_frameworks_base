@@ -21,7 +21,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertThrows;
 
@@ -207,7 +207,7 @@ public class ProviderRegistryGetSessionTest {
                 ProviderRegistryGetSession.CREDENTIAL_ENTRY_KEY,
                 "unsupportedKey", providerPendingIntentResponse);
 
-        verifyZeroInteractions(mGetRequestSession);
+        verifyNoMoreInteractions(mGetRequestSession);
     }
 
     @Test
@@ -216,7 +216,7 @@ public class ProviderRegistryGetSessionTest {
                 ProviderRegistryGetSession.CREDENTIAL_ENTRY_KEY,
                 ProviderRegistryGetSession.CREDENTIAL_ENTRY_KEY, null);
 
-        verifyZeroInteractions(mGetRequestSession);
+        verifyNoMoreInteractions(mGetRequestSession);
     }
 
     @Test

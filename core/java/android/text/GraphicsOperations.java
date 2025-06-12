@@ -26,6 +26,7 @@ import android.graphics.Paint;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface GraphicsOperations extends CharSequence {
     /**
      * Just like {@link Canvas#drawText}.

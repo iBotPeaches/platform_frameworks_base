@@ -17,6 +17,7 @@ package android.view.contentcapture;
 
 import static android.view.contentcapture.ContentCaptureEvent.TYPE_CONTEXT_UPDATED;
 import static android.view.contentcapture.ContentCaptureEvent.TYPE_SESSION_FINISHED;
+import static android.view.contentcapture.ContentCaptureEvent.TYPE_SESSION_FLUSH;
 import static android.view.contentcapture.ContentCaptureEvent.TYPE_SESSION_PAUSED;
 import static android.view.contentcapture.ContentCaptureEvent.TYPE_SESSION_RESUMED;
 import static android.view.contentcapture.ContentCaptureEvent.TYPE_SESSION_STARTED;
@@ -56,6 +57,7 @@ import android.view.View;
 import android.view.ViewStructure;
 import android.view.autofill.AutofillId;
 import android.view.contentcapture.ViewNode.ViewStructureImpl;
+import android.view.contentcapture.flags.Flags;
 import android.view.contentprotection.ContentProtectionEventProcessor;
 import android.view.inputmethod.BaseInputConnection;
 
@@ -623,6 +625,8 @@ public final class MainContentCaptureSession extends ContentCaptureSession {
     @VisibleForTesting(visibility = VisibleForTesting.Visibility.PACKAGE)
     @Override
     public void flush(@FlushReason int reason) {
+        // TODO: b/380381249 renaming the internal APIs to prevent confusions between this and the
+        // public API.
         runOnContentCaptureThread(() -> flushImpl(reason));
     }
 
@@ -890,6 +894,12 @@ public final class MainContentCaptureSession extends ContentCaptureSession {
         enqueueEvent(event);
     }
 
+    @Override
+    void internalNotifySessionFlushEvent(int sessionId) {
+        final ContentCaptureEvent event = new ContentCaptureEvent(sessionId, TYPE_SESSION_FLUSH);
+        enqueueEvent(event, FORCE_FLUSH);
+    }
+
     private List<ContentCaptureEvent> clearBufferEvents() {
         final ArrayList<ContentCaptureEvent> bufferEvents = new ArrayList<>();
         ContentCaptureEvent event;
@@ -999,6 +1009,9 @@ public final class MainContentCaptureSession extends ContentCaptureSession {
                     }
                 }
                 internalNotifyViewTreeEvent(sessionId, /* started= */ false);
+                if (Flags.flushAfterEachFrame()) {
+                    internalNotifySessionFlushEvent(sessionId);
+                }
             }
         } finally {
             Trace.traceEnd(Trace.TRACE_TAG_VIEW);

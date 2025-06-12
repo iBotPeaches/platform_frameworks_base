@@ -18,6 +18,7 @@ package android.text;
 
 import static org.junit.Assert.assertArrayEquals;
 
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 
 import androidx.test.filters.SmallTest;
@@ -26,6 +27,7 @@ import org.junit.Test;
 
 @Presubmit
 @SmallTest
+@DisabledOnRavenwood(reason = "No need to make j.l.Character match behavior of AndroidCharacter")
 public class AndroidCharacterTest {
 
     @Test

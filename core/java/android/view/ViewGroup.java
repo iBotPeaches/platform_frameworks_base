@@ -2836,7 +2836,9 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                             } else {
                                 predecessor.next = next;
                             }
-                            target.recycle();
+                            if (!target.isRecycled()) {
+                                target.recycle();
+                            }
                             target = next;
                             continue;
                         }
@@ -9048,6 +9050,10 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             target.child = child;
             target.pointerIdBits = pointerIdBits;
             return target;
+        }
+
+        public boolean isRecycled() {
+            return child == null;
         }
 
         public void recycle() {

@@ -17,6 +17,8 @@
 #ifndef ANDROID_GUI_BUFFERITEMCONSUMER_H
 #define ANDROID_GUI_BUFFERITEMCONSUMER_H
 
+#include <com_android_graphics_libgui_flags.h>
+#include <gui/BufferQueue.h>
 #include <gui/ConsumerBase.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <utils/RefBase.h>
@@ -26,11 +28,28 @@ namespace android {
 class BufferItemConsumer : public ConsumerBase {
 public:
     BufferItemConsumer(const sp<IGraphicBufferConsumer>& consumer, uint64_t consumerUsage,
-                       int bufferCount, bool controlledByApp)
+                       int bufferCount = -1, bool controlledByApp = false)
           : mConsumer(consumer) {}
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+    BufferItemConsumer(uint64_t consumerUsage, int bufferCount = -1,
+                       bool controlledByApp = false, bool isConsumerSurfaceFlinger = false) {
+        sp<IGraphicBufferProducer> producer;
+        BufferQueue::createBufferQueue(&producer, &mConsumer);
+        mSurface = sp<Surface>::make(producer, controlledByApp);
+    }
+
+    status_t setConsumerIsProtected(bool isProtected) {
+        return OK;
+    }
+#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
 
     status_t acquireBuffer(BufferItem* item, nsecs_t presentWhen, bool waitForFence = true) {
         return mConsumer->acquireBuffer(item, presentWhen, 0);
+    }
+
+    status_t attachBuffer(BufferItem*, const sp<GraphicBuffer>&) {
+        return INVALID_OPERATION;
     }
 
     status_t releaseBuffer(const BufferItem& item,
@@ -71,8 +90,20 @@ public:
         return OK;
     }
 
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+// Returns a Surface that can be used as the producer for this consumer.
+    sp<Surface> getSurface() const {
+        return mSurface;
+    }
+#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+
 private:
     sp<IGraphicBufferConsumer> mConsumer;
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+        // This Surface wraps the IGraphicBufferConsumer created for this
+    // ConsumerBase.
+    sp<Surface> mSurface;
+#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
 };
 
 } // namespace android

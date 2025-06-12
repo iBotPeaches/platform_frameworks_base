@@ -124,4 +124,6 @@ class GallerySpaEnvironment(context: Context) : SpaEnvironment(context) {
 
     // For debugging
     override val searchProviderAuthorities = "com.android.spa.gallery.search.provider"
+
+    override val isSpaExpressiveEnabled = true
 }

@@ -37,7 +37,7 @@ protected constructor(
     protected open val users: List<UserRecord>
         get() = controller.users.filter {
             (!controller.isKeyguardShowing || !it.isRestricted) &&
-                (controller.isUserSwitcherEnabled || it.isCurrent)
+                (controller.isUserSwitcherEnabled || it.isCurrent || it.isSignOut)
         }
 
     init {
@@ -109,6 +109,7 @@ protected constructor(
                     item.isAddUser,
                     item.isGuest,
                     item.isAddSupervisedUser,
+                    item.isSignOut,
                     isTablet,
                     item.isManageUsers,
                 )

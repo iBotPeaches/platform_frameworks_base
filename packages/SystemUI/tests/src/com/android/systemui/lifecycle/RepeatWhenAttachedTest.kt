@@ -28,7 +28,6 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.DisposableHandle
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
@@ -52,7 +51,6 @@ import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.argumentCaptor
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(JUnit4::class)
 class RepeatWhenAttachedTest : SysuiTestCase() {
@@ -484,14 +482,12 @@ class RepeatWhenAttachedTest : SysuiTestCase() {
     private fun CoroutineScope.repeatWhenAttached(): DisposableHandle {
         return view.repeatWhenAttached(
             coroutineContext = coroutineContext,
-            block = block,
+            block = { block.invoke(this) },
         )
     }
 
-    private class Block : suspend LifecycleOwner.(View) -> Unit {
-        data class Invocation(
-            val lifecycleOwner: LifecycleOwner,
-        ) {
+    private class Block {
+        data class Invocation(val lifecycleOwner: LifecycleOwner) {
             val lifecycleState: Lifecycle.State
                 get() = lifecycleOwner.lifecycle.currentState
         }
@@ -504,7 +500,7 @@ class RepeatWhenAttachedTest : SysuiTestCase() {
         val latestLifecycleState: Lifecycle.State
             get() = _invocations.last().lifecycleState
 
-        override suspend fun invoke(lifecycleOwner: LifecycleOwner, view: View) {
+        fun invoke(lifecycleOwner: LifecycleOwner) {
             _invocations.add(Invocation(lifecycleOwner))
         }
     }

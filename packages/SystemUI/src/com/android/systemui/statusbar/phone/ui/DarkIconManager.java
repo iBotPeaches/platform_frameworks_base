@@ -19,6 +19,9 @@ package com.android.systemui.statusbar.phone.ui;
 import android.widget.LinearLayout;
 
 import com.android.internal.statusbar.StatusBarIcon;
+import com.android.systemui.dagger.qualifiers.Application;
+import com.android.systemui.kairos.ExperimentalKairosApi;
+import com.android.systemui.kairos.KairosNetwork;
 import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.statusbar.StatusIconDisplayable;
 import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider;
@@ -26,13 +29,20 @@ import com.android.systemui.statusbar.phone.DemoStatusIcons;
 import com.android.systemui.statusbar.phone.StatusBarIconHolder;
 import com.android.systemui.statusbar.phone.StatusBarLocation;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter;
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter;
 
+import dagger.Lazy;
 import dagger.assisted.Assisted;
 import dagger.assisted.AssistedFactory;
 import dagger.assisted.AssistedInject;
 
+import kotlin.OptIn;
+
+import kotlinx.coroutines.CoroutineScope;
+
 /** Version of {@link IconManager} that observes state from the {@link DarkIconDispatcher}. */
+@OptIn(markerClass = ExperimentalKairosApi.class)
 public class DarkIconManager extends IconManager {
     private final DarkIconDispatcher mDarkIconDispatcher;
     private final int mIconHorizontalMargin;
@@ -43,13 +53,21 @@ public class DarkIconManager extends IconManager {
             @Assisted StatusBarLocation location,
             WifiUiAdapter wifiUiAdapter,
             MobileUiAdapter mobileUiAdapter,
+            Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
             MobileContextProvider mobileContextProvider,
+            KairosNetwork kairosNetwork,
+            @Application CoroutineScope appScope,
             @Assisted DarkIconDispatcher darkIconDispatcher) {
-        super(linearLayout, location, wifiUiAdapter, mobileUiAdapter, mobileContextProvider);
-        mIconHorizontalMargin =
-                mContext.getResources()
-                        .getDimensionPixelSize(
-                                com.android.systemui.res.R.dimen.status_bar_icon_horizontal_margin);
+        super(linearLayout,
+                location,
+                wifiUiAdapter,
+                mobileUiAdapter,
+                mobileUiAdapterKairos,
+                mobileContextProvider,
+                kairosNetwork,
+                appScope);
+        mIconHorizontalMargin = mContext.getResources().getDimensionPixelSize(
+                com.android.systemui.res.R.dimen.status_bar_icon_horizontal_margin);
         mDarkIconDispatcher = darkIconDispatcher;
     }
 
@@ -104,7 +122,7 @@ public class DarkIconManager extends IconManager {
         super.exitDemoMode();
     }
 
-    /** */
+    /**  */
     @AssistedFactory
     public interface Factory {
 

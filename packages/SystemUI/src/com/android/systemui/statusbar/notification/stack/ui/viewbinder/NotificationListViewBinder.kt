@@ -25,7 +25,7 @@ import com.android.internal.logging.MetricsLogger
 import com.android.internal.logging.nano.MetricsProto
 import com.android.systemui.common.ui.ConfigurationState
 import com.android.systemui.common.ui.view.setImportantForAccessibilityYesNo
-import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.dagger.qualifiers.NotifInflation
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.lifecycle.repeatWhenAttachedToWindow
 import com.android.systemui.plugins.FalsingManager
@@ -33,6 +33,7 @@ import com.android.systemui.res.R
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.NotificationShelf
+import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips
 import com.android.systemui.statusbar.notification.NotificationActivityStarter
 import com.android.systemui.statusbar.notification.collection.render.SectionHeaderController
 import com.android.systemui.statusbar.notification.dagger.SilentHeader
@@ -40,7 +41,6 @@ import com.android.systemui.statusbar.notification.emptyshade.shared.ModesEmptyS
 import com.android.systemui.statusbar.notification.emptyshade.ui.view.EmptyShadeView
 import com.android.systemui.statusbar.notification.emptyshade.ui.viewbinder.EmptyShadeViewBinder
 import com.android.systemui.statusbar.notification.emptyshade.ui.viewmodel.EmptyShadeViewModel
-import com.android.systemui.statusbar.notification.footer.shared.FooterViewRefactor
 import com.android.systemui.statusbar.notification.footer.shared.NotifRedesignFooter
 import com.android.systemui.statusbar.notification.footer.ui.view.FooterView
 import com.android.systemui.statusbar.notification.footer.ui.viewbinder.FooterViewBinder
@@ -77,7 +77,7 @@ import kotlinx.coroutines.flow.stateIn
 class NotificationListViewBinder
 @Inject
 constructor(
-    @Background private val backgroundDispatcher: CoroutineDispatcher,
+    @NotifInflation private val inflationDispatcher: CoroutineDispatcher,
     private val hiderTracker: DisplaySwitchNotificationsHiderTracker,
     @ShadeDisplayAware private val configuration: ConfigurationState,
     private val falsingManager: FalsingManager,
@@ -100,6 +100,9 @@ constructor(
                 .inflate(R.layout.status_bar_notification_shelf, view, false) as NotificationShelf
         view.setShelf(shelf)
 
+        // Create viewModels once, and only when needed.
+        val footerViewModel by lazy { viewModel.footerViewModelFactory.create() }
+        val emptyShadeViewModel by lazy { viewModel.emptyShadeViewModelFactory.create() }
         view.repeatWhenAttached {
             lifecycleScope.launch {
                 if (SceneContainerFlag.isEnabled) {
@@ -108,24 +111,33 @@ constructor(
                 launch { bindShelf(shelf) }
                 bindHideList(viewController, viewModel, hiderTracker)
 
-                if (FooterViewRefactor.isEnabled) {
-                    val hasNonClearableSilentNotifications: StateFlow<Boolean> =
-                        viewModel.hasNonClearableSilentNotifications.stateIn(this)
-                    launch { reinflateAndBindFooter(view, hasNonClearableSilentNotifications) }
-                    launch {
-                        if (ModesEmptyShadeFix.isEnabled) {
-                            reinflateAndBindEmptyShade(view)
-                        } else {
-                            bindEmptyShadeLegacy(viewModel.emptyShadeViewFactory.create(), view)
-                        }
+                val hasNonClearableSilentNotifications: StateFlow<Boolean> =
+                    viewModel.hasNonClearableSilentNotifications.stateIn(this)
+                launch {
+                    reinflateAndBindFooter(
+                        footerViewModel,
+                        view,
+                        hasNonClearableSilentNotifications,
+                    )
+                }
+                launch {
+                    if (ModesEmptyShadeFix.isEnabled) {
+                        reinflateAndBindEmptyShade(emptyShadeViewModel, view)
+                    } else {
+                        bindEmptyShadeLegacy(emptyShadeViewModel, view)
                     }
-                    launch {
-                        bindSilentHeaderClickListener(view, hasNonClearableSilentNotifications)
+                }
+                launch { bindSilentHeaderClickListener(view, hasNonClearableSilentNotifications) }
+                launch {
+                    viewModel.isImportantForAccessibility.collect { isImportantForAccessibility ->
+                        view.setImportantForAccessibilityYesNo(isImportantForAccessibility)
                     }
+                }
+
+                if (StatusBarNotifChips.isEnabled) {
                     launch {
-                        viewModel.isImportantForAccessibility.collect { isImportantForAccessibility
-                            ->
-                            view.setImportantForAccessibilityYesNo(isImportantForAccessibility)
+                        viewModel.visibleStatusBarChipKeys.collect { keys ->
+                            viewController.updateStatusBarChipKeys(keys)
                         }
                     }
                 }
@@ -140,31 +152,30 @@ constructor(
     }
 
     private suspend fun reinflateAndBindFooter(
+        footerViewModel: FooterViewModel,
         parentView: NotificationStackScrollLayout,
         hasNonClearableSilentNotifications: StateFlow<Boolean>,
     ) {
-        viewModel.footer.getOrNull()?.let { footerViewModel ->
-            // The footer needs to be re-inflated every time the theme or the font size changes.
-            configuration
-                .inflateLayout<FooterView>(
-                    if (NotifRedesignFooter.isEnabled) R.layout.notification_2025_footer
-                    else R.layout.status_bar_notification_footer,
-                    parentView,
-                    attachToRoot = false,
-                )
-                .flowOn(backgroundDispatcher)
-                .collectLatest { footerView: FooterView ->
-                    traceAsync("bind FooterView") {
-                        parentView.setFooterView(footerView)
-                        bindFooter(
-                            footerView,
-                            footerViewModel,
-                            parentView,
-                            hasNonClearableSilentNotifications,
-                        )
-                    }
+        // The footer needs to be re-inflated every time the theme or the font size changes.
+        configuration
+            .inflateLayout<FooterView>(
+                if (NotifRedesignFooter.isEnabled) R.layout.notification_2025_footer
+                else R.layout.status_bar_notification_footer,
+                parentView,
+                attachToRoot = false,
+            )
+            .flowOn(inflationDispatcher)
+            .collectLatest { footerView: FooterView ->
+                traceAsync("bind FooterView") {
+                    parentView.setFooterView(footerView)
+                    bindFooter(
+                        footerView,
+                        footerViewModel,
+                        parentView,
+                        hasNonClearableSilentNotifications,
+                    )
                 }
-        }
+            }
     }
 
     /**
@@ -225,8 +236,11 @@ constructor(
         notificationActivityStarter.get().startHistoryIntent(view, /* showHistory= */ true)
     }
 
-    private suspend fun reinflateAndBindEmptyShade(parentView: NotificationStackScrollLayout) {
-        ModesEmptyShadeFix.assertInNewMode()
+    private suspend fun reinflateAndBindEmptyShade(
+        emptyShadeViewModel: EmptyShadeViewModel,
+        parentView: NotificationStackScrollLayout,
+    ) {
+        ModesEmptyShadeFix.unsafeAssertInNewMode()
         // The empty shade needs to be re-inflated every time the theme or the font size
         // changes.
         configuration
@@ -235,11 +249,11 @@ constructor(
                 parentView,
                 attachToRoot = false,
             )
-            .flowOn(backgroundDispatcher)
+            .flowOn(inflationDispatcher)
             .collectLatest { emptyShadeView: EmptyShadeView ->
                 traceAsync("bind EmptyShadeView") {
                     parentView.setEmptyShadeView(emptyShadeView)
-                    bindEmptyShade(emptyShadeView, viewModel.emptyShadeViewFactory.create())
+                    bindEmptyShade(emptyShadeView, emptyShadeViewModel)
                 }
             }
     }
@@ -264,7 +278,7 @@ constructor(
         emptyShadeView: EmptyShadeView,
         emptyShadeViewModel: EmptyShadeViewModel,
     ): Unit = coroutineScope {
-        ModesEmptyShadeFix.assertInNewMode()
+        ModesEmptyShadeFix.unsafeAssertInNewMode()
         launch {
             emptyShadeView.repeatWhenAttachedToWindow {
                 EmptyShadeViewBinder.bind(

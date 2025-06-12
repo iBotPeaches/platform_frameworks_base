@@ -148,7 +148,7 @@ final class ExternalVibrationSession extends Vibration
     }
 
     @Override
-    public void notifyVibratorCallback(int vibratorId, long vibrationId) {
+    public void notifyVibratorCallback(int vibratorId, long vibrationId, long stepId) {
         // ignored, external control does not expect callbacks from the vibrator
     }
 

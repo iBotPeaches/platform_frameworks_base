@@ -20,13 +20,14 @@ import android.app.StatusBarManager
 import android.content.Context
 import android.hardware.face.FaceManager
 import android.os.CancellationSignal
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.internal.logging.InstanceId
 import com.android.internal.logging.UiEventLogger
 import com.android.systemui.Dumpable
 import com.android.systemui.biometrics.domain.interactor.DisplayStateInteractor
 import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -59,8 +60,8 @@ import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.scene.shared.model.Scenes.Bouncer
 import com.android.systemui.statusbar.phone.KeyguardBypassController
 import com.android.systemui.user.data.model.SelectionStatus
 import com.android.systemui.user.data.repository.UserRepository
@@ -87,7 +88,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -138,7 +138,7 @@ interface DeviceEntryFaceAuthRepository {
 
 private data class AuthenticationRequest(
     val uiEvent: FaceAuthUiEvent,
-    val fallbackToDetection: Boolean
+    val fallbackToDetection: Boolean,
 )
 
 @SysUISingleton
@@ -248,11 +248,11 @@ constructor(
                     Pair(isLockedOut.isFalse(), "isNotInLockOutState"),
                     Pair(
                         keyguardRepository.isKeyguardDismissible.isFalse(),
-                        "keyguardIsNotDismissible"
+                        "keyguardIsNotDismissible",
                     ),
                     Pair(
                         biometricSettingsRepository.isFaceAuthCurrentlyAllowed,
-                        "isFaceAuthCurrentlyAllowed"
+                        "isFaceAuthCurrentlyAllowed",
                     ),
                     Pair(isAuthenticated.isFalse(), "faceNotAuthenticated"),
                 )
@@ -273,15 +273,15 @@ constructor(
                         biometricSettingsRepository.isFaceAuthCurrentlyAllowed
                             .isFalse()
                             .or(keyguardRepository.isKeyguardDismissible),
-                        "faceAuthIsNotCurrentlyAllowedOrCurrentUserIsTrusted"
+                        "faceAuthIsNotCurrentlyAllowedOrCurrentUserIsTrusted",
                     ),
                     // We don't want to run face detect if fingerprint can be used to unlock the
                     // device
                     // but it's not possible to authenticate with FP from the bouncer (UDFPS)
                     Pair(
                         and(isUdfps(), deviceEntryFingerprintAuthRepository.isRunning).isFalse(),
-                        "udfpsAuthIsNotPossibleAnymore"
-                    )
+                        "udfpsAuthIsNotPossibleAnymore",
+                    ),
                 )
                 .andAllFlows("canFaceDetectRun", faceDetectLog)
                 .flowOn(backgroundDispatcher)
@@ -318,7 +318,7 @@ constructor(
                 powerInteractor.isAsleep,
                 combine(
                     keyguardTransitionInteractor.isFinishedIn(
-                        scene = Scenes.Gone,
+                        content = Scenes.Gone,
                         stateWithoutSceneContainer = KeyguardState.GONE,
                     ),
                     keyguardInteractor.statusBarState,
@@ -350,7 +350,7 @@ constructor(
         faceAuthLogger.clearingPendingAuthRequest(
             loggingContext,
             pendingAuthenticateRequest.value?.uiEvent,
-            pendingAuthenticateRequest.value?.fallbackToDetection
+            pendingAuthenticateRequest.value?.fallbackToDetection,
         )
         pendingAuthenticateRequest.value = null
     }
@@ -387,7 +387,7 @@ constructor(
             ),
             Pair(
                 biometricSettingsRepository.isFaceAuthEnrolledAndEnabled,
-                "isFaceAuthEnrolledAndEnabled"
+                "isFaceAuthEnrolledAndEnabled",
             ),
             Pair(
                 if (SceneContainerFlag.isEnabled) {
@@ -399,13 +399,13 @@ constructor(
                 } else {
                     keyguardRepository.isKeyguardGoingAway.isFalse()
                 },
-                "keyguardNotGoingAway"
+                "keyguardNotGoingAway",
             ),
             Pair(
                 keyguardTransitionInteractor
                     .isInTransitionWhere(toStatePredicate = KeyguardState::deviceIsAsleepInState)
                     .isFalse(),
-                "deviceNotTransitioningToAsleepState"
+                "deviceNotTransitioningToAsleepState",
             ),
             Pair(
                 keyguardInteractor.isSecureCameraActive
@@ -413,29 +413,31 @@ constructor(
                     .or(
                         alternateBouncerInteractor.isVisible.or(
                             if (SceneContainerFlag.isEnabled) {
-                                sceneInteractor.get().transitionState.map { it.isIdle(Bouncer) }
+                                sceneInteractor.get().transitionState.map {
+                                    it.isIdle(overlay = Overlays.Bouncer)
+                                }
                             } else {
                                 keyguardInteractor.primaryBouncerShowing
                             }
                         )
                     ),
-                "secureCameraNotActiveOrAnyBouncerIsShowing"
+                "secureCameraNotActiveOrAnyBouncerIsShowing",
             ),
             Pair(
                 biometricSettingsRepository.isFaceAuthSupportedInCurrentPosture,
-                "isFaceAuthSupportedInCurrentPosture"
+                "isFaceAuthSupportedInCurrentPosture",
             ),
             Pair(
                 biometricSettingsRepository.isCurrentUserInLockdown.isFalse(),
-                "userHasNotLockedDownDevice"
+                "userHasNotLockedDownDevice",
             ),
             Pair(keyguardRepository.isKeyguardShowing, "isKeyguardShowing"),
             Pair(
                 userRepository.selectedUser
                     .map { it.selectionStatus == SelectionStatus.SELECTION_IN_PROGRESS }
                     .isFalse(),
-                "userSwitchingInProgress"
-            )
+                "userSwitchingInProgress",
+            ),
         )
     }
 
@@ -486,7 +488,7 @@ constructor(
                     errorCode,
                     errString,
                     errorStatus.isLockoutError(),
-                    errorStatus.isCancellationError()
+                    errorStatus.isCancellationError(),
                 )
                 onFaceAuthRequestCompleted()
             }
@@ -524,7 +526,7 @@ constructor(
                         faceAuthLogger.attemptingRetryAfterHardwareError(retryCount)
                         requestAuthenticate(
                             FaceAuthUiEvent.FACE_AUTH_TRIGGERED_RETRY_AFTER_HW_UNAVAILABLE,
-                            fallbackToDetection = false
+                            fallbackToDetection = false,
                         )
                     }
                 }
@@ -551,7 +553,7 @@ constructor(
         if (pendingAuthenticateRequest.value != null) {
             faceAuthLogger.ignoredFaceAuthTrigger(
                 pendingAuthenticateRequest.value?.uiEvent,
-                "Previously queued trigger skipped due to new request"
+                "Previously queued trigger skipped due to new request",
             )
         }
         faceAuthLogger.queueingRequest(uiEvent, fallbackToDetection)
@@ -574,7 +576,7 @@ constructor(
                         pending?.uiEvent,
                         canRunAuth,
                         canRunDetect,
-                        cancelInProgress
+                        cancelInProgress,
                     )
                     return@combine null
                 } else {
@@ -613,7 +615,7 @@ constructor(
                     0,
                     null,
                     keyguardSessionId,
-                    uiEvent.extraInfo
+                    uiEvent.extraInfo,
                 )
                 faceAuthLogger.authenticating(uiEvent)
                 faceManager?.authenticate(
@@ -624,28 +626,28 @@ constructor(
                     SysUiFaceAuthenticateOptions(
                             currentUserId,
                             uiEvent,
-                            wakeReason = uiEvent.extraInfo
+                            wakeReason = uiEvent.extraInfo,
                         )
-                        .toFaceAuthenticateOptions()
+                        .toFaceAuthenticateOptions(),
                 )
             }
         } else if (canRunDetection.value) {
             if (fallbackToDetection) {
                 faceAuthLogger.ignoredFaceAuthTrigger(
                     uiEvent,
-                    "face auth gating check is false, falling back to detection."
+                    "face auth gating check is false, falling back to detection.",
                 )
                 detect(uiEvent)
             } else {
                 faceAuthLogger.ignoredFaceAuthTrigger(
                     uiEvent = uiEvent,
-                    "face auth gating check is false and fallback to detection is not requested"
+                    "face auth gating check is false and fallback to detection is not requested",
                 )
             }
         } else {
             faceAuthLogger.ignoredFaceAuthTrigger(
                 uiEvent,
-                "face auth & detect gating check is false"
+                "face auth & detect gating check is false",
             )
         }
     }
@@ -669,7 +671,7 @@ constructor(
                     it,
                     detectionCallback,
                     SysUiFaceAuthenticateOptions(currentUserId, uiEvent, uiEvent.extraInfo)
-                        .toFaceAuthenticateOptions()
+                        .toFaceAuthenticateOptions(),
                 )
             }
         }
@@ -695,7 +697,7 @@ constructor(
                     _isAuthRunning.value,
                     _isLockedOut.value,
                     cancellationInProgress.value,
-                    pendingAuthenticateRequest.value?.uiEvent
+                    pendingAuthenticateRequest.value?.uiEvent,
                 )
                 _authenticationStatus.value = ErrorFaceAuthenticationStatus.cancelNotReceivedError()
                 onFaceAuthRequestCompleted()
@@ -759,7 +761,7 @@ private fun Flow<Boolean>.isFalse(): Flow<Boolean> {
 
 private fun List<Pair<Flow<Boolean>, String>>.andAllFlows(
     combinedLoggingInfo: String,
-    tableLogBuffer: TableLogBuffer
+    tableLogBuffer: TableLogBuffer,
 ): Flow<Boolean> {
     return combine(this.map { it.first }) {
         val combinedValue =

@@ -40,6 +40,7 @@ import android.os.Build;
  * </pre>
  * The result is pinned to the <code>[0..255]</code> range for each channel.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class LightingColorFilter extends ColorFilter {
     @ColorInt
     private int mMul;

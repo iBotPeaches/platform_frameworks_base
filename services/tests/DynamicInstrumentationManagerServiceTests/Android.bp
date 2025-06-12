@@ -29,6 +29,7 @@ android_test {
     static_libs: [
         "androidx.test.core",
         "androidx.test.runner",
+        "flag-junit",
         "hamcrest-library",
         "platform-test-annotations",
         "services.core",

@@ -225,6 +225,6 @@ public class NotificationRowIconView extends CachingIconView {
         boolean shouldShowAppIcon();
 
         /** Get the app icon for this notification. */
-        Drawable getAppIcon();
+        @Nullable Drawable getAppIcon();
     }
 }

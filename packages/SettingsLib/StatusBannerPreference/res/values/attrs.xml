@@ -21,6 +21,9 @@
             <enum name="low" value="1"/>
             <enum name="medium" value="2"/>
             <enum name="high" value="3"/>
+            <enum name="off" value="4"/>
+            <enum name="loading_determinate" value="5"/>
+            <enum name="loading_indeterminate" value="6"/>
         </attr>
         <attr name="buttonLevel" format="enum">
             <enum name="generic" value="0"/>

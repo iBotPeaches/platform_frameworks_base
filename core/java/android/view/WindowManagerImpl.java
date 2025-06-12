@@ -120,7 +120,7 @@ public class WindowManagerImpl implements WindowManager {
         this(context, null /* parentWindow */, null /* clientToken */);
     }
 
-    private WindowManagerImpl(Context context, Window parentWindow,
+    public WindowManagerImpl(Context context, Window parentWindow,
             @Nullable IBinder windowContextToken) {
         mContext = context;
         mParentWindow = parentWindow;

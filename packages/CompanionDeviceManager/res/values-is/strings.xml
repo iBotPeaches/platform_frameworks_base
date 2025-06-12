@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Stjórnun fylgdartækja"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Veita forritinu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; aðgang að &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Gakktu úr skugga um að kveikt sé á <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> í <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> og hafðu <xliff:g id="PROFILE_NAME">%3$s</xliff:g> nálægt."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Engin tæki fundust. Reyndu aftur síðar."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth og Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"úr"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Veldu tæki sem &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; á að stjórna"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Veldu <xliff:g id="PROFILE_NAME">%1$s</xliff:g> til að setja upp"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Leitar að „<xliff:g id="PROFILE_NAME">%1$s</xliff:g>“"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Þetta forrit fær heimild til að samstilla upplýsingar, t.d. nafn þess sem hringir, og fær aðgang að eftirfarandi heimildum í <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Leyfa &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; að stjórna &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"tæki"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Leyfa &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; að streyma forritum <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> í &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> fær aðgang að öllu sem er sýnilegt eða spilað í <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, þ.m.t. hljóði, myndum, greiðsluupplýsingum, aðgangsorðum og skilaboðum.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> getur streymt forritum í <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> þar til þú fjarlægir þessa heimild."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> biður um heimild fyrir hönd <xliff:g id="DEVICE_NAME">%2$s</xliff:g> til að streyma forritum úr <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Leyfa &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; að streyma hljóði og kerfiseiginleikum á milli <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> og &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> fær aðgang að öllu sem þú spilar í <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> mun geta streymt hljóði í <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> þar til þú afturkallar heimildina."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"tæki"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Þetta forrit mun geta samstillt upplýsingar, t.d. nafn þess sem hringir, á milli símans og valins tækis"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Leyfa"</string>
     <string name="consent_no" msgid="2640796915611404382">"Ekki leyfa"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Hætta við"</string>
     <string name="consent_back" msgid="2560683030046918882">"Til baka"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Fletta niður listann"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Ör niður"</string>
     <string name="permission_expand" msgid="893185038020887411">"Stækka <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Minnka <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Veita forritum í &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; sömu heimildir og í &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

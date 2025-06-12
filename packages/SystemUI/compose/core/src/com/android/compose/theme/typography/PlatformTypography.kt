@@ -16,6 +16,7 @@
 
 package com.android.compose.theme.typography
 
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 
@@ -25,6 +26,7 @@ import androidx.compose.material3.Typography
  * Do not use directly and call [MaterialTheme.typography] instead to access the different text
  * styles.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 internal fun platformTypography(typographyTokens: TypographyTokens): Typography {
     return Typography(
         displayLarge = typographyTokens.displayLarge,
@@ -42,5 +44,21 @@ internal fun platformTypography(typographyTokens: TypographyTokens): Typography 
         labelLarge = typographyTokens.labelLarge,
         labelMedium = typographyTokens.labelMedium,
         labelSmall = typographyTokens.labelSmall,
+        // GSF emphasized tokens
+        displayLargeEmphasized = typographyTokens.displayLargeEmphasized,
+        displayMediumEmphasized = typographyTokens.displayMediumEmphasized,
+        displaySmallEmphasized = typographyTokens.displaySmallEmphasized,
+        headlineLargeEmphasized = typographyTokens.headlineLargeEmphasized,
+        headlineMediumEmphasized = typographyTokens.headlineMediumEmphasized,
+        headlineSmallEmphasized = typographyTokens.headlineSmallEmphasized,
+        titleLargeEmphasized = typographyTokens.titleLargeEmphasized,
+        titleMediumEmphasized = typographyTokens.titleMediumEmphasized,
+        titleSmallEmphasized = typographyTokens.titleSmallEmphasized,
+        bodyLargeEmphasized = typographyTokens.bodyLargeEmphasized,
+        bodyMediumEmphasized = typographyTokens.bodyMediumEmphasized,
+        bodySmallEmphasized = typographyTokens.bodySmallEmphasized,
+        labelLargeEmphasized = typographyTokens.labelLargeEmphasized,
+        labelMediumEmphasized = typographyTokens.labelMediumEmphasized,
+        labelSmallEmphasized = typographyTokens.labelSmallEmphasized,
     )
 }

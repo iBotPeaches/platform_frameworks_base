@@ -32,6 +32,7 @@ import android.app.AppOpsManager;
 import android.content.Context;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioSystem;
+import android.os.IpcDataCache;
 import android.os.Looper;
 import android.os.PermissionEnforcer;
 import android.os.UserHandle;
@@ -87,6 +88,8 @@ public class AudioServiceTest {
 
     @Before
     public void setUp() throws Exception {
+        IpcDataCache.disableForTestMode();
+
         if (!sLooperPrepared) {
             Looper.prepare();
             sLooperPrepared = true;
@@ -255,5 +258,17 @@ public class AudioServiceTest {
                 "input gain index reporting wrong value",
                 inputGainIndex,
                 mAudioService.getInputGainIndex(ada));
+    }
+
+    @Test
+    public void testRttEnabled() throws Exception {
+        Log.i(TAG, "running testRttEnabled");
+        Assert.assertNotNull(mAudioService);
+
+        mAudioService.setRttEnabled(true);
+        Assert.assertTrue(mAudioService.isRttEnabled());
+
+        mAudioService.setRttEnabled(false);
+        Assert.assertFalse(mAudioService.isRttEnabled());
     }
 }

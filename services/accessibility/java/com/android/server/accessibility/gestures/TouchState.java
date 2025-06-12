@@ -26,6 +26,8 @@ import android.view.Display;
 import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityEvent;
 
+import androidx.annotation.VisibleForTesting;
+
 import com.android.server.accessibility.AccessibilityManagerService;
 
 /**
@@ -38,7 +40,7 @@ public class TouchState {
     // Pointer-related constants
     // This constant captures the current implementation detail that
     // pointer IDs are between 0 and 31 inclusive (subject to change).
-    // (See MAX_POINTER_ID in frameworks/base/include/ui/Input.h)
+    // (See MAX_POINTER_ID in frameworks/native/include/input/Input.h)
     public static final int MAX_POINTER_COUNT = 32;
     // Constant referring to the ids bits of all pointers.
     public static final int ALL_POINTER_ID_BITS = 0xFFFFFFFF;
@@ -73,7 +75,8 @@ public class TouchState {
     private int mState = STATE_CLEAR;
     // Helper class to track received pointers.
     // Todo: collapse or hide this class so multiple classes don't modify it.
-    private final ReceivedPointerTracker mReceivedPointerTracker;
+    @VisibleForTesting
+    public final ReceivedPointerTracker mReceivedPointerTracker;
     // The most recently received motion event.
     private MotionEvent mLastReceivedEvent;
     // The accompanying raw event without any transformations.
@@ -219,8 +222,19 @@ public class TouchState {
                 startTouchInteracting();
                 break;
             case AccessibilityEvent.TYPE_TOUCH_INTERACTION_END:
-                setState(STATE_CLEAR);
-                // We will clear when we actually handle the next ACTION_DOWN.
+                // When interaction ends, check if there are still down pointers.
+                // If there are any down pointers, go directly to TouchExploring instead.
+                if (com.android.server.accessibility.Flags
+                        .pointerUpMotionEventInTouchExploration()) {
+                    if (mReceivedPointerTracker.mReceivedPointersDown > 0) {
+                        startTouchExploring();
+                    } else {
+                        setState(STATE_CLEAR);
+                        // We will clear when we actually handle the next ACTION_DOWN.
+                    }
+                } else {
+                    setState(STATE_CLEAR);
+                }
                 break;
             case AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_START:
                 startTouchExploring();
@@ -419,7 +433,8 @@ public class TouchState {
         private final PointerDownInfo[] mReceivedPointers = new PointerDownInfo[MAX_POINTER_COUNT];
 
         // Which pointers are down.
-        private int mReceivedPointersDown;
+        @VisibleForTesting
+        public int mReceivedPointersDown;
 
         // The edge flags of the last received down event.
         private int mLastReceivedDownEdgeFlags;

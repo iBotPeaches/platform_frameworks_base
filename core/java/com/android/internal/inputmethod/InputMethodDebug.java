@@ -305,6 +305,8 @@ public final class InputMethodDebug {
                 return "HIDE_INPUT_TARGET_CHANGED";
             case SoftInputShowHideReason.HIDE_WINDOW_LOST_FOCUS:
                 return "HIDE_WINDOW_LOST_FOCUS";
+            case SoftInputShowHideReason.IME_REQUESTED_CHANGED_LISTENER:
+                return "IME_REQUESTED_CHANGED_LISTENER";
             default:
                 return "Unknown=" + reason;
         }

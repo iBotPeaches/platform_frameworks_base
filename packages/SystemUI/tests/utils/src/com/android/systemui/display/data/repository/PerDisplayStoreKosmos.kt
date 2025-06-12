@@ -16,8 +16,14 @@
 
 package com.android.systemui.display.data.repository
 
+import com.android.app.displaylib.DisplayInstanceLifecycleManager
+import com.android.app.displaylib.FakeDisplayInstanceLifecycleManager
+import com.android.app.displaylib.PerDisplayInstanceProviderWithTeardown
+import com.android.app.displaylib.PerDisplayInstanceRepositoryImpl
+import com.android.systemui.dump.dumpManager
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
+import com.android.systemui.kosmos.testScope
 import kotlinx.coroutines.CoroutineScope
 
 class FakePerDisplayStore(
@@ -47,3 +53,43 @@ val Kosmos.fakePerDisplayStore by
             displayRepository = displayRepository,
         )
     }
+
+class FakePerDisplayInstanceProviderWithTeardown :
+    PerDisplayInstanceProviderWithTeardown<TestPerDisplayInstance> {
+    val destroyed = mutableListOf<TestPerDisplayInstance>()
+
+    override fun destroyInstance(instance: TestPerDisplayInstance) {
+        destroyed += instance
+    }
+
+    override fun createInstance(displayId: Int): TestPerDisplayInstance? {
+        return TestPerDisplayInstance(displayId)
+    }
+}
+
+val Kosmos.fakePerDisplayInstanceProviderWithTeardown by
+    Kosmos.Fixture { FakePerDisplayInstanceProviderWithTeardown() }
+
+val Kosmos.perDisplayDumpHelper by Kosmos.Fixture { PerDisplayRepoDumpHelper(dumpManager) }
+val Kosmos.fakeDisplayInstanceLifecycleManager by
+    Kosmos.Fixture { FakeDisplayInstanceLifecycleManager() }
+
+val Kosmos.fakePerDisplayInstanceRepository by
+    Kosmos.Fixture {
+        { lifecycleManager: DisplayInstanceLifecycleManager? ->
+            PerDisplayInstanceRepositoryImpl(
+                debugName = "fakePerDisplayInstanceRepository",
+                instanceProvider = fakePerDisplayInstanceProviderWithTeardown,
+                lifecycleManager,
+                testScope.backgroundScope,
+                displayRepository,
+                perDisplayDumpHelper,
+            )
+        }
+    }
+
+fun Kosmos.createPerDisplayInstanceRepository(
+    overrideLifecycleManager: DisplayInstanceLifecycleManager? = null
+): PerDisplayInstanceRepositoryImpl<TestPerDisplayInstance> {
+    return fakePerDisplayInstanceRepository(overrideLifecycleManager)
+}

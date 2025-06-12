@@ -20,6 +20,7 @@ import android.app.ActivityManager.RunningTaskInfo
 import android.graphics.PointF
 import android.graphics.Rect
 import com.android.internal.annotations.VisibleForTesting
+import com.android.wm.shell.desktopmode.calculateAspectRatio
 import com.android.wm.shell.windowdecor.DragPositioningCallback.CTRL_TYPE_BOTTOM
 import com.android.wm.shell.windowdecor.DragPositioningCallback.CTRL_TYPE_LEFT
 import com.android.wm.shell.windowdecor.DragPositioningCallback.CTRL_TYPE_RIGHT
@@ -27,8 +28,6 @@ import com.android.wm.shell.windowdecor.DragPositioningCallback.CTRL_TYPE_TOP
 import com.android.wm.shell.windowdecor.DragPositioningCallback.CTRL_TYPE_UNDEFINED
 import com.android.wm.shell.windowdecor.DragPositioningCallback.CtrlType
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * [AbstractTaskPositionerDecorator] implementation for validating the coordinates associated with a
@@ -47,10 +46,11 @@ class FixedAspectRatioTaskPositionerDecorator (
     private var startingAspectRatio = 0f
     private var isTaskPortrait = false
 
-    override fun onDragPositioningStart(@CtrlType ctrlType: Int, x: Float, y: Float): Rect {
+    override fun onDragPositioningStart(
+        @CtrlType ctrlType: Int, displayId: Int, x: Float, y: Float): Rect {
         originalCtrlType = ctrlType
         if (!requiresFixedAspectRatio()) {
-            return super.onDragPositioningStart(originalCtrlType, x, y)
+            return super.onDragPositioningStart(originalCtrlType, displayId, x, y)
         }
 
         lastRepositionedBounds.set(getBounds(windowDecoration.mTaskInfo))
@@ -58,8 +58,7 @@ class FixedAspectRatioTaskPositionerDecorator (
         lastValidPoint.set(x, y)
         val startingBoundWidth = lastRepositionedBounds.width()
         val startingBoundHeight = lastRepositionedBounds.height()
-        startingAspectRatio = max(startingBoundWidth, startingBoundHeight).toFloat() /
-                min(startingBoundWidth, startingBoundHeight).toFloat()
+        startingAspectRatio = calculateAspectRatio(windowDecoration.mTaskInfo)
         isTaskPortrait = startingBoundWidth <= startingBoundHeight
 
         lastRepositionedBounds.set(
@@ -72,27 +71,27 @@ class FixedAspectRatioTaskPositionerDecorator (
                     val verticalMidPoint = lastRepositionedBounds.top + (startingBoundHeight / 2)
                     edgeResizeCtrlType = originalCtrlType +
                             if (y < verticalMidPoint) CTRL_TYPE_TOP else CTRL_TYPE_BOTTOM
-                    super.onDragPositioningStart(edgeResizeCtrlType, x, y)
+                    super.onDragPositioningStart(edgeResizeCtrlType, displayId, x, y)
                 }
                 CTRL_TYPE_TOP, CTRL_TYPE_BOTTOM -> {
                     val horizontalMidPoint = lastRepositionedBounds.left + (startingBoundWidth / 2)
                     edgeResizeCtrlType = originalCtrlType +
                             if (x < horizontalMidPoint) CTRL_TYPE_LEFT else CTRL_TYPE_RIGHT
-                    super.onDragPositioningStart(edgeResizeCtrlType, x, y)
+                    super.onDragPositioningStart(edgeResizeCtrlType, displayId, x, y)
                 }
                 // If resize is corner resize, no alteration to the ctrlType needs to be made.
                 else -> {
                     edgeResizeCtrlType = CTRL_TYPE_UNDEFINED
-                    super.onDragPositioningStart(originalCtrlType, x, y)
+                    super.onDragPositioningStart(originalCtrlType, displayId, x, y)
                 }
             }
         )
         return lastRepositionedBounds
     }
 
-    override fun onDragPositioningMove(x: Float, y: Float): Rect {
+    override fun onDragPositioningMove(displayId: Int, x: Float, y: Float): Rect {
         if (!requiresFixedAspectRatio()) {
-            return super.onDragPositioningMove(x, y)
+            return super.onDragPositioningMove(displayId, x, y)
         }
 
         val diffX = x - lastValidPoint.x
@@ -103,7 +102,7 @@ class FixedAspectRatioTaskPositionerDecorator (
                     // Drag coordinate falls within valid region (90 - 180 degrees or 270- 360
                     // degrees from the corner the previous valid point). Allow resize with adjusted
                     // coordinates to maintain aspect ratio.
-                    lastRepositionedBounds.set(dragAdjustedMove(x, y))
+                    lastRepositionedBounds.set(dragAdjustedMove(displayId, x, y))
                 }
             }
             CTRL_TYPE_BOTTOM + CTRL_TYPE_LEFT, CTRL_TYPE_TOP + CTRL_TYPE_RIGHT -> {
@@ -111,28 +110,28 @@ class FixedAspectRatioTaskPositionerDecorator (
                     // Drag coordinate falls within valid region (180 - 270 degrees or 0 - 90
                     // degrees from the corner the previous valid point). Allow resize with adjusted
                     // coordinates to maintain aspect ratio.
-                    lastRepositionedBounds.set(dragAdjustedMove(x, y))
+                    lastRepositionedBounds.set(dragAdjustedMove(displayId, x, y))
                 }
             }
             CTRL_TYPE_LEFT, CTRL_TYPE_RIGHT -> {
                 // If resize is on left or right edge, always adjust the y coordinate.
                 val adjustedY = getScaledChangeForY(x)
                 lastValidPoint.set(x, adjustedY)
-                lastRepositionedBounds.set(super.onDragPositioningMove(x, adjustedY))
+                lastRepositionedBounds.set(super.onDragPositioningMove(displayId, x, adjustedY))
             }
             CTRL_TYPE_TOP, CTRL_TYPE_BOTTOM -> {
                 // If resize is on top or bottom edge, always adjust the x coordinate.
                 val adjustedX = getScaledChangeForX(y)
                 lastValidPoint.set(adjustedX, y)
-                lastRepositionedBounds.set(super.onDragPositioningMove(adjustedX, y))
+                lastRepositionedBounds.set(super.onDragPositioningMove(displayId, adjustedX, y))
             }
         }
         return lastRepositionedBounds
     }
 
-    override fun onDragPositioningEnd(x: Float, y: Float): Rect {
+    override fun onDragPositioningEnd(displayId: Int, x: Float, y: Float): Rect {
         if (!requiresFixedAspectRatio()) {
-            return super.onDragPositioningEnd(x, y)
+            return super.onDragPositioningEnd(displayId, x, y)
         }
 
         val diffX = x - lastValidPoint.x
@@ -144,55 +143,55 @@ class FixedAspectRatioTaskPositionerDecorator (
                     // Drag coordinate falls within valid region (90 - 180 degrees or 270- 360
                     // degrees from the corner the previous valid point). End resize with adjusted
                     // coordinates to maintain aspect ratio.
-                    return dragAdjustedEnd(x, y)
+                    return dragAdjustedEnd(displayId, x, y)
                 }
                 // If end of resize is not within valid region, end resize from last valid
                 // coordinates.
-                return super.onDragPositioningEnd(lastValidPoint.x, lastValidPoint.y)
+                return super.onDragPositioningEnd(displayId, lastValidPoint.x, lastValidPoint.y)
             }
             CTRL_TYPE_BOTTOM + CTRL_TYPE_LEFT, CTRL_TYPE_TOP + CTRL_TYPE_RIGHT -> {
                 if ((diffX > 0 && diffY < 0) || (diffX < 0 && diffY > 0)) {
                     // Drag coordinate falls within valid region (180 - 260 degrees or 0 - 90
                     // degrees from the corner the previous valid point). End resize with adjusted
                     // coordinates to maintain aspect ratio.
-                    return dragAdjustedEnd(x, y)
+                    return dragAdjustedEnd(displayId, x, y)
                 }
                 // If end of resize is not within valid region, end resize from last valid
                 // coordinates.
-                return super.onDragPositioningEnd(lastValidPoint.x, lastValidPoint.y)
+                return super.onDragPositioningEnd(displayId, lastValidPoint.x, lastValidPoint.y)
             }
             CTRL_TYPE_LEFT, CTRL_TYPE_RIGHT -> {
                 // If resize is on left or right edge, always adjust the y coordinate.
-                return super.onDragPositioningEnd(x, getScaledChangeForY(x))
+                return super.onDragPositioningEnd(displayId, x, getScaledChangeForY(x))
             }
             CTRL_TYPE_TOP, CTRL_TYPE_BOTTOM -> {
                 // If resize is on top or bottom edge, always adjust the x coordinate.
-                return super.onDragPositioningEnd(getScaledChangeForX(y), y)
+                return super.onDragPositioningEnd(displayId, getScaledChangeForX(y), y)
             }
             else -> {
-                return super.onDragPositioningEnd(x, y)
+                return super.onDragPositioningEnd(displayId, x, y)
             }
         }
     }
 
-    private fun dragAdjustedMove(x: Float, y: Float): Rect {
+    private fun dragAdjustedMove(displayId: Int, x: Float, y: Float): Rect {
         val absDiffX = abs(x - lastValidPoint.x)
         val absDiffY = abs(y - lastValidPoint.y)
         if (absDiffY < absDiffX) {
             lastValidPoint.set(getScaledChangeForX(y), y)
-            return super.onDragPositioningMove(getScaledChangeForX(y), y)
+            return super.onDragPositioningMove(displayId, getScaledChangeForX(y), y)
         }
         lastValidPoint.set(x, getScaledChangeForY(x))
-        return super.onDragPositioningMove(x, getScaledChangeForY(x))
+        return super.onDragPositioningMove(displayId, x, getScaledChangeForY(x))
     }
 
-    private fun dragAdjustedEnd(x: Float, y: Float): Rect {
+    private fun dragAdjustedEnd(displayId: Int, x: Float, y: Float): Rect {
         val absDiffX = abs(x - lastValidPoint.x)
         val absDiffY = abs(y - lastValidPoint.y)
         if (absDiffY < absDiffX) {
-            return super.onDragPositioningEnd(getScaledChangeForX(y), y)
+            return super.onDragPositioningEnd(displayId, getScaledChangeForX(y), y)
         }
-        return super.onDragPositioningEnd(x, getScaledChangeForY(x))
+        return super.onDragPositioningEnd(displayId, x, getScaledChangeForY(x))
     }
 
     /**

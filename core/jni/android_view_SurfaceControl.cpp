@@ -765,28 +765,28 @@ static void nativeSetLuts(JNIEnv* env, jclass clazz, jlong transactionObj, jlong
     std::vector<int32_t> dimensions;
     std::vector<int32_t> sizes;
     std::vector<int32_t> samplingKeys;
-    int32_t fd = -1;
+    base::unique_fd fd;
 
     if (jdimensionArray) {
         jsize numLuts = env->GetArrayLength(jdimensionArray);
-        ScopedIntArrayRW joffsets(env, joffsetArray);
+        ScopedIntArrayRO joffsets(env, joffsetArray);
         if (joffsets.get() == nullptr) {
-            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRW from joffsetArray");
+            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRO from joffsetArray");
             return;
         }
-        ScopedIntArrayRW jdimensions(env, jdimensionArray);
+        ScopedIntArrayRO jdimensions(env, jdimensionArray);
         if (jdimensions.get() == nullptr) {
-            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRW from jdimensionArray");
+            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRO from jdimensionArray");
             return;
         }
-        ScopedIntArrayRW jsizes(env, jsizeArray);
+        ScopedIntArrayRO jsizes(env, jsizeArray);
         if (jsizes.get() == nullptr) {
-            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRW from jsizeArray");
+            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRO from jsizeArray");
             return;
         }
-        ScopedIntArrayRW jsamplingKeys(env, jsamplingKeyArray);
+        ScopedIntArrayRO jsamplingKeys(env, jsamplingKeyArray);
         if (jsamplingKeys.get() == nullptr) {
-            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRW from jsamplingKeyArray");
+            jniThrowRuntimeException(env, "Failed to get ScopedIntArrayRO from jsamplingKeyArray");
             return;
         }
 
@@ -796,15 +796,15 @@ static void nativeSetLuts(JNIEnv* env, jclass clazz, jlong transactionObj, jlong
             sizes = std::vector<int32_t>(jsizes.get(), jsizes.get() + numLuts);
             samplingKeys = std::vector<int32_t>(jsamplingKeys.get(), jsamplingKeys.get() + numLuts);
 
-            ScopedFloatArrayRW jbuffers(env, jbufferArray);
+            ScopedFloatArrayRO jbuffers(env, jbufferArray);
             if (jbuffers.get() == nullptr) {
-                jniThrowRuntimeException(env, "Failed to get ScopedFloatArrayRW from jbufferArray");
+                jniThrowRuntimeException(env, "Failed to get ScopedFloatArrayRO from jbufferArray");
                 return;
             }
 
             // create the shared memory and copy jbuffers
             size_t bufferSize = jbuffers.size() * sizeof(float);
-            fd = ashmem_create_region("lut_shared_mem", bufferSize);
+            fd.reset(ashmem_create_region("lut_shared_mem", bufferSize));
             if (fd < 0) {
                 jniThrowRuntimeException(env, "ashmem_create_region() failed");
                 return;
@@ -820,7 +820,7 @@ static void nativeSetLuts(JNIEnv* env, jclass clazz, jlong transactionObj, jlong
         }
     }
 
-    transaction->setLuts(ctrl, base::unique_fd(fd), offsets, dimensions, sizes, samplingKeys);
+    transaction->setLuts(ctrl, std::move(fd), offsets, dimensions, sizes, samplingKeys);
 }
 
 static void nativeSetPictureProfileId(JNIEnv* env, jclass clazz, jlong transactionObj,
@@ -1114,6 +1114,14 @@ static void nativeSetCornerRadius(JNIEnv* env, jclass clazz, jlong transactionOb
     transaction->setCornerRadius(ctrl, cornerRadius);
 }
 
+static void nativeSetClientDrawnCornerRadius(JNIEnv* env, jclass clazz, jlong transactionObj,
+                                             jlong nativeObject, jfloat clientDrawnCornerRadius) {
+    auto transaction = reinterpret_cast<SurfaceComposerClient::Transaction*>(transactionObj);
+
+    SurfaceControl* const ctrl = reinterpret_cast<SurfaceControl*>(nativeObject);
+    transaction->setClientDrawnCornerRadius(ctrl, clientDrawnCornerRadius);
+}
+
 static void nativeSetBackgroundBlurRadius(JNIEnv* env, jclass clazz, jlong transactionObj,
          jlong nativeObject, jint blurRadius) {
     auto transaction = reinterpret_cast<SurfaceComposerClient::Transaction*>(transactionObj);
@@ -1136,6 +1144,27 @@ static void nativeSetShadowRadius(JNIEnv* env, jclass clazz, jlong transactionOb
 
     const auto ctrl = reinterpret_cast<SurfaceControl *>(nativeObject);
     transaction->setShadowRadius(ctrl, shadowRadius);
+}
+
+static void nativeSetBorderSettings(JNIEnv* env, jclass clazz, jlong transactionObj,
+                                    jlong nativeObject, jobject settingsObj) {
+    Parcel* settingsParcel = parcelForJavaObject(env, settingsObj);
+    if (settingsParcel == NULL) {
+        doThrowNPE(env);
+        return;
+    }
+    gui::BorderSettings settings;
+    status_t err = settings.readFromParcel(settingsParcel);
+    if (err != NO_ERROR) {
+        jniThrowException(env, "java/lang/IllegalArgumentException",
+                          "BorderSettings parcel has wrong format");
+        return;
+    }
+
+    auto transaction = reinterpret_cast<SurfaceComposerClient::Transaction*>(transactionObj);
+    const auto ctrl = reinterpret_cast<SurfaceControl*>(nativeObject);
+
+    transaction->setBorderSettings(ctrl, settings);
 }
 
 static void nativeSetTrustedOverlay(JNIEnv* env, jclass clazz, jlong transactionObj,
@@ -2548,6 +2577,8 @@ static const JNINativeMethod sSurfaceControlMethods[] = {
             (void*)nativeSetCrop },
     {"nativeSetCornerRadius", "(JJF)V",
             (void*)nativeSetCornerRadius },
+    {"nativeSetClientDrawnCornerRadius", "(JJF)V",
+            (void*) nativeSetClientDrawnCornerRadius },
     {"nativeSetBackgroundBlurRadius", "(JJI)V",
             (void*)nativeSetBackgroundBlurRadius },
     {"nativeSetLayerStack", "(JJI)V",
@@ -2560,6 +2591,8 @@ static const JNINativeMethod sSurfaceControlMethods[] = {
             (void*) nativeSetEdgeExtensionEffect },
     {"nativeSetShadowRadius", "(JJF)V",
             (void*)nativeSetShadowRadius },
+    {"nativeSetBorderSettings", "(JJLandroid/os/Parcel;)V",
+            (void*)nativeSetBorderSettings },
     {"nativeSetFrameRate", "(JJFII)V",
             (void*)nativeSetFrameRate },
     {"nativeSetDefaultFrameRateCompatibility", "(JJI)V",

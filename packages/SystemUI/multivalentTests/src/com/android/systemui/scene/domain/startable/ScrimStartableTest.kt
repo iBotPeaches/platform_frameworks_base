@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.scene.domain.startable
 
 import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.ObservableTransitionState
+import com.android.compose.animation.scene.OverlayKey
 import com.android.compose.animation.scene.SceneKey
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.bouncer.data.repository.fakeKeyguardBouncerRepository
@@ -35,6 +34,7 @@ import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticati
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.data.repository.setSceneTransition
 import com.android.systemui.scene.domain.interactor.sceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.settings.brightness.domain.interactor.brightnessMirrorShowingInteractor
 import com.android.systemui.statusbar.domain.interactor.keyguardOcclusionInteractor
@@ -47,7 +47,6 @@ import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlin.reflect.full.memberProperties
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -93,34 +92,28 @@ class ScrimStartableTest : SysuiTestCase() {
                 TestSpec(
                     id = 2,
                     expectedState = ScrimState.BOUNCER,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isCurrentSceneBouncer = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isIdleOnBouncer = true),
                 ),
                 TestSpec(
                     id = 3,
                     expectedState = ScrimState.BOUNCER_SCRIMMED,
                     Preconditions(
                         isOnKeyguard = true,
-                        isCurrentSceneBouncer = true,
+                        isIdleOnBouncer = true,
                         isBouncerScrimmingNeeded = true,
                     ),
                 ),
                 TestSpec(
                     id = 4,
                     expectedState = ScrimState.BRIGHTNESS_MIRROR,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isBrightnessMirrorVisible = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isBrightnessMirrorVisible = true),
                 ),
                 TestSpec(
                     id = 5,
                     expectedState = ScrimState.BRIGHTNESS_MIRROR,
                     Preconditions(
                         isOnKeyguard = true,
-                        isCurrentSceneBouncer = true,
+                        isIdleOnBouncer = true,
                         isBiometricWakeAndUnlock = true,
                         isBrightnessMirrorVisible = true,
                     ),
@@ -128,42 +121,27 @@ class ScrimStartableTest : SysuiTestCase() {
                 TestSpec(
                     id = 6,
                     expectedState = ScrimState.SHADE_LOCKED,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isCurrentSceneShade = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isCurrentSceneShade = true),
                 ),
                 TestSpec(
                     id = 7,
                     expectedState = ScrimState.PULSING,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isDozing = true,
-                        isPulsing = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isDozing = true, isPulsing = true),
                 ),
                 TestSpec(
                     id = 8,
                     expectedState = ScrimState.OFF,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        hasPendingScreenOffCallback = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, hasPendingScreenOffCallback = true),
                 ),
                 TestSpec(
                     id = 9,
                     expectedState = ScrimState.AOD,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isDozing = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isDozing = true),
                 ),
                 TestSpec(
                     id = 10,
                     expectedState = ScrimState.GLANCEABLE_HUB,
-                    Preconditions(
-                        isIdleOnCommunal = true,
-                    ),
+                    Preconditions(isIdleOnCommunal = true),
                 ),
                 TestSpec(
                     id = 11,
@@ -173,39 +151,23 @@ class ScrimStartableTest : SysuiTestCase() {
                 TestSpec(
                     id = 12,
                     expectedState = ScrimState.UNLOCKED,
-                    Preconditions(
-                        isDeviceEntered = true,
-                    ),
+                    Preconditions(isDeviceEntered = true),
                 ),
                 TestSpec(
                     id = 13,
                     expectedState = ScrimState.UNLOCKED,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isBiometricWakeAndUnlock = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isBiometricWakeAndUnlock = true),
                 ),
-                TestSpec(
-                    id = 14,
-                    expectedState = ScrimState.KEYGUARD,
-                    Preconditions(),
-                ),
+                TestSpec(id = 14, expectedState = ScrimState.KEYGUARD, Preconditions()),
                 TestSpec(
                     id = 15,
                     expectedState = ScrimState.DREAMING,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isOccluded = true,
-                        isDreaming = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isOccluded = true, isDreaming = true),
                 ),
                 TestSpec(
                     id = 16,
                     expectedState = ScrimState.UNLOCKED,
-                    Preconditions(
-                        isOnKeyguard = true,
-                        isOccluded = true,
-                    ),
+                    Preconditions(isOnKeyguard = true, isOccluded = true),
                 ),
             )
         }
@@ -256,9 +218,7 @@ class ScrimStartableTest : SysuiTestCase() {
         }
 
     /** Sets up the state to match what's specified in the given [preconditions]. */
-    private fun TestScope.setUpWith(
-        preconditions: Preconditions,
-    ) {
+    private fun TestScope.setUpWith(preconditions: Preconditions) {
         kosmos.fakeKeyguardBouncerRepository.setAlternateVisible(
             preconditions.isAlternateBouncerVisible
         )
@@ -275,17 +235,12 @@ class ScrimStartableTest : SysuiTestCase() {
 
         when {
             preconditions.isTransitioningToShade ->
-                whenTransitioning(
-                    from = Scenes.Lockscreen,
-                    to = Scenes.Shade,
-                )
+                whenTransitioning(from = Scenes.Lockscreen, to = Scenes.Shade)
             preconditions.isTransitioningAwayFromKeyguard ->
-                whenTransitioning(
-                    from = Scenes.Lockscreen,
-                    to = Scenes.Gone,
-                )
+                whenTransitioning(from = Scenes.Lockscreen, to = Scenes.Gone)
             preconditions.isCurrentSceneShade -> whenIdle(on = Scenes.Shade)
-            preconditions.isCurrentSceneBouncer -> whenIdle(on = Scenes.Bouncer)
+            preconditions.isIdleOnBouncer ->
+                whenIdle(on = Scenes.Lockscreen, overlays = setOf(Overlays.Bouncer))
             preconditions.isIdleOnCommunal -> whenIdle(on = Scenes.Communal)
         }
 
@@ -326,9 +281,12 @@ class ScrimStartableTest : SysuiTestCase() {
     }
 
     /** Sets up an idle state on the given [on] scene. */
-    private fun whenIdle(on: SceneKey) {
-        kosmos.setSceneTransition(ObservableTransitionState.Idle(on))
+    private fun whenIdle(on: SceneKey, overlays: Set<OverlayKey> = emptySet()) {
+        kosmos.setSceneTransition(ObservableTransitionState.Idle(on, overlays))
         kosmos.sceneInteractor.changeScene(on, "")
+        for (overlay in overlays) {
+            kosmos.sceneInteractor.showOverlay(overlay, "")
+        }
     }
 
     /** Sets up a transitioning state between the [given] and [to] scenes. */
@@ -354,7 +312,7 @@ class ScrimStartableTest : SysuiTestCase() {
         /** Whether any non-shade nor QS scene is transitioning to a shade or QS scene. */
         val isTransitioningToShade: Boolean = false,
         val isOccluded: Boolean = false,
-        val isCurrentSceneBouncer: Boolean = false,
+        val isIdleOnBouncer: Boolean = false,
         val isBiometricWakeAndUnlock: Boolean = false,
         /** Whether there's an active transition from lockscreen or bouncer to gone. */
         val isTransitioningAwayFromKeyguard: Boolean = false,
@@ -391,7 +349,7 @@ class ScrimStartableTest : SysuiTestCase() {
             assertWithMessage(
                     "isCurrentSceneBouncer cannot be true without isOnKeyguard also being true"
                 )
-                .that(!isCurrentSceneBouncer || isOnKeyguard)
+                .that(!isIdleOnBouncer || isOnKeyguard)
                 .isTrue()
 
             assertWithMessage(
@@ -403,13 +361,13 @@ class ScrimStartableTest : SysuiTestCase() {
             assertWithMessage(
                     "isCurrentSceneBouncer cannot be true at the same time as isCurrentSceneShade"
                 )
-                .that(!isCurrentSceneBouncer || !isCurrentSceneShade)
+                .that(!isIdleOnBouncer || !isCurrentSceneShade)
                 .isTrue()
 
             assertWithMessage(
                     "isCurrentSceneBouncer cannot be true at the same time as isIdleOnCommunal"
                 )
-                .that(!isCurrentSceneBouncer || !isIdleOnCommunal)
+                .that(!isIdleOnBouncer || !isIdleOnCommunal)
                 .isTrue()
 
             assertWithMessage(
@@ -425,7 +383,7 @@ class ScrimStartableTest : SysuiTestCase() {
             assertWithMessage(
                     "isDeviceEntered cannot be true at the same time as isCurrentSceneBouncer"
                 )
-                .that(!isDeviceEntered || !isCurrentSceneBouncer)
+                .that(!isDeviceEntered || !isIdleOnBouncer)
                 .isTrue()
 
             assertWithMessage(

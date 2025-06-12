@@ -22,4 +22,6 @@ import dagger.Module
 @Module
 interface CommunalRepositoryModule {
     @Binds fun communalRepository(impl: CommunalSceneRepositoryImpl): CommunalSceneRepository
+
+    @Binds fun carProjectionRepository(impl: CarProjectionRepositoryImpl): CarProjectionRepository
 }

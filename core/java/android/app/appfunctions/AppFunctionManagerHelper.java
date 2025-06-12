@@ -31,6 +31,7 @@ import android.app.appsearch.AppSearchManager;
 import android.app.appsearch.AppSearchResult;
 import android.app.appsearch.GlobalSearchSession;
 import android.app.appsearch.JoinSpec;
+import android.app.appsearch.PropertyPath;
 import android.app.appsearch.SearchResult;
 import android.app.appsearch.SearchResults;
 import android.app.appsearch.SearchSpec;
@@ -54,15 +55,14 @@ public class AppFunctionManagerHelper {
      * Returns (through a callback) a boolean indicating whether the app function is enabled.
      *
      * This method can only check app functions owned by the caller, or those where the caller
-     * has visibility to the owner package and holds either the {@link
-     * Manifest.permission#EXECUTE_APP_FUNCTIONS} or {@link
-     * Manifest.permission#EXECUTE_APP_FUNCTIONS_TRUSTED} permission.
+     * has visibility to the owner package and holds the {@link
+     * Manifest.permission#EXECUTE_APP_FUNCTIONS} permission.
      *
      * <p>If operation fails, the callback's {@link OutcomeReceiver#onError} is called with errors:
      *
      * <ul>
-     *   <li>{@link IllegalArgumentException}, if the function is not found or the caller does not
-     *       have access to it.
+     *   <li>{@link AppFunctionNotFoundException}, if the function is not found or the caller does
+     *       not have access to it.
      * </ul>
      *
      * @param functionIdentifier the identifier of the app function to check (unique within the
@@ -142,6 +142,9 @@ public class AppFunctionManagerHelper {
                         .addFilterSchemas(
                                 AppFunctionStaticMetadataHelper.getStaticSchemaNameForPackage(
                                         targetPackage))
+                        .addProjectionPaths(
+                                SearchSpec.SCHEMA_TYPE_WILDCARD,
+                                List.of(new PropertyPath(STATIC_PROPERTY_ENABLED_BY_DEFAULT)))
                         .setJoinSpec(joinSpec)
                         .setVerbatimSearchEnabled(true)
                         .build();
@@ -217,7 +220,7 @@ public class AppFunctionManagerHelper {
     private static @NonNull Exception failedResultToException(
             @NonNull AppSearchResult appSearchResult) {
         return switch (appSearchResult.getResultCode()) {
-            case AppSearchResult.RESULT_INVALID_ARGUMENT -> new IllegalArgumentException(
+            case AppSearchResult.RESULT_INVALID_ARGUMENT -> new AppFunctionNotFoundException(
                     appSearchResult.getErrorMessage());
             case AppSearchResult.RESULT_IO_ERROR -> new IOException(
                     appSearchResult.getErrorMessage());
@@ -225,5 +228,16 @@ public class AppFunctionManagerHelper {
                     appSearchResult.getErrorMessage());
             default -> new IllegalStateException(appSearchResult.getErrorMessage());
         };
+    }
+
+    /**
+     * Throws when the app function is not found.
+     *
+     * @hide
+     */
+    public static class AppFunctionNotFoundException extends RuntimeException {
+        private AppFunctionNotFoundException(@NonNull String errorMessage) {
+            super(errorMessage);
+        }
     }
 }

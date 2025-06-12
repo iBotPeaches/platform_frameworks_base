@@ -16,7 +16,6 @@
 
 package android.service.notification;
 
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.app.Flags;
@@ -249,7 +248,7 @@ public class ZenModeDiff {
         public static final String FIELD_ALLOW_MESSAGES_FROM = "allowMessagesFrom";
         public static final String FIELD_ALLOW_CONVERSATIONS_FROM = "allowConversationsFrom";
         public static final String FIELD_SUPPRESSED_VISUAL_EFFECTS = "suppressedVisualEffects";
-        public static final String FIELD_ARE_CHANNELS_BYPASSING_DND = "areChannelsBypassingDnd";
+        public static final String FIELD_HAS_PRIORITY_CHANNELS = "hasPriorityChannels";
         public static final String FIELD_ALLOW_PRIORITY_CHANNELS = "allowPriorityChannels";
         private static final Set<String> PEOPLE_TYPE_FIELDS =
                 Set.of(FIELD_ALLOW_CALLS_FROM, FIELD_ALLOW_MESSAGES_FROM);
@@ -323,15 +322,13 @@ public class ZenModeDiff {
                 addField(FIELD_SUPPRESSED_VISUAL_EFFECTS,
                         new FieldDiff<>(from.suppressedVisualEffects, to.suppressedVisualEffects));
             }
-            if (from.areChannelsBypassingDnd != to.areChannelsBypassingDnd) {
-                addField(FIELD_ARE_CHANNELS_BYPASSING_DND,
-                        new FieldDiff<>(from.areChannelsBypassingDnd, to.areChannelsBypassingDnd));
+            if (from.hasPriorityChannels != to.hasPriorityChannels) {
+                addField(FIELD_HAS_PRIORITY_CHANNELS,
+                        new FieldDiff<>(from.hasPriorityChannels, to.hasPriorityChannels));
             }
-            if (Flags.modesApi()) {
-                if (from.allowPriorityChannels != to.allowPriorityChannels) {
-                    addField(FIELD_ALLOW_PRIORITY_CHANNELS,
-                            new FieldDiff<>(from.allowPriorityChannels, to.allowPriorityChannels));
-                }
+            if (from.allowPriorityChannels != to.allowPriorityChannels) {
+                addField(FIELD_ALLOW_PRIORITY_CHANNELS,
+                        new FieldDiff<>(from.allowPriorityChannels, to.allowPriorityChannels));
             }
 
             // Compare automatic and manual rules
@@ -491,7 +488,6 @@ public class ZenModeDiff {
         public static final String FIELD_ENABLER = "enabler";
         public static final String FIELD_ZEN_POLICY = "zenPolicy";
         public static final String FIELD_ZEN_DEVICE_EFFECTS = "zenDeviceEffects";
-        public static final String FIELD_MODIFIED = "modified";
         public static final String FIELD_PKG = "pkg";
         public static final String FIELD_ALLOW_MANUAL = "allowManualInvocation";
         public static final String FIELD_ICON_RES = "iconResName";
@@ -532,7 +528,7 @@ public class ZenModeDiff {
             if (from.enabled != to.enabled) {
                 addField(FIELD_ENABLED, new FieldDiff<>(from.enabled, to.enabled));
             }
-            if (Flags.modesApi() && Flags.modesUi()) {
+            if (Flags.modesUi()) {
                 if (from.conditionOverride != to.conditionOverride) {
                     addField(FIELD_CONDITION_OVERRIDE,
                             new FieldDiff<>(from.conditionOverride, to.conditionOverride));
@@ -572,51 +568,40 @@ public class ZenModeDiff {
             if (!Objects.equals(from.enabler, to.enabler)) {
                 addField(FIELD_ENABLER, new FieldDiff<>(from.enabler, to.enabler));
             }
-            if (android.app.Flags.modesApi()) {
-                PolicyDiff policyDiff = new PolicyDiff(from.zenPolicy, to.zenPolicy);
-                if (policyDiff.hasDiff()) {
-                    addField(FIELD_ZEN_POLICY, new FieldDiff<>(from.zenPolicy, to.zenPolicy,
-                            policyDiff));
-                }
-            } else {
-                if (!Objects.equals(from.zenPolicy, to.zenPolicy)) {
-                    addField(FIELD_ZEN_POLICY, new FieldDiff<>(from.zenPolicy, to.zenPolicy));
-                }
-            }
-            if (from.modified != to.modified) {
-                addField(FIELD_MODIFIED, new FieldDiff<>(from.modified, to.modified));
+            PolicyDiff policyDiff = new PolicyDiff(from.zenPolicy, to.zenPolicy);
+            if (policyDiff.hasDiff()) {
+                addField(FIELD_ZEN_POLICY, new FieldDiff<>(from.zenPolicy, to.zenPolicy,
+                        policyDiff));
             }
             if (!Objects.equals(from.pkg, to.pkg)) {
                 addField(FIELD_PKG, new FieldDiff<>(from.pkg, to.pkg));
             }
-            if (android.app.Flags.modesApi()) {
-                DeviceEffectsDiff deviceEffectsDiff = new DeviceEffectsDiff(from.zenDeviceEffects,
-                        to.zenDeviceEffects);
-                if (deviceEffectsDiff.hasDiff()) {
-                    addField(FIELD_ZEN_DEVICE_EFFECTS,
-                            new FieldDiff<>(from.zenDeviceEffects, to.zenDeviceEffects,
-                                    deviceEffectsDiff));
-                }
-                if (!Objects.equals(from.triggerDescription, to.triggerDescription)) {
-                    addField(FIELD_TRIGGER_DESCRIPTION,
-                            new FieldDiff<>(from.triggerDescription, to.triggerDescription));
-                }
-                if (from.type != to.type) {
-                    addField(FIELD_TYPE, new FieldDiff<>(from.type, to.type));
-                }
-                if (from.allowManualInvocation != to.allowManualInvocation) {
-                    addField(FIELD_ALLOW_MANUAL,
-                            new FieldDiff<>(from.allowManualInvocation, to.allowManualInvocation));
-                }
-                if (!Objects.equals(from.iconResName, to.iconResName)) {
-                    addField(FIELD_ICON_RES, new FieldDiff<>(from.iconResName, to.iconResName));
-                }
-                if (android.app.Flags.modesUi()) {
-                    if (from.legacySuppressedEffects != to.legacySuppressedEffects) {
-                        addField(FIELD_LEGACY_SUPPRESSED_EFFECTS,
-                                new FieldDiff<>(from.legacySuppressedEffects,
-                                        to.legacySuppressedEffects));
-                    }
+            DeviceEffectsDiff deviceEffectsDiff = new DeviceEffectsDiff(from.zenDeviceEffects,
+                    to.zenDeviceEffects);
+            if (deviceEffectsDiff.hasDiff()) {
+                addField(FIELD_ZEN_DEVICE_EFFECTS,
+                        new FieldDiff<>(from.zenDeviceEffects, to.zenDeviceEffects,
+                                deviceEffectsDiff));
+            }
+            if (!Objects.equals(from.triggerDescription, to.triggerDescription)) {
+                addField(FIELD_TRIGGER_DESCRIPTION,
+                        new FieldDiff<>(from.triggerDescription, to.triggerDescription));
+            }
+            if (from.type != to.type) {
+                addField(FIELD_TYPE, new FieldDiff<>(from.type, to.type));
+            }
+            if (from.allowManualInvocation != to.allowManualInvocation) {
+                addField(FIELD_ALLOW_MANUAL,
+                        new FieldDiff<>(from.allowManualInvocation, to.allowManualInvocation));
+            }
+            if (!Objects.equals(from.iconResName, to.iconResName)) {
+                addField(FIELD_ICON_RES, new FieldDiff<>(from.iconResName, to.iconResName));
+            }
+            if (android.app.Flags.modesUi()) {
+                if (from.legacySuppressedEffects != to.legacySuppressedEffects) {
+                    addField(FIELD_LEGACY_SUPPRESSED_EFFECTS,
+                            new FieldDiff<>(from.legacySuppressedEffects,
+                                    to.legacySuppressedEffects));
                 }
             }
         }
@@ -702,7 +687,6 @@ public class ZenModeDiff {
      * Diff class representing a change between two
      * {@link android.service.notification.ZenDeviceEffects}.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public static class DeviceEffectsDiff extends BaseDiff {
         public static final String FIELD_GRAYSCALE = "mGrayscale";
         public static final String FIELD_SUPPRESS_AMBIENT_DISPLAY = "mSuppressAmbientDisplay";
@@ -714,6 +698,7 @@ public class ZenModeDiff {
         public static final String FIELD_DISABLE_TOUCH = "mDisableTouch";
         public static final String FIELD_MINIMIZE_RADIO_USAGE = "mMinimizeRadioUsage";
         public static final String FIELD_MAXIMIZE_DOZE = "mMaximizeDoze";
+        public static final String FIELD_NIGHT_LIGHT = "mNightLight";
         public static final String FIELD_EXTRA_EFFECTS = "mExtraEffects";
         // NOTE: new field strings must match the variable names in ZenDeviceEffects
 
@@ -781,6 +766,11 @@ public class ZenModeDiff {
                 addField(FIELD_MAXIMIZE_DOZE, new FieldDiff<>(from.shouldMaximizeDoze(),
                         to.shouldMaximizeDoze()));
             }
+            if (from.shouldUseNightLight() != to.shouldUseNightLight()) {
+                addField(
+                        FIELD_NIGHT_LIGHT,
+                        new FieldDiff<>(from.shouldUseNightLight(), to.shouldUseNightLight()));
+            }
             if (!Objects.equals(from.getExtraEffects(), to.getExtraEffects())) {
                 addField(FIELD_EXTRA_EFFECTS, new FieldDiff<>(from.getExtraEffects(),
                         to.getExtraEffects()));
@@ -837,7 +827,6 @@ public class ZenModeDiff {
     /**
      * Diff class representing a change between two {@link android.service.notification.ZenPolicy}.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public static class PolicyDiff extends BaseDiff {
         public static final String FIELD_PRIORITY_CATEGORY_REMINDERS =
                 "mPriorityCategories_Reminders";

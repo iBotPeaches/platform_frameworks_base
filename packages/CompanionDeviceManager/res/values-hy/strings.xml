@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Թույլատրե՞լ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; հավելվածին կառավարել &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; սարքը"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Համոզվեք, որ այս <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>ի <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>-ը միացված է, և ձեր <xliff:g id="PROFILE_NAME">%3$s</xliff:g>ը մոտ պահեք։"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Սարքեր չեն գտնվել։ Փորձեք ավելի ուշ։"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth և Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ժամացույց"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Ընտրեք սարքը, որը պետք է կառավարվի &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; հավելվածի միջոցով"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Կարգավորելու համար ընտրեք <xliff:g id="PROFILE_NAME">%1$s</xliff:g>ը"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Կարգավորելու համար ընտրեք <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Որոնվում է <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Այս հավելվածը կկարողանա համաժամացնել տվյալները, օր․՝ զանգողի անունը, և կստանա հետևյալ թույլտվությունները ձեր <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>ում"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Թույլատրե՞լ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; հավելվածին կառավարել &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; սարքը"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"սարք"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Թույլատրե՞լ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; հավելվածին հեռարձակել ձեր <xliff:g id="DEVICE_TYPE">%2$s</xliff:g>ի հավելվածները &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; սարքին։"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> հավելվածին հասանելի կլինի ձեր <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>-ում ցուցադրվող կամ նվագարկվող բովանդակությունը՝ ներառյալ աուդիոն, լուսանկարները, վճարային տեղեկությունները, գաղտնաբառերը և հաղորդագրությունները։&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> հավելվածը կկարողանա հավելվածներ հեռարձակել <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> սարքին, քանի դեռ չեք չեղարկել այս թույլտվությունը։"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> հավելվածը <xliff:g id="DEVICE_NAME">%2$s</xliff:g> սարքի անունից թույլտվություն է խնդրում՝ ձեր <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>ից հավելվածներ հեռարձակելու համար"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Թույլատրե՞լ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; հավելվածին աուդիո և համակարգի գործառույթներ հեռարձակել ձեր <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>ի և &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>-ի&lt;/strong&gt; միջև"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> հավելվածին հասանելի կլինի <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> սարքում նվագարկվող բովանդակությունը։&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> հավելվածը կկարողանա աուդիո հեռարձակել <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>-ին, քանի դեռ չեք չեղարկել այս թույլտվությունը։"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"սարք"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Այս հավելվածը կկարողանա համաժամացնել ձեր հեռախոսի և ընտրված սարքի տվյալները, օր․՝ զանգողի անունը"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Թույլատրել"</string>
     <string name="consent_no" msgid="2640796915611404382">"Չթույլատրել"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Չեղարկել"</string>
     <string name="consent_back" msgid="2560683030046918882">"Հետ"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Թերթեք ներքև"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Ներքև սլաք"</string>
     <string name="permission_expand" msgid="893185038020887411">"Ծավալել «<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>» բաժինը"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Ծալել «<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>» բաժինը"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"&lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt;-ում հավելվածներին տա՞լ նույն թույլտվությունները, ինչ &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;-ում"</string>

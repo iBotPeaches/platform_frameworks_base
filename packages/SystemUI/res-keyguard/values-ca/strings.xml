@@ -27,7 +27,7 @@
     <string name="keyguard_enter_your_password" msgid="7225626204122735501">"Introdueix la contrasenya"</string>
     <string name="keyguard_enter_password" msgid="6483623792371009758">"Introdueix la contrasenya"</string>
     <string name="keyguard_sim_error_message_short" msgid="633630844240494070">"La targeta no és vàlida."</string>
-    <string name="keyguard_charged" msgid="5478247181205188995">"Bateria carregada"</string>
+    <string name="keyguard_charged" msgid="5478247181205188995">"Carregat"</string>
     <string name="keyguard_plugged_in_wireless" msgid="2537874724955057383">"<xliff:g id="PERCENTAGE">%s</xliff:g> • S\'està carregant sense fil"</string>
     <string name="keyguard_plugged_in_dock" msgid="2122073051904360987">"<xliff:g id="PERCENTAGE">%s</xliff:g> • S\'està carregant"</string>
     <string name="keyguard_plugged_in" msgid="8169926454348380863">"<xliff:g id="PERCENTAGE">%s</xliff:g> • S\'està carregant"</string>

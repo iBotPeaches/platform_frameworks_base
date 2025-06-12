@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-  ~ Copyright (C) 2014 The Android Open Source Project
+  ~ Copyright (C) 2024 The Android Open Source Project
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -56,11 +56,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/notification_2025_content_margin_start"
-                android:layout_marginEnd="@dimen/notification_content_margin_end"
-                android:layout_marginTop="@dimen/notification_content_margin"
+                android:layout_marginEnd="@dimen/notification_2025_margin"
+                android:layout_marginTop="@dimen/notification_2025_smart_reply_container_margin"
                 />
 
-            <include layout="@layout/notification_material_action_list" />
+            <include layout="@layout/notification_2025_action_list" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

@@ -18,6 +18,7 @@ package com.android.systemui.keyguard.ui.viewmodel
 
 import android.content.Context
 import com.android.settingslib.Utils
+import com.android.systemui.accessibility.domain.interactor.AccessibilityInteractor
 import com.android.systemui.biometrics.domain.interactor.FingerprintPropertyInteractor
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
@@ -26,8 +27,8 @@ import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shared.recents.utilities.Utilities.clamp
+import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
@@ -37,7 +38,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
 /** Models the UI state for the UDFPS icon view in the alternate bouncer view. */
-@ExperimentalCoroutinesApi
 class AlternateBouncerUdfpsIconViewModel
 @Inject
 constructor(
@@ -48,6 +48,8 @@ constructor(
     fingerprintPropertyInteractor: FingerprintPropertyInteractor,
     udfpsOverlayInteractor: UdfpsOverlayInteractor,
     alternateBouncerViewModel: AlternateBouncerViewModel,
+    private val statusBarKeyguardViewManager: StatusBarKeyguardViewManager,
+    private val accessibilityInteractor: AccessibilityInteractor,
 ) {
     private val isSupported: Flow<Boolean> = deviceEntryUdfpsInteractor.isUdfpsSupported
     val alpha: Flow<Float> =
@@ -76,7 +78,15 @@ constructor(
             }
         }
     val accessibilityDelegateHint: Flow<DeviceEntryIconView.AccessibilityHintType> =
-        flowOf(DeviceEntryIconView.AccessibilityHintType.ENTER)
+        accessibilityInteractor.isEnabled.flatMapLatest { touchExplorationEnabled ->
+            flowOf(
+                if (touchExplorationEnabled) {
+                    DeviceEntryIconView.AccessibilityHintType.BOUNCER
+                } else {
+                    DeviceEntryIconView.AccessibilityHintType.NONE
+                }
+            )
+        }
 
     private val fgIconColor: Flow<Int> =
         configurationInteractor.onAnyConfigurationChange
@@ -94,6 +104,13 @@ constructor(
                 padding = padding,
             )
         }
+
+    fun onTapped() {
+        statusBarKeyguardViewManager.showPrimaryBouncer(
+            /* scrimmed */ true,
+            "AlternateBouncerUdfpsIconViewModel#onTapped",
+        )
+    }
 
     val bgColor: Flow<Int> = deviceEntryBackgroundViewModel.color
     val bgAlpha: Flow<Float> = flowOf(1f)

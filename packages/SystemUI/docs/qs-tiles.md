@@ -8,6 +8,14 @@ This document is a more or less comprehensive summary of the state and infrastru
 Settings tiles. It provides descriptions about the lifecycle of a tile, how to create new tiles and
 how SystemUI manages and displays tiles, among other topics.
 
+A lot of the tile backend architecture is in the process of being replaced by a new architecture in
+order to align with the
+[recommended architecture](https://developer.android.com/topic/architecture#recommended-app-arch).
+
+While we are in the process of migrating, this document will try to provide a comprehensive
+overview of the current architecture as well as the new one. The sections documenting the new
+architecture are marked with the tag [NEW-ARCH].
+
 ## What are Quick Settings Tiles?
 
 Quick Settings (from now on, QS) is the expanded panel that contains shortcuts for the user to
@@ -72,6 +80,27 @@ The interfaces in `QSTile` as well as other interfaces described in this documen
 implement plugins to add additional tiles or different behavior. For more information,
 see [plugins.md](plugins.md)
 
+
+#### [NEW-ARCH] Tile backend
+Instead of `QSTileImpl` the tile backend is made of a view model called `QSTileViewModelImpl`,
+which in turn is composed of 3 interfaces:
+
+* [`QSTileDataInteractor`](/packages/SystemUI/src/com/android/systemui/qs/tiles/base/interactor/QSTileDataInteractor.kt)
+is responsible for providing the data for the tile. It is responsible for fetching the state of
+the tile from the source of truth and providing that information to the tile. Typically the data
+interactor will read system state from a repository or a controller and provide a flow of
+domain-specific data model.
+
+* [`QSTileUserActionInteractor`](/packages/SystemUI/src/com/android/systemui/qs/tiles/base/interactor/QSTileUserActionInteractor.kt) is responsible for handling the user actions on the tile.
+This interactor decides what should happen when the user clicks, long clicks on the tile.
+
+* [`QSTileDataToStateMapper`](/packages/SystemUI/src/com/android/systemui/qs/tiles/base/mapper/QSTileMapper.kt)
+is responsible for mapping the data received from the data interactor to a state that the view
+model can use to update the UI.
+
+At the time being, the `QSTileViewModel`s are adapted to `QSTile`. This conversion is done by
+`QSTileViewModelAdapter`.
+
 #### Tile State
 
 Each tile has an associated `State` object that is used to communicate information to the
@@ -94,6 +123,11 @@ Additionally. `BooleanState` has a `value` boolean field that usually would be s
 to `state == Tile#STATE_ACTIVE`. This is used by accessibility services along
 with `expandedAccessibilityClassName`.
 
+#### [NEW-ARCH] Tile State
+In the new architecture, the mapper generates
+[`QSTileState`](packages/SystemUI/src/com/android/systemui/qs/tiles/viewmodel/QSTileState.kt),
+which again is converted to the old state by `QSTileViewModelAdapter`.
+
 #### SystemUI tiles
 
 Each tile defined in SystemUI extends `QSTileImpl`. This abstract class implements some common
@@ -102,6 +136,9 @@ to handle different events (refresh, click, etc.).
 
 For more information on how to implement a tile in SystemUI,
 see [Implementing a SystemUI tile](#implementing-a-systemui-tile).
+
+As mentioned before, when the [NEW-ARCH] migration is complete, we will remove the `QSTileImpl`
+and `QSTileViewModelAdapter` and directly use`QSTileViewModelImpl`.
 
 ### Tile views
 
@@ -154,37 +191,24 @@ corresponding `QSTile` with its `QSTileView`, doing the following:
 #### Life of a tile click
 
 This is a brief run-down of what happens when a user clicks on a tile. Internal changes on the
-device (for example, changes from Settings) will trigger this process starting in step 3. Throughout
-this section, we assume that we are dealing with a `QSTileImpl`.
+device (for example, changes from Settings) will trigger this process starting in step 5.
 
-1. User clicks on tile. The following calls happen in sequence:
-    1. `QSTileViewImpl#onClickListener`.
-    2. `QSTile#click`.
-    3. `QSTileImpl#handleClick`. This last call sets the new state for the device by using the
-       associated controller.
-2. State in the device changes. This is normally outside of SystemUI's control.
-3. Controller receives a callback (or `Intent`) indicating the change in the device. The following
-   calls happen:
-    1. `QSTileImpl#refreshState`, maybe passing an object with necessary information regarding the
-       new state.
-    2. `QSTileImpl#handleRefreshState`
-4. `QSTileImpl#handleUpdateState` is called to update the state with the new information. This
-   information can be obtained both from the `Object` passed to `refreshState` as well as from the
-   controller.
-5. If the state has changed (in at least one element), `QSTileImpl#handleStateChanged` is called.
-   This will trigger a call to all the associated `QSTile.Callback#onStateChanged`, passing the
-   new `State`.
-6. `QSTileView#onStateChanged` is called and this calls `QSTileView#handleStateChanged`. This method
-   maps the state into the view:
-    * The tile colors change to match the new state.
-    * `QSIconView.setIcon` is called to apply the correct state to the icon and the correct icon to
-      the view.
-    * The tile labels change to match the new state.
+Step | Legacy Tiles | [NEW-ARCH] Tiles
+-------|-------|---------
+1 | User clicks on tile. | Same as legacy tiles.
+2 | `QSTileViewImpl#onClickListener` | Same as legacy tiles.
+3 | `QSTile#click` | Same as legacy tiles.
+4| `QSTileImpl#handleClick` | `QSTileUserActionInteractor#handleInput`
+5| State in the device changes. This is normally outside of SystemUI's control. Controller receives a callback (or `Intent`) indicating the change in the device. | Same as legacy tiles.
+6 |  `QSTile#refreshState`and `QSTileImpl#handleRefreshState` | `QSTileDataInteractor#tileData()`
+7| `QSTileImpl#handleUpdateState` is called to update the state with the new information. This information can be obtained both from the `Object` passed to `refreshState` as well as from the controller. | The data that was generated by the data interactor is read by the `QSTileViewModelImpl.state` flow which calls `QSTileMapper#map` on the data to generate a new `QSTileState`.
+8|  If the state has changed (in at least one element `QSTileImpl#handleStateChanged` is called. This will trigger a call to all the associated `QSTile.Callback#onStateChanged`, passing the new `State`. | The newly mapped QSTileState is read by the `QSTileViewModelAdapter` which then maps it to a legacy `State`. Similarly to the legacy tiles, the new state is compared to the old one and if there is a difference, `QSTile.Callback#onStateChanged` is called for all the associated callbacks.
+9 | `QSTileView#onStateChanged` is called and this calls `QSTileView#handleStateChanged`. This method maps the state updating tile color and label, and calling `QSIconView.setIcon` | Same as legacy tiles.
 
 ## Third party tiles (TileService)
 
-A third party tile is any Quick Settings tile that is provided by an app (that's not SystemUI). This
-is implemented by developers
+A third party tile is any Quick Settings tile that is provided by an app (that's not SystemUI).
+This is implemented by developers
 subclassing [`TileService`](/core/java/android/service/quicksettings/TileService.java) and
 interacting with its API.
 
@@ -220,9 +244,9 @@ from SystemUI:
 * **`onTileAdded`**: called when the tile is added to QS.
 * **`onTileRemoved`**: called when the tile is removed from QS.
 * **`onStartListening`**: called when QS is opened and the tile is showing. This marks the start of
-  the window when calling `getQSTile` is safe and will provide the correct object.
-* **`onStopListening`**: called when QS is closed or the tile is no longer visible by the user. This
-  marks the end of the window described in `onStartListening`.
+the window when calling `getQSTile` is safe and will provide the correct object.
+* **`onStopListening`**: called when QS is closed or the tile is no longer visible by the user.
+This marks the end of the window described in `onStartListening`.
 * **`onClick`**: called when the user clicks on the tile.
 
 Additionally, the following final methods are provided:
@@ -379,13 +403,14 @@ correct list of tiles.
 
 ### QSFactory
 
+`CurrentTilesInteractorImpl` uses the `QSFactory` interface to create the tiles.
+
 This interface provides a way of creating tiles and views from a spec. It can be used in plugins to
 provide different definitions for tiles.
 
-In SystemUI there is only one implementation of this factory and that is the default
-factory (`QSFactoryImpl`) in `CurrentTilesInteractorImpl`.
+In SystemUI there are two implementation of this factory. The first one is `QSFactoryImpl` in used for legacy tiles. The second one is `NewQSFactory` used for [NEW-ARCH] tiles.
 
-#### QSFactoryImpl
+#### QSFactoryImpl (legacy tiles)
 
 This class implements the following method as specified in the `QSFactory` interface:
 
@@ -402,6 +427,12 @@ This class implements the following method as specified in the `QSFactory` inter
   As part of filtering not valid tiles, custom tiles that don't have a corresponding valid service
   component are never instantiated.
 
+#### NewQSFactory ([NEW-ARCH] tiles)
+
+This class also implements the `createTile` method as specified in the `QSFactory` interface.
+However, it first uses the spec to get a `QSTileViewModel`. The view model is then adapted into a
+`QSTile` using the `QSTileViewModelAdapter`.
+
 ### Lifecycle of a Tile
 
 We describe first the parts of the lifecycle that are common to SystemUI tiles and third party
@@ -415,7 +446,7 @@ tiles.
 2. This updates the flow that `CurrentTilesInteractor` is collecting from, triggering the process
    described above.
 3. `CurrentTilesInteractor` calls the available `QSFactory` classes in order to find one that will
-   be able to create a tile with that spec. Assuming that `QSFactoryImpl` managed to create the
+   be able to create a tile with that spec. Assuming that some factory managed to create the
    tile, which is some implementation of `QSTile` (either a SystemUI subclass
    of `QSTileImpl` or a `CustomTile`) it will be added to the current list.
    If the tile is available, it's stored in a map and things proceed forward.
@@ -452,7 +483,7 @@ in [Third party tiles (TileService)](#third-party-tiles-tileservice).
 This section describes necessary and recommended steps when implementing a Quick Settings tile. Some
 of them are optional and depend on the requirements of the tile.
 
-### Implementing a SystemUI tile
+### Implementing a legacy SystemUI tile
 
 1. Create a class (preferably
    in [`SystemUI/src/com/android/systemui/qs/tiles`](/packages/SystemUI/src/com/android/systemui/qs/tiles))
@@ -578,6 +609,70 @@ type variable of type `State`.
 
   Provides a default label for this Tile. Used by the QS Panel customizer to show a name next to
   each available tile.
+
+### Implementing a [NEW-ARCH] SystemUI tile
+In the new system the tiles are created in the path
+[`packages/SystemUI/src/com/android/systemui/qs/tiles/impl/<spec>`](packages/SystemUI/src/com/android/systemui/qs/tiles/impl/<spec>)
+where the `<spec>` should be replaced by the spec of the tile e.g. rotation for `RotationLockTile`.
+
+To create a new tile, the developer needs to implement the following data class and interfaces:
+
+[`DataModel`] is a class that describes the system state of the feature that the tile is trying to
+represent. Let's refer to the type of this class as DATA_TYPE. For example a simplified version of
+the data model for a flashlight tile could be a class with a boolean field that represents
+whether the flashlight is on or not.
+
+This file should be placed in the relative path `domain/model/` down from the tile's package.
+
+[`QSTileDataInteractor`] There are two abstract methods that need to be implemented:
+* `fun tileData(user: UserHandle, triggers: Flow<DataUpdateTrigger>): Flow<DATA_TYPE>`: This method
+returns a flow of data that will be used to create the state of the tile. This is where the system
+state is listened to and converted to a flow of data model. Avoid loading data or settings up
+listeners on the main thread. The userHandle is the user for which the tile is created.
+The triggers flow is a flow of events that can be used to trigger a refresh of the data.
+The most common triggers the force update and initial request.
+
+* `fun availability(user: UserHandle): Flow<Boolean>`: This method returns a flow of booleans that
+indicates if the tile should be shown or not. This is where the availability of the system feature
+(e.g. wifi) is checked. The userHandle is the user for which the tile is created.
+
+This file should be placed in the relative path `domain/interactor/` down from the tile's package.
+
+[`QSTileUserActionInteractor`]
+* `fun handleInput(input: QSTileInput)` is the method that needs to be implemented. This is the
+method that will be called when the user interacts with the tile. The input parameter contains
+the type of interaction (click, long click, toggle) and the DATA_TYPE of the latest data when the
+input was received.
+
+This file should be placed in the relative path `/domain/interactor` down from the tile's package.
+
+[`QSTileDataToStateMapper`]
+* `fun map(data: DATA_TYPE): QSTileState` is the method that needs to be implemented. This method
+is responsible for mapping the data received from the data interactor to a state that the view
+model can use to update the UI. This is where for example the icon should be loaded, and the
+label and content description set. The map function will run on UIBackground thread, a single
+thread which has higher priority than the background thread and lower than UI thread. Loading a
+resource on UI thread can cause jank by blocking the UI thread. On the other end of the spectrum,
+loading resources using a background dispatcher may cause jank due to background thread contention
+since it is possible for the background dispatcher to use more than one background thread
+at the same time. In contrast, the UIBackground dispatcher uses a single thread that is
+shared by all tiles. Therefore the system will use UIBackground dispatcher to execute
+the map function.
+
+The most important resource to load in the map function is the icon. We prefer `Icon.Loaded` with a
+resource id over `Icon.Resource`, because then (a) we can guarantee that the drawable loading will
+happen on the UIBackground thread and (b) we can cache the drawables using the resource id.
+
+This file should be placed in the relative path `/ui/mapper` down from the tile's package.
+
+#### Testing a [NEW-ARCH] SystemUI tile
+
+When writing tests, the mapper is usually a good place to start, since that is where the
+business logic decisions are being made that can inform the shape of data interactor.
+
+We suggest taking advantage of the existing class `QSTileStateSubject`. So rather than
+asserting an individual field's value, a test will assert the whole state. That can be
+achieved by `QSTileStateSubject.assertThat(outputState).isEqualTo(expectedState)`.
 
 ### Implementing a third party tile
 

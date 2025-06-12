@@ -27,7 +27,7 @@ import com.android.systemui.user.domain.interactor.selectedUserInteractor
 import com.android.systemui.util.settings.fakeSettings
 import com.android.systemui.util.time.systemClock
 
-val Kosmos.keyguardWakeDirectlyToGoneInteractor by
+val Kosmos.keyguardWakeDirectlyToGoneInteractor: KeyguardWakeDirectlyToGoneInteractor by
     Kosmos.Fixture {
         KeyguardWakeDirectlyToGoneInteractor(
             applicationCoroutineScope,
@@ -42,6 +42,7 @@ val Kosmos.keyguardWakeDirectlyToGoneInteractor by
             fakeSettings,
             selectedUserInteractor,
             keyguardEnabledInteractor,
-            keyguardServiceLockNowInteractor,
+            keyguardServiceShowLockscreenInteractor,
+            keyguardInteractor,
         )
     }

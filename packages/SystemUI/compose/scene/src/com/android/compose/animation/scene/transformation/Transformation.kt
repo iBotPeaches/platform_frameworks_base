@@ -18,7 +18,8 @@ package com.android.compose.animation.scene.transformation
 
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MotionScheme
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -29,8 +30,8 @@ import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ElementKey
 import com.android.compose.animation.scene.ElementMatcher
 import com.android.compose.animation.scene.ElementStateScope
-import com.android.compose.animation.scene.Scale
 import com.android.compose.animation.scene.content.state.TransitionState
+import com.android.compose.animation.scene.transformation.PropertyTransformation.Property
 import kotlinx.coroutines.CoroutineScope
 
 /** A transformation applied to one or more elements during a transition. */
@@ -126,9 +127,13 @@ interface CustomPropertyTransformation<T> : PropertyTransformation<T> {
     ): T
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 interface PropertyTransformationScope : Density, ElementStateScope {
     /** The current [direction][LayoutDirection] of the layout. */
     val layoutDirection: LayoutDirection
+
+    /** The [MotionScheme] in use by the [SceneTransitionLayout]. */
+    val motionScheme: MotionScheme
 }
 
 /** Defines the transformation-type to be applied to all elements matching [matcher]. */

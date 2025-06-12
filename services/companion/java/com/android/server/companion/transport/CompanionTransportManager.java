@@ -16,7 +16,11 @@
 
 package com.android.server.companion.transport;
 
+import static android.companion.AssociationRequest.DEVICE_PROFILE_WEARABLE_SENSING;
 import static android.companion.CompanionDeviceManager.MESSAGE_REQUEST_PERMISSION_RESTORE;
+import static android.companion.CompanionDeviceManager.TRANSPORT_FLAG_EXTEND_PATCH_DIFF;
+
+import static com.android.server.companion.transport.TransportUtils.enforceAssociationCanUseTransportFlags;
 
 import android.annotation.NonNull;
 import android.annotation.SuppressLint;
@@ -152,10 +156,14 @@ public class CompanionTransportManager {
     /**
      * Attach transport.
      */
-    public void attachSystemDataTransport(int associationId, ParcelFileDescriptor fd) {
+    public void attachSystemDataTransport(int associationId, ParcelFileDescriptor fd,
+                                          int flags) {
         Slog.i(TAG, "Attaching transport for association id=[" + associationId + "]...");
 
-        mAssociationStore.getAssociationWithCallerChecks(associationId);
+        AssociationInfo association =
+                mAssociationStore.getAssociationWithCallerChecks(associationId);
+
+        enforceAssociationCanUseTransportFlags(association, flags);
 
         synchronized (mTransports) {
             if (mTransports.contains(associationId)) {
@@ -163,7 +171,7 @@ public class CompanionTransportManager {
             }
 
             // TODO: Implement new API to pass a PSK
-            initializeTransport(associationId, fd, null);
+            initializeTransport(association, fd, null, flags);
 
             notifyOnTransportsChanged();
         }
@@ -217,10 +225,12 @@ public class CompanionTransportManager {
         }
     }
 
-    private void initializeTransport(int associationId,
+    private void initializeTransport(AssociationInfo association,
                                      ParcelFileDescriptor fd,
-                                     byte[] preSharedKey) {
+                                     byte[] preSharedKey,
+                                     int flags) {
         Slog.i(TAG, "Initializing transport");
+        int associationId = association.getId();
         Transport transport;
         if (!isSecureTransportEnabled()) {
             // If secure transport is explicitly disabled for testing, use raw transport
@@ -230,15 +240,21 @@ public class CompanionTransportManager {
             // If device is debug build, use hardcoded test key for authentication
             Slog.d(TAG, "Creating an unauthenticated secure channel");
             final byte[] testKey = "CDM".getBytes(StandardCharsets.UTF_8);
-            transport = new SecureTransport(associationId, fd, mContext, testKey, null);
+            transport = new SecureTransport(associationId, fd, mContext, testKey, null, 0);
         } else if (preSharedKey != null) {
             // If either device is not Android, then use app-specific pre-shared key
             Slog.d(TAG, "Creating a PSK-authenticated secure channel");
-            transport = new SecureTransport(associationId, fd, mContext, preSharedKey, null);
+            transport = new SecureTransport(associationId, fd, mContext, preSharedKey, null, 0);
+        } else if (DEVICE_PROFILE_WEARABLE_SENSING.equals(association.getDeviceProfile())) {
+            // If device is glasses with WEARABLE_SENSING profile, extend the allowed patch
+            // difference to 2 years instead of 1.
+            Slog.d(TAG, "Creating a secure channel with extended patch difference allowance");
+            transport = new SecureTransport(associationId, fd, mContext,
+                    TRANSPORT_FLAG_EXTEND_PATCH_DIFF);
         } else {
             // If none of the above applies, then use secure channel with attestation verification
             Slog.d(TAG, "Creating a secure channel");
-            transport = new SecureTransport(associationId, fd, mContext);
+            transport = new SecureTransport(associationId, fd, mContext, flags);
         }
 
         addMessageListenersToTransport(transport);

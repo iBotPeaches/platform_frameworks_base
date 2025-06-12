@@ -85,6 +85,7 @@ constructor(
 
                         LargeStaticTile(
                             uiState = viewModel.uiState,
+                            iconProvider = viewModel.iconProvider,
                             modifier =
                                 Modifier.width(
                                     dimensionResource(

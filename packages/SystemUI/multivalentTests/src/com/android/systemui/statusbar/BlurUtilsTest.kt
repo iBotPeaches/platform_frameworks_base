@@ -19,34 +19,40 @@ package com.android.systemui.statusbar
 import android.content.res.Resources
 import android.view.CrossWindowBlurListeners
 import android.view.SurfaceControl
+import android.view.SyncRtSurfaceTransactionApplier
 import android.view.ViewRootImpl
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.dump.DumpManager
+import com.android.systemui.keyguard.ui.transitions.BlurConfig
+import com.google.common.truth.Truth.assertThat
+import junit.framework.TestCase.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentCaptor
+import org.mockito.Captor
 import org.mockito.Mock
-import org.mockito.Mockito.`when`
-import org.mockito.Mockito.any
-import org.mockito.Mockito.anyInt
 import org.mockito.Mockito.clearInvocations
-import org.mockito.Mockito.eq
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class BlurUtilsTest : SysuiTestCase() {
 
-    @Mock lateinit var resources: Resources
+    val blurConfig: BlurConfig = BlurConfig(minBlurRadiusPx = 1.0f, maxBlurRadiusPx = 100.0f)
     @Mock lateinit var dumpManager: DumpManager
-    @Mock lateinit var transaction: SurfaceControl.Transaction
     @Mock lateinit var crossWindowBlurListeners: CrossWindowBlurListeners
-    lateinit var blurUtils: TestableBlurUtils
+    @Mock lateinit var resources: Resources
+    @Mock lateinit var syncRTTransactionApplier: SyncRtSurfaceTransactionApplier
+    @Mock lateinit var transaction: SurfaceControl.Transaction
+    @Captor
+    private lateinit var captor: ArgumentCaptor<SyncRtSurfaceTransactionApplier.SurfaceParams>
+    private lateinit var blurUtils: TestableBlurUtils
 
     @Before
     fun setup() {
@@ -75,9 +81,10 @@ class BlurUtilsTest : SysuiTestCase() {
         `when`(viewRootImpl.surfaceControl).thenReturn(surfaceControl)
         `when`(surfaceControl.isValid).thenReturn(true)
         blurUtils.applyBlur(viewRootImpl, radius, true /* opaque */)
-        verify(transaction).setBackgroundBlurRadius(eq(surfaceControl), eq(radius))
-        verify(transaction).setOpaque(eq(surfaceControl), eq(true))
-        verify(transaction).apply()
+
+        verify(syncRTTransactionApplier).scheduleApply(captor.capture())
+        assertThat(captor.value.opaque).isTrue()
+        assertEquals(radius, captor.value.backgroundBlurRadius)
     }
 
     @Test
@@ -90,9 +97,10 @@ class BlurUtilsTest : SysuiTestCase() {
 
         blurUtils.blursEnabled = false
         blurUtils.applyBlur(viewRootImpl, radius, true /* opaque */)
-        verify(transaction).setOpaque(eq(surfaceControl), eq(true))
-        verify(transaction, never()).setBackgroundBlurRadius(any(), anyInt())
-        verify(transaction).apply()
+
+        verify(syncRTTransactionApplier).scheduleApply(captor.capture())
+        assertThat(captor.value.opaque).isTrue()
+        assertEquals(0 /* unset value */, captor.value.backgroundBlurRadius)
     }
 
     @Test
@@ -100,24 +108,32 @@ class BlurUtilsTest : SysuiTestCase() {
         val radius = 10
         val surfaceControl = mock(SurfaceControl::class.java)
         val viewRootImpl = mock(ViewRootImpl::class.java)
+        val tmpFloatArray = FloatArray(0)
         `when`(viewRootImpl.surfaceControl).thenReturn(surfaceControl)
         `when`(surfaceControl.isValid).thenReturn(true)
         blurUtils.applyBlur(viewRootImpl, radius, true /* opaque */)
+
+        verify(syncRTTransactionApplier).scheduleApply(captor.capture())
+        assertThat(captor.value.opaque).isTrue()
+        SyncRtSurfaceTransactionApplier.applyParams(transaction, captor.value, tmpFloatArray)
         verify(transaction).setEarlyWakeupStart()
+
+        clearInvocations(syncRTTransactionApplier)
         clearInvocations(transaction)
         blurUtils.applyBlur(viewRootImpl, 0, true /* opaque */)
+        verify(syncRTTransactionApplier).scheduleApply(captor.capture())
+        SyncRtSurfaceTransactionApplier.applyParams(transaction, captor.value, tmpFloatArray)
         verify(transaction).setEarlyWakeupEnd()
     }
 
-    inner class TestableBlurUtils : BlurUtils(resources, crossWindowBlurListeners, dumpManager) {
+    inner class TestableBlurUtils :
+        BlurUtils(resources, blurConfig, crossWindowBlurListeners, dumpManager) {
         var blursEnabled = true
+        override val transactionApplier: SyncRtSurfaceTransactionApplier
+            get() = syncRTTransactionApplier
 
         override fun supportsBlursOnWindows(): Boolean {
             return blursEnabled
-        }
-
-        override fun createTransaction(): SurfaceControl.Transaction {
-            return transaction
         }
     }
 }

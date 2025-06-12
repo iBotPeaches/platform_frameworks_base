@@ -30,8 +30,8 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.res.ResourcesCompat
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
-import com.android.compose.animation.scene.SceneScope
 import com.android.systemui.animation.view.LaunchableImageView
 import com.android.systemui.keyguard.ui.binder.KeyguardIndicationAreaBinder
 import com.android.systemui.keyguard.ui.binder.KeyguardQuickAffordanceViewBinder
@@ -61,7 +61,7 @@ constructor(
      *   shortcut is placed along the edges of the display.
      */
     @Composable
-    fun SceneScope.Shortcut(
+    fun ContentScope.Shortcut(
         isStart: Boolean,
         applyPadding: Boolean,
         modifier: Modifier = Modifier,
@@ -70,38 +70,29 @@ constructor(
             key = if (isStart) StartButtonElementKey else EndButtonElementKey,
             modifier = modifier,
         ) {
-            content {
-                Shortcut(
-                    viewId = if (isStart) R.id.start_button else R.id.end_button,
-                    viewModel = if (isStart) viewModel.startButton else viewModel.endButton,
-                    transitionAlpha = viewModel.transitionAlpha,
-                    indicationController = indicationController,
-                    binder = keyguardQuickAffordanceViewBinder,
-                    modifier =
-                        if (applyPadding) {
-                            Modifier.shortcutPadding()
-                        } else {
-                            Modifier
-                        }
-                )
-            }
+            Shortcut(
+                viewId = if (isStart) R.id.start_button else R.id.end_button,
+                viewModel = if (isStart) viewModel.startButton else viewModel.endButton,
+                transitionAlpha = viewModel.transitionAlpha,
+                indicationController = indicationController,
+                binder = keyguardQuickAffordanceViewBinder,
+                modifier =
+                    if (applyPadding) {
+                        Modifier.shortcutPadding()
+                    } else {
+                        Modifier
+                    },
+            )
         }
     }
 
     @Composable
-    fun SceneScope.IndicationArea(
-        modifier: Modifier = Modifier,
-    ) {
-        Element(
-            key = IndicationAreaElementKey,
-            modifier = modifier.indicationAreaPadding(),
-        ) {
-            content {
-                IndicationArea(
-                    indicationAreaViewModel = indicationAreaViewModel,
-                    indicationController = indicationController,
-                )
-            }
+    fun ContentScope.IndicationArea(modifier: Modifier = Modifier) {
+        Element(key = IndicationAreaElementKey, modifier = modifier.indicationAreaPadding()) {
+            IndicationArea(
+                indicationAreaViewModel = indicationAreaViewModel,
+                indicationController = indicationController,
+            )
         }
     }
 
@@ -138,24 +129,20 @@ constructor(
                             ResourcesCompat.getDrawable(
                                 context.resources,
                                 R.drawable.keyguard_bottom_affordance_bg,
-                                context.theme
+                                context.theme,
                             )
                         foreground =
                             ResourcesCompat.getDrawable(
                                 context.resources,
                                 R.drawable.keyguard_bottom_affordance_selected_border,
-                                context.theme
+                                context.theme,
                             )
                         visibility = View.INVISIBLE
                         setPadding(padding, padding, padding, padding)
                     }
 
                 setBinding(
-                    binder.bind(
-                        view,
-                        viewModel,
-                        transitionAlpha,
-                    ) {
+                    binder.bind(view, viewModel, transitionAlpha) {
                         indicationController.showTransientIndication(it)
                     }
                 )
@@ -164,10 +151,7 @@ constructor(
             },
             onRelease = { binding?.destroy() },
             modifier =
-                modifier.size(
-                    width = shortcutSizeDp().width,
-                    height = shortcutSizeDp().height,
-                )
+                modifier.size(width = shortcutSizeDp().width, height = shortcutSizeDp().height),
         )
     }
 
@@ -182,6 +166,8 @@ constructor(
         AndroidView(
             factory = { context ->
                 val view = KeyguardIndicationArea(context, null)
+                view.isFocusable = true
+                view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
                 setDisposable(
                     KeyguardIndicationAreaBinder.bind(
                         view = view,

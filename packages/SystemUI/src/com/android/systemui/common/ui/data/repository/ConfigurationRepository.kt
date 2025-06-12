@@ -13,21 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License
  */
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.common.ui.data.repository
 
 import android.content.Context
 import android.content.res.Configuration
+import android.view.Display
 import android.view.DisplayInfo
 import androidx.annotation.DimenRes
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
-import com.android.systemui.common.ui.GlobalConfig
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.util.wrapper.DisplayUtilsWrapper
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -35,7 +34,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,8 +50,12 @@ interface ConfigurationRepository {
     /** Called whenever the configuration has changed. */
     val onConfigurationChange: Flow<Unit>
 
-    val scaleForResolution: Flow<Float>
+    val scaleForResolution: StateFlow<Float>
+
     val configurationValues: Flow<Configuration>
+
+    /** Emits the latest display this configuration controller has been moved to. */
+    val onMovedToDisplay: StateFlow<Int>
 
     fun getResolutionScale(): Float
 
@@ -117,6 +119,21 @@ constructor(
         configurationController.addCallback(callback)
         awaitClose { configurationController.removeCallback(callback) }
     }
+    override val onMovedToDisplay: StateFlow<Int> =
+        conflatedCallbackFlow {
+                val callback =
+                    object : ConfigurationController.ConfigurationListener {
+                        override fun onMovedToDisplay(
+                            newDisplayId: Int,
+                            newConfiguration: Configuration?,
+                        ) {
+                            trySend(newDisplayId)
+                        }
+                    }
+                configurationController.addCallback(callback)
+                awaitClose { configurationController.removeCallback(callback) }
+            }
+            .stateIn(scope, SharingStarted.Eagerly, Display.DEFAULT_DISPLAY)
 
     override val scaleForResolution: StateFlow<Float> =
         onConfigurationChange
@@ -162,19 +179,19 @@ abstract class ConfigurationRepositoryModule {
      * injected.
      */
     @Binds
-    @Deprecated("Use the ConfigurationRepository annotated with @GlobalConfig instead.")
+    @Deprecated("Use the ConfigurationRepository annotated with @Main instead.")
     @SysUISingleton
     abstract fun provideDefaultConfigRepository(
-        @GlobalConfig configurationRepository: ConfigurationRepository
+        @Main configurationRepository: ConfigurationRepository
     ): ConfigurationRepository
 
     companion object {
         @Provides
-        @GlobalConfig
+        @Main
         @SysUISingleton
         fun provideGlobalConfigRepository(
             context: Context,
-            @GlobalConfig configurationController: ConfigurationController,
+            @Main configurationController: ConfigurationController,
             factory: ConfigurationRepositoryImpl.Factory,
         ): ConfigurationRepository {
             return factory.create(context, configurationController)

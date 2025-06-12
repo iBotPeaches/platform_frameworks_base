@@ -16,9 +16,12 @@
 
 package com.android.server.backup;
 
-/**
- * Interface and methods used by the asynchronous-with-timeout backup/restore operations.
- */
+import android.annotation.IntDef;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+/** Interface and methods used by the asynchronous-with-timeout backup/restore operations. */
 public interface BackupRestoreTask {
 
     // Execute one tick of whatever state machine the task implements
@@ -27,6 +30,24 @@ public interface BackupRestoreTask {
     // An operation that wanted a callback has completed
     void operationComplete(long result);
 
-    // An operation that wanted a callback has timed out
-    void handleCancel(boolean cancelAll);
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({
+        CancellationReason.TIMEOUT,
+        CancellationReason.AGENT_DISCONNECTED,
+        CancellationReason.EXTERNAL,
+        CancellationReason.SCHEDULED_JOB_STOPPED,
+    })
+    @interface CancellationReason {
+        // The task timed out.
+        int TIMEOUT = 0;
+        // The agent went away before the task was able to finish (e.g. due to an app crash).
+        int AGENT_DISCONNECTED = 1;
+        // An external caller cancelled the operation (e.g. via BackupManager#cancelBackups).
+        int EXTERNAL = 2;
+        // The job scheduler has stopped an ongoing scheduled backup pass.
+        int SCHEDULED_JOB_STOPPED = 3;
+    }
+
+    /** The task is cancelled for the given {@link CancellationReason}. */
+    void handleCancel(@CancellationReason int cancellationReason);
 }

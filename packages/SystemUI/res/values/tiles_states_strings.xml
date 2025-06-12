@@ -85,6 +85,16 @@
         <item>On</item>
     </string-array>
 
+    <!-- State names for dnd (Do not disturb) mode tile: unavailable, off, on.
+         This subtitle is shown when the tile is in that particular state but does not set its own
+         subtitle, so some of these may never appear on screen. They should still be translated as
+         if they could appear. [CHAR LIMIT=32] -->
+    <string-array name="tile_states_modes_dnd">
+        <item>Unavailable</item>
+        <item>Off</item>
+        <item>On</item>
+    </string-array>
+
     <!-- State names for flashlight tile: unavailable, off, on.
          This subtitle is shown when the tile is in that particular state but does not set its own
          subtitle, so some of these may never appear on screen. They should still be translated as
@@ -354,6 +364,16 @@
          subtitle, so some of these may never appear on screen. They should still be translated as
          if they could appear. [CHAR LIMIT=32] -->
     <string-array name="tile_states_notes">
+        <item>Unavailable</item>
+        <item>Off</item>
+        <item>On</item>
+    </string-array>
+
+    <!-- State names for desktop effects tile: unavailable, off, on.
+     This subtitle is shown when the tile is in that particular state but does not set its own
+     subtitle, so some of these may never appear on screen. They should still be translated as
+     if they could appear. [CHAR LIMIT=32] -->
+    <string-array name="tile_states_desktopeffects">
         <item>Unavailable</item>
         <item>Off</item>
         <item>On</item>

@@ -31,6 +31,37 @@ import com.android.systemui.plugins.clocks.ClockPreviewConfig
 object KeyguardPreviewSmartspaceViewBinder {
 
     @JvmStatic
+    fun bind(parentView: View, viewModel: KeyguardPreviewSmartspaceViewModel) {
+        if (com.android.systemui.shared.Flags.clockReactiveSmartspaceLayout()) {
+            val largeDateView =
+                parentView.findViewById<View>(
+                    com.android.systemui.shared.R.id.date_smartspace_view_large
+                )
+            val smallDateView =
+                parentView.findViewById<View>(com.android.systemui.shared.R.id.date_smartspace_view)
+            parentView.repeatWhenAttached {
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    launch("$TAG#viewModel.selectedClockSize") {
+                        viewModel.previewingClockSize.collect {
+                            when (it) {
+                                ClockSizeSetting.DYNAMIC -> {
+                                    smallDateView?.visibility = View.GONE
+                                    largeDateView?.visibility = View.VISIBLE
+                                }
+
+                                ClockSizeSetting.SMALL -> {
+                                    smallDateView?.visibility = View.VISIBLE
+                                    largeDateView?.visibility = View.GONE
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @JvmStatic
     fun bind(
         smartspace: View,
         viewModel: KeyguardPreviewSmartspaceViewModel,
@@ -44,6 +75,7 @@ object KeyguardPreviewSmartspaceViewBinder {
                             when (it) {
                                 ClockSizeSetting.DYNAMIC ->
                                     viewModel.getLargeClockSmartspaceTopPadding(clockPreviewConfig)
+
                                 ClockSizeSetting.SMALL ->
                                     viewModel.getSmallClockSmartspaceTopPadding(clockPreviewConfig)
                             }

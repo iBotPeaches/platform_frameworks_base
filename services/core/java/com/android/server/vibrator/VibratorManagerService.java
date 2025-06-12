@@ -61,6 +61,7 @@ import android.os.VibratorInfo;
 import android.os.vibrator.Flags;
 import android.os.vibrator.IVibrationSessionCallback;
 import android.os.vibrator.PrebakedSegment;
+import android.os.vibrator.PrimitiveSegment;
 import android.os.vibrator.VibrationConfig;
 import android.os.vibrator.VibrationEffectSegment;
 import android.os.vibrator.VibratorInfoFactory;
@@ -79,6 +80,7 @@ import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.DumpUtils;
 import com.android.server.SystemService;
 import com.android.server.pm.BackgroundUserSoundNotifier;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.vibrator.VibrationSession.CallerInfo;
 import com.android.server.vibrator.VibrationSession.DebugInfo;
 import com.android.server.vibrator.VibrationSession.Status;
@@ -106,7 +108,9 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     private static final String EXTERNAL_VIBRATOR_SERVICE = "external_vibrator_service";
     private static final String VIBRATOR_CONTROL_SERVICE =
             "android.frameworks.vibrator.IVibratorControlService/default";
-    private static final boolean DEBUG = false;
+    // To enable these logs, run:
+    // 'adb shell setprop persist.log.tag.VibratorManagerService DEBUG && adb reboot'
+    private static final boolean DEBUG = VibratorDebugUtils.isDebuggable(TAG);
     private static final VibrationAttributes DEFAULT_ATTRIBUTES =
             new VibrationAttributes.Builder().build();
     private static final int ATTRIBUTES_ALL_BYPASS_FLAGS =
@@ -200,7 +204,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                             VibratorManagerService.this::shouldCancelOnScreenOffLocked,
                             Status.CANCELLED_BY_SCREEN_OFF);
                 }
-            } else if (android.multiuser.Flags.addUiForSoundsFromBackgroundUsers()
+            } else if (UserManagerInternal.shouldShowNotificationForBackgroundUserSounds()
                     && intent.getAction().equals(BackgroundUserSoundNotifier.ACTION_MUTE_SOUND)) {
                 synchronized (mLock) {
                     maybeClearCurrentAndNextSessionsLocked(
@@ -324,7 +328,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_OFF);
-        if (android.multiuser.Flags.addUiForSoundsFromBackgroundUsers()) {
+        if (UserManagerInternal.shouldShowNotificationForBackgroundUserSounds()) {
             filter.addAction(BackgroundUserSoundNotifier.ACTION_MUTE_SOUND);
         }
         context.registerReceiver(mIntentReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
@@ -785,7 +789,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
 
         synchronized (mLock) {
             if (DEBUG) {
-                Slog.d(TAG, "Starting session " + session.getSessionId());
+                Slog.d(TAG, "Starting vendor session " + session.getSessionId());
             }
 
             Status ignoreStatus = null;
@@ -863,13 +867,16 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 // Session already ended, possibly cancelled by app cancellation signal.
                 return session.getStatus();
             }
-            int mode = startAppOpModeLocked(session.getCallerInfo());
+            CallerInfo callerInfo = session.getCallerInfo();
+            int mode = startAppOpModeLocked(callerInfo);
             switch (mode) {
                 case AppOpsManager.MODE_ALLOWED:
                     Trace.asyncTraceBegin(TRACE_TAG_VIBRATOR, "vibration", 0);
                     // Make sure mCurrentVibration is set while triggering the HAL.
                     mCurrentSession = session;
                     if (!session.linkToDeath()) {
+                        // Shouldn't happen. The method call already logs.
+                        finishAppOpModeLocked(callerInfo);
                         mCurrentSession = null;
                         return Status.IGNORED_ERROR_TOKEN;
                     }
@@ -877,14 +884,14 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                         Slog.e(TAG, "Error starting session " + sessionId + " on vibrators "
                                 + Arrays.toString(session.getVibratorIds()));
                         session.unlinkToDeath();
+                        finishAppOpModeLocked(callerInfo);
                         mCurrentSession = null;
                         return Status.IGNORED_UNSUPPORTED;
                     }
                     session.notifyStart();
                     return null;
                 case AppOpsManager.MODE_ERRORED:
-                    Slog.w(TAG, "Start AppOpsManager operation errored for uid "
-                            + session.getCallerInfo().uid);
+                    Slog.w(TAG, "Start AppOpsManager operation errored for uid " + callerInfo.uid);
                     return Status.IGNORED_ERROR_APP_OPS;
                 default:
                     return Status.IGNORED_APP_OPS;
@@ -1010,9 +1017,12 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 updateAlwaysOnLocked(mAlwaysOnEffects.valueAt(i));
             }
 
-            // TODO(b/372241975): investigate why external vibrations were not handled here before
-            if (mCurrentSession == null
-                    || (mCurrentSession instanceof ExternalVibrationSession)) {
+            if (mCurrentSession == null) {
+                return;
+            }
+
+            if (!Flags.fixExternalVibrationSystemUpdateAware()
+                    && (mCurrentSession instanceof ExternalVibrationSession)) {
                 return;
             }
 
@@ -1020,7 +1030,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
             if (inputDevicesChanged || (ignoreStatus != null)) {
                 if (DEBUG) {
                     Slog.d(TAG, "Canceling vibration because settings changed: "
-                            + (inputDevicesChanged ? "input devices changed" : ignoreStatus));
+                            + (ignoreStatus == null ? "input devices changed" : ignoreStatus));
                 }
                 mCurrentSession.requestEnd(Status.CANCELLED_BY_SETTINGS_UPDATE);
             }
@@ -1080,11 +1090,12 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     @Nullable
     private Status startVibrationOnThreadLocked(SingleVibrationSession session) {
         if (DEBUG) {
-            Slog.d(TAG, "Starting vibration " + session.getVibration().id +  " on thread");
+            Slog.d(TAG, "Starting vibration " + session.getVibration().id + " on thread");
         }
         VibrationStepConductor conductor = createVibrationStepConductor(session.getVibration());
         session.setVibrationConductor(conductor);
-        int mode = startAppOpModeLocked(session.getCallerInfo());
+        CallerInfo callerInfo = session.getCallerInfo();
+        int mode = startAppOpModeLocked(callerInfo);
         switch (mode) {
             case AppOpsManager.MODE_ALLOWED:
                 Trace.asyncTraceBegin(TRACE_TAG_VIBRATOR, "vibration", 0);
@@ -1092,19 +1103,21 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 mCurrentSession = session;
                 if (!mCurrentSession.linkToDeath()) {
                     // Shouldn't happen. The method call already logs.
+                    finishAppOpModeLocked(callerInfo);
                     mCurrentSession = null;  // Aborted.
                     return Status.IGNORED_ERROR_TOKEN;
                 }
                 if (!mVibrationThread.runVibrationOnVibrationThread(conductor)) {
                     // Shouldn't happen. The method call already logs.
                     session.setVibrationConductor(null); // Rejected by thread, clear it in session.
+                    mCurrentSession.unlinkToDeath();
+                    finishAppOpModeLocked(callerInfo);
                     mCurrentSession = null;  // Aborted.
                     return Status.IGNORED_ERROR_SCHEDULING;
                 }
                 return null;
             case AppOpsManager.MODE_ERRORED:
-                Slog.w(TAG, "Start AppOpsManager operation errored for uid "
-                        + session.getCallerInfo().uid);
+                Slog.w(TAG, "Start AppOpsManager operation errored for uid " + callerInfo.uid);
                 return Status.IGNORED_ERROR_APP_OPS;
             default:
                 return Status.IGNORED_APP_OPS;
@@ -1285,14 +1298,14 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
         }
     }
 
-    private void onVibrationComplete(int vibratorId, long vibrationId) {
+    private void onVibrationComplete(int vibratorId, long vibrationId, long stepId) {
         synchronized (mLock) {
             if (mCurrentSession != null) {
                 if (DEBUG) {
-                    Slog.d(TAG, "Vibration " + vibrationId + " on vibrator " + vibratorId
-                            + " complete, notifying thread");
+                    Slog.d(TAG, "Vibration " + vibrationId + " step " + stepId
+                            + " on vibrator " + vibratorId + " complete, notifying thread");
                 }
-                mCurrentSession.notifyVibratorCallback(vibratorId, vibrationId);
+                mCurrentSession.notifyVibratorCallback(vibratorId, vibrationId, stepId);
             }
         }
     }
@@ -1493,6 +1506,13 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     private int checkAppOpModeLocked(CallerInfo callerInfo) {
         int mode = mAppOps.checkAudioOpNoThrow(AppOpsManager.OP_VIBRATE,
                 callerInfo.attrs.getAudioUsage(), callerInfo.uid, callerInfo.opPkg);
+        if (DEBUG) {
+            int opMode = mAppOps.checkOpNoThrow(AppOpsManager.OP_VIBRATE, callerInfo.uid,
+                    callerInfo.opPkg);
+            Slog.d(TAG, "Check AppOp mode VIBRATE for uid " + callerInfo.uid + " and package "
+                    + callerInfo.opPkg + " returned audio=" + AppOpsManager.MODE_NAMES[mode]
+                    + ", op=" + AppOpsManager.MODE_NAMES[opMode]);
+        }
         int fixedMode = fixupAppOpModeLocked(mode, callerInfo.attrs);
         if (mode != fixedMode && fixedMode == AppOpsManager.MODE_ALLOWED) {
             // If we're just ignoring the vibration op then this is set by DND and we should ignore
@@ -1506,9 +1526,13 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     /** Start an operation in {@link AppOpsManager}, if allowed. */
     @GuardedBy("mLock")
     private int startAppOpModeLocked(CallerInfo callerInfo) {
-        return fixupAppOpModeLocked(
-                mAppOps.startOpNoThrow(AppOpsManager.OP_VIBRATE, callerInfo.uid, callerInfo.opPkg),
-                callerInfo.attrs);
+        int mode = mAppOps.startOpNoThrow(AppOpsManager.OP_VIBRATE, callerInfo.uid,
+                callerInfo.opPkg);
+        if (DEBUG) {
+            Slog.d(TAG, "Start AppOp mode VIBRATE for uid " + callerInfo.uid + " and package "
+                    + callerInfo.opPkg + " returned " + AppOpsManager.MODE_NAMES[mode]);
+        }
+        return fixupAppOpModeLocked(mode, callerInfo.attrs);
     }
 
     /**
@@ -1517,6 +1541,10 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
      */
     @GuardedBy("mLock")
     private void finishAppOpModeLocked(CallerInfo callerInfo) {
+        if (DEBUG) {
+            Slog.d(TAG, "Finish AppOp mode VIBRATE for uid " + callerInfo.uid + " and package "
+                    + callerInfo.opPkg);
+        }
         mAppOps.finishOp(AppOpsManager.OP_VIBRATE, callerInfo.uid, callerInfo.opPkg);
     }
 
@@ -2077,10 +2105,10 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
         }
 
         @Override
-        public void onComplete(int vibratorId, long vibrationId) {
+        public void onComplete(int vibratorId, long vibrationId, long stepId) {
             VibratorManagerService service = mServiceRef.get();
             if (service != null) {
-                service.onVibrationComplete(vibratorId, vibrationId);
+                service.onVibrationComplete(vibratorId, vibrationId, stepId);
             }
         }
     }
@@ -2311,14 +2339,22 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     @GuardedBy("mLock")
     private void maybeClearCurrentAndNextSessionsLocked(
             Predicate<VibrationSession> shouldEndSessionPredicate, Status endStatus) {
-        // TODO(b/372241975): investigate why external vibrations were not handled here before
-        if (!(mNextSession instanceof ExternalVibrationSession)
-                && shouldEndSessionPredicate.test(mNextSession)) {
-            clearNextSessionLocked(endStatus);
-        }
-        if (!(mCurrentSession instanceof ExternalVibrationSession)
-                && shouldEndSessionPredicate.test(mCurrentSession)) {
-            mCurrentSession.requestEnd(endStatus);
+        if (Flags.fixExternalVibrationSystemUpdateAware()) {
+            if (shouldEndSessionPredicate.test(mNextSession)) {
+                clearNextSessionLocked(endStatus);
+            }
+            if (shouldEndSessionPredicate.test(mCurrentSession)) {
+                mCurrentSession.requestEnd(endStatus);
+            }
+        } else {
+            if (!(mNextSession instanceof ExternalVibrationSession)
+                    && shouldEndSessionPredicate.test(mNextSession)) {
+                clearNextSessionLocked(endStatus);
+            }
+            if (!(mCurrentSession instanceof ExternalVibrationSession)
+                    && shouldEndSessionPredicate.test(mCurrentSession)) {
+                mCurrentSession.requestEnd(endStatus);
+            }
         }
     }
 
@@ -2512,6 +2548,9 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                             Slog.d(TAG, "Stopping external vibration: " + vib);
                         }
                         mCurrentSession.requestEnd(Status.FINISHED);
+                    } else if (Build.IS_DEBUGGABLE) {
+                        Slog.wtf(TAG, "VibrationSession invalid on external vibration stop."
+                                + " currentSession=" + mCurrentSession + ", received=" + vib);
                     }
                 }
             } finally {
@@ -2650,7 +2689,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
             CombinedVibration.ParallelCombination combination =
                     CombinedVibration.startParallel();
             while ("-v".equals(getNextOption())) {
-                int vibratorId = Integer.parseInt(getNextArgRequired());
+                int vibratorId = parseInt(getNextArgRequired(), "Expected vibrator id after -v");
                 combination.addVibrator(vibratorId, nextEffect());
             }
             runVibrate(commonOptions, combination.combine());
@@ -2662,7 +2701,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
             CombinedVibration.SequentialCombination combination =
                     CombinedVibration.startSequential();
             while ("-v".equals(getNextOption())) {
-                int vibratorId = Integer.parseInt(getNextArgRequired());
+                int vibratorId = parseInt(getNextArgRequired(), "Expected vibrator id after -v");
                 combination.addNext(vibratorId, nextEffect());
             }
             runVibrate(commonOptions, combination.combine());
@@ -2687,7 +2726,7 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
 
         private int runHapticFeedback() {
             CommonOptions commonOptions = new CommonOptions();
-            int constant = Integer.parseInt(getNextArgRequired());
+            int constant = parseInt(getNextArgRequired(), "Expected haptic feedback constant id");
 
             IBinder deathBinder = commonOptions.background ? VibratorManagerService.this
                     : mShellCallbacksToken;
@@ -2714,6 +2753,8 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                     addPrebakedToComposition(composition);
                 } else if ("primitives".equals(nextArg)) {
                     addPrimitivesToComposition(composition);
+                } else if ("envelope".equals(nextArg)) {
+                    addEnvelopeToComposition(composition);
                 } else {
                     // nextArg is not an effect, finish reading.
                     break;
@@ -2733,15 +2774,133 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 if ("-a".equals(nextOption)) {
                     hasAmplitude = true;
                 } else if ("-w".equals(nextOption)) {
-                    delay = Integer.parseInt(getNextArgRequired());
+                    delay = parseInt(getNextArgRequired(), "Expected delay millis after -w");
                 }
             }
 
-            long duration = Long.parseLong(getNextArgRequired());
-            int amplitude = hasAmplitude ? Integer.parseInt(getNextArgRequired())
+            long duration = parseInt(getNextArgRequired(), "Expected one-shot duration millis");
+            int amplitude = hasAmplitude
+                    ? parseInt(getNextArgRequired(), "Expected one-shot amplitude")
                     : VibrationEffect.DEFAULT_AMPLITUDE;
             composition.addOffDuration(Duration.ofMillis(delay));
             composition.addEffect(VibrationEffect.createOneShot(duration, amplitude));
+        }
+
+        private interface EnvelopeBuilder {
+            void setInitialSharpness(float sharpness);
+            void addControlPoint(float intensity, float sharpness, long duration);
+            void reset(float initialSharpness);
+            VibrationEffect build();
+        }
+
+        private static class BasicEnveloperBuilderWrapper implements EnvelopeBuilder {
+            private VibrationEffect.BasicEnvelopeBuilder mBuilder =
+                    new VibrationEffect.BasicEnvelopeBuilder();
+
+            @Override
+            public void setInitialSharpness(float sharpness) {
+                mBuilder.setInitialSharpness(sharpness);
+            }
+
+            @Override
+            public void addControlPoint(float intensity, float sharpness, long duration) {
+                mBuilder.addControlPoint(intensity, sharpness, duration);
+            }
+
+            @Override
+            public void reset(float initialSharpness) {
+                mBuilder = new VibrationEffect.BasicEnvelopeBuilder();
+                mBuilder.setInitialSharpness(initialSharpness);
+            }
+
+            @Override
+            public VibrationEffect build() {
+                return mBuilder.build();
+            }
+        }
+
+        private static class AdvancedEnveloperBuilderWrapper implements EnvelopeBuilder {
+            private VibrationEffect.WaveformEnvelopeBuilder mBuilder =
+                    new VibrationEffect.WaveformEnvelopeBuilder();
+
+            @Override
+            public void setInitialSharpness(float sharpness) {
+                mBuilder.setInitialFrequencyHz(sharpness);
+            }
+
+            @Override
+            public void addControlPoint(float intensity, float sharpness, long duration) {
+                mBuilder.addControlPoint(intensity, sharpness, duration);
+            }
+
+            @Override
+            public void reset(float initialSharpness) {
+                mBuilder = new VibrationEffect.WaveformEnvelopeBuilder();
+                mBuilder.setInitialFrequencyHz(initialSharpness);
+            }
+
+            @Override
+            public VibrationEffect build() {
+                return mBuilder.build();
+            }
+        }
+
+        private void addEnvelopeToComposition(VibrationEffect.Composition composition) {
+            getNextArgRequired(); // consume "envelope"
+            int repeat = -1;
+            float initialSharpness = Float.NaN;
+            VibrationEffect preamble = null;
+            boolean isAdvanced = false;
+            String nextOption;
+            while ((nextOption = getNextOption()) != null) {
+                switch (nextOption) {
+                    case "-a" -> isAdvanced = true;
+                    case "-i" -> initialSharpness = parseFloat(getNextArgRequired(),
+                            "Expected initial sharpness after -i");
+                    case "-r" -> repeat = parseInt(getNextArgRequired(),
+                            "Expected repeat index after -r");
+                }
+            }
+
+            EnvelopeBuilder builder = isAdvanced ? new AdvancedEnveloperBuilderWrapper()
+                    : new BasicEnveloperBuilderWrapper();
+
+            if (!Float.isNaN(initialSharpness)) {
+                builder.setInitialSharpness(initialSharpness);
+            }
+
+            int duration, pos = 0;
+            float intensity, sharpness = 0f;
+            String nextArg;
+            while ((nextArg = peekNextArg()) != null) {
+                if (pos > 0 && pos == repeat) {
+                    preamble = builder.build();
+                    builder.reset(sharpness);
+                }
+                try {
+                    duration = Integer.parseInt(nextArg);
+                    getNextArgRequired(); // consume the duration
+                } catch (NumberFormatException e) {
+                    // nextArg is not a duration, finish reading.
+                    break;
+                }
+                intensity = parseFloat(getNextArgRequired(), "Expected envelope intensity");
+                sharpness = parseFloat(getNextArgRequired(), "Expected envelope sharpness");
+                builder.addControlPoint(intensity, sharpness, duration);
+                pos++;
+            }
+
+            if (repeat >= 0) {
+                if (preamble == null) {
+                    composition.addEffect(VibrationEffect.createRepeatingEffect(builder.build()));
+                } else {
+                    composition.addEffect(
+                            VibrationEffect.createRepeatingEffect(preamble, builder.build()));
+                }
+                return;
+            }
+
+            composition.addEffect(builder.build());
         }
 
         private void addWaveformToComposition(VibrationEffect.Composition composition) {
@@ -2754,16 +2913,14 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
             getNextArgRequired(); // consume "waveform"
             String nextOption;
             while ((nextOption = getNextOption()) != null) {
-                if ("-a".equals(nextOption)) {
-                    hasAmplitudes = true;
-                } else if ("-r".equals(nextOption)) {
-                    repeat = Integer.parseInt(getNextArgRequired());
-                } else if ("-w".equals(nextOption)) {
-                    delay = Integer.parseInt(getNextArgRequired());
-                } else if ("-f".equals(nextOption)) {
-                    hasFrequencies = true;
-                } else if ("-c".equals(nextOption)) {
-                    isContinuous = true;
+                switch (nextOption) {
+                    case "-a" -> hasAmplitudes = true;
+                    case "-f" -> hasFrequencies = true;
+                    case "-c" -> isContinuous = true;
+                    case "-r" -> repeat = parseInt(getNextArgRequired(),
+                            "Expected repeat index after -r");
+                    case "-w" -> delay = parseInt(getNextArgRequired(),
+                            "Expected delay millis after -w");
                 }
             }
             List<Integer> durations = new ArrayList<>();
@@ -2781,14 +2938,15 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                     break;
                 }
                 if (hasAmplitudes) {
-                    amplitudes.add(
-                            Float.parseFloat(getNextArgRequired()) / VibrationEffect.MAX_AMPLITUDE);
+                    int amplitude = parseInt(getNextArgRequired(), "Expected waveform amplitude");
+                    amplitudes.add((float) amplitude / VibrationEffect.MAX_AMPLITUDE);
                 } else {
                     amplitudes.add(nextAmplitude);
                     nextAmplitude = 1 - nextAmplitude;
                 }
                 if (hasFrequencies) {
-                    frequencies.add(Float.parseFloat(getNextArgRequired()));
+                    frequencies.add(
+                            parseFloat(getNextArgRequired(), "Expected waveform frequency"));
                 }
             }
 
@@ -2847,27 +3005,37 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 if ("-b".equals(nextOption)) {
                     shouldFallback = true;
                 } else if ("-w".equals(nextOption)) {
-                    delay = Integer.parseInt(getNextArgRequired());
+                    delay = parseInt(getNextArgRequired(), "Expected delay millis after -w");
                 }
             }
 
-            int effectId = Integer.parseInt(getNextArgRequired());
+            int effectId = parseInt(getNextArgRequired(), "Expected prebaked effect id");
             composition.addOffDuration(Duration.ofMillis(delay));
             composition.addEffect(VibrationEffect.get(effectId, shouldFallback));
         }
 
         private void addPrimitivesToComposition(VibrationEffect.Composition composition) {
             getNextArgRequired(); // consume "primitives"
-            String nextArg;
-            while ((nextArg = peekNextArg()) != null) {
+            while (peekNextArg() != null) {
                 int delay = 0;
-                if ("-w".equals(nextArg)) {
-                    getNextArgRequired(); // consume "-w"
-                    delay = Integer.parseInt(getNextArgRequired());
-                    nextArg = peekNextArg();
+                float scale = 1f;
+                int delayType = PrimitiveSegment.DEFAULT_DELAY_TYPE;
+
+                String nextOption;
+                while ((nextOption = getNextOption()) != null) {
+                    if ("-s".equals(nextOption)) {
+                        scale = parseFloat(getNextArgRequired(), "Expected scale after -s");
+                    } else if ("-o".equals(nextOption)) {
+                        delayType = VibrationEffect.Composition.DELAY_TYPE_RELATIVE_START_OFFSET;
+                        delay = parseInt(getNextArgRequired(), "Expected offset millis after -o");
+                    } else if ("-w".equals(nextOption)) {
+                        delayType = PrimitiveSegment.DEFAULT_DELAY_TYPE;
+                        delay = parseInt(getNextArgRequired(), "Expected delay millis after -w");
+                    }
                 }
                 try {
-                    composition.addPrimitive(Integer.parseInt(nextArg), /* scale= */ 1, delay);
+                    String nextArg = peekNextArg(); // Just in case this is not a primitive.
+                    composition.addPrimitive(Integer.parseInt(nextArg), scale, delay, delayType);
                     getNextArgRequired(); // consume the primitive id
                 } catch (NumberFormatException | NullPointerException e) {
                     // nextArg is not describing a primitive, leave it to be consumed by outer loops
@@ -2893,17 +3061,15 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                         VibrationXmlParser.parseDocument(new StringReader(xml));
                 VibratorInfo combinedVibratorInfo = getCombinedVibratorInfo();
                 if (combinedVibratorInfo == null) {
-                    throw new IllegalStateException(
-                            "No combined vibrator info to parse vibration XML " + xml);
+                    throw new IllegalStateException("No vibrator info available to parse XML");
                 }
                 VibrationEffect effect = parsedVibration.resolve(combinedVibratorInfo);
                 if (effect == null) {
-                    throw new IllegalArgumentException(
-                            "Parsed vibration cannot be resolved for vibration XML " + xml);
+                    throw new IllegalArgumentException("Parsed XML cannot be resolved: " + xml);
                 }
                 return CombinedVibration.createParallel(effect);
             } catch (IOException e) {
-                throw new RuntimeException("Error parsing vibration XML " + xml, e);
+                throw new RuntimeException("Error parsing XML: " + xml, e);
             }
         }
 
@@ -2921,16 +3087,30 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
             }
         }
 
+        private static int parseInt(String text, String errorMessage) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException | NullPointerException e) {
+                throw new IllegalArgumentException(errorMessage, e);
+            }
+        }
+
+        private static float parseFloat(String text, String errorMessage) {
+            try {
+                return Float.parseFloat(text);
+            } catch (NumberFormatException | NullPointerException e) {
+                throw new IllegalArgumentException(errorMessage, e);
+            }
+        }
+
         @Override
         public void onHelp() {
             try (PrintWriter pw = getOutPrintWriter();) {
                 pw.println("Vibrator Manager commands:");
                 pw.println("  help");
                 pw.println("    Prints this help text.");
-                pw.println("");
                 pw.println("  list");
-                pw.println("    Prints the id of device vibrators. This does not include any ");
-                pw.println("    connected input device.");
+                pw.println("    Prints device vibrator ids; does not include input devices.");
                 pw.println("  synced [options] <effect>...");
                 pw.println("    Vibrates effect on all vibrators in sync.");
                 pw.println("  combined [options] (-v <vibrator-id> <effect>...)...");
@@ -2940,58 +3120,63 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 pw.println("  xml [options] <xml>");
                 pw.println("    Vibrates using combined vibration described in given XML string");
                 pw.println("    on all vibrators in sync. The XML could be:");
-                pw.println("        XML containing a single effect, or");
-                pw.println("        A vibration select XML containing multiple effects.");
-                pw.println("    Vibrates using combined vibration described in given XML string.");
-                pw.println("    XML containing a single effect it runs on all vibrators in sync.");
+                pw.println("        A single <vibration-effect>, or");
+                pw.println("        A <vibration-select> containing multiple effects.");
+                pw.println("  feedback [options] <constant>");
+                pw.println("    Performs a haptic feedback with the given constant.");
                 pw.println("  cancel");
                 pw.println("    Cancels any active vibration");
-                pw.println("  feedback [-f] [-d <description>] <constant>");
-                pw.println("    Performs a haptic feedback with the given constant.");
-                pw.println("    The force (-f) option enables the `always` configuration, which");
-                pw.println("    plays the haptic irrespective of the vibration intensity settings");
                 pw.println("");
                 pw.println("Effect commands:");
                 pw.println("  oneshot [-w delay] [-a] <duration> [<amplitude>]");
-                pw.println("    Vibrates for duration milliseconds; ignored when device is on ");
-                pw.println("    DND (Do Not Disturb) mode; touch feedback strength user setting ");
-                pw.println("    will be used to scale amplitude.");
+                pw.println("    Vibrates for duration milliseconds.");
                 pw.println("    If -w is provided, the effect will be played after the specified");
                 pw.println("    wait time in milliseconds.");
                 pw.println("    If -a is provided, the command accepts a second argument for ");
                 pw.println("    amplitude, in a scale of 1-255.");
                 pw.print("  waveform [-w delay] [-r index] [-a] [-f] [-c] ");
                 pw.println("(<duration> [<amplitude>] [<frequency>])...");
-                pw.println("    Vibrates for durations and amplitudes in list; ignored when ");
-                pw.println("    device is on DND (Do Not Disturb) mode; touch feedback strength ");
-                pw.println("    user setting will be used to scale amplitude.");
+                pw.println("    Vibrates for durations and amplitudes in list.");
                 pw.println("    If -w is provided, the effect will be played after the specified");
                 pw.println("    wait time in milliseconds.");
                 pw.println("    If -r is provided, the waveform loops back to the specified");
-                pw.println("    index (e.g. 0 loops from the beginning)");
+                pw.println("    index (e.g. 0 loops from the beginning).");
                 pw.println("    If -a is provided, the command expects amplitude to follow each");
                 pw.println("    duration; otherwise, it accepts durations only and alternates");
-                pw.println("    off/on");
+                pw.println("    off/on.");
                 pw.println("    If -f is provided, the command expects frequency to follow each");
-                pw.println("    amplitude or duration; otherwise, it uses resonant frequency");
+                pw.println("    amplitude or duration; otherwise, it uses resonant frequency.");
                 pw.println("    If -c is provided, the waveform is continuous and will ramp");
                 pw.println("    between values; otherwise each entry is a fixed step.");
                 pw.println("    Duration is in milliseconds; amplitude is a scale of 1-255;");
-                pw.println("    frequency is an absolute value in hertz;");
+                pw.println("    frequency is an absolute value in hertz.");
+                pw.print("  envelope [-a] [-i initial sharpness] [-r index]  ");
+                pw.println("[<duration1> <intensity1> <sharpness1>]...");
+                pw.println("    Generates a vibration pattern based on a series of duration, ");
+                pw.println("    intensity, and sharpness values. The total vibration time is ");
+                pw.println("    the sum of all durations.");
+                pw.println("    If -a is provided, the waveform will use the advanced APIs to ");
+                pw.println("    generate the vibration pattern and the input parameters ");
+                pw.println("    become [<duration1> <amplitude1> <frequency1>].");
+                pw.println("    If -i is provided, the waveform will have an initial sharpness ");
+                pw.println("    it will start from.");
+                pw.println("    If -r is provided, the waveform loops back to the specified index");
+                pw.println("    (e.g. 0 loops from the beginning).");
                 pw.println("  prebaked [-w delay] [-b] <effect-id>");
-                pw.println("    Vibrates with prebaked effect; ignored when device is on DND ");
-                pw.println("    (Do Not Disturb) mode; touch feedback strength user setting ");
-                pw.println("    will be used to scale amplitude.");
+                pw.println("    Vibrates with prebaked effect.");
                 pw.println("    If -w is provided, the effect will be played after the specified");
                 pw.println("    wait time in milliseconds.");
                 pw.println("    If -b is provided, the prebaked fallback effect will be played if");
                 pw.println("    the device doesn't support the given effect-id.");
-                pw.println("  primitives ([-w delay] <primitive-id>)...");
-                pw.println("    Vibrates with a composed effect; ignored when device is on DND ");
-                pw.println("    (Do Not Disturb) mode; touch feedback strength user setting ");
-                pw.println("    will be used to scale primitive intensities.");
+                pw.print("  primitives ([-w delay] [-o time] [-s scale]");
+                pw.println("<primitive-id> [<scale>])...");
+                pw.println("    Vibrates with a composed effect.");
                 pw.println("    If -w is provided, the next primitive will be played after the ");
                 pw.println("    specified wait time in milliseconds.");
+                pw.println("    If -o is provided, the next primitive will be played at the ");
+                pw.println("    specified start offset time in milliseconds.");
+                pw.println("    If -s is provided, the next primitive will be played with the");
+                pw.println("    specified amplitude scale, in a scale of [0,1].");
                 pw.println("");
                 pw.println("Common Options:");
                 pw.println("  -f");
@@ -3001,6 +3186,11 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
                 pw.println("    block until the vibration has completed.");
                 pw.println("  -d <description>");
                 pw.println("    Add description to the vibration.");
+                pw.println("");
+                pw.println("Notes");
+                pw.println("    Vibrations triggered by these commands will be ignored when");
+                pw.println("    device is on DND (Do Not Disturb) mode; notification strength");
+                pw.println("    user settings will be applied for scale.");
                 pw.println("");
             }
         }

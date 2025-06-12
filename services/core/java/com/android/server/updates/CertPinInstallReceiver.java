@@ -16,9 +16,37 @@
 
 package com.android.server.updates;
 
+import android.content.Context;
+import android.content.Intent;
+
+import java.io.File;
+
 public class CertPinInstallReceiver extends ConfigUpdateInstallReceiver {
+    private static final String KEYCHAIN_DIR = "/data/misc/keychain/";
 
     public CertPinInstallReceiver() {
         super("/data/misc/keychain/", "pins", "metadata/", "version");
+    }
+
+    @Override
+    public void onReceive(final Context context, final Intent intent) {
+        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
+            if (com.android.server.flags.Flags.certpininstallerRemoval()) {
+                File pins = new File(KEYCHAIN_DIR + "pins");
+                if (pins.exists()) {
+                    pins.delete();
+                }
+                File version = new File(KEYCHAIN_DIR + "metadata/version");
+                if (version.exists()) {
+                    version.delete();
+                }
+                File metadata = new File(KEYCHAIN_DIR + "metadata");
+                if (metadata.exists()) {
+                    metadata.delete();
+                }
+            }
+        } else if (!com.android.server.flags.Flags.certpininstallerRemoval()) {
+            super.onReceive(context, intent);
+        }
     }
 }

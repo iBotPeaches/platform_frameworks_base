@@ -29,17 +29,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.toolbar.EditModeButtonViewModel
 import com.android.systemui.qs.ui.compose.borderOnFocus
 import com.android.systemui.res.R
 
 @Composable
-fun EditModeButton(
-    viewModelFactory: EditModeButtonViewModel.Factory,
-    modifier: Modifier = Modifier,
-) {
-    val viewModel = rememberViewModel(traceName = "EditModeButton") { viewModelFactory.create() }
+fun EditModeButton(viewModel: EditModeButtonViewModel, modifier: Modifier = Modifier) {
     CompositionLocalProvider(
         value = LocalContentColor provides MaterialTheme.colorScheme.onSurface
     ) {
@@ -54,7 +49,7 @@ fun EditModeButton(
         ) {
             Icon(
                 imageVector = Icons.Default.Edit,
-                contentDescription = stringResource(id = R.string.qs_edit),
+                contentDescription = stringResource(id = R.string.accessibility_quick_settings_edit),
             )
         }
     }

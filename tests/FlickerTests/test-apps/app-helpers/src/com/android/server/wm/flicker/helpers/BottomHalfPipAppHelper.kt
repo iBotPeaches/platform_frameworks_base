@@ -18,24 +18,46 @@ package com.android.server.wm.flicker.helpers
 
 import android.app.Instrumentation
 import android.content.Intent
+import android.tools.traces.parsers.WindowManagerStateHelper
 import android.tools.traces.parsers.toFlickerComponent
-import com.android.server.wm.flicker.testapp.ActivityOptions
+import com.android.server.wm.flicker.testapp.ActivityOptions.BottomHalfPip
 
 class BottomHalfPipAppHelper(
     instrumentation: Instrumentation,
     private val useLaunchingActivity: Boolean = false,
+    private val fillTaskOnCreate: Boolean = false,
 ) : PipAppHelper(
     instrumentation,
-    appName = ActivityOptions.BottomHalfPip.LABEL,
-    componentNameMatcher = ActivityOptions.BottomHalfPip.COMPONENT
-        .toFlickerComponent()
+    appName = BottomHalfPip.LABEL,
+    componentNameMatcher = BottomHalfPip.COMPONENT.toFlickerComponent()
 ) {
     override val openAppIntent: Intent
         get() = super.openAppIntent.apply {
             component = if (useLaunchingActivity) {
-                ActivityOptions.BottomHalfPip.LAUNCHING_APP_COMPONENT
+                BottomHalfPip.LAUNCHING_APP_COMPONENT
             } else {
-                ActivityOptions.BottomHalfPip.COMPONENT
+                BottomHalfPip.COMPONENT
+            }
+            if (fillTaskOnCreate) {
+                putExtra(BottomHalfPip.EXTRA_BOTTOM_HALF_LAYOUT, false.toString())
             }
         }
+
+    override fun exitPipToOriginalTaskViaIntent(wmHelper: WindowManagerStateHelper) {
+        launchViaIntent(
+            wmHelper,
+            Intent().apply {
+                component = BottomHalfPip.COMPONENT
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
+
+    fun toggleBottomHalfLayout() {
+        clickObject(TOGGLE_BOTTOM_HALF_LAYOUT_ID)
+    }
+
+    companion object {
+        private const val TOGGLE_BOTTOM_HALF_LAYOUT_ID = "toggle_bottom_half_layout"
+    }
 }

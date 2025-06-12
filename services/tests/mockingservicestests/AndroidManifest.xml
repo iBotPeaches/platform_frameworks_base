@@ -52,6 +52,16 @@
         <uses-library android:name="android.test.runner" />
         <activity
             android:name="android.service.games.GameSessionTrampolineActivityTest$TestActivity" />
+        <service android:name="com.android.server.wallpaper.TestWallpaperService"
+            android:label="Test Wallpaper Service"
+            android:exported="true"
+            android:permission="android.permission.BIND_WALLPAPER">
+          <intent-filter>
+            <action android:name="android.service.wallpaper.WallpaperService"/>
+          </intent-filter>
+          <meta-data android:name="android.service.wallpaper"
+              android:resource="@xml/test_wallpaper"/>
+        </service>
     </application>
 
     <instrumentation

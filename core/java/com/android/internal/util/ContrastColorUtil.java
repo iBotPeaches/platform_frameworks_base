@@ -41,8 +41,6 @@ import android.text.style.TextAppearanceSpan;
 import android.util.Log;
 import android.util.Pair;
 
-import com.android.internal.annotations.VisibleForTesting;
-
 import java.util.Arrays;
 import java.util.WeakHashMap;
 
@@ -379,6 +377,13 @@ public class ContrastColorUtil {
     public static boolean isColorDark(int color) {
         // as per shouldUseDark(), this uses the color contrast midpoint.
         return calculateLuminance(color) <= 0.17912878474;
+    }
+
+    /** Like {@link #isColorDark(int)} but converts to LAB before checking the L component. */
+    public static boolean isColorDarkLab(int color) {
+        final double[] result = ColorUtilsFromCompat.getTempDouble3Array();
+        ColorUtilsFromCompat.colorToLAB(color, result);
+        return result[0] < 50;
     }
 
     private int processColor(int color) {

@@ -65,6 +65,7 @@ import android.annotation.AppIdInt;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeALL;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
@@ -1011,6 +1012,12 @@ public class PermissionManagerServiceImpl implements PermissionManagerServiceInt
 
         final AndroidPackage pkg = mPackageManagerInt.getPackage(uid);
         return checkUidPermissionInternal(pkg, uid, permName);
+    }
+
+    @Override
+    public int getPermissionRequestState(String packageName, String permName, int deviceId,
+            String persistentDeviceId) {
+        throw new IllegalStateException("getPermissionRequestState is not supported.");
     }
 
     @Override
@@ -5278,7 +5285,7 @@ public class PermissionManagerServiceImpl implements PermissionManagerServiceInt
     @Override
     public void onPackageUninstalled(@NonNull String packageName, int appId,
             @NonNull PackageState packageState, @Nullable AndroidPackage pkg,
-            @NonNull List<AndroidPackage> sharedUserPkgs, @UserIdInt int userId) {
+            @NonNull List<AndroidPackage> sharedUserPkgs, @CanBeALL @UserIdInt int userId) {
         Objects.requireNonNull(packageState, "packageState");
         Objects.requireNonNull(packageName, "packageName");
         Objects.requireNonNull(sharedUserPkgs, "sharedUserPkgs");

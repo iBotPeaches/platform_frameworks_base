@@ -32,16 +32,11 @@ class AppCompatLetterboxUtils {
      */
     static void calculateLetterboxPosition(@NonNull ActivityRecord activity,
             @NonNull Point outLetterboxPosition) {
-        if (!activity.mAppCompatController.getAppCompatLetterboxPolicy().isRunning()) {
+        if (!activity.mAppCompatController.getLetterboxPolicy().isRunning()) {
             outLetterboxPosition.set(0, 0);
             return;
         }
-        if (activity.isInLetterboxAnimation()) {
-            // In this case we attach the letterbox to the task instead of the activity.
-            activity.getTask().getPosition(outLetterboxPosition);
-        } else {
-            activity.getPosition(outLetterboxPosition);
-        }
+        activity.getPosition(outLetterboxPosition);
     }
 
     /**
@@ -54,7 +49,7 @@ class AppCompatLetterboxUtils {
      */
     static void calculateLetterboxOuterBounds(@NonNull ActivityRecord activity,
             @NonNull Rect outOuterBounds) {
-        if (!activity.mAppCompatController.getAppCompatLetterboxPolicy().isRunning()) {
+        if (!activity.mAppCompatController.getLetterboxPolicy().isRunning()) {
             outOuterBounds.setEmpty();
             return;
         }
@@ -82,7 +77,7 @@ class AppCompatLetterboxUtils {
      */
     static void calculateLetterboxInnerBounds(@NonNull ActivityRecord activity,
             @NonNull WindowState window, @NonNull Rect outInnerBounds) {
-        if (!activity.mAppCompatController.getAppCompatLetterboxPolicy().isRunning()) {
+        if (!activity.mAppCompatController.getLetterboxPolicy().isRunning()) {
             outInnerBounds.setEmpty();
             return;
         }

@@ -39,9 +39,13 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.WorkerThread
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import com.android.settingslib.Utils
-import com.android.systemui.res.R
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_COLLAPSE
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_EXPAND
+import androidx.core.view.accessibility.AccessibilityViewCommand
+import com.android.systemui.Flags
 import com.android.systemui.animation.ViewHierarchyAnimator
+import com.android.systemui.res.R
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.util.maybeForceFullscreen
 import java.lang.ref.WeakReference
@@ -63,7 +67,7 @@ class PrivacyDialogV2(
     private val list: List<PrivacyElement>,
     private val manageApp: (String, Int, Intent) -> Unit,
     private val closeApp: (String, Int) -> Unit,
-    private val openPrivacyDashboard: () -> Unit
+    private val openPrivacyDashboard: () -> Unit,
 ) : SystemUIDialog(context, R.style.Theme_PrivacyDialog) {
 
     private val dismissListeners = mutableListOf<WeakReference<OnDialogDismissed>>()
@@ -192,11 +196,9 @@ class PrivacyDialogV2(
             return null
         }
         val closeAppButton =
-            checkNotNull(window).layoutInflater.inflate(
-                R.layout.privacy_dialog_card_button,
-                expandedLayout,
-                false
-            ) as Button
+            checkNotNull(window)
+                .layoutInflater
+                .inflate(R.layout.privacy_dialog_card_button, expandedLayout, false) as Button
         expandedLayout.addView(closeAppButton)
         closeAppButton.id = R.id.privacy_dialog_close_app_button
         closeAppButton.setText(R.string.privacy_dialog_close_app_button)
@@ -248,11 +250,9 @@ class PrivacyDialogV2(
 
     private fun configureManageButton(element: PrivacyElement, expandedLayout: ViewGroup): View {
         val manageButton =
-            checkNotNull(window).layoutInflater.inflate(
-                R.layout.privacy_dialog_card_button,
-                expandedLayout,
-                false
-            ) as Button
+            checkNotNull(window)
+                .layoutInflater
+                .inflate(R.layout.privacy_dialog_card_button, expandedLayout, false) as Button
         expandedLayout.addView(manageButton)
         manageButton.id = R.id.privacy_dialog_manage_app_button
         manageButton.setText(
@@ -287,47 +287,93 @@ class PrivacyDialogV2(
 
         val expandToggle =
             itemHeader.findViewById<ImageView>(R.id.privacy_dialog_item_header_expand_toggle)!!
-        expandToggle.setImageResource(R.drawable.privacy_dialog_expand_toggle_down)
         expandToggle.visibility = View.VISIBLE
-
-        ViewCompat.replaceAccessibilityAction(
-            itemCard,
-            AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
-            context.getString(R.string.privacy_dialog_expand_action),
-            null
-        )
-
         val expandedLayout =
             itemCard.findViewById<View>(R.id.privacy_dialog_item_header_expanded_layout)!!
         expandedLayout.setOnClickListener {
             // Stop clicks from propagating
         }
 
-        itemCard.setOnClickListener {
-            if (expandedLayout.visibility == View.VISIBLE) {
-                expandedLayout.visibility = View.GONE
-                expandToggle.setImageResource(R.drawable.privacy_dialog_expand_toggle_down)
-                ViewCompat.replaceAccessibilityAction(
-                    it!!,
-                    AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
-                    context.getString(R.string.privacy_dialog_expand_action),
-                    null
-                )
-            } else {
-                expandedLayout.visibility = View.VISIBLE
-                expandToggle.setImageResource(R.drawable.privacy_dialog_expand_toggle_up)
-                ViewCompat.replaceAccessibilityAction(
-                    it!!,
-                    AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
-                    context.getString(R.string.privacy_dialog_collapse_action),
-                    null
+        if (Flags.expandCollapsePrivacyDialog()) {
+            updateExpansion(ACTION_COLLAPSE, itemCard, expandedLayout, expandToggle)
+
+            itemCard.setOnClickListener {
+                if (expandedLayout.visibility == View.VISIBLE) {
+                    updateExpansion(ACTION_COLLAPSE, it!!, expandedLayout, expandToggle)
+                } else {
+                    updateExpansion(ACTION_EXPAND, it!!, expandedLayout, expandToggle)
+                }
+            }
+        } else {
+            expandToggle.setImageResource(R.drawable.privacy_dialog_expand_toggle_down)
+            ViewCompat.replaceAccessibilityAction(
+                itemCard,
+                AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
+                context.getString(R.string.privacy_dialog_expand_action),
+                null,
+            )
+
+            itemCard.setOnClickListener {
+                if (expandedLayout.visibility == View.VISIBLE) {
+                    expandedLayout.visibility = View.GONE
+                    expandToggle.setImageResource(R.drawable.privacy_dialog_expand_toggle_down)
+                    ViewCompat.replaceAccessibilityAction(
+                        it!!,
+                        AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
+                        context.getString(R.string.privacy_dialog_expand_action),
+                        null,
+                    )
+                } else {
+                    expandedLayout.visibility = View.VISIBLE
+                    expandToggle.setImageResource(R.drawable.privacy_dialog_expand_toggle_up)
+                    ViewCompat.replaceAccessibilityAction(
+                        it!!,
+                        AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
+                        context.getString(R.string.privacy_dialog_collapse_action),
+                        null,
+                    )
+                }
+                ViewHierarchyAnimator.animateNextUpdate(
+                    rootView = window!!.decorView,
+                    excludedViews = setOf(expandedLayout),
                 )
             }
-            ViewHierarchyAnimator.animateNextUpdate(
-                rootView = window!!.decorView,
-                excludedViews = setOf(expandedLayout)
-            )
         }
+    }
+
+    private fun updateExpansion(
+        newState: AccessibilityActionCompat,
+        itemCard: View,
+        expandedLayout: View,
+        expandToggle: ImageView,
+    ) {
+        expandedLayout.visibility = if (newState == ACTION_COLLAPSE) View.GONE else View.VISIBLE
+        expandToggle.setImageResource(
+            if (newState == ACTION_COLLAPSE) R.drawable.privacy_dialog_expand_toggle_down
+            else R.drawable.privacy_dialog_expand_toggle_up
+        )
+        val accessibilityString =
+            context.getString(
+                if (newState == ACTION_COLLAPSE) R.string.privacy_dialog_expand_action
+                else R.string.privacy_dialog_collapse_action
+            )
+        ViewCompat.replaceAccessibilityAction(
+            itemCard,
+            AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
+            accessibilityString,
+            null,
+        )
+        val expandCollapseAccessibilityListener =
+            AccessibilityViewCommand { view: View, _: AccessibilityViewCommand.CommandArguments? ->
+                view.callOnClick()
+            }
+        ViewCompat.replaceAccessibilityAction(
+            itemCard,
+            if (newState == ACTION_COLLAPSE) ACTION_EXPAND else ACTION_COLLAPSE,
+            accessibilityString,
+            expandCollapseAccessibilityListener,
+        )
+        ViewCompat.removeAccessibilityAction(itemCard, newState.id)
     }
 
     private fun updateIconView(iconView: ImageView, indicatorIcon: Drawable, active: Boolean) {
@@ -345,19 +391,13 @@ class PrivacyDialogV2(
 
     @ColorInt
     private fun getForegroundColor(active: Boolean) =
-        Utils.getColorAttrDefaultColor(
-            context,
-            if (active) com.android.internal.R.attr.materialColorOnPrimaryFixed
-            else com.android.internal.R.attr.materialColorOnSurface
-        )
+        if (active) context.getColor(com.android.internal.R.color.materialColorOnPrimaryFixed)
+        else context.getColor(com.android.internal.R.color.materialColorOnSurface)
 
     @ColorInt
     private fun getBackgroundColor(active: Boolean) =
-        Utils.getColorAttrDefaultColor(
-            context,
-            if (active) com.android.internal.R.attr.materialColorPrimaryFixed
-            else com.android.internal.R.attr.materialColorSurfaceContainerHigh
-        )
+        if (active) context.getColor(com.android.internal.R.color.materialColorPrimaryFixed)
+        else context.getColor(com.android.internal.R.color.materialColorSurfaceContainerHigh)
 
     private fun getMutableDrawable(@DrawableRes resId: Int) = context.getDrawable(resId)!!.mutate()
 
@@ -379,7 +419,7 @@ class PrivacyDialogV2(
             context.getString(
                 singleUsageResId,
                 element.applicationName,
-                element.attributionLabel ?: element.proxyLabel
+                element.attributionLabel ?: element.proxyLabel,
             )
         } else {
             val doubleUsageResId: Int =
@@ -389,7 +429,7 @@ class PrivacyDialogV2(
                 doubleUsageResId,
                 element.applicationName,
                 element.attributionLabel,
-                element.proxyLabel
+                element.proxyLabel,
             )
         }
 
@@ -429,7 +469,7 @@ class PrivacyDialogV2(
             return groupInfo.loadSafeLabel(
                 this,
                 0f,
-                TextUtils.SAFE_STRING_FLAG_FIRST_LINE or TextUtils.SAFE_STRING_FLAG_TRIM
+                TextUtils.SAFE_STRING_FLAG_FIRST_LINE or TextUtils.SAFE_STRING_FLAG_TRIM,
             )
         }
 
@@ -472,7 +512,7 @@ class PrivacyDialogV2(
             icon: Drawable,
             iconSize: Int,
             background: Drawable,
-            backgroundSize: Int
+            backgroundSize: Int,
         ): Drawable {
             val layered = LayerDrawable(arrayOf(background, icon))
             layered.setLayerSize(0, backgroundSize, backgroundSize)
@@ -497,7 +537,7 @@ class PrivacyDialogV2(
         val isPhoneCall: Boolean,
         val isService: Boolean,
         val permGroupName: String,
-        val navigationIntent: Intent
+        val navigationIntent: Intent,
     ) {
         private val builder = StringBuilder("PrivacyElement(")
 

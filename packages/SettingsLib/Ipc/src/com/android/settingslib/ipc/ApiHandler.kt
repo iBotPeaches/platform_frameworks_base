@@ -17,6 +17,7 @@
 package com.android.settingslib.ipc
 
 import android.app.Application
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 
 /**
@@ -62,18 +63,35 @@ fun interface ApiPermissionChecker<R> {
      * Returns if the request is permitted.
      *
      * @param application application context
-     * @param myUid uid of current process
+     * @param callingPid pid of peer process
      * @param callingUid uid of peer process
      * @param request API request
      * @return `false` if permission is denied, otherwise `true`
      */
-    fun hasPermission(application: Application, myUid: Int, callingUid: Int, request: R): Boolean
+    fun hasPermission(
+        application: Application,
+        callingPid: Int,
+        callingUid: Int,
+        request: R,
+    ): Boolean
 
     companion object {
         private val ALWAYS_ALLOW = ApiPermissionChecker<Any> { _, _, _, _ -> true }
 
+        /** Returns [ApiPermissionChecker] that allows all the request. */
         @Suppress("UNCHECKED_CAST")
         fun <T> alwaysAllow(): ApiPermissionChecker<T> = ALWAYS_ALLOW as ApiPermissionChecker<T>
+
+        /**
+         * Returns [ApiPermissionChecker] that checks if calling app has given [permission].
+         *
+         * Use [AppOpApiPermissionChecker] if the [permission] is app-op.
+         */
+        fun <T> of(permission: String) =
+            ApiPermissionChecker<T> { application, callingPid, callingUid, _ ->
+                application.checkPermission(permission, callingPid, callingUid) ==
+                    PERMISSION_GRANTED
+            }
     }
 }
 
@@ -96,7 +114,7 @@ interface ApiHandler<Request, Response> :
      */
     suspend fun invoke(
         application: Application,
-        myUid: Int,
+        callingPid: Int,
         callingUid: Int,
         request: Request,
     ): Response

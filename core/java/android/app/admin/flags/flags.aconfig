@@ -152,6 +152,16 @@ flag {
 }
 
 flag {
+  name: "internal_log_event_listener"
+  namespace: "enterprise"
+  description: "Allow internal listeners to see unfiltered event stream"
+  bug: "385730709"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
     name: "allow_querying_profile_type"
     is_exported: true
     namespace: "enterprise"
@@ -391,4 +401,24 @@ flag {
   namespace: "enterprise"
   description: "Add new API for secondary lockscreen"
   bug: "336297680"
+}
+
+flag {
+  name: "remove_managed_esim_on_work_profile_deletion"
+  namespace: "enterprise"
+  description: "Remove managed eSIM when work profile is deleted"
+  bug: "347925470"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "use_policy_intersection_for_permitted_input_methods"
+  namespace: "enterprise"
+  description: "When deciding on permitted input methods, use policy intersection instead of last recorded policy."
+  bug: "340914586"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }

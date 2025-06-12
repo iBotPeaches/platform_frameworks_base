@@ -26,13 +26,13 @@ import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
 import android.view.WindowManager
-import androidx.core.content.getSystemService
 import androidx.core.content.res.use
 import com.android.systemui.res.R
 import com.android.systemui.mediaprojection.appselector.data.RecentTask
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.systemui.shared.recents.utilities.PreviewPositionHelper
 import com.android.systemui.shared.recents.utilities.Utilities.isLargeScreen
+import com.android.systemui.utils.windowmanager.WindowManagerUtils
 
 /**
  * Custom view that shows a thumbnail preview of one recent task based on [ThumbnailData].
@@ -53,7 +53,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
             }
     }
 
-    private val windowManager: WindowManager = context.getSystemService()!!
+    private val windowManager: WindowManager = WindowManagerUtils.getWindowManager(context)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val backgroundPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply { color = defaultBackgroundColor }

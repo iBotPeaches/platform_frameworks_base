@@ -28,6 +28,7 @@ import org.robolectric.annotation.Implements;
 public class ShadowColorDisplayManager extends org.robolectric.shadows.ShadowColorDisplayManager {
 
     private boolean mIsReduceBrightColorsActivated;
+    private int mColorMode;
 
     @Implementation
     @SystemApi
@@ -43,4 +44,13 @@ public class ShadowColorDisplayManager extends org.robolectric.shadows.ShadowCol
         return mIsReduceBrightColorsActivated;
     }
 
+    @Implementation
+    public int getColorMode() {
+        return mColorMode;
+    }
+
+    @Implementation
+    public void setColorMode(int colorMode) {
+        mColorMode = colorMode;
+    }
 }

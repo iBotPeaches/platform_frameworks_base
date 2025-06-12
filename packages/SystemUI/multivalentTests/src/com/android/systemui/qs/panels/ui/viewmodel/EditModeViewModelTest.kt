@@ -49,6 +49,9 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.pipeline.shared.metricSpec
 import com.android.systemui.qs.qsTileFactory
 import com.android.systemui.qs.shared.model.TileCategory
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.fakeQSTileConfigProvider
+import com.android.systemui.qs.tiles.base.shared.model.qSTileConfigProvider
 import com.android.systemui.qs.tiles.impl.airplane.qsAirplaneModeTileConfig
 import com.android.systemui.qs.tiles.impl.alarm.qsAlarmTileConfig
 import com.android.systemui.qs.tiles.impl.battery.qsBatterySaverTileConfig
@@ -56,13 +59,9 @@ import com.android.systemui.qs.tiles.impl.flashlight.qsFlashlightTileConfig
 import com.android.systemui.qs.tiles.impl.internet.qsInternetTileConfig
 import com.android.systemui.qs.tiles.impl.sensorprivacy.qsCameraSensorPrivacyToggleTileConfig
 import com.android.systemui.qs.tiles.impl.sensorprivacy.qsMicrophoneSensorPrivacyToggleTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.fakeQSTileConfigProvider
-import com.android.systemui.qs.tiles.viewmodel.qSTileConfigProvider
 import com.android.systemui.settings.userTracker
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
@@ -501,7 +500,6 @@ class EditModeViewModelTest(flags: FlagsParameterization) : SysuiTestCase() {
             }
         }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun currentTiles_moveTileDown() =
         with(kosmos) {
@@ -527,7 +525,6 @@ class EditModeViewModelTest(flags: FlagsParameterization) : SysuiTestCase() {
             }
         }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun currentTiles_moveTileUp() =
         with(kosmos) {

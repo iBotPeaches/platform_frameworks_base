@@ -16,15 +16,23 @@
 
 package com.android.systemui.volume.dialog.sliders.domain.interactor
 
+import com.android.settingslib.volume.shared.model.AudioStream
 import com.android.systemui.plugins.VolumeDialogController
+import com.android.systemui.statusbar.policy.domain.interactor.ZenModeInteractor
+import com.android.systemui.volume.dialog.dagger.scope.VolumeDialog
 import com.android.systemui.volume.dialog.domain.interactor.VolumeDialogStateInteractor
 import com.android.systemui.volume.dialog.shared.model.VolumeDialogStreamModel
 import com.android.systemui.volume.dialog.sliders.dagger.VolumeDialogSliderScope
 import com.android.systemui.volume.dialog.sliders.domain.model.VolumeDialogSliderType
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.stateIn
 
 /** Operates a state of particular slider of the Volume Dialog. */
 @VolumeDialogSliderScope
@@ -32,10 +40,20 @@ class VolumeDialogSliderInteractor
 @Inject
 constructor(
     private val sliderType: VolumeDialogSliderType,
+    @VolumeDialog private val coroutineScope: CoroutineScope,
     volumeDialogStateInteractor: VolumeDialogStateInteractor,
     private val volumeDialogController: VolumeDialogController,
+    zenModeInteractor: ZenModeInteractor,
 ) {
 
+    val isDisabledByZenMode: Flow<Boolean> =
+        if (zenModeInteractor.canBeBlockedByZenMode(sliderType)) {
+            zenModeInteractor.activeModesBlockingStream(AudioStream(sliderType.audioStream)).map {
+                it.mainMode != null
+            }
+        } else {
+            flowOf(false)
+        }
     val slider: Flow<VolumeDialogStreamModel> =
         volumeDialogStateInteractor.volumeDialogState
             .mapNotNull {
@@ -47,7 +65,8 @@ constructor(
                     }
                 }
             }
-            .distinctUntilChanged()
+            .stateIn(coroutineScope, SharingStarted.Eagerly, null)
+            .filterNotNull()
 
     fun setStreamVolume(userLevel: Int) {
         with(volumeDialogController) {
@@ -55,4 +74,9 @@ constructor(
             setActiveStream(sliderType.audioStream)
         }
     }
+}
+
+private fun ZenModeInteractor.canBeBlockedByZenMode(sliderType: VolumeDialogSliderType): Boolean {
+    return sliderType is VolumeDialogSliderType.Stream &&
+        canBeBlockedByZenMode(AudioStream(sliderType.audioStream))
 }

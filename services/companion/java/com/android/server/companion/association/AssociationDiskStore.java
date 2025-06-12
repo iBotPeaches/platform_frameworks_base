@@ -58,6 +58,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -164,6 +165,7 @@ public final class AssociationDiskStore {
 
     private static final String FILE_NAME_LEGACY = "companion_device_manager_associations.xml";
     private static final String FILE_NAME = "companion_device_manager.xml";
+    private static final String FILE_NAME_LAST_REMOVED_ASSOCIATION = "last_removed_association.txt";
 
     private static final String XML_TAG_STATE = "state";
     private static final String XML_TAG_ASSOCIATIONS = "associations";
@@ -266,6 +268,56 @@ public final class AssociationDiskStore {
         synchronized (file) {
             writeAssociationsToFile(file, associations);
         }
+    }
+
+    /**
+     * Read the last removed association from disk.
+     */
+    public String readLastRemovedAssociation(@UserIdInt int userId) {
+        final AtomicFile file = createStorageFileForUser(
+                userId, FILE_NAME_LAST_REMOVED_ASSOCIATION);
+        StringBuilder sb = new StringBuilder();
+        int c;
+        try (FileInputStream fis = file.openRead()) {
+            while ((c = fis.read()) != -1) {
+                sb.append((char) c);
+            }
+            fis.close();
+            return sb.toString();
+        } catch (FileNotFoundException e) {
+            Slog.e(TAG, "File " + file + " for user=" + userId + " doesn't exist.");
+            return null;
+        } catch (IOException e) {
+            Slog.e(TAG, "Can't read file " + file + " for user=" + userId);
+            return null;
+        }
+    }
+
+    /**
+     * Write the last removed association to disk.
+     */
+    public void writeLastRemovedAssociation(AssociationInfo association, String reason) {
+        Slog.i(TAG, "Writing last removed association=" + association.getId() + " to disk...");
+
+        // Remove indirect identifier i.e. Mac Address
+        AssociationInfo.Builder builder = new AssociationInfo.Builder(association)
+                .setDeviceMacAddress(null);
+        // Set a placeholder display name if it's null because Mac Address and display name can't be
+        // both null.
+        if (association.getDisplayName() == null) {
+            builder.setDisplayName("");
+        }
+        AssociationInfo redactedAssociation = builder.build();
+
+        final AtomicFile file = createStorageFileForUser(
+                redactedAssociation.getUserId(), FILE_NAME_LAST_REMOVED_ASSOCIATION);
+        writeToFileSafely(file, out -> {
+            out.write(String.valueOf(System.currentTimeMillis()).getBytes());
+            out.write(' ');
+            out.write(reason.getBytes());
+            out.write(' ');
+            out.write(redactedAssociation.toString().getBytes());
+        });
     }
 
     @NonNull

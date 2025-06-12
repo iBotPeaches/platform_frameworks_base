@@ -16,8 +16,6 @@
 
 package android.view;
 
-import static androidx.test.InstrumentationRegistry.getTargetContext;
-
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -32,7 +30,6 @@ import static org.mockito.Mockito.when;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Binder;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.ICancellationSignal;
 import android.os.RemoteException;
@@ -54,7 +51,6 @@ import java.util.concurrent.Executor;
 /**
  * Tests of {@link ScrollCaptureConnection}.
  */
-@SuppressWarnings("UnnecessaryLocalVariable")
 @Presubmit
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -68,9 +64,8 @@ public class ScrollCaptureConnectionTest {
 
     private ScrollCaptureTarget mTarget;
     private ScrollCaptureConnection mConnection;
-    private IBinder mConnectionBinder = new Binder("ScrollCaptureConnection Test");
+    private final IBinder mConnectionBinder = new Binder("ScrollCaptureConnection Test");
 
-    private Handler mHandler;
 
     @Mock
     private Surface mSurface;
@@ -85,7 +80,6 @@ public class ScrollCaptureConnectionTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        mHandler = new Handler(getTargetContext().getMainLooper());
         when(mSurface.isValid()).thenReturn(true);
         when(mView.getScrollCaptureHint()).thenReturn(View.SCROLL_CAPTURE_HINT_INCLUDE);
         when(mRemote.asBinder()).thenReturn(mConnectionBinder);
@@ -269,8 +263,68 @@ public class ScrollCaptureConnectionTest {
         assertFalse(mConnection.isConnected());
     }
 
+    @Test(expected = RemoteException.class)
+    public void testRequestImage_beforeStarted() throws RemoteException {
+        mConnection.requestImage(new Rect(0, 1, 2, 3));
+    }
+
+
+    @Test(expected = RemoteException.class)
+    public void testRequestImage_beforeStartCompleted() throws RemoteException {
+        mFakeUiThread.setImmediate(false);
+        mConnection.startCapture(mSurface, mRemote);
+        mConnection.requestImage(new Rect(0, 1, 2, 3));
+        mFakeUiThread.runAll();
+    }
+
+    @Test
+    public void testCompleteStart_afterClosing() throws RemoteException {
+        mConnection.startCapture(mSurface, mRemote);
+        mConnection.close();
+        mFakeUiThread.setImmediate(false);
+        mCallback.completeStartRequest();
+        mFakeUiThread.runAll();
+    }
+
+    @Test
+    public void testLateCallbacks() throws RemoteException {
+        mConnection.startCapture(mSurface, mRemote);
+        mCallback.completeStartRequest();
+        mConnection.requestImage(new Rect(1, 2, 3, 4));
+        mConnection.endCapture();
+        mFakeUiThread.setImmediate(false);
+        mCallback.completeImageRequest(new Rect(1, 2, 3, 4));
+        mCallback.completeEndRequest();
+        mFakeUiThread.runAll();
+    }
+
+    @Test
+    public void testDelayedClose() throws RemoteException {
+        mConnection.startCapture(mSurface, mRemote);
+        mCallback.completeStartRequest();
+        mFakeUiThread.setImmediate(false);
+        mConnection.endCapture();
+        mFakeUiThread.runAll();
+        mConnection.close();
+        mCallback.completeEndRequest();
+        mFakeUiThread.runAll();
+    }
+
+    @Test
+    public void testRequestImage_delayedCancellation() throws Exception {
+        mConnection.startCapture(mSurface, mRemote);
+        mCallback.completeStartRequest();
+
+        ICancellationSignal signal = mConnection.requestImage(new Rect(1, 2, 3, 4));
+        mFakeUiThread.setImmediate(false);
+
+        signal.cancel();
+        mCallback.completeImageRequest(new Rect(1, 2, 3, 4));
+    }
+
+
     static class FakeExecutor implements Executor {
-        private Queue<Runnable> mQueue = new ArrayDeque<>();
+        private final Queue<Runnable> mQueue = new ArrayDeque<>();
         private boolean mImmediate;
 
         @Override

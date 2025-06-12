@@ -26,11 +26,11 @@ import com.android.internal.widget.remotecompose.core.PaintOperation;
 import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentStartOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.LayoutComponent;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.ComponentMeasure;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.MeasurePass;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.Size;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,7 +43,7 @@ import java.util.Map;
  * <p>States are defined as child layouts. This layout handles interpolating between the different
  * state in order to provide an automatic transition.
  */
-public class StateLayout extends LayoutManager implements ComponentStartOperation {
+public class StateLayout extends LayoutManager {
 
     public int measuredLayoutIndex = 0;
     public int currentLayoutIndex = 0;
@@ -82,6 +82,7 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         hideLayoutsOtherThan(currentLayoutIndex);
     }
 
+    /** Traverse the list of children and identify animated components across states */
     public void findAnimatedComponents() {
         for (int i = 0; i < mChildrenComponents.size(); i++) {
             Component cs = mChildrenComponents.get(i);
@@ -106,6 +107,10 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         collapsePaintedComponents();
     }
 
+    /**
+     * Traverse the list of components in different states, and if they are similar pick the first
+     * component for painting in all states.
+     */
     public void collapsePaintedComponents() {
         int numStates = mChildrenComponents.size();
         for (Integer id : statePaintedComponents.keySet()) {
@@ -347,6 +352,11 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         measuredLayoutIndex = currentLayoutIndex;
     }
 
+    /**
+     * Hides all layouts that are not the one with the given id
+     *
+     * @param idx the layout id
+     */
     public void hideLayoutsOtherThan(int idx) {
         int index = 0;
         for (Component pane : mChildrenComponents) {
@@ -361,6 +371,12 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         }
     }
 
+    /**
+     * Returns the layout with the given id
+     *
+     * @param idx the component id
+     * @return the LayoutManager with the given id, or the first child of StateLayout if not found
+     */
     public @NonNull LayoutManager getLayout(int idx) {
         int index = 0;
         for (Component pane : mChildrenComponents) {
@@ -397,7 +413,7 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
                 if (index != currentLayoutIndex && index != previousLayoutIndex) {
                     pane.mVisibility = Visibility.GONE;
                 }
-                if (index == currentLayoutIndex && pane.mVisibility != Visibility.VISIBLE) {
+                if (index == currentLayoutIndex && !pane.isVisible()) {
                     pane.mVisibility = Visibility.VISIBLE;
                 }
                 index++;
@@ -486,6 +502,7 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         }
     }
 
+    /** Check if we are at the end of the transition, and if so handles it. */
     public void checkEndOfTransition() {
         LayoutManager currentLayout = getLayout(measuredLayoutIndex);
         LayoutManager previousLayout = getLayout(previousLayoutIndex);
@@ -494,7 +511,7 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
                 && previousLayout.mAnimateMeasure == null) {
             inTransition = false;
             LayoutManager previous = getLayout(previousLayoutIndex);
-            if (previous != currentLayout && previous.mVisibility != Visibility.GONE) {
+            if (previous != currentLayout && !previous.isGone()) {
                 previous.mVisibility = Visibility.GONE;
                 previous.needsRepaint();
             }
@@ -537,10 +554,16 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         return "STATE_LAYOUT";
     }
 
-    //    companion object {
-    //        fun documentation(doc: OrigamiDocumentation) {}
-    //    }
-
+    /**
+     * write the operation to the buffer
+     *
+     * @param buffer the current buffer
+     * @param componentId the component id
+     * @param animationId the animation id if there's one, -1 otherwise.
+     * @param horizontalPositioning the horizontal positioning rule
+     * @param verticalPositioning the vertical positioning rule
+     * @param indexId the current index
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int componentId,
@@ -570,5 +593,11 @@ public class StateLayout extends LayoutManager implements ComponentStartOperatio
         int indexId = buffer.readInt();
         operations.add(
                 new StateLayout(null, componentId, animationId, 0f, 0f, 100f, 100f, indexId));
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        super.serialize(serializer);
+        serializer.add("indexId", mIndexId);
     }
 }

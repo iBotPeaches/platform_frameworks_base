@@ -36,13 +36,19 @@ import com.android.internal.widget.remotecompose.core.operations.utilities.easin
 import com.android.internal.widget.remotecompose.core.operations.utilities.easing.FloatAnimation;
 import com.android.internal.widget.remotecompose.core.semantics.AccessibleComponent;
 import com.android.internal.widget.remotecompose.core.semantics.CoreSemantics;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.SerializeTags;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /** Represents a click modifier + actions */
 public class ClickModifierOperation extends PaintOperation
-        implements ModifierOperation, DecoratorComponent, ClickHandler, AccessibleComponent {
+        implements Container,
+                ModifierOperation,
+                DecoratorComponent,
+                ClickHandler,
+                AccessibleComponent {
     private static final int OP_CODE = Operations.MODIFIER_CLICK;
 
     long mAnimateRippleStart = 0;
@@ -73,6 +79,12 @@ public class ClickModifierOperation extends PaintOperation
         return CoreSemantics.Mode.MERGE;
     }
 
+    /**
+     * Animate ripple
+     *
+     * @param x starting position x of the ripple
+     * @param y starting position y of the ripple
+     */
     public void animateRipple(float x, float y) {
         mAnimateRippleStart = System.currentTimeMillis();
         mAnimateRippleX = x;
@@ -208,6 +220,11 @@ public class ClickModifierOperation extends PaintOperation
         return "ClickModifier";
     }
 
+    /**
+     * Write the operation on the buffer
+     *
+     * @param buffer
+     */
     public static void apply(@NonNull WireBuffer buffer) {
         buffer.start(OP_CODE);
     }
@@ -232,5 +249,10 @@ public class ClickModifierOperation extends PaintOperation
                 .description(
                         "Click modifier. This operation contains"
                                 + " a list of action executed on click");
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addTags(SerializeTags.MODIFIER).addType("ClickModifierOperation");
     }
 }

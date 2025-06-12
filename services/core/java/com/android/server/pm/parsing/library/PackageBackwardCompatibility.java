@@ -46,6 +46,9 @@ public class PackageBackwardCompatibility extends PackageSharedLibraryUpdater {
     static {
         final List<PackageSharedLibraryUpdater> packageUpdaters = new ArrayList<>();
 
+        // Remove wear-sdk, it is added to boot classpath since Android Baklava.
+        packageUpdaters.add(new WearSdkUpdater());
+
         // Remove android.net.ipsec.ike library, it is added to boot classpath since Android S.
         packageUpdaters.add(new AndroidNetIpSecIkeUpdater());
 

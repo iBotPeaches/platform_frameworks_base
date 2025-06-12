@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"აქტიური (მხოლოდ მარცხენა)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"აქტიური (მხოლოდ მარჯვენა)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"აქტიური (მარცხენა და მარჯვენა)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"გარემოცვის განახლება ვერ მოხერხდა"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"აქტიური (მხოლოდ მედია). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>%% ბატარეა."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"აქტიური (მხოლოდ მედია), მარცხენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, მარჯვენა:<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ბატარეა."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"სტუმარი მოწყობილობა. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ბატარეა."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"სტუმარი მოწყობილობა. მარცხენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, მარჯვენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ბატარეა."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"სტუმარი მოწყობილობა (მხოლოდ მედია). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ბატარეა."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"სტუმარი მოწყობილობა (მხოლოდ მედია). მარცხენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, მარჯვენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ბატარეა."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"დაკავშირებული (აუდიოს გაზიარება მხარდაჭერილია). ბატარეა <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"დაკავშირებული (აუდიოს გაზიარება მხარდაჭერილია). მარცხენა: ბატარეა <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, მარჯვენა: ბატარეა <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"დაკავშირებული (აუდიოს გაზიარება მხარდაჭერილია). მარცხენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ბატარეა."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"დაკავშირებული (აუდიოს გაზიარება მხარდაჭერილია). მარჯვენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ბატარეა."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"დაკავშირებული (აუდიოს გაზიარება მხარდაჭერილია)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"სტუმარი მოწყობილობა (აუდიოს გაზიარება მხარდაჭერილია). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ბატარეა."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"სტუმარი მოწყობილობა (აუდიოს გაზიარება მხარდაჭერილია). მარცხენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, მარჯვენა: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ბატარეა."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"სტუმარი მოწყობილობა (აუდიოს გაზიარება მხარდაჭერილია)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"აქტიური (მხოლოდ მედია)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"სტუმარი მოწყობილობა"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"სტუმარი მოწყობილობა (მხოლოდ მედია)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"აუდიოს გაზიარება მხარდაჭერილია"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"სტუმარი მოწყობილობა. აუდიოს გაზიარება მხარდაჭერილია"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"აქტიური (მხოლოდ მედია), მხოლოდ მარცხენა"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"აქტიური (მხოლოდ მედია), მხოლოდ მარჯვენა"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"აქტიური (მხოლოდ მედია), მარცხენა და მარჯვენა"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"აპარატურით დაჩქარებული გამოსახულება"</string>
     <string name="media_category" msgid="8122076702526144053">"მედია"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"მონიტორინგი"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"ფანჯრების მართვა"</string>
     <string name="strict_mode" msgid="889864762140862437">"მკაცრი რეჟიმი ჩართულია"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"ეკრანის აციმციმება, როცა აპები ახორციელებენ ხანგრძლივ ოპერაციებს მთავარ ნაკადზე"</string>
     <string name="pointer_location" msgid="7516929526199520173">"მაჩვენებლის მდებარეობა"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"გადასვლის მასშტაბი"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"ანიმაციების ხანგრძლივობის მასშტაბი"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"მეორადი ეკრანების სიმულაცია"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"ჩრდილის პოზიცია ეკრანზე"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"აპები"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"ნუ შეინარჩუნებ მოქმედებებს"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"ნებისმიერი აქტივობის განადგურება დასრულებისთანავე"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView რეალიზაცია"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"WebView რეალიზაციის დაყენება"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"თქვენი არჩევანი აღარ მოქმედებს. ცადეთ ხელახლა."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView-ის პაკეტი ვერ მოიძებნა"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevTools-ის გაშვება ვერ მოხერხდა"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"გამოსახულების ფერების რეჟიმი"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGB-ს გამოყენება"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"გამორთულია"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"სწრაფი დატენა"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"იმართება ადმინისტრატორის მიერ"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"კონტროლდება შეზღუდული რეჟიმის პარამეტრით"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"მიუწვდომელია ზარების განხორციელებისას"</string>
     <string name="disabled" msgid="8017887509554714950">"გამორთული"</string>
+    <string name="enabled" msgid="3997122818554810678">"ჩართულია"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"დაშვებულია"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"დაუშვებელია"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"უცნობი აპების ინსტალაცია"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"ჩაშენებული დინამიკი"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"TV Audio"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"დაკავშირებისას წარმოიქმნა პრობლემა. გამორთეთ და კვლავ ჩართეთ მოწყობილობა"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"დაკავშირება შეუძლებელია"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"სადენიანი აუდიო მოწყობილობა"</string>
     <string name="help_label" msgid="3528360748637781274">"დახმარება და გამოხმაურება"</string>
     <string name="storage_category" msgid="2287342585424631813">"საცავი"</string>

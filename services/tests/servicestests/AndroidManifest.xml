@@ -113,7 +113,6 @@
     <uses-permission android:name="android.permission.MANAGE_ROLE_HOLDERS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.CREATE_VIRTUAL_DEVICE" />
     <uses-permission android:name="android.permission.MANAGE_KEY_GESTURES" />
 
     <queries>
@@ -129,6 +128,21 @@
 
     <application android:testOnly="true" android:debuggable="true">
         <uses-library android:name="android.test.runner"/>
+
+        <service
+            android:name="com.android.server.accessibility.integration.FullScreenMagnificationMouseFollowingTest$TestMagnificationAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <category android:name="android.accessibilityservice.category.FEEDBACK_GENERIC" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/test_magnification_a11y_service" />
+        </service>
+        <activity android:name="com.android.server.accessibility.integration.FullScreenMagnificationMouseFollowingTest$TestActivity" />
 
         <service android:name="com.android.server.accounts.TestAccountType1AuthenticatorService"
              android:exported="false">
@@ -199,6 +213,10 @@
 
         <service android:name="com.android.server.job.MockBiasJobService"
              android:permission="android.permission.BIND_JOB_SERVICE"/>
+
+        <activity
+            android:name="android.app.Activity"
+            android:exported="false" />
 
         <activity android:name="com.android.server.pm.BaseShortcutManagerTest$ShortcutActivity"/>
         <activity android:name="com.android.server.pm.BaseShortcutManagerTest$ShortcutActivity2"/>

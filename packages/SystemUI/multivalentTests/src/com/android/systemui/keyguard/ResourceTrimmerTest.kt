@@ -8,20 +8,22 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.flags.DisableSceneContainer
 import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.flags.fakeFeatureFlagsClassic
+import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFingerprintAuthRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.domain.interactor.keyguardTransitionInteractor
 import com.android.systemui.keyguard.shared.model.KeyguardState
+import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticationStatus
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
 import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.scene.data.repository.Idle
 import com.android.systemui.scene.data.repository.setSceneTransition
+import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.testKosmos
 import com.android.systemui.utils.GlobalWindowManager
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -34,7 +36,6 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 @SmallTest
 class ResourceTrimmerTest : SysuiTestCase() {
@@ -132,7 +133,7 @@ class ResourceTrimmerTest : SysuiTestCase() {
             keyguardTransitionRepository.sendTransitionSteps(
                 from = KeyguardState.LOCKSCREEN,
                 to = KeyguardState.GONE,
-                testScope
+                testScope,
             )
             verify(globalWindowManager, times(1))
                 .trimMemory(ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
@@ -143,6 +144,13 @@ class ResourceTrimmerTest : SysuiTestCase() {
     @EnableSceneContainer
     fun keyguardTransitionsToGone_trimsFontCache_scene_container() =
         testScope.runTest {
+            kosmos.sceneInteractor.snapToScene(Scenes.Lockscreen, "reason")
+            kosmos.fakeDeviceEntryFingerprintAuthRepository.setAuthenticationStatus(
+                SuccessFingerprintAuthenticationStatus(0, true)
+            )
+            runCurrent()
+
+            kosmos.sceneInteractor.changeScene(Scenes.Gone, "")
             kosmos.setSceneTransition(Idle(Scenes.Gone))
 
             verify(globalWindowManager, times(1))

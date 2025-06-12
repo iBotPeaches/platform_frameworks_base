@@ -36,7 +36,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.KeyguardManager;
@@ -47,7 +46,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.display.ColorDisplayManager;
 import android.os.PowerManager;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.notification.ZenDeviceEffects;
 import android.testing.TestableContext;
@@ -102,8 +100,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_appliesEffects() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         ZenDeviceEffects effects = new ZenDeviceEffects.Builder()
                 .setShouldSuppressAmbientDisplay(true)
                 .setShouldDimWallpaper(true)
@@ -119,7 +115,6 @@ public class DefaultDeviceEffectsApplierTest {
     }
 
     @Test
-    @EnableFlags(android.app.Flags.FLAG_MODES_API)
     public void apply_logsToZenLog() {
         when(mPowerManager.isInteractive()).thenReturn(true);
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
@@ -155,8 +150,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_removesEffects() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         ZenDeviceEffects previousEffects = new ZenDeviceEffects.Builder()
                 .setShouldSuppressAmbientDisplay(true)
                 .setShouldDimWallpaper(true)
@@ -180,8 +173,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_removesOnlyPreviouslyAppliedEffects() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         ZenDeviceEffects previousEffects = new ZenDeviceEffects.Builder()
                 .setShouldSuppressAmbientDisplay(true)
                 .build();
@@ -192,12 +183,11 @@ public class DefaultDeviceEffectsApplierTest {
         mApplier.apply(noEffects, ORIGIN_USER_IN_SYSTEMUI);
 
         verify(mPowerManager).suppressAmbientDisplay(anyString(), eq(false));
-        verifyZeroInteractions(mColorDisplayManager, mWallpaperManager, mUiModeManager);
+        verifyNoMoreInteractions(mColorDisplayManager, mWallpaperManager, mUiModeManager);
     }
 
     @Test
     public void apply_missingSomeServices_okay() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
         mContext.addMockSystemService(ColorDisplayManager.class, null);
         mContext.addMockSystemService(WallpaperManager.class, null);
         mApplier = new DefaultDeviceEffectsApplier(mContext);
@@ -216,7 +206,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_disabledWallpaperService_dimWallpaperNotApplied() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
         WallpaperManager disabledWallpaperService = mock(WallpaperManager.class);
         when(mWallpaperManager.isWallpaperSupported()).thenReturn(false);
         mContext.addMockSystemService(WallpaperManager.class, disabledWallpaperService);
@@ -236,8 +225,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_someEffects_onlyThoseEffectsApplied() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         ZenDeviceEffects effects = new ZenDeviceEffects.Builder()
                 .setShouldDimWallpaper(true)
                 .setShouldDisplayGrayscale(true)
@@ -253,8 +240,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_onlyEffectDeltaApplied() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         mApplier.apply(new ZenDeviceEffects.Builder().setShouldDimWallpaper(true).build(),
                 ORIGIN_USER_IN_SYSTEMUI);
         verify(mWallpaperManager).setWallpaperDimAmount(eq(0.6f));
@@ -266,13 +251,12 @@ public class DefaultDeviceEffectsApplierTest {
         // Wallpaper dimming was undone, Grayscale was applied, nothing else was touched.
         verify(mWallpaperManager).setWallpaperDimAmount(eq(0.0f));
         verify(mColorDisplayManager).setSaturationLevel(eq(0));
-        verifyZeroInteractions(mPowerManager);
-        verifyZeroInteractions(mUiModeManager);
+        verifyNoMoreInteractions(mPowerManager);
+        verifyNoMoreInteractions(mUiModeManager);
     }
 
     @Test
     public void apply_nightModeFromApp_appliedOnScreenOff() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
         ArgumentCaptor<IntentFilter> intentFilterCaptor =
@@ -284,7 +268,7 @@ public class DefaultDeviceEffectsApplierTest {
                 ORIGIN_APP);
 
         // Effect was not yet applied, but a broadcast receiver was registered.
-        verifyZeroInteractions(mUiModeManager);
+        verifyNoMoreInteractions(mUiModeManager);
         verify(mContext).registerReceiver(broadcastReceiverCaptor.capture(),
                 intentFilterCaptor.capture(), anyInt());
         assertThat(intentFilterCaptor.getValue().getAction(0)).isEqualTo(Intent.ACTION_SCREEN_OFF);
@@ -301,8 +285,6 @@ public class DefaultDeviceEffectsApplierTest {
     @Test
     public void apply_nightModeWithScreenOff_appliedImmediately(
             @TestParameter ZenChangeOrigin origin) {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         when(mPowerManager.isInteractive()).thenReturn(false);
 
         mApplier.apply(new ZenDeviceEffects.Builder().setShouldUseNightMode(true).build(),
@@ -314,7 +296,6 @@ public class DefaultDeviceEffectsApplierTest {
     }
 
     @Test
-    @EnableFlags({android.app.Flags.FLAG_MODES_API, android.app.Flags.FLAG_MODES_UI})
     public void apply_nightModeWithScreenOnAndKeyguardShowing_appliedImmediately(
             @TestParameter ZenChangeOrigin origin) {
 
@@ -334,8 +315,6 @@ public class DefaultDeviceEffectsApplierTest {
             "{origin: ORIGIN_INIT}", "{origin: ORIGIN_INIT_USER}"})
     public void apply_nightModeWithScreenOn_appliedImmediatelyBasedOnOrigin(
             ZenChangeOrigin origin) {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         when(mPowerManager.isInteractive()).thenReturn(true);
 
         mApplier.apply(new ZenDeviceEffects.Builder().setShouldUseNightMode(true).build(),
@@ -351,15 +330,13 @@ public class DefaultDeviceEffectsApplierTest {
             "{origin: ORIGIN_SYSTEM}", "{origin: ORIGIN_UNKNOWN}"})
     public void apply_nightModeWithScreenOn_willBeAppliedLaterBasedOnOrigin(
             ZenChangeOrigin origin) {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         when(mPowerManager.isInteractive()).thenReturn(true);
 
         mApplier.apply(new ZenDeviceEffects.Builder().setShouldUseNightMode(true).build(),
                 origin.value());
 
         // Effect was not applied, will be on next screen-off.
-        verifyZeroInteractions(mUiModeManager);
+        verifyNoMoreInteractions(mUiModeManager);
         verify(mContext).registerReceiver(any(),
                 argThat(filter -> Intent.ACTION_SCREEN_OFF.equals(filter.getAction(0))),
                 anyInt());
@@ -367,8 +344,6 @@ public class DefaultDeviceEffectsApplierTest {
 
     @Test
     public void apply_servicesThrow_noCrash() {
-        mSetFlagsRule.enableFlags(android.app.Flags.FLAG_MODES_API);
-
         doThrow(new RuntimeException()).when(mPowerManager)
                 .suppressAmbientDisplay(anyString(), anyBoolean());
         doThrow(new RuntimeException()).when(mColorDisplayManager).setSaturationLevel(anyInt());

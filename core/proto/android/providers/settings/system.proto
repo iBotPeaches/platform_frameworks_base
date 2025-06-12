@@ -218,7 +218,8 @@ message SystemSettingsProto {
         optional SettingProto tap_to_click = 4 [ (android.privacy).dest = DEST_AUTOMATIC ];
         optional SettingProto tap_dragging = 5 [ (android.privacy).dest = DEST_AUTOMATIC ];
         optional SettingProto three_finger_tap_customization = 6 [ (android.privacy).dest = DEST_AUTOMATIC ];
-        optional SettingProto system_gestures = 7 [ (android.privacy).dest = DEST_AUTOMATIC ];;
+        optional SettingProto system_gestures = 7 [ (android.privacy).dest = DEST_AUTOMATIC ];
+        optional SettingProto acceleration_enabled = 8 [ (android.privacy).dest = DEST_AUTOMATIC ];;
     }
     optional Touchpad touchpad = 36;
 
@@ -227,6 +228,9 @@ message SystemSettingsProto {
 
         optional SettingProto reverse_vertical_scrolling = 1 [ (android.privacy).dest = DEST_AUTOMATIC ];
         optional SettingProto swap_primary_button = 2 [ (android.privacy).dest = DEST_AUTOMATIC ];
+        optional SettingProto scrolling_acceleration = 3 [ (android.privacy).dest = DEST_AUTOMATIC ];
+        optional SettingProto pointer_acceleration_enabled = 4 [ (android.privacy).dest = DEST_AUTOMATIC ];
+        optional SettingProto scrolling_speed = 5 [ (android.privacy).dest = DEST_AUTOMATIC ];
     }
 
     optional Mouse mouse = 38;
@@ -286,7 +290,16 @@ message SystemSettingsProto {
 
     optional SettingProto apply_ramping_ringer = 35 [ (android.privacy).dest = DEST_AUTOMATIC ];
 
+    message Display {
+        option (android.msg_privacy).dest = DEST_EXPLICIT;
+
+        optional SettingProto cv_enabled = 1 [ (android.privacy).dest = DEST_AUTOMATIC ];
+    }
+    optional Display display = 39;
+
+
+
     // Please insert fields in alphabetical order and group them into messages
     // if possible (to avoid reaching the method limit).
-    // Next tag = 39;
+    // Next tag = 40;
 }

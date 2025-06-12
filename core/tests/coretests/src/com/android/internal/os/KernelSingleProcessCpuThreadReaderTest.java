@@ -19,7 +19,7 @@ package com.android.internal.os;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -35,7 +35,7 @@ import java.util.List;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(reason = "Needs kernel support")
+@DisabledOnRavenwood(reason = "Needs kernel support")
 public class KernelSingleProcessCpuThreadReaderTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

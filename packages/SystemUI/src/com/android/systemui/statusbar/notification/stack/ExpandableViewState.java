@@ -16,23 +16,32 @@
 
 package com.android.systemui.statusbar.notification.stack;
 
+import static com.android.systemui.Flags.physicalNotificationMovement;
+import static com.android.systemui.statusbar.notification.row.ExpandableView.HEIGHT_PROPERTY;
+import static com.android.systemui.statusbar.notification.row.ExpandableView.TAG_ANIMATOR_HEIGHT;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.PropertyValuesHolder;
 import android.animation.ValueAnimator;
+import android.util.FloatProperty;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 import com.android.app.animation.Interpolators;
+import com.android.internal.dynamicanimation.animation.DynamicAnimation;
 import com.android.systemui.res.R;
+import com.android.systemui.statusbar.notification.PhysicsProperty;
+import com.android.systemui.statusbar.notification.PhysicsPropertyAnimator;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.ExpandableView;
 
 /**
-* A state of an expandable view
-*/
+ * A state of an expandable view
+ */
 public class ExpandableViewState extends ViewState {
 
-    private static final int TAG_ANIMATOR_HEIGHT = R.id.height_animator_tag;
     private static final int TAG_ANIMATOR_TOP_INSET = R.id.top_inset_animator_tag;
     private static final int TAG_ANIMATOR_BOTTOM_INSET = R.id.bottom_inset_animator_tag;
     private static final int TAG_END_HEIGHT = R.id.height_animator_end_value_tag;
@@ -149,7 +158,7 @@ public class ExpandableViewState extends ViewState {
 
             // apply height
             if (height != newHeight) {
-                expandableView.setActualHeight(newHeight, false /* notifyListeners */);
+                expandableView.setFinalActualHeight(newHeight);
             }
 
             // apply hiding sensitive
@@ -186,8 +195,28 @@ public class ExpandableViewState extends ViewState {
 
         // start height animation
         if (this.height != expandableView.getActualHeight()) {
-            startHeightAnimation(expandableView, properties);
-        }  else {
+            if (mUsePhysicsForMovement) {
+                boolean animateHeight = properties.getAnimationFilter().animateHeight;
+                if (animateHeight) {
+                    expandableView.setActualHeightAnimating(true);
+                }
+                DynamicAnimation.OnAnimationEndListener endListener = null;
+                if (!ViewState.isAnimating(expandableView, HEIGHT_PROPERTY)) {
+                    // only Add the end listener if we haven't already
+                    endListener = (animation, canceled, value, velocity) -> {
+                        expandableView.setActualHeightAnimating(false);
+                        if (!canceled && child instanceof ExpandableNotificationRow row) {
+                            row.setGroupExpansionChanging(false /* isExpansionChanging */);
+                        }
+                    };
+                }
+                PhysicsPropertyAnimator.setProperty(child, HEIGHT_PROPERTY, this.height, properties,
+                        animateHeight,
+                        endListener);
+            } else {
+                startHeightAnimationInterpolator(expandableView, properties);
+            }
+        } else {
             abortAnimation(child, TAG_ANIMATOR_HEIGHT);
         }
 
@@ -224,7 +253,8 @@ public class ExpandableViewState extends ViewState {
         }
     }
 
-    private void startHeightAnimation(final ExpandableView child, AnimationProperties properties) {
+    private void startHeightAnimationInterpolator(final ExpandableView child,
+            AnimationProperties properties) {
         Integer previousStartValue = getChildTag(child, TAG_START_HEIGHT);
         Integer previousEndValue = getChildTag(child, TAG_END_HEIGHT);
         int newEndValue = this.height;
@@ -374,38 +404,16 @@ public class ExpandableViewState extends ViewState {
             }
         });
         startAnimator(animator, listener);
-        child.setTag(clipTop ? TAG_ANIMATOR_TOP_INSET:TAG_ANIMATOR_BOTTOM_INSET, animator);
-        child.setTag(clipTop ? TAG_START_TOP_INSET: TAG_START_BOTTOM_INSET,
+        child.setTag(clipTop ? TAG_ANIMATOR_TOP_INSET : TAG_ANIMATOR_BOTTOM_INSET, animator);
+        child.setTag(clipTop ? TAG_START_TOP_INSET : TAG_START_BOTTOM_INSET,
                 clipTop ? child.getClipTopAmount() : child.getClipBottomAmount());
-        child.setTag(clipTop ? TAG_END_TOP_INSET: TAG_END_BOTTOM_INSET, newEndValue);
-    }
-
-    /**
-     * Get the end value of the height animation running on a view or the actualHeight
-     * if no animation is running.
-     */
-    public static int getFinalActualHeight(ExpandableView view) {
-        if (view == null) {
-            return 0;
-        }
-        ValueAnimator heightAnimator = getChildTag(view, TAG_ANIMATOR_HEIGHT);
-        if (heightAnimator == null) {
-            return view.getActualHeight();
-        } else {
-            return getChildTag(view, TAG_END_HEIGHT);
-        }
+        child.setTag(clipTop ? TAG_END_TOP_INSET : TAG_END_BOTTOM_INSET, newEndValue);
     }
 
     @Override
     public void cancelAnimations(View view) {
         super.cancelAnimations(view);
-        Animator animator = getChildTag(view, TAG_ANIMATOR_HEIGHT);
-        if (animator != null) {
-            animator.cancel();
-        }
-        animator = getChildTag(view, TAG_ANIMATOR_TOP_INSET);
-        if (animator != null) {
-            animator.cancel();
-        }
+        abortAnimation(view, TAG_ANIMATOR_HEIGHT);
+        abortAnimation(view, TAG_ANIMATOR_TOP_INSET);
     }
 }

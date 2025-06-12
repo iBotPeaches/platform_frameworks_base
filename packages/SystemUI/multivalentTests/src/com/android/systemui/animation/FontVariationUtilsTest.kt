@@ -7,11 +7,6 @@ import junit.framework.Assert
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private const val TAG_WGHT = "wght"
-private const val TAG_WDTH = "wdth"
-private const val TAG_OPSZ = "opsz"
-private const val TAG_ROND = "ROND"
-
 @RunWith(AndroidJUnit4::class)
 @SmallTest
 class FontVariationUtilsTest : SysuiTestCase() {
@@ -23,40 +18,32 @@ class FontVariationUtilsTest : SysuiTestCase() {
                 weight = 100,
                 width = 100,
                 opticalSize = -1,
-                roundness = 100
+                roundness = 100,
             )
-        Assert.assertEquals("'$TAG_WGHT' 100, '$TAG_WDTH' 100, '$TAG_ROND' 100", initFvar)
+        Assert.assertEquals(
+            "'${GSFAxes.WEIGHT.tag}' 100, '${GSFAxes.WIDTH.tag}' 100, '${GSFAxes.ROUND.tag}' 100",
+            initFvar,
+        )
         val updatedFvar =
             fontVariationUtils.updateFontVariation(
                 weight = 200,
                 width = 100,
                 opticalSize = 0,
-                roundness = 100
+                roundness = 100,
             )
         Assert.assertEquals(
-            "'$TAG_WGHT' 200, '$TAG_WDTH' 100, '$TAG_OPSZ' 0, '$TAG_ROND' 100",
-            updatedFvar
+            "'${GSFAxes.WEIGHT.tag}' 200, '${GSFAxes.WIDTH.tag}' 100," +
+                " '${GSFAxes.OPTICAL_SIZE.tag}' 0, '${GSFAxes.ROUND.tag}' 100",
+            updatedFvar,
         )
     }
 
     @Test
     fun testStyleValueUnchange_getBlankStr() {
         val fontVariationUtils = FontVariationUtils()
-        fontVariationUtils.updateFontVariation(
-            weight = 100,
-            width = 100,
-            opticalSize = 0,
-            roundness = 100
-        )
-        val updatedFvar1 =
-            fontVariationUtils.updateFontVariation(
-                weight = 100,
-                width = 100,
-                opticalSize = 0,
-                roundness = 100
-            )
-        Assert.assertEquals("", updatedFvar1)
-        val updatedFvar2 = fontVariationUtils.updateFontVariation()
-        Assert.assertEquals("", updatedFvar2)
+        Assert.assertEquals("", fontVariationUtils.updateFontVariation())
+        val fVar = fontVariationUtils.updateFontVariation(weight = 100)
+        Assert.assertEquals(fVar, fontVariationUtils.updateFontVariation())
+        Assert.assertEquals(fVar, fontVariationUtils.updateFontVariation(weight = 100))
     }
 }

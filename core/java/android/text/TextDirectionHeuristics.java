@@ -32,6 +32,7 @@ import java.nio.CharBuffer;
  * class.
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TextDirectionHeuristics {
 
     /**

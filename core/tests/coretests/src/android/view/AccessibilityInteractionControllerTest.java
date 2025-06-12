@@ -25,6 +25,7 @@ import android.app.Instrumentation;
 import android.app.Service;
 import android.app.UiAutomation;
 import android.graphics.Rect;
+import android.os.Process;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
@@ -32,6 +33,7 @@ import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityTestActivity;
 import android.view.accessibility.AccessibilityWindowInfo;
+import android.view.accessibility.IWindowSurfaceInfoCallback;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -47,6 +49,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -134,6 +137,20 @@ public class AccessibilityInteractionControllerTest {
         } finally {
             rootView.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_AUTO);
         }
+    }
+
+    @Test
+    public void getWindowSurfaceInfo_shouldCallCallbackWithWindowSurfaceDataFromVri()
+            throws Exception {
+        final ViewRootImpl vri = mButton.getRootView().getViewRootImpl();
+        IWindowSurfaceInfoCallback callback = Mockito.mock(IWindowSurfaceInfoCallback.class);
+
+        sInstrumentation.runOnMainSync(() ->
+                mAccessibilityInteractionController.getWindowSurfaceInfoClientThread(callback));
+        sInstrumentation.waitForIdleSync();
+
+        Mockito.verify(callback).provideWindowSurfaceInfo(
+                vri.getWindowFlags(), Process.myUid(), vri.getSurfaceControl());
     }
 
     private void launchActivity() {

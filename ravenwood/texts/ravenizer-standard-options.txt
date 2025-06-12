@@ -1,0 +1,13 @@
+# File containing standard options to Ravenizer for Ravenwood
+
+# Keep all classes / methods / fields in tests and its target
+--default-keep
+
+--delete-finals
+
+# Include standard annotations
+@jar:texts/ravenwood-standard-annotations.txt
+
+# Apply common policies
+--policy-override-file
+    jar:texts/ravenwood-common-policies.txt

@@ -17,6 +17,8 @@
 package com.android.internal.protolog;
 
 import android.os.ServiceManager;
+import android.ravenwood.annotation.RavenwoodKeepWholeClass;
+import android.ravenwood.annotation.RavenwoodReplace;
 import android.tracing.perfetto.DataSourceParams;
 import android.tracing.perfetto.InitArguments;
 import android.tracing.perfetto.Producer;
@@ -47,6 +49,7 @@ import java.util.HashSet;
  * Methods in this class are stubs, that are replaced by optimised versions by the ProtoLogTool
  * during build.
  */
+@RavenwoodKeepWholeClass
 // LINT.IfChange
 public class ProtoLog {
 // LINT.ThenChange(frameworks/base/tools/protologtool/src/com/android/protolog/tool/ProtoLogTool.kt)
@@ -73,11 +76,23 @@ public class ProtoLog {
         // These tracing instances are only used when we cannot or do not preprocess the source
         // files to extract out the log strings. Otherwise, the trace calls are replaced with calls
         // directly to the generated tracing implementations.
-        if (android.tracing.Flags.perfettoProtologTracing()) {
-            initializePerfettoProtoLog(groups);
-        } else {
+        if (logOnlyToLogcat()) {
             sProtoLogInstance = new LogcatOnlyProtoLogImpl();
+        } else {
+            initializePerfettoProtoLog(groups);
         }
+    }
+
+    @RavenwoodReplace(reason = "Always use the Log backend on ravenwood, not Perfetto")
+    private static boolean logOnlyToLogcat() {
+        return !android.tracing.Flags.perfettoProtologTracing();
+    }
+
+    private static boolean logOnlyToLogcat$ravenwood() {
+        // We don't want to initialize Perfetto data sources and have to deal with Perfetto
+        // when running tests on the host side, instead just log everything to logcat which has
+        // already been made compatible with ravenwood.
+        return true;
     }
 
     private static void initializePerfettoProtoLog(IProtoLogGroup... groups) {

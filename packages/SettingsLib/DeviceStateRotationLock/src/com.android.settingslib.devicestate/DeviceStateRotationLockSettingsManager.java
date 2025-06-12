@@ -20,8 +20,8 @@ import static android.provider.Settings.Secure.DEVICE_STATE_ROTATION_LOCK_IGNORE
 import static android.provider.Settings.Secure.DEVICE_STATE_ROTATION_LOCK_LOCKED;
 import static android.provider.Settings.Secure.DEVICE_STATE_ROTATION_LOCK_UNLOCKED;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
 import android.database.ContentObserver;
@@ -39,18 +39,19 @@ import android.util.SparseIntArray;
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
  * Manages device-state based rotation lock settings. Handles reading, writing, and listening for
  * changes.
  */
-public final class DeviceStateRotationLockSettingsManager {
+public final class DeviceStateRotationLockSettingsManager implements
+        DeviceStateAutoRotateSettingManager {
 
     private static final String TAG = "DSRotLockSettingsMngr";
     private static final String SEPARATOR_REGEX = ":";
@@ -58,7 +59,7 @@ public final class DeviceStateRotationLockSettingsManager {
     private static DeviceStateRotationLockSettingsManager sSingleton;
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
-    private final Set<DeviceStateRotationLockSettingsListener> mListeners = new HashSet<>();
+    private final Set<DeviceStateAutoRotateSettingListener> mListeners = new HashSet<>();
     private final SecureSettings mSecureSettings;
     private final PosturesHelper mPosturesHelper;
     private String[] mPostureRotationLockDefaults;
@@ -67,8 +68,7 @@ public final class DeviceStateRotationLockSettingsManager {
     private SparseIntArray mPostureRotationLockFallbackSettings;
     private List<SettableDeviceState> mSettableDeviceStates;
 
-    @VisibleForTesting
-    DeviceStateRotationLockSettingsManager(Context context, SecureSettings secureSettings) {
+    public DeviceStateRotationLockSettingsManager(Context context, SecureSettings secureSettings) {
         mSecureSettings = secureSettings;
 
         mPosturesHelper = new PosturesHelper(context, getDeviceStateManager(context));
@@ -88,30 +88,6 @@ public final class DeviceStateRotationLockSettingsManager {
         return null;
     }
 
-    /** Returns a singleton instance of this class */
-    public static synchronized DeviceStateRotationLockSettingsManager getInstance(Context context) {
-        if (sSingleton == null) {
-            Context applicationContext = context.getApplicationContext();
-            ContentResolver contentResolver = applicationContext.getContentResolver();
-            SecureSettings secureSettings = new AndroidSecureSettings(contentResolver);
-            sSingleton =
-                    new DeviceStateRotationLockSettingsManager(applicationContext, secureSettings);
-        }
-        return sSingleton;
-    }
-
-    /** Resets the singleton instance of this class. Only used for testing. */
-    @VisibleForTesting
-    public static synchronized void resetInstance() {
-        sSingleton = null;
-    }
-
-    /** Returns true if device-state based rotation lock settings are enabled. */
-    public static boolean isDeviceStateRotationLockEnabled(Context context) {
-        return context.getResources()
-                .getStringArray(R.array.config_perDeviceStateRotationLockDefaults).length > 0;
-    }
-
     private void listenForSettingsChange() {
         mSecureSettings
                 .registerContentObserver(
@@ -127,25 +103,28 @@ public final class DeviceStateRotationLockSettingsManager {
     }
 
     /**
-     * Registers a {@link DeviceStateRotationLockSettingsListener} to be notified when the settings
+     * Registers a {@link DeviceStateAutoRotateSettingListener} to be notified when the settings
      * change. Can be called multiple times with different listeners.
      */
-    public void registerListener(DeviceStateRotationLockSettingsListener runnable) {
+    @Override
+    public void registerListener(@NonNull DeviceStateAutoRotateSettingListener runnable) {
         mListeners.add(runnable);
     }
 
     /**
-     * Unregisters a {@link DeviceStateRotationLockSettingsListener}. No-op if the given instance
+     * Unregisters a {@link DeviceStateAutoRotateSettingListener}. No-op if the given instance
      * was never registered.
      */
+    @Override
     public void unregisterListener(
-            DeviceStateRotationLockSettingsListener deviceStateRotationLockSettingsListener) {
-        if (!mListeners.remove(deviceStateRotationLockSettingsListener)) {
+            @NonNull DeviceStateAutoRotateSettingListener deviceStateAutoRotateSettingListener) {
+        if (!mListeners.remove(deviceStateAutoRotateSettingListener)) {
             Log.w(TAG, "Attempting to unregister a listener hadn't been registered");
         }
     }
 
     /** Updates the rotation lock setting for a specified device state. */
+    @Override
     public void updateSetting(int deviceState, boolean rotationLocked) {
         int posture = mPosturesHelper.deviceStateToPosture(deviceState);
         if (mPostureRotationLockFallbackSettings.indexOfKey(posture) >= 0) {
@@ -172,6 +151,7 @@ public final class DeviceStateRotationLockSettingsManager {
      * DEVICE_STATE_ROTATION_LOCK_IGNORED}.
      */
     @Settings.Secure.DeviceStateRotationLockSetting
+    @Override
     public int getRotationLockSetting(int deviceState) {
         int devicePosture = mPosturesHelper.deviceStateToPosture(deviceState);
         int rotationLockSetting = mPostureRotationLockSettings.get(
@@ -195,6 +175,7 @@ public final class DeviceStateRotationLockSettingsManager {
 
 
     /** Returns true if the rotation is locked for the current device state */
+    @Override
     public boolean isRotationLocked(int deviceState) {
         return getRotationLockSetting(deviceState) == DEVICE_STATE_ROTATION_LOCK_LOCKED;
     }
@@ -203,6 +184,7 @@ public final class DeviceStateRotationLockSettingsManager {
      * Returns true if there is no device state for which the current setting is {@link
      * DEVICE_STATE_ROTATION_LOCK_UNLOCKED}.
      */
+    @Override
     public boolean isRotationLockedForAllStates() {
         for (int i = 0; i < mPostureRotationLockSettings.size(); i++) {
             if (mPostureRotationLockSettings.valueAt(i)
@@ -214,6 +196,8 @@ public final class DeviceStateRotationLockSettingsManager {
     }
 
     /** Returns a list of device states and their respective auto-rotation setting availability. */
+    @Override
+    @NonNull
     public List<SettableDeviceState> getSettableDeviceStates() {
         // Returning a copy to make sure that nothing outside can mutate our internal list.
         return new ArrayList<>(mSettableDeviceStates);
@@ -355,17 +339,21 @@ public final class DeviceStateRotationLockSettingsManager {
         }
     }
 
-    /** Dumps internal state. */
-    public void dump(IndentingPrintWriter pw) {
-        pw.println("DeviceStateRotationLockSettingsManager");
-        pw.increaseIndent();
-        pw.println("mPostureRotationLockDefaults: "
+    @Override
+    public void dump(@NonNull PrintWriter writer, String[] args) {
+        IndentingPrintWriter indentingWriter = new IndentingPrintWriter(writer);
+        indentingWriter.println("DeviceStateRotationLockSettingsManager");
+        indentingWriter.increaseIndent();
+        indentingWriter.println("mPostureRotationLockDefaults: "
                 + Arrays.toString(mPostureRotationLockDefaults));
-        pw.println("mPostureDefaultRotationLockSettings: " + mPostureDefaultRotationLockSettings);
-        pw.println("mDeviceStateRotationLockSettings: " + mPostureRotationLockSettings);
-        pw.println("mPostureRotationLockFallbackSettings: " + mPostureRotationLockFallbackSettings);
-        pw.println("mSettableDeviceStates: " + mSettableDeviceStates);
-        pw.decreaseIndent();
+        indentingWriter.println(
+                "mPostureDefaultRotationLockSettings: " + mPostureDefaultRotationLockSettings);
+        indentingWriter.println(
+                "mDeviceStateRotationLockSettings: " + mPostureRotationLockSettings);
+        indentingWriter.println(
+                "mPostureRotationLockFallbackSettings: " + mPostureRotationLockFallbackSettings);
+        indentingWriter.println("mSettableDeviceStates: " + mSettableDeviceStates);
+        indentingWriter.decreaseIndent();
     }
 
     /**
@@ -379,56 +367,8 @@ public final class DeviceStateRotationLockSettingsManager {
     }
 
     private void notifyListeners() {
-        for (DeviceStateRotationLockSettingsListener r : mListeners) {
+        for (DeviceStateAutoRotateSettingListener r : mListeners) {
             r.onSettingsChanged();
-        }
-    }
-
-    /** Listener for changes in device-state based rotation lock settings */
-    public interface DeviceStateRotationLockSettingsListener {
-        /** Called whenever the settings have changed. */
-        void onSettingsChanged();
-    }
-
-    /** Represents a device state and whether it has an auto-rotation setting. */
-    public static class SettableDeviceState {
-        private final int mDeviceState;
-        private final boolean mIsSettable;
-
-        SettableDeviceState(int deviceState, boolean isSettable) {
-            mDeviceState = deviceState;
-            mIsSettable = isSettable;
-        }
-
-        /** Returns the device state associated with this object. */
-        public int getDeviceState() {
-            return mDeviceState;
-        }
-
-        /** Returns whether there is an auto-rotation setting for this device state. */
-        public boolean isSettable() {
-            return mIsSettable;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof SettableDeviceState)) return false;
-            SettableDeviceState that = (SettableDeviceState) o;
-            return mDeviceState == that.mDeviceState && mIsSettable == that.mIsSettable;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(mDeviceState, mIsSettable);
-        }
-
-        @Override
-        public String toString() {
-            return "SettableDeviceState{"
-                    + "mDeviceState=" + mDeviceState
-                    + ", mIsSettable=" + mIsSettable
-                    + '}';
         }
     }
 }

@@ -38,17 +38,17 @@ import kotlinx.coroutines.flow.stateIn
 /**
  * Tracks [Settings.Global.DEVICE_DEMO_MODE].
  *
- * @see UserManager.isDeviceInDemoMode
+ * @see android.os.UserManager.isDeviceInDemoMode
  */
 @SysUISingleton
-class RetailModeSettingsRepository
+public class RetailModeSettingsRepository
 @Inject
 constructor(
     globalSettings: GlobalSettings,
     @Background backgroundDispatcher: CoroutineDispatcher,
     @Application scope: CoroutineScope,
 ) : RetailModeRepository {
-    override val retailMode =
+    override val retailMode: StateFlow<Boolean> =
         conflatedCallbackFlow {
                 val observer =
                     object : ContentObserver(null) {
@@ -66,7 +66,7 @@ constructor(
             .flowOn(backgroundDispatcher)
             .stateIn(scope, SharingStarted.Eagerly, false)
 
-    companion object {
+    public companion object {
         private const val RETAIL_MODE_SETTING = Settings.Global.DEVICE_DEMO_MODE
     }
 }

@@ -32,6 +32,7 @@ import android.text.TextUtils;
  * tools should only rewrite the user input text, and not modify the quoted text.
  */
 @FlaggedApi(FLAG_WRITING_TOOLS)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class NoWritingToolsSpan implements ParcelableSpan {
 
     /**

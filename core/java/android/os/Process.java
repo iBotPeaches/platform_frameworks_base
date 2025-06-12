@@ -1221,6 +1221,17 @@ public class Process {
      */
     public static final native int[] getExclusiveCores();
 
+
+    /**
+     * Get the CPU affinity masks from sched_getaffinity.
+     *
+     * @param tid The identifier of the thread/process to get the sched affinity.
+     * @return an array of CPU affinity masks, of which the size will be dynamic and just enough to
+     *         include all bit masks for all currently online and possible CPUs of the device.
+     * @hide
+     */
+    public static final native long[] getSchedAffinity(int tid);
+
     /**
      * Set the priority of the calling thread, based on Linux priorities.  See
      * {@link #setThreadPriority(int, int)} for more information.
@@ -1336,12 +1347,19 @@ public class Process {
      * Return the name of this process. By default, the process name is the same as the app's
      * package name, but this can be changed using {@code android:process}.
      */
+    @RavenwoodReplace
     @NonNull
     public static String myProcessName() {
         // Note this could be different from the actual process name if someone changes the
         // process name using native code (using pthread_setname_np()). But sArgV0
         // is the name that the system thinks this process has.
         return sArgV0;
+    }
+
+    /** @hide */
+    @NonNull
+    public static String myProcessName$ravenwood() {
+        return "ravenwood";
     }
 
     /**

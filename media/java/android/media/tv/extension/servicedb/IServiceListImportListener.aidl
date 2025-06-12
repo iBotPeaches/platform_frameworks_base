@@ -16,10 +16,12 @@
 
 package android.media.tv.extension.servicedb;
 
+import android.os.Bundle;
+
 /**
  * @hide
  */
 interface IServiceListImportListener {
     void onImported(int importResult);
-    void onPreloaded(int preloadResult);
+    void onPreloaded(int preloadResult, in Bundle serviceListInfo);
 }

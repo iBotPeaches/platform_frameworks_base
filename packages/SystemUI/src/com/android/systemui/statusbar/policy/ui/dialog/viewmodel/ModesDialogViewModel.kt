@@ -16,20 +16,16 @@
 
 package com.android.systemui.statusbar.policy.ui.dialog.viewmodel
 
-import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings.ACTION_AUTOMATIC_ZEN_RULE_SETTINGS
 import android.provider.Settings.EXTRA_AUTOMATIC_ZEN_RULE_ID
-import com.android.settingslib.notification.modes.EnableZenModeDialog
 import com.android.settingslib.notification.modes.ZenMode
 import com.android.settingslib.notification.modes.ZenModeDescriptions
 import com.android.systemui.common.shared.model.asIcon
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.qs.tiles.dialog.QSZenModeDialogMetricsLogger
 import com.android.systemui.res.R
-import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.policy.domain.interactor.ZenModeInteractor
 import com.android.systemui.statusbar.policy.ui.dialog.ModesDialogDelegate
 import com.android.systemui.statusbar.policy.ui.dialog.ModesDialogEventLogger
@@ -54,7 +50,6 @@ constructor(
     private val dialogDelegate: ModesDialogDelegate,
     private val dialogEventLogger: ModesDialogEventLogger,
 ) {
-    private val zenDialogMetricsLogger = QSZenModeDialogMetricsLogger(context)
     private val zenModeDescriptions = ZenModeDescriptions(context)
 
     // Modes that should be displayed in the dialog
@@ -76,10 +71,10 @@ constructor(
                         mode.id in prevIds -> true
                         // Mode is enabled -> show if active (so user can toggle off), or if it
                         // can be manually toggled on
-                        mode.rule.isEnabled -> mode.isActive || mode.rule.isManualInvocationAllowed
+                        mode.isEnabled -> mode.isActive || mode.isManualInvocationAllowed
                         // Mode was created as disabled, or disabled by the app that owns it ->
                         // will be shown with a "Not set" text
-                        !mode.rule.isEnabled -> mode.status == ZenMode.Status.DISABLED_BY_OTHER
+                        !mode.isEnabled -> mode.status == ZenMode.Status.DISABLED_BY_OTHER
                         else -> false
                     }
                 }
@@ -102,17 +97,17 @@ constructor(
                                 if (mode.isActive) R.string.zen_mode_on else R.string.zen_mode_off
                             ),
                         onClick = {
-                            if (!mode.rule.isEnabled) {
+                            if (!mode.isEnabled) {
                                 openSettings(mode)
                             } else if (mode.isActive) {
                                 dialogEventLogger.logModeOff(mode)
                                 zenModeInteractor.deactivateMode(mode)
                             } else {
-                                if (mode.rule.isManualInvocationAllowed) {
+                                if (mode.isManualInvocationAllowed) {
                                     if (zenModeInteractor.shouldAskForZenDuration(mode)) {
                                         dialogEventLogger.logOpenDurationDialog(mode)
                                         // NOTE: The dialog handles turning on the mode itself.
-                                        val dialog = makeZenModeDialog()
+                                        val dialog = dialogDelegate.makeDndDurationDialog()
                                         dialog.show()
                                     } else {
                                         dialogEventLogger.logModeOn(mode)
@@ -149,10 +144,10 @@ constructor(
      * readers, and for the tile subtext will be augmented with the current status of the mode.
      */
     private fun getModeDescription(mode: ZenMode, forAccessibility: Boolean): String? {
-        if (!mode.rule.isEnabled) {
+        if (!mode.isEnabled) {
             return context.resources.getString(R.string.zen_mode_set_up)
         }
-        if (!mode.rule.isManualInvocationAllowed && !mode.isActive) {
+        if (!mode.isManualInvocationAllowed && !mode.isActive) {
             return context.resources.getString(R.string.zen_mode_no_manual_invocation)
         }
         return if (forAccessibility)
@@ -172,21 +167,5 @@ constructor(
         } else {
             modeDescription ?: context.getString(R.string.zen_mode_off)
         }
-    }
-
-    private fun makeZenModeDialog(): Dialog {
-        val dialog =
-            EnableZenModeDialog(
-                    context,
-                    R.style.Theme_SystemUI_Dialog,
-                    /* cancelIsNeutral= */ true,
-                    zenDialogMetricsLogger,
-                )
-                .createDialog()
-        SystemUIDialog.applyFlags(dialog)
-        SystemUIDialog.setShowForAllUsers(dialog, true)
-        SystemUIDialog.registerDismissListener(dialog)
-        SystemUIDialog.setDialogSize(dialog)
-        return dialog
     }
 }

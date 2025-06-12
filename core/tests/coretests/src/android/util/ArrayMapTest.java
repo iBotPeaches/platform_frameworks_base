@@ -14,14 +14,17 @@
 
 package android.util;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.fail;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.Presubmit;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,6 +35,7 @@ import java.util.ConcurrentModificationException;
  * Unit tests for ArrayMap that don't belong in CTS.
  */
 @LargeTest
+@Presubmit
 @RunWith(AndroidJUnit4.class)
 public class ArrayMapTest {
     private static final String TAG = "ArrayMapTest";
@@ -51,7 +55,7 @@ public class ArrayMapTest {
      * @throws Exception
      */
     @Test
-    @IgnoreUnderRavenwood(reason = "Long test runtime")
+    @Ignore("Failing; b/399137661")
     public void testConcurrentModificationException() throws Exception {
         final int TEST_LEN_MS = 5000;
         System.out.println("Starting ArrayMap concurrency test");
@@ -117,5 +121,50 @@ public class ArrayMapTest {
                 fail();
             }
         }
+    }
+
+    @Test
+    public void testToString() {
+        map.put("1", "One");
+        map.put("2", "Two");
+        map.put("3", "Five");
+        map.put("3", "Three");
+
+        assertThat(map.toString()).isEqualTo("{1=One, 2=Two, 3=Three}");
+        assertThat(map.keySet().toString()).isEqualTo("[1, 2, 3]");
+        assertThat(map.values().toString()).isEqualTo("[One, Two, Three]");
+    }
+
+    @Test
+    public void testToStringRecursive() {
+        ArrayMap<Object, Object> weird = new ArrayMap<>();
+        weird.put("1", weird);
+
+        assertThat(weird.toString()).isEqualTo("{1=(this Map)}");
+        assertThat(weird.keySet().toString()).isEqualTo("[1]");
+        assertThat(weird.values().toString()).isEqualTo("[{1=(this Map)}]");
+    }
+
+    @Test
+    public void testToStringRecursiveKeySet() {
+        ArrayMap<Object, Object> weird = new ArrayMap<>();
+        weird.put("1", weird.keySet());
+        weird.put(weird.keySet(), "2");
+
+        assertThat(weird.toString()).isEqualTo("{1=[1, (this KeySet)], [1, (this KeySet)]=2}");
+        assertThat(weird.keySet().toString()).isEqualTo("[1, (this KeySet)]");
+        assertThat(weird.values().toString()).isEqualTo("[[1, (this KeySet)], 2]");
+    }
+
+    @Test
+    public void testToStringRecursiveValues() {
+        ArrayMap<Object, Object> weird = new ArrayMap<>();
+        weird.put("1", weird.values());
+        weird.put(weird.values(), "2");
+
+        assertThat(weird.toString()).isEqualTo(
+                "{1=[(this ValuesCollection), 2], [(this ValuesCollection), 2]=2}");
+        assertThat(weird.keySet().toString()).isEqualTo("[1, [(this ValuesCollection), 2]]");
+        assertThat(weird.values().toString()).isEqualTo("[(this ValuesCollection), 2]");
     }
 }

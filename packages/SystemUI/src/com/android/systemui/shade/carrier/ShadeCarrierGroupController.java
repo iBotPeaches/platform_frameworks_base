@@ -39,9 +39,13 @@ import androidx.annotation.VisibleForTesting;
 import com.android.keyguard.CarrierTextManager;
 import com.android.settingslib.AccessibilityContentDescriptions;
 import com.android.settingslib.mobile.TelephonyIcons;
+import com.android.systemui.Flags;
 import com.android.systemui.dagger.SysUISingleton;
+import com.android.systemui.dagger.qualifiers.Application;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
+import com.android.systemui.kairos.ExperimentalKairosApi;
+import com.android.systemui.kairos.KairosNetwork;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.res.R;
 import com.android.systemui.shade.ShadeDisplayAware;
@@ -52,17 +56,30 @@ import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider;
 import com.android.systemui.statusbar.phone.StatusBarLocation;
 import com.android.systemui.statusbar.pipeline.StatusBarPipelineFlags;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter;
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.mobile.ui.binder.MobileIconsBinder;
 import com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernShadeCarrierGroupMobileView;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel;
+import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModelKairos;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.ShadeCarrierGroupMobileIconViewModel;
 import com.android.systemui.util.CarrierConfigTracker;
 
+import dagger.Lazy;
+
+import kotlin.OptIn;
+import kotlin.Pair;
+
+import kotlinx.coroutines.CoroutineScope;
+import kotlinx.coroutines.Job;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 
 import javax.inject.Inject;
 
+@OptIn(markerClass = ExperimentalKairosApi.class)
 public class ShadeCarrierGroupController {
     private static final String TAG = "ShadeCarrierGroup";
 
@@ -100,38 +117,43 @@ public class ShadeCarrierGroupController {
 
     private final ShadeCarrierGroupControllerLogger mLogger;
 
-    private final SignalCallback mSignalCallback = new SignalCallback() {
-                @Override
-                public void setMobileDataIndicators(@NonNull MobileDataIndicators indicators) {
-                    int slotIndex = getSlotIndex(indicators.subId);
-                    if (slotIndex >= SIM_SLOTS) {
-                        Log.w(TAG, "setMobileDataIndicators - slot: " + slotIndex);
-                        return;
-                    }
-                    if (slotIndex == INVALID_SIM_SLOT_INDEX) {
-                        Log.e(TAG, "Invalid SIM slot index for subscription: " + indicators.subId);
-                        return;
-                    }
-                    mInfos[slotIndex] = new CellSignalState(
-                            indicators.statusIcon.visible,
-                            indicators.statusIcon.icon,
-                            indicators.statusIcon.contentDescription,
-                            indicators.typeContentDescription.toString(),
-                            indicators.roaming
-                    );
-                    mMainHandler.obtainMessage(H.MSG_UPDATE_STATE).sendToTarget();
-                }
+    private final Lazy<MobileUiAdapterKairos> mMobileUiAdapterKairos;
+    private final CoroutineScope mAppScope;
+    private final KairosNetwork mKairosNetwork;
 
-                @Override
-                public void setNoSims(boolean hasNoSims, boolean simDetected) {
-                    if (hasNoSims) {
-                        for (int i = 0; i < SIM_SLOTS; i++) {
-                            mInfos[i] = mInfos[i].changeVisibility(false);
-                        }
-                    }
-                    mMainHandler.obtainMessage(H.MSG_UPDATE_STATE).sendToTarget();
+    private final SignalCallback mSignalCallback = new SignalCallback() {
+        @Override
+        public void setMobileDataIndicators(@NonNull MobileDataIndicators indicators) {
+            int slotIndex = getSlotIndex(indicators.subId);
+            if (slotIndex >= SIM_SLOTS) {
+                Log.w(TAG, "setMobileDataIndicators - slot: " + slotIndex);
+                return;
+            }
+            if (slotIndex == INVALID_SIM_SLOT_INDEX) {
+                Log.e(TAG, "Invalid SIM slot index for subscription: " + indicators.subId);
+                return;
+            }
+            mInfos[slotIndex] = new CellSignalState(
+                    indicators.statusIcon.visible,
+                    indicators.statusIcon.icon,
+                    indicators.statusIcon.contentDescription,
+                    indicators.typeContentDescription.toString(),
+                    indicators.roaming
+            );
+            mMainHandler.obtainMessage(H.MSG_UPDATE_STATE).sendToTarget();
+        }
+
+        @Override
+        public void setNoSims(boolean hasNoSims, boolean simDetected) {
+            if (hasNoSims) {
+                for (int i = 0; i < SIM_SLOTS; i++) {
+                    mInfos[i] = mInfos[i].changeVisibility(false);
                 }
-            };
+            }
+            mMainHandler.obtainMessage(H.MSG_UPDATE_STATE).sendToTarget();
+        }
+    };
+    private final ArrayList<Job> mBindingJobs = new ArrayList<>();
 
     private static class Callback implements CarrierTextManager.CarrierTextCallback {
         private H mHandler;
@@ -159,7 +181,10 @@ public class ShadeCarrierGroupController {
             SlotIndexResolver slotIndexResolver,
             MobileUiAdapter mobileUiAdapter,
             MobileContextProvider mobileContextProvider,
-            StatusBarPipelineFlags statusBarPipelineFlags
+            StatusBarPipelineFlags statusBarPipelineFlags,
+            Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
+            CoroutineScope appScope,
+            KairosNetwork kairosNetwork
     ) {
         mContext = context;
         mActivityStarter = activityStarter;
@@ -174,6 +199,9 @@ public class ShadeCarrierGroupController {
                 .build();
         mCarrierConfigTracker = carrierConfigTracker;
         mSlotIndexResolver = slotIndexResolver;
+        mMobileUiAdapterKairos = mobileUiAdapterKairos;
+        mAppScope = appScope;
+        mKairosNetwork = kairosNetwork;
         View.OnClickListener onClickListener = v -> {
             if (!v.isVisibleToUser()) {
                 return;
@@ -195,8 +223,12 @@ public class ShadeCarrierGroupController {
         mMobileIconsViewModel = mobileUiAdapter.getMobileIconsViewModel();
 
         if (mStatusBarPipelineFlags.useNewShadeCarrierGroupMobileIcons()) {
-            mobileUiAdapter.setShadeCarrierGroupController(this);
-            MobileIconsBinder.bind(view, mMobileIconsViewModel);
+            if (Flags.statusBarMobileIconKairos()) {
+                mobileUiAdapterKairos.get().setShadeCarrierGroupController(this);
+            } else {
+                mobileUiAdapter.setShadeCarrierGroupController(this);
+                MobileIconsBinder.bind(view, mMobileIconsViewModel);
+            }
         }
 
         mCarrierDividers[0] = view.getCarrierDivider1();
@@ -243,21 +275,52 @@ public class ShadeCarrierGroupController {
 
         List<IconData> iconDataList = processSubIdList(subIds);
 
-        for (IconData iconData : iconDataList) {
-            ShadeCarrier carrier = mCarrierGroups[iconData.slotIndex];
+        if (Flags.statusBarMobileIconKairos()) {
+            for (Job job : mBindingJobs) {
+                job.cancel(new CancellationException());
+            }
+            mBindingJobs.clear();
+            MobileIconsViewModelKairos mobileIconsViewModel =
+                    mMobileUiAdapterKairos.get().getMobileIconsViewModel();
+            for (IconData iconData : iconDataList) {
+                ShadeCarrier carrier = mCarrierGroups[iconData.slotIndex];
 
-            Context mobileContext =
-                    mMobileContextProvider.getMobileContextForSub(iconData.subId, mContext);
-            ModernShadeCarrierGroupMobileView modernMobileView = ModernShadeCarrierGroupMobileView
-                    .constructAndBind(
-                        mobileContext,
-                        mMobileIconsViewModel.getLogger(),
-                        "mobile_carrier_shade_group",
-                        (ShadeCarrierGroupMobileIconViewModel) mMobileIconsViewModel
-                                .viewModelForSub(iconData.subId,
-                                    StatusBarLocation.SHADE_CARRIER_GROUP)
-                    );
-            carrier.addModernMobileView(modernMobileView);
+                Context mobileContext =
+                        mMobileContextProvider.getMobileContextForSub(iconData.subId, mContext);
+
+                Pair<ModernShadeCarrierGroupMobileView, Job> viewAndJob =
+                        ModernShadeCarrierGroupMobileView.constructAndBind(
+                                mobileContext,
+                                mobileIconsViewModel.getLogger(),
+                                "mobile_carrier_shade_group",
+                                mobileIconsViewModel.shadeCarrierGroupIcon(iconData.subId),
+                                mAppScope,
+                                iconData.subId,
+                                StatusBarLocation.SHADE_CARRIER_GROUP,
+                                mKairosNetwork
+                        );
+                mBindingJobs.add(viewAndJob.getSecond());
+                carrier.addModernMobileView(viewAndJob.getFirst());
+            }
+        } else {
+            for (IconData iconData : iconDataList) {
+                ShadeCarrier carrier = mCarrierGroups[iconData.slotIndex];
+
+                Context mobileContext =
+                        mMobileContextProvider.getMobileContextForSub(iconData.subId, mContext);
+
+                ModernShadeCarrierGroupMobileView modernMobileView =
+                        ModernShadeCarrierGroupMobileView
+                                .constructAndBind(
+                                        mobileContext,
+                                        mMobileIconsViewModel.getLogger(),
+                                        "mobile_carrier_shade_group",
+                                        (ShadeCarrierGroupMobileIconViewModel) mMobileIconsViewModel
+                                                .viewModelForSub(iconData.subId,
+                                                        StatusBarLocation.SHADE_CARRIER_GROUP)
+                                );
+                carrier.addModernMobileView(modernMobileView);
+            }
         }
     }
 
@@ -288,7 +351,6 @@ public class ShadeCarrierGroupController {
      * Sets a {@link OnSingleCarrierChangedListener}.
      *
      * This will get notified when the number of carriers changes between 1 and "not one".
-     * @param listener
      */
     public void setOnSingleCarrierChangedListener(
             @Nullable OnSingleCarrierChangedListener listener) {
@@ -489,6 +551,9 @@ public class ShadeCarrierGroupController {
         private final MobileUiAdapter mMobileUiAdapter;
         private final MobileContextProvider mMobileContextProvider;
         private final StatusBarPipelineFlags mStatusBarPipelineFlags;
+        private final CoroutineScope mAppScope;
+        private final KairosNetwork mKairosNetwork;
+        private final Lazy<MobileUiAdapterKairos> mMobileUiAdapterKairos;
 
         @Inject
         public Builder(
@@ -503,7 +568,10 @@ public class ShadeCarrierGroupController {
                 SlotIndexResolver slotIndexResolver,
                 MobileUiAdapter mobileUiAdapter,
                 MobileContextProvider mobileContextProvider,
-                StatusBarPipelineFlags statusBarPipelineFlags
+                StatusBarPipelineFlags statusBarPipelineFlags,
+                @Application CoroutineScope appScope,
+                KairosNetwork kairosNetwork,
+                Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos
         ) {
             mActivityStarter = activityStarter;
             mHandler = handler;
@@ -517,6 +585,9 @@ public class ShadeCarrierGroupController {
             mMobileUiAdapter = mobileUiAdapter;
             mMobileContextProvider = mobileContextProvider;
             mStatusBarPipelineFlags = statusBarPipelineFlags;
+            mAppScope = appScope;
+            mKairosNetwork = kairosNetwork;
+            mMobileUiAdapterKairos = mobileUiAdapterKairos;
         }
 
         public Builder setShadeCarrierGroup(ShadeCarrierGroup view) {
@@ -538,8 +609,10 @@ public class ShadeCarrierGroupController {
                     mSlotIndexResolver,
                     mMobileUiAdapter,
                     mMobileContextProvider,
-                    mStatusBarPipelineFlags
-            );
+                    mStatusBarPipelineFlags,
+                    mMobileUiAdapterKairos,
+                    mAppScope,
+                    mKairosNetwork);
         }
     }
 
@@ -571,7 +644,8 @@ public class ShadeCarrierGroupController {
     public static class SubscriptionManagerSlotIndexResolver implements SlotIndexResolver {
 
         @Inject
-        public SubscriptionManagerSlotIndexResolver() {}
+        public SubscriptionManagerSlotIndexResolver() {
+        }
 
         @Override
         public int getSlotIndex(int subscriptionId) {

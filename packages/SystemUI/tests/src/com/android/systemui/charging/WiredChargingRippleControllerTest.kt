@@ -23,13 +23,11 @@ import android.view.WindowManager
 import android.view.WindowMetrics
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.app.viewcapture.ViewCapture
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.logging.UiEventLogger
+import com.android.systemui.res.R
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.flags.FeatureFlags
 import com.android.systemui.flags.Flags
-import com.android.systemui.res.R
 import com.android.systemui.statusbar.commandline.CommandRegistry
 import com.android.systemui.statusbar.policy.BatteryController
 import com.android.systemui.statusbar.policy.ConfigurationController
@@ -42,12 +40,12 @@ import org.junit.runner.RunWith
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers
 import org.mockito.Mock
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.any
 import org.mockito.Mockito.eq
 import org.mockito.Mockito.never
 import org.mockito.Mockito.reset
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 
 @SmallTest
@@ -62,7 +60,6 @@ class WiredChargingRippleControllerTest : SysuiTestCase() {
     @Mock private lateinit var windowManager: WindowManager
     @Mock private lateinit var uiEventLogger: UiEventLogger
     @Mock private lateinit var windowMetrics: WindowMetrics
-    @Mock private lateinit var lazyViewCapture: Lazy<ViewCapture>
     private val systemClock = FakeSystemClock()
 
     @Before
@@ -71,9 +68,7 @@ class WiredChargingRippleControllerTest : SysuiTestCase() {
         `when`(featureFlags.isEnabled(Flags.CHARGING_RIPPLE)).thenReturn(true)
         controller = WiredChargingRippleController(
                 commandRegistry, batteryController, configurationController,
-                featureFlags, context, windowManager,
-                ViewCaptureAwareWindowManager(windowManager,
-                        lazyViewCapture, isViewCaptureEnabled = false), systemClock, uiEventLogger)
+                featureFlags, context, windowManager, systemClock, uiEventLogger)
         rippleView.setupShader()
         controller.rippleView = rippleView // Replace the real ripple view with a mock instance
         controller.registerCallbacks()

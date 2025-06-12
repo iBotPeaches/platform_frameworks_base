@@ -18,13 +18,11 @@ package com.android.server.power.stats;
 
 import android.os.BatteryStats;
 import android.os.Parcel;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
 
 import junit.framework.Assert;
 
-import org.junit.Rule;
 import org.junit.Test;
 
 /**
@@ -32,11 +30,6 @@ import org.junit.Test;
  */
 @SmallTest
 public class BatteryStatsServTest {
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final String TAG = "BatteryStatsServTest";
 
     public static class TestServ extends BatteryStatsImpl.Uid.Pkg.Serv {

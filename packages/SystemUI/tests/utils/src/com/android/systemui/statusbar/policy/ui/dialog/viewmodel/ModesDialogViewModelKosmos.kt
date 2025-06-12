@@ -16,7 +16,7 @@
 
 package com.android.systemui.statusbar.policy.ui.dialog.viewmodel
 
-import android.content.mockedContext
+import android.content.applicationContext
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.statusbar.policy.domain.interactor.zenModeInteractor
@@ -27,7 +27,7 @@ import javax.inject.Provider
 val Kosmos.modesDialogViewModel: ModesDialogViewModel by
     Kosmos.Fixture {
         ModesDialogViewModel(
-            mockedContext,
+            applicationContext,
             zenModeInteractor,
             testDispatcher,
             Provider { modesDialogDelegate }.get(),

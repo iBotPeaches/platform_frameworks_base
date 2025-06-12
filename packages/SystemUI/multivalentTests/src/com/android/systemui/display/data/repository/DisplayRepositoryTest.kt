@@ -23,18 +23,19 @@ import android.view.Display
 import android.view.Display.DEFAULT_DISPLAY
 import android.view.Display.TYPE_EXTERNAL
 import android.view.Display.TYPE_INTERNAL
+import android.view.IWindowManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.app.displaylib.DisplayRepository.PendingDisplay
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.FlowValue
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.coroutines.collectValues
+import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.util.mockito.kotlinArgumentCaptor
 import com.android.systemui.util.mockito.mock
-import com.android.systemui.util.mockito.whenever
 import com.android.systemui.utils.os.FakeHandler
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -47,15 +48,19 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 class DisplayRepositoryTest : SysuiTestCase() {
 
     private val displayManager = mock<DisplayManager>()
+    private val commandQueue = mock<CommandQueue>()
+    private val windowManager = mock<IWindowManager>()
+
     private val displayListener = kotlinArgumentCaptor<DisplayManager.DisplayListener>()
+    private val commandQueueCallbacks = kotlinArgumentCaptor<CommandQueue.Callbacks>()
     private val connectedDisplayListener = kotlinArgumentCaptor<DisplayManager.DisplayListener>()
 
     private val testHandler = FakeHandler(Looper.getMainLooper())
@@ -67,17 +72,26 @@ class DisplayRepositoryTest : SysuiTestCase() {
     // that the initial state (soon after construction) contains the expected ones set in every
     // test.
     private val displayRepository: DisplayRepositoryImpl by lazy {
-        DisplayRepositoryImpl(
+        // TODO b/401305290 - move this to kosmos
+        val displayRepositoryFromLib =
+            com.android.app.displaylib.DisplayRepositoryImpl(
                 displayManager,
                 testHandler,
-                TestScope(UnconfinedTestDispatcher()),
+                testScope.backgroundScope,
                 UnconfinedTestDispatcher(),
             )
-            .also {
-                verify(displayManager, never()).registerDisplayListener(any(), any())
-                // It needs to be called, just once, for the initial value.
-                verify(displayManager).getDisplays()
-            }
+        val displaysWithDecorRepository =
+            DisplaysWithDecorationsRepositoryImpl(
+                commandQueue,
+                windowManager,
+                testScope.backgroundScope,
+                displayRepositoryFromLib,
+            )
+        DisplayRepositoryImpl(displayRepositoryFromLib, displaysWithDecorRepository).also {
+            verify(displayManager, never()).registerDisplayListener(any(), any())
+            // It needs to be called, just once, for the initial value.
+            verify(displayManager).getDisplays()
+        }
     }
 
     @Before
@@ -397,7 +411,7 @@ class DisplayRepositoryTest : SysuiTestCase() {
             val pendingDisplay by lastPendingDisplay()
 
             sendOnDisplayConnected(1, TYPE_EXTERNAL)
-            val initialPendingDisplay: DisplayRepository.PendingDisplay? = pendingDisplay
+            val initialPendingDisplay: PendingDisplay? = pendingDisplay
             assertThat(pendingDisplay).isNotNull()
             sendOnDisplayChanged(1)
 
@@ -410,7 +424,7 @@ class DisplayRepositoryTest : SysuiTestCase() {
             val pendingDisplay by lastPendingDisplay()
 
             sendOnDisplayConnected(1, TYPE_EXTERNAL)
-            val initialPendingDisplay: DisplayRepository.PendingDisplay? = pendingDisplay
+            val initialPendingDisplay: PendingDisplay? = pendingDisplay
             assertThat(pendingDisplay).isNotNull()
             sendOnDisplayConnected(2, TYPE_EXTERNAL)
 
@@ -515,6 +529,115 @@ class DisplayRepositoryTest : SysuiTestCase() {
             assertThat(displayRepository.getDisplay(2)).isNull()
         }
 
+    @Test
+    fun displayIdsWithSystemDecorations_onStart_emitsDisplaysWithSystemDecorations() =
+        testScope.runTest {
+            setDisplays(0, 1, 2)
+            whenever(windowManager.shouldShowSystemDecors(0)).thenReturn(true)
+            whenever(windowManager.shouldShowSystemDecors(1)).thenReturn(false)
+            whenever(windowManager.shouldShowSystemDecors(2)).thenReturn(true)
+
+            val displayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            assertThat(displayIdsWithSystemDecorations).containsExactly(0, 2)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_systemDecorationAdded_emitsIncludingNewDisplayIds() =
+        testScope.runTest {
+            setDisplays(0)
+            whenever(windowManager.shouldShowSystemDecors(0)).thenReturn(true)
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            sendOnDisplayAddSystemDecorations(2)
+            sendOnDisplayAddSystemDecorations(3)
+
+            assertThat(lastDisplayIdsWithSystemDecorations).containsExactly(0, 2, 3)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_systemDecorationAdded_emitsToNewSubscribers() =
+        testScope.runTest {
+            setDisplays(0)
+            whenever(windowManager.shouldShowSystemDecors(0)).thenReturn(true)
+
+            val priorDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+            sendOnDisplayAddSystemDecorations(1)
+            assertThat(priorDisplayIdsWithSystemDecorations).containsExactly(0, 1)
+
+            val lastDisplayIdsWithSystemDecorations by
+                collectLastValue(displayRepository.displayIdsWithSystemDecorations)
+            assertThat(lastDisplayIdsWithSystemDecorations).containsExactly(0, 1)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_systemDecorationRemoved_doesNotEmitRemovedDisplayId() =
+        testScope.runTest {
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            sendOnDisplayAddSystemDecorations(1)
+            sendOnDisplayAddSystemDecorations(2)
+            sendOnDisplayRemoveSystemDecorations(2)
+
+            assertThat(lastDisplayIdsWithSystemDecorations).containsExactly(1)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_systemDecorationsRemoved_nonExistentDisplay_noEffect() =
+        testScope.runTest {
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            sendOnDisplayAddSystemDecorations(1)
+            sendOnDisplayRemoveSystemDecorations(2)
+
+            assertThat(lastDisplayIdsWithSystemDecorations).containsExactly(1)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_displayRemoved_doesNotEmitRemovedDisplayId() =
+        testScope.runTest {
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            sendOnDisplayAddSystemDecorations(1)
+            sendOnDisplayAddSystemDecorations(2)
+            sendOnDisplayRemoved(2)
+
+            assertThat(lastDisplayIdsWithSystemDecorations).containsExactly(1)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_displayRemoved_nonExistentDisplay_noEffect() =
+        testScope.runTest {
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            sendOnDisplayAddSystemDecorations(1)
+            sendOnDisplayRemoved(2)
+
+            assertThat(lastDisplayIdsWithSystemDecorations).containsExactly(1)
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_onFlowCollection_commandQueueCallbackRegistered() =
+        testScope.runTest {
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            assertThat(lastDisplayIdsWithSystemDecorations).isEmpty()
+
+            verify(commandQueue, times(1)).addCallback(any())
+        }
+
+    @Test
+    fun displayIdsWithSystemDecorations_afterFlowCollection_commandQueueCallbackUnregistered() {
+        testScope.runTest {
+            val lastDisplayIdsWithSystemDecorations by latestDisplayIdsWithSystemDecorationsValue()
+
+            assertThat(lastDisplayIdsWithSystemDecorations).isEmpty()
+
+            verify(commandQueue, times(1)).addCallback(any())
+        }
+        verify(commandQueue, times(1)).removeCallback(any())
+    }
+
     private fun Iterable<Display>.ids(): List<Int> = map { it.displayId }
 
     private fun Iterable<Set<Display>>.toIdSets(): List<Set<Int>> = map { it.ids().toSet() }
@@ -533,7 +656,7 @@ class DisplayRepositoryTest : SysuiTestCase() {
         return flowValue
     }
 
-    private fun TestScope.lastPendingDisplay(): FlowValue<DisplayRepository.PendingDisplay?> {
+    private fun TestScope.lastPendingDisplay(): FlowValue<PendingDisplay?> {
         val flowValue = collectLastValue(displayRepository.pendingDisplay)
         captureAddedRemovedListener()
         verify(displayManager)
@@ -541,7 +664,7 @@ class DisplayRepositoryTest : SysuiTestCase() {
                 connectedDisplayListener.capture(),
                 eq(testHandler),
                 eq(0),
-                eq(DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_CONNECTION_CHANGED),
+                eq(DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_CONNECTION_CHANGED),
             )
         return flowValue
     }
@@ -552,17 +675,29 @@ class DisplayRepositoryTest : SysuiTestCase() {
         return flowValue
     }
 
+    // Wrapper to capture the displayListener and commandQueueCallbacks.
+    private fun TestScope.latestDisplayIdsWithSystemDecorationsValue(): FlowValue<Set<Int>?> {
+        val flowValue = collectLastValue(displayRepository.displayIdsWithSystemDecorations)
+        captureAddedRemovedListener()
+        captureCommandQueueCallbacks()
+        return flowValue
+    }
+
     private fun captureAddedRemovedListener() {
         verify(displayManager)
             .registerDisplayListener(
                 displayListener.capture(),
                 eq(testHandler),
                 eq(
-                    DisplayManager.EVENT_FLAG_DISPLAY_ADDED or
-                        DisplayManager.EVENT_FLAG_DISPLAY_CHANGED or
-                        DisplayManager.EVENT_FLAG_DISPLAY_REMOVED
+                    DisplayManager.EVENT_TYPE_DISPLAY_ADDED or
+                        DisplayManager.EVENT_TYPE_DISPLAY_CHANGED or
+                        DisplayManager.EVENT_TYPE_DISPLAY_REMOVED
                 ),
             )
+    }
+
+    private fun captureCommandQueueCallbacks() {
+        verify(commandQueue).addCallback(commandQueueCallbacks.capture())
     }
 
     private fun sendOnDisplayAdded(id: Int, displayType: Int) {
@@ -592,6 +727,14 @@ class DisplayRepositoryTest : SysuiTestCase() {
 
     private fun sendOnDisplayChanged(id: Int) {
         connectedDisplayListener.value.onDisplayChanged(id)
+    }
+
+    private fun sendOnDisplayRemoveSystemDecorations(id: Int) {
+        commandQueueCallbacks.value.onDisplayRemoveSystemDecorations(id)
+    }
+
+    private fun sendOnDisplayAddSystemDecorations(id: Int) {
+        commandQueueCallbacks.value.onDisplayAddSystemDecorations(id)
     }
 
     private fun setDisplays(displays: List<Display>) {

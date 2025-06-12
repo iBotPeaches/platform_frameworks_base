@@ -257,15 +257,11 @@ public class FrameTracker implements HardwareRendererObserver.OnFrameMetricsAvai
 
                 @Override
                 public void surfaceDestroyed() {
-
-                    // Wait a while to give the system a chance for the remaining
-                    // frames to arrive, then force finish the session.
-                    mHandler.postDelayed(() -> {
+                    mHandler.post(() -> {
                         if (!mMetricsFinalized) {
                             end(REASON_END_SURFACE_DESTROYED);
-                            finish();
                         }
-                    }, 50);
+                    });
                 }
             };
             // This callback has a reference to FrameTracker,
@@ -367,9 +363,9 @@ public class FrameTracker implements HardwareRendererObserver.OnFrameMetricsAvai
                     // Send a flush jank data transaction.
                     if (mSurfaceControl != null && mSurfaceControl.isValid()) {
                         SurfaceControl.Transaction.sendSurfaceFlushJankData(mSurfaceControl);
-                        if (mJankDataListenerRegistration != null) {
-                            mJankDataListenerRegistration.flush();
-                        }
+                    }
+                    if (mJankDataListenerRegistration != null) {
+                        mJankDataListenerRegistration.flush();
                     }
 
                     long delay;
@@ -650,6 +646,8 @@ public class FrameTracker implements HardwareRendererObserver.OnFrameMetricsAvai
                     Log.w(TAG, "Missing SF jank callback for vsyncId: " + info.frameVsyncId
                             + ", CUJ=" + name);
                 }
+            } else if (Flags.useSfFrameDuration() && info.surfaceControlCallbackFired) {
+                maxFrameTimeNanos = Math.max(info.totalDurationNanos, maxFrameTimeNanos);
             }
         }
         maxSuccessiveMissedFramesCount = Math.max(

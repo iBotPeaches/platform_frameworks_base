@@ -38,7 +38,14 @@ import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.Flags
+import com.android.systemui.Flags.FLAG_GLANCEABLE_HUB_V2
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.bouncer.data.repository.FakeKeyguardBouncerRepository
+import com.android.systemui.bouncer.data.repository.fakeKeyguardBouncerRepository
+import com.android.systemui.communal.data.repository.fakeCommunalSceneRepository
+import com.android.systemui.communal.domain.interactor.communalSceneInteractor
+import com.android.systemui.communal.domain.interactor.setCommunalV2Available
+import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.keyguard.data.repository.FakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
@@ -52,6 +59,8 @@ import com.android.systemui.keyguard.shared.model.KeyguardState.LOCKSCREEN
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
 import com.android.systemui.keyguard.util.KeyguardTransitionRepositorySpySubject.Companion.assertThat
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
@@ -60,8 +69,8 @@ import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.domain.interactor.keyguardOcclusionInteractor
 import com.android.systemui.testKosmos
+import com.google.common.truth.Truth
 import junit.framework.Assert.assertEquals
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -71,7 +80,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.reset
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class FromAodTransitionInteractorTest : SysuiTestCase() {
@@ -85,11 +93,13 @@ class FromAodTransitionInteractorTest : SysuiTestCase() {
 
     private lateinit var powerInteractor: PowerInteractor
     private lateinit var transitionRepository: FakeKeyguardTransitionRepository
+    private lateinit var bouncerRepository: FakeKeyguardBouncerRepository
 
     @Before
     fun setup() {
         powerInteractor = kosmos.powerInteractor
         transitionRepository = kosmos.fakeKeyguardTransitionRepositorySpy
+        bouncerRepository = kosmos.fakeKeyguardBouncerRepository
         underTest = kosmos.fromAodTransitionInteractor
 
         underTest.start()
@@ -304,6 +314,29 @@ class FromAodTransitionInteractorTest : SysuiTestCase() {
         }
 
     @Test
+    fun testWakeAndUnlock_transitionsToGone_evenIfBouncerShows() =
+        testScope.runTest {
+            kosmos.fakeKeyguardRepository.setBiometricUnlockState(
+                BiometricUnlockMode.WAKE_AND_UNLOCK
+            )
+            runCurrent()
+            bouncerRepository.setPrimaryShow(true)
+            runCurrent()
+            powerInteractor.setAwakeForTest()
+            runCurrent()
+
+            // Waking up from wake and unlock should not start any transitions, we'll wait for the
+            // dismiss call.
+            assertThat(transitionRepository).noTransitionsStarted()
+
+            underTest.dismissAod()
+            advanceTimeBy(100) // account for debouncing
+
+            assertThat(transitionRepository)
+                .startedTransition(from = KeyguardState.AOD, to = KeyguardState.GONE)
+        }
+
+    @Test
     fun testTransitionToOccluded_onWake() =
         testScope.runTest {
             kosmos.fakeKeyguardRepository.setKeyguardOccluded(true)
@@ -388,6 +421,45 @@ class FromAodTransitionInteractorTest : SysuiTestCase() {
             powerInteractor.setAwakeForTest()
             advanceTimeBy(100) // account for debouncing
 
+            assertThat(transitionRepository)
+                .startedTransition(from = KeyguardState.AOD, to = KeyguardState.LOCKSCREEN)
+        }
+
+    @Test
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    fun testTransitionToGlanceableHub_onWakeUpFromAod() =
+        kosmos.runTest {
+            setCommunalV2Available(true)
+
+            val currentScene by collectLastValue(communalSceneInteractor.currentScene)
+            fakeCommunalSceneRepository.changeScene(CommunalScenes.Blank)
+
+            // Communal is not showing
+            Truth.assertThat(currentScene).isEqualTo(CommunalScenes.Blank)
+
+            powerInteractor.setAwakeForTest()
+            testScope.advanceTimeBy(100) // account for debouncing
+
+            Truth.assertThat(currentScene).isEqualTo(CommunalScenes.Communal)
+            assertThat(transitionRepository).noTransitionsStarted()
+        }
+
+    @Test
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    fun testDoNotTransitionToGlanceableHub_onWakeUpFromAodDueToMotion() =
+        kosmos.runTest {
+            setCommunalV2Available(true)
+
+            val currentScene by collectLastValue(communalSceneInteractor.currentScene)
+            fakeCommunalSceneRepository.changeScene(CommunalScenes.Blank)
+
+            // Communal is not showing
+            Truth.assertThat(currentScene).isEqualTo(CommunalScenes.Blank)
+
+            powerInteractor.setAwakeForTest(reason = PowerManager.WAKE_REASON_LIFT)
+            testScope.advanceTimeBy(100) // account for debouncing
+
+            Truth.assertThat(currentScene).isEqualTo(CommunalScenes.Blank)
             assertThat(transitionRepository)
                 .startedTransition(from = KeyguardState.AOD, to = KeyguardState.LOCKSCREEN)
         }

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.keyguard.ui.viewmodel
 
 import android.util.Log
@@ -24,12 +22,10 @@ import com.android.app.animation.Interpolators
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.keyguard.domain.interactor.BurnInInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor
 import com.android.systemui.keyguard.shared.model.BurnInModel
-import com.android.systemui.keyguard.shared.model.ClockSize
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.ui.StateToValue
@@ -55,6 +51,7 @@ import kotlinx.coroutines.flow.stateIn
  * Models UI state for elements that need to apply anti-burn-in tactics when showing in AOD
  * (always-on display).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class AodBurnInViewModel
 @Inject
@@ -188,18 +185,12 @@ constructor(
                 keyguardClockViewModel.currentClock.value
                     ?.config
                     ?.useAlternateSmartspaceAODTransition == true
-            // Only scale large non-weather clocks
-            // elements in large weather clock will translate the same as smartspace
-            val useScaleOnly =
-                (!useAltAod) && keyguardClockViewModel.clockSize.value == ClockSize.LARGE
+            // Only scale large non-weather clocks elements in large weather clock will translate
+            // the same as smartspace
+            val useScaleOnly = (!useAltAod) && keyguardClockViewModel.isLargeClockVisible.value
 
             val burnInY = MathUtils.lerp(0, burnIn.translationY, interpolated).toInt()
-            val translationY =
-                if (MigrateClocksToBlueprint.isEnabled) {
-                    max(params.topInset - params.minViewY, burnInY)
-                } else {
-                    max(params.topInset, params.minViewY + burnInY) - params.minViewY
-                }
+            val translationY = max(params.topInset - params.minViewY, burnInY)
             BurnInModel(
                 translationX = MathUtils.lerp(0, burnIn.translationX, interpolated).toInt(),
                 translationY = translationY,

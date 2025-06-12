@@ -19,6 +19,7 @@ java_library {
     name: "framework-minus-apex-for-host",
     installable: false,
     static_libs: ["framework-minus-apex"],
+    srcs: [":framework-ravenwood-sources"],
     visibility: ["//frameworks/base/ravenwood"],
 }
 

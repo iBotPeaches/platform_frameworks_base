@@ -486,7 +486,7 @@ public class BackgroundActivityStartControllerExemptionTests {
 
         // setup state
         when(mCallerApp.areBackgroundActivityStartsAllowed(anyInt(), any())).thenReturn(
-                new BalVerdict(BAL_ALLOW_FOREGROUND, false, "allowed"));
+                new BalVerdict(BAL_ALLOW_FOREGROUND, "allowed"));
         when(mService.getBalAppSwitchesState()).thenReturn(APP_SWITCH_ALLOW);
 
         // prepare call
@@ -523,7 +523,7 @@ public class BackgroundActivityStartControllerExemptionTests {
                 mCallerApp);
         when(mService.getBalAppSwitchesState()).thenReturn(APP_SWITCH_ALLOW);
         when(mCallerApp.areBackgroundActivityStartsAllowed(anyInt(), any())).thenReturn(
-                new BalVerdict(BAL_ALLOW_FOREGROUND, false, "allowed"));
+                new BalVerdict(BAL_ALLOW_FOREGROUND, "allowed"));
 
         // prepare call
         PendingIntentRecord originatingPendingIntent = mPendingIntentRecord;
@@ -572,7 +572,7 @@ public class BackgroundActivityStartControllerExemptionTests {
         when(mCallerApp.areBackgroundActivityStartsAllowed(anyInt(), any())).thenReturn(
                 BalVerdict.BLOCK);
         when(otherProcess.areBackgroundActivityStartsAllowed(anyInt(), any())).thenReturn(
-                new BalVerdict(BAL_ALLOW_FOREGROUND, false, "allowed"));
+                new BalVerdict(BAL_ALLOW_FOREGROUND, "allowed"));
 
         // prepare call
         PendingIntentRecord originatingPendingIntent = mPendingIntentRecord;
@@ -907,7 +907,6 @@ public class BackgroundActivityStartControllerExemptionTests {
         int realCallingUid = REGULAR_UID_2;
         int realCallingPid = REGULAR_PID_2;
 
-        mDeviceConfig.set("system_exempt_from_activity_bg_start_restriction_enabled", "true");
         AppOpsManager appOpsManager = mock(AppOpsManager.class);
         when(mService.getAppOpsManager()).thenReturn(appOpsManager);
         when(appOpsManager.checkOpNoThrow(eq(

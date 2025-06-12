@@ -27,11 +27,10 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.settings.displayTracker
 import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.statusbar.commandQueue
-import com.android.systemui.statusbar.window.data.model.StatusBarWindowState
+import com.android.systemui.statusbar.window.shared.model.StatusBarWindowState
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
@@ -40,7 +39,6 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.reset
 
 @SmallTest
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class StatusBarWindowStateRepositoryStoreTest : SysuiTestCase() {
     private val kosmos = testKosmos()

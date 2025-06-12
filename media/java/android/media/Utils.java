@@ -18,6 +18,8 @@ package android.media;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
+import android.annotation.TestApi;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
@@ -61,14 +63,30 @@ import java.util.concurrent.Executor;
  *
  * @hide
  */
+@TestApi
+@SuppressLint({"UnflaggedApi", "StaticUtils"}) // Test API
 public class Utils {
     private static final String TAG = "Utils";
 
+    /** @hide
+     * The vibration uri key parameter
+     */
+    @TestApi
+    @SuppressLint("UnflaggedApi") // Test API
     public static final String VIBRATION_URI_PARAM = "vibration_uri";
+
+    /** @hide
+     * Indicates the synchronized vibration
+     */
+    @TestApi
+    @SuppressLint("UnflaggedApi") // Test API
+    public static final String SYNCHRONIZED_VIBRATION = "synchronized";
 
     /**
      * Sorts distinct (non-intersecting) range array in ascending order.
      * @throws java.lang.IllegalArgumentException if ranges are not distinct
+     *
+     * @hide
      */
     public static <T extends Comparable<? super T>> void sortDistinctRanges(Range<T>[] ranges) {
         Arrays.sort(ranges, new Comparator<Range<T>>() {
@@ -90,6 +108,8 @@ public class Utils {
      * @param one a sorted set of non-intersecting ranges in ascending order
      * @param another another sorted set of non-intersecting ranges in ascending order
      * @return the intersection of the two sets, sorted in ascending order
+     *
+     * @hide
      */
     public static <T extends Comparable<? super T>>
             Range<T>[] intersectSortedDistinctRanges(Range<T>[] one, Range<T>[] another) {
@@ -122,6 +142,8 @@ public class Utils {
      * @return if the value is in one of the ranges, it returns the index of that range.  Otherwise,
      * the return value is {@code (-1-index)} for the {@code index} of the range that is
      * immediately following {@code value}.
+     *
+     * @hide
      */
     public static <T extends Comparable<? super T>>
             int binarySearchDistinctRanges(Range<T>[] ranges, T value) {
@@ -356,6 +378,8 @@ public class Utils {
      * @param fileName desired name for the file.
      * @param mimeType MIME type of the file to create.
      * @return the File object in the storage, or null if an error occurs.
+     *
+     * @hide
      */
     public static File getUniqueExternalFile(Context context, String subdirectory, String fileName,
             String mimeType) {
@@ -674,6 +698,8 @@ public class Utils {
      * Must match the implementation of BluetoothUtils.toAnonymizedAddress()
      * @param address MAC address to be anonymized
      * @return anonymized MAC address
+     *
+     * @hide
      */
     public static @Nullable String anonymizeBluetoothAddress(@Nullable String address) {
         if (address == null) {
@@ -691,6 +717,8 @@ public class Utils {
      * @param deviceType the internal type of the audio device
      * @param address MAC address to be anonymized
      * @return anonymized MAC address
+     *
+     * @hide
      */
     public static @Nullable String anonymizeBluetoothAddress(
             int deviceType, @Nullable String address) {
@@ -705,6 +733,8 @@ public class Utils {
      *
      * @param context the {@link Context}
      * @return {@code true} if the device supports ringtone vibration
+     *
+     * @hide
      */
     public static boolean isRingtoneVibrationSettingsSupported(Context context) {
         final Resources res = context.getResources();
@@ -717,6 +747,8 @@ public class Utils {
      *
      * @param ringtoneUri the ringtone Uri
      * @return {@code true} if the Uri has vibration parameter
+     *
+     * @hide
      */
     public static boolean hasVibration(Uri ringtoneUri) {
         if (ringtoneUri == null) {
@@ -732,6 +764,8 @@ public class Utils {
      * @param ringtoneUri the ringtone Uri
      * @return parsed {@link Uri} of vibration parameter, {@code null} if the vibration parameter
      * is not found.
+     *
+     * @hide
      */
     public static @Nullable Uri getVibrationUri(Uri ringtoneUri) {
         if (ringtoneUri == null) {
@@ -749,6 +783,8 @@ public class Utils {
      *
      * @param vibrator the vibrator to resolve the vibration file
      * @param vibrationUri the vibration file Uri to represent a vibration
+     *
+     * @hide
      */
     @SuppressWarnings("FlaggedApi") // VibrationXmlParser is available internally as hidden APIs.
     public static VibrationEffect parseVibrationEffect(Vibrator vibrator, Uri vibrationUri) {
@@ -757,8 +793,8 @@ public class Utils {
             return null;
         }
         String filePath = vibrationUri.getPath();
-        if (filePath == null) {
-            Log.w(TAG, "The file path is null.");
+        if (filePath == null || filePath.equals(Utils.SYNCHRONIZED_VIBRATION)) {
+            Log.w(TAG, "Ignore the vibration parsing for file:" + filePath);
             return null;
         }
         File vibrationFile = new File(filePath);

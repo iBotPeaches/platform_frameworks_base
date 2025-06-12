@@ -23,10 +23,10 @@ import android.content.pm.ActivityInfo.ScreenOrientation
 import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.graphics.Rect
-import android.util.Size
 import android.window.WindowContainerTransaction
 import com.android.window.flags.Flags
 import com.android.wm.shell.ShellTaskOrganizer
+import com.android.wm.shell.common.DisplayController
 import com.android.wm.shell.common.TaskStackListenerCallback
 import com.android.wm.shell.common.TaskStackListenerImpl
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
@@ -40,6 +40,7 @@ class DesktopActivityOrientationChangeHandler(
     private val taskStackListener: TaskStackListenerImpl,
     private val resizeHandler: ToggleResizeDesktopTaskTransitionHandler,
     private val desktopUserRepositories: DesktopUserRepositories,
+    private val displayController: DisplayController,
 ) {
 
     init {
@@ -84,7 +85,7 @@ class DesktopActivityOrientationChangeHandler(
         if (!Flags.respectOrientationChangeForUnresizeable()) return
         val task = shellTaskOrganizer.getRunningTaskInfo(taskId) ?: return
         val taskRepository = desktopUserRepositories.current
-        val isDesktopModeShowing = taskRepository.getVisibleTaskCount(task.displayId) > 0
+        val isDesktopModeShowing = taskRepository.isAnyDeskActive(task.displayId)
         if (!isDesktopModeShowing || !task.isFreeform || task.isResizeable) return
 
         val taskBounds = task.configuration.windowConfiguration.bounds
@@ -101,12 +102,24 @@ class DesktopActivityOrientationChangeHandler(
                 orientation == ORIENTATION_LANDSCAPE &&
                     ActivityInfo.isFixedOrientationPortrait(requestedOrientation)
         ) {
+            val displayLayout = displayController.getDisplayLayout(task.displayId) ?: return
+            val captionInsets =
+                task.configuration.windowConfiguration.appBounds?.let {
+                    it.top - task.configuration.windowConfiguration.bounds.top
+                } ?: 0
+            val newOrientationBounds =
+                calculateInitialBounds(
+                    displayLayout = displayLayout,
+                    taskInfo = task,
+                    captionInsets = captionInsets,
+                    requestedScreenOrientation = requestedOrientation,
+                )
 
-            val finalSize = Size(taskHeight, taskWidth)
             // Use the center x as the resizing anchor point.
-            val left = taskBounds.centerX() - finalSize.width / 2
-            val right = left + finalSize.width
-            val finalBounds = Rect(left, taskBounds.top, right, taskBounds.top + finalSize.height)
+            val left = taskBounds.centerX() - newOrientationBounds.width() / 2
+            val right = left + newOrientationBounds.width()
+            val finalBounds =
+                Rect(left, taskBounds.top, right, taskBounds.top + newOrientationBounds.height())
 
             val wct = WindowContainerTransaction().setBounds(task.token, finalBounds)
             resizeHandler.startTransition(wct)

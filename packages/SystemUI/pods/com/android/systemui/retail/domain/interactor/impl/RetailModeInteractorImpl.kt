@@ -22,11 +22,9 @@ import com.android.systemui.retail.domain.interactor.RetailModeInteractor
 import javax.inject.Inject
 
 @SysUISingleton
-class RetailModeInteractorImpl
+public class RetailModeInteractorImpl
 @Inject
-constructor(
-    private val repository: RetailModeRepository,
-) : RetailModeInteractor {
+constructor(private val repository: RetailModeRepository) : RetailModeInteractor {
     override val isInRetailMode: Boolean
         get() = repository.inRetailMode
 }

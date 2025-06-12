@@ -28,7 +28,7 @@ val androidTop: String = File(rootDir, "../../../../..").canonicalPath
 
 allprojects {
     extra["androidTop"] = androidTop
-    extra["jetpackComposeVersion"] = "1.8.0-alpha06"
+    extra["jetpackComposeVersion"] = "1.8.0-rc01"
 }
 
 subprojects {
@@ -36,11 +36,11 @@ subprojects {
 
     plugins.withType<AndroidBasePlugin> {
         configure<BaseExtension> {
-            compileSdkVersion(35)
+            compileSdkVersion(36)
 
             defaultConfig {
                 minSdk = 21
-                targetSdk = 35
+                targetSdk = 36
             }
         }
 

@@ -21,14 +21,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.haptics.msdl.msdlPlayer
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.statusbar.VibratorHelper
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.time.fakeSystemClock
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -44,10 +43,9 @@ import org.mockito.junit.MockitoRule
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class HapticSliderPluginTest : SysuiTestCase() {
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
 
     @Rule @JvmField val mMockitoRule: MockitoRule = MockitoJUnit.rule()
     @Mock private lateinit var vibratorHelper: VibratorHelper

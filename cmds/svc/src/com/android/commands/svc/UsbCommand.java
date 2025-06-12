@@ -89,6 +89,11 @@ public class UsbCommand extends Svc.Command {
             IUsbManager usbMgr = IUsbManager.Stub.asInterface(ServiceManager.getService(
                     Context.USB_SERVICE));
 
+            if (usbMgr == null) {
+                System.err.println("Could not obtain USB service. Try again later.");
+                return;
+            }
+
             Executor executor = context.getMainExecutor();
             Consumer<Integer> consumer = new Consumer<Integer>(){
                 public void accept(Integer status){

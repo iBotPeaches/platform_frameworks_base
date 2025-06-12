@@ -64,15 +64,14 @@ constructor(
                         synchronized(sessions) {
                             sessions.putAll(
                                 packageInstaller.allSessions
-                                    .filter { !TextUtils.isEmpty(it.appPackageName) }
-                                    .map { session -> session.toModel() }
+                                    .mapNotNull { session -> session.toModel() }
                                     .associateBy { it.sessionId }
                             )
                             updateInstallerSessionsFlow()
                         }
                         packageInstaller.registerSessionCallback(
                             this@PackageInstallerMonitor,
-                            bgHandler
+                            bgHandler,
                         )
                     } else {
                         synchronized(sessions) {
@@ -130,7 +129,7 @@ constructor(
             if (session == null) {
                 sessions.remove(sessionId)
             } else {
-                sessions[sessionId] = session.toModel()
+                session.toModel()?.apply { sessions[sessionId] = this }
             }
             updateInstallerSessionsFlow()
         }
@@ -144,7 +143,11 @@ constructor(
     companion object {
         const val TAG = "PackageInstallerMonitor"
 
-        private fun PackageInstaller.SessionInfo.toModel(): PackageInstallSession {
+        private fun PackageInstaller.SessionInfo.toModel(): PackageInstallSession? {
+            if (TextUtils.isEmpty(this.appPackageName)) {
+                return null
+            }
+
             return PackageInstallSession(
                 sessionId = this.sessionId,
                 packageName = this.appPackageName,

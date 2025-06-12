@@ -87,8 +87,12 @@ public class ExternalVibration implements Parcelable {
         int capturePreset = in.readInt();
         int flags = in.readInt();
         AudioAttributes.Builder builder = new AudioAttributes.Builder();
-        return builder.setUsage(usage)
-                .setContentType(contentType)
+        if (AudioAttributes.isSystemUsage(usage)) {
+            builder.setSystemUsage(usage);
+        } else {
+            builder.setUsage(usage);
+        }
+        return builder.setContentType(contentType)
                 .setCapturePreset(capturePreset)
                 .setFlags(flags)
                 .build();
@@ -196,7 +200,9 @@ public class ExternalVibration implements Parcelable {
     }
 
     private static void writeAudioAttributes(AudioAttributes attrs, Parcel out) {
-        out.writeInt(attrs.getUsage());
+        // Since we allow audio system usages, must use getSystemUsage() instead of getUsage() for
+        // all usages.
+        out.writeInt(attrs.getSystemUsage());
         out.writeInt(attrs.getContentType());
         out.writeInt(attrs.getCapturePreset());
         out.writeInt(attrs.getAllFlags());

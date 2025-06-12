@@ -167,6 +167,12 @@ final class BroadcastRecord extends Binder {
     @Nullable
     private ArrayMap<BroadcastRecord, Boolean> mMatchingRecordsCache;
 
+    // Stores the {@link BroadcastProcessedEventRecord} for each process associated with this
+    // record.
+    @NonNull
+    private ArrayMap<String, BroadcastProcessedEventRecord> mBroadcastProcessedRecords =
+            new ArrayMap<>();
+
     private @Nullable String mCachedToString;
     private @Nullable String mCachedToShortString;
 
@@ -648,6 +654,17 @@ final class BroadcastRecord extends Binder {
             case DELIVERY_DELIVERED:
             case DELIVERY_TIMEOUT:
             case DELIVERY_FAILURE:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    boolean wasDelivered(int index) {
+        final int deliveryState = getDeliveryState(index);
+        switch (deliveryState) {
+            case DELIVERY_DELIVERED:
+            case DELIVERY_TIMEOUT:
                 return true;
             default:
                 return false;
@@ -1285,34 +1302,90 @@ final class BroadcastRecord extends Binder {
     }
 
     @Override
+    @NonNull
     public String toString() {
         if (mCachedToString == null) {
-            String label = intent.getAction();
-            if (label == null) {
-                label = intent.toString();
-            }
             mCachedToString = "BroadcastRecord{" + toShortString() + "}";
         }
         return mCachedToString;
     }
 
+    @NonNull
     public String toShortString() {
         if (mCachedToShortString == null) {
-            String label = intent.getAction();
-            if (label == null) {
-                label = intent.toString();
-            }
+            final String label = intentToString(intent);
             mCachedToShortString = Integer.toHexString(System.identityHashCode(this))
                     + " " + label + "/u" + userId;
         }
         return mCachedToShortString;
     }
 
+    @NonNull
+    public static String intentToString(@NonNull Intent intent) {
+        String label = intent.getAction();
+        if (label == null) {
+            label = intent.toString();
+        }
+        return label;
+    }
+
+    public boolean debugLog() {
+        return debugLog(options);
+    }
+
+    public static boolean debugLog(@Nullable BroadcastOptions options) {
+        return options != null && options.isDebugLogEnabled();
+    }
+
     @NeverCompile
-    public void dumpDebug(ProtoOutputStream proto, long fieldId) {
+    public void dumpDebug(@NonNull ProtoOutputStream proto, long fieldId) {
         long token = proto.start(fieldId);
         proto.write(BroadcastRecordProto.USER_ID, userId);
         proto.write(BroadcastRecordProto.INTENT_ACTION, intent.getAction());
         proto.end(token);
+    }
+
+    /**
+     * Uses the {@link BroadcastProcessedEventRecord} pojo to store the logging information related
+     * to {@param receiver} object.
+     */
+    public void updateBroadcastProcessedEventRecord(@NonNull Object receiver, long timeMillis) {
+        if (!Flags.logBroadcastProcessedEvent()) {
+            return;
+        }
+
+        final String receiverProcessName = getReceiverProcessName(receiver);
+        BroadcastProcessedEventRecord broadcastProcessedEventRecord =
+                mBroadcastProcessedRecords.get(receiverProcessName);
+        if (broadcastProcessedEventRecord == null) {
+            broadcastProcessedEventRecord = new BroadcastProcessedEventRecord()
+                    .setBroadcastTypes(calculateTypesForLogging())
+                    .setIntentAction(intent.getAction())
+                    .setReceiverProcessName(receiverProcessName)
+                    .setReceiverUid(getReceiverUid(receiver))
+                    .setSenderUid(callingUid);
+
+            mBroadcastProcessedRecords.put(receiverProcessName, broadcastProcessedEventRecord);
+        }
+
+        broadcastProcessedEventRecord.addReceiverFinishTime(timeMillis);
+    }
+
+    public void logBroadcastProcessedEventRecord() {
+        if (!Flags.logBroadcastProcessedEvent()) {
+            return;
+        }
+
+        int size = mBroadcastProcessedRecords.size();
+        for (int i = 0; i < size; i++) {
+            mBroadcastProcessedRecords.valueAt(i).logToStatsD();
+        }
+        mBroadcastProcessedRecords.clear();
+    }
+
+    @VisibleForTesting
+    @NonNull
+    ArrayMap<String, BroadcastProcessedEventRecord> getBroadcastProcessedRecordsForTest() {
+        return mBroadcastProcessedRecords;
     }
 }

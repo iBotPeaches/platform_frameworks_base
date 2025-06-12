@@ -53,6 +53,7 @@ import android.view.InsetsSource;
 import android.view.InsetsSourceControl;
 import android.view.InsetsState;
 import android.view.WindowInsets;
+import android.view.WindowInsets.Type.InsetsType;
 
 import androidx.test.filters.SmallTest;
 
@@ -92,7 +93,7 @@ public class InsetsPolicyTest extends WindowTestsBase {
 
         final Task task1 = createTask(mDisplayContent);
         final Task task2 = createTask(mDisplayContent);
-        task1.setAdjacentTaskFragment(task2);
+        task1.setAdjacentTaskFragments(new TaskFragment.AdjacentSet(task1, task2));
         final WindowState win = createAppWindow(task1, WINDOWING_MODE_MULTI_WINDOW, "app");
         final InsetsSourceControl[] controls = addWindowAndGetControlsForDispatch(win);
 
@@ -106,8 +107,9 @@ public class InsetsPolicyTest extends WindowTestsBase {
         addStatusBar();
         addNavigationBar();
 
-        final WindowState win = createWindow(null, WINDOWING_MODE_FREEFORM,
-                ACTIVITY_TYPE_STANDARD, TYPE_APPLICATION, mDisplayContent, "app");
+        final WindowState win = newWindowBuilder("app", TYPE_APPLICATION).setActivityType(
+                ACTIVITY_TYPE_STANDARD).setWindowingMode(WINDOWING_MODE_FREEFORM).setDisplay(
+                mDisplayContent).build();
         final InsetsSourceControl[] controls = addWindowAndGetControlsForDispatch(win);
 
         // The app must not control any system bars.
@@ -120,8 +122,9 @@ public class InsetsPolicyTest extends WindowTestsBase {
         addStatusBar();
         addNavigationBar();
 
-        final WindowState win = createWindow(null, WINDOWING_MODE_FREEFORM,
-                ACTIVITY_TYPE_STANDARD, TYPE_APPLICATION, mDisplayContent, "app");
+        final WindowState win = newWindowBuilder("app", TYPE_APPLICATION).setActivityType(
+                ACTIVITY_TYPE_STANDARD).setWindowingMode(WINDOWING_MODE_FREEFORM).setDisplay(
+                mDisplayContent).build();
         win.setBounds(new Rect());
         final InsetsSourceControl[] controls = addWindowAndGetControlsForDispatch(win);
 
@@ -136,8 +139,9 @@ public class InsetsPolicyTest extends WindowTestsBase {
         addStatusBar();
         addNavigationBar();
 
-        final WindowState win = createWindow(null, WINDOWING_MODE_FREEFORM,
-                ACTIVITY_TYPE_STANDARD, TYPE_APPLICATION, mDisplayContent, "app");
+        final WindowState win = newWindowBuilder("app", TYPE_APPLICATION).setActivityType(
+                ACTIVITY_TYPE_STANDARD).setWindowingMode(WINDOWING_MODE_FREEFORM).setDisplay(
+                mDisplayContent).build();
         win.getTask().setBounds(new Rect(1, 1, 10, 10));
         final InsetsSourceControl[] controls = addWindowAndGetControlsForDispatch(win);
 
@@ -397,9 +401,9 @@ public class InsetsPolicyTest extends WindowTestsBase {
         assertTrue(state.isSourceOrDefaultVisible(statusBarSource.getId(), statusBars()));
         assertTrue(state.isSourceOrDefaultVisible(navBarSource.getId(), navigationBars()));
 
-        mAppWindow.setRequestedVisibleTypes(
+        final @InsetsType int changedTypes = mAppWindow.setRequestedVisibleTypes(
                 navigationBars() | statusBars(), navigationBars() | statusBars());
-        policy.onRequestedVisibleTypesChanged(mAppWindow, null /* statsToken */);
+        policy.onRequestedVisibleTypesChanged(mAppWindow, changedTypes, null /* statsToken */);
         waitUntilWindowAnimatorIdle();
 
         controls = mDisplayContent.getInsetsStateController().getControlsForDispatch(mAppWindow);
@@ -582,7 +586,7 @@ public class InsetsPolicyTest extends WindowTestsBase {
 
     private WindowState addNavigationBar() {
         final Binder owner = new Binder();
-        final WindowState win = createWindow(null, TYPE_NAVIGATION_BAR, "navBar");
+        final WindowState win = newWindowBuilder("navBar", TYPE_NAVIGATION_BAR).build();
         win.mAttrs.flags |= FLAG_NOT_FOCUSABLE;
         win.mAttrs.providedInsets = new InsetsFrameProvider[] {
                 new InsetsFrameProvider(owner, 0, WindowInsets.Type.navigationBars()),
@@ -595,7 +599,7 @@ public class InsetsPolicyTest extends WindowTestsBase {
 
     private WindowState addStatusBar() {
         final Binder owner = new Binder();
-        final WindowState win = createWindow(null, TYPE_STATUS_BAR, "statusBar");
+        final WindowState win = newWindowBuilder("statusBar", TYPE_STATUS_BAR).build();
         win.mAttrs.flags |= FLAG_NOT_FOCUSABLE;
         win.mAttrs.providedInsets = new InsetsFrameProvider[] {
                 new InsetsFrameProvider(owner, 0, WindowInsets.Type.statusBars()),
@@ -607,7 +611,7 @@ public class InsetsPolicyTest extends WindowTestsBase {
     }
 
     private WindowState addWindow(int type, String name) {
-        final WindowState win = createWindow(null, type, name);
+        final WindowState win = newWindowBuilder(name, type).build();
         mDisplayContent.getDisplayPolicy().addWindowLw(win, win.mAttrs);
         return win;
     }

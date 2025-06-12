@@ -49,10 +49,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import android.app.ActivityOptions;
@@ -87,7 +85,8 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
                 mDisplayContent, WINDOWING_MODE_MULTI_WINDOW, ACTIVITY_TYPE_STANDARD);
         adjacentRootTask.mCreatedByOrganizer = true;
         final TaskDisplayArea taskDisplayArea = rootTask.getDisplayArea();
-        adjacentRootTask.setAdjacentTaskFragment(rootTask);
+        adjacentRootTask.setAdjacentTaskFragments(
+                new TaskFragment.AdjacentSet(adjacentRootTask, rootTask));
 
         taskDisplayArea.setLaunchAdjacentFlagRootTask(adjacentRootTask);
         Task actualRootTask = taskDisplayArea.getLaunchRootTask(
@@ -113,7 +112,8 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
         final Task adjacentRootTask = createTask(
                 mDisplayContent, WINDOWING_MODE_MULTI_WINDOW, ACTIVITY_TYPE_STANDARD);
         adjacentRootTask.mCreatedByOrganizer = true;
-        adjacentRootTask.setAdjacentTaskFragment(rootTask);
+        adjacentRootTask.setAdjacentTaskFragments(
+                new TaskFragment.AdjacentSet(adjacentRootTask, rootTask));
 
         taskDisplayArea.setLaunchRootTask(rootTask,
                 new int[]{WINDOWING_MODE_MULTI_WINDOW}, new int[]{ACTIVITY_TYPE_STANDARD});
@@ -135,7 +135,8 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
         adjacentRootTask.mCreatedByOrganizer = true;
         createActivityRecord(adjacentRootTask);
         final TaskDisplayArea taskDisplayArea = rootTask.getDisplayArea();
-        adjacentRootTask.setAdjacentTaskFragment(rootTask);
+        adjacentRootTask.setAdjacentTaskFragments(
+                new TaskFragment.AdjacentSet(adjacentRootTask, rootTask));
 
         taskDisplayArea.setLaunchAdjacentFlagRootTask(adjacentRootTask);
         final Task actualRootTask = taskDisplayArea.getLaunchRootTask(
@@ -186,24 +187,6 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
                 null /* launchParams */, 0 /* launchFlags */, ACTIVITY_TYPE_STANDARD,
                 true /* onTop */);
         assertSame(rootTask, actualRootTask.getRootTask());
-    }
-
-    @Test
-    public void testActivityWithZBoost_taskDisplayAreaDoesNotMoveUp() {
-        final Task rootTask = createTask(mDisplayContent);
-        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
-        final ActivityRecord activity = createNonAttachedActivityRecord(mDisplayContent);
-        task.addChild(activity, 0 /* addPos */);
-        final TaskDisplayArea taskDisplayArea = activity.getDisplayArea();
-        activity.mNeedsAnimationBoundsLayer = true;
-        activity.mNeedsZBoost = true;
-        spyOn(taskDisplayArea.mSurfaceAnimator);
-
-        mDisplayContent.assignChildLayers(mTransaction);
-
-        assertThat(activity.needsZBoost()).isTrue();
-        assertThat(taskDisplayArea.needsZBoost()).isFalse();
-        verify(taskDisplayArea.mSurfaceAnimator, never()).setLayer(eq(mTransaction), anyInt());
     }
 
     @Test
@@ -550,10 +533,11 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
 
     @Test
     @UseTestDisplay
-    public void testRemove_reparentToDefault() {
+    public void testPrepareForRemoval_reparentToDefault() {
         final Task task = createTask(mDisplayContent);
         final TaskDisplayArea displayArea = task.getDisplayArea();
-        displayArea.remove();
+        displayArea.prepareForRemoval();
+        assertTrue(displayArea.shouldKeepNoTask());
         assertTrue(displayArea.isRemoved());
         assertFalse(displayArea.hasChild());
 
@@ -565,11 +549,12 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
 
     @Test
     @UseTestDisplay
-    public void testRemove_rootTaskCreatedByOrganizer() {
+    public void testPrepareForRemoval_rootTaskCreatedByOrganizer() {
         final Task task = createTask(mDisplayContent);
         task.mCreatedByOrganizer = true;
         final TaskDisplayArea displayArea = task.getDisplayArea();
-        displayArea.remove();
+        displayArea.prepareForRemoval();
+        assertTrue(displayArea.shouldKeepNoTask());
         assertTrue(displayArea.isRemoved());
         assertFalse(displayArea.hasChild());
 
@@ -819,7 +804,8 @@ public class TaskDisplayAreaTests extends WindowTestsBase {
         adjacentRootTask.mCreatedByOrganizer = true;
         final Task candidateTask = createTaskInRootTask(rootTask, 0 /* userId*/);
         final TaskDisplayArea taskDisplayArea = rootTask.getDisplayArea();
-        adjacentRootTask.setAdjacentTaskFragment(rootTask);
+        adjacentRootTask.setAdjacentTaskFragments(
+                new TaskFragment.AdjacentSet(adjacentRootTask, rootTask));
 
         // Verify the launch root with candidate task
         Task actualRootTask = taskDisplayArea.getLaunchRootTask(WINDOWING_MODE_UNDEFINED,

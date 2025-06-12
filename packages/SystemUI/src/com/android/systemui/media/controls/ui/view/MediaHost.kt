@@ -208,6 +208,7 @@ class MediaHost(
      * the visibility has changed
      */
     fun updateViewVisibility() {
+        val oldState = state.visible
         state.visible =
             if (mediaCarouselController.isLockedAndHidden()) {
                 false
@@ -217,9 +218,9 @@ class MediaHost(
                 mediaDataManager.hasAnyMediaOrRecommendation()
             }
         val newVisibility = if (visible) View.VISIBLE else View.GONE
-        if (newVisibility != hostView.visibility) {
+        if (oldState != state.visible || newVisibility != hostView.visibility) {
             hostView.visibility = newVisibility
-            debugLogger.logMediaHostVisibility(location, visible)
+            debugLogger.logMediaHostVisibility(location, visible, oldState)
             visibleChangedListeners.forEach { it.invoke(visible) }
         }
     }
@@ -294,7 +295,7 @@ class MediaHost(
                 changedListener?.invoke()
             }
 
-        override var disablePagination: Boolean = false
+        override var disableScrolling: Boolean = false
             set(value) {
                 if (field == value) {
                     return
@@ -319,7 +320,7 @@ class MediaHost(
             mediaHostState.visible = visible
             mediaHostState.disappearParameters = disappearParameters.deepCopy()
             mediaHostState.falsingProtectionNeeded = falsingProtectionNeeded
-            mediaHostState.disablePagination = disablePagination
+            mediaHostState.disableScrolling = disableScrolling
             return mediaHostState
         }
 
@@ -348,7 +349,7 @@ class MediaHost(
             if (!disappearParameters.equals(other.disappearParameters)) {
                 return false
             }
-            if (disablePagination != other.disablePagination) {
+            if (disableScrolling != other.disableScrolling) {
                 return false
             }
             return true
@@ -362,7 +363,7 @@ class MediaHost(
             result = 31 * result + showsOnlyActiveMedia.hashCode()
             result = 31 * result + if (visible) 1 else 2
             result = 31 * result + disappearParameters.hashCode()
-            result = 31 * result + disablePagination.hashCode()
+            result = 31 * result + disableScrolling.hashCode()
             return result
         }
     }
@@ -422,10 +423,11 @@ interface MediaHostState {
     var disappearParameters: DisappearParameters
 
     /**
-     * Whether pagination should be disabled for this host, meaning that when there are multiple
-     * media sessions, only the first one will appear.
+     * Whether scrolling should be disabled for this host, meaning that when there are multiple
+     * media sessions, it will not be possible to scroll between media sessions or swipe away the
+     * entire media carousel. The first media session will always be shown.
      */
-    var disablePagination: Boolean
+    var disableScrolling: Boolean
 
     /** Get a copy of this view state, deepcopying all appropriate members */
     fun copy(): MediaHostState

@@ -16,10 +16,11 @@
 
 #include "android_graphics_HardwareRendererObserver.h"
 
+#include <array>
+
+#include "FrameInfo.h"
 #include "graphics_jni_helpers.h"
 #include "nativehelper/jni_macros.h"
-
-#include <array>
 
 namespace android {
 
@@ -65,13 +66,13 @@ bool HardwareRendererObserver::getNextBuffer(JNIEnv* env, jlongArray metrics, in
     return false;
 }
 
-void HardwareRendererObserver::notify(const int64_t* stats) {
+void HardwareRendererObserver::notify(const uirenderer::FrameInfoBuffer& stats) {
     if (!mKeepListening) return;
 
     FrameMetricsNotification& elem = mRingBuffer[mNextFree];
 
     if (!elem.hasData.load()) {
-        memcpy(elem.buffer, stats, kBufferSize * sizeof(stats[0]));
+        memcpy(elem.buffer, stats.data(), kBufferSize * sizeof(stats[0]));
 
         elem.dropCount = mDroppedReports;
         mDroppedReports = 0;

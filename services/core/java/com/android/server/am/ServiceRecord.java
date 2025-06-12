@@ -158,6 +158,7 @@ final class ServiceRecord extends Binder implements ComponentName.WithComponentN
     boolean fgWaiting;      // is a timeout for going foreground already scheduled?
     boolean isNotAppComponentUsage; // is service binding not considered component/package usage?
     boolean isForeground;   // is service currently in foreground mode?
+    boolean systemRequestedFgToBg; //  system requested service to transition to background.
     boolean inSharedIsolatedProcess; // is the service in a shared isolated process
     int foregroundId;       // Notification ID of last foreground req.
     Notification foregroundNoti; // Notification record of foreground state.
@@ -278,24 +279,21 @@ final class ServiceRecord extends Binder implements ComponentName.WithComponentN
      * Whether to use the new "while-in-use permission" logic for FGS start
      */
     private boolean useNewWiuLogic_forStart() {
-        return Flags.newFgsRestrictionLogic() // This flag should only be set on V+
-                && CompatChanges.isChangeEnabled(USE_NEW_WIU_LOGIC_FOR_START, appInfo.uid);
+        return CompatChanges.isChangeEnabled(USE_NEW_WIU_LOGIC_FOR_START, appInfo.uid);
     }
 
     /**
      * Whether to use the new "while-in-use permission" logic for capabilities
      */
     private boolean useNewWiuLogic_forCapabilities() {
-        return Flags.newFgsRestrictionLogic() // This flag should only be set on V+
-                && CompatChanges.isChangeEnabled(USE_NEW_WIU_LOGIC_FOR_CAPABILITIES, appInfo.uid);
+        return CompatChanges.isChangeEnabled(USE_NEW_WIU_LOGIC_FOR_CAPABILITIES, appInfo.uid);
     }
 
     /**
      * Whether to use the new "FGS BG start exemption" logic.
      */
     private boolean useNewBfslLogic() {
-        return Flags.newFgsRestrictionLogic() // This flag should only be set on V+
-                && CompatChanges.isChangeEnabled(USE_NEW_BFSL_LOGIC, appInfo.uid);
+        return CompatChanges.isChangeEnabled(USE_NEW_BFSL_LOGIC, appInfo.uid);
     }
 
 

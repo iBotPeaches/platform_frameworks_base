@@ -1484,6 +1484,10 @@ public final class GnssMeasurement implements Parcelable {
      * in an open sky test - the important aspect of this output is that changes in this value are
      * indicative of changes on input signal power in the frequency band for this measurement.
      *
+     * <p> This field is part of the GnssMeasurement object so it is only reported when the GNSS
+     * measurement is reported. E.g., when a GNSS signal is too weak to be acquired, the AGC value
+     * is not reported.
+     *
      * <p> The value is only available if {@link #hasAutomaticGainControlLevelDb()} is {@code true}
      *
      * @deprecated Use {@link GnssMeasurementsEvent#getGnssAutomaticGainControls()} instead.

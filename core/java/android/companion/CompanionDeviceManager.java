@@ -23,7 +23,6 @@ import static android.Manifest.permission.REQUEST_COMPANION_PROFILE_WATCH;
 import static android.graphics.drawable.Icon.TYPE_URI;
 import static android.graphics.drawable.Icon.TYPE_URI_ADAPTIVE_BITMAP;
 
-
 import android.annotation.CallbackExecutor;
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
@@ -52,10 +51,10 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
-import android.graphics.drawable.VectorDrawable;
 import android.net.MacAddress;
 import android.os.Binder;
 import android.os.Handler;
@@ -110,6 +109,7 @@ import java.util.function.Consumer;
 @RequiresFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP)
 public final class CompanionDeviceManager {
     private static final String TAG = "CDM_CompanionDeviceManager";
+    private static final int ICON_TARGET_SIZE = 24;
 
     /** @hide */
     @IntDef(prefix = {"RESULT_"}, value = {
@@ -276,6 +276,23 @@ public final class CompanionDeviceManager {
      * @hide
      */
     public static final int MESSAGE_ONEWAY_TO_WEARABLE = 0x43847987; // +TOW
+
+
+    /** @hide */
+    @IntDef(flag = true, prefix = { "TRANSPORT_FLAG_" }, value = {
+            TRANSPORT_FLAG_EXTEND_PATCH_DIFF,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface TransportFlags {}
+
+    /**
+     * A security flag that allows transports to be attached to devices that may be more vulnerable
+     * due to infrequent updates. Can only be used for associations with
+     * {@link AssociationRequest#DEVICE_PROFILE_WEARABLE_SENSING} device profile.
+     *
+     * @hide
+     */
+    public static final int TRANSPORT_FLAG_EXTEND_PATCH_DIFF = 1;
 
     /**
      * Callback for applications to receive updates about and the outcome of
@@ -474,10 +491,8 @@ public final class CompanionDeviceManager {
 
         if (Flags.associationDeviceIcon()) {
             final Icon deviceIcon = request.getDeviceIcon();
-
-            if (deviceIcon != null && !isValidIcon(deviceIcon, mContext)) {
-                throw new IllegalArgumentException("The size of the device icon must be "
-                        + "24dp x 24dp to ensure proper display");
+            if (deviceIcon != null) {
+                request.setDeviceIcon(scaleIcon(deviceIcon, mContext));
             }
         }
 
@@ -547,10 +562,8 @@ public final class CompanionDeviceManager {
 
         if (Flags.associationDeviceIcon()) {
             final Icon deviceIcon = request.getDeviceIcon();
-
-            if (deviceIcon != null && !isValidIcon(deviceIcon, mContext)) {
-                throw new IllegalArgumentException("The size of the device icon must be "
-                        + "24dp x 24dp to ensure proper display");
+            if (deviceIcon != null) {
+                request.setDeviceIcon(scaleIcon(deviceIcon, mContext));
             }
         }
 
@@ -1456,7 +1469,52 @@ public final class CompanionDeviceManager {
             }
 
             try {
-                final Transport transport = new Transport(associationId, in, out);
+                final Transport transport = new Transport(associationId, in, out, 0);
+                mTransports.put(associationId, transport);
+                transport.start();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to attach transport", e);
+            }
+        }
+    }
+
+    /**
+     * Attach a bidirectional communication stream to be used as a transport channel for
+     * transporting system data between associated devices. Flags can be provided to further
+     * customize the behavior of the transport.
+     *
+     * @param associationId id of the associated device.
+     * @param in Already connected stream of data incoming from remote
+     *           associated device.
+     * @param out Already connected stream of data outgoing to remote associated
+     *            device.
+     * @param flags Flags to customize transport behavior.
+     * @throws DeviceNotAssociatedException Thrown if the associationId was not previously
+     * associated with this app.
+     *
+     * @see #buildPermissionTransferUserConsentIntent(int)
+     * @see #startSystemDataTransfer(int, Executor, OutcomeReceiver)
+     * @see #detachSystemDataTransport(int)
+     *
+     * @hide
+     */
+    @RequiresPermission(android.Manifest.permission.DELIVER_COMPANION_MESSAGES)
+    public void attachSystemDataTransport(int associationId,
+            @NonNull InputStream in,
+            @NonNull OutputStream out,
+            @TransportFlags int flags) throws DeviceNotAssociatedException {
+        if (mService == null) {
+            Log.w(TAG, "CompanionDeviceManager service is not available.");
+            return;
+        }
+
+        synchronized (mTransports) {
+            if (mTransports.contains(associationId)) {
+                detachSystemDataTransport(associationId);
+            }
+
+            try {
+                final Transport transport = new Transport(associationId, in, out, flags);
                 mTransports.put(associationId, transport);
                 transport.start();
             } catch (IOException e) {
@@ -1935,16 +1993,22 @@ public final class CompanionDeviceManager {
         private final int mAssociationId;
         private final InputStream mRemoteIn;
         private final OutputStream mRemoteOut;
+        private final int mFlags;
 
         private InputStream mLocalIn;
         private OutputStream mLocalOut;
 
         private volatile boolean mStopped;
 
-        public Transport(int associationId, InputStream remoteIn, OutputStream remoteOut) {
+        Transport(int associationId, InputStream remoteIn, OutputStream remoteOut) {
+            this(associationId, remoteIn, remoteOut, 0);
+        }
+
+        Transport(int associationId, InputStream remoteIn, OutputStream remoteOut, int flags) {
             mAssociationId = associationId;
             mRemoteIn = remoteIn;
             mRemoteOut = remoteOut;
+            mFlags = flags;
         }
 
         public void start() throws IOException {
@@ -1961,7 +2025,7 @@ public final class CompanionDeviceManager {
 
             try {
                 mService.attachSystemDataTransport(mContext.getOpPackageName(),
-                        mContext.getUserId(), mAssociationId, remoteFd);
+                        mContext.getUserId(), mAssociationId, remoteFd, mFlags);
             } catch (RemoteException e) {
                 throw new IOException("Failed to configure transport", e);
             }
@@ -2024,33 +2088,26 @@ public final class CompanionDeviceManager {
         }
     }
 
-    private boolean isValidIcon(Icon icon, Context context) {
+    private Icon scaleIcon(Icon icon, Context context) {
+        if (icon == null) return null;
         if (icon.getType() == TYPE_URI_ADAPTIVE_BITMAP || icon.getType() == TYPE_URI) {
             throw new IllegalArgumentException("The URI based Icon is not supported.");
         }
+
+        Bitmap bitmap;
         Drawable drawable = icon.loadDrawable(context);
-        float density = context.getResources().getDisplayMetrics().density;
-
         if (drawable instanceof BitmapDrawable) {
-            Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
-
-            float widthDp = bitmap.getWidth() / density;
-            float heightDp = bitmap.getHeight() / density;
-
-            if (widthDp != 24 || heightDp != 24) {
-                return false;
-            }
-        } else if (drawable instanceof VectorDrawable) {
-            VectorDrawable vectorDrawable = (VectorDrawable) drawable;
-            float widthDp = vectorDrawable.getIntrinsicWidth() / density;
-            float heightDp = vectorDrawable.getIntrinsicHeight() / density;
-
-            if (widthDp != 24 || heightDp != 24) {
-                return false;
-            }
+            bitmap = Bitmap.createScaledBitmap(
+                    ((BitmapDrawable) drawable).getBitmap(), ICON_TARGET_SIZE, ICON_TARGET_SIZE,
+                    false);
         } else {
-            throw new IllegalArgumentException("The format of the device icon is unsupported.");
+            bitmap = Bitmap.createBitmap(context.getResources().getDisplayMetrics(),
+                    ICON_TARGET_SIZE, ICON_TARGET_SIZE, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
         }
-        return true;
+
+        return Icon.createWithBitmap(bitmap);
     }
 }

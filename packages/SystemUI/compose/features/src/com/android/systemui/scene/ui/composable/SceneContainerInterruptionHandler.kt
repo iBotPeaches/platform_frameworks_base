@@ -20,9 +20,11 @@ import com.android.compose.animation.scene.InterruptionHandler
 import com.android.compose.animation.scene.InterruptionResult
 import com.android.compose.animation.scene.SceneKey
 import com.android.compose.animation.scene.content.state.TransitionState
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.ui.composable.transitions.TO_BOUNCER_FADE_FRACTION
 
+// TODO(b/394632609) update this class to handle Bouncer as an Overlay
 object SceneContainerInterruptionHandler : InterruptionHandler {
     override fun onInterruption(
         interrupted: TransitionState.Transition.ChangeScene,
@@ -39,7 +41,7 @@ object SceneContainerInterruptionHandler : InterruptionHandler {
         transition: TransitionState.Transition.ChangeScene,
         targetScene: SceneKey,
     ): InterruptionResult? {
-        if (targetScene != Scenes.Gone || !transition.isTransitioningFromOrTo(Scenes.Bouncer)) {
+        if (targetScene != Scenes.Gone || !transition.isTransitioningFromOrTo(Overlays.Bouncer)) {
             return null
         }
 
@@ -48,7 +50,7 @@ object SceneContainerInterruptionHandler : InterruptionHandler {
         // usually the Lockscreen scene).
         val otherScene: SceneKey
         val animatesFromBouncer =
-            if (transition.isTransitioning(to = Scenes.Bouncer)) {
+            if (transition.isTransitioning(to = Overlays.Bouncer)) {
                 otherScene = transition.fromScene
                 transition.progress >= TO_BOUNCER_FADE_FRACTION
             } else {
@@ -58,7 +60,7 @@ object SceneContainerInterruptionHandler : InterruptionHandler {
 
         return if (animatesFromBouncer) {
             InterruptionResult(
-                animateFrom = Scenes.Bouncer,
+                animateFrom = Scenes.Lockscreen,
 
                 // We don't want the content of the lockscreen to be shown during the Bouncer =>
                 // Launcher transition. We disable chaining of the transitions so that only the

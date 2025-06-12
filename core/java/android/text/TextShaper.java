@@ -169,6 +169,7 @@ import android.graphics.text.TextRunShaper;
  * @see TextShaper#shapeText(CharSequence, int, int, TextDirectionHeuristic, TextPaint,
  * GlyphsConsumer)
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TextShaper {
     private TextShaper() {}
 

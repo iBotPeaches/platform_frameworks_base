@@ -32,7 +32,6 @@ import com.android.internal.statusbar.IStatusBarService
 import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
@@ -50,6 +49,7 @@ import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.notification.domain.interactor.activeNotificationsInteractor
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
+import com.android.systemui.testKosmos
 import com.android.systemui.util.concurrency.FakeExecutor
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
@@ -59,7 +59,6 @@ import com.android.systemui.util.time.FakeSystemClock
 import com.google.common.truth.Truth.assertThat
 import junit.framework.Assert.assertFalse
 import junit.framework.Assert.assertTrue
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Before
 import org.junit.Rule
@@ -74,9 +73,8 @@ import org.mockito.junit.MockitoJUnit
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class BackActionInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val executor = FakeExecutor(FakeSystemClock())
 
@@ -161,17 +159,6 @@ class BackActionInteractorTest : SysuiTestCase() {
         assertTrue(result)
         verify(shadeBackActionInteractor, atLeastOnce()).animateCollapseQs(anyBoolean())
         verify(statusBarKeyguardViewManager, never()).onBackPressed()
-    }
-
-    @Test
-    fun testOnBackRequested_closeUserSwitcherIfOpen() {
-        whenever(shadeBackActionInteractor.closeUserSwitcherIfOpen()).thenReturn(true)
-
-        val result = backActionInteractor.onBackRequested()
-
-        assertTrue(result)
-        verify(statusBarKeyguardViewManager, never()).onBackPressed()
-        verify(shadeBackActionInteractor, never()).animateCollapseQs(anyBoolean())
     }
 
     @Test

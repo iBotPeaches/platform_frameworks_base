@@ -33,7 +33,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.app.Activity;
 import android.app.Instrumentation;
@@ -159,7 +158,7 @@ public class TextViewReceiveContentTest {
         ContentInfo payload =
                 new ContentInfo.Builder(clip, SOURCE_AUTOFILL).build();
         mDefaultReceiver.onReceiveContent(mEditText, payload);
-        verifyZeroInteractions(ic.mMock);
+        verifyNoMoreInteractions(ic.mMock);
     }
 
     @Test
@@ -180,19 +179,19 @@ public class TextViewReceiveContentTest {
         ContentInfo payload =
                 new ContentInfo.Builder(clip, SOURCE_CLIPBOARD).build();
         mDefaultReceiver.onReceiveContent(mEditText, payload);
-        verifyZeroInteractions(ic.mMock);
+        verifyNoMoreInteractions(ic.mMock);
 
         payload = new ContentInfo.Builder(clip, SOURCE_INPUT_METHOD).build();
         mDefaultReceiver.onReceiveContent(mEditText, payload);
-        verifyZeroInteractions(ic.mMock);
+        verifyNoMoreInteractions(ic.mMock);
 
         payload = new ContentInfo.Builder(clip, SOURCE_DRAG_AND_DROP).build();
         mDefaultReceiver.onReceiveContent(mEditText, payload);
-        verifyZeroInteractions(ic.mMock);
+        verifyNoMoreInteractions(ic.mMock);
 
         payload = new ContentInfo.Builder(clip, SOURCE_PROCESS_TEXT).build();
         mDefaultReceiver.onReceiveContent(mEditText, payload);
-        verifyZeroInteractions(ic.mMock);
+        verifyNoMoreInteractions(ic.mMock);
     }
 
     private static class MyInputConnection extends InputConnectionWrapper {

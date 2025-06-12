@@ -17,6 +17,7 @@
 package com.android.settingslib.datastore
 
 import android.content.SharedPreferences
+import android.util.Log
 
 /** Interface of key-value store. */
 interface KeyValueStore : KeyedObservable<String> {
@@ -80,6 +81,27 @@ interface KeyValueStore : KeyedObservable<String> {
     fun setString(key: String, value: String?) = setValue(key, String::class.javaObjectType, value)
 }
 
+/** Delegation of [KeyValueStore]. */
+interface KeyValueStoreDelegate : KeyValueStore, KeyedObservableDelegate<String> {
+
+    /** [KeyValueStore] to delegate. */
+    val keyValueStoreDelegate: KeyValueStore
+
+    override val keyedObservableDelegate
+        get() = keyValueStoreDelegate
+
+    override fun contains(key: String) = keyValueStoreDelegate.contains(key)
+
+    override fun <T : Any> getDefaultValue(key: String, valueType: Class<T>) =
+        keyValueStoreDelegate.getDefaultValue(key, valueType)
+
+    override fun <T : Any> getValue(key: String, valueType: Class<T>) =
+        keyValueStoreDelegate.getValue(key, valueType) ?: getDefaultValue(key, valueType)
+
+    override fun <T : Any> setValue(key: String, valueType: Class<T>, value: T?) =
+        keyValueStoreDelegate.setValue(key, valueType, value)
+}
+
 /** [SharedPreferences] based [KeyValueStore]. */
 interface SharedPreferencesKeyValueStore : KeyValueStore {
 
@@ -103,11 +125,11 @@ interface SharedPreferencesKeyValueStore : KeyValueStore {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : Any> setValue(key: String, valueType: Class<T>, value: T?) {
+        val edit = sharedPreferences.edit()
         if (value == null) {
-            sharedPreferences.edit().remove(key).apply()
+            edit.remove(key).apply()
             return
         }
-        val edit = sharedPreferences.edit()
         when (valueType) {
             Boolean::class.javaObjectType -> edit.putBoolean(key, value as Boolean)
             Float::class.javaObjectType -> edit.putFloat(key, value as Float)
@@ -115,7 +137,7 @@ interface SharedPreferencesKeyValueStore : KeyValueStore {
             Long::class.javaObjectType -> edit.putLong(key, value as Long)
             String::class.javaObjectType -> edit.putString(key, value as String)
             Set::class.javaObjectType -> edit.putStringSet(key, value as Set<String>)
-            else -> {}
+            else -> Log.e(LOG_TAG, "Unsupported $valueType for $key: $value")
         }
         edit.apply()
     }

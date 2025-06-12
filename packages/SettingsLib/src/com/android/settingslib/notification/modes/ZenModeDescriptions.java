@@ -70,8 +70,7 @@ public final class ZenModeDescriptions {
     public String getTriggerDescriptionForAccessibility(@NonNull ZenMode mode) {
         // Only one special case: time-based schedules, where we want to use full day names.
         if (mode.isSystemOwned() && mode.getType() == TYPE_SCHEDULE_TIME) {
-            ZenModeConfig.ScheduleInfo schedule = ZenModeConfig.tryParseScheduleConditionId(
-                    mode.getRule().getConditionId());
+            ZenModeConfig.ScheduleInfo schedule = ZenModeSchedules.getTimeSchedule(mode);
             if (schedule != null) {
                 String fullDaysSummary = SystemZenRules.getDaysOfWeekFull(mContext, schedule);
                 if (fullDaysSummary != null) {

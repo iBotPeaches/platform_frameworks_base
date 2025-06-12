@@ -82,6 +82,12 @@ public abstract class Animator implements Cloneable {
     static boolean sPostNotifyEndListenerEnabled;
 
     /**
+     * If {@link #sPostNotifyEndListenerEnabled} is enabled, it will be set when the end callback
+     * is scheduled. It is cleared when it runs or finishes immediately, e.g. cancel.
+     */
+    private Runnable mPendingEndCallback;
+
+    /**
      * A cache of the values in a list. Used so that when calling the list, we have a copy
      * of it in case the list is modified while iterating. The array can be reused to avoid
      * allocation on every notification.
@@ -660,10 +666,33 @@ public abstract class Animator implements Cloneable {
         }
     }
 
+    /**
+     * This is called when the animator needs to finish immediately. This is usually no-op unless
+     * {@link #sPostNotifyEndListenerEnabled} is enabled and a finish request calls around the last
+     * animation frame.
+     *
+     * @param notifyListeners Whether to invoke {@link AnimatorListener#onAnimationEnd}.
+     * @return {@code true} if the pending listeners are removed.
+     */
+    boolean consumePendingEndListeners(boolean notifyListeners) {
+        if (mPendingEndCallback == null) {
+            return false;
+        }
+        AnimationHandler.getInstance().removePendingEndAnimationCallback(mPendingEndCallback);
+        mPendingEndCallback = null;
+        if (notifyListeners) {
+            notifyEndListeners(false /* isReversing */);
+        }
+        return true;
+    }
+
     void notifyEndListenersFromEndAnimation(boolean isReversing, boolean postNotifyEndListener) {
         if (postNotifyEndListener) {
-            AnimationHandler.getInstance().postEndAnimationCallback(
-                    () -> completeEndAnimation(isReversing, "postNotifyAnimEnd"));
+            mPendingEndCallback = () -> {
+                completeEndAnimation(isReversing, "postNotifyAnimEnd");
+                mPendingEndCallback = null;
+            };
+            AnimationHandler.getInstance().postEndAnimationCallback(mPendingEndCallback);
         } else {
             completeEndAnimation(isReversing, "notifyAnimEnd");
         }

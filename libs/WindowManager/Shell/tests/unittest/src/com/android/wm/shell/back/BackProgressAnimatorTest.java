@@ -32,6 +32,8 @@ import android.window.BackProgressAnimator;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.wm.shell.ShellTestCase;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 @SmallTest
 @TestableLooper.RunWithLooper
 @RunWith(AndroidTestingRunner.class)
-public class BackProgressAnimatorTest {
+public class BackProgressAnimatorTest extends ShellTestCase {
     private BackProgressAnimator mProgressAnimator;
     private BackEvent mReceivedBackEvent;
     private float mTargetProgress = 0.5f;
@@ -187,14 +189,14 @@ public class BackProgressAnimatorTest {
         mTargetProgressCalled.await(1, TimeUnit.SECONDS);
         assertNotNull(mReceivedBackEvent);
 
-        // Trigger back invoked animation
         CountDownLatch finishCallbackCalled = new CountDownLatch(1);
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(
-                () -> mProgressAnimator.onBackInvoked(finishCallbackCalled::countDown));
-
-        // remove onBackCancelled finishCallback (while progress is still animating to 0)
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(
-                () -> mProgressAnimator.removeOnBackInvokedFinishCallback());
+        // Trigger back invoked animation and remove onBackInvoked finishCallback (while progress
+        // is still animating to 1)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                    mProgressAnimator.onBackInvoked(finishCallbackCalled::countDown);
+                    mProgressAnimator.removeOnBackInvokedFinishCallback();
+                }
+        );
 
         // call reset (which triggers the finishCallback invocation, if one is present)
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> mProgressAnimator.reset());

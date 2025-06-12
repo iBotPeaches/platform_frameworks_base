@@ -233,7 +233,7 @@ class BluetoothLeBroadcastMetadataExtTest {
 
         const val QR_CODE_STRING =
             "BLUETOOTH:UUID:184F;BN:VGVzdA==;AT:1;AD:00A1A1A1A1A1;BI:1E240;BC:VGVzdENvZGU=;" +
-            "MD:BgNwVGVzdA==;AS:1;PI:A0;NS:1;BS:3;NB:2;SM:BQNUZXN0BARlbmc=;;"
+            "PM:BgNwVGVzdA==;AS:1;PI:A0;NS:1;BS:3;NB:2;SM:BQNUZXN0BARlbmc=;;"
         const val QR_CODE_STRING_NON_ENCRYPTED =
             "BLUETOOTH:UUID:184F;BN:SG9ja2V5;AT:0;AD:AABBCC001122;BI:DE51E9;SQ:1;AS:1;PI:FFFF;" +
             "NS:1;BS:1;NB:1;;"

@@ -23,7 +23,7 @@ import static org.mockito.Mockito.clearInvocations;
 import android.hardware.hdmi.DeviceFeatures;
 import android.hardware.hdmi.HdmiControlManager;
 import android.hardware.hdmi.HdmiDeviceInfo;
-import android.media.AudioManager;
+import android.media.AudioDeviceVolumeManager;
 import android.platform.test.annotations.Presubmit;
 
 import androidx.test.filters.SmallTest;
@@ -65,8 +65,9 @@ public class PlaybackDeviceToTvAvbTest extends BasePlaybackDeviceAvbTest {
 
         // Audio System enables System Audio Mode. AVB should be disabled.
         receiveSetSystemAudioMode(true);
-        assertThat(mAudioManager.getDeviceVolumeBehavior(getAudioOutputDevice())).isEqualTo(
-                AudioManager.DEVICE_VOLUME_BEHAVIOR_FULL);
+        assertThat(mAudioDeviceVolumeManager.getDeviceVolumeBehavior(
+                getAudioOutputDevice())).isEqualTo(
+                AudioDeviceVolumeManager.DEVICE_VOLUME_BEHAVIOR_FULL);
 
         clearInvocations(mAudioManager, mAudioDeviceVolumeManager);
 
@@ -88,7 +89,8 @@ public class PlaybackDeviceToTvAvbTest extends BasePlaybackDeviceAvbTest {
                 false));
         mTestLooper.dispatchAll();
 
-        assertThat(mAudioManager.getDeviceVolumeBehavior(getAudioOutputDevice())).isEqualTo(
-                AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE);
+        assertThat(mAudioDeviceVolumeManager.getDeviceVolumeBehavior(
+                getAudioOutputDevice())).isEqualTo(
+                AudioDeviceVolumeManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE);
     }
 }

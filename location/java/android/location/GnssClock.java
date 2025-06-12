@@ -349,7 +349,7 @@ public final class GnssClock implements Parcelable {
      * Gets the clock's Drift in nanoseconds per second.
      *
      * <p>This value is the instantaneous time-derivative of the value provided by
-     * {@link #getBiasNanos()}.
+     * the sum of {@link #getFullBiasNanos()} and {@link #getBiasNanos()}.
      *
      * <p>A positive value indicates that the frequency is higher than the nominal (e.g. GPS master
      * clock) frequency. The error estimate for this reported drift is

@@ -17,7 +17,7 @@
 package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.util.fastMap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.animation.scene.SceneScope
+import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.grid.ui.compose.VerticalSpannedGrid
 import com.android.systemui.haptics.msdl.qs.TileHapticsViewModelFactoryProvider
@@ -33,6 +33,7 @@ import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager.Companion.LOCATION_QS
 import com.android.systemui.qs.panels.shared.model.SizedTileImpl
 import com.android.systemui.qs.panels.ui.compose.PaginatableGridLayout
+import com.android.systemui.qs.panels.ui.compose.TileListener
 import com.android.systemui.qs.panels.ui.compose.bounceableInfo
 import com.android.systemui.qs.panels.ui.compose.rememberEditListState
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
@@ -57,12 +58,11 @@ constructor(
 ) : PaginatableGridLayout {
 
     @Composable
-    override fun SceneScope.TileGrid(tiles: List<TileViewModel>, modifier: Modifier) {
-        DisposableEffect(tiles) {
-            val token = Any()
-            tiles.forEach { it.startListening(token) }
-            onDispose { tiles.forEach { it.stopListening(token) } }
-        }
+    override fun ContentScope.TileGrid(
+        tiles: List<TileViewModel>,
+        modifier: Modifier,
+        listening: () -> Boolean,
+    ) {
         val viewModel =
             rememberViewModel(traceName = "InfiniteGridLayout.TileGrid") {
                 viewModelFactory.create()
@@ -77,34 +77,53 @@ constructor(
             }
 
         val columns = columnsWithMediaViewModel.columns
+        val largeTiles by iconTilesViewModel.largeTilesState
         val largeTilesSpan by iconTilesViewModel.largeTilesSpanState
-        val sizedTiles = tiles.map { SizedTileImpl(it, it.spec.width(largeTilesSpan)) }
+        // Tiles or largeTiles may be updated while this is composed, so listen to any changes
+        val sizedTiles =
+            remember(tiles, largeTiles, largeTilesSpan) {
+                tiles.map {
+                    SizedTileImpl(it, if (largeTiles.contains(it.spec)) largeTilesSpan else 1)
+                }
+            }
         val bounceables =
             remember(sizedTiles) { List(sizedTiles.size) { BounceableTileViewModel() } }
         val squishiness by viewModel.squishinessViewModel.squishiness.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
-        var cellIndex = 0
+        val spans by remember(sizedTiles) { derivedStateOf { sizedTiles.fastMap { it.width } } }
 
         VerticalSpannedGrid(
             columns = columns,
             columnSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal),
             rowSpacing = dimensionResource(R.dimen.qs_tile_margin_vertical),
-            spans = sizedTiles.fastMap { it.width },
-        ) { spanIndex ->
+            spans = spans,
+            keys = { sizedTiles[it].tile.spec },
+        ) { spanIndex, column, isFirstInColumn, isLastInColumn ->
             val it = sizedTiles[spanIndex]
-            val column = cellIndex % columns
-            cellIndex += it.width
-            Tile(
-                tile = it.tile,
-                iconOnly = iconTilesViewModel.isIconTile(it.tile.spec),
-                modifier = Modifier.element(it.tile.spec.toElementKey(spanIndex)),
-                squishiness = { squishiness },
-                tileHapticsViewModelFactoryProvider = tileHapticsViewModelFactoryProvider,
-                coroutineScope = scope,
-                bounceableInfo = bounceables.bounceableInfo(it, spanIndex, column, columns),
-                detailsViewModel = detailsViewModel,
-            )
+
+            Element(it.tile.spec.toElementKey(spanIndex), Modifier) {
+                Tile(
+                    tile = it.tile,
+                    iconOnly = iconTilesViewModel.isIconTile(it.tile.spec),
+                    squishiness = { squishiness },
+                    tileHapticsViewModelFactoryProvider = tileHapticsViewModelFactoryProvider,
+                    coroutineScope = scope,
+                    bounceableInfo =
+                        bounceables.bounceableInfo(
+                            it,
+                            index = spanIndex,
+                            column = column,
+                            columns = columns,
+                            isFirstInRow = isFirstInColumn,
+                            isLastInRow = isLastInColumn,
+                        ),
+                    detailsViewModel = detailsViewModel,
+                    isVisible = listening,
+                )
+            }
         }
+
+        TileListener(tiles, listening)
     }
 
     @Composable
@@ -151,6 +170,7 @@ constructor(
             otherTiles = otherTiles,
             columns = columns,
             modifier = modifier,
+            onAddTile = onAddTile,
             onRemoveTile = onRemoveTile,
             onSetTiles = onSetTiles,
             onResize = iconTilesViewModel::resize,

@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef AAPT2_DIFF_H
-#define AAPT2_DIFF_H
-
+#pragma once
 #include "Command.h"
 
 namespace aapt {
@@ -25,11 +23,16 @@ class DiffCommand : public Command {
  public:
   explicit DiffCommand() : Command("diff") {
     SetDescription("Prints the differences in resources of two apks.");
+    AddOptionalSwitch("--ignore-id-shift",
+                      "Match the resources when their IDs shift, e.g. because of the added\n"
+                      "or deleted entries.",
+                      &ignore_id_shift_);
   }
 
   int Action(const std::vector<std::string>& args) override;
+
+ private:
+  bool ignore_id_shift_ = false;
 };
 
-}// namespace aapt
-
-#endif //AAPT2_DIFF_H
+}  // namespace aapt

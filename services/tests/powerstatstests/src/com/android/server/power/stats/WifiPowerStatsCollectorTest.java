@@ -68,11 +68,6 @@ public class WifiPowerStatsCollectorTest {
     private static final int ISOLATED_UID = 99123;
 
     @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
-    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setPowerStatsThrottlePeriodMillis(BatteryConsumer.POWER_COMPONENT_WIFI, 1000);
 
@@ -167,6 +162,11 @@ public class WifiPowerStatsCollectorTest {
         @Override
         public WifiManager getWifiManager() {
             return mWifiManager;
+        }
+
+        @Override
+        public NetworkStats networkStatsDelta(NetworkStats stats, NetworkStats oldStats) {
+            return NetworkStatsTestUtils.networkStatsDelta(stats, oldStats);
         }
     };
 

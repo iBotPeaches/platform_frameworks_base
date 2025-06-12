@@ -36,6 +36,7 @@ import android.view.View;
  * with hardware keyboards.  Software input methods have no obligation to trigger
  * the methods in this class.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class MultiTapKeyListener extends BaseKeyListener
         implements SpanWatcher {
     private static MultiTapKeyListener[] sInstance =

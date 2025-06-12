@@ -29,6 +29,7 @@ constructor(
     private val auditLogger: KeyguardTransitionAuditLogger,
     private val statusBarDisableFlagsInteractor: StatusBarDisableFlagsInteractor,
     private val keyguardStateCallbackInteractor: KeyguardStateCallbackInteractor,
+    private val keyguardServiceShowLockscreenInteractor: KeyguardServiceShowLockscreenInteractor,
 ) : CoreStartable {
 
     override fun start() {
@@ -54,6 +55,7 @@ constructor(
         auditLogger.start()
         statusBarDisableFlagsInteractor.start()
         keyguardStateCallbackInteractor.start()
+        keyguardServiceShowLockscreenInteractor.start()
     }
 
     companion object {

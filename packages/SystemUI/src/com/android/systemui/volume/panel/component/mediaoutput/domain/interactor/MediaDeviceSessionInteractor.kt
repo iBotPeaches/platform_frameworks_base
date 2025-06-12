@@ -19,13 +19,12 @@ package com.android.systemui.volume.panel.component.mediaoutput.domain.interacto
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import com.android.settingslib.volume.data.repository.MediaControllerRepository
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.volume.panel.component.mediaoutput.domain.model.MediaControllerChangeModel
 import com.android.systemui.volume.panel.component.mediaoutput.shared.model.MediaDeviceSession
-import com.android.systemui.volume.panel.dagger.scope.VolumePanelScope
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.filterIsInstance
@@ -37,8 +36,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 
 /** Allows to observe and change [MediaDeviceSession] state. */
-@OptIn(ExperimentalCoroutinesApi::class)
-@VolumePanelScope
+@SysUISingleton
 class MediaDeviceSessionInteractor
 @Inject
 constructor(

@@ -45,7 +45,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
         uid: Int,
         packageName: String,
         instanceId: InstanceId,
-        playbackLocation: Int
+        playbackLocation: Int,
     ) {
         val event =
             when (playbackLocation) {
@@ -61,7 +61,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
         uid: Int,
         packageName: String,
         instanceId: InstanceId,
-        playbackLocation: Int
+        playbackLocation: Int,
     ) {
         val event =
             when (playbackLocation) {
@@ -112,7 +112,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.OPEN_SETTINGS_LONG_PRESS,
             uid,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -156,6 +156,8 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
                     MediaUiEvent.MEDIA_CAROUSEL_LOCATION_DREAM
                 MediaHierarchyManager.LOCATION_COMMUNAL_HUB ->
                     MediaUiEvent.MEDIA_CAROUSEL_LOCATION_COMMUNAL
+                MediaHierarchyManager.LOCATION_STATUS_BAR_POPUP ->
+                    MediaUiEvent.MEDIA_CAROUSEL_LOCATION_STATUS_BAR_POPUP
                 else -> throw IllegalArgumentException("Unknown media carousel location $location")
             }
         logger.log(event)
@@ -166,7 +168,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_RECOMMENDATION_ADDED,
             0,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -175,7 +177,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_RECOMMENDATION_REMOVED,
             0,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -184,7 +186,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_RECOMMENDATION_ACTIVATED,
             uid,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -194,7 +196,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             0,
             packageName,
             instanceId,
-            position
+            position,
         )
     }
 
@@ -203,7 +205,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_RECOMMENDATION_CARD_TAP,
             0,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -212,7 +214,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_OPEN_BROADCAST_DIALOG,
             uid,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -221,7 +223,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_CAROUSEL_SINGLE_PLAYER,
             uid,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 
@@ -230,7 +232,7 @@ class MediaUiEventLogger @Inject constructor(private val logger: UiEventLogger) 
             MediaUiEvent.MEDIA_CAROUSEL_MULTIPLE_PLAYERS,
             uid,
             packageName,
-            instanceId
+            instanceId,
         )
     }
 }
@@ -280,6 +282,8 @@ enum class MediaUiEvent(val metricId: Int) : UiEventLogger.UiEventEnum {
     MEDIA_CAROUSEL_LOCATION_DREAM(1040),
     @UiEvent(doc = "The media carousel moved to the communal hub UI")
     MEDIA_CAROUSEL_LOCATION_COMMUNAL(1520),
+    @UiEvent(doc = "The media carousel moved to the status bar popup")
+    MEDIA_CAROUSEL_LOCATION_STATUS_BAR_POPUP(2170),
     @UiEvent(doc = "A media recommendation card was added to the media carousel")
     MEDIA_RECOMMENDATION_ADDED(1041),
     @UiEvent(doc = "A media recommendation card was removed from the media carousel")

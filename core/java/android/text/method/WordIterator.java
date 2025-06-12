@@ -37,6 +37,7 @@ import java.util.Locale;
  * Also provides methods to determine word boundaries.
  * {@hide}
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class WordIterator implements Selection.PositionIterator {
     // Size of the window for the word iterator, should be greater than the longest word's length
     private static final int WINDOW_WIDTH = 50;

@@ -16,12 +16,13 @@
 
 package com.android.server.power.stats.processor;
 
+import android.util.IntArray;
+
 import com.android.internal.os.PowerProfile;
 import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.UsageBasedPowerEstimator;
 import com.android.server.power.stats.format.BluetoothPowerStatsLayout;
 
-import java.util.ArrayList;
 import java.util.List;
 
 class BluetoothPowerStatsProcessor extends PowerStatsProcessor {
@@ -118,18 +119,19 @@ class BluetoothPowerStatsProcessor extends PowerStatsProcessor {
 
         combineDeviceStateEstimates();
 
-        ArrayList<Integer> uids = new ArrayList<>();
-        stats.collectUids(uids);
-        if (!uids.isEmpty()) {
-            for (int uid : uids) {
-                for (int i = 0; i < mPlan.uidStateEstimates.size(); i++) {
-                    computeUidActivityTotals(stats, uid, mPlan.uidStateEstimates.get(i));
+        IntArray uids = stats.getActiveUids();
+        if (uids.size() != 0) {
+            for (int i = uids.size() - 1; i >= 0; i--) {
+                int uid = uids.get(i);
+                for (int j = 0; j < mPlan.uidStateEstimates.size(); j++) {
+                    computeUidActivityTotals(stats, uid, mPlan.uidStateEstimates.get(j));
                 }
             }
 
-            for (int uid : uids) {
-                for (int i = 0; i < mPlan.uidStateEstimates.size(); i++) {
-                    computeUidPowerEstimates(stats, uid, mPlan.uidStateEstimates.get(i));
+            for (int i = uids.size() - 1; i >= 0; i--) {
+                int uid = uids.get(i);
+                for (int j = 0; j < mPlan.uidStateEstimates.size(); j++) {
+                    computeUidPowerEstimates(stats, uid, mPlan.uidStateEstimates.get(j));
                 }
             }
         }
@@ -297,8 +299,10 @@ class BluetoothPowerStatsProcessor extends PowerStatsProcessor {
                             / intermediates.txBytes;
                 }
             }
-            mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
-            stats.setUidStats(uid, proportionalEstimate.stateValues, mTmpUidStatsArray);
+            if (power != 0) {
+                mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
+                stats.setUidStats(uid, proportionalEstimate.stateValues, mTmpUidStatsArray);
+            }
         }
     }
 }

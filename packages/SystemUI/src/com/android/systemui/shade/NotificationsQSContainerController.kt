@@ -21,24 +21,21 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import androidx.annotation.VisibleForTesting
 import androidx.constraintlayout.widget.ConstraintSet
-import androidx.constraintlayout.widget.ConstraintSet.BOTTOM
 import androidx.constraintlayout.widget.ConstraintSet.END
 import androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
 import androidx.constraintlayout.widget.ConstraintSet.START
 import androidx.constraintlayout.widget.ConstraintSet.TOP
 import androidx.lifecycle.lifecycleScope
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.systemui.customization.R as customR
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.fragments.FragmentService
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.navigationbar.NavigationModeController
 import com.android.systemui.plugins.qs.QS
 import com.android.systemui.plugins.qs.QSContainerController
-import com.android.systemui.recents.OverviewProxyService
-import com.android.systemui.recents.OverviewProxyService.OverviewProxyListener
+import com.android.systemui.recents.LauncherProxyService
+import com.android.systemui.recents.LauncherProxyService.LauncherProxyListener
 import com.android.systemui.res.R
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.shared.system.QuickStepContract
@@ -60,7 +57,7 @@ class NotificationsQSContainerController
 constructor(
     view: NotificationsQuickSettingsContainer,
     private val navigationModeController: NavigationModeController,
-    private val overviewProxyService: OverviewProxyService,
+    private val launcherProxyService: LauncherProxyService,
     private val shadeHeaderController: ShadeHeaderController,
     private val shadeInteractor: ShadeInteractor,
     private val fragmentService: FragmentService,
@@ -88,8 +85,8 @@ constructor(
 
     private var isGestureNavigation = true
     private var taskbarVisible = false
-    private val taskbarVisibilityListener: OverviewProxyListener =
-        object : OverviewProxyListener {
+    private val taskbarVisibilityListener: LauncherProxyListener =
+        object : LauncherProxyListener {
             override fun onTaskbarStatusUpdated(visible: Boolean, stashed: Boolean) {
                 taskbarVisible = visible
             }
@@ -137,7 +134,7 @@ constructor(
 
     public override fun onViewAttached() {
         updateResources()
-        overviewProxyService.addCallback(taskbarVisibilityListener)
+        launcherProxyService.addCallback(taskbarVisibilityListener)
         mView.setInsetsChangedListener(delayedInsetSetter)
         mView.setQSFragmentAttachedListener { qs: QS -> qs.setContainerController(this) }
         mView.setConfigurationChangedListener { updateResources() }
@@ -145,7 +142,7 @@ constructor(
     }
 
     override fun onViewDetached() {
-        overviewProxyService.removeCallback(taskbarVisibilityListener)
+        launcherProxyService.removeCallback(taskbarVisibilityListener)
         mView.removeOnInsetsChangedListener()
         mView.removeQSFragmentAttachedListener()
         mView.setConfigurationChangedListener(null)
@@ -273,9 +270,7 @@ constructor(
         ensureAllViewsHaveIds(mView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(mView)
-        setKeyguardStatusViewConstraints(constraintSet)
         setQsConstraints(constraintSet)
-        setNotificationsConstraints(constraintSet)
         setLargeScreenShadeHeaderConstraints(constraintSet)
         mView.applyConstraints(constraintSet)
     }
@@ -288,21 +283,6 @@ constructor(
         }
     }
 
-    private fun setNotificationsConstraints(constraintSet: ConstraintSet) {
-        if (MigrateClocksToBlueprint.isEnabled) {
-            return
-        }
-        val startConstraintId = if (splitShadeEnabled) R.id.qs_edge_guideline else PARENT_ID
-        val nsslId = R.id.notification_stack_scroller
-        constraintSet.apply {
-            connect(nsslId, START, startConstraintId, START)
-            setMargin(nsslId, START, if (splitShadeEnabled) 0 else panelMarginHorizontal)
-            setMargin(nsslId, END, panelMarginHorizontal)
-            setMargin(nsslId, TOP, topMargin)
-            setMargin(nsslId, BOTTOM, notificationsBottomMargin)
-        }
-    }
-
     private fun setQsConstraints(constraintSet: ConstraintSet) {
         val endConstraintId = if (splitShadeEnabled) R.id.qs_edge_guideline else PARENT_ID
         constraintSet.apply {
@@ -310,15 +290,6 @@ constructor(
             setMargin(R.id.qs_frame, START, if (splitShadeEnabled) 0 else panelMarginHorizontal)
             setMargin(R.id.qs_frame, END, if (splitShadeEnabled) 0 else panelMarginHorizontal)
             setMargin(R.id.qs_frame, TOP, topMargin)
-        }
-    }
-
-    private fun setKeyguardStatusViewConstraints(constraintSet: ConstraintSet) {
-        val statusViewMarginHorizontal =
-            resources.getDimensionPixelSize(customR.dimen.status_view_margin_horizontal)
-        constraintSet.apply {
-            setMargin(R.id.keyguard_status_view, START, statusViewMarginHorizontal)
-            setMargin(R.id.keyguard_status_view, END, statusViewMarginHorizontal)
         }
     }
 

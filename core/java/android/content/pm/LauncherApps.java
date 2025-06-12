@@ -77,7 +77,6 @@ import android.util.Pair;
 import android.window.IDumpCallback;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.function.pooled.PooledLambda;
 
 import java.io.IOException;
@@ -92,7 +91,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -464,17 +462,6 @@ public class LauncherApps {
         public static final int FLAG_GET_KEY_FIELDS_ONLY = 1 << 2;
 
         /**
-         * Includes shortcuts from persistence layer in the search result.
-         *
-         * <p>The caller should make the query on a worker thread since accessing persistence layer
-         * is considered asynchronous.
-         *
-         * @hide
-         */
-        @SystemApi
-        public static final int FLAG_GET_PERSISTED_DATA = 1 << 12;
-
-        /**
          * Populate the persons field in the result. See {@link ShortcutInfo#getPersons()}.
          *
          * <p>The caller must have the system {@code ACCESS_SHORTCUTS} permission.
@@ -484,6 +471,17 @@ public class LauncherApps {
         @SystemApi
         @RequiresPermission(android.Manifest.permission.ACCESS_SHORTCUTS)
         public static final int FLAG_GET_PERSONS_DATA = 1 << 11;
+
+        /**
+         * Includes shortcuts from persistence layer in the search result.
+         *
+         * <p>The caller should make the query on a worker thread since accessing persistence layer
+         * is considered asynchronous.
+         *
+         * @hide
+         */
+        @SystemApi
+        public static final int FLAG_GET_PERSISTED_DATA = 1 << 12;
 
         /** @hide */
         @IntDef(flag = true, prefix = { "FLAG_" }, value = {
@@ -793,18 +791,8 @@ public class LauncherApps {
     public List<LauncherActivityInfo> getActivityList(String packageName, UserHandle user) {
         logErrorForInvalidProfileAccess(user);
         try {
-            final List<LauncherActivityInfo> activityList = convertToActivityList(
-                    mService.getLauncherActivities(
-                            mContext.getPackageName(),
-                            packageName,
-                            user
-                    ), user);
-            if (activityList.isEmpty()) {
-                // b/350144057
-                Log.d(TAG, "getActivityList: No launchable activities found for"
-                        + "packageName=" + packageName + ", user=" + user);
-            }
-            return activityList;
+            return convertToActivityList(mService.getLauncherActivities(mContext.getPackageName(),
+                    packageName, user), user);
         } catch (RemoteException re) {
             throw re.rethrowFromSystemServer();
         }
@@ -1500,9 +1488,6 @@ public class LauncherApps {
             @NonNull UserHandle user) {
         logErrorForInvalidProfileAccess(user);
         try {
-            if ((query.mQueryFlags & ShortcutQuery.FLAG_GET_PERSISTED_DATA) != 0) {
-                return getShortcutsBlocked(query, user);
-            }
             // Note this is the only case we need to update the disabled message for shortcuts
             // that weren't restored.
             // The restore problem messages are only shown by the user, and publishers will never
@@ -1514,22 +1499,6 @@ public class LauncherApps {
                         .getList());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
-        }
-    }
-
-    private List<ShortcutInfo> getShortcutsBlocked(@NonNull ShortcutQuery query,
-            @NonNull UserHandle user) {
-        logErrorForInvalidProfileAccess(user);
-        final AndroidFuture<List<ShortcutInfo>> future = new AndroidFuture<>();
-        future.thenApply(this::maybeUpdateDisabledMessage);
-        try {
-            mService.getShortcutsAsync(mContext.getPackageName(),
-                            new ShortcutQueryWrapper(query), user, future);
-            return future.get();
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -1951,6 +1920,9 @@ public class LauncherApps {
      * caller should have normal {@link android.Manifest.permission#ACCESS_HIDDEN_PROFILES}
      * permission and the {@link android.app.role.RoleManager#ROLE_HOME} role.
      *
+     * <p>This callback will also receive changes to the {@link LauncherUserInfo#getUserConfig()},
+     * allowing clients to monitor updates to the user-specific configuration.
+     *
      * @param callback The callback to register.
      */
     // Alternatively, a system app can access this api for private profile if they've been granted
@@ -1968,6 +1940,9 @@ public class LauncherApps {
      * <p>To receive callbacks for hidden profile {@link UserManager#USER_TYPE_PROFILE_PRIVATE},
      * caller should have normal {@link android.Manifest.permission#ACCESS_HIDDEN_PROFILES}
      * permission and the {@link android.app.role.RoleManager#ROLE_HOME} role.
+     *
+     * <p>This callback will also receive changes to the {@link LauncherUserInfo#getUserConfig()},
+     * allowing clients to monitor updates to the user-specific configuration.
      *
      * @param callback The callback to register.
      * @param handler that should be used to post callbacks on, may be null.

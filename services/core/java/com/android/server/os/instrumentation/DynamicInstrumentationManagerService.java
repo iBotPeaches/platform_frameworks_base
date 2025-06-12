@@ -38,6 +38,7 @@ import com.android.server.SystemService;
 
 import dalvik.system.VMDebug;
 
+import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -95,10 +96,16 @@ public class DynamicInstrumentationManagerService extends SystemService {
                 }
             }
 
-            Method method = MethodDescriptorParser.parseMethodDescriptor(
+            Executable executable = MethodDescriptorParser.parseMethodDescriptor(
                     getClass().getClassLoader(), methodDescriptor);
-            VMDebug.ExecutableMethodFileOffsets location =
-                    VMDebug.getExecutableMethodFileOffsets(method);
+            VMDebug.ExecutableMethodFileOffsets location;
+            if (com.android.art.flags.Flags.executableMethodFileOffsetsV2()) {
+                location = VMDebug.getExecutableMethodFileOffsets(executable);
+            } else if (executable instanceof Method) {
+                location = VMDebug.getExecutableMethodFileOffsets((Method) executable);
+            } else {
+                throw new UnsupportedOperationException();
+            }
 
             try {
                 if (location == null) {

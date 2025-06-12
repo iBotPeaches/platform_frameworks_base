@@ -93,7 +93,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:orientation="vertical"
-        app:layout_constraintGuide_end="@dimen/qs_media_session_collapsed_guideline" />
+        app:layout_constraintGuide_end="@dimen/qs_media_session_collapsed_legacy_guideline" />
 
     <!-- App icon -->
     <com.android.internal.widget.CachingIconView

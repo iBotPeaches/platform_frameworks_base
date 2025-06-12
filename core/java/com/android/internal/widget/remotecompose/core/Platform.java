@@ -20,13 +20,46 @@ import android.annotation.Nullable;
 
 /** Services that are needed to be provided by the platform during encoding. */
 public interface Platform {
+
+    /**
+     * Converts a platform-specific image object into a platform-independent byte buffer
+     *
+     * @param image
+     * @return
+     */
     @Nullable
     byte[] imageToByteArray(@NonNull Object image);
 
+    /**
+     * Returns the width of a platform-specific image object
+     *
+     * @param image platform-specific image object
+     * @return the width of the image in pixels
+     */
     int getImageWidth(@NonNull Object image);
 
+    /**
+     * Returns the height of a platform-specific image object
+     *
+     * @param image platform-specific image object
+     * @return the height of the image in pixels
+     */
     int getImageHeight(@NonNull Object image);
 
+    /**
+     * Returns true if the platform-specific image object has format ALPHA_8
+     *
+     * @param image platform-specific image object
+     * @return whether or not the platform-specific image object has format ALPHA_8
+     */
+    boolean isAlpha8Image(@NonNull Object image);
+
+    /**
+     * Converts a platform-specific path object into a platform-independent float buffer
+     *
+     * @param path
+     * @return
+     */
     @Nullable
     float[] pathToFloatArray(@NonNull Object path);
 
@@ -38,7 +71,34 @@ public interface Platform {
         TODO,
     }
 
+    /**
+     * Log a message
+     *
+     * @param category
+     * @param message
+     */
     void log(LogCategory category, String message);
+
+    /**
+     * Represents a precomputed text layout, for complex text painting / measuring / layout. Allows
+     * the implementation to return a cached / engine after a text measure to be used int the paint
+     * pass.
+     */
+    interface ComputedTextLayout {
+        /**
+         * Horizontal dimension of this text layout
+         *
+         * @return
+         */
+        float getWidth();
+
+        /**
+         * Vertical dimension of this text layout
+         *
+         * @return
+         */
+        float getHeight();
+    }
 
     Platform None =
             new Platform() {
@@ -54,6 +114,11 @@ public interface Platform {
 
                 @Override
                 public int getImageHeight(@NonNull Object image) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isAlpha8Image(@NonNull Object image) {
                     throw new UnsupportedOperationException();
                 }
 

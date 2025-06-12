@@ -21,8 +21,4 @@
     <string name="enabled_by_admin">Enabled by admin</string>
     <!-- Summary for switch preference to denote it is switched off by an admin [CHAR LIMIT=50] -->
     <string name="disabled_by_admin">Disabled by admin</string>
-    <!-- Summary for switch preference to denote it is switched on by Advanced protection [CHAR LIMIT=50] -->
-    <string name="enabled_by_advanced_protection">Enabled by Advanced Protection</string>
-    <!-- Summary for switch preference to denote it is switched off by Advanced protection [CHAR LIMIT=50] -->
-    <string name="disabled_by_advanced_protection">Disabled by Advanced Protection</string>
 </resources>

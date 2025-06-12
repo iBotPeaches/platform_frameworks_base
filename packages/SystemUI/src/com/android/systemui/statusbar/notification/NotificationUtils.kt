@@ -17,10 +17,10 @@
 package com.android.systemui.statusbar.notification
 
 import android.service.notification.StatusBarNotification
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 
 /** Get the notification key, reformatted for logging, for the (optional) entry  */
-val ListEntry?.logKey: String?
+val PipelineEntry?.logKey: String?
     get() = this?.let { NotificationUtils.logKey(it) }
 
 /** Get the notification key, reformatted for logging, for the (optional) sbn  */

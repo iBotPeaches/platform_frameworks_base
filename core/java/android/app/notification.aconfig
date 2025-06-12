@@ -13,12 +13,20 @@ flag {
 }
 
 flag {
+  name: "notifications_redesign_themed_app_icons"
+  namespace: "systemui"
+  description: "Notifications Redesign: Experiment to make app icons in notifications themed"
+  bug: "371174789"
+}
+
+flag {
   name: "notifications_redesign_templates"
   namespace: "systemui"
   description: "Notifications Redesign: Update notification templates"
   bug: "378660052"
 }
 
+# Flag for finalized API: In Nextfood but exported (and therefore must stay).
 flag {
   name: "modes_api"
   is_exported: true
@@ -55,10 +63,13 @@ flag {
 }
 
 flag {
-  name: "modes_ui_test"
+  name: "modes_ui_dnd_tile"
   namespace: "systemui"
-  description: "Guards new CTS tests for Modes; dependent on flags modes_api and modes_ui"
-  bug: "360862012"
+  description: "Shows a dedicated tile for the DND mode; dependent on modes_ui"
+  bug: "401217520"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -79,6 +90,13 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+  name: "modes_cleanup_implicit"
+  namespace: "systemui"
+  description: "Deletes implicit modes if never customized and not used for some time. Depends on MODES_UI"
+  bug: "394087495"
 }
 
 flag {
@@ -154,6 +172,16 @@ flag {
 }
 
 flag {
+  name: "notif_channel_estimate_effect_size"
+  namespace: "systemui"
+  description: "When reading vibration effects from parcel, estimate size instead of unnecessarily serializing to XML"
+  bug: "391908451"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
   name: "evenly_divided_call_style_action_layout"
   namespace: "systemui"
   description: "Evenly divides horizontal space for action buttons in CallStyle notifications."
@@ -168,16 +196,6 @@ flag {
   namespace: "systemui"
   description: "Prevents allowlist_token from leaking out and foreign tokens from being accepted"
   bug: "328254922"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "update_ranking_time"
-  namespace: "systemui"
-  description: "Updates notification sorting criteria to highlight new content while maintaining stability"
-  bug: "326016985"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -247,6 +265,35 @@ flag {
 }
 
 flag {
+  name: "redaction_on_lockscreen_metrics"
+  namespace: "systemui"
+  description: "enables metrics when redacting notifications on the lockscreen"
+  bug: "343631648"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "expanding_public_view"
+  namespace: "systemui"
+  description: "enables user expanding the public view of a notification"
+  bug: "398853084"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+ }
+flag {
+  name: "notif_entry_creation_time_use_elapsed_realtime"
+  namespace: "systemui"
+  description: "makes the notification entry expect its creation time to be elapsedRealtime, not uptimeMillis"
+  bug: "389606876"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
   name: "api_rich_ongoing"
   is_exported: true
   namespace: "systemui"
@@ -298,8 +345,53 @@ flag {
 }
 
 flag {
+  name: "nm_binder_perf_log_nm_throttling"
+  namespace: "systemui"
+  description: "Log throttled operations (notify, cancel) to statsd. This flag will NOT be pushed past Trunkfood."
+  bug: "389918945"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "nm_binder_perf_get_apps_with_channels"
+  namespace: "systemui"
+  description: "Use a single binder call to get the set of apps with channels for a user"
+  bug: "362981561"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
   name: "no_sbnholder"
   namespace: "systemui"
   description: "removes sbnholder from NLS"
-  bug: "362981561"
+  bug: "378128805"
+}
+
+flag {
+  name: "nm_summarization"
+  namespace: "systemui"
+  description: "Allows the NAS to summarize notifications"
+  bug: "390417189"
+  is_exported: true
+}
+
+flag {
+  name: "nm_summarization_ui"
+  namespace: "systemui"
+  description: "Shows summarized notifications in the UI"
+  bug: "390217880"
+}
+
+flag {
+  name: "nm_collapsed_lines"
+  namespace: "systemui"
+  description: "Shows 2 lines for collapsed notifications by default"
+  bug: "390217880"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }

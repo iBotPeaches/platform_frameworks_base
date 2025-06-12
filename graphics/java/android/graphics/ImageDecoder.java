@@ -44,6 +44,7 @@ import android.media.MediaFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Trace;
+import android.ravenwood.annotation.RavenwoodIgnore;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.DisplayMetrics;
@@ -173,6 +174,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *  });
  *  </pre>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class ImageDecoder implements AutoCloseable {
     /**
      *  Source of encoded image data.
@@ -1987,6 +1989,7 @@ public final class ImageDecoder implements AutoCloseable {
      * Check if HEVC decoder is supported by the device.
      */
     @SuppressWarnings("AndroidFrameworkCompatChange")
+    @RavenwoodIgnore(blockedBy = MediaCodecList.class)
     private static boolean isHevcDecoderSupported() {
         synchronized (sIsHevcDecoderSupportedLock) {
             if (sIsHevcDecoderSupportedInitialized) {
@@ -2010,6 +2013,7 @@ public final class ImageDecoder implements AutoCloseable {
      * Checks if the device supports decoding 10-bit AV1.
      */
     @SuppressWarnings("AndroidFrameworkCompatChange")  // This is not an app-visible API.
+    @RavenwoodIgnore(blockedBy = MediaCodecList.class)
     private static boolean isP010SupportedForAV1() {
         synchronized (sIsP010SupportedLock) {
             if (sIsP010SupportedFlagsInitialized) {
@@ -2025,6 +2029,7 @@ public final class ImageDecoder implements AutoCloseable {
      * This method is called by JNI.
      */
     @SuppressWarnings("unused")
+    @RavenwoodIgnore(blockedBy = MediaCodecList.class)
     private static boolean isP010SupportedForHEVC() {
         synchronized (sIsP010SupportedLock) {
             if (sIsP010SupportedFlagsInitialized) {

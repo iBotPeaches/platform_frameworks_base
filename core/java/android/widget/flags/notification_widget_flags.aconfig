@@ -67,3 +67,13 @@ flag {
     purpose: PURPOSE_BUGFIX
   }
 }
+
+flag {
+  name: "drop_non_existing_messages"
+  namespace: "systemui"
+  description: "Drops all group and message entries that no longer exist."
+  bug: "378101061"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}

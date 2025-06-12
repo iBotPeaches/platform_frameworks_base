@@ -47,6 +47,7 @@ import java.text.BreakIterator;
  * with hardware keyboards.  Software input methods have no obligation to trigger
  * the methods in this class.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class BaseKeyListener extends MetaKeyKeyListener
         implements KeyListener {
     /* package */ static final Object OLD_SEL_START = new NoCopySpan.Concrete();

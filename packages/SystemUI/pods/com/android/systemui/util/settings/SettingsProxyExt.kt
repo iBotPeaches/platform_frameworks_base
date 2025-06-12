@@ -17,6 +17,7 @@
 
 package com.android.systemui.util.settings
 
+import android.annotation.SuppressLint
 import android.annotation.UserIdInt
 import android.database.ContentObserver
 import com.android.systemui.Flags
@@ -25,10 +26,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 
 /** Kotlin extension functions for [SettingsProxy]. */
-object SettingsProxyExt {
+@SuppressLint("RegisterContentObserverSyncWarning")
+public object SettingsProxyExt {
 
     /** Returns a flow of [Unit] that is invoked each time that content is updated. */
-    fun UserSettingsProxy.observerFlow(
+    public fun UserSettingsProxy.observerFlow(
         @UserIdInt userId: Int,
         vararg names: String,
     ): Flow<Unit> {
@@ -59,9 +61,7 @@ object SettingsProxyExt {
     }
 
     /** Returns a flow of [Unit] that is invoked each time that content is updated. */
-    fun SettingsProxy.observerFlow(
-        vararg names: String,
-    ): Flow<Unit> {
+    public fun SettingsProxy.observerFlow(vararg names: String): Flow<Unit> {
         return conflatedCallbackFlow {
             val observer =
                 object : ContentObserver(null) {

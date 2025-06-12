@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"កម្មវិធី​គ្រប់​គ្រង​ឧបករណ៍ដៃគូ"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"អនុញ្ញាតឱ្យកម្មវិធី &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ចូលប្រើ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ឬ?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"សូមប្រាកដថា<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>នេះបានបើក<xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> និងទុក<xliff:g id="PROFILE_NAME">%3$s</xliff:g>របស់អ្នកនៅ​ជិតអ្នក។"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"រកមិន​ឃើញ​ឧបករណ៍ទេ។ សូមព្យាយាមម្ដងទៀតនៅពេលក្រោយ។"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"ប៊្លូធូស"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"ប៊្លូធូស និង Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"នាឡិកា"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"ជ្រើសរើសឧបករណ៍ ដើម្បីដាក់ក្រោម​ការគ្រប់គ្រងរបស់ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"ជ្រើសរើស <xliff:g id="PROFILE_NAME">%1$s</xliff:g> ដើម្បីរៀបចំ"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"ជ្រើសរើស<xliff:g id="PROFILE_NAME">%1$s</xliff:g> ដើម្បីរៀបចំ"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"កំពុងស្វែងរក<xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"កម្មវិធីនេះនឹងត្រូវបានអនុញ្ញាតឱ្យធ្វើសមកាលកម្មព័ត៌មាន ដូចជាឈ្មោះមនុស្សដែលហៅទូរសព្ទជាដើម និងចូលប្រើការអនុញ្ញាតទាំងនេះនៅលើ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> របស់អ្នក"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"អនុញ្ញាតឱ្យ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; គ្រប់គ្រង &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ឬ?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"ឧបករណ៍"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"អនុញ្ញាតឱ្យ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ផ្សាយកម្មវិធីលើ<xliff:g id="DEVICE_TYPE">%2$s</xliff:g>របស់អ្នកទៅ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; ឬ?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> នឹងមានសិទ្ធិចូលប្រើអ្វីៗដែលអាចមើលឃើញ ឬត្រូវបានចាក់នៅលើ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> រួមទាំងសំឡេង រូបថត ព័ត៌មាននៃការទូទាត់ប្រាក់ ពាក្យសម្ងាត់ និងសារ។&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> នឹងអាចផ្សាយកម្មវិធីទៅ <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> រហូតទាល់តែអ្នកដកសិទ្ធិចូលប្រើការអនុញ្ញាតនេះចេញ។"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> កំពុងស្នើសុំការអនុញ្ញាតជំនួសឱ្យ <xliff:g id="DEVICE_NAME">%2$s</xliff:g> ដើម្បីផ្សាយកម្មវិធីពី<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>របស់អ្នក"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"អនុញ្ញាតឱ្យ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ចាក់សំឡេង និងមុខងារប្រព័ន្ធរវាង <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> និង &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; របស់អ្នកឬ?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> នឹងមានសិទ្ធិចូលប្រើអ្វីៗដែលត្រូវបានចាក់នៅលើ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>។&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> នឹងអាចចាក់សំឡេងទៅ <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> រហូតទាល់តែអ្នកដកសិទ្ធិចូលប្រើការអនុញ្ញាតនេះចេញ។"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"ឧបករណ៍"</string>
     <string name="summary_generic" msgid="1761976003668044801">"កម្មវិធីនេះនឹងអាច​ធ្វើសមកាលកម្មព័ត៌មាន ដូចជាឈ្មោះមនុស្សដែលហៅទូរសព្ទជាដើម​ រវាងឧបករណ៍ដែលបានជ្រើសរើស និងទូរសព្ទរបស់អ្នក"</string>
     <string name="consent_yes" msgid="8344487259618762872">"អនុញ្ញាត"</string>
     <string name="consent_no" msgid="2640796915611404382">"មិនអនុញ្ញាត"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"បោះបង់"</string>
     <string name="consent_back" msgid="2560683030046918882">"ថយក្រោយ"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"រំកិលបញ្ជីចុះក្រោម"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"ព្រួញ​ចុះ​ក្រោម"</string>
     <string name="permission_expand" msgid="893185038020887411">"ពង្រីក <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"បង្រួម <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"ផ្ដល់​ការអនុញ្ញាតឱ្យ​កម្មវិធីនៅលើ &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; ដូចនៅលើ &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ឬ?"</string>

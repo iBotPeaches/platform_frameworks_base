@@ -28,6 +28,7 @@ class ViewFrameInfoTest {
     companion object {
         private const val TAG = "ViewFrameInfoTest"
     }
+
     private val mViewFrameInfo = ViewFrameInfo()
     private var mTimeStarted: Long = 0
 
@@ -65,8 +66,8 @@ class ViewFrameInfoTest {
         // The values inside FrameInfo should match those from ViewFrameInfo after we update them
         mViewFrameInfo.populateFrameInfo(frameInfo)
         assertThat(frameInfo.frameInfo[FrameInfo.INPUT_EVENT_ID]).isEqualTo(139)
-        assertThat(frameInfo.frameInfo[FrameInfo.FLAGS]).isEqualTo(
-                FrameInfo.FLAG_WINDOW_VISIBILITY_CHANGED)
+        assertThat(frameInfo.frameInfo[FrameInfo.FLAGS])
+            .isEqualTo(FrameInfo.FLAG_WINDOW_VISIBILITY_CHANGED)
         assertThat(frameInfo.frameInfo[FrameInfo.DRAW_START]).isGreaterThan(mTimeStarted)
     }
 }

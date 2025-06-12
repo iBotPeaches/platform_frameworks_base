@@ -187,6 +187,9 @@
     <!-- Default state of tap to wake -->
     <bool name="def_double_tap_to_wake">true</bool>
 
+    <!-- Default setting for double tap to sleep (Settings.Secure.DOUBLE_TAP_TO_SLEEP) -->
+    <bool name="def_double_tap_to_sleep">false</bool>
+
     <!-- Default for Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT -->
     <string name="def_nfc_payment_component"></string>
 
@@ -322,9 +325,6 @@
     <!-- Whether vibrate icon is shown in the status bar by default. -->
     <integer name="def_statusBarVibrateIconEnabled">0</integer>
 
-    <!-- Whether predictive back animation is enabled by default. -->
-    <bool name="def_enable_back_animation">false</bool>
-
     <!-- Whether wifi is always requested by default. -->
     <bool name="def_enable_wifi_always_requested">false</bool>
 
@@ -341,4 +341,7 @@
 
     <!-- The default ringer mode. See `AudioManager` for list of valid values. -->
     <integer name="def_ringer_mode">2</integer>
+
+    <!-- Caps minsum contrast from -1.0 (Material API) to 0.0 (Android Support)-->
+    <bool name="config_increaseMinContrast">true</bool>
 </resources>

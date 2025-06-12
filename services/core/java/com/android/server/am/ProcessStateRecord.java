@@ -1120,7 +1120,8 @@ final class ProcessStateRecord {
         } else if ((flags & ACTIVITY_STATE_FLAG_IS_STOPPING) != 0) {
             callback.onStoppingActivity((flags & ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING) != 0);
         } else {
-            callback.onOtherActivity();
+            final long ts = mApp.getWindowProcessController().getPerceptibleTaskStoppedTimeMillis();
+            callback.onOtherActivity(ts);
         }
 
         mCachedAdj = callback.adj;

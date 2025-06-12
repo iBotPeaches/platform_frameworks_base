@@ -56,7 +56,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.pm.ActivityInfo;
@@ -174,7 +174,7 @@ public class DisplayAreaTest extends WindowTestsBase {
         da1.reduceOnAllTaskDisplayAreas(callback2, 0);
         da1.getItemFromTaskDisplayAreas(callback3);
 
-        verifyZeroInteractions(da2);
+        verifyNoMoreInteractions(da2);
 
         // Traverse the child if the current DA has type ANY
         final DisplayArea<WindowContainer> da3 = new DisplayArea<>(mWm, ANY, "DA3");
@@ -207,7 +207,7 @@ public class DisplayAreaTest extends WindowTestsBase {
         da5.reduceOnAllTaskDisplayAreas(callback2, 0);
         da5.getItemFromTaskDisplayAreas(callback3);
 
-        verifyZeroInteractions(da6);
+        verifyNoMoreInteractions(da6);
     }
 
     @Test
@@ -450,7 +450,7 @@ public class DisplayAreaTest extends WindowTestsBase {
     public void testGetOrientation() {
         final DisplayArea.Tokens area = new DisplayArea.Tokens(mWm, ABOVE_TASKS, "test");
         mDisplayContent.addChild(area, POSITION_TOP);
-        final WindowState win = createWindow(null, TYPE_APPLICATION_OVERLAY, "overlay");
+        final WindowState win = newWindowBuilder("overlay", TYPE_APPLICATION_OVERLAY).build();
         win.mAttrs.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
         win.mToken.reparent(area, POSITION_TOP);
         spyOn(win);
@@ -491,6 +491,7 @@ public class DisplayAreaTest extends WindowTestsBase {
     @Test
     public void testSetIgnoreOrientationRequest_callSuperOnDescendantOrientationChangedNoSensor() {
         final TaskDisplayArea tda = mDisplayContent.getDefaultTaskDisplayArea();
+        mDisplayContent.setIgnoreOrientationRequest(false);
         final Task stack =
                 new TaskBuilder(mSupervisor).setOnTop(!ON_TOP).setCreateActivity(true).build();
         final ActivityRecord activity = stack.getTopNonFinishingActivity();

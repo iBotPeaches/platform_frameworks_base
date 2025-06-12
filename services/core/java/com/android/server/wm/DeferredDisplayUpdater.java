@@ -18,7 +18,7 @@ package com.android.server.wm;
 
 import static android.view.WindowManager.TRANSIT_CHANGE;
 
-import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS_MIN;
 import static com.android.server.wm.ActivityTaskManagerService.POWER_MODE_REASON_CHANGE_DISPLAY;
 import static com.android.server.wm.utils.DisplayInfoOverrides.WM_OVERRIDE_FIELDS;
 import static com.android.server.wm.utils.DisplayInfoOverrides.copyDisplayInfoFields;
@@ -38,7 +38,6 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.display.BrightnessSynchronizer;
 import com.android.internal.protolog.ProtoLog;
 import com.android.server.wm.utils.DisplayInfoOverrides.DisplayInfoFieldsUpdater;
-import com.android.window.flags.Flags;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -60,10 +59,11 @@ class DeferredDisplayUpdater {
      */
     @VisibleForTesting
     static final DisplayInfoFieldsUpdater DEFERRABLE_FIELDS = (out, override) -> {
-        // Treat unique id and address change as WM-specific display change as we re-query display
-        // settings and parameters based on it which could cause window changes
+        // Treat unique id, address, and canHostTasks change as WM-specific display change as we
+        // re-query display settings and parameters based on it which could cause window changes.
         out.uniqueId = override.uniqueId;
         out.address = override.address;
+        out.canHostTasks = override.canHostTasks;
 
         // Also apply WM-override fields, since they might produce differences in window hierarchy
         WM_OVERRIDE_FIELDS.setFields(out, override);
@@ -139,8 +139,9 @@ class DeferredDisplayUpdater {
         if (displayInfoDiff == DIFF_EVERYTHING
                 || !mDisplayContent.getLastHasContent()
                 || !mDisplayContent.mTransitionController.isShellTransitionsEnabled()) {
-            ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS,
-                    "DeferredDisplayUpdater: applying DisplayInfo immediately");
+            ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS_MIN,
+                    "DeferredDisplayUpdater: applying DisplayInfo(%d x %d) immediately",
+                    displayInfo.logicalWidth, displayInfo.logicalHeight);
 
             mLastWmDisplayInfo = displayInfo;
             applyLatestDisplayInfo();
@@ -150,17 +151,23 @@ class DeferredDisplayUpdater {
 
         // If there are non WM-specific display info changes, apply only these fields immediately
         if ((displayInfoDiff & DIFF_NOT_WM_DEFERRABLE) > 0) {
-            ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS,
-                    "DeferredDisplayUpdater: partially applying DisplayInfo immediately");
+            ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS_MIN,
+                    "DeferredDisplayUpdater: partially applying DisplayInfo(%d x %d) immediately",
+                    displayInfo.logicalWidth, displayInfo.logicalHeight);
             applyLatestDisplayInfo();
         }
 
         // If there are WM-specific display info changes, apply them through a Shell transition
         if ((displayInfoDiff & DIFF_WM_DEFERRABLE) > 0) {
-            ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS,
-                    "DeferredDisplayUpdater: deferring DisplayInfo update");
+            ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS_MIN,
+                    "DeferredDisplayUpdater: deferring DisplayInfo(%d x %d) update",
+                    displayInfo.logicalWidth, displayInfo.logicalHeight);
 
             requestDisplayChangeTransition(physicalDisplayUpdated, () -> {
+                ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS_MIN,
+                        "DeferredDisplayUpdater: applying DisplayInfo(%d x %d) after deferring",
+                        displayInfo.logicalWidth, displayInfo.logicalHeight);
+
                 // Apply deferrable fields to DisplayContent only when the transition
                 // starts collecting, non-deferrable fields are ignored in mLastWmDisplayInfo
                 mLastWmDisplayInfo = displayInfo;
@@ -193,12 +200,12 @@ class DeferredDisplayUpdater {
             final Rect startBounds = new Rect(0, 0, mDisplayContent.mInitialDisplayWidth,
                     mDisplayContent.mInitialDisplayHeight);
             final int fromRotation = mDisplayContent.getRotation();
-            if (Flags.blastSyncNotificationShadeOnDisplaySwitch() && physicalDisplayUpdated) {
+            if (physicalDisplayUpdated) {
                 final WindowState notificationShade =
                         mDisplayContent.getDisplayPolicy().getNotificationShade();
                 if (notificationShade != null && notificationShade.isVisible()
                         && mDisplayContent.mAtmService.mKeyguardController.isKeyguardOrAodShowing(
-                                mDisplayContent.mDisplayId)) {
+                        mDisplayContent.mDisplayId)) {
                     Slog.i(TAG, notificationShade + " uses blast for display switch");
                     notificationShade.mSyncMethodOverride = BLASTSyncEngine.METHOD_BLAST;
                 }
@@ -207,9 +214,6 @@ class DeferredDisplayUpdater {
             mDisplayContent.mAtmService.deferWindowLayout();
             try {
                 onStartCollect.run();
-
-                ProtoLog.d(WM_DEBUG_WINDOW_TRANSITIONS,
-                        "DeferredDisplayUpdater: applied DisplayInfo after deferring");
 
                 if (physicalDisplayUpdated) {
                     onDisplayUpdated(transition, fromRotation, startBounds);
@@ -331,7 +335,6 @@ class DeferredDisplayUpdater {
 
     /** Returns {@code true} if the transition will control when to turn on the screen. */
     boolean waitForTransition(@NonNull Message screenUnblocker) {
-        if (!Flags.waitForTransitionOnDisplaySwitch()) return false;
         if (!mShouldWaitForTransitionWhenScreenOn) {
             return false;
         }
@@ -432,7 +435,8 @@ class DeferredDisplayUpdater {
                 || !first.thermalRefreshRateThrottling.contentEquals(
                 second.thermalRefreshRateThrottling)
                 || !Objects.equals(first.thermalBrightnessThrottlingDataId,
-                second.thermalBrightnessThrottlingDataId)) {
+                second.thermalBrightnessThrottlingDataId)
+        ) {
             diff |= DIFF_NOT_WM_DEFERRABLE;
         }
 
@@ -453,6 +457,7 @@ class DeferredDisplayUpdater {
                 || !Objects.equals(first.displayShape, second.displayShape)
                 || !Objects.equals(first.uniqueId, second.uniqueId)
                 || !Objects.equals(first.address, second.address)
+                || first.canHostTasks != second.canHostTasks
         ) {
             diff |= DIFF_WM_DEFERRABLE;
         }

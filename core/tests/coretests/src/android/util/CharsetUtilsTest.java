@@ -18,7 +18,7 @@ package android.util;
 
 import static org.junit.Assert.assertEquals;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -33,7 +33,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = CharsetUtils.class)
+@DisabledOnRavenwood(blockedBy = CharsetUtils.class)
 public class CharsetUtilsTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();
@@ -43,7 +43,7 @@ public class CharsetUtilsTest {
 
     @Before
     public void setUp() {
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             dest = (byte[]) VMRuntime.getRuntime().newNonMovableArray(byte.class, 8);
             destPtr = VMRuntime.getRuntime().addressOf(dest);
         }

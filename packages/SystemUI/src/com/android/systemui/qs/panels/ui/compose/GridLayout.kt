@@ -18,7 +18,7 @@ package com.android.systemui.qs.panels.ui.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.android.compose.animation.scene.SceneScope
+import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.qs.panels.shared.model.SizedTile
 import com.android.systemui.qs.panels.shared.model.TileRow
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
@@ -27,7 +27,17 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 
 /** A layout of tiles, indicating how they should be composed when showing in QS or in edit mode. */
 interface GridLayout {
-    @Composable fun SceneScope.TileGrid(tiles: List<TileViewModel>, modifier: Modifier)
+
+    /**
+     * [listening] can be used to compose the grid but limit when tiles should be listening. It
+     * should be a function tracking a snapshot state.
+     */
+    @Composable
+    fun ContentScope.TileGrid(
+        tiles: List<TileViewModel>,
+        modifier: Modifier,
+        listening: () -> Boolean,
+    )
 
     @Composable
     fun EditTileGrid(

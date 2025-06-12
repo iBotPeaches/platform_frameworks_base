@@ -16,6 +16,7 @@
 
 package com.android.server.wallpaper;
 
+import static android.app.WallpaperManager.FLAG_SYSTEM;
 import static android.app.WallpaperManager.ORIENTATION_LANDSCAPE;
 import static android.app.WallpaperManager.ORIENTATION_UNKNOWN;
 import static android.app.WallpaperManager.ORIENTATION_PORTRAIT;
@@ -23,44 +24,74 @@ import static android.app.WallpaperManager.ORIENTATION_SQUARE_LANDSCAPE;
 import static android.app.WallpaperManager.ORIENTATION_SQUARE_PORTRAIT;
 import static android.app.WallpaperManager.getOrientation;
 import static android.app.WallpaperManager.getRotatedOrientation;
+import static android.os.UserHandle.USER_SYSTEM;
+import static android.view.Display.DEFAULT_DISPLAY;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.window.flags.Flags.FLAG_MULTI_CROP;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
+import android.content.res.Resources;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.util.ArraySet;
+import android.util.Log;
 import android.util.SparseArray;
+import android.view.DisplayInfo;
+import android.view.WindowInsets;
+import android.view.WindowManager;
+import android.view.WindowMetrics;
 
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.dx.mockito.inline.extended.ExtendedMockito;
+import com.android.dx.mockito.inline.extended.StaticMockitoSession;
+import com.android.internal.R;
+
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.quality.Strictness;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Unit tests for the most important helpers of {@link WallpaperCropper}, in particular
- * {@link WallpaperCropper#getCrop(Point, Point, SparseArray, boolean)}.
+ * {@link WallpaperCropper#getCrop(Point, WallpaperDefaultDisplayInfo, Point, SparseArray, boolean)}.
  */
 @Presubmit
 @RunWith(AndroidJUnit4.class)
 @RequiresFlagsEnabled(FLAG_MULTI_CROP)
 public class WallpaperCropperTest {
+    private static final String TAG = "WallpaperCropperTest";
 
     @Mock
     private WallpaperDisplayHelper mWallpaperDisplayHelper;
-    private WallpaperCropper mWallpaperCropper;
+
+    @Mock
+    private WindowManager mWindowManager;
+
+    @Mock
+    private Resources mResources;
 
     private static final Point PORTRAIT_ONE = new Point(500, 800);
     private static final Point PORTRAIT_TWO = new Point(400, 1000);
@@ -94,6 +125,8 @@ public class WallpaperCropperTest {
     private static final List<List<Point>> ALL_FOLDABLE_DISPLAYS = List.of(
             FOLDABLE_ONE, FOLDABLE_TWO, FOLDABLE_THREE, FOLDABLE_FOUR);
 
+    private static StaticMockitoSession sMockitoSession;
+
     private SparseArray<Point> mDisplaySizes = new SparseArray<>();
     private int mFolded = ORIENTATION_UNKNOWN;
     private int mFoldedRotated = ORIENTATION_UNKNOWN;
@@ -103,20 +136,67 @@ public class WallpaperCropperTest {
     private static final List<Integer> ALL_MODES = List.of(
             WallpaperCropper.ADD, WallpaperCropper.REMOVE, WallpaperCropper.BALANCE);
 
+    private final SparseArray<File> mTempDirs = new SparseArray<>();
+
+    private final TemporaryFolder mFolder = new TemporaryFolder();
+
+    @Rule
+    public RuleChain rules = RuleChain.outerRule(mFolder);
+
+    @BeforeClass
+    public static void setUpClass() {
+        sMockitoSession = mockitoSession()
+                .strictness(Strictness.LENIENT)
+                .spyStatic(WallpaperUtils.class)
+                .startMocking();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        if (sMockitoSession != null) {
+            sMockitoSession.finishMocking();
+            sMockitoSession = null;
+        }
+    }
+
     @Before
     public void setUp() {
         initMocks(this);
-        mWallpaperCropper = new WallpaperCropper(mWallpaperDisplayHelper);
+        ExtendedMockito.doAnswer(invocation -> {
+            int userId = (invocation.getArgument(0));
+            return getWallpaperTestDir(userId);
+        }).when(() -> WallpaperUtils.getWallpaperDir(anyInt()));
+
     }
 
-    private void setUpWithDisplays(List<Point> displaySizes) {
+    private File getWallpaperTestDir(int userId) {
+        File tempDir = mTempDirs.get(userId);
+        if (tempDir == null) {
+            try {
+                tempDir = mFolder.newFolder(String.valueOf(userId));
+                mTempDirs.append(userId, tempDir);
+            } catch (IOException e) {
+                Log.e(TAG, "getWallpaperTestDir failed at userId= " + userId);
+            }
+        }
+        return tempDir;
+    }
+
+    private WallpaperDefaultDisplayInfo setUpWithDisplays(List<Point> displaySizes) {
         mDisplaySizes = new SparseArray<>();
         displaySizes.forEach(size -> {
             mDisplaySizes.put(getOrientation(size), size);
             Point rotated = new Point(size.y, size.x);
             mDisplaySizes.put(getOrientation(rotated), rotated);
         });
+        Set<WindowMetrics> windowMetrics = new ArraySet<>();
+        for (Point displaySize : displaySizes) {
+            windowMetrics.add(
+                    new WindowMetrics(new Rect(0, 0, displaySize.x, displaySize.y),
+                            new WindowInsets.Builder().build()));
+        }
         when(mWallpaperDisplayHelper.getDefaultDisplaySizes()).thenReturn(mDisplaySizes);
+        when(mWindowManager.getPossibleMaximumWindowMetrics(anyInt())).thenReturn(windowMetrics);
         if (displaySizes.size() == 2) {
             Point largestDisplay = displaySizes.stream().max(
                     Comparator.comparingInt(p -> p.x * p.y)).get();
@@ -126,11 +206,16 @@ public class WallpaperCropperTest {
             mFolded = getOrientation(smallestDisplay);
             mUnfoldedRotated = getRotatedOrientation(mUnfolded);
             mFoldedRotated = getRotatedOrientation(mFolded);
+            // foldable
+            doReturn(new int[]{0}).when(mResources).getIntArray(R.array.config_foldedDeviceStates);
+        } else {
+            // no foldable
+            doReturn(new int[]{}).when(mResources).getIntArray(R.array.config_foldedDeviceStates);
         }
-        doAnswer(invocation -> getFoldedOrientation(invocation.getArgument(0)))
-                .when(mWallpaperDisplayHelper).getFoldedOrientation(anyInt());
-        doAnswer(invocation -> getUnfoldedOrientation(invocation.getArgument(0)))
-                .when(mWallpaperDisplayHelper).getUnfoldedOrientation(anyInt());
+        WallpaperDefaultDisplayInfo defaultDisplayInfo = new WallpaperDefaultDisplayInfo(
+                mWindowManager, mResources);
+        when(mWallpaperDisplayHelper.getDefaultDisplayInfo()).thenReturn(defaultDisplayInfo);
+        return defaultDisplayInfo;
     }
 
     private int getFoldedOrientation(int orientation) {
@@ -369,7 +454,7 @@ public class WallpaperCropperTest {
      */
     @Test
     public void testGetCrop_noSuggestedCrops() {
-        setUpWithDisplays(STANDARD_DISPLAY);
+        WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(STANDARD_DISPLAY);
         Point bitmapSize = new Point(800, 1000);
         Rect bitmapRect = new Rect(0, 0, bitmapSize.x, bitmapSize.y);
         SparseArray<Rect> suggestedCrops = new SparseArray<>();
@@ -389,8 +474,9 @@ public class WallpaperCropperTest {
             for (boolean rtl : List.of(false, true)) {
                 Rect expectedCrop = rtl ? rightOf(bitmapRect, expectedCropSize)
                         : leftOf(bitmapRect, expectedCropSize);
-                assertThat(mWallpaperCropper.getCrop(
-                        displaySize, bitmapSize, suggestedCrops, rtl))
+                assertThat(
+                        WallpaperCropper.getCrop(
+                                displaySize, defaultDisplayInfo, bitmapSize, suggestedCrops, rtl))
                         .isEqualTo(expectedCrop);
             }
         }
@@ -403,7 +489,7 @@ public class WallpaperCropperTest {
      */
     @Test
     public void testGetCrop_hasSuggestedCrop() {
-        setUpWithDisplays(STANDARD_DISPLAY);
+        WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(STANDARD_DISPLAY);
         Point bitmapSize = new Point(800, 1000);
         SparseArray<Rect> suggestedCrops = new SparseArray<>();
         suggestedCrops.put(ORIENTATION_PORTRAIT, new Rect(0, 0, 400, 800));
@@ -413,11 +499,13 @@ public class WallpaperCropperTest {
         }
 
         for (boolean rtl : List.of(false, true)) {
-            assertThat(mWallpaperCropper.getCrop(
-                    new Point(300, 800), bitmapSize, suggestedCrops, rtl))
+            assertThat(
+                    WallpaperCropper.getCrop(new Point(300, 800), defaultDisplayInfo, bitmapSize,
+                            suggestedCrops, rtl))
                     .isEqualTo(suggestedCrops.get(ORIENTATION_PORTRAIT));
-            assertThat(mWallpaperCropper.getCrop(
-                    new Point(500, 800), bitmapSize, suggestedCrops, rtl))
+            assertThat(
+                    WallpaperCropper.getCrop(new Point(500, 800), defaultDisplayInfo, bitmapSize,
+                            suggestedCrops, rtl))
                     .isEqualTo(new Rect(0, 0, 500, 800));
         }
     }
@@ -433,7 +521,7 @@ public class WallpaperCropperTest {
      */
     @Test
     public void testGetCrop_hasRotatedSuggestedCrop() {
-        setUpWithDisplays(STANDARD_DISPLAY);
+        WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(STANDARD_DISPLAY);
         Point bitmapSize = new Point(2000, 1800);
         Rect bitmapRect = new Rect(0, 0, bitmapSize.x, bitmapSize.y);
         SparseArray<Rect> suggestedCrops = new SparseArray<>();
@@ -444,12 +532,14 @@ public class WallpaperCropperTest {
         suggestedCrops.put(ORIENTATION_PORTRAIT, centerOf(bitmapRect, portrait));
         suggestedCrops.put(ORIENTATION_SQUARE_LANDSCAPE, centerOf(bitmapRect, squareLandscape));
         for (boolean rtl : List.of(false, true)) {
-            assertThat(mWallpaperCropper.getCrop(
-                    landscape, bitmapSize, suggestedCrops, rtl))
+            assertThat(
+                    WallpaperCropper.getCrop(landscape, defaultDisplayInfo, bitmapSize,
+                            suggestedCrops, rtl))
                     .isEqualTo(centerOf(bitmapRect, landscape));
 
-            assertThat(mWallpaperCropper.getCrop(
-                    squarePortrait, bitmapSize, suggestedCrops, rtl))
+            assertThat(
+                    WallpaperCropper.getCrop(squarePortrait, defaultDisplayInfo, bitmapSize,
+                            suggestedCrops, rtl))
                     .isEqualTo(centerOf(bitmapRect, squarePortrait));
         }
     }
@@ -466,7 +556,7 @@ public class WallpaperCropperTest {
     @Test
     public void testGetCrop_hasUnfoldedSuggestedCrop() {
         for (List<Point> displaySizes : ALL_FOLDABLE_DISPLAYS) {
-            setUpWithDisplays(displaySizes);
+            WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(displaySizes);
             Point bitmapSize = new Point(2000, 2400);
             Rect bitmapRect = new Rect(0, 0, bitmapSize.x, bitmapSize.y);
 
@@ -503,8 +593,9 @@ public class WallpaperCropperTest {
                         expectedCrop.right = Math.min(
                                 unfoldedCrop.right, unfoldedCrop.right + maxParallax);
                     }
-                    assertThat(mWallpaperCropper.getCrop(
-                            foldedDisplay, bitmapSize, suggestedCrops, rtl))
+                    assertThat(
+                            WallpaperCropper.getCrop(foldedDisplay, defaultDisplayInfo, bitmapSize,
+                                    suggestedCrops, rtl))
                             .isEqualTo(expectedCrop);
                 }
             }
@@ -522,7 +613,7 @@ public class WallpaperCropperTest {
     @Test
     public void testGetCrop_hasFoldedSuggestedCrop() {
         for (List<Point> displaySizes : ALL_FOLDABLE_DISPLAYS) {
-            setUpWithDisplays(displaySizes);
+            WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(displaySizes);
             Point bitmapSize = new Point(2000, 2000);
             Rect bitmapRect = new Rect(0, 0, 2000, 2000);
 
@@ -544,12 +635,14 @@ public class WallpaperCropperTest {
             Point unfoldedDisplayTwo = mDisplaySizes.get(unfoldedTwo);
 
             for (boolean rtl : List.of(false, true)) {
-                assertThat(centerOf(mWallpaperCropper.getCrop(
-                        unfoldedDisplayOne, bitmapSize, suggestedCrops, rtl), foldedDisplayOne))
+                assertThat(centerOf(
+                        WallpaperCropper.getCrop(unfoldedDisplayOne, defaultDisplayInfo, bitmapSize,
+                                suggestedCrops, rtl), foldedDisplayOne))
                         .isEqualTo(foldedCropOne);
 
-                assertThat(centerOf(mWallpaperCropper.getCrop(
-                        unfoldedDisplayTwo, bitmapSize, suggestedCrops, rtl), foldedDisplayTwo))
+                assertThat(centerOf(
+                        WallpaperCropper.getCrop(unfoldedDisplayTwo, defaultDisplayInfo, bitmapSize,
+                                suggestedCrops, rtl), foldedDisplayTwo))
                         .isEqualTo(foldedCropTwo);
             }
         }
@@ -567,7 +660,7 @@ public class WallpaperCropperTest {
     @Test
     public void testGetCrop_hasRotatedUnfoldedSuggestedCrop() {
         for (List<Point> displaySizes : ALL_FOLDABLE_DISPLAYS) {
-            setUpWithDisplays(displaySizes);
+            WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(displaySizes);
             Point bitmapSize = new Point(2000, 2000);
             Rect bitmapRect = new Rect(0, 0, 2000, 2000);
             Point largestDisplay = displaySizes.stream().max(
@@ -584,8 +677,9 @@ public class WallpaperCropperTest {
                 Point rotatedFoldedDisplay = mDisplaySizes.get(rotatedFolded);
 
                 for (boolean rtl : List.of(false, true)) {
-                    assertThat(mWallpaperCropper.getCrop(
-                            rotatedFoldedDisplay, bitmapSize, suggestedCrops, rtl))
+                    assertThat(
+                            WallpaperCropper.getCrop(rotatedFoldedDisplay, defaultDisplayInfo,
+                                    bitmapSize, suggestedCrops, rtl))
                             .isEqualTo(centerOf(rotatedUnfoldedCrop, rotatedFoldedDisplay));
                 }
             }
@@ -604,7 +698,7 @@ public class WallpaperCropperTest {
     @Test
     public void testGetCrop_hasRotatedFoldedSuggestedCrop() {
         for (List<Point> displaySizes : ALL_FOLDABLE_DISPLAYS) {
-            setUpWithDisplays(displaySizes);
+            WallpaperDefaultDisplayInfo defaultDisplayInfo = setUpWithDisplays(displaySizes);
             Point bitmapSize = new Point(2000, 2000);
             Rect bitmapRect = new Rect(0, 0, 2000, 2000);
 
@@ -623,13 +717,148 @@ public class WallpaperCropperTest {
                 Point rotatedUnfoldedDisplay = mDisplaySizes.get(rotatedUnfolded);
 
                 for (boolean rtl : List.of(false, true)) {
-                    Rect rotatedUnfoldedCrop = mWallpaperCropper.getCrop(
-                            rotatedUnfoldedDisplay, bitmapSize, suggestedCrops, rtl);
+                    Rect rotatedUnfoldedCrop = WallpaperCropper.getCrop(rotatedUnfoldedDisplay,
+                            defaultDisplayInfo, bitmapSize, suggestedCrops, rtl);
                     assertThat(centerOf(rotatedUnfoldedCrop, rotatedFoldedDisplay))
                             .isEqualTo(rotatedFoldedCrop);
                 }
             }
         }
+    }
+
+    // Test isWallpaperCompatibleForDisplay always return true for the default display.
+    @Test
+    public void isWallpaperCompatibleForDisplay_defaultDisplay_returnTrue()
+            throws Exception {
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 2560;
+        displayInfo.logicalHeight = 1044;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(DEFAULT_DISPLAY));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ false,
+                new Point(100, 100));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                DEFAULT_DISPLAY, wallpaperData)).isTrue();
+    }
+
+    // Test isWallpaperCompatibleForDisplay always return true for the stock wallpaper.
+    @Test
+    public void isWallpaperCompatibleForDisplay_stockWallpaper_returnTrue()
+            throws Exception {
+        final int displayId = 2;
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 2560;
+        displayInfo.logicalHeight = 1044;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(displayId));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ true,
+                new Point(100, 100));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                displayId, wallpaperData)).isTrue();
+    }
+
+    // Test isWallpaperCompatibleForDisplay wallpaper is suitable for the display and wallpaper
+    // aspect ratio meets the hard-coded aspect ratio.
+    @Test
+    public void isWallpaperCompatibleForDisplay_wallpaperSizeLargerThanDisplayAndMeetAspectRatio_returnTrue()
+            throws Exception {
+        final int displayId = 2;
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 2560;
+        displayInfo.logicalHeight = 1044;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(displayId));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ false,
+                new Point(4000, 3000));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                displayId, wallpaperData)).isTrue();
+    }
+
+    // Test isWallpaperCompatibleForDisplay wallpaper is smaller than the display but larger than
+    // the threshold and wallpaper aspect ratio meets the hard-coded aspect ratio.
+    @Test
+    public void isWallpaperCompatibleForDisplay_wallpaperSizeSmallerThanDisplayButBeyondThresholdAndMeetAspectRatio_returnTrue()
+            throws Exception {
+        final int displayId = 2;
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 2560;
+        displayInfo.logicalHeight = 1044;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(displayId));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ false,
+                new Point(2000, 900));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                displayId, wallpaperData)).isTrue();
+    }
+
+    // Test isWallpaperCompatibleForDisplay wallpaper is smaller than the display but larger than
+    // the threshold and wallpaper aspect ratio meets the hard-coded aspect ratio.
+    @Test
+    public void isWallpaperCompatibleForDisplay_wallpaperSizeSmallerThanDisplayButAboveThresholdAndMeetAspectRatio_returnFalse()
+            throws Exception {
+        final int displayId = 2;
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 2560;
+        displayInfo.logicalHeight = 1044;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(displayId));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ false,
+                new Point(2000, 800));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                displayId, wallpaperData)).isFalse();
+    }
+
+    // Test isWallpaperCompatibleForDisplay wallpaper is suitable for the display and wallpaper
+    // aspect ratio doesn't meet the hard-coded aspect ratio.
+    @Test
+    public void isWallpaperCompatibleForDisplay_wallpaperSizeSuitableForDisplayAndDoNotMeetAspectRatio_returnFalse()
+            throws Exception {
+        final int displayId = 2;
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 2560;
+        displayInfo.logicalHeight = 1044;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(displayId));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ false,
+                new Point(2000, 4000));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                displayId, wallpaperData)).isFalse();
+    }
+
+    // Test isWallpaperCompatibleForDisplay, portrait display, wallpaper is suitable for the display
+    // and wallpaper aspect ratio doesn't meet the hard-coded aspect ratio.
+    @Test
+    public void isWallpaperCompatibleForDisplay_portraitDisplay_wallpaperSizeSuitableForDisplayAndMeetAspectRatio_returnTrue()
+            throws Exception {
+        final int displayId = 2;
+        DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.logicalWidth = 1044;
+        displayInfo.logicalHeight = 2560;
+        setUpWithDisplays(List.of(new Point(displayInfo.logicalWidth, displayInfo.logicalHeight)));
+        doReturn(displayInfo).when(mWallpaperDisplayHelper).getDisplayInfo(eq(displayId));
+        WallpaperData wallpaperData = createWallpaperData(/* isStockWallpaper = */ false,
+                new Point(2000, 4000));
+
+        assertThat(new WallpaperCropper(mWallpaperDisplayHelper).isWallpaperCompatibleForDisplay(
+                displayId, wallpaperData)).isTrue();
+    }
+
+    private WallpaperData createWallpaperData(boolean isStockWallpaper, Point wallpaperSize)
+            throws Exception {
+        WallpaperData wallpaperData = new WallpaperData(USER_SYSTEM, FLAG_SYSTEM);
+        File wallpaperFile = wallpaperData.getWallpaperFile();
+        if (!isStockWallpaper) {
+            wallpaperFile.getParentFile().mkdirs();
+            wallpaperFile.createNewFile();
+        }
+        wallpaperData.cropHint.set(0, 0, wallpaperSize.x, wallpaperSize.y);
+        return wallpaperData;
     }
 
     private static Rect centerOf(Rect container, Point point) {

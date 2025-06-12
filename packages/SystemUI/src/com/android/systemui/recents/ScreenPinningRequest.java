@@ -16,9 +16,7 @@
 
 package com.android.systemui.recents;
 
-import static com.android.systemui.Flags.enableViewCaptureTracing;
 import static com.android.systemui.shared.recents.utilities.Utilities.isLargeScreen;
-import static com.android.systemui.util.ConvenienceExtensionsKt.toKotlinLazy;
 import static com.android.systemui.util.leak.RotationUtils.ROTATION_LANDSCAPE;
 import static com.android.systemui.util.leak.RotationUtils.ROTATION_NONE;
 import static com.android.systemui.util.leak.RotationUtils.ROTATION_SEASCAPE;
@@ -55,8 +53,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
-import com.android.app.viewcapture.ViewCapture;
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.SysUISingleton;
@@ -87,7 +83,6 @@ public class ScreenPinningRequest implements
     private final Lazy<NavigationBarController> mNavigationBarControllerLazy;
     private final AccessibilityManager mAccessibilityService;
     private final WindowManager mWindowManager;
-    private final ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
     private final BroadcastDispatcher mBroadcastDispatcher;
     private final UserTracker mUserTracker;
 
@@ -112,15 +107,12 @@ public class ScreenPinningRequest implements
             Lazy<NavigationBarController> navigationBarControllerLazy,
             BroadcastDispatcher broadcastDispatcher,
             UserTracker userTracker,
-            Lazy<ViewCapture> daggerLazyViewCapture) {
+            WindowManager windowManager) {
         mContext = context;
         mNavigationBarControllerLazy = navigationBarControllerLazy;
         mAccessibilityService = (AccessibilityManager)
                 mContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-        mWindowManager = (WindowManager)
-                mContext.getSystemService(Context.WINDOW_SERVICE);
-        mViewCaptureAwareWindowManager = new ViewCaptureAwareWindowManager(mWindowManager,
-                toKotlinLazy(daggerLazyViewCapture), enableViewCaptureTracing());
+        mWindowManager = windowManager;
         mNavBarMode = navigationModeController.addListener(this);
         mBroadcastDispatcher = broadcastDispatcher;
         mUserTracker = userTracker;
@@ -131,7 +123,7 @@ public class ScreenPinningRequest implements
 
     public void clearPrompt() {
         if (mRequestWindow != null) {
-            mViewCaptureAwareWindowManager.removeView(mRequestWindow);
+            mWindowManager.removeView(mRequestWindow);
             mRequestWindow = null;
         }
     }
@@ -152,7 +144,7 @@ public class ScreenPinningRequest implements
 
         // show the confirmation
         WindowManager.LayoutParams lp = getWindowLayoutParams();
-        mViewCaptureAwareWindowManager.addView(mRequestWindow, lp);
+        mWindowManager.addView(mRequestWindow, lp);
     }
 
     @Override

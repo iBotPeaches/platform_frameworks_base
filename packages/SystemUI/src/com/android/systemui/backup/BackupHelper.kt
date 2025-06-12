@@ -28,6 +28,7 @@ import android.os.ParcelFileDescriptor
 import android.os.UserHandle
 import android.util.Log
 import com.android.app.tracing.traceSection
+import com.android.systemui.Flags
 import com.android.systemui.backup.BackupHelper.Companion.ACTION_RESTORE_FINISHED
 import com.android.systemui.communal.data.backup.CommunalBackupHelper
 import com.android.systemui.communal.data.backup.CommunalBackupUtils
@@ -118,7 +119,9 @@ open class BackupHelper : BackupAgentHelper() {
     }
 
     private fun communalEnabled(): Boolean {
-        return resources.getBoolean(R.bool.config_communalServiceEnabled)
+        return resources.getBoolean(R.bool.config_communalServiceEnabled) ||
+            (Flags.glanceableHubV2() &&
+                resources.getBoolean(com.android.internal.R.bool.config_glanceableHubEnabled))
     }
 
     /**

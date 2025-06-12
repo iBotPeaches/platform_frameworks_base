@@ -17,8 +17,10 @@
 package com.android.wm.shell.bubbles;
 
 import android.content.Intent;
-import android.graphics.Rect;
 import android.content.pm.ShortcutInfo;
+import android.graphics.Point;
+import android.graphics.Rect;
+import android.os.UserHandle;
 import com.android.wm.shell.bubbles.IBubblesListener;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
@@ -50,9 +52,13 @@ interface IBubbles {
 
     oneway void stopBubbleDrag(in BubbleBarLocation location, in int topOnScreen) = 11;
 
-    oneway void showShortcutBubble(in ShortcutInfo info) = 12;
+    oneway void showShortcutBubble(in ShortcutInfo info, in @nullable BubbleBarLocation location) = 12;
 
-    oneway void showAppBubble(in Intent intent) = 13;
+    oneway void showAppBubble(in Intent intent, in UserHandle user, in @nullable BubbleBarLocation location) = 13;
 
     oneway void showExpandedView() = 14;
+
+    oneway void showDropTarget(in boolean show, in @nullable BubbleBarLocation location) = 15;
+
+    oneway void moveDraggedBubbleToFullscreen(in String key, in Point dropLocation) = 16;
 }

@@ -41,6 +41,7 @@ import java.util.Locale;
  * Utility class to aid in formatting common values that are not covered
  * by the {@link java.util.Formatter} class in {@link java.util}
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class Formatter {
 
     /** {@hide} */

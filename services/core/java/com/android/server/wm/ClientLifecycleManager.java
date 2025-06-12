@@ -25,6 +25,7 @@ import android.app.servertransaction.LaunchActivityItem;
 import android.compat.annotation.ChangeId;
 import android.compat.annotation.EnabledSince;
 import android.os.Build;
+import android.os.DeadObjectException;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.Trace;
@@ -66,64 +67,80 @@ class ClientLifecycleManager {
     /**
      * Schedules a transaction, which may consist of multiple callbacks and a lifecycle request.
      * @param transaction A sequence of client transaction items.
-     * @throws RemoteException
-     *
+     * @return {@code false} if the transaction failed because of {@link RemoteException}.
      * @see ClientTransaction
      */
     @VisibleForTesting
-    void scheduleTransaction(@NonNull ClientTransaction transaction) throws RemoteException {
-        final IApplicationThread client = transaction.getClient();
-        try {
-            transaction.schedule();
-        } catch (RemoteException e) {
-            Slog.w(TAG, "Failed to deliver transaction for " + client
-                            + "\ntransaction=" + transaction);
-            throw e;
+    boolean scheduleTransaction(@NonNull ClientTransaction transaction) {
+        final RemoteException e = transaction.schedule();
+        if (e != null) {
+            final WindowProcessController wpc = mWms.mAtmService.getProcessController(
+                    transaction.getClient());
+            Slog.w(TAG, "Failed to deliver transaction for " + wpc + "\ntransaction=" + this, e);
+            return false;
         }
+        return true;
     }
 
     /**
      * Similar to {@link #scheduleTransactionItem}, but it sends the transaction immediately and
      * it can be called without WM lock.
      *
+     * @return {@code false} if the transaction failed because of {@link RemoteException}.
      * @see WindowProcessController#setReportedProcState(int)
      */
-    void scheduleTransactionItemNow(@NonNull IApplicationThread client,
+    boolean scheduleTransactionItemNow(@NonNull IApplicationThread client,
             @NonNull ClientTransactionItem transactionItem) throws RemoteException {
         final ClientTransaction clientTransaction = new ClientTransaction(client);
         clientTransaction.addTransactionItem(transactionItem);
-        scheduleTransaction(clientTransaction);
+        final boolean res = scheduleTransaction(clientTransaction);
+        if (!com.android.window.flags.Flags.cleanupDispatchPendingTransactionsRemoteException()
+                && !res) {
+            throw new DeadObjectException();
+        }
+        return res;
     }
 
     /**
-     * Schedules a transaction with the given item, delivery to client application.
+     * Schedules a transaction with the given item, delivery to client application, which may be
+     * queued to dispatched later.
      *
-     * @throws RemoteException
+     * @return {@code false} if the transaction was dispatched immediately, but failed because of
+     *         {@link RemoteException}. If the transaction is queued, any failure will be ignored.
      * @see ClientTransactionItem
      */
-    void scheduleTransactionItem(@NonNull IApplicationThread client,
+    boolean scheduleTransactionItem(@NonNull IApplicationThread client,
             @NonNull ClientTransactionItem item) throws RemoteException {
         // Wait until RootWindowContainer#performSurfacePlacementNoTrace to dispatch all pending
         // transactions at once.
         final ClientTransaction clientTransaction = getOrCreatePendingTransaction(client);
         clientTransaction.addTransactionItem(item);
 
-        onClientTransactionItemScheduled(clientTransaction, false /* shouldDispatchImmediately */);
+        final boolean res = onClientTransactionItemScheduled(clientTransaction,
+                false /* shouldDispatchImmediately */);
+        if (!com.android.window.flags.Flags.cleanupDispatchPendingTransactionsRemoteException()
+                && !res) {
+            throw new DeadObjectException();
+        }
+        return res;
     }
 
     /**
-     * Schedules a transaction with the given items, delivery to client application.
+     * Schedules a transaction with the given items, delivery to client application, which may be
+     * queued to dispatched later.
      *
-     * @throws RemoteException
+     * @return {@code false} if the transaction was dispatched immediately, but failed because of
+     *         {@link RemoteException}. If the transaction is queued, any failure will be ignored.
      * @see ClientTransactionItem
      */
-    void scheduleTransactionItems(@NonNull IApplicationThread client,
+    boolean scheduleTransactionItems(@NonNull IApplicationThread client,
             @NonNull ClientTransactionItem... items) throws RemoteException {
-        scheduleTransactionItems(client, false /* shouldDispatchImmediately */, items);
+        return scheduleTransactionItems(client, false /* shouldDispatchImmediately */, items);
     }
 
     /**
-     * Schedules a transaction with the given items, delivery to client application.
+     * Schedules a transaction with the given items, delivery to client application, which may be
+     * queued to dispatched later.
      *
      * @param shouldDispatchImmediately whether or not to dispatch the transaction immediately. This
      *                                  should only be {@code true} when it is important to know the
@@ -131,11 +148,11 @@ class ClientLifecycleManager {
      *                                  launches an app, the server needs to know if the transaction
      *                                  is dispatched successfully, and may restart the process if
      *                                  not.
-     *
-     * @throws RemoteException
+     * @return {@code false} if the transaction was dispatched immediately, but failed because of
+     *         {@link RemoteException}. If the transaction is queued, any failure will be ignored.
      * @see ClientTransactionItem
      */
-    void scheduleTransactionItems(@NonNull IApplicationThread client,
+    boolean scheduleTransactionItems(@NonNull IApplicationThread client,
             boolean shouldDispatchImmediately,
             @NonNull ClientTransactionItem... items) throws RemoteException {
         // Wait until RootWindowContainer#performSurfacePlacementNoTrace to dispatch all pending
@@ -147,7 +164,13 @@ class ClientLifecycleManager {
             clientTransaction.addTransactionItem(items[i]);
         }
 
-        onClientTransactionItemScheduled(clientTransaction, shouldDispatchImmediately);
+        final boolean res = onClientTransactionItemScheduled(clientTransaction,
+                shouldDispatchImmediately);
+        if (!com.android.window.flags.Flags.cleanupDispatchPendingTransactionsRemoteException()
+                && !res) {
+            throw new DeadObjectException();
+        }
+        return res;
     }
 
     /** Executes all the pending transactions. */
@@ -159,12 +182,7 @@ class ClientLifecycleManager {
         final int size = mPendingTransactions.size();
         for (int i = 0; i < size; i++) {
             final ClientTransaction transaction = mPendingTransactions.valueAt(i);
-            try {
-                scheduleTransaction(transaction);
-            } catch (RemoteException e) {
-                Slog.e(TAG, "Failed to deliver pending transaction", e);
-                // TODO(b/323801078): apply cleanup for individual transaction item if needed.
-            }
+            scheduleTransaction(transaction);
         }
         mPendingTransactions.clear();
         Trace.traceEnd(Trace.TRACE_TAG_WINDOW_MANAGER);
@@ -174,12 +192,7 @@ class ClientLifecycleManager {
     void dispatchPendingTransaction(@NonNull IApplicationThread client) {
         final ClientTransaction pendingTransaction = mPendingTransactions.remove(client.asBinder());
         if (pendingTransaction != null) {
-            try {
-                scheduleTransaction(pendingTransaction);
-            } catch (RemoteException e) {
-                Slog.e(TAG, "Failed to deliver pending transaction", e);
-                // TODO(b/323801078): apply cleanup for individual transaction item if needed.
-            }
+            scheduleTransaction(pendingTransaction);
         }
     }
 
@@ -211,15 +224,22 @@ class ClientLifecycleManager {
         return transaction;
     }
 
-    /** Must only be called with WM lock. */
-    private void onClientTransactionItemScheduled(
+    /**
+     * Must only be called with WM lock.
+     * If the transaction should not be queued, it will be dispatched immediately.
+     *
+     * @return {@code false} if the transaction was dispatched immediately, but failed because of
+     *         {@link RemoteException}.
+     */
+    private boolean onClientTransactionItemScheduled(
             @NonNull ClientTransaction clientTransaction,
-            boolean shouldDispatchImmediately) throws RemoteException {
+            boolean shouldDispatchImmediately) {
         if (shouldDispatchImmediately || shouldDispatchPendingTransactionsImmediately()) {
             // Dispatch the pending transaction immediately.
             mPendingTransactions.remove(clientTransaction.getClient().asBinder());
-            scheduleTransaction(clientTransaction);
+            return scheduleTransaction(clientTransaction);
         }
+        return true;
     }
 
     /** Must only be called with WM lock. */

@@ -39,6 +39,7 @@ import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.systemui.SysuiTestCase;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -67,6 +68,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     @Mock private Dialog mDialog;
     @Mock WindowManager mWindowManager;
     @Mock Handler mHandler;
+    @Mock WindowManagerProvider mWindowManagerProvider;
 
     @Before
     public void setUp() {
@@ -92,7 +94,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     public void toggle_isShowingTrue_instanceShouldBeNull() {
         when(mDialog.isShowing()).thenReturn(true);
 
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         assertThat(KeyboardShortcuts.sInstance).isNull();
     }
@@ -101,7 +103,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     public void toggle_isShowingFalse_showKeyboardShortcuts() {
         when(mDialog.isShowing()).thenReturn(false);
 
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         verify(mWindowManager).requestAppKeyboardShortcuts(any(), anyInt());
         verify(mWindowManager).requestImeKeyboardShortcuts(any(), anyInt());
@@ -131,7 +133,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     @Test
     public void requestAppKeyboardShortcuts_callback_sanitisesIcons() {
         KeyboardShortcutGroup group = createKeyboardShortcutGroupForIconTests();
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         emitAppShortcuts(singletonList(group), DEVICE_ID);
 
@@ -142,7 +144,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     @Test
     public void requestImeKeyboardShortcuts_callback_sanitisesIcons() {
         KeyboardShortcutGroup group = createKeyboardShortcutGroupForIconTests();
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         emitImeShortcuts(singletonList(group), DEVICE_ID);
 
@@ -153,7 +155,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     @Test
     public void onImeAndAppShortcutsReceived_appShortcutsNull_doesNotCrash() {
         KeyboardShortcutGroup group = createKeyboardShortcutGroupForIconTests();
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         emitImeShortcuts(singletonList(group), DEVICE_ID);
         emitAppShortcuts(/* groups= */ null, DEVICE_ID);
@@ -162,7 +164,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
     @Test
     public void onImeAndAppShortcutsReceived_imeShortcutsNull_doesNotCrash() {
         KeyboardShortcutGroup group = createKeyboardShortcutGroupForIconTests();
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         emitAppShortcuts(singletonList(group), DEVICE_ID);
         emitImeShortcuts(/* groups= */ null, DEVICE_ID);
@@ -170,7 +172,7 @@ public class KeyboardShortcutsTest extends SysuiTestCase {
 
     @Test
     public void onImeAndAppShortcutsReceived_bothNull_doesNotCrash() {
-        KeyboardShortcuts.toggle(mContext, DEVICE_ID);
+        KeyboardShortcuts.toggle(mContext, DEVICE_ID, mWindowManagerProvider);
 
         emitImeShortcuts(/* groups= */ null, DEVICE_ID);
         emitAppShortcuts(/* groups= */ null, DEVICE_ID);

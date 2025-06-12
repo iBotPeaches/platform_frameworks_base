@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.scene.domain.startable
 
 import android.annotation.SuppressLint
@@ -26,6 +24,8 @@ import android.os.IBinder
 import android.os.RemoteException
 import android.provider.DeviceConfig
 import android.util.Log
+import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.compose.animation.scene.OverlayKey
 import com.android.compose.animation.scene.SceneKey
 import com.android.internal.config.sysui.SystemUiDeviceConfigFlags
 import com.android.internal.statusbar.IStatusBarService
@@ -45,15 +45,13 @@ import com.android.systemui.power.shared.model.WakefulnessModel
 import com.android.systemui.scene.domain.interactor.SceneContainerOcclusionInteractor
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.withContext
 
 @SysUISingleton
@@ -96,6 +94,7 @@ constructor(
                     navigationInteractor.isGesturalMode,
                     authenticationInteractor.authenticationMethod,
                     powerInteractor.detailedWakefulness,
+                    sceneInteractor.currentOverlays,
                 ) { values ->
                     val selectedUserId = values[0] as Int
                     val currentScene = values[1] as SceneKey
@@ -105,8 +104,9 @@ constructor(
                     val isGesturalMode = values[5] as Boolean
                     val authenticationMethod = values[6] as AuthenticationMethodModel
                     val wakefulnessModel = values[7] as WakefulnessModel
+                    val overlays = values[8] as Set<OverlayKey>
 
-                    val isForceHideHomeAndRecents = currentScene == Scenes.Bouncer
+                    val isForceHideHomeAndRecents = Overlays.Bouncer in overlays
                     val isKeyguardShowing = !isDeviceEntered
                     val isPowerGestureIntercepted =
                         with(wakefulnessModel) {

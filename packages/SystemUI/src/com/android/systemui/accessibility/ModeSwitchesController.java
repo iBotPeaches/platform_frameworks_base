@@ -24,10 +24,11 @@ import android.annotation.MainThread;
 import android.content.Context;
 import android.hardware.display.DisplayManager;
 import android.view.Display;
+import android.view.WindowManager;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.systemui.dagger.SysUISingleton;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import javax.inject.Inject;
 
@@ -49,9 +50,9 @@ public class ModeSwitchesController implements ClickListener {
 
     @Inject
     public ModeSwitchesController(Context context, DisplayManager displayManager,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+            WindowManagerProvider windowManagerProvider) {
         mSwitchSupplier = new SwitchSupplier(context, displayManager, this::onClick,
-                viewCaptureAwareWindowManager);
+                windowManagerProvider);
     }
 
     @VisibleForTesting
@@ -118,7 +119,7 @@ public class ModeSwitchesController implements ClickListener {
 
         private final Context mContext;
         private final ClickListener mClickListener;
-        private final ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
+        private final WindowManagerProvider mWindowManagerProvider;
 
         /**
          * Supplies the switch for the given display.
@@ -128,20 +129,20 @@ public class ModeSwitchesController implements ClickListener {
          * @param clickListener The callback that will run when the switch is clicked
          */
         SwitchSupplier(Context context, DisplayManager displayManager,
-                ClickListener clickListener,
-                ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+                ClickListener clickListener, WindowManagerProvider windowManagerProvider) {
             super(displayManager);
             mContext = context;
             mClickListener = clickListener;
-            mViewCaptureAwareWindowManager = viewCaptureAwareWindowManager;
+            mWindowManagerProvider = windowManagerProvider;
         }
 
         @Override
         protected MagnificationModeSwitch createInstance(Display display) {
             final Context uiContext = mContext.createWindowContext(display,
                     TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY, /* options */ null);
-            return new MagnificationModeSwitch(uiContext, mClickListener,
-                    mViewCaptureAwareWindowManager);
+            final WindowManager uiWindowManager = mWindowManagerProvider
+                    .getWindowManager(uiContext);
+            return new MagnificationModeSwitch(uiContext, uiWindowManager, mClickListener);
         }
     }
 }

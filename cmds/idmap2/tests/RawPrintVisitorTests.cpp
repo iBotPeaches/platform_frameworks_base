@@ -55,8 +55,10 @@ TEST(RawPrintVisitorTests, CreateRawPrintVisitor) {
   auto overlay = OverlayResourceContainer::FromPath(overlay_apk_path);
   ASSERT_TRUE(overlay);
 
+  auto constraints = std::make_unique<const IdmapConstraints>();
   const auto idmap = Idmap::FromContainers(**target, **overlay, TestConstants::OVERLAY_NAME_DEFAULT,
-                                           PolicyFlags::PUBLIC, /* enforce_overlayable */ true);
+                                           PolicyFlags::PUBLIC, /* enforce_overlayable */ true,
+                                           std::move(constraints));
   ASSERT_TRUE(idmap);
 
   std::stringstream stream;
@@ -64,7 +66,7 @@ TEST(RawPrintVisitorTests, CreateRawPrintVisitor) {
   (*idmap)->accept(&visitor);
 
   ASSERT_CONTAINS_REGEX(ADDRESS "504d4449  magic\n", stream.str());
-  ASSERT_CONTAINS_REGEX(ADDRESS "0000000a  version\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "0000000b  version\n", stream.str());
   ASSERT_CONTAINS_REGEX(
       StringPrintf(ADDRESS "%s  target crc\n", android::idmap2::TestConstants::TARGET_CRC_STRING),
       stream.str());
@@ -73,6 +75,7 @@ TEST(RawPrintVisitorTests, CreateRawPrintVisitor) {
       stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000001  fulfilled policies: public\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000001  enforce overlayable\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "00000000  constraints count\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000004  target entry count", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000000  target inline entry count", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000000  target inline entry value count", stream.str());
@@ -113,7 +116,7 @@ TEST(RawPrintVisitorTests, CreateRawPrintVisitorWithoutAccessToApks) {
   (*idmap)->accept(&visitor);
 
   ASSERT_CONTAINS_REGEX(ADDRESS "504d4449  magic\n", stream.str());
-  ASSERT_CONTAINS_REGEX(ADDRESS "0000000a  version\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "0000000b  version\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00001234  target crc\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00005678  overlay crc\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000011  fulfilled policies: public|signature\n", stream.str());
@@ -124,6 +127,11 @@ TEST(RawPrintVisitorTests, CreateRawPrintVisitorWithoutAccessToApks) {
   ASSERT_CONTAINS_REGEX(ADDRESS "........  overlay path: overlayX.apk\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "0000000b  overlay name size\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "........  overlay name: OverlayName\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "00000002  constraints count\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "00000000  constraint type\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "00000001  constraint value\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "00000001  constraint type\n", stream.str());
+  ASSERT_CONTAINS_REGEX(ADDRESS "00000002  constraint value\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000003  target entry count\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000001  target inline entry count\n", stream.str());
   ASSERT_CONTAINS_REGEX(ADDRESS "00000001  target inline entry value count", stream.str());

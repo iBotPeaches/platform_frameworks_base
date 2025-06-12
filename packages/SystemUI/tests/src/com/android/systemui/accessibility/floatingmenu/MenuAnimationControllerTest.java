@@ -30,6 +30,7 @@ import android.testing.TestableLooper;
 import android.view.View;
 import android.view.ViewPropertyAnimator;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityManager;
 
 import androidx.dynamicanimation.animation.DynamicAnimation;
 import androidx.dynamicanimation.animation.FlingAnimation;
@@ -38,6 +39,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.settingslib.bluetooth.HearingAidDeviceManager;
 import com.android.systemui.Prefs;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.accessibility.utils.TestUtils;
@@ -49,6 +51,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
@@ -69,13 +72,19 @@ public class MenuAnimationControllerTest extends SysuiTestCase {
     @Rule
     public MockitoRule mockito = MockitoJUnit.rule();
 
+    @Mock
+    private AccessibilityManager mAccessibilityManager;
+    @Mock
+    private HearingAidDeviceManager mHearingAidDeviceManager;
+
     @Before
     public void setUp() throws Exception {
         final WindowManager stubWindowManager = mContext.getSystemService(WindowManager.class);
         final MenuViewAppearance stubMenuViewAppearance = new MenuViewAppearance(mContext,
                 stubWindowManager);
-        final SecureSettings secureSettings = TestUtils.mockSecureSettings();
-        final MenuViewModel stubMenuViewModel = new MenuViewModel(mContext, secureSettings);
+        final SecureSettings secureSettings = TestUtils.mockSecureSettings(mContext);
+        final MenuViewModel stubMenuViewModel = new MenuViewModel(mContext, mAccessibilityManager,
+                secureSettings, mHearingAidDeviceManager);
 
         mMenuView = spy(new MenuView(mContext, stubMenuViewModel, stubMenuViewAppearance,
                 secureSettings));
@@ -185,7 +194,7 @@ public class MenuAnimationControllerTest extends SysuiTestCase {
         final Runnable onSpringAnimationsEndCallback = mock(Runnable.class);
         mMenuAnimationController.setSpringAnimationsEndAction(onSpringAnimationsEndCallback);
 
-        mMenuAnimationController.flingMenuThenSpringToEdge(/* x= */ 0, /* velocityX= */
+        mMenuAnimationController.flingMenuThenSpringToEdge(new PointF(), /* velocityX= */
                 100, /* velocityY= */ 100);
         mMenuAnimationController.mPositionAnimations.values()
                 .forEach(animation -> verify((FlingAnimation) animation).addEndListener(
@@ -203,7 +212,7 @@ public class MenuAnimationControllerTest extends SysuiTestCase {
         final Runnable onSpringAnimationsEndCallback = mock(Runnable.class);
         mMenuAnimationController.setSpringAnimationsEndAction(onSpringAnimationsEndCallback);
 
-        mMenuAnimationController.flingMenuThenSpringToEdge(/* x= */ 0, /* velocityX= */
+        mMenuAnimationController.flingMenuThenSpringToEdge(new PointF(), /* velocityX= */
                 200, /* velocityY= */ 200);
         mMenuAnimationController.mPositionAnimations.values()
                 .forEach(animation -> verify((FlingAnimation) animation).addEndListener(

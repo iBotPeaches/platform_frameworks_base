@@ -17,12 +17,11 @@
 package com.android.systemui.qs.panels.ui.viewmodel
 
 import android.content.res.mainResources
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.common.ui.data.repository.configurationRepository
+import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.runCurrent
 import com.android.systemui.kosmos.testCase
@@ -37,7 +36,8 @@ import com.android.systemui.qs.composefragment.dagger.usingMediaInComposeFragmen
 import com.android.systemui.qs.panels.data.repository.QSColumnsRepository
 import com.android.systemui.qs.panels.data.repository.qsColumnsRepository
 import com.android.systemui.res.R
-import com.android.systemui.shade.shared.flag.DualShade
+import com.android.systemui.shade.domain.interactor.disableDualShade
+import com.android.systemui.shade.domain.interactor.enableDualShade
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
@@ -66,12 +66,12 @@ class QSColumnsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun mediaLocationNull_singleOrSplit_alwaysSingleShadeColumns() =
         with(kosmos) {
             testScope.runTest {
                 val underTest = qsColumnsViewModelFactory.create(null)
                 underTest.activateIn(testScope)
+                kosmos.disableDualShade()
 
                 setConfigurationForMediaInRow(mediaInRow = false)
 
@@ -89,12 +89,13 @@ class QSColumnsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
+    @EnableSceneContainer
     fun mediaLocationNull_dualShade_alwaysDualShadeColumns() =
         with(kosmos) {
             testScope.runTest {
                 val underTest = qsColumnsViewModelFactory.create(null)
                 underTest.activateIn(testScope)
+                kosmos.enableDualShade()
 
                 setConfigurationForMediaInRow(mediaInRow = false)
 
@@ -112,12 +113,13 @@ class QSColumnsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
+    @EnableSceneContainer
     fun mediaLocationQS_dualShade_alwaysDualShadeColumns() =
         with(kosmos) {
             testScope.runTest {
                 val underTest = qsColumnsViewModelFactory.create(LOCATION_QS)
                 underTest.activateIn(testScope)
+                kosmos.enableDualShade()
 
                 setConfigurationForMediaInRow(mediaInRow = false)
 
@@ -134,12 +136,13 @@ class QSColumnsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
+    @EnableSceneContainer
     fun mediaLocationQQS_dualShade_alwaysDualShadeColumns() =
         with(kosmos) {
             testScope.runTest {
                 val underTest = qsColumnsViewModelFactory.create(LOCATION_QQS)
                 underTest.activateIn(testScope)
+                kosmos.enableDualShade()
 
                 setConfigurationForMediaInRow(mediaInRow = false)
 
@@ -156,12 +159,12 @@ class QSColumnsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun mediaLocationQS_singleOrSplit_halfColumnsOnCorrectConfigurationAndVisible() =
         with(kosmos) {
             testScope.runTest {
                 val underTest = qsColumnsViewModelFactory.create(LOCATION_QS)
                 underTest.activateIn(testScope)
+                kosmos.disableDualShade()
 
                 setConfigurationForMediaInRow(mediaInRow = false)
                 runCurrent()
@@ -181,12 +184,12 @@ class QSColumnsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun mediaLocationQQS_singleOrSplit_halfColumnsOnCorrectConfigurationAndVisible() =
         with(kosmos) {
             testScope.runTest {
                 val underTest = qsColumnsViewModelFactory.create(LOCATION_QQS)
                 underTest.activateIn(testScope)
+                kosmos.disableDualShade()
 
                 setConfigurationForMediaInRow(mediaInRow = false)
                 runCurrent()

@@ -31,13 +31,13 @@ import android.testing.TestableLooper
 import android.view.View
 
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.shade.domain.interactor.FakeShadeDialogContextInteractor
 
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.runner.RunWith
 import org.junit.Test
 import org.mockito.Answers
-import org.mockito.ArgumentMatchers.anyBoolean
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
 import org.mockito.Mockito
@@ -66,11 +66,14 @@ class ChannelEditorDialogControllerTest : SysuiTestCase() {
     @Mock
     private lateinit var dialog: ChannelEditorDialog
 
+    private val shadeDialogContextInteractor = FakeShadeDialogContextInteractor(mContext)
+
     @Before
     fun setup() {
         MockitoAnnotations.initMocks(this)
         `when`(dialogBuilder.build()).thenReturn(dialog)
-        controller = ChannelEditorDialogController(mContext, mockNoMan, dialogBuilder)
+        controller =
+            ChannelEditorDialogController(shadeDialogContextInteractor, mockNoMan, dialogBuilder)
 
         channel1 = NotificationChannel(TEST_CHANNEL, TEST_CHANNEL_NAME, IMPORTANCE_DEFAULT)
         channel2 = NotificationChannel(TEST_CHANNEL2, TEST_CHANNEL_NAME2, IMPORTANCE_NONE)

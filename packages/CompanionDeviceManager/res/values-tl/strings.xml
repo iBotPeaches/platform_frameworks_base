@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Kasamang Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Payagan ang app na &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na i-access ang &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Siguraduhing naka-on ang <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> sa <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> na ito, at panatilihing nasa malapit ang iyong <xliff:g id="PROFILE_NAME">%3$s</xliff:g>."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Walang nakitang device. Pakisubukan ulit sa ibang pagkakataon."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth at Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"relo"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Pumili ng device na papamahalaan ng &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Pumili ng <xliff:g id="PROFILE_NAME">%1$s</xliff:g> para mag-set up"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Pumili ng <xliff:g id="PROFILE_NAME">%1$s</xliff:g> para i-set up"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Hinahanap ang <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Papayagan ang app na ito na mag-sync ng impormasyon, tulad ng pangalan ng isang taong tumatawag, at ma-access ang mga pahintulot na ito sa iyong <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Payagan ang &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na pamahalaan ang &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"device"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Payagan ang &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na i-stream ang mga app ng iyong <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> sa &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Magkakaroon ng access ang <xliff:g id="APP_NAME_0">%1$s</xliff:g> sa kahit anong nakikita o pine-play sa <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, kasama ang audio, mga larawan, impormasyon sa pagbabayad, mga password, at mga mensahe.&lt;br/&gt;&lt;br/&gt;Magagawa ng <xliff:g id="APP_NAME_2">%1$s</xliff:g> na mag-stream ng mga app sa <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> hanggang sa alisin mo ang access sa pahintulot na ito."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Humihingi ang <xliff:g id="APP_NAME">%1$s</xliff:g> ng pahintulot para sa <xliff:g id="DEVICE_NAME">%2$s</xliff:g> na mag-stream ng mga app mula sa iyong <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Payagan ang &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; na mag-stream ng audio at mga feature ng system sa pagitan ng iyong <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> at &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Magkakaroon ng access ang <xliff:g id="APP_NAME_0">%2$s</xliff:g> sa anumang pine-play sa <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;Makakapag-stream ang <xliff:g id="APP_NAME_2">%2$s</xliff:g> ng audio sa <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> hanggang sa alisin mo ang access sa pahintulot na ito."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"device"</string>
-    <string name="summary_generic" msgid="1761976003668044801">"Magagawa ng app na ito na mag-sync ng impormasyon, tulad ng pangalan ng isang taong tumatawag, sa pagitan ng iyong telepono at ng napiling device"</string>
+    <string name="summary_generic" msgid="1761976003668044801">"Magagawa ng app na ito na mag-sync ng impormasyon, tulad ng pangalan ng taong tumatawag, sa pagitan ng telepono mo at ng napiling device"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Payagan"</string>
     <string name="consent_no" msgid="2640796915611404382">"Huwag payagan"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Kanselahin"</string>
     <string name="consent_back" msgid="2560683030046918882">"Bumalik"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Mag-scroll pababa sa listahan"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Pababang arrow"</string>
     <string name="permission_expand" msgid="893185038020887411">"I-expand ang <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"I-collapse ang <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Bigyan ang mga app sa &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; ng mga pahintulot na mayroon din sa &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

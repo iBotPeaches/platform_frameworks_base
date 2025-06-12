@@ -87,10 +87,10 @@ public class LockPatternView extends View {
     private static final int CELL_ACTIVATE = 0;
     private static final int CELL_DEACTIVATE = 1;
 
-    private final int mDotSize;
-    private final int mDotSizeActivated;
+    private int mDotSize;
+    private int mDotSizeActivated;
     private final float mDotHitFactor;
-    private final int mPathWidth;
+    private int mPathWidth;
     private final int mLineFadeOutAnimationDurationMs;
     private final int mLineFadeOutAnimationDelayMs;
     private final int mFadePatternAnimationDurationMs;
@@ -634,7 +634,6 @@ public class LockPatternView extends View {
     }
 
     private void notifyPatternStarted() {
-        sendAccessEvent(R.string.lockscreen_access_pattern_start);
         if (mOnPatternListener != null) {
             mOnPatternListener.onPatternStart();
         }
@@ -642,14 +641,12 @@ public class LockPatternView extends View {
 
     @UnsupportedAppUsage
     private void notifyPatternDetected() {
-        sendAccessEvent(R.string.lockscreen_access_pattern_detected);
         if (mOnPatternListener != null) {
             mOnPatternListener.onPatternDetected(mPattern);
         }
     }
 
     private void notifyPatternCleared() {
-        sendAccessEvent(R.string.lockscreen_access_pattern_cleared);
         if (mOnPatternListener != null) {
             mOnPatternListener.onPatternCleared();
         }
@@ -1240,10 +1237,6 @@ public class LockPatternView extends View {
         }
     }
 
-    private void sendAccessEvent(int resId) {
-        announceForAccessibility(mContext.getString(resId));
-    }
-
     private void handleActionUp() {
         // report pattern detected
         if (!mPattern.isEmpty()) {
@@ -1339,6 +1332,38 @@ public class LockPatternView extends View {
         mSuccessColor = successColor;
         mPathPaint.setColor(regularColor);
         invalidate();
+    }
+
+    /**
+     * Change dot colors
+     */
+    public void setDotColors(int dotColor, int dotActivatedColor) {
+        mDotColor = dotColor;
+        mDotActivatedColor = dotActivatedColor;
+        invalidate();
+    }
+
+    /**
+     * Keeps dot activated until the next dot gets activated.
+     */
+    public void setKeepDotActivated(boolean keepDotActivated) {
+        mKeepDotActivated = keepDotActivated;
+    }
+
+    /**
+     * Set dot sizes in dp
+     */
+    public void setDotSizes(int dotSizeDp, int dotSizeActivatedDp) {
+        mDotSize = dotSizeDp;
+        mDotSizeActivated = dotSizeActivatedDp;
+    }
+
+    /**
+     * Set the stroke width of the pattern line.
+     */
+    public void setPathWidth(int pathWidthDp) {
+        mPathWidth = pathWidthDp;
+        mPathPaint.setStrokeWidth(mPathWidth);
     }
 
     private float getCenterXForColumn(int column) {

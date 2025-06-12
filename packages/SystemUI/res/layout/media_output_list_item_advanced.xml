@@ -15,18 +15,20 @@
   ~ limitations under the License.
   -->
 
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/device_container"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="@dimen/media_output_dialog_margin_horizontal"
+    android:focusable="true"
+    android:baselineAligned="false">
     <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_weight="1"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/media_output_dialog_item_height"
         android:id="@+id/item_layout"
         android:background="@drawable/media_output_item_background"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="80dp"
         android:layout_marginBottom="12dp">
         <FrameLayout
             android:layout_width="match_parent"
@@ -36,7 +38,7 @@
                 android:id="@+id/volume_seekbar"
                 android:splitTrack="false"
                 android:visibility="gone"
-                android:paddingStart="64dp"
+                android:paddingStart="@dimen/media_output_dialog_item_height"
                 android:paddingEnd="0dp"
                 android:background="@null"
                 android:contentDescription="@string/media_output_dialog_accessibility_seekbar"
@@ -48,17 +50,17 @@
 
         <FrameLayout
             android:id="@+id/icon_area"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="@dimen/media_output_dialog_item_height"
+            android:layout_height="@dimen/media_output_dialog_item_height"
             android:focusable="false"
             android:importantForAccessibility="no"
-            android:background="@drawable/media_output_title_icon_area"
             android:layout_gravity="center_vertical|start">
             <ImageView
                 android:id="@+id/title_icon"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:focusable="false"
+                android:contentDescription="@null"
                 android:importantForAccessibility="no"
                 android:animateLayoutChanges="true"
                 android:layout_gravity="center"/>
@@ -75,30 +77,18 @@
                 android:visibility="gone"/>
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/title"
-            android:focusable="false"
-            android:importantForAccessibility="no"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical|start"
-            android:layout_marginStart="72dp"
-            android:layout_marginEnd="56dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
-            android:textSize="16sp"/>
-
         <LinearLayout
-            android:id="@+id/two_line_layout"
+            android:id="@+id/text_content"
             android:orientation="vertical"
             android:layout_width="wrap_content"
             android:layout_gravity="center_vertical|start"
+            android:gravity="center_vertical|start"
             android:layout_height="48dp"
             android:layout_marginEnd="56dp"
             android:layout_marginStart="72dp">
             <TextView
-                android:id="@+id/two_line_title"
+                android:id="@+id/title"
+                android:focusable="false"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
@@ -108,6 +98,7 @@
                 android:textSize="16sp"/>
             <TextView
                 android:id="@+id/subtitle"
+                android:focusable="false"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:marqueeRepeatLimit="marquee_forever"
@@ -136,7 +127,6 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_marginEnd="16dp"
-            android:indeterminate="true"
             android:layout_gravity="end|center"
             android:indeterminateOnly="true"
             android:importantForAccessibility="no"
@@ -144,33 +134,28 @@
     </FrameLayout>
     <FrameLayout
         android:id="@+id/end_action_area"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
+        android:layout_width="@dimen/media_output_dialog_item_height"
+        android:layout_height="@dimen/media_output_dialog_item_height"
         android:visibility="gone"
-        android:layout_marginBottom="6dp"
-        android:layout_marginEnd="8dp"
-        android:layout_gravity="end|center"
-        android:gravity="center"
+        android:layout_marginStart="7dp"
         android:background="@drawable/media_output_item_background_active">
         <CheckBox
             android:id="@+id/check_box"
-            android:focusable="false"
-            android:importantForAccessibility="no"
-            android:layout_gravity="center"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:button="@drawable/media_output_item_check_box"
+            android:foreground="@drawable/media_output_item_check_box"
+            android:foregroundGravity="center"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:button="@null"
             android:visibility="gone"
             />
-        <ImageView
-            android:id="@+id/media_output_item_end_click_icon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:focusable="false"
-            android:importantForAccessibility="no"
-            android:layout_gravity="center"
-            android:indeterminate="true"
-            android:indeterminateOnly="true"
+        <ImageButton
+            android:id="@+id/end_area_image_button"
+            android:background="@android:color/transparent"
+            android:padding="20dp"
+            android:scaleType="fitCenter"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
             android:visibility="gone"/>
     </FrameLayout>
-</FrameLayout>
+</LinearLayout>

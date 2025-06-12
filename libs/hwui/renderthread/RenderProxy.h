@@ -20,7 +20,6 @@
 #include <SkRefCnt.h>
 #include <android/hardware_buffer.h>
 #include <android/native_window.h>
-#include <android/surface_control.h>
 #include <cutils/compiler.h>
 #include <utils/Functor.h>
 
@@ -39,6 +38,7 @@ class SkImage;
 
 namespace android {
 class GraphicBuffer;
+class SurfaceControl;
 class Surface;
 
 namespace uirenderer {
@@ -80,7 +80,7 @@ public:
     void setName(const char* name);
     void setHardwareBuffer(AHardwareBuffer* buffer);
     void setSurface(ANativeWindow* window, bool enableTimeout = true);
-    void setSurfaceControl(ASurfaceControl* surfaceControl);
+    void setSurfaceControl(sp<SurfaceControl> surfaceControl);
     void allocateBuffers();
     bool pause();
     void setStopped(bool stopped);
@@ -141,8 +141,8 @@ public:
     void setFrameCommitCallback(std::function<void(bool)>&& callback);
     void setFrameCompleteCallback(std::function<void()>&& callback);
 
-    void addFrameMetricsObserver(FrameMetricsObserver* observer);
-    void removeFrameMetricsObserver(FrameMetricsObserver* observer);
+    void addFrameMetricsObserver(sp<FrameMetricsObserver>&& observer);
+    void removeFrameMetricsObserver(sp<FrameMetricsObserver>&& observer);
     void setForceDark(ForceDarkType type);
 
     static void copySurfaceInto(ANativeWindow* window, std::shared_ptr<CopyRequest>&& request);

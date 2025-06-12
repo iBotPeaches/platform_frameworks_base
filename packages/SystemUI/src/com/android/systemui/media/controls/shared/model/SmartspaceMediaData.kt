@@ -48,8 +48,6 @@ data class SmartspaceMediaData(
     val instanceId: InstanceId? = null,
     /** The timestamp in milliseconds indicating when the card should be removed */
     val expiryTimeMs: Long = 0L,
-    /** If recommendation card was visible to user, used for logging. */
-    var isImpressed: Boolean = false,
 ) {
     /**
      * Indicates if all the data is valid.
@@ -81,7 +79,7 @@ data class SmartspaceMediaData(
         Log.w(
             TAG,
             "Package $packageName does not have a main launcher activity. " +
-                "Fallback to full app name"
+                "Fallback to full app name",
         )
         return try {
             val applicationInfo = packageManager.getApplicationInfo(packageName, /* flags= */ 0)

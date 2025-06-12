@@ -25,11 +25,10 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.display.data.repository.SingleDisplayStore
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
-import com.android.systemui.statusbar.phone.StatusBarContentInsetsProvider
-import com.android.systemui.statusbar.phone.StatusBarContentInsetsProviderImpl
+import com.android.systemui.statusbar.layout.StatusBarContentInsetsProvider
+import com.android.systemui.statusbar.layout.StatusBarContentInsetsProviderImpl
 import dagger.Lazy
 import dagger.Module
 import dagger.Provides
@@ -54,18 +53,22 @@ constructor(
     private val cameraProtectionLoaderFactory: CameraProtectionLoaderImpl.Factory,
 ) :
     StatusBarContentInsetsProviderStore,
-    PerDisplayStoreImpl<StatusBarContentInsetsProvider>(
+    StatusBarPerDisplayStoreImpl<StatusBarContentInsetsProvider>(
         backgroundApplicationScope,
         displayRepository,
     ) {
 
-    override fun createInstanceForDisplay(displayId: Int): StatusBarContentInsetsProvider {
-        val context = displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR).context
+    override fun createInstanceForDisplay(displayId: Int): StatusBarContentInsetsProvider? {
+        val displayWindowProperties =
+            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR) ?: return null
+        val context = displayWindowProperties.context
+        val configurationController =
+            statusBarConfigurationControllerStore.forDisplay(displayId) ?: return null
         val cameraProtectionLoader = cameraProtectionLoaderFactory.create(context)
         return factory
             .create(
                 context,
-                statusBarConfigurationControllerStore.forDisplay(displayId),
+                configurationController,
                 sysUICutoutProviderFactory.create(context, cameraProtectionLoader),
             )
             .also { it.start() }

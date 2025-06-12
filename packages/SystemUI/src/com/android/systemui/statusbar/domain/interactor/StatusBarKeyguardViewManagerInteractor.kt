@@ -37,10 +37,7 @@ import kotlinx.coroutines.flow.merge
 /**
  * Whether to set the status bar keyguard view occluded or not, and whether to animate that change.
  */
-data class OccludedState(
-    val occluded: Boolean,
-    val animate: Boolean = false,
-)
+data class OccludedState(val occluded: Boolean, val animate: Boolean = false)
 
 /** Handles logic around calls to [StatusBarKeyguardViewManager] in legacy code. */
 @Deprecated("Will be removed once all of SBKVM's responsibilies are refactored.")
@@ -93,12 +90,12 @@ constructor(
     private val occlusionStateFromFinishedStep =
         combine(
                 keyguardTransitionInteractor.isFinishedIn(
-                    scene = Scenes.Gone,
+                    content = Scenes.Gone,
                     stateWithoutSceneContainer = KeyguardState.GONE,
                 ),
                 keyguardTransitionInteractor.isFinishedIn(KeyguardState.OCCLUDED),
                 keyguardOcclusionInteractor.isShowWhenLockedActivityOnTop,
-                ::Triple
+                ::Triple,
             )
             .map { (isOnGone, isOnOccluded, showWhenLockedOnTop) ->
                 // If we're FINISHED in OCCLUDED, we want to render as occluded. We also need to

@@ -18,6 +18,6 @@
 
 namespace android {
 
-const sp<Fence> Fence::NO_FENCE = sp<Fence>(new Fence);
+const sp<Fence> Fence::NO_FENCE = sp<Fence>::make();
 
 } // namespace android

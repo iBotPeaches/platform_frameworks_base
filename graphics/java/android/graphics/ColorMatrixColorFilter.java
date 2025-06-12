@@ -27,6 +27,7 @@ import android.os.Build;
  *
  * @see ColorMatrix
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class ColorMatrixColorFilter extends ColorFilter {
     @UnsupportedAppUsage
     private final ColorMatrix mMatrix = new ColorMatrix();

@@ -20,15 +20,14 @@ import android.platform.test.flag.junit.FlagsParameterization
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.flags.BrokenWithSceneContainer
 import com.android.systemui.flags.DisableSceneContainer
 import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.flags.andSceneContainer
 import com.android.systemui.keyguard.data.repository.fakeKeyguardClockRepository
+import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.data.repository.keyguardClockRepository
-import com.android.systemui.keyguard.data.repository.keyguardRepository
 import com.android.systemui.keyguard.shared.model.ClockSize
-import com.android.systemui.keyguard.shared.model.ClockSizeSetting
+import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel.ClockLayout
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.clocks.ClockConfig
@@ -37,6 +36,8 @@ import com.android.systemui.plugins.clocks.ClockFaceConfig
 import com.android.systemui.plugins.clocks.ClockFaceController
 import com.android.systemui.res.R
 import com.android.systemui.shade.data.repository.shadeRepository
+import com.android.systemui.statusbar.notification.data.repository.activeNotificationListRepository
+import com.android.systemui.statusbar.notification.data.repository.setActiveNotifs
 import com.android.systemui.statusbar.ui.fakeSystemBarUtilsProxy
 import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.whenever
@@ -53,17 +54,18 @@ import platform.test.runner.parameterized.Parameters
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
 class KeyguardClockViewModelTest(flags: FlagsParameterization) : SysuiTestCase() {
-    val kosmos = testKosmos()
-    val testScope = kosmos.testScope
-    val underTest by lazy { kosmos.keyguardClockViewModel }
-    val res = context.resources
 
-    @Mock lateinit var clockController: ClockController
-    @Mock lateinit var largeClock: ClockFaceController
-    @Mock lateinit var smallClock: ClockFaceController
+    private val kosmos = testKosmos()
+    private val testScope = kosmos.testScope
+    private val underTest by lazy { kosmos.keyguardClockViewModel }
+    private val res = context.resources
 
-    var config = ClockConfig("TEST", "Test", "")
-    var faceConfig = ClockFaceConfig()
+    @Mock private lateinit var clockController: ClockController
+    @Mock private lateinit var largeClock: ClockFaceController
+    @Mock private lateinit var smallClock: ClockFaceController
+
+    private var config = ClockConfig("TEST", "Test", "")
+    private var faceConfig = ClockFaceConfig()
 
     init {
         mSetFlagsRule.setFlagsParameterization(flags)
@@ -87,7 +89,11 @@ class KeyguardClockViewModelTest(flags: FlagsParameterization) : SysuiTestCase()
 
             with(kosmos) {
                 shadeRepository.setShadeLayoutWide(true)
-                keyguardRepository.setClockShouldBeCentered(true)
+                kosmos.activeNotificationListRepository.setActiveNotifs(0)
+                fakeKeyguardTransitionRepository.transitionTo(
+                    KeyguardState.AOD,
+                    KeyguardState.LOCKSCREEN,
+                )
                 keyguardClockRepository.setClockSize(ClockSize.LARGE)
             }
 
@@ -95,14 +101,18 @@ class KeyguardClockViewModelTest(flags: FlagsParameterization) : SysuiTestCase()
         }
 
     @Test
-    @BrokenWithSceneContainer(339465026)
+    @EnableSceneContainer
     fun currentClockLayout_splitShadeOn_clockNotCentered_largeClock_splitShadeLargeClock() =
         testScope.runTest {
             val currentClockLayout by collectLastValue(underTest.currentClockLayout)
 
             with(kosmos) {
                 shadeRepository.setShadeLayoutWide(true)
-                keyguardRepository.setClockShouldBeCentered(false)
+                activeNotificationListRepository.setActiveNotifs(1)
+                fakeKeyguardTransitionRepository.transitionTo(
+                    KeyguardState.AOD,
+                    KeyguardState.LOCKSCREEN,
+                )
                 keyguardClockRepository.setClockSize(ClockSize.LARGE)
             }
 
@@ -110,42 +120,46 @@ class KeyguardClockViewModelTest(flags: FlagsParameterization) : SysuiTestCase()
         }
 
     @Test
-    @BrokenWithSceneContainer(339465026)
-    fun currentClockLayout_splitShadeOn_clockNotCentered_smallClock_splitShadeSmallClock() =
+    @EnableSceneContainer
+    fun currentClockLayout_splitShadeOn_clockNotCentered_forceSmallClock_splitShadeSmallClock() =
         testScope.runTest {
             val currentClockLayout by collectLastValue(underTest.currentClockLayout)
 
             with(kosmos) {
                 shadeRepository.setShadeLayoutWide(true)
-                keyguardRepository.setClockShouldBeCentered(false)
-                keyguardClockRepository.setClockSize(ClockSize.SMALL)
+                activeNotificationListRepository.setActiveNotifs(1)
+                fakeKeyguardTransitionRepository.transitionTo(
+                    KeyguardState.AOD,
+                    KeyguardState.LOCKSCREEN,
+                )
+                fakeKeyguardClockRepository.setShouldForceSmallClock(true)
             }
 
             assertThat(currentClockLayout).isEqualTo(ClockLayout.SPLIT_SHADE_SMALL_CLOCK)
         }
 
     @Test
-    @BrokenWithSceneContainer(339465026)
-    fun currentClockLayout_singleShade_smallClock_smallClock() =
+    @EnableSceneContainer
+    fun currentClockLayout_singleShade_withNotifs_smallClock() =
         testScope.runTest {
             val currentClockLayout by collectLastValue(underTest.currentClockLayout)
 
             with(kosmos) {
                 shadeRepository.setShadeLayoutWide(false)
-                keyguardClockRepository.setClockSize(ClockSize.SMALL)
+                activeNotificationListRepository.setActiveNotifs(1)
             }
 
             assertThat(currentClockLayout).isEqualTo(ClockLayout.SMALL_CLOCK)
         }
 
     @Test
-    fun currentClockLayout_singleShade_largeClock_largeClock() =
+    fun currentClockLayout_singleShade_withoutNotifs_largeClock() =
         testScope.runTest {
             val currentClockLayout by collectLastValue(underTest.currentClockLayout)
 
             with(kosmos) {
                 shadeRepository.setShadeLayoutWide(false)
-                keyguardClockRepository.setClockSize(ClockSize.LARGE)
+                activeNotificationListRepository.setActiveNotifs(0)
             }
 
             assertThat(currentClockLayout).isEqualTo(ClockLayout.LARGE_CLOCK)
@@ -182,35 +196,6 @@ class KeyguardClockViewModelTest(flags: FlagsParameterization) : SysuiTestCase()
         }
 
     @Test
-    fun testClockSize_alwaysSmallClockSize() =
-        testScope.runTest {
-            val value by collectLastValue(underTest.clockSize)
-
-            with(kosmos) {
-                fakeKeyguardClockRepository.setSelectedClockSize(ClockSizeSetting.SMALL)
-                keyguardClockRepository.setClockSize(ClockSize.LARGE)
-            }
-
-            assertThat(value).isEqualTo(ClockSize.SMALL)
-        }
-
-    @Test
-    @BrokenWithSceneContainer(339465026)
-    fun testClockSize_dynamicClockSize() =
-        testScope.runTest {
-            with(kosmos) {
-                val value by collectLastValue(underTest.clockSize)
-                fakeKeyguardClockRepository.setSelectedClockSize(ClockSizeSetting.DYNAMIC)
-
-                keyguardClockRepository.setClockSize(ClockSize.SMALL)
-                assertThat(value).isEqualTo(ClockSize.SMALL)
-
-                keyguardClockRepository.setClockSize(ClockSize.LARGE)
-                assertThat(value).isEqualTo(ClockSize.LARGE)
-            }
-        }
-
-    @Test
     fun isLargeClockVisible_whenLargeClockSize_isTrue() =
         testScope.runTest {
             val value by collectLastValue(underTest.isLargeClockVisible)
@@ -219,7 +204,7 @@ class KeyguardClockViewModelTest(flags: FlagsParameterization) : SysuiTestCase()
         }
 
     @Test
-    @BrokenWithSceneContainer(339465026)
+    @DisableSceneContainer
     fun isLargeClockVisible_whenSmallClockSize_isFalse() =
         testScope.runTest {
             val value by collectLastValue(underTest.isLargeClockVisible)

@@ -21,6 +21,7 @@
 #include <nativehelper/JNIPlatformHelp.h>
 #include <nativehelper/scoped_local_ref.h>
 #include <nativehelper/scoped_utf_chars.h>
+#include <nativehelper/scoped_primitive_array.h>
 #include <string>
 
 // Host targets (layoutlib) do not differentiate between regular and critical native methods,

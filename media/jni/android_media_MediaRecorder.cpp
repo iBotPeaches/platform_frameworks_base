@@ -743,7 +743,7 @@ android_media_MediaRecorder_getRoutedDeviceIds(JNIEnv *env, jobject thiz)
     }
     jint* values = env->GetIntArrayElements(result, 0);
     for (unsigned int i = 0; i < deviceIds.size(); i++) {
-        values[i++] = static_cast<jint>(deviceIds[i]);
+        values[i] = static_cast<jint>(deviceIds[i]);
     }
     env->ReleaseIntArrayElements(result, values, 0);
     return result;

@@ -111,7 +111,7 @@ final class AppLaunchShortcutManager {
         mContext = context;
     }
 
-    public void systemRunning() {
+    public void init() {
         loadShortcuts();
     }
 

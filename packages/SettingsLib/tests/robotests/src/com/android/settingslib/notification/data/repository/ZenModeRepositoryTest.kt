@@ -75,9 +75,13 @@ class ZenModeRepositoryTest {
 
     private val testScope: TestScope = TestScope()
 
+    private val initialModes = listOf(TestModeBuilder().setId("Built-in").build())
+
     @Before
     fun setup() {
         MockitoAnnotations.initMocks(this)
+
+        `when`(zenModesBackend.modes).thenReturn(initialModes)
 
         underTest =
             ZenModeRepositoryImpl(
@@ -91,7 +95,6 @@ class ZenModeRepositoryTest {
             )
     }
 
-    @EnableFlags(android.app.Flags.FLAG_MODES_API)
     @Test
     fun consolidatedPolicyChanges_repositoryEmits_flagsOn() {
         testScope.runTest {
@@ -110,7 +113,6 @@ class ZenModeRepositoryTest {
         }
     }
 
-    @EnableFlags(android.app.Flags.FLAG_MODES_API)
     @Test
     fun consolidatedPolicyChanges_repositoryEmitsFromExtras() {
         testScope.runTest {
@@ -153,8 +155,8 @@ class ZenModeRepositoryTest {
     fun modesListEmitsOnSettingsChange() {
         testScope.runTest {
             val values = mutableListOf<List<ZenMode>>()
-            val modes1 = listOf(TestModeBuilder().setId("One").build())
-            `when`(zenModesBackend.modes).thenReturn(modes1)
+
+            // an initial list of modes is read when the stateflow is created
             underTest.modes.onEach { values.add(it) }.launchIn(backgroundScope)
             runCurrent()
 
@@ -174,7 +176,7 @@ class ZenModeRepositoryTest {
             triggerZenModeSettingUpdate()
             runCurrent()
 
-            assertThat(values).containsExactly(modes1, modes2, modes3).inOrder()
+            assertThat(values).containsExactly(initialModes, modes2, modes3).inOrder()
         }
     }
 

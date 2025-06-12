@@ -45,7 +45,6 @@ import com.android.internal.statusbar.IStatusBarService;
 import com.android.systemui.plugins.statusbar.NotificationMenuRowPlugin;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.notification.AssistantFeedbackController;
-import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.util.Compile;
 
 public class FeedbackInfo extends LinearLayout implements NotificationGuts.GutsContent {
@@ -58,7 +57,6 @@ public class FeedbackInfo extends LinearLayout implements NotificationGuts.GutsC
     private PackageManager mPm;
     private String mAppName;
     private String mPkg;
-    private NotificationEntry mEntry;
 
     private IStatusBarService mStatusBarService;
     private AssistantFeedbackController mFeedbackController;
@@ -73,16 +71,15 @@ public class FeedbackInfo extends LinearLayout implements NotificationGuts.GutsC
     public void bindGuts(
             final PackageManager pm,
             final StatusBarNotification sbn,
-            final NotificationEntry entry,
+            final NotificationListenerService.Ranking ranking,
             final ExpandableNotificationRow row,
             final AssistantFeedbackController controller,
             final IStatusBarService statusBarService,
             final NotificationGutsManager notificationGutsManager) {
         mPkg = sbn.getPackageName();
         mPm = pm;
-        mEntry = entry;
         mExpandableNotificationRow = row;
-        mRanking = entry.getRanking();
+        mRanking = ranking;
         mFeedbackController = controller;
         mAppName = mPkg;
         mStatusBarService = statusBarService;
@@ -143,7 +140,7 @@ public class FeedbackInfo extends LinearLayout implements NotificationGuts.GutsC
     @SuppressLint("DefaultLocale")
     private String getPrompt() {
         StringBuilder sb = new StringBuilder();
-        int status = mFeedbackController.getFeedbackStatus(mEntry);
+        int status = mFeedbackController.getFeedbackStatus(mRanking);
         if (DEBUG) {
             sb.append(String.format(
                     "[DEBUG]: oldImportance=%d, newImportance=%d, ranking=%f\n\n",

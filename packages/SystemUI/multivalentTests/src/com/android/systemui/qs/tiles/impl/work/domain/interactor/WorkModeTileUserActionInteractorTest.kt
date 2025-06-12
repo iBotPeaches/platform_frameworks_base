@@ -22,9 +22,9 @@ import android.testing.LeakCheck
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerSubject
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.work.domain.model.WorkModeTileModel
 import com.android.systemui.utils.leaks.FakeManagedProfileController
 import com.google.common.truth.Truth.assertThat
@@ -40,11 +40,7 @@ class WorkModeTileUserActionInteractorTest : SysuiTestCase() {
     private val inputHandler = FakeQSTileIntentUserInputHandler()
     private val profileController = FakeManagedProfileController(LeakCheck())
 
-    private val underTest =
-        WorkModeTileUserActionInteractor(
-            profileController,
-            inputHandler,
-        )
+    private val underTest = WorkModeTileUserActionInteractor(profileController, inputHandler)
 
     @Test
     fun handleClickWhenEnabled() = runTest {

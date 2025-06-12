@@ -16,6 +16,9 @@
 
 package com.android.systemui.statusbar.policy.ui.dialog
 
+import android.annotation.UiThread
+import android.app.Dialog
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.util.Log
@@ -36,14 +39,19 @@ import com.android.compose.PlatformOutlinedButton
 import com.android.compose.theme.PlatformTheme
 import com.android.internal.annotations.VisibleForTesting
 import com.android.internal.jank.InteractionJankMonitor
+import com.android.settingslib.notification.modes.EnableDndDialogFactory
 import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dialog.ui.composable.AlertDialogContent
 import com.android.systemui.plugins.ActivityStarter
+import com.android.systemui.qs.tiles.dialog.QSEnableDndDialogMetricsLogger
 import com.android.systemui.res.R
+import com.android.systemui.shade.domain.interactor.ShadeDialogContextInteractor
 import com.android.systemui.statusbar.phone.ComponentSystemUIDialog
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.phone.SystemUIDialogFactory
@@ -54,22 +62,29 @@ import com.android.systemui.util.Assert
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @SysUISingleton
 class ModesDialogDelegate
 @Inject
 constructor(
+    val context: Context,
     private val sysuiDialogFactory: SystemUIDialogFactory,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
     private val activityStarter: ActivityStarter,
     // Using a provider to avoid a circular dependency.
     private val viewModel: Provider<ModesDialogViewModel>,
     private val dialogEventLogger: ModesDialogEventLogger,
+    @Application private val applicationCoroutineScope: CoroutineScope,
     @Main private val mainCoroutineContext: CoroutineContext,
+    @Background private val bgContext: CoroutineContext,
+    private val shadeDisplayContextRepository: ShadeDialogContextInteractor,
 ) : SystemUIDialog.Delegate {
     // NOTE: This should only be accessed/written from the main thread.
     @VisibleForTesting var currentDialog: ComponentSystemUIDialog? = null
+    private val dndDurationDialogLogger by lazy { QSEnableDndDialogMetricsLogger(context) }
 
     override fun createDialog(): SystemUIDialog {
         Assert.isMainThread()
@@ -78,7 +93,10 @@ constructor(
             currentDialog?.dismiss()
         }
 
-        currentDialog = sysuiDialogFactory.create { ModesDialogContent(it) }
+        currentDialog =
+            sysuiDialogFactory.create(context = shadeDisplayContextRepository.context) {
+                ModesDialogContent(it)
+            }
         currentDialog
             ?.lifecycle
             ?.addObserver(
@@ -106,9 +124,8 @@ constructor(
                 modifier =
                     Modifier.semantics {
                         testTagsAsResourceId = true
-                        paneTitle = dialog.context.getString(
-                            R.string.accessibility_desc_quick_settings
-                        )
+                        paneTitle =
+                            dialog.context.getString(R.string.accessibility_desc_quick_settings)
                     },
                 title = {
                     Text(
@@ -174,6 +191,18 @@ constructor(
      * launches it normally without animating.
      */
     fun launchFromDialog(intent: Intent) {
+        // TODO: b/394571336 - Remove this method and inline "actual" if b/394571336 fixed.
+        // Workaround for Compose bug, see b/394241061 and b/394571336 -- Need to post on the main
+        // thread so that dialog dismissal doesn't crash after a long press inside it (the *double*
+        // jump, out and back in, is because mainCoroutineContext is .immediate).
+        applicationCoroutineScope.launch {
+            withContext(bgContext) {
+                withContext(mainCoroutineContext) { actualLaunchFromDialog(intent) }
+            }
+        }
+    }
+
+    private fun actualLaunchFromDialog(intent: Intent) {
         Assert.isMainThread()
         if (currentDialog == null) {
             Log.w(
@@ -189,6 +218,27 @@ constructor(
             currentDialog?.dismiss()
         }
         activityStarter.startActivity(intent, /* dismissShade= */ true, animationController)
+    }
+
+    /**
+     * Special dialog to ask the user for the duration of DND. Not to be confused with the modes
+     * dialog itself.
+     */
+    @UiThread
+    fun makeDndDurationDialog(): Dialog {
+        val dialog =
+            EnableDndDialogFactory(
+                    context,
+                    R.style.Theme_SystemUI_Dialog,
+                    /* cancelIsNeutral= */ true,
+                    dndDurationDialogLogger,
+                )
+                .createDialog()
+        SystemUIDialog.applyFlags(dialog)
+        SystemUIDialog.setShowForAllUsers(dialog, true)
+        SystemUIDialog.registerDismissListener(dialog)
+        SystemUIDialog.setDialogSize(dialog)
+        return dialog
     }
 
     companion object {

@@ -37,6 +37,7 @@ import java.io.InputStream;
  * to get a decoded Bitmap of the specified region.
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class BitmapRegionDecoder {
     private long mNativeBitmapRegionDecoder;
     private boolean mRecycled;

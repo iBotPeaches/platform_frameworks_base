@@ -16,23 +16,22 @@
 package com.android.platform.test.ravenwood.ravenizer
 
 import com.android.hoststubgen.GeneralUserErrorException
+import com.android.hoststubgen.HostStubGenClassProcessor
+import com.android.hoststubgen.addBytesEntry
 import com.android.hoststubgen.asm.ClassNodes
 import com.android.hoststubgen.asm.zipEntryNameToClassName
+import com.android.hoststubgen.copyZipEntry
 import com.android.hoststubgen.executableName
 import com.android.hoststubgen.log
 import com.android.platform.test.ravenwood.ravenizer.adapter.RunnerRewritingAdapter
+import java.io.FileOutputStream
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
+import org.apache.commons.compress.archivers.zip.ZipFile
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.util.CheckClassAdapter
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.OutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
-import java.util.zip.ZipOutputStream
 
 /**
  * Various stats on Ravenizer.
@@ -41,7 +40,7 @@ data class RavenizerStats(
     /** Total end-to-end time. */
     var totalTime: Double = .0,
 
-    /** Time took to build [ClasNodes] */
+    /** Time took to build [ClassNodes] */
     var loadStructureTime: Double = .0,
 
     /** Time took to validate the classes */
@@ -50,14 +49,17 @@ data class RavenizerStats(
     /** Total real time spent for converting the jar file */
     var totalProcessTime: Double = .0,
 
-    /** Total real time spent for converting class files (except for I/O time). */
-    var totalConversionTime: Double = .0,
+    /** Total real time spent for ravenizing class files (excluding I/O time). */
+    var totalRavenizeTime: Double = .0,
+
+    /** Total real time spent for processing class files HSG style (excluding I/O time). */
+    var totalHostStubGenTime: Double = .0,
 
     /** Total real time spent for copying class files without modification. */
     var totalCopyTime: Double = .0,
 
     /** # of entries in the input jar file */
-    var totalEntiries: Int = 0,
+    var totalEntries: Int = 0,
 
     /** # of *.class files in the input jar file */
     var totalClasses: Int = 0,
@@ -67,14 +69,15 @@ data class RavenizerStats(
 ) {
     override fun toString(): String {
         return """
-            RavenizerStats{
+            RavenizerStats {
               totalTime=$totalTime,
               loadStructureTime=$loadStructureTime,
               validationTime=$validationTime,
               totalProcessTime=$totalProcessTime,
-              totalConversionTime=$totalConversionTime,
+              totalRavenizeTime=$totalRavenizeTime,
+              totalHostStubGenTime=$totalHostStubGenTime,
               totalCopyTime=$totalCopyTime,
-              totalEntiries=$totalEntiries,
+              totalEntries=$totalEntries,
               totalClasses=$totalClasses,
               processedClasses=$processedClasses,
             }
@@ -90,33 +93,38 @@ class Ravenizer {
         val stats = RavenizerStats()
 
         stats.totalTime = log.nTime {
-            process(
-                options.inJar.get,
+            val inJar = ZipFile(options.inJar.get)
+            val allClasses = ClassNodes.loadClassStructures(inJar, options.inJar.get) {
+                stats.loadStructureTime = it
+            }
+            val processor = HostStubGenClassProcessor(options, allClasses)
+
+            inJar.process(
+                options.outJar.get,
                 options.outJar.get,
                 options.enableValidation.get,
                 options.fatalValidation.get,
                 options.stripMockito.get,
+                processor,
                 stats,
             )
         }
         log.i(stats.toString())
     }
 
-    private fun process(
+    private fun ZipFile.process(
         inJar: String,
         outJar: String,
         enableValidation: Boolean,
         fatalValidation: Boolean,
         stripMockito: Boolean,
+        processor: HostStubGenClassProcessor,
         stats: RavenizerStats,
     ) {
-        var allClasses = ClassNodes.loadClassStructures(inJar) {
-            time -> stats.loadStructureTime = time
-        }
         if (enableValidation) {
             stats.validationTime = log.iTime("Validating classes") {
-                if (!validateClasses(allClasses)) {
-                    var message = "Invalid test class(es) detected." +
+                if (!validateClasses(processor.allClasses)) {
+                    val message = "Invalid test class(es) detected." +
                             " See error log for details."
                     if (fatalValidation) {
                         throw RavenizerInvalidTestException(message)
@@ -126,45 +134,39 @@ class Ravenizer {
                 }
             }
         }
-        if (includeUnsupportedMockito(allClasses)) {
+        if (includeUnsupportedMockito(processor.allClasses)) {
             log.w("Unsupported Mockito detected in $inJar!")
         }
 
         stats.totalProcessTime = log.vTime("$executableName processing $inJar") {
-            ZipFile(inJar).use { inZip ->
-                val inEntries = inZip.entries()
+            ZipArchiveOutputStream(FileOutputStream(outJar).buffered()).use { outZip ->
+                entries.asSequence().forEach { entry ->
+                    stats.totalEntries++
+                    if (entry.name.endsWith(".dex")) {
+                        // Seems like it's an ART jar file. We can't process it.
+                        // It's a fatal error.
+                        throw GeneralUserErrorException(
+                            "$inJar is not a desktop jar file. It contains a *.dex file."
+                        )
+                    }
 
-                stats.totalEntiries = inZip.size()
+                    if (stripMockito && entry.name.isMockitoFile()) {
+                        // Skip this entry
+                        return@forEach
+                    }
 
-                ZipOutputStream(BufferedOutputStream(FileOutputStream(outJar))).use { outZip ->
-                    while (inEntries.hasMoreElements()) {
-                        val entry = inEntries.nextElement()
+                    val className = zipEntryNameToClassName(entry.name)
 
-                        if (entry.name.endsWith(".dex")) {
-                            // Seems like it's an ART jar file. We can't process it.
-                            // It's a fatal error.
-                            throw GeneralUserErrorException(
-                                "$inJar is not a desktop jar file. It contains a *.dex file."
-                            )
-                        }
+                    if (className != null) {
+                        stats.totalClasses += 1
+                    }
 
-                        if (stripMockito && entry.name.isMockitoFile()) {
-                            // Skip this entry
-                            continue
-                        }
-
-                        val className = zipEntryNameToClassName(entry.name)
-
-                        if (className != null) {
-                            stats.totalClasses += 1
-                        }
-
-                        if (className != null && shouldProcessClass(allClasses, className)) {
-                            stats.processedClasses += 1
-                            processSingleClass(inZip, entry, outZip, allClasses, stats)
-                        } else {
-                            // Too slow, let's use merge_zips to bring back the original classes.
-                            copyZipEntry(inZip, entry, outZip, stats)
+                    if (className != null &&
+                        shouldProcessClass(processor.allClasses, className)) {
+                        processSingleClass(this, entry, outZip, processor, stats)
+                    } else {
+                        stats.totalCopyTime += log.nTime {
+                            copyZipEntry(this, entry, outZip)
                         }
                     }
                 }
@@ -172,86 +174,59 @@ class Ravenizer {
         }
     }
 
-    /**
-     * Copy a single ZIP entry to the output.
-     */
-    private fun copyZipEntry(
-        inZip: ZipFile,
-        entry: ZipEntry,
-        out: ZipOutputStream,
-        stats: RavenizerStats,
-    ) {
-        stats.totalCopyTime += log.nTime {
-            inZip.getInputStream(entry).use { ins ->
-                // Copy unknown entries as is to the impl out. (but not to the stub out.)
-                val outEntry = ZipEntry(entry.name)
-                outEntry.method = 0
-                outEntry.size = entry.size
-                outEntry.crc = entry.crc
-                out.putNextEntry(outEntry)
-
-                ins.transferTo(out)
-
-                out.closeEntry()
-            }
-        }
-    }
-
     private fun processSingleClass(
         inZip: ZipFile,
-        entry: ZipEntry,
-        outZip: ZipOutputStream,
-        allClasses: ClassNodes,
+        entry: ZipArchiveEntry,
+        outZip: ZipArchiveOutputStream,
+        processor: HostStubGenClassProcessor,
         stats: RavenizerStats,
     ) {
-        val newEntry = ZipEntry(entry.name)
-        outZip.putNextEntry(newEntry)
-
-        BufferedInputStream(inZip.getInputStream(entry)).use { bis ->
-            processSingleClass(entry, bis, outZip, allClasses, stats)
+        stats.processedClasses += 1
+        inZip.getInputStream(entry).use { zis ->
+            var classBytes = zis.readAllBytes()
+            stats.totalRavenizeTime += log.vTime("Ravenize ${entry.name}") {
+                classBytes = ravenizeSingleClass(entry, classBytes, processor.allClasses)
+            }
+            stats.totalHostStubGenTime += log.vTime("HostStubGen ${entry.name}") {
+                classBytes = processor.processClassBytecode(classBytes)
+            }
+            // TODO: if the class does not change, use copyZipEntry
+            outZip.addBytesEntry(entry.name, classBytes)
         }
-        outZip.closeEntry()
     }
 
     /**
      * Whether a class needs to be processed. This must be kept in sync with [processSingleClass].
      */
     private fun shouldProcessClass(classes: ClassNodes, classInternalName: String): Boolean {
-        return !classInternalName.shouldByBypassed()
+        return !classInternalName.shouldBypass()
                 && RunnerRewritingAdapter.shouldProcess(classes, classInternalName)
     }
 
-    private fun processSingleClass(
-        entry: ZipEntry,
-        input: InputStream,
-        output: OutputStream,
+    private fun ravenizeSingleClass(
+        entry: ZipArchiveEntry,
+        input: ByteArray,
         allClasses: ClassNodes,
-        stats: RavenizerStats,
-    ) {
-        val cr = ClassReader(input)
+    ): ByteArray {
+        val classInternalName = zipEntryNameToClassName(entry.name)
+            ?: throw RavenizerInternalException("Unexpected zip entry name: ${entry.name}")
 
-        lateinit var data: ByteArray
-        stats.totalConversionTime += log.vTime("Modify ${entry.name}") {
+        val flags = ClassWriter.COMPUTE_MAXS
+        val cw = ClassWriter(flags)
+        var outVisitor: ClassVisitor = cw
 
-            val classInternalName = zipEntryNameToClassName(entry.name)
-                ?: throw RavenizerInternalException("Unexpected zip entry name: ${entry.name}")
-            val flags = ClassWriter.COMPUTE_MAXS
-            val cw = ClassWriter(flags)
-            var outVisitor: ClassVisitor = cw
-
-            val enableChecker = false
-            if (enableChecker) {
-                outVisitor = CheckClassAdapter(outVisitor)
-            }
-
-            // This must be kept in sync with shouldProcessClass.
-            outVisitor = RunnerRewritingAdapter.maybeApply(
-                classInternalName, allClasses, outVisitor)
-
-            cr.accept(outVisitor, ClassReader.EXPAND_FRAMES)
-
-            data = cw.toByteArray()
+        val enableChecker = false
+        if (enableChecker) {
+            outVisitor = CheckClassAdapter(outVisitor)
         }
-        output.write(data)
+
+        // This must be kept in sync with shouldProcessClass.
+        outVisitor = RunnerRewritingAdapter.maybeApply(
+            classInternalName, allClasses, outVisitor)
+
+        val cr = ClassReader(input)
+        cr.accept(outVisitor, ClassReader.EXPAND_FRAMES)
+
+        return cw.toByteArray()
     }
 }

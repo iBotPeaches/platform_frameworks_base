@@ -125,6 +125,7 @@ applications that come with the platform
         <permission name="android.permission.SUBSTITUTE_NOTIFICATION_APP_NAME"/>
         <permission name="android.permission.PACKAGE_USAGE_STATS"/>
         <permission name="android.permission.READ_SYSTEM_GRAMMATICAL_GENDER"/>
+        <permission name="android.permission.RESOLVE_COMPONENT_FOR_UID"/>
     </privapp-permissions>
 
     <privapp-permissions package="com.android.phone">
@@ -258,11 +259,13 @@ applications that come with the platform
         <permission name="android.permission.MODIFY_DAY_NIGHT_MODE"/>
         <permission name="android.permission.ACCESS_LOWPAN_STATE"/>
         <permission name="android.permission.BACKUP"/>
+        <permission name="android.permission.ENTER_TRADE_IN_MODE"/>
         <!-- Needed for GMSCore Location API test only -->
         <permission name="android.permission.LOCATION_BYPASS"/>
         <!-- Needed for test only -->
         <permission name="android.permission.BATTERY_PREDICTION"/>
         <permission name="android.permission.BATTERY_STATS"/>
+        <permission name="android.permission.ACCESS_FINE_POWER_MONITORS" />
         <!-- BLUETOOTH_PRIVILEGED is needed for test only -->
         <permission name="android.permission.BLUETOOTH_PRIVILEGED"/>
         <permission name="android.permission.BIND_APPWIDGET"/>
@@ -291,6 +294,8 @@ applications that come with the platform
         <permission name="android.permission.INSTALL_PACKAGES"/>
         <permission name="android.permission.INSTALL_PACKAGE_UPDATES"/>
         <permission name="android.permission.KILL_ALL_BACKGROUND_PROCESSES"/>
+        <!-- Needed for test only -->
+        <permission name="android.permission.LISTEN_FOR_KEY_ACTIVITY" />
         <!-- Needed for test only -->
         <permission name="android.permission.ACCESS_MTP"/>
         <!-- Needed for test only -->
@@ -419,6 +424,7 @@ applications that come with the platform
         <permission name="android.permission.REQUEST_COMPANION_PROFILE_APP_STREAMING" />
         <permission name="android.permission.REQUEST_COMPANION_PROFILE_WATCH" />
         <permission name="android.permission.REQUEST_COMPANION_PROFILE_NEARBY_DEVICE_STREAMING" />
+        <permission name="android.permission.REQUEST_COMPANION_PROFILE_VIRTUAL_DEVICE" />
         <permission name="android.permission.REQUEST_COMPANION_PROFILE_COMPUTER" />
         <permission name="android.permission.REQUEST_COMPANION_SELF_MANAGED" />
         <permission name="android.permission.REQUEST_OBSERVE_DEVICE_UUID_PRESENCE" />
@@ -591,7 +597,6 @@ applications that come with the platform
         <!-- Permission required for CTS test - FileIntegrityManagerTest -->
         <permission name="android.permission.SETUP_FSVERITY" />
         <!-- Permissions required for CTS test - AppFunctionManagerTest -->
-        <permission name="android.permission.EXECUTE_APP_FUNCTIONS_TRUSTED" />
         <permission name="android.permission.EXECUTE_APP_FUNCTIONS" />
         <!-- Permission required for CTS test - CtsNfcTestCases -->
         <permission name="android.permission.NFC_SET_CONTROLLER_ALWAYS_ON" />
@@ -606,6 +611,18 @@ applications that come with the platform
         <!-- Permission required for CTS test - IntrusionDetectionManagerTest -->
         <permission name="android.permission.READ_INTRUSION_DETECTION_STATE" />
         <permission name="android.permission.MANAGE_INTRUSION_DETECTION_STATE" />
+        <!-- Permission required for CTS test - KeyguardLockedStateApiTest -->
+        <permission name="android.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE" />
+        <!-- Permission required for CTS test - CtsContentProviderMultiUserTest -->
+        <permission name="android.permission.RESOLVE_COMPONENT_FOR_UID"/>
+        <!-- Permission required for CTS test - MediaQualityTest -->
+        <permission name="android.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE"/>
+        <permission name="android.permission.MANAGE_GLOBAL_SOUND_QUALITY_SERVICE"/>
+        <permission name="android.permission.READ_COLOR_ZONES"/>
+        <!-- Permission required for CTS test - CtsTextClassifierTestCases -->
+        <permission name="android.permission.ACCESS_TEXT_CLASSIFIER_BY_TYPE"/>
+        <!-- Permission required for CTS test - CtsSecurityTestCases -->
+        <permission name="android.permission.MANAGE_DEVICE_POLICY_MTE"/>
     </privapp-permissions>
 
     <privapp-permissions package="com.android.soundpicker">
@@ -669,5 +686,9 @@ applications that come with the platform
         <permission name="android.permission.READ_PRIVILEGED_PHONE_STATE"/>
         <permission name="android.permission.BATTERY_STATS"/>
         <permission name="android.permission.ENTER_TRADE_IN_MODE"/>
+    </privapp-permissions>
+
+    <privapp-permissions package="com.android.wm.shell">
+        <permission name="android.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE" />
     </privapp-permissions>
 </permissions>

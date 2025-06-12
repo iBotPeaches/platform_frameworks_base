@@ -15,19 +15,21 @@
  *
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.keyguard.ui.viewmodel
 
+import android.content.res.Configuration
+import android.content.res.mainResources
+import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
 import android.view.View
 import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.ObservableTransitionState
-import com.android.systemui.Flags.FLAG_KEYGUARD_BOTTOM_AREA_REFACTOR
-import com.android.systemui.Flags.FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT
+import com.android.systemui.Flags.FLAG_GLANCEABLE_HUB_V2
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.communal.data.repository.communalSceneRepository
+import com.android.systemui.communal.domain.interactor.communalSceneInteractor
+import com.android.systemui.communal.domain.interactor.setCommunalV2ConfigEnabled
 import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.deviceentry.data.repository.fakeDeviceEntryRepository
@@ -40,6 +42,9 @@ import com.android.systemui.keyguard.domain.interactor.pulseExpansionInteractor
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runCurrent
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.data.repository.Idle
 import com.android.systemui.scene.data.repository.sceneContainerRepository
@@ -53,6 +58,7 @@ import com.android.systemui.statusbar.notification.data.repository.activeNotific
 import com.android.systemui.statusbar.notification.stack.domain.interactor.notificationsKeyguardInteractor
 import com.android.systemui.statusbar.phone.dozeParameters
 import com.android.systemui.statusbar.phone.screenOffAnimationController
+import com.android.systemui.statusbar.policy.keyguardStateController
 import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
@@ -60,7 +66,6 @@ import com.android.systemui.util.ui.isAnimating
 import com.android.systemui.util.ui.stopAnimating
 import com.android.systemui.util.ui.value
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -74,9 +79,9 @@ import platform.test.runner.parameterized.Parameters
 
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
-@EnableFlags(FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT, FLAG_KEYGUARD_BOTTOM_AREA_REFACTOR)
 class KeyguardRootViewModelTest(flags: FlagsParameterization) : SysuiTestCase() {
-    private val kosmos = testKosmos()
+    private val kosmos =
+        testKosmos().apply { mainResources = mContext.orCreateTestableResources.resources }
     private val testScope = kosmos.testScope
     private val keyguardTransitionRepository by lazy { kosmos.fakeKeyguardTransitionRepository }
     private val keyguardRepository by lazy { kosmos.fakeKeyguardRepository }
@@ -426,6 +431,7 @@ class KeyguardRootViewModelTest(flags: FlagsParameterization) : SysuiTestCase() 
         }
 
     @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     fun alpha_transitionFromHubToLockscreen_isOne() =
         testScope.runTest {
             val alpha by collectLastValue(underTest.alpha(viewState))
@@ -439,6 +445,84 @@ class KeyguardRootViewModelTest(flags: FlagsParameterization) : SysuiTestCase() 
             keyguardTransitionRepository.sendTransitionSteps(
                 from = KeyguardState.GLANCEABLE_HUB,
                 to = KeyguardState.LOCKSCREEN,
+                testScope,
+            )
+
+            assertThat(alpha).isEqualTo(1.0f)
+        }
+
+    @Test
+    @DisableSceneContainer
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    fun alpha_transitionFromHubToLockscreenInLandscape_isOne() =
+        kosmos.runTest {
+            setCommunalV2ConfigEnabled(true)
+            whenever(keyguardStateController.isKeyguardScreenRotationAllowed).thenReturn(false)
+            communalSceneInteractor.changeScene(CommunalScenes.Communal, "test")
+            communalSceneRepository.setCommunalContainerOrientation(
+                Configuration.ORIENTATION_LANDSCAPE
+            )
+
+            val alpha by collectLastValue(underTest.alpha(viewState))
+
+            // Transition to the glanceable hub and back.
+            keyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.LOCKSCREEN,
+                to = KeyguardState.GLANCEABLE_HUB,
+                testScope,
+            )
+
+            communalSceneInteractor.changeScene(CommunalScenes.Communal, "test")
+            runCurrent()
+
+            // Exit hub to lockscreen
+            val progress = MutableStateFlow(0f)
+            val transitionState =
+                MutableStateFlow(
+                    ObservableTransitionState.Transition(
+                        fromScene = CommunalScenes.Communal,
+                        toScene = CommunalScenes.Blank,
+                        currentScene = flowOf(CommunalScenes.Blank),
+                        progress = progress,
+                        isInitiatedByUserInput = false,
+                        isUserInputOngoing = flowOf(false),
+                    )
+                )
+            communalSceneInteractor.setTransitionState(transitionState)
+            progress.value = .4f
+
+            keyguardTransitionRepository.sendTransitionSteps(
+                listOf(
+                    TransitionStep(
+                        from = KeyguardState.GLANCEABLE_HUB,
+                        to = KeyguardState.LOCKSCREEN,
+                        transitionState = TransitionState.STARTED,
+                        value = 0f,
+                    ),
+                    TransitionStep(
+                        from = KeyguardState.GLANCEABLE_HUB,
+                        to = KeyguardState.LOCKSCREEN,
+                        transitionState = TransitionState.RUNNING,
+                        value = 0.4f,
+                    ),
+                ),
+                testScope,
+            )
+
+            communalSceneRepository.setCommunalContainerOrientation(
+                Configuration.ORIENTATION_PORTRAIT
+            )
+            runCurrent()
+
+            keyguardTransitionRepository.sendTransitionSteps(
+                listOf(
+                    TransitionStep(
+                        from = KeyguardState.GLANCEABLE_HUB,
+                        to = KeyguardState.LOCKSCREEN,
+                        transitionState = TransitionState.FINISHED,
+                        value = 1f,
+                    )
+                ),
                 testScope,
             )
 
@@ -460,6 +544,56 @@ class KeyguardRootViewModelTest(flags: FlagsParameterization) : SysuiTestCase() 
             assertThat(alpha).isEqualTo(1f)
 
             shadeTestUtil.setQsExpansion(0.5f)
+            assertThat(alpha).isEqualTo(0f)
+        }
+
+    @Test
+    @DisableSceneContainer
+    fun alpha_shadeExpansionIgnoredWhenTransitioningAwayFromLockscreen() =
+        testScope.runTest {
+            val alpha by collectLastValue(underTest.alpha(viewState))
+
+            keyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.AOD,
+                to = KeyguardState.LOCKSCREEN,
+                testScope,
+            )
+
+            shadeTestUtil.setQsExpansion(0f)
+            assertThat(alpha).isEqualTo(1f)
+
+            keyguardTransitionRepository.sendTransitionSteps(
+                listOf(
+                    TransitionStep(
+                        from = KeyguardState.LOCKSCREEN,
+                        to = KeyguardState.PRIMARY_BOUNCER,
+                        transitionState = TransitionState.STARTED,
+                        value = 0f,
+                    ),
+                    TransitionStep(
+                        from = KeyguardState.LOCKSCREEN,
+                        to = KeyguardState.PRIMARY_BOUNCER,
+                        transitionState = TransitionState.RUNNING,
+                        value = 0.8f,
+                    ),
+                ),
+                testScope,
+            )
+            val priorAlpha = alpha
+            shadeTestUtil.setQsExpansion(0.5f)
+            assertThat(alpha).isEqualTo(priorAlpha)
+
+            keyguardTransitionRepository.sendTransitionSteps(
+                listOf(
+                    TransitionStep(
+                        from = KeyguardState.LOCKSCREEN,
+                        to = KeyguardState.PRIMARY_BOUNCER,
+                        transitionState = TransitionState.FINISHED,
+                        value = 1f,
+                    )
+                ),
+                testScope,
+            )
             assertThat(alpha).isEqualTo(0f)
         }
 

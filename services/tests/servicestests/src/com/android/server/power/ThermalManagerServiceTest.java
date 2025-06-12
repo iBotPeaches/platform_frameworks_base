@@ -51,6 +51,7 @@ import android.os.IThermalStatusListener;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.Temperature;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 
@@ -78,6 +79,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * atest $ANDROID_BUILD_TOP/frameworks/base/services/tests/servicestests/src/com/android/server
@@ -117,8 +119,8 @@ public class ThermalManagerServiceTest {
      */
     private class ThermalHalFake extends ThermalHalWrapper {
         private static final int INIT_STATUS = Temperature.THROTTLING_NONE;
-        private List<Temperature> mTemperatureList = new ArrayList<>();
-        private List<Temperature> mOverrideTemperatures = null;
+        private final List<Temperature> mTemperatureList = new ArrayList<>();
+        private AtomicInteger mGetCurrentTemperaturesCalled = new AtomicInteger();
         private List<CoolingDevice> mCoolingDeviceList = new ArrayList<>();
         private List<TemperatureThreshold> mTemperatureThresholdList = initializeThresholds();
 
@@ -132,6 +134,9 @@ public class ThermalManagerServiceTest {
                 INIT_STATUS);
         private CoolingDevice mCpu = new CoolingDevice(40, CoolingDevice.TYPE_BATTERY, "cpu");
         private CoolingDevice mGpu = new CoolingDevice(43, CoolingDevice.TYPE_BATTERY, "gpu");
+        private Map<Integer, Float> mForecastSkinTemperatures = null;
+        private int mForecastSkinTemperaturesCalled = 0;
+        private boolean mForecastSkinTemperaturesError = false;
 
         private List<TemperatureThreshold> initializeThresholds() {
             ArrayList<TemperatureThreshold> thresholds = new ArrayList<>();
@@ -171,24 +176,40 @@ public class ThermalManagerServiceTest {
             mTemperatureList.add(mUsbPort);
             mCoolingDeviceList.add(mCpu);
             mCoolingDeviceList.add(mGpu);
+            mGetCurrentTemperaturesCalled.set(0);
         }
 
-        void setOverrideTemperatures(List<Temperature> temperatures) {
-            mOverrideTemperatures = temperatures;
+        void enableForecastSkinTemperature() {
+            mForecastSkinTemperatures = Map.of(0, 22.0f, 10, 25.0f, 20, 28.0f,
+                    30, 31.0f, 40, 34.0f, 50, 37.0f, 60, 40.0f);
         }
 
-        void resetOverrideTemperatures() {
-            mOverrideTemperatures = null;
+        void disableForecastSkinTemperature() {
+            mForecastSkinTemperatures = null;
+        }
+
+        void failForecastSkinTemperature() {
+            mForecastSkinTemperaturesError = true;
+        }
+
+        void updateTemperatureList(Temperature... temperatures) {
+            synchronized (mTemperatureList) {
+                mTemperatureList.clear();
+                mTemperatureList.addAll(Arrays.asList(temperatures));
+            }
         }
 
         @Override
         protected List<Temperature> getCurrentTemperatures(boolean shouldFilter, int type) {
             List<Temperature> ret = new ArrayList<>();
-            for (Temperature temperature : mTemperatureList) {
-                if (shouldFilter && type != temperature.getType()) {
-                    continue;
+            synchronized (mTemperatureList) {
+                mGetCurrentTemperaturesCalled.incrementAndGet();
+                for (Temperature temperature : mTemperatureList) {
+                    if (shouldFilter && type != temperature.getType()) {
+                        continue;
+                    }
+                    ret.add(temperature);
                 }
-                ret.add(temperature);
             }
             return ret;
         }
@@ -216,6 +237,18 @@ public class ThermalManagerServiceTest {
                 ret.add(threshold);
             }
             return ret;
+        }
+
+        @Override
+        protected float forecastSkinTemperature(int forecastSeconds) {
+            mForecastSkinTemperaturesCalled++;
+            if (mForecastSkinTemperaturesError) {
+                throw new RuntimeException();
+            }
+            if (mForecastSkinTemperatures == null) {
+                throw new UnsupportedOperationException();
+            }
+            return mForecastSkinTemperatures.get(forecastSeconds);
         }
 
         @Override
@@ -388,7 +421,7 @@ public class ThermalManagerServiceTest {
         Thread.sleep(CALLBACK_TIMEOUT_MILLI_SEC);
         resetListenerMock();
         int status = Temperature.THROTTLING_SEVERE;
-        mFakeHal.setOverrideTemperatures(new ArrayList<>());
+        mFakeHal.updateTemperatureList();
 
         // Should not notify on non-skin type
         Temperature newBattery = new Temperature(37, Temperature.TYPE_BATTERY, "batt", status);
@@ -515,6 +548,135 @@ public class ThermalManagerServiceTest {
                 ThermalManagerService.MIN_FORECAST_SEC - 1)));
         assertTrue(Float.isNaN(mService.mService.getThermalHeadroom(
                 ThermalManagerService.MAX_FORECAST_SEC + 1)));
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_ALLOW_THERMAL_HAL_SKIN_FORECAST})
+    public void testGetThermalHeadroom_handlerUpdateTemperatures()
+            throws RemoteException, InterruptedException {
+        // test that handler will at least enqueue one message to periodically read temperatures
+        // even if there is sample seeded from HAL temperature callback
+        String temperatureName = "skin1";
+        Temperature temperature = new Temperature(100, Temperature.TYPE_SKIN, temperatureName,
+                Temperature.THROTTLING_NONE);
+        mFakeHal.mCallback.onTemperatureChanged(temperature);
+        float headroom = mService.mService.getThermalHeadroom(0);
+        // the callback temperature 100C (headroom > 1.0f) sample should have been appended by the
+        // immediately scheduled fake HAL current temperatures read (mSkin1, mSkin2), and because
+        // there are less samples for prediction, the latest temperature mSkin1 is used to calculate
+        // headroom (mSkin2 has no threshold), which is 0.6f (28C vs threshold 40C).
+        assertEquals(0.6f, headroom, 0.01f);
+        // one called by service onActivityManagerReady, one called by handler on headroom call
+        assertEquals(2, mFakeHal.mGetCurrentTemperaturesCalled.get());
+        // periodic read should update the samples history, so the headroom should increase 0.1f
+        // as current temperature goes up by 3C every 1100ms.
+        for (int i = 1; i < 5; i++) {
+            Temperature newTemperature = new Temperature(mFakeHal.mSkin1.getValue() + 3 * i,
+                    Temperature.TYPE_SKIN,
+                    temperatureName,
+                    Temperature.THROTTLING_NONE);
+            mFakeHal.updateTemperatureList(newTemperature);
+            // wait for handler to update temperature
+            Thread.sleep(1100);
+            // assert that only one callback was scheduled to query HAL when making multiple
+            // headroom calls
+            assertEquals(2 + i, mFakeHal.mGetCurrentTemperaturesCalled.get());
+            headroom = mService.mService.getThermalHeadroom(0);
+            assertEquals(0.6f + 0.1f * i, headroom, 0.01f);
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ALLOW_THERMAL_HAL_SKIN_FORECAST})
+    public void testGetThermalHeadroom_halForecast() throws RemoteException {
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+        mFakeHal.enableForecastSkinTemperature();
+        mService = new ThermalManagerService(mContext, mFakeHal);
+        mService.onBootPhase(SystemService.PHASE_ACTIVITY_MANAGER_READY);
+        assertTrue(mService.mIsHalSkinForecastSupported.get());
+        assertEquals(1, mFakeHal.mForecastSkinTemperaturesCalled);
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+
+        assertEquals(1.0f, mService.mService.getThermalHeadroom(60), 0.01f);
+        assertEquals(0.9f, mService.mService.getThermalHeadroom(50), 0.01f);
+        assertEquals(0.8f, mService.mService.getThermalHeadroom(40), 0.01f);
+        assertEquals(0.7f, mService.mService.getThermalHeadroom(30), 0.01f);
+        assertEquals(0.6f, mService.mService.getThermalHeadroom(20), 0.01f);
+        assertEquals(0.5f, mService.mService.getThermalHeadroom(10), 0.01f);
+        assertEquals(0.4f, mService.mService.getThermalHeadroom(0), 0.01f);
+        assertEquals(7, mFakeHal.mForecastSkinTemperaturesCalled);
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ALLOW_THERMAL_HAL_SKIN_FORECAST})
+    public void testGetThermalHeadroom_halForecast_disabledOnMultiThresholds()
+            throws RemoteException {
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+        List<TemperatureThreshold> thresholds = mFakeHal.initializeThresholds();
+        TemperatureThreshold skinThreshold = new TemperatureThreshold();
+        skinThreshold.type = Temperature.TYPE_SKIN;
+        skinThreshold.name = "skin2";
+        skinThreshold.hotThrottlingThresholds = new float[7 /*ThrottlingSeverity#len*/];
+        skinThreshold.coldThrottlingThresholds = new float[7 /*ThrottlingSeverity#len*/];
+        for (int i = 0; i < skinThreshold.hotThrottlingThresholds.length; ++i) {
+            // Sets NONE to 45.0f, SEVERE to 60.0f, and SHUTDOWN to 75.0f
+            skinThreshold.hotThrottlingThresholds[i] = 45.0f + 5.0f * i;
+        }
+        thresholds.add(skinThreshold);
+        mFakeHal.mTemperatureThresholdList = thresholds;
+        mFakeHal.enableForecastSkinTemperature();
+        mService = new ThermalManagerService(mContext, mFakeHal);
+        mService.onBootPhase(SystemService.PHASE_ACTIVITY_MANAGER_READY);
+        assertFalse("HAL skin forecast should be disabled on multiple SKIN thresholds",
+                mService.mIsHalSkinForecastSupported.get());
+        mService.mService.getThermalHeadroom(10);
+        assertEquals(0, mFakeHal.mForecastSkinTemperaturesCalled);
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ALLOW_THERMAL_HAL_SKIN_FORECAST,
+            Flags.FLAG_ALLOW_THERMAL_THRESHOLDS_CALLBACK})
+    public void testGetThermalHeadroom_halForecast_disabledOnMultiThresholdsCallback()
+            throws RemoteException {
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+        mFakeHal.enableForecastSkinTemperature();
+        mService = new ThermalManagerService(mContext, mFakeHal);
+        mService.onBootPhase(SystemService.PHASE_ACTIVITY_MANAGER_READY);
+        assertTrue(mService.mIsHalSkinForecastSupported.get());
+        assertEquals(1, mFakeHal.mForecastSkinTemperaturesCalled);
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+
+        TemperatureThreshold newThreshold = new TemperatureThreshold();
+        newThreshold.name = "skin2";
+        newThreshold.type = Temperature.TYPE_SKIN;
+        newThreshold.hotThrottlingThresholds = new float[]{
+                Float.NaN, 43.0f, 46.0f, 49.0f, Float.NaN, Float.NaN, Float.NaN
+        };
+        mFakeHal.mCallback.onThresholdChanged(newThreshold);
+        mService.mService.getThermalHeadroom(10);
+        assertEquals(0, mFakeHal.mForecastSkinTemperaturesCalled);
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ALLOW_THERMAL_HAL_SKIN_FORECAST})
+    public void testGetThermalHeadroom_halForecast_errorOnHal() throws RemoteException {
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+        mFakeHal.enableForecastSkinTemperature();
+        mService = new ThermalManagerService(mContext, mFakeHal);
+        mService.onBootPhase(SystemService.PHASE_ACTIVITY_MANAGER_READY);
+        assertTrue(mService.mIsHalSkinForecastSupported.get());
+        assertEquals(1, mFakeHal.mForecastSkinTemperaturesCalled);
+        mFakeHal.mForecastSkinTemperaturesCalled = 0;
+
+        mFakeHal.disableForecastSkinTemperature();
+        assertTrue(Float.isNaN(mService.mService.getThermalHeadroom(10)));
+        assertEquals(1, mFakeHal.mForecastSkinTemperaturesCalled);
+        mFakeHal.enableForecastSkinTemperature();
+        assertFalse(Float.isNaN(mService.mService.getThermalHeadroom(10)));
+        assertEquals(2, mFakeHal.mForecastSkinTemperaturesCalled);
+        mFakeHal.failForecastSkinTemperature();
+        assertTrue(Float.isNaN(mService.mService.getThermalHeadroom(10)));
+        assertEquals(3, mFakeHal.mForecastSkinTemperaturesCalled);
     }
 
     @Test

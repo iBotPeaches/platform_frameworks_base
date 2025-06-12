@@ -17,6 +17,15 @@
 package android.os
 
 import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.util.mockito.mock
+import com.android.systemui.user.data.repository.FakeUserRepository.Companion.MAIN_USER_ID
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
-var Kosmos.userManager by Kosmos.Fixture { mock<UserManager>() }
+var Kosmos.userManager by
+    Kosmos.Fixture {
+        mock<UserManager> {
+            whenever(it.mainUser).thenReturn(UserHandle(MAIN_USER_ID))
+            whenever(it.getUserSerialNumber(eq(MAIN_USER_ID))).thenReturn(0)
+        }
+    }

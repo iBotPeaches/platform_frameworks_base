@@ -390,6 +390,9 @@ public class HdmiCecMessageValidator {
 
     private static boolean isValidPhysicalAddress(byte[] params, int offset) {
         int physicalAddress = HdmiUtils.twoBytesToInt(params, offset);
+        if (physicalAddress == 0xFFFF) {
+            return false;
+        }
         while (physicalAddress != 0) {
             int maskedAddress = physicalAddress & 0xF000;
             physicalAddress = (physicalAddress << 4) & 0xFFFF;

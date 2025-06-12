@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="accessibility_menu_service_name" msgid="730136711554740131">"תפריט נגישות"</string>
+    <string name="accessibility_menu_service_name" msgid="730136711554740131">"תפריט הנגישות"</string>
     <string name="accessibility_menu_intro" msgid="3164193281544042394">"תפריט הנגישות הוא תפריט גדול שמופיע במסך ומאפשר לשלוט במכשיר. אפשר לנעול את המכשיר, לשלוט בעוצמת הקול ובבהירות, לצלם צילומי מסך ועוד."</string>
     <string name="assistant_label" msgid="6796392082252272356">"Assistant"</string>
     <string name="assistant_utterance" msgid="65509599221141377">"Assistant"</string>
@@ -21,7 +21,7 @@
     <string name="previous_button_content_description" msgid="840869171117765966">"מעבר למסך הקודם"</string>
     <string name="next_button_content_description" msgid="6810058269847364406">"מעבר למסך הבא"</string>
     <string name="accessibility_menu_description" msgid="4458354794093858297">"תפריט הנגישות הוא תפריט גדול שמופיע במסך ומאפשר לשלוט במכשיר. אפשר לנעול את המכשיר, לשלוט בעוצמת הקול ובבהירות, לצלם צילומי מסך ועוד."</string>
-    <string name="accessibility_menu_summary" msgid="340071398148208130">"שליטה במכשיר באמצעות התפריט הגדול"</string>
+    <string name="accessibility_menu_summary" msgid="340071398148208130">"שליטה במכשיר דרך התפריט הגדול"</string>
     <string name="accessibility_menu_settings_name" msgid="1716888058785672611">"הגדרות של תפריט נגישות"</string>
     <string name="accessibility_menu_large_buttons_title" msgid="8978499601044961736">"כפתורים גדולים"</string>
     <string name="accessibility_menu_large_buttons_summary" msgid="236873938502785311">"הגדלת הכפתורים של תפריט הנגישות"</string>

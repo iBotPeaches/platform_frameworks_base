@@ -36,6 +36,7 @@ import android.view.Display;
 import android.view.IWindowManager;
 import android.view.View;
 import android.view.WindowManagerGlobal;
+import android.window.DesktopExperienceFlags;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -51,7 +52,7 @@ import com.android.systemui.dump.DumpManager;
 import com.android.systemui.model.SysUiState;
 import com.android.systemui.navigationbar.views.NavigationBar;
 import com.android.systemui.navigationbar.views.NavigationBarView;
-import com.android.systemui.recents.OverviewProxyService;
+import com.android.systemui.recents.LauncherProxyService;
 import com.android.systemui.settings.DisplayTracker;
 import com.android.systemui.shared.statusbar.phone.BarTransitions.TransitionMode;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
@@ -114,7 +115,7 @@ public class NavigationBarControllerImpl implements
 
     @Inject
     public NavigationBarControllerImpl(Context context,
-            OverviewProxyService overviewProxyService,
+            LauncherProxyService launcherProxyService,
             NavigationModeController navigationModeController,
             SysUiState sysUiFlagsContainer,
             CommandQueue commandQueue,
@@ -144,11 +145,11 @@ public class NavigationBarControllerImpl implements
         mNavMode = navigationModeController.addListener(this);
         mNavBarHelper = navBarHelper;
         mTaskbarDelegate = taskbarDelegate;
-        mTaskbarDelegate.setDependencies(commandQueue, overviewProxyService,
+        mTaskbarDelegate.setDependencies(commandQueue, launcherProxyService,
                 navBarHelper, navigationModeController, sysUiFlagsContainer,
                 dumpManager, autoHideControllerStore.forDisplay(mContext.getDisplayId()),
                 lightBarController, pipOptional, backAnimation.orElse(null),
-                taskStackChangeListeners);
+                taskStackChangeListeners, displayTracker);
         mIsLargeScreen = isLargeScreen(mContext);
         mIsPhone = determineIfPhone(mContext, deviceStateManager);
         dumpManager.registerDumpable(this);
@@ -273,12 +274,20 @@ public class NavigationBarControllerImpl implements
     private final CommandQueue.Callbacks mCommandQueueCallbacks = new CommandQueue.Callbacks() {
         @Override
         public void onDisplayRemoved(int displayId) {
+            onDisplayRemoveSystemDecorations(displayId);
+        }
+
+        @Override
+        public void onDisplayRemoveSystemDecorations(int displayId) {
             removeNavigationBar(displayId);
             mHasNavBar.delete(displayId);
         }
 
         @Override
-        public void onDisplayReady(int displayId) {
+        public void onDisplayAddSystemDecorations(int displayId) {
+            if (DesktopExperienceFlags.ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT.isTrue()) {
+                mHasNavBar.put(displayId, true);
+            }
             Display display = mDisplayManager.getDisplay(displayId);
             mIsLargeScreen = isLargeScreen(mContext);
             createNavigationBar(display, null /* savedState */, null /* result */);
@@ -460,7 +469,8 @@ public class NavigationBarControllerImpl implements
         return (navBar == null) ? null : navBar.getView();
     }
 
-    private @Nullable NavigationBar getNavigationBar(int displayId) {
+    @Override
+    public @Nullable NavigationBar getNavigationBar(int displayId) {
         return mNavigationBars.get(displayId);
     }
 

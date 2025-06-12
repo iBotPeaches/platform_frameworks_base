@@ -75,4 +75,23 @@ flag {
     bug: "362575865"
 }
 
+flag {
+    name: "bal_strict_mode_grace_period"
+    namespace: "responsible_apis"
+    description: "Strict mode violation triggered by grace period usage"
+    bug: "384807495"
+}
 
+flag {
+    name: "bal_clear_allowlist_duration"
+    namespace: "responsible_apis"
+    description: "Clear the allowlist duration when clearAllowBgActivityStarts is called"
+    bug: "322159724"
+}
+
+flag {
+    name: "bal_additional_logging"
+    namespace: "responsible_apis"
+    description: "Enable additional logging."
+    bug: "403398176"
+}

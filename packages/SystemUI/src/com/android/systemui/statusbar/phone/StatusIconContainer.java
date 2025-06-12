@@ -443,6 +443,11 @@ public class StatusIconContainer extends AlphaOptimizedLinearLayout {
     }
 
     public static class StatusIconState extends ViewState {
+
+        public StatusIconState() {
+            super(false /* usePhysicsForMovement */);
+        }
+
         /// StatusBarIconView.STATE_*
         public int visibleState = STATE_ICON;
         public boolean justAdded = true;

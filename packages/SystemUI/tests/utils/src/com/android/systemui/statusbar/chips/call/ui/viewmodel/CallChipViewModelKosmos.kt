@@ -16,20 +16,24 @@
 
 package com.android.systemui.statusbar.chips.call.ui.viewmodel
 
+import android.content.applicationContext
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.plugins.activityStarter
 import com.android.systemui.statusbar.chips.call.domain.interactor.callChipInteractor
 import com.android.systemui.statusbar.chips.statusBarChipsLogger
+import com.android.systemui.statusbar.chips.uievents.statusBarChipsUiEventLogger
 import com.android.systemui.util.time.fakeSystemClock
 
 val Kosmos.callChipViewModel: CallChipViewModel by
     Kosmos.Fixture {
         CallChipViewModel(
+            applicationContext,
             scope = applicationCoroutineScope,
             interactor = callChipInteractor,
             systemClock = fakeSystemClock,
             activityStarter = activityStarter,
-            logger = statusBarChipsLogger,
+            logBuffer = statusBarChipsLogger,
+            uiEventLogger = statusBarChipsUiEventLogger,
         )
     }

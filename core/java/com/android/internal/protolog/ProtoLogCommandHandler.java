@@ -61,6 +61,18 @@ public class ProtoLogCommandHandler extends ShellCommand {
     }
 
     @Override
+    public int handleDefaultCommands(String cmd) {
+        if (cmd == null || "help".equals(cmd) || "-h".equals(cmd)) {
+            onHelp();
+            return 0;
+        } else {
+            getOutPrintWriter().println("Unknown command: " + cmd +
+                    " (use 'help' command for guidance)");
+            return -1;
+        }
+    }
+
+    @Override
     public void onHelp() {
         PrintWriter pw = getOutPrintWriter();
         pw.println("ProtoLog commands:");
@@ -145,11 +157,11 @@ public class ProtoLogCommandHandler extends ShellCommand {
 
         switch (cmd) {
             case "enable" -> {
-                mProtoLogConfigurationService.enableProtoLogToLogcat(processGroups());
+                mProtoLogConfigurationService.enableProtoLogToLogcat(pw, processGroups());
                 return 0;
             }
             case "disable" -> {
-                mProtoLogConfigurationService.disableProtoLogToLogcat(processGroups());
+                mProtoLogConfigurationService.disableProtoLogToLogcat(pw, processGroups());
                 return 0;
             }
             default -> {

@@ -27,7 +27,6 @@ import android.content.res.Resources.ID_NULL
 import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.Rect
-import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -309,14 +308,6 @@ constructor(
         }
         setLabelColor(getLabelColorForState(QSTile.State.DEFAULT_STATE))
         setSecondaryLabelColor(getSecondaryLabelColorForState(QSTile.State.DEFAULT_STATE))
-
-        if (Flags.gsfQuickSettings()) {
-            label.apply {
-                typeface = Typeface.create("gsf-title-small-emphasized", Typeface.NORMAL)
-            }
-            secondaryLabel.apply { typeface = Typeface.create("gsf-label-medium", Typeface.NORMAL) }
-        }
-
         addView(labelContainer)
     }
 
@@ -776,11 +767,19 @@ constructor(
         lastIconTint = icon.getColor(state)
 
         // Long-press effects
-        longPressEffect?.qsTile?.state?.handlesLongClick = state.handlesLongClick
+        updateLongPressEffect(state.handlesLongClick)
+    }
+
+    private fun updateLongPressEffect(handlesLongClick: Boolean) {
+        // The long press effect in the tile can't be updated if it is still running
         if (
-            state.handlesLongClick &&
-                longPressEffect?.initializeEffect(longPressEffectDuration) == true
-        ) {
+            longPressEffect?.state != QSLongPressEffect.State.IDLE &&
+                longPressEffect?.state != QSLongPressEffect.State.CLICKED
+        )
+            return
+
+        longPressEffect.qsTile?.state?.handlesLongClick = handlesLongClick
+        if (handlesLongClick && longPressEffect.initializeEffect(longPressEffectDuration)) {
             showRippleEffect = false
             longPressEffect.qsTile?.state?.state = lastState // Store the tile's state
             longPressEffect.resetState()

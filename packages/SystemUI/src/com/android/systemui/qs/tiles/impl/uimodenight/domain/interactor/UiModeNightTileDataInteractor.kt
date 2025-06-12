@@ -21,9 +21,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.UserHandle
 import com.android.systemui.common.coroutine.ConflatedCallbackFlow
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
-import com.android.systemui.qs.tiles.impl.uimodenight.domain.model.UiModeNightTileModel
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
+import com.android.systemui.qs.tiles.impl.uimodenight.domain.interactor.model.UiModeNightTileModel
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.policy.BatteryController
 import com.android.systemui.statusbar.policy.ConfigurationController

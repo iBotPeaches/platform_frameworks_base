@@ -16,24 +16,19 @@
 
 package android.hardware.input;
 
-import static com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_BOUNCE_KEYS_FLAG;
 import static com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_MOUSE_KEYS;
-import static com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SLOW_KEYS_FLAG;
-import static com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_STICKY_KEYS_FLAG;
 import static com.android.hardware.input.Flags.enableCustomizableInputGestures;
-import static com.android.hardware.input.Flags.keyboardA11yBounceKeysFlag;
 import static com.android.hardware.input.Flags.keyboardA11yMouseKeys;
-import static com.android.hardware.input.Flags.keyboardA11ySlowKeysFlag;
-import static com.android.hardware.input.Flags.keyboardA11yStickyKeysFlag;
+import static com.android.hardware.input.Flags.mouseScrollingAcceleration;
 import static com.android.hardware.input.Flags.mouseReverseVerticalScrolling;
 import static com.android.hardware.input.Flags.mouseSwapPrimaryButton;
+import static com.android.hardware.input.Flags.pointerAcceleration;
 import static com.android.hardware.input.Flags.touchpadSystemGestureDisable;
 import static com.android.hardware.input.Flags.touchpadThreeFingerTapShortcut;
 import static com.android.hardware.input.Flags.touchpadVisualizer;
 import static com.android.hardware.input.Flags.useKeyGestureEventHandler;
 import static com.android.hardware.input.Flags.useKeyGestureEventHandlerMultiKeyGestures;
 import static com.android.input.flags.Flags.FLAG_KEYBOARD_REPEAT_KEYS;
-import static com.android.input.flags.Flags.enableInputFilterRustImpl;
 import static com.android.input.flags.Flags.keyboardRepeatKeys;
 
 import android.Manifest;
@@ -74,6 +69,24 @@ public class InputSettings {
      */
     @SuppressLint("UnflaggedApi") // TestApi without associated feature.
     public static final int DEFAULT_POINTER_SPEED = 0;
+
+    /**
+     * Pointer Speed: The minimum (slowest) mouse scrolling speed (-7).
+     * @hide
+     */
+    public static final int MIN_MOUSE_SCROLLING_SPEED = -7;
+
+    /**
+     * Pointer Speed: The maximum (fastest) mouse scrolling speed (7).
+     * @hide
+     */
+    public static final int MAX_MOUSE_SCROLLING_SPEED = 7;
+
+    /**
+     * Pointer Speed: The default mouse scrolling speed (0).
+     * @hide
+     */
+    public static final int DEFAULT_MOUSE_SCROLLING_SPEED = 0;
 
     /**
      * Bounce Keys Threshold: The default value of the threshold (500 ms).
@@ -365,6 +378,42 @@ public class InputSettings {
     }
 
     /**
+     * Whether touchpad acceleration is enabled or not.
+     *
+     * @param context The application context.
+     *
+     * @hide
+     */
+    public static boolean isTouchpadAccelerationEnabled(@NonNull Context context) {
+        if (!isPointerAccelerationFeatureFlagEnabled()) {
+            return true;
+        }
+
+        return Settings.System.getIntForUser(context.getContentResolver(),
+                Settings.System.TOUCHPAD_ACCELERATION_ENABLED, 1, UserHandle.USER_CURRENT)
+                == 1;
+    }
+
+   /**
+    * Enables or disables touchpad acceleration.
+    *
+    * @param context The application context.
+    * @param enabled Will enable touchpad acceleration if true, disable it if
+    *                false.
+    * @hide
+    */
+    @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
+    public static void setTouchpadAccelerationEnabled(@NonNull Context context,
+            boolean enabled) {
+        if (!isPointerAccelerationFeatureFlagEnabled()) {
+            return;
+        }
+        Settings.System.putIntForUser(context.getContentResolver(),
+                Settings.System.TOUCHPAD_ACCELERATION_ENABLED, enabled ? 1 : 0,
+                UserHandle.USER_CURRENT);
+    }
+
+    /**
      * Returns true if the feature flag for disabling system gestures on touchpads is enabled.
      *
      * @hide
@@ -392,6 +441,15 @@ public class InputSettings {
     }
 
     /**
+     * Returns true if the feature flag for toggling the mouse scrolling acceleration is enabled.
+     *
+     * @hide
+     */
+    public static boolean isMouseScrollingAccelerationFeatureFlagEnabled() {
+        return mouseScrollingAcceleration();
+    }
+
+    /**
      * Returns true if the feature flag for mouse reverse vertical scrolling is enabled.
      * @hide
      */
@@ -405,6 +463,15 @@ public class InputSettings {
      */
     public static boolean isMouseSwapPrimaryButtonFeatureFlagEnabled() {
         return mouseSwapPrimaryButton();
+    }
+
+    /**
+     * Returns true if the feature flag for the pointer acceleration toggle is
+     * enabled.
+     * @hide
+     */
+    public static boolean isPointerAccelerationFeatureFlagEnabled() {
+        return pointerAcceleration();
     }
 
     /**
@@ -593,7 +660,92 @@ public class InputSettings {
     }
 
     /**
-     * Whether mouse vertical scrolling is enabled, this applies only to connected mice.
+     * Whether mouse scrolling acceleration is enabled. This applies only to connected mice.
+     *
+     * @param context The application context.
+     * @return Whether the mouse scrolling is accelerated based on the user's scrolling speed.
+     *
+     * @hide
+     */
+    public static boolean isMouseScrollingAccelerationEnabled(@NonNull Context context) {
+        if (!isMouseScrollingAccelerationFeatureFlagEnabled()) {
+            return true;
+        }
+
+        return Settings.System.getIntForUser(context.getContentResolver(),
+            Settings.System.MOUSE_SCROLLING_ACCELERATION, 0, UserHandle.USER_CURRENT) != 0;
+    }
+
+    /**
+     * Sets whether the connected mouse scrolling acceleration is enabled.
+     *
+     * @param context The application context.
+     * @param scrollingAcceleration Whether mouse scrolling acceleration is enabled.
+     *
+     * @hide
+     */
+    @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
+    public static void setMouseScrollingAcceleration(@NonNull Context context,
+            boolean scrollingAcceleration) {
+        if (!isMouseScrollingAccelerationFeatureFlagEnabled()) {
+            return;
+        }
+
+        Settings.System.putIntForUser(context.getContentResolver(),
+                Settings.System.MOUSE_SCROLLING_ACCELERATION, scrollingAcceleration ? 1 : 0,
+                UserHandle.USER_CURRENT);
+    }
+
+    /**
+     * Gets the mouse scrolling speed.
+     *
+     * The returned value only applies when mouse scrolling acceleration is not enabled.
+     *
+     * @param context The application context.
+     * @return The mouse scrolling speed as a value between {@link #MIN_MOUSE_SCROLLING_SPEED} and
+     *         {@link #MAX_MOUSE_SCROLLING_SPEED}, or the default value
+     *         {@link #DEFAULT_MOUSE_SCROLLING_SPEED}.
+     *
+     * @hide
+     */
+    public static int getMouseScrollingSpeed(@NonNull Context context) {
+        if (!isMouseScrollingAccelerationFeatureFlagEnabled()) {
+            return 0;
+        }
+
+        return Settings.System.getIntForUser(context.getContentResolver(),
+                Settings.System.MOUSE_SCROLLING_SPEED, DEFAULT_MOUSE_SCROLLING_SPEED,
+                UserHandle.USER_CURRENT);
+    }
+
+    /**
+     * Sets the mouse scrolling speed, and saves it in the settings.
+     *
+     * The new speed will only apply when mouse scrolling acceleration is not enabled.
+     *
+     * @param context The application context.
+     * @param speed The mouse scrolling speed as a value between {@link #MIN_MOUSE_SCROLLING_SPEED}
+     *              and {@link #MAX_MOUSE_SCROLLING_SPEED}, or the default value
+     *              {@link #DEFAULT_MOUSE_SCROLLING_SPEED}.
+     *
+     * @hide
+     */
+    @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
+    public static void setMouseScrollingSpeed(@NonNull Context context, int speed) {
+        if (isMouseScrollingAccelerationEnabled(context)) {
+            return;
+        }
+
+        if (speed < MIN_MOUSE_SCROLLING_SPEED || speed > MAX_MOUSE_SCROLLING_SPEED) {
+            throw new IllegalArgumentException("speed out of range");
+        }
+
+        Settings.System.putIntForUser(context.getContentResolver(),
+                Settings.System.MOUSE_SCROLLING_SPEED, speed, UserHandle.USER_CURRENT);
+    }
+
+    /**
+     * Whether mouse vertical scrolling is reversed. This applies only to connected mice.
      *
      * @param context The application context.
      * @return Whether the mouse will have its vertical scrolling reversed
@@ -673,18 +825,43 @@ public class InputSettings {
     }
 
     /**
-     * Whether Accessibility bounce keys feature is enabled.
+     * Whether cursor acceleration is enabled or not for connected mice.
      *
-     * <p>
-     * Bounce keys’ is an accessibility feature to aid users who have physical disabilities,
-     * that allows the user to configure the device to ignore rapid, repeated keypresses of the
-     * same key.
-     * </p>
+     * @param context The application context.
      *
      * @hide
      */
-    public static boolean isAccessibilityBounceKeysFeatureEnabled() {
-        return keyboardA11yBounceKeysFlag() && enableInputFilterRustImpl();
+    public static boolean isMousePointerAccelerationEnabled(@NonNull Context context) {
+        if (!isPointerAccelerationFeatureFlagEnabled()) {
+            return true;
+        }
+
+        return Settings.System.getIntForUser(context.getContentResolver(),
+                Settings.System.MOUSE_POINTER_ACCELERATION_ENABLED, 1, UserHandle.USER_CURRENT)
+                == 1;
+    }
+
+   /**
+    * Sets whether mouse acceleration is enabled.
+    *
+    * When enabled, the mouse cursor moves farther when it is moved faster.
+    * When disabled, the mouse cursor speed becomes directly proportional to
+    * the speed at which the mouse is moved.
+    *
+    * @param context The application context.
+    * @param enabled Will enable mouse acceleration if true, disable it if
+    *                false.
+    * @hide
+    */
+    @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
+    public static void setMouseAccelerationEnabled(@NonNull Context context,
+            boolean enabled) {
+        if (!isPointerAccelerationFeatureFlagEnabled()) {
+            return;
+        }
+        Settings.System.putIntForUser(context.getContentResolver(),
+                Settings.System.MOUSE_POINTER_ACCELERATION_ENABLED, enabled ? 1 : 0,
+                UserHandle.USER_CURRENT);
     }
 
     /**
@@ -714,11 +891,7 @@ public class InputSettings {
      * @hide
      */
     @TestApi
-    @FlaggedApi(FLAG_KEYBOARD_A11Y_BOUNCE_KEYS_FLAG)
     public static int getAccessibilityBounceKeysThreshold(@NonNull Context context) {
-        if (!isAccessibilityBounceKeysFeatureEnabled()) {
-            return 0;
-        }
         return Settings.Secure.getIntForUser(context.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_BOUNCE_KEYS, 0, UserHandle.USER_CURRENT);
     }
@@ -738,13 +911,9 @@ public class InputSettings {
      * @hide
      */
     @TestApi
-    @FlaggedApi(FLAG_KEYBOARD_A11Y_BOUNCE_KEYS_FLAG)
     @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
     public static void setAccessibilityBounceKeysThreshold(@NonNull Context context,
             int thresholdTimeMillis) {
-        if (!isAccessibilityBounceKeysFeatureEnabled()) {
-            return;
-        }
         if (thresholdTimeMillis < 0
                 || thresholdTimeMillis > MAX_ACCESSIBILITY_BOUNCE_KEYS_THRESHOLD_MILLIS) {
             throw new IllegalArgumentException(
@@ -754,21 +923,6 @@ public class InputSettings {
         Settings.Secure.putIntForUser(context.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_BOUNCE_KEYS, thresholdTimeMillis,
                 UserHandle.USER_CURRENT);
-    }
-
-    /**
-     * Whether Accessibility slow keys feature flags is enabled.
-     *
-     * <p>
-     * 'Slow keys' is an accessibility feature to aid users who have physical disabilities, that
-     * allows the user to specify the duration for which one must press-and-hold a key before the
-     * system accepts the keypress.
-     * </p>
-     *
-     * @hide
-     */
-    public static boolean isAccessibilitySlowKeysFeatureFlagEnabled() {
-        return keyboardA11ySlowKeysFlag() && enableInputFilterRustImpl();
     }
 
     /**
@@ -798,11 +952,7 @@ public class InputSettings {
      * @hide
      */
     @TestApi
-    @FlaggedApi(FLAG_KEYBOARD_A11Y_SLOW_KEYS_FLAG)
     public static int getAccessibilitySlowKeysThreshold(@NonNull Context context) {
-        if (!isAccessibilitySlowKeysFeatureFlagEnabled()) {
-            return 0;
-        }
         return Settings.Secure.getIntForUser(context.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_SLOW_KEYS, 0, UserHandle.USER_CURRENT);
     }
@@ -822,13 +972,9 @@ public class InputSettings {
      * @hide
      */
     @TestApi
-    @FlaggedApi(FLAG_KEYBOARD_A11Y_SLOW_KEYS_FLAG)
     @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
     public static void setAccessibilitySlowKeysThreshold(@NonNull Context context,
             int thresholdTimeMillis) {
-        if (!isAccessibilitySlowKeysFeatureFlagEnabled()) {
-            return;
-        }
         if (thresholdTimeMillis < 0
                 || thresholdTimeMillis > MAX_ACCESSIBILITY_SLOW_KEYS_THRESHOLD_MILLIS) {
             throw new IllegalArgumentException(
@@ -838,23 +984,6 @@ public class InputSettings {
         Settings.Secure.putIntForUser(context.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_SLOW_KEYS, thresholdTimeMillis,
                 UserHandle.USER_CURRENT);
-    }
-
-    /**
-     * Whether Accessibility sticky keys feature is enabled.
-     *
-     * <p>
-     * 'Sticky keys' is an accessibility feature that assists users who have physical
-     * disabilities or help users reduce repetitive strain injury. It serializes keystrokes
-     * instead of pressing multiple keys at a time, allowing the user to press and release a
-     * modifier key, such as Shift, Ctrl, Alt, or any other modifier key, and have it remain
-     * active until any other key is pressed.
-     * </p>
-     *
-     * @hide
-     */
-    public static boolean isAccessibilityStickyKeysFeatureEnabled() {
-        return keyboardA11yStickyKeysFlag() && enableInputFilterRustImpl();
     }
 
     /**
@@ -871,11 +1000,7 @@ public class InputSettings {
      * @hide
      */
     @TestApi
-    @FlaggedApi(FLAG_KEYBOARD_A11Y_STICKY_KEYS_FLAG)
     public static boolean isAccessibilityStickyKeysEnabled(@NonNull Context context) {
-        if (!isAccessibilityStickyKeysFeatureEnabled()) {
-            return false;
-        }
         return Settings.Secure.getIntForUser(context.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_STICKY_KEYS, 0, UserHandle.USER_CURRENT) != 0;
     }
@@ -894,13 +1019,9 @@ public class InputSettings {
      * @hide
      */
     @TestApi
-    @FlaggedApi(FLAG_KEYBOARD_A11Y_STICKY_KEYS_FLAG)
     @RequiresPermission(Manifest.permission.WRITE_SETTINGS)
     public static void setAccessibilityStickyKeysEnabled(@NonNull Context context,
             boolean enabled) {
-        if (!isAccessibilityStickyKeysFeatureEnabled()) {
-            return;
-        }
         Settings.Secure.putIntForUser(context.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_STICKY_KEYS, enabled ? 1 : 0,
                 UserHandle.USER_CURRENT);

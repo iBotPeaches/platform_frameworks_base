@@ -87,6 +87,10 @@ public class ResolverActivityTest {
 
     private static final UserHandle PERSONAL_USER_HANDLE = InstrumentationRegistry
             .getInstrumentation().getTargetContext().getUser();
+    private static final int WORK_USER_ID = PERSONAL_USER_HANDLE.getIdentifier() + 1;
+    private static final int CLONE_USER_ID = PERSONAL_USER_HANDLE.getIdentifier() + 2;
+    private static final int PRIVATE_USER_ID = PERSONAL_USER_HANDLE.getIdentifier() + 3;
+
     @Rule
     public ActivityTestRule<ResolverWrapperActivity> mActivityRule =
             new ActivityTestRule<>(ResolverWrapperActivity.class, false,
@@ -247,7 +251,7 @@ public class ResolverActivityTest {
         // enable the work tab feature flag
         ResolverActivity.ENABLE_TABBED_VIEW = true;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(2, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(2, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         markWorkProfileUserAvailable();
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
@@ -270,7 +274,7 @@ public class ResolverActivityTest {
         };
         // Make a stable copy of the components as the original list may be modified
         List<ResolvedComponentInfo> stableCopy =
-                createResolvedComponentsForTestWithOtherProfile(2, /* userId= */ 10,
+                createResolvedComponentsForTestWithOtherProfile(2, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         // We pick the first one as there is another one in the work profile side
         onView(first(withText(stableCopy.get(1).getResolveInfoAt(0).activityInfo.name)))
@@ -444,7 +448,7 @@ public class ResolverActivityTest {
         // enable the work tab feature flag
         ResolverActivity.ENABLE_TABBED_VIEW = true;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId = */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         markWorkProfileUserAvailable();
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
@@ -456,7 +460,7 @@ public class ResolverActivityTest {
         final ResolverWrapperActivity activity = mActivityRule.launchActivity(sendIntent);
         waitForIdle();
 
-        assertThat(activity.getCurrentUserHandle().getIdentifier(), is(0));
+        assertThat(activity.getCurrentUserHandle(), is(PERSONAL_USER_HANDLE));
         // The work list adapter must be populated in advance before tapping the other tab
         assertThat(activity.getWorkListAdapter().getCount(), is(4));
     }
@@ -466,7 +470,7 @@ public class ResolverActivityTest {
         // enable the work tab feature flag
         ResolverActivity.ENABLE_TABBED_VIEW = true;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         markWorkProfileUserAvailable();
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
@@ -478,7 +482,7 @@ public class ResolverActivityTest {
         waitForIdle();
         onView(withText(R.string.resolver_work_tab)).perform(click());
 
-        assertThat(activity.getCurrentUserHandle().getIdentifier(), is(10));
+        assertThat(activity.getCurrentUserHandle().getIdentifier(), is(WORK_USER_ID));
         assertThat(activity.getWorkListAdapter().getCount(), is(4));
     }
 
@@ -498,7 +502,7 @@ public class ResolverActivityTest {
         waitForIdle();
         onView(withText(R.string.resolver_work_tab)).perform(click());
 
-        assertThat(activity.getCurrentUserHandle().getIdentifier(), is(10));
+        assertThat(activity.getCurrentUserHandle().getIdentifier(), is(WORK_USER_ID));
         assertThat(activity.getPersonalListAdapter().getCount(), is(2));
     }
 
@@ -508,7 +512,7 @@ public class ResolverActivityTest {
         ResolverActivity.ENABLE_TABBED_VIEW = true;
         markWorkProfileUserAvailable();
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
                 sOverrides.workProfileUserHandle);
@@ -530,7 +534,7 @@ public class ResolverActivityTest {
         ResolverActivity.ENABLE_TABBED_VIEW = true;
         markWorkProfileUserAvailable();
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
                 sOverrides.workProfileUserHandle);
@@ -633,7 +637,7 @@ public class ResolverActivityTest {
         ResolverActivity.ENABLE_TABBED_VIEW = true;
         markWorkProfileUserAvailable();
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId= */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
                 sOverrides.workProfileUserHandle);
@@ -669,7 +673,7 @@ public class ResolverActivityTest {
         markWorkProfileUserAvailable();
         int workProfileTargets = 4;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos =
                 createResolvedComponentsForTest(workProfileTargets,
@@ -697,7 +701,7 @@ public class ResolverActivityTest {
         markWorkProfileUserAvailable();
         int workProfileTargets = 4;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(3, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos =
                 createResolvedComponentsForTest(workProfileTargets,
@@ -844,7 +848,7 @@ public class ResolverActivityTest {
     public void testAutolaunch_singleTarget_withWorkProfileAndTabbedViewOff_noAutolaunch() {
         ResolverActivity.ENABLE_TABBED_VIEW = false;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(2, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(2, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         when(sOverrides.resolverListController.getResolversForIntent(Mockito.anyBoolean(),
                 Mockito.anyBoolean(),
@@ -898,7 +902,7 @@ public class ResolverActivityTest {
         markWorkProfileUserAvailable();
         int workProfileTargets = 4;
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(2, /* userId */ 10,
+                createResolvedComponentsForTestWithOtherProfile(2, WORK_USER_ID,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos =
                 createResolvedComponentsForTest(workProfileTargets,
@@ -1376,15 +1380,16 @@ public class ResolverActivityTest {
     }
 
     private void markWorkProfileUserAvailable() {
-        ResolverWrapperActivity.sOverrides.workProfileUserHandle = UserHandle.of(10);
+        ResolverWrapperActivity.sOverrides.workProfileUserHandle = UserHandle.of(WORK_USER_ID);
     }
 
     private void markCloneProfileUserAvailable() {
-        ResolverWrapperActivity.sOverrides.cloneProfileUserHandle = UserHandle.of(11);
+        ResolverWrapperActivity.sOverrides.cloneProfileUserHandle = UserHandle.of(CLONE_USER_ID);
     }
 
     private void markPrivateProfileUserAvailable() {
-        ResolverWrapperActivity.sOverrides.privateProfileUserHandle = UserHandle.of(12);
+        ResolverWrapperActivity.sOverrides.privateProfileUserHandle =
+                UserHandle.of(PRIVATE_USER_ID);
     }
 
     private void setTabOwnerUserHandleForLaunch(UserHandle tabOwnerUserHandleForLaunch) {

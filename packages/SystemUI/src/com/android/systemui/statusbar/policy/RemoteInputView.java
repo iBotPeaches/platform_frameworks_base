@@ -24,7 +24,6 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
-import android.content.res.TypedArray;
 import android.graphics.BlendMode;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
@@ -80,6 +79,7 @@ import com.android.internal.logging.UiEvent;
 import com.android.internal.logging.UiEventLogger;
 import com.android.internal.util.ContrastColorUtil;
 import com.android.systemui.Dependency;
+import com.android.systemui.Flags;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.RemoteInputController;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
@@ -174,11 +174,8 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
         mTextWatcher = new SendButtonTextWatcher();
         mEditorActionHandler = new EditorActionHandler();
         mUiEventLogger = Dependency.get(UiEventLogger.class);
-        TypedArray ta = getContext().getTheme().obtainStyledAttributes(new int[]{
-                com.android.internal.R.attr.materialColorSurfaceDim,
-        });
-        mLastBackgroundColor = ta.getColor(0, 0);
-        ta.recycle();
+        mLastBackgroundColor = getContext().getColor(
+                com.android.internal.R.color.materialColorSurfaceDim);
     }
 
     // TODO(b/193539698): move to Controller, since we're just directly accessing a system service
@@ -229,13 +226,10 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
             textColor = mContext.getColorStateList(R.color.remote_input_text);
             hintColor = mContext.getColor(R.color.remote_input_hint);
             deleteFgColor = textColor.getDefaultColor();
-            try (TypedArray ta = getContext().getTheme().obtainStyledAttributes(new int[]{
-                    com.android.internal.R.attr.materialColorSurfaceDim,
-                    com.android.internal.R.attr.materialColorSurfaceVariant
-            })) {
-                editBgColor = ta.getColor(0, backgroundColor);
-                deleteBgColor = ta.getColor(1, Color.GRAY);
-            }
+            editBgColor = getContext().getColor(
+                    com.android.internal.R.color.materialColorSurfaceDim);
+            deleteBgColor = getContext().getColor(
+                    com.android.internal.R.color.materialColorSurfaceVariant);
         }
 
         mEditText.setTextColor(textColor);
@@ -252,7 +246,9 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
         mProgressBar.setProgressTintList(accentColor);
         mProgressBar.setIndeterminateTintList(accentColor);
         mProgressBar.setSecondaryProgressTintList(accentColor);
-        setBackgroundColor(backgroundColor);
+        if (!Flags.notificationRowTransparency()) {
+            setBackgroundColor(backgroundColor);
+        }
     }
 
     @Override
@@ -426,10 +422,10 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
         // case to prevent flicker.
         if (!mRemoved) {
             ViewGroup parent = (ViewGroup) getParent();
+            View actionsContainer = getActionsContainerLayout();
             if (animate && parent != null) {
 
                 ViewGroup grandParent = (ViewGroup) parent.getParent();
-                View actionsContainer = getActionsContainerLayout();
                 int actionsContainerHeight =
                         actionsContainer != null ? actionsContainer.getHeight() : 0;
 
@@ -466,8 +462,12 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
                 if (mWrapper != null) {
                     mWrapper.setRemoteInputVisible(false);
                 }
+                if (Flags.notificationRowTransparency()) {
+                    if (actionsContainer != null) actionsContainer.setAlpha(1);
+                }
             }
         }
+        unregisterBackCallback();
 
         if (logClose) {
             mUiEventLogger.logWithInstanceId(
@@ -565,11 +565,6 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
 
     @Override
     public void onVisibilityAggregated(boolean isVisible) {
-        if (isVisible) {
-            registerBackCallback();
-        } else {
-            unregisterBackCallback();
-        }
         super.onVisibilityAggregated(isVisible);
         mEditText.setEnabled(isVisible && !mSending);
     }
@@ -630,6 +625,7 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
         setAttachment(mEntry.remoteInputAttachment);
 
         updateSendButton();
+        registerBackCallback();
     }
 
     public void onNotificationUpdateOrReset() {
@@ -833,12 +829,14 @@ public class RemoteInputView extends LinearLayout implements View.OnClickListene
                     ObjectAnimator.ofFloat(fadeOutView, View.ALPHA, 1f, 0f);
             fadeOutViewAlphaAnimator.setDuration(FOCUS_ANIMATION_CROSSFADE_DURATION);
             fadeOutViewAlphaAnimator.setInterpolator(InterpolatorsAndroidX.LINEAR);
-            animatorSet.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation, boolean isReverse) {
-                    fadeOutView.setAlpha(1f);
-                }
-            });
+            if (!Flags.notificationRowTransparency()) {
+                animatorSet.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation, boolean isReverse) {
+                        fadeOutView.setAlpha(1f);
+                    }
+                });
+            }
             animatorSet.playTogether(alphaAnimator, scaleAnimator, fadeOutViewAlphaAnimator);
         }
         return animatorSet;

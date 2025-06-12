@@ -21,6 +21,7 @@ import android.media.MediaRoute2Info;
 import android.media.RouteDiscoveryPreference;
 import android.media.RouteListingPreference;
 import android.media.RoutingSessionInfo;
+import android.media.SuggestedDeviceInfo;
 
 /**
  * {@hide}
@@ -33,6 +34,8 @@ oneway interface IMediaRouter2Manager {
             in RouteDiscoveryPreference discoveryPreference);
     void notifyRouteListingPreferenceChange(String packageName,
             in @nullable RouteListingPreference routeListingPreference);
+    void notifyDeviceSuggestionsUpdated(String packageName, String suggestingPackageName,
+            in @nullable List<SuggestedDeviceInfo> suggestedDeviceInfo);
     void notifyRoutesUpdated(in List<MediaRoute2Info> routes);
     void notifyRequestFailed(int requestId, int reason);
     void invalidateInstance();

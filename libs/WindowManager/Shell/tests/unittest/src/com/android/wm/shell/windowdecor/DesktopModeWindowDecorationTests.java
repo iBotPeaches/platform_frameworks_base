@@ -20,7 +20,6 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
-import static android.platform.test.flag.junit.SetFlagsRule.DefaultInitValueType.DEVICE_DEFAULT;
 import static android.view.InsetsSource.FLAG_FORCE_CONSUMING;
 import static android.view.InsetsSource.FLAG_FORCE_CONSUMING_OPAQUE_CAPTION_BAR;
 import static android.view.WindowInsets.Type.captionBar;
@@ -60,8 +59,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.res.Resources;
 import android.content.res.TypedArray;
-import android.graphics.PointF;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.Region;
 import android.net.Uri;
@@ -69,7 +69,6 @@ import android.os.Handler;
 import android.os.SystemProperties;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
-import android.platform.test.flag.junit.SetFlagsRule;
 import android.testing.AndroidTestingRunner;
 import android.testing.TestableContext;
 import android.testing.TestableLooper;
@@ -107,25 +106,32 @@ import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
 import com.android.wm.shell.desktopmode.CaptionState;
 import com.android.wm.shell.desktopmode.DesktopModeEventLogger;
+import com.android.wm.shell.desktopmode.DesktopModeUiEventLogger;
 import com.android.wm.shell.desktopmode.DesktopRepository;
 import com.android.wm.shell.desktopmode.DesktopUserRepositories;
 import com.android.wm.shell.desktopmode.WindowDecorCaptionHandleRepository;
+import com.android.wm.shell.shared.desktopmode.DesktopModeCompatPolicy;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.splitscreen.SplitScreenController;
 import com.android.wm.shell.windowdecor.WindowDecoration.RelayoutParams;
+import com.android.wm.shell.windowdecor.common.WindowDecorTaskResourceLoader;
 import com.android.wm.shell.windowdecor.common.viewhost.WindowDecorViewHost;
 import com.android.wm.shell.windowdecor.common.viewhost.WindowDecorViewHostSupplier;
+import com.android.wm.shell.windowdecor.viewholder.AppHandleViewHolder;
 import com.android.wm.shell.windowdecor.viewholder.AppHeaderViewHolder;
 
 import kotlin.Unit;
 import kotlin.jvm.functions.Function0;
 import kotlin.jvm.functions.Function1;
+import kotlin.jvm.functions.Function2;
+
+import kotlinx.coroutines.CoroutineScope;
+import kotlinx.coroutines.MainCoroutineDispatcher;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -157,8 +163,18 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
     private static final Uri TEST_URI1 = Uri.parse("https://www.google.com/");
     private static final Uri TEST_URI2 = Uri.parse("https://docs.google.com/");
     private static final Uri TEST_URI3 = Uri.parse("https://slides.google.com/");
+    private static final Uri TEST_URI4 = Uri.parse("https://calendar.google.com/");
 
-    @Rule public final SetFlagsRule mSetFlagsRule = new SetFlagsRule(DEVICE_DEFAULT);
+    private static final boolean DEFAULT_APPLY_START_TRANSACTION_ON_DRAW = true;
+    private static final boolean DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP = false;
+    private static final boolean DEFAULT_IS_STATUSBAR_VISIBLE = true;
+    private static final boolean DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED = false;
+    private static final boolean DEFAULT_IS_IN_FULL_IMMERSIVE_MODE = false;
+    private static final boolean DEFAULT_IS_DRAGGING = false;
+    private static final boolean DEFAULT_HAS_GLOBAL_FOCUS = true;
+    private static final boolean DEFAULT_SHOULD_IGNORE_CORNER_RADIUS = false;
+    private static final boolean DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS = false;
+
 
     @Mock
     private DisplayController mMockDisplayController;
@@ -171,11 +187,19 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
     @Mock
     private Choreographer mMockChoreographer;
     @Mock
+    private MainCoroutineDispatcher mMockMainCoroutineDispatcher;
+    @Mock
+    private CoroutineScope mMockBgCoroutineScope;
+    @Mock
     private SyncTransactionQueue mMockSyncQueue;
     @Mock
     private AppHeaderViewHolder.Factory mMockAppHeaderViewHolderFactory;
     @Mock
+    private AppHandleViewHolder.Factory mMockAppHandleViewHolderFactory;
+    @Mock
     private AppHeaderViewHolder mMockAppHeaderViewHolder;
+    @Mock
+    private AppHandleViewHolder mMockAppHandleViewHolder;
     @Mock
     private RootTaskDisplayAreaOrganizer mMockRootTaskDisplayAreaOrganizer;
     @Mock
@@ -221,7 +245,13 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
     @Mock
     private DesktopModeEventLogger mDesktopModeEventLogger;
     @Mock
+    private DesktopModeUiEventLogger mDesktopModeUiEventLogger;
+    @Mock
     private DesktopRepository mDesktopRepository;
+    @Mock
+    private WindowDecorTaskResourceLoader mMockTaskResourceLoader;
+    @Mock
+    private DesktopModeCompatPolicy mDesktopModeCompatPolicy;
     @Captor
     private ArgumentCaptor<Function1<Boolean, Unit>> mOnMaxMenuHoverChangeListener;
     @Captor
@@ -232,6 +262,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
     private StaticMockitoSession mMockitoSession;
     private TestableContext mTestableContext;
     private final ShellExecutor mBgExecutor = new TestShellExecutor();
+    private final ShellExecutor mMainExecutor = new TestShellExecutor();
     private final AssistContent mAssistContent = new AssistContent();
     private final Region mExclusionRegion = Region.obtain();
 
@@ -260,24 +291,29 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         mTestableContext = new TestableContext(mContext);
         mTestableContext.ensureTestableResources();
         mContext.setMockPackageManager(mMockPackageManager);
-        when(mMockMultiInstanceHelper.supportsMultiInstanceSplit(any()))
+        when(mMockMultiInstanceHelper.supportsMultiInstanceSplit(any(), anyInt()))
                 .thenReturn(false);
         when(mMockPackageManager.getApplicationLabel(any())).thenReturn("applicationLabel");
         final ActivityInfo activityInfo = createActivityInfo();
         when(mMockPackageManager.getActivityInfo(any(), anyInt())).thenReturn(activityInfo);
-        final ResolveInfo resolveInfo = new ResolveInfo();
-        resolveInfo.activityInfo = activityInfo;
-        when(mMockPackageManager.resolveActivity(any(), anyInt())).thenReturn(resolveInfo);
+        final ResolveInfo resolveInfo = createResolveInfo(false /* handleAllWebDataUri */);
+        when(mMockPackageManager.resolveActivityAsUser(any(), anyInt(), anyInt()))
+                .thenReturn(resolveInfo);
         final Display defaultDisplay = mock(Display.class);
         doReturn(defaultDisplay).when(mMockDisplayController).getDisplay(Display.DEFAULT_DISPLAY);
         doReturn(mInsetsState).when(mMockDisplayController).getInsetsState(anyInt());
-        when(mMockHandleMenuFactory.create(any(), any(), anyInt(), any(), any(), any(),
+        when(mMockHandleMenuFactory.create(any(), any(), any(), any(), any(), anyInt(), any(),
                 anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
-                any(), anyInt(), anyInt(), anyInt(), anyInt()))
+                anyBoolean(), any(), any(), anyInt(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(mMockHandleMenu);
-        when(mMockMultiInstanceHelper.supportsMultiInstanceSplit(any())).thenReturn(false);
-        when(mMockAppHeaderViewHolderFactory.create(any(), any(), any(), any(), any(), any(), any(),
-                any())).thenReturn(mMockAppHeaderViewHolder);
+        when(mMockMultiInstanceHelper.supportsMultiInstanceSplit(any(), anyInt()))
+                .thenReturn(false);
+        when(mMockAppHeaderViewHolderFactory
+                .create(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(mMockAppHeaderViewHolder);
+        when(mMockAppHandleViewHolderFactory
+                .create(any(), any(), any(), any(), any(), any()))
+                .thenReturn(mMockAppHandleViewHolder);
         when(mMockDesktopUserRepositories.getCurrent()).thenReturn(mDesktopRepository);
         when(mMockDesktopUserRepositories.getProfile(anyInt())).thenReturn(mDesktopRepository);
         when(mMockWindowDecorViewHostSupplier.acquire(any(), eq(defaultDisplay)))
@@ -307,68 +343,84 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
     }
 
     @Test
-    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreSetForFreeform() {
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreSetForFreeform_dynamicDisabled() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
         RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams, mContext, taskInfo, mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mShadowRadius)
                 .isNotEqualTo(WindowDecoration.INVALID_SHADOW_RADIUS);
     }
 
     @Test
-    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreNotSetForFullscreen() {
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreNotSetForFullscreen_dynamicDisabled() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
         RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams, mContext, taskInfo, mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mShadowRadius).isEqualTo(WindowDecoration.INVALID_SHADOW_RADIUS);
     }
 
     @Test
-    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreNotSetForSplit() {
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreNotSetForSplit_dynamicDisabled() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
         RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams, mContext, taskInfo, mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mShadowRadius).isEqualTo(WindowDecoration.INVALID_SHADOW_RADIUS);
     }
 
     @Test
-    public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersSetForFreeform() {
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersSetForFreeform_dynamicDisabled() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
+        fillRoundedCornersResources(/* fillValue= */ 30);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mCornerRadius).isGreaterThan(0);
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersNotSetForFullscreen_dynamicDisabled() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
+        fillRoundedCornersResources(/* fillValue= */ 30);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mCornerRadius).isEqualTo(INVALID_CORNER_RADIUS);
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersNotSetForSplit_dynamicDisabled() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
+        fillRoundedCornersResources(/* fillValue= */ 30);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mCornerRadius).isEqualTo(INVALID_CORNER_RADIUS);
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_shouldIgnoreCornerRadius_roundedCornersNotSet_dynamicDisabled() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
         fillRoundedCornersResources(/* fillValue= */ 30);
@@ -379,47 +431,98 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                /* shouldIgnoreCornerRadius= */ true,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
-        assertThat(relayoutParams.mCornerRadius).isGreaterThan(0);
+        assertThat(relayoutParams.mCornerRadius).isEqualTo(INVALID_CORNER_RADIUS);
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreSetForFreeform() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mShadowRadiusId).isNotEqualTo(Resources.ID_NULL);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreNotSetForFullscreen() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mShadowRadiusId).isEqualTo(Resources.ID_NULL);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_windowShadowsAreNotSetForSplit() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mShadowRadiusId).isEqualTo(Resources.ID_NULL);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersSetForFreeform() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mShadowRadiusId).isNotEqualTo(Resources.ID_NULL);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
     public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersNotSetForFullscreen() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
-        fillRoundedCornersResources(/* fillValue= */ 30);
         RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
-        assertThat(relayoutParams.mCornerRadius).isEqualTo(INVALID_CORNER_RADIUS);
+        assertThat(relayoutParams.mCornerRadiusId).isEqualTo(Resources.ID_NULL);
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
     public void updateRelayoutParams_noSysPropFlagsSet_roundedCornersNotSetForSplit() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
-        fillRoundedCornersResources(/* fillValue= */ 30);
+        RelayoutParams relayoutParams = new RelayoutParams();
+
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat(relayoutParams.mCornerRadiusId).isEqualTo(Resources.ID_NULL);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DYNAMIC_RADIUS_COMPUTATION_BUGFIX)
+    public void updateRelayoutParams_shouldIgnoreCornerRadius_roundedCornersNotSet() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
         RelayoutParams relayoutParams = new RelayoutParams();
 
         DesktopModeWindowDecoration.updateRelayoutParams(
@@ -427,16 +530,19 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                /* shouldIgnoreCornerRadius= */ true,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
-        assertThat(relayoutParams.mCornerRadius).isEqualTo(INVALID_CORNER_RADIUS);
+        assertThat(relayoutParams.mCornerRadiusId).isEqualTo(Resources.ID_NULL);
     }
 
     @Test
@@ -450,19 +556,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.densityDpi = customTaskDensity;
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mWindowDecorConfig.densityDpi).isEqualTo(customTaskDensity);
     }
@@ -479,19 +573,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.densityDpi = customTaskDensity;
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mWindowDecorConfig.densityDpi).isEqualTo(systemDensity);
     }
@@ -505,19 +587,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.hasInputFeatureSpy()).isTrue();
     }
@@ -531,19 +601,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mLimitTouchRegionToSystemAreas).isTrue();
     }
@@ -556,19 +614,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.taskDescription.setTopOpaqueSystemBarsAppearance(0);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.hasInputFeatureSpy()).isFalse();
     }
@@ -581,19 +627,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.taskDescription.setTopOpaqueSystemBarsAppearance(0);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mLimitTouchRegionToSystemAreas).isFalse();
     }
@@ -605,19 +639,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.hasInputFeatureSpy()).isFalse();
     }
@@ -629,19 +651,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mLimitTouchRegionToSystemAreas).isFalse();
     }
@@ -652,19 +662,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(hasNoInputChannelFeature(relayoutParams)).isFalse();
     }
@@ -676,19 +674,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(hasNoInputChannelFeature(relayoutParams)).isTrue();
     }
@@ -700,19 +686,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(hasNoInputChannelFeature(relayoutParams)).isTrue();
     }
@@ -725,19 +699,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.taskDescription.setTopOpaqueSystemBarsAppearance(0);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat((relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING) != 0).isTrue();
     }
@@ -751,21 +713,78 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
+        updateRelayoutParams(relayoutParams, taskInfo);
+
+        assertThat((relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING) == 0).isTrue();
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ENABLE_CAPTION_COMPAT_INSET_FORCE_CONSUMPTION,
+            Flags.FLAG_ENABLE_CAPTION_COMPAT_INSET_FORCE_CONSUMPTION_ALWAYS})
+    public void updateRelayoutParams_excludeCaptionTrue_forceConsumptionFalse() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
+        taskInfo.taskDescription.setTopOpaqueSystemBarsAppearance(0);
+        final RelayoutParams relayoutParams = new RelayoutParams();
+
         DesktopModeWindowDecoration.updateRelayoutParams(
                 relayoutParams,
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                /* shouldExcludeCaptionFromAppBounds */ true);
 
+        // Force consuming flags are disabled.
         assertThat((relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING) == 0).isTrue();
+        assertThat(
+                (relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING_OPAQUE_CAPTION_BAR) == 0)
+                .isTrue();
+        // Exclude caption from app bounds is true.
+        assertThat(relayoutParams.mShouldSetAppBounds).isTrue();
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ENABLE_CAPTION_COMPAT_INSET_FORCE_CONSUMPTION,
+            Flags.FLAG_ENABLE_CAPTION_COMPAT_INSET_FORCE_CONSUMPTION_ALWAYS})
+    public void updateRelayoutParams_excludeCaptionFalse_forceConsumptionTrue() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
+        taskInfo.taskDescription.setTopOpaqueSystemBarsAppearance(0);
+        final RelayoutParams relayoutParams = new RelayoutParams();
+
+        DesktopModeWindowDecoration.updateRelayoutParams(
+                relayoutParams,
+                mTestableContext,
+                taskInfo,
+                mMockSplitScreenController,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
+                new InsetsState(),
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
+
+        assertThat((relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING) != 0).isTrue();
+        assertThat(
+                (relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING_OPAQUE_CAPTION_BAR) != 0)
+                .isTrue();
+        // Exclude caption from app bounds is false.
+        assertThat(relayoutParams.mShouldSetAppBounds).isFalse();
     }
 
     @Test
@@ -775,19 +794,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(
                 (relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING_OPAQUE_CAPTION_BAR) != 0)
@@ -801,19 +808,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(
                 (relayoutParams.mInsetSourceFlags & FLAG_FORCE_CONSUMING_OPAQUE_CAPTION_BAR) == 0)
@@ -828,19 +823,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         when(mMockSplitScreenController.getSplitPosition(taskInfo.taskId))
                 .thenReturn(SPLIT_POSITION_BOTTOM_OR_RIGHT);
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ true,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         assertThat(relayoutParams.mIsInsetSource).isTrue();
     }
@@ -863,14 +846,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
                 /* inFullImmersiveMode */ true,
+                DEFAULT_IS_DRAGGING,
                 insetsState,
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         // Takes status bar inset as padding, ignores caption bar inset.
         assertThat(relayoutParams.mCaptionTopPadding).isEqualTo(50);
@@ -888,14 +874,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
                 /* inFullImmersiveMode */ true,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsInsetSource).isFalse();
     }
@@ -912,14 +901,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
                 /* isStatusBarVisible */ false,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         // Header is always shown because it's assumed the status bar is always visible.
         assertThat(relayoutParams.mIsCaptionVisible).isTrue();
@@ -936,14 +928,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
                 /* isStatusBarVisible */ true,
                 /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsCaptionVisible).isTrue();
     }
@@ -959,14 +954,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
                 /* isStatusBarVisible */ false,
-                /* isKeyguardVisibleAndOccluded */ false,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsCaptionVisible).isFalse();
     }
@@ -982,14 +980,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
                 /* isKeyguardVisibleAndOccluded */ true,
-                /* inFullImmersiveMode */ false,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsCaptionVisible).isFalse();
     }
@@ -1006,14 +1007,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
                 /* isStatusBarVisible */ true,
-                /* isKeyguardVisibleAndOccluded */ false,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
                 /* inFullImmersiveMode */ true,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsCaptionVisible).isTrue();
 
@@ -1022,16 +1026,46 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
                 /* isStatusBarVisible */ false,
-                /* isKeyguardVisibleAndOccluded */ false,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
                 /* inFullImmersiveMode */ true,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsCaptionVisible).isFalse();
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_IMMERSIVE_DRAG_BUGFIX)
+    public void updateRelayoutParams_header_fullyImmersive_captionVisDuringDrag() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(/* visible= */ true);
+        taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
+        final RelayoutParams relayoutParams = new RelayoutParams();
+
+        DesktopModeWindowDecoration.updateRelayoutParams(
+                relayoutParams,
+                mTestableContext,
+                taskInfo,
+                mMockSplitScreenController,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                /* isStatusBarVisible */ false,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                /* inFullImmersiveMode */ true,
+                /* isDragging */ true,
+                new InsetsState(),
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
+
+        assertThat(relayoutParams.mIsCaptionVisible).isTrue();
     }
 
     @Test
@@ -1046,14 +1080,17 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 mTestableContext,
                 taskInfo,
                 mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop */ false,
-                /* isStatusBarVisible */ true,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
                 /* isKeyguardVisibleAndOccluded */ true,
                 /* inFullImmersiveMode */ true,
+                DEFAULT_IS_DRAGGING,
                 new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
 
         assertThat(relayoutParams.mIsCaptionVisible).isFalse();
     }
@@ -1065,19 +1102,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FULLSCREEN);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop= */ false,
-                /* isStatusBarVisible= */ true,
-                /* isKeyguardVisibleAndOccluded= */ false,
-                /* inFullImmersiveMode= */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         // App Handles don't need to be rendered in sync with the task animation, per UX.
         assertThat(relayoutParams.mAsyncViewHost).isTrue();
@@ -1090,19 +1115,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         taskInfo.configuration.windowConfiguration.setWindowingMode(WINDOWING_MODE_FREEFORM);
         final RelayoutParams relayoutParams = new RelayoutParams();
 
-        DesktopModeWindowDecoration.updateRelayoutParams(
-                relayoutParams,
-                mTestableContext,
-                taskInfo,
-                mMockSplitScreenController,
-                /* applyStartTransactionOnDraw= */ true,
-                /* shouldSetTaskPositionAndCrop= */ false,
-                /* isStatusBarVisible= */ true,
-                /* isKeyguardVisibleAndOccluded= */ false,
-                /* inFullImmersiveMode= */ false,
-                new InsetsState(),
-                /* hasGlobalFocus= */ true,
-                mExclusionRegion);
+        updateRelayoutParams(relayoutParams, taskInfo);
 
         // App Headers must be rendered in sync with the task animation, so it cannot be delayed.
         assertThat(relayoutParams.mAsyncViewHost).isFalse();
@@ -1145,8 +1158,8 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
         createMaximizeMenu(decoration);
 
-        verify(menu).show(anyBoolean(), anyInt(), anyBoolean(), anyBoolean(), any(), any(), any(),
-                any(), mOnMaxMenuHoverChangeListener.capture(), any());
+        verify(menu).show(anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any(),
+                mOnMaxMenuHoverChangeListener.capture(), any());
         assertTrue(decoration.isMaximizeMenuActive());
     }
 
@@ -1158,8 +1171,8 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 new FakeMaximizeMenuFactory(menu));
         decoration.setAppHeaderMaximizeButtonHovered(false);
         createMaximizeMenu(decoration);
-        verify(menu).show(anyBoolean(), anyInt(), anyBoolean(), anyBoolean(), any(), any(), any(),
-                any(), mOnMaxMenuHoverChangeListener.capture(), any());
+        verify(menu).show(anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any(),
+                mOnMaxMenuHoverChangeListener.capture(), any());
 
         mOnMaxMenuHoverChangeListener.getValue().invoke(false);
 
@@ -1197,8 +1210,8 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         final DesktopModeWindowDecoration decoration = createWindowDecoration(taskInfo,
                 new FakeMaximizeMenuFactory(menu));
         createMaximizeMenu(decoration);
-        verify(menu).show(anyBoolean(), anyInt(), anyBoolean(), anyBoolean(), any(), any(), any(),
-                any(), mOnMaxMenuHoverChangeListener.capture(), any());
+        verify(menu).show(anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any(),
+                mOnMaxMenuHoverChangeListener.capture(), any());
 
         mOnMaxMenuHoverChangeListener.getValue().invoke(true);
 
@@ -1212,8 +1225,8 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         final DesktopModeWindowDecoration decoration = createWindowDecoration(taskInfo,
                 new FakeMaximizeMenuFactory(menu));
         createMaximizeMenu(decoration);
-        verify(menu).show(anyBoolean(), anyInt(), anyBoolean(), anyBoolean(), any(), any(), any(),
-                any(), mOnMaxMenuHoverChangeListener.capture(), any());
+        verify(menu).show(anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any(),
+                mOnMaxMenuHoverChangeListener.capture(), any());
 
         decoration.setAppHeaderMaximizeButtonHovered(true);
 
@@ -1233,7 +1246,6 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
         verify(menu).show(
                 anyBoolean(),
-                anyInt(),
                 /* showImmersiveOption= */ eq(true),
                 anyBoolean(),
                 any(),
@@ -1258,7 +1270,6 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
         verify(menu).show(
                 anyBoolean(),
-                anyInt(),
                 /* showImmersiveOption= */ eq(false),
                 anyBoolean(),
                 any(),
@@ -1283,7 +1294,6 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
         verify(menu).show(
                 anyBoolean(),
-                anyInt(),
                 anyBoolean(),
                 /* showSnapOptions= */ eq(true),
                 any(),
@@ -1308,7 +1318,6 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
         verify(menu).show(
                 anyBoolean(),
-                anyInt(),
                 anyBoolean(),
                 /* showSnapOptions= */ eq(false),
                 any(),
@@ -1322,11 +1331,11 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
     @Test
     @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_WINDOWING_APP_TO_WEB)
-    public void capturedLink_handleMenuBrowserLinkSetToCapturedLinkIfValid() {
+    public void capturedLink_CapturedLinkUsedIfValidAndWebUriUnavailable() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
-                taskInfo, TEST_URI1 /* captured link */, TEST_URI2 /* web uri */,
-                TEST_URI3 /* generic link */);
+                taskInfo, TEST_URI1 /* captured link */, null /* web uri */,
+                null /* session transfer uri */, TEST_URI4 /* generic link */);
 
         // Verify handle menu's browser link set as captured link
         createHandleMenu(decor);
@@ -1339,7 +1348,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
                 taskInfo, TEST_URI1 /* captured link */, null /* web uri */,
-                null /* generic link */);
+                null /* session transfer uri */, null /* generic link */);
         final ArgumentCaptor<Function1<Intent, Unit>> openInBrowserCaptor =
                 ArgumentCaptor.forClass(Function1.class);
 
@@ -1350,7 +1359,9 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 any(),
                 any(),
                 any(),
+                any(),
                 openInBrowserCaptor.capture(),
+                any(),
                 any(),
                 any(),
                 any(),
@@ -1373,7 +1384,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
                 taskInfo, TEST_URI1 /* captured link */, null /* web uri */,
-                null /* generic link */);
+                null /* session transfer uri */, null /* generic link */);
         final ArgumentCaptor<Function1<Intent, Unit>> openInBrowserCaptor =
                 ArgumentCaptor.forClass(Function1.class);
 
@@ -1386,7 +1397,9 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 any(),
                 any(),
                 any(),
+                any(),
                 openInBrowserCaptor.capture(),
+                any(),
                 any(),
                 any(),
                 any(),
@@ -1406,7 +1419,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
                 taskInfo, TEST_URI1 /* captured link */, null /* web uri */,
-                null /* generic link */);
+                null /* session transfer uri */, null /* generic link */);
         final ArgumentCaptor<Function1<Intent, Unit>> openInBrowserCaptor =
                 ArgumentCaptor.forClass(Function1.class);
         createHandleMenu(decor);
@@ -1417,7 +1430,9 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 any(),
                 any(),
                 any(),
+                any(),
                 openInBrowserCaptor.capture(),
+                any(),
                 any(),
                 any(),
                 any(),
@@ -1432,11 +1447,23 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
     @Test
     @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_WINDOWING_APP_TO_WEB)
-    public void webUriLink_webUriLinkUsedWhenCapturedLinkUnavailable() {
+    public void sessionTransferUri_sessionTransferUriUsedWhenWhenAvailable() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
-                taskInfo, null /* captured link */, TEST_URI2 /* web uri */,
-                TEST_URI3 /* generic link */);
+                taskInfo, TEST_URI1 /* captured link */, TEST_URI2 /* web uri */,
+                TEST_URI3 /* session transfer uri */, TEST_URI4 /* generic link */);
+        // Verify handle menu's browser link set as web uri link when captured link is unavailable
+        createHandleMenu(decor);
+        verifyHandleMenuCreated(TEST_URI3);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_WINDOWING_APP_TO_WEB)
+    public void webUri_webUriUsedWhenSessionTransferUriUnavailable() {
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
+        final DesktopModeWindowDecoration decor = createWindowDecoration(
+                taskInfo, TEST_URI1 /* captured link */, TEST_URI2 /* web uri */,
+                null /* session transfer uri */, TEST_URI4 /* generic link */);
         // Verify handle menu's browser link set as web uri link when captured link is unavailable
         createHandleMenu(decor);
         verifyHandleMenuCreated(TEST_URI2);
@@ -1444,16 +1471,16 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
     @Test
     @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_WINDOWING_APP_TO_WEB)
-    public void genericLink_genericLinkUsedWhenCapturedLinkAndWebUriUnavailable() {
+    public void genericLink_genericLinkUsedWhenCapturedLinkAndAssistContentUriUnavailable() {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
                 taskInfo, null /* captured link */, null /* web uri */,
-                TEST_URI3 /* generic link */);
+                null /* session transfer uri */, TEST_URI4 /* generic link */);
 
         // Verify handle menu's browser link set as generic link when captured link and web uri link
         // are unavailable
         createHandleMenu(decor);
-        verifyHandleMenuCreated(TEST_URI3);
+        verifyHandleMenuCreated(TEST_URI4);
     }
 
     @Test
@@ -1465,6 +1492,8 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 ArgumentCaptor.forClass(Function0.class);
         createHandleMenu(decoration);
         verify(mMockHandleMenu).show(
+                any(),
+                any(),
                 any(),
                 any(),
                 any(),
@@ -1495,6 +1524,8 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         createHandleMenu(decoration);
 
         verify(mMockHandleMenu).show(
+                any(),
+                any(),
                 any(),
                 any(),
                 any(),
@@ -1637,7 +1668,26 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
 
     @Test
     @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_WINDOWING_APP_TO_WEB)
-    public void browserApp_webUriUsedForBrowserApp() {
+    public void browserApp_transferSessionUriUsedForBrowserAppWhenAvailable() {
+        // Make {@link AppToWebUtils#isBrowserApp} return true
+        ResolveInfo browserResolveInfo = createResolveInfo(true /* handleAllWebUriData */);
+        when(mMockPackageManager.queryIntentActivitiesAsUser(any(), anyInt(), anyInt()))
+                .thenReturn(List.of(browserResolveInfo));
+
+        final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
+        final DesktopModeWindowDecoration decor = createWindowDecoration(
+                taskInfo, TEST_URI1 /* captured link */, TEST_URI2 /* web uri */,
+                null /* transfer session uri */, TEST_URI4 /* generic link */);
+
+        // Verify web uri used for browser applications
+        createHandleMenu(decor);
+        verifyHandleMenuCreated(TEST_URI2);
+    }
+
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_DESKTOP_WINDOWING_APP_TO_WEB)
+    public void browserApp_webUriUsedForBrowserAppWhenTransferSessionUriUnavailable() {
         // Make {@link AppToWebUtils#isBrowserApp} return true
         ResolveInfo resolveInfo = new ResolveInfo();
         resolveInfo.handleAllWebDataURI = true;
@@ -1648,20 +1698,20 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         final ActivityManager.RunningTaskInfo taskInfo = createTaskInfo(true /* visible */);
         final DesktopModeWindowDecoration decor = createWindowDecoration(
                 taskInfo, TEST_URI1 /* captured link */, TEST_URI2 /* web uri */,
-                TEST_URI3 /* generic link */);
+                TEST_URI3 /* transfer session uri */, TEST_URI4 /* generic link */);
 
         // Verify web uri used for browser applications
         createHandleMenu(decor);
-        verifyHandleMenuCreated(TEST_URI2);
+        verifyHandleMenuCreated(TEST_URI3);
     }
 
 
     private void verifyHandleMenuCreated(@Nullable Uri uri) {
-        verify(mMockHandleMenuFactory).create(any(), any(), anyInt(), any(), any(),
+        verify(mMockHandleMenuFactory).create(any(), any(), any(), any(), any(), anyInt(),
                 any(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
-                anyBoolean(), argThat(intent ->
+                anyBoolean(), anyBoolean(), argThat(intent ->
                         (uri == null && intent == null) || intent.getData().equals(uri)),
-                anyInt(), anyInt(), anyInt(), anyInt());
+                any(), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     private void createMaximizeMenu(DesktopModeWindowDecoration decoration) {
@@ -1690,12 +1740,33 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 R.dimen.rounded_corner_radius_bottom, fillValue);
     }
 
+    private void updateRelayoutParams(
+            RelayoutParams relayoutParams, ActivityManager.RunningTaskInfo taskInfo) {
+        DesktopModeWindowDecoration.updateRelayoutParams(
+                relayoutParams,
+                mTestableContext,
+                taskInfo,
+                mMockSplitScreenController,
+                DEFAULT_APPLY_START_TRANSACTION_ON_DRAW,
+                DEFAULT_SHOULD_SET_TASK_POSITIONING_AND_CROP,
+                DEFAULT_IS_STATUSBAR_VISIBLE,
+                DEFAULT_IS_KEYGUARD_VISIBLE_AND_OCCLUDED,
+                DEFAULT_IS_IN_FULL_IMMERSIVE_MODE,
+                DEFAULT_IS_DRAGGING,
+                new InsetsState(),
+                DEFAULT_HAS_GLOBAL_FOCUS,
+                mExclusionRegion,
+                DEFAULT_SHOULD_IGNORE_CORNER_RADIUS,
+                DEFAULT_SHOULD_EXCLUDE_CAPTION_FROM_APP_BOUNDS);
+    }
+
     private DesktopModeWindowDecoration createWindowDecoration(
             ActivityManager.RunningTaskInfo taskInfo, @Nullable Uri capturedLink,
-            @Nullable Uri webUri, @Nullable Uri genericLink) {
+            @Nullable Uri webUri, @Nullable Uri sessionTransferUri, @Nullable Uri genericLink) {
         taskInfo.capturedLink = capturedLink;
         taskInfo.capturedLinkTimestamp = System.currentTimeMillis();
         mAssistContent.setWebUri(webUri);
+        mAssistContent.setSessionTransferUri(sessionTransferUri);
         final String genericLinkString = genericLink == null ? null : genericLink.toString();
         doReturn(genericLinkString).when(mMockGenericLinksParser).getGenericLink(any());
         // Relayout to set captured link
@@ -1724,15 +1795,18 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
             MaximizeMenuFactory maximizeMenuFactory,
             boolean relayout) {
         final DesktopModeWindowDecoration windowDecor = new DesktopModeWindowDecoration(mContext,
-                mContext, mMockDisplayController, mMockSplitScreenController,
-                mMockDesktopUserRepositories, mMockShellTaskOrganizer, taskInfo,
-                mMockSurfaceControl, mMockHandler, mBgExecutor, mMockChoreographer, mMockSyncQueue,
-                mMockAppHeaderViewHolderFactory, mMockRootTaskDisplayAreaOrganizer,
+                mContext, mMockDisplayController, mMockTaskResourceLoader,
+                mMockSplitScreenController, mMockDesktopUserRepositories, mMockShellTaskOrganizer,
+                taskInfo, mMockSurfaceControl, mMockHandler, mMainExecutor,
+                mMockMainCoroutineDispatcher, mMockBgCoroutineScope, mBgExecutor,
+                mMockChoreographer, mMockSyncQueue, mMockAppHeaderViewHolderFactory,
+                mMockAppHandleViewHolderFactory, mMockRootTaskDisplayAreaOrganizer,
                 mMockGenericLinksParser, mMockAssistContentRequester, SurfaceControl.Builder::new,
                 mMockTransactionSupplier, WindowContainerTransaction::new, SurfaceControl::new,
                 new WindowManagerWrapper(mMockWindowManager), mMockSurfaceControlViewHostFactory,
                 mMockWindowDecorViewHostSupplier, maximizeMenuFactory, mMockHandleMenuFactory,
-                mMockMultiInstanceHelper, mMockCaptionHandleRepository, mDesktopModeEventLogger);
+                mMockMultiInstanceHelper, mMockCaptionHandleRepository, mDesktopModeEventLogger,
+                mDesktopModeUiEventLogger, mDesktopModeCompatPolicy);
         windowDecor.setCaptionListeners(mMockTouchEventListener, mMockTouchEventListener,
                 mMockTouchEventListener, mMockTouchEventListener);
         windowDecor.setExclusionRegionListener(mMockExclusionRegionListener);
@@ -1744,6 +1818,13 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         return windowDecor;
     }
 
+    private ResolveInfo createResolveInfo(boolean handleAllWebDataURI) {
+        final ResolveInfo info = new ResolveInfo();
+        info.handleAllWebDataURI = handleAllWebDataURI;
+        info.activityInfo = createActivityInfo();
+        return info;
+    }
+
     private ActivityManager.RunningTaskInfo createTaskInfo(boolean visible) {
         final ActivityManager.TaskDescription.Builder taskDescriptionBuilder =
                 new ActivityManager.TaskDescription.Builder();
@@ -1752,10 +1833,12 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 .setTaskDescriptionBuilder(taskDescriptionBuilder)
                 .setVisible(visible)
                 .build();
+        taskInfo.isVisibleRequested = visible;
         taskInfo.realActivity = new ComponentName("com.android.wm.shell.windowdecor",
                 "DesktopModeWindowDecorationTests");
         taskInfo.baseActivity = new ComponentName("com.android.wm.shell.windowdecor",
                 "DesktopModeWindowDecorationTests");
+        taskInfo.topActivityInfo = createActivityInfo();
         return taskInfo;
 
     }
@@ -1772,6 +1855,7 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
         applicationInfo.packageName = "DesktopModeWindowDecorationTestPackage";
         final ActivityInfo activityInfo = new ActivityInfo();
         activityInfo.applicationInfo = applicationInfo;
+        activityInfo.packageName = "DesktopModeWindowDecorationTestPackage";
         activityInfo.name = "DesktopModeWindowDecorationTest";
         return activityInfo;
     }
@@ -1845,8 +1929,11 @@ public class DesktopModeWindowDecorationTests extends ShellTestCase {
                 @NonNull RootTaskDisplayAreaOrganizer rootTdaOrganizer,
                 @NonNull DisplayController displayController,
                 @NonNull ActivityManager.RunningTaskInfo taskInfo,
-                @NonNull Context decorWindowContext, @NonNull PointF menuPosition,
-                @NonNull Supplier<SurfaceControl.Transaction> transactionSupplier) {
+                @NonNull Context decorWindowContext,
+                @NonNull Function2<? super Integer,? super Integer,? extends Point>
+                    positionSupplier,
+                @NonNull Supplier<SurfaceControl.Transaction> transactionSupplier,
+                @NonNull DesktopModeUiEventLogger desktopModeUiEventLogger) {
             return mMaximizeMenu;
         }
     }

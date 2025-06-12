@@ -29,6 +29,7 @@ import android.util.LruCache;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 class DateTimeFormat {
     private static final FormatterCache CACHED_FORMATTERS = new FormatterCache();
 

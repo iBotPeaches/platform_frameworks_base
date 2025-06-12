@@ -30,12 +30,17 @@ import android.media.AudioRoutesInfo;
 import android.media.IAudioRoutesObserver;
 import android.media.MediaRoute2Info;
 import android.os.RemoteException;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.text.TextUtils;
 
 import com.android.internal.R;
+import com.android.media.flags.Flags;
 import com.android.server.audio.AudioService;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -48,6 +53,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 @RunWith(Enclosed.class)
 public class LegacyDeviceRouteControllerTest {
@@ -70,6 +76,11 @@ public class LegacyDeviceRouteControllerTest {
 
     @RunWith(JUnit4.class)
     public static class DefaultDeviceRouteValueTest {
+
+        @Rule
+        public final CheckFlagsRule mCheckFlagsRule =
+                DeviceFlagsValueProvider.createCheckFlagsRule();
+
         @Mock
         private Context mContext;
         @Mock
@@ -135,6 +146,23 @@ public class LegacyDeviceRouteControllerTest {
             assertThat(TextUtils.equals(actualMediaRoute.getName(), DEFAULT_ROUTE_NAME))
                     .isTrue();
             assertThat(actualMediaRoute.getVolume()).isEqualTo(VOLUME_DEFAULT_VALUE);
+        }
+
+        @RequiresFlagsEnabled(Flags.FLAG_ENABLE_FIX_FOR_EMPTY_SYSTEM_ROUTES_CRASH)
+        @Test
+        public void getAvailableRoutes_matchesSelectedRoute() {
+            when(mResources.getText(R.string.default_audio_route_name))
+                    .thenReturn(DEFAULT_ROUTE_NAME);
+
+            when(mAudioService.startWatchingRoutes(any())).thenReturn(null);
+
+            LegacyDeviceRouteController deviceRouteController =
+                    new LegacyDeviceRouteController(
+                            mContext, mAudioManager, mAudioService, mOnDeviceRouteChangedListener);
+
+            MediaRoute2Info selectedRoute = deviceRouteController.getSelectedRoute();
+            assertThat(deviceRouteController.getAvailableRoutes())
+                    .isEqualTo(List.of(selectedRoute));
         }
     }
 

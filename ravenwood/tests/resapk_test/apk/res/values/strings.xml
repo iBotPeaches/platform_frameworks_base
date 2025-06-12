@@ -13,7 +13,10 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Test string 1 -->
     <string name="test_string_1" translatable="false" >Test String 1</string>
+    <!-- values can only use readonly flags -->
+    <string name="test_string_enabled" translatable="false" android:featureFlag="com.android.internal.os.ravenwood_flag_ro_2">Enabled</string>
+    <string name="test_string_disabled" translatable="false" android:featureFlag="com.android.internal.os.ravenwood_flag_ro_1">Disabled</string>
 </resources>

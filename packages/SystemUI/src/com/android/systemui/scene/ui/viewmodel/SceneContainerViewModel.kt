@@ -19,6 +19,7 @@ package com.android.systemui.scene.ui.viewmodel
 import android.view.MotionEvent
 import android.view.View
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.dp
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.DefaultEdgeDetector
@@ -30,17 +31,23 @@ import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
 import com.android.systemui.classifier.Classifier
 import com.android.systemui.classifier.domain.interactor.FalsingInteractor
+import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
+import com.android.systemui.keyguard.ui.viewmodel.AodBurnInViewModel
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
+import com.android.systemui.keyguard.ui.viewmodel.LightRevealScrimViewModel
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.logger.SceneLogger
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.ui.composable.Overlay
-import com.android.systemui.shade.domain.interactor.ShadeInteractor
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.statusbar.domain.interactor.RemoteInputInteractor
 import com.android.systemui.statusbar.notification.stack.ui.view.SharedNotificationContainer
+import com.android.systemui.wallpapers.ui.viewmodel.WallpaperViewModel
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -57,11 +64,15 @@ constructor(
     private val sceneInteractor: SceneInteractor,
     private val falsingInteractor: FalsingInteractor,
     private val powerInteractor: PowerInteractor,
-    shadeInteractor: ShadeInteractor,
+    shadeModeInteractor: ShadeModeInteractor,
     private val remoteInputInteractor: RemoteInputInteractor,
-    private val splitEdgeDetector: SplitEdgeDetector,
     private val logger: SceneLogger,
     hapticsViewModelFactory: SceneContainerHapticsViewModel.Factory,
+    val lightRevealScrim: LightRevealScrimViewModel,
+    val wallpaperViewModel: WallpaperViewModel,
+    keyguardInteractor: KeyguardInteractor,
+    val burnIn: AodBurnInViewModel,
+    val clock: KeyguardClockViewModel,
     @Assisted view: View,
     @Assisted private val motionEventHandlerReceiver: (MotionEventHandler?) -> Unit,
 ) : ExclusiveActivatable() {
@@ -76,20 +87,32 @@ constructor(
 
     val allContentKeys: List<ContentKey> = sceneInteractor.allContentKeys
 
-    private val hapticsViewModel = hapticsViewModelFactory.create(view)
+    val hapticsViewModel: SceneContainerHapticsViewModel = hapticsViewModelFactory.create(view)
 
     /**
-     * The [SwipeSourceDetector] to use for defining which edges of the screen can be defined in the
+     * The [SwipeSourceDetector] to use for defining which areas of the screen can be defined in the
      * [UserAction]s for this container.
      */
-    val edgeDetector: SwipeSourceDetector by
+    val swipeSourceDetector: SwipeSourceDetector by
         hydrator.hydratedStateOf(
-            traceName = "edgeDetector",
+            traceName = "swipeSourceDetector",
             initialValue = DefaultEdgeDetector,
             source =
-                shadeInteractor.shadeMode.map {
-                    if (it is ShadeMode.Dual) splitEdgeDetector else DefaultEdgeDetector
+                shadeModeInteractor.shadeMode.map {
+                    if (it is ShadeMode.Dual) {
+                        SceneContainerSwipeDetector(edgeSize = 40.dp)
+                    } else {
+                        DefaultEdgeDetector
+                    }
                 },
+        )
+
+    /** Amount of color saturation for the Flexi🥃 ribbon. */
+    val ribbonColorSaturation: Float by
+        hydrator.hydratedStateOf(
+            traceName = "ribbonColorSaturation",
+            source = keyguardInteractor.dozeAmount.map { 1 - it },
+            initialValue = 1f,
         )
 
     override suspend fun onActivated(): Nothing {
@@ -196,38 +219,45 @@ constructor(
      * it being a false touch.
      */
     fun canChangeScene(toScene: SceneKey): Boolean {
-        val interactionTypeOrNull =
-            when (toScene) {
-                Scenes.Bouncer -> Classifier.BOUNCER_UNLOCK
-                Scenes.Gone -> Classifier.UNLOCK
-                Scenes.Shade -> Classifier.NOTIFICATION_DRAG_DOWN
-                Scenes.QuickSettings -> Classifier.QUICK_SETTINGS
-                else -> null
+        return isInteractionAllowedByFalsing(toScene).also { sceneChangeAllowed ->
+            if (sceneChangeAllowed) {
+                // A scene change is guaranteed; log it.
+                logger.logSceneChanged(
+                    from = currentScene.value,
+                    to = toScene,
+                    sceneState = null,
+                    reason = "user interaction",
+                    isInstant = false,
+                )
+            } else {
+                logger.logSceneChangeRejection(
+                    from = currentScene.value,
+                    to = toScene,
+                    originalChangeReason = null,
+                    rejectionReason = "Falsing: false touch detected",
+                )
             }
+        }
+    }
 
-        val fromScene = currentScene.value
-        val isAllowed =
-            interactionTypeOrNull?.let { interactionType ->
-                // It's important that the falsing system is always queried, even if no enforcement
-                // will occur. This helps build up the right signal in the system.
-                val isFalseTouch = falsingInteractor.isFalseTouch(interactionType)
-
-                // Only enforce falsing if moving from the lockscreen scene to a new scene.
-                val fromLockscreenScene = fromScene == Scenes.Lockscreen
-
-                !fromLockscreenScene || !isFalseTouch
-            } ?: true
-
-        if (isAllowed) {
-            // A scene change is guaranteed; log it.
-            logger.logSceneChanged(
-                from = fromScene,
-                to = toScene,
+    /**
+     * Returns `true` if showing the [newlyShown] overlay is currently allowed; `false` otherwise.
+     *
+     * This is invoked only for user-initiated transitions. The goal is to check with the falsing
+     * system whether the overlay change should be rejected due to it being a false touch.
+     */
+    fun canShowOrReplaceOverlay(
+        newlyShown: OverlayKey,
+        beingReplaced: OverlayKey? = null,
+    ): Boolean {
+        return isInteractionAllowedByFalsing(newlyShown).also {
+            // An overlay change is guaranteed; log it.
+            logger.logOverlayChangeRequested(
+                from = beingReplaced,
+                to = newlyShown,
                 reason = "user interaction",
-                isInstant = false,
             )
         }
-        return isAllowed
     }
 
     /**
@@ -288,6 +318,34 @@ constructor(
         unfiltered: Flow<Map<UserAction, UserActionResult>>
     ): Flow<Map<UserAction, UserActionResult>> {
         return sceneInteractor.filteredUserActions(unfiltered)
+    }
+
+    /**
+     * Returns `true` if transitioning to [content] is permissible by the falsing system; `false`
+     * otherwise.
+     */
+    private fun isInteractionAllowedByFalsing(content: ContentKey): Boolean {
+        val interactionTypeOrNull =
+            when (content) {
+                Overlays.Bouncer -> Classifier.BOUNCER_UNLOCK
+                Scenes.Gone -> Classifier.UNLOCK
+                Scenes.Shade,
+                Overlays.NotificationsShade -> Classifier.NOTIFICATION_DRAG_DOWN
+                Scenes.QuickSettings,
+                Overlays.QuickSettingsShade -> Classifier.QUICK_SETTINGS
+                else -> null
+            }
+
+        return interactionTypeOrNull?.let { interactionType ->
+            // It's important that the falsing system is always queried, even if no enforcement
+            // will occur. This helps build up the right signal in the system.
+            val isFalseTouch = falsingInteractor.isFalseTouch(interactionType)
+
+            // Only enforce falsing if moving from the lockscreen scene to new content.
+            val fromLockscreenScene = currentScene.value == Scenes.Lockscreen
+
+            !fromLockscreenScene || !isFalseTouch
+        } ?: true
     }
 
     /** Defines interface for classes that can handle externally-reported [MotionEvent]s. */

@@ -18,10 +18,16 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Kaasseadme haldur"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Kas anda rakendusele &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; juurdepääs seadmele &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Veenduge, et seadmes <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> oleks <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> sisse lülitatud, ja hoidke oma <xliff:g id="PROFILE_NAME">%3$s</xliff:g> läheduses."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Seadmeid ei leitud. Proovige hiljem uuesti."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"WiFi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth ja WiFi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"käekell"</string>
-    <string name="chooser_title_non_profile" msgid="6035023914517087400">"Valige seade, mida haldab rakendus &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Valige <xliff:g id="PROFILE_NAME">%1$s</xliff:g>, mis seadistada"</string>
-    <string name="summary_watch" msgid="8134580124808507407">"Sellel rakendusel lubatakse sünkroonida teavet (nt helistaja nime) ja antakse juurdepääs nendele lubadele, mille asukoht on teie <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
+    <string name="chooser_title_non_profile" msgid="6035023914517087400">"Valige seade, mida rakendus &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; hakkab haldama"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Valige seadistatav <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Otsimine: <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="summary_watch" msgid="8134580124808507407">"Sellel rakendusel lubatakse sünkroonida teavet (nt helistaja nime) ja antakse juurdepääs nendele teie seadme <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> lubadele."</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Lubage rakendusel &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; hallata seadet &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"seade"</string>
     <string name="summary_glasses" msgid="5469208629679579157">"Sellel rakendusel lubatakse juurde pääseda nendele lubadele, mille asukoht on teie <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Kas lubada rakendusel &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; teie seadme &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; rakendusi seadmesse <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> voogesitada?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> saab juurdepääsu kõigele, mida teie seadmes <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> saab kuvada või esitada, sh helile, fotodele, makseteabele, paroolidele ja sõnumitele.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> saab rakendusi seadmesse <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> voogesitada seni, kuni juurdepääsu sellele loale eemaldate."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Rakendus <xliff:g id="APP_NAME">%1$s</xliff:g> taotleb teie seadme <xliff:g id="DEVICE_NAME">%2$s</xliff:g> nimel luba rakenduste voogesitamiseks teie seadmest <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Kas lubada rakendusel &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; teie seadmete <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> ja &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; vahel heli ja süsteemifunktsioone voogedastada?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Rakendus <xliff:g id="APP_NAME_0">%2$s</xliff:g> saab juurdepääsu kõigele, mida teie seadmes <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> esitatakse.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> saab voogedastada heli seadmesse <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, kuni selle loa eemaldate."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"seade"</string>
-    <string name="summary_generic" msgid="1761976003668044801">"See rakendus saab sünkroonida teavet, näiteks helistaja nime, teie telefoni ja valitud seadme vahel"</string>
+    <string name="summary_generic" msgid="1761976003668044801">"See rakendus saab sünkroonida teavet (näiteks helistaja nime) teie telefoni ja valitud seadme vahel."</string>
     <string name="consent_yes" msgid="8344487259618762872">"Luba"</string>
     <string name="consent_no" msgid="2640796915611404382">"Ära luba"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Tühista"</string>
     <string name="consent_back" msgid="2560683030046918882">"Tagasi"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Kerige loendis alla"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Allapoole suunatud nool"</string>
     <string name="permission_expand" msgid="893185038020887411">"Laienda: <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Ahenda: <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Kas anda rakendustele seadmes &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; samad load, mis seadmes &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

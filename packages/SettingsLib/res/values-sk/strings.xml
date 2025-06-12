@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktívne (iba ľavé)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktívne (iba pravé)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktívne (ľavé aj pravé)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Okolie sa nepodarilo aktualizovať"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktívne (iba médiá). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktívne (iba médiá). Ľ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> batérie, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batérie."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Zariadenie hosťa. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Zariadenie hosťa. Ľ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batérie."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Zariadenie hosťa (iba médiá). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Zariadenie hosťa (iba médiá). Ľ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batérie."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Pripojené (podporuje zdieľanie zvuku). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Pripojené (podporuje zdieľanie zvuku). Ľ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batérie."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Pripojené (podporuje zdieľanie zvuku). Ľavá strana: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Pripojené (podporuje zdieľanie zvuku). Pravá strana: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Pripojené (podporuje zdieľanie zvuku)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Zariadenie hosťa (podporuje zdieľanie zvuku). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batérie."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Zariadenie hosťa (podporuje zdieľanie zvuku). Ľ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, P: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batérie."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Zariadenie hosťa (podporuje zdieľanie zvuku)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktívne (iba médiá)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Zariadenie hosťa"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Zariadenie hosťa (iba médiá)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Podporuje zdieľanie zvuku"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Zariadenie hosťa. Podporuje zdieľanie zvuku."</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktívne (iba médiá), iba ľavá strana"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktívne (iba médiá), iba pravá strana"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktívne (iba médiá), ľavá aj pravá strana"</string>
@@ -287,8 +298,8 @@
     <string name="oem_unlock_enable_summary" msgid="5857388174390953829">"Povoliť odblokovanie ponuky bootloader"</string>
     <string name="confirm_enable_oem_unlock_title" msgid="8249318129774367535">"Povoliť odblokovanie OEM?"</string>
     <string name="confirm_enable_oem_unlock_text" msgid="854131050791011970">"UPOZORNENIE: Dokiaľ bude toto nastavenie zapnuté, funkcie ochrany zariadenia nebudú na tomto zariadení fungovať."</string>
-    <string name="mock_location_app" msgid="6269380172542248304">"Vybrať aplikáciu na simuláciu polohy"</string>
-    <string name="mock_location_app_not_set" msgid="6972032787262831155">"Žiadna aplikácia na simuláciu polohy"</string>
+    <string name="mock_location_app" msgid="6269380172542248304">"Vybrať aplikáciu so skúšobnou polohou"</string>
+    <string name="mock_location_app_not_set" msgid="6972032787262831155">"Žiadna aplikácia so skúšobnou polohou"</string>
     <string name="mock_location_app_set" msgid="4706722469342913843">"Aplikácia na simuláciu polohy: <xliff:g id="APP_NAME">%1$s</xliff:g>"</string>
     <string name="debug_networking_category" msgid="6829757985772659599">"Siete"</string>
     <string name="wifi_display_certification" msgid="1805579519992520381">"Certifikácia bezdrôtového zobrazenia"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Hardvérom zrýchlené vykresľovanie"</string>
     <string name="media_category" msgid="8122076702526144053">"Médiá"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Monitorovanie"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Správa okien"</string>
     <string name="strict_mode" msgid="889864762140862437">"Povoliť prísny režim"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Blikať pri dlhých operáciách hlavného vlákna"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Umiestnenie kurzora"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Mierka animácie premeny"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Mierka dĺžky animácie"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simulovať sekundárne obrazovky"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Umiestnenie zobrazenia panela"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplikácie"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Neuchovávať aktivity"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Zničiť každú aktivitu, hneď ako ju používateľ ukončí"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Implementácia WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Nastaviť implementáciu WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Táto voľba už nie je platná. Skúste to znova."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Nástroje pre vývojárov prvku WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Balík WebView sa nenašiel."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Nástroje pre vývojárov sa nepodarilo spustiť."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Farebný režim obrázka"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Použije sa sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Vypnuté"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Nabíja sa rýchlo"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Ovládané správcom"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Ovládané obmedzeným nastavením"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Počas hovorov nie je k dispozícii"</string>
     <string name="disabled" msgid="8017887509554714950">"Deaktivované"</string>
+    <string name="enabled" msgid="3997122818554810678">"Zapnuté"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Povolené"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Nie je povolené"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Inštalácia neznámych aplikácií"</string>
@@ -609,9 +627,10 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Vstavaný reproduktor"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Zvuk televízora"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Pri pripájaní sa vyskytol problém. Zariadenie vypnite a znova zapnite."</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Nedá sa pripojiť"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Audio zariadenie s káblom"</string>
     <string name="help_label" msgid="3528360748637781274">"Pomocník a spätná väzba"</string>
-    <string name="storage_category" msgid="2287342585424631813">"Priestor"</string>
+    <string name="storage_category" msgid="2287342585424631813">"Ukladací priestor"</string>
     <string name="shared_data_title" msgid="1017034836800864953">"Zdieľané údaje"</string>
     <string name="shared_data_summary" msgid="5516326713822885652">"Zobrazenie a úprava zdieľaných údajov"</string>
     <string name="shared_data_no_blobs_text" msgid="3108114670341737434">"Pre tohto používateľa nie sú k dispozícii žiadne zdieľané údaje."</string>
@@ -671,7 +690,7 @@
     <string name="not_grant_admin" msgid="3557849576157702485">"Nie, nenastaviť ako správcu"</string>
     <string name="guest_exit_dialog_button" msgid="1736401897067442044">"Ukončiť"</string>
     <string name="guest_exit_dialog_title_non_ephemeral" msgid="7675327443743162986">"Chcete uložiť aktivitu hosťa?"</string>
-    <string name="guest_exit_dialog_message_non_ephemeral" msgid="223385323235719442">"Môžte uložiť aktivitu aktuálnej relácie alebo odstrániť všetky aplikácie a údaje"</string>
+    <string name="guest_exit_dialog_message_non_ephemeral" msgid="223385323235719442">"Môžete uložiť aktivitu aktuálnej relácie alebo odstrániť všetky aplikácie a údaje"</string>
     <string name="guest_exit_clear_data_button" msgid="3425812652180679014">"Odstrániť"</string>
     <string name="guest_exit_save_data_button" msgid="3690974510644963547">"Uložiť"</string>
     <string name="guest_exit_button" msgid="5774985819191803960">"Ukončiť režim pre hostí"</string>

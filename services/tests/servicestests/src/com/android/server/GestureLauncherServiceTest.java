@@ -16,27 +16,46 @@
 
 package com.android.server;
 
-import static com.android.server.GestureLauncherService.CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS;
+import static android.service.quickaccesswallet.Flags.FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP;
+import static android.service.quickaccesswallet.Flags.FLAG_LAUNCH_WALLET_VIA_SYSUI_CALLBACKS;
+import static android.service.quickaccesswallet.Flags.launchWalletOptionOnPowerDoubleTap;
+import static android.service.quickaccesswallet.Flags.launchWalletViaSysuiCallbacks;
+
+import static com.android.server.GestureLauncherService.DOUBLE_TAP_POWER_DISABLED_MODE;
+import static com.android.server.GestureLauncherService.DOUBLE_TAP_POWER_LAUNCH_CAMERA_MODE;
+import static com.android.server.GestureLauncherService.DOUBLE_TAP_POWER_MULTI_TARGET_MODE;
+import static com.android.server.GestureLauncherService.LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER;
+import static com.android.server.GestureLauncherService.LAUNCH_WALLET_ON_DOUBLE_TAP_POWER;
+import static com.android.server.GestureLauncherService.POWER_DOUBLE_TAP_MAX_TIME_MS;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.PendingIntent;
 import android.app.StatusBarManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Looper;
 import android.os.UserHandle;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.annotations.RequiresFlagsDisabled;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.provider.Settings;
+import android.service.quickaccesswallet.QuickAccessWalletClient;
 import android.telecom.TelecomManager;
 import android.test.mock.MockContentResolver;
 import android.testing.TestableLooper;
@@ -55,6 +74,7 @@ import com.android.server.statusbar.StatusBarManagerInternal;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -62,6 +82,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Unit tests for {@link GestureLauncherService}.
@@ -90,8 +112,31 @@ public class GestureLauncherServiceTest {
     private @Mock TelecomManager mTelecomManager;
     private @Mock MetricsLogger mMetricsLogger;
     @Mock private UiEventLogger mUiEventLogger;
+    @Mock private QuickAccessWalletClient mQuickAccessWalletClient;
     private MockContentResolver mContentResolver;
     private GestureLauncherService mGestureLauncherService;
+
+    private Context mInstrumentationContext =
+            InstrumentationRegistry.getInstrumentation().getContext();
+
+    private static final String LAUNCH_TEST_WALLET_ACTION = "LAUNCH_TEST_WALLET_ACTION";
+    private static final String LAUNCH_FALLBACK_ACTION = "LAUNCH_FALLBACK_ACTION";
+    private PendingIntent mGesturePendingIntent =
+            PendingIntent.getBroadcast(
+                    mInstrumentationContext,
+                    0,
+                    new Intent(LAUNCH_TEST_WALLET_ACTION),
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
+
+    private PendingIntent mFallbackPendingIntent =
+            PendingIntent.getBroadcast(
+                    mInstrumentationContext,
+                    0,
+                    new Intent(LAUNCH_FALLBACK_ACTION),
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
+
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     @BeforeClass
     public static void oneTimeInitialization() {
@@ -115,9 +160,48 @@ public class GestureLauncherServiceTest {
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
         when(mContext.getSystemService(Context.TELECOM_SERVICE)).thenReturn(mTelecomManager);
         when(mTelecomManager.createLaunchEmergencyDialerIntent(null)).thenReturn(new Intent());
+        when(mQuickAccessWalletClient.isWalletServiceAvailable()).thenReturn(true);
 
-        mGestureLauncherService = new GestureLauncherService(mContext, mMetricsLogger,
-                mUiEventLogger);
+        mGestureLauncherService =
+                new GestureLauncherService(
+                        mContext, mMetricsLogger, mQuickAccessWalletClient, mUiEventLogger);
+
+        Settings.Secure.clearProviderForTest();
+    }
+
+    private WalletLaunchedReceiver registerWalletLaunchedReceiver(String action) {
+        IntentFilter filter = new IntentFilter(action);
+        WalletLaunchedReceiver receiver = new WalletLaunchedReceiver();
+        mInstrumentationContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+        return receiver;
+    }
+
+    /**
+     * A simple {@link BroadcastReceiver} implementation that counts down a {@link CountDownLatch}
+     * when a matching message is received
+     */
+    private static final class WalletLaunchedReceiver extends BroadcastReceiver {
+        private static final int TIMEOUT_SECONDS = 3;
+
+        private final CountDownLatch mLatch;
+
+        WalletLaunchedReceiver() {
+            mLatch = new CountDownLatch(1);
+        }
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mLatch.countDown();
+            context.unregisterReceiver(this);
+        }
+
+        Boolean waitUntilShown() {
+            try {
+                return mLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                return false;
+            }
+        }
     }
 
     @Test
@@ -133,35 +217,218 @@ public class GestureLauncherServiceTest {
     }
 
     @Test
-    public void testIsCameraDoubleTapPowerSettingEnabled_configFalseSettingDisabled() {
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagEnabled_configFalseSettingDisabled() {
+        withDoubleTapPowerModeConfigValue(
+                DOUBLE_TAP_POWER_DISABLED_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(false);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsDisabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagDisabled_configFalseSettingDisabled() {
         withCameraDoubleTapPowerEnableConfigValue(false);
         withCameraDoubleTapPowerDisableSettingValue(1);
+
         assertFalse(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
                 mContext, FAKE_USER_ID));
     }
 
     @Test
-    public void testIsCameraDoubleTapPowerSettingEnabled_configFalseSettingEnabled() {
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagEnabled_configFalseSettingEnabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_DISABLED_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsDisabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagDisabled_configFalseSettingEnabled() {
         withCameraDoubleTapPowerEnableConfigValue(false);
         withCameraDoubleTapPowerDisableSettingValue(0);
+
         assertFalse(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
                 mContext, FAKE_USER_ID));
     }
 
     @Test
-    public void testIsCameraDoubleTapPowerSettingEnabled_configTrueSettingDisabled() {
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagEnabled_configTrueSettingDisabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(false);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsDisabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagDisabled_configTrueSettingDisabled() {
         withCameraDoubleTapPowerEnableConfigValue(true);
         withCameraDoubleTapPowerDisableSettingValue(1);
+
         assertFalse(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
                 mContext, FAKE_USER_ID));
     }
 
     @Test
-    public void testIsCameraDoubleTapPowerSettingEnabled_configTrueSettingEnabled() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagEnabled_configTrueSettingEnabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
         assertTrue(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
                 mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsDisabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_flagDisabled_configTrueSettingEnabled() {
+        withCameraDoubleTapPowerEnableConfigValue(true);
+        withCameraDoubleTapPowerDisableSettingValue(0);
+
+        assertTrue(mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_launchCameraMode_settingEnabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_LAUNCH_CAMERA_MODE);
+        withCameraDoubleTapPowerDisableSettingValue(0);
+
+        assertTrue(
+                mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_launchCameraMode_settingDisabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_LAUNCH_CAMERA_MODE);
+        withCameraDoubleTapPowerDisableSettingValue(1);
+
+        assertFalse(
+                mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_actionWallet() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(
+                mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_defaultActionCamera() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDefaultDoubleTapPowerGestureActionConfig(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
+        assertTrue(
+                mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsCameraDoubleTapPowerSettingEnabled_defaultActionNotCamera() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDefaultDoubleTapPowerGestureActionConfig(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(
+                mGestureLauncherService.isCameraDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsWalletDoubleTapPowerSettingEnabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+
+        assertTrue(
+                mGestureLauncherService.isWalletDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsWalletDoubleTapPowerSettingEnabled_configDisabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_DISABLED_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(
+                mGestureLauncherService.isWalletDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsWalletDoubleTapPowerSettingEnabled_settingDisabled() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(false);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(
+                mGestureLauncherService.isWalletDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsWalletDoubleTapPowerSettingEnabled_actionCamera() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(
+                mGestureLauncherService.isWalletDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsWalletDoubleTapPowerSettingEnabled_defaultActionWallet() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDefaultDoubleTapPowerGestureActionConfig(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+
+        assertTrue(
+                mGestureLauncherService.isWalletDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testIsWalletDoubleTapPowerSettingEnabled_defaultActionNotWallet() {
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDefaultDoubleTapPowerGestureActionConfig(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+
+        assertFalse(
+                mGestureLauncherService.isWalletDoubleTapPowerSettingEnabled(
+                        mContext, FAKE_USER_ID));
     }
 
     @Test
@@ -245,12 +512,9 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_firstPowerDownCameraPowerGestureOnInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
 
-        long eventTime = INITIAL_EVENT_TIME_MILLIS +
-                CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        long eventTime = INITIAL_EVENT_TIME_MILLIS + POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
         boolean interactive = true;
@@ -284,9 +548,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalInBoundsCameraPowerGestureOffInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(false);
-        withCameraDoubleTapPowerDisableSettingValue(1);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        disableDoubleTapPowerGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -298,7 +560,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -309,7 +571,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -329,9 +591,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalMidBoundsCameraPowerGestureOffInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(false);
-        withCameraDoubleTapPowerDisableSettingValue(1);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        disableDoubleTapPowerGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -343,7 +603,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -354,7 +614,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -376,9 +636,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalOutOfBoundsCameraPowerGestureOffInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(false);
-        withCameraDoubleTapPowerDisableSettingValue(1);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        disableDoubleTapPowerGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -401,7 +659,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -422,10 +680,7 @@ public class GestureLauncherServiceTest {
     @Test
     public void
     testInterceptPowerKeyDown_intervalInBoundsCameraPowerGestureOnInteractiveSetupComplete() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
-        withUserSetupCompleteValue(true);
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -437,7 +692,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -450,7 +705,7 @@ public class GestureLauncherServiceTest {
         verify(mStatusBarManagerInternal).onCameraLaunchGestureDetected(
                 StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP);
         verify(mMetricsLogger)
-            .action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE, (int) interval);
+                .action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE, (int) interval);
         verify(mUiEventLogger, times(1))
                 .log(GestureLauncherService.GestureLauncherEvent.GESTURE_CAMERA_DOUBLE_TAP_POWER);
 
@@ -470,15 +725,164 @@ public class GestureLauncherServiceTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void
+            testInterceptPowerKeyDown_fiveInboundPresses_walletAndEmergencyEnabled_bothLaunch() {
+        WalletLaunchedReceiver receiver = registerWalletLaunchedReceiver(LAUNCH_TEST_WALLET_ACTION);
+        setUpGetGestureTargetActivityPendingIntent(mGesturePendingIntent);
+        enableEmergencyGesture();
+        enableWalletGesture();
+
+        // First event
+        long eventTime = INITIAL_EVENT_TIME_MILLIS;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, true, true);
+
+        if (launchWalletViaSysuiCallbacks()) {
+            verify(mStatusBarManagerInternal).onWalletLaunchGestureDetected();
+        } else {
+            assertTrue(receiver.waitUntilShown());
+        }
+
+        // Presses 3 and 4 should not trigger any gesture
+        for (int i = 0; i < 2; i++) {
+            eventTime += interval;
+            sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, true, false);
+        }
+
+        // Fifth button press should trigger the emergency flow
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, true, true);
+
+        verify(mUiEventLogger, times(1))
+                .log(GestureLauncherService.GestureLauncherEvent.GESTURE_EMERGENCY_TAP_POWER);
+        verify(mStatusBarManagerInternal).onEmergencyActionLaunchGestureDetected();
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testInterceptPowerKeyDown_intervalInBoundsWalletPowerGesture() {
+        WalletLaunchedReceiver receiver = registerWalletLaunchedReceiver(LAUNCH_TEST_WALLET_ACTION);
+        setUpGetGestureTargetActivityPendingIntent(mGesturePendingIntent);
+        enableWalletGesture();
+        enableEmergencyGesture();
+
+        long eventTime = INITIAL_EVENT_TIME_MILLIS;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, true, true);
+
+        if (launchWalletViaSysuiCallbacks()) {
+            verify(mStatusBarManagerInternal).onWalletLaunchGestureDetected();
+        } else {
+            assertTrue(receiver.waitUntilShown());
+        }
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    @RequiresFlagsDisabled(FLAG_LAUNCH_WALLET_VIA_SYSUI_CALLBACKS)
+    public void testInterceptPowerKeyDown_walletGestureOn_quickAccessWalletServiceUnavailable() {
+        when(mQuickAccessWalletClient.isWalletServiceAvailable()).thenReturn(false);
+        WalletLaunchedReceiver receiver = registerWalletLaunchedReceiver(LAUNCH_TEST_WALLET_ACTION);
+        setUpGetGestureTargetActivityPendingIntent(mGesturePendingIntent);
+        enableWalletGesture();
+
+        // First event
+        long eventTime = INITIAL_EVENT_TIME_MILLIS;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, true, false);
+
+        assertFalse(receiver.waitUntilShown());
+    }
+
+    @Test
+    public void testInterceptPowerKeyDown_walletGestureOn_userSetupIncomplete() {
+        WalletLaunchedReceiver receiver = registerWalletLaunchedReceiver(LAUNCH_TEST_WALLET_ACTION);
+        setUpGetGestureTargetActivityPendingIntent(mGesturePendingIntent);
+        enableWalletGesture();
+        withUserSetupCompleteValue(false);
+
+        // First event
+        long eventTime = INITIAL_EVENT_TIME_MILLIS;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        if (launchWalletViaSysuiCallbacks()) {
+            verify(mStatusBarManagerInternal, never()).onWalletLaunchGestureDetected();
+        } else {
+            assertFalse(receiver.waitUntilShown());
+        }
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    @RequiresFlagsDisabled(FLAG_LAUNCH_WALLET_VIA_SYSUI_CALLBACKS)
+    public void testInterceptPowerKeyDown_walletPowerGesture_nullPendingIntent() {
+        WalletLaunchedReceiver gestureReceiver =
+                registerWalletLaunchedReceiver(LAUNCH_TEST_WALLET_ACTION);
+        setUpGetGestureTargetActivityPendingIntent(null);
+        WalletLaunchedReceiver fallbackReceiver =
+                registerWalletLaunchedReceiver(LAUNCH_FALLBACK_ACTION);
+        setUpWalletFallbackPendingIntent(mFallbackPendingIntent);
+        enableWalletGesture();
+        enableEmergencyGesture();
+
+        // First event
+        long eventTime = INITIAL_EVENT_TIME_MILLIS;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, true, true);
+
+        assertFalse(gestureReceiver.waitUntilShown());
+        assertTrue(fallbackReceiver.waitUntilShown());
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP)
+    public void testInterceptPowerKeyDown_walletPowerGesture_intervalOutOfBounds() {
+        WalletLaunchedReceiver gestureReceiver =
+                registerWalletLaunchedReceiver(LAUNCH_TEST_WALLET_ACTION);
+        setUpGetGestureTargetActivityPendingIntent(null);
+        WalletLaunchedReceiver fallbackReceiver =
+                registerWalletLaunchedReceiver(LAUNCH_FALLBACK_ACTION);
+        setUpWalletFallbackPendingIntent(mFallbackPendingIntent);
+        enableWalletGesture();
+        enableEmergencyGesture();
+
+        // First event
+        long eventTime = INITIAL_EVENT_TIME_MILLIS;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS;
+        eventTime += interval;
+        sendPowerKeyDownToGestureLauncherServiceAndAssertValues(eventTime, false, false);
+
+        if (launchWalletViaSysuiCallbacks()) {
+            verify(mStatusBarManagerInternal, never()).onWalletLaunchGestureDetected();
+        } else {
+            assertFalse(gestureReceiver.waitUntilShown());
+            assertFalse(fallbackReceiver.waitUntilShown());
+        }
+    }
+
+    @Test
     public void
             testInterceptPowerKeyDown_fiveInboundPresses_cameraAndEmergencyEnabled_bothLaunch() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        withEmergencyGestureEnabledConfigValue(true);
-        withEmergencyGestureEnabledSettingValue(true);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
-        mGestureLauncherService.updateEmergencyGestureEnabled();
-        withUserSetupCompleteValue(true);
+        enableCameraGesture();
+        enableEmergencyGesture();
 
         // First button press does nothing
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
@@ -491,7 +895,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
 
         // 2nd button triggers camera
         eventTime += interval;
@@ -507,7 +911,7 @@ public class GestureLauncherServiceTest {
         verify(mStatusBarManagerInternal).onCameraLaunchGestureDetected(
                 StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP);
         verify(mMetricsLogger)
-            .action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE, (int) interval);
+                .action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE, (int) interval);
         verify(mUiEventLogger, times(1))
                 .log(GestureLauncherService.GestureLauncherEvent.GESTURE_CAMERA_DOUBLE_TAP_POWER);
 
@@ -580,7 +984,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         // 3 more button presses which should not trigger any gesture (camera gesture disabled)
         for (int i = 0; i < 3; i++) {
             eventTime += interval;
@@ -634,7 +1038,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         // 3 more button presses which should not trigger any gesture, but intercepts action.
         for (int i = 0; i < 3; i++) {
             eventTime += interval;
@@ -712,9 +1116,7 @@ public class GestureLauncherServiceTest {
     public void
     testInterceptPowerKeyDown_triggerEmergency_cameraGestureEnabled_doubleTap_cooldownTriggered() {
         // Enable camera double tap gesture
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
 
         // Enable power button cooldown
         withEmergencyGesturePowerButtonCooldownPeriodMsValue(3000);
@@ -737,7 +1139,7 @@ public class GestureLauncherServiceTest {
                     interactive, outLaunched);
             assertTrue(intercepted);
             assertFalse(outLaunched.value);
-            interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+            interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
             eventTime += interval;
         }
     }
@@ -765,7 +1167,7 @@ public class GestureLauncherServiceTest {
                     interactive, outLaunched);
             assertTrue(intercepted);
             assertFalse(outLaunched.value);
-            interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+            interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
             eventTime += interval;
         }
     }
@@ -901,10 +1303,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_longpress() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
-        withUserSetupCompleteValue(true);
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -916,7 +1315,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT, IGNORED_META_STATE, IGNORED_DEVICE_ID, IGNORED_SCANCODE,
@@ -947,9 +1346,7 @@ public class GestureLauncherServiceTest {
     @Test
     public void
     testInterceptPowerKeyDown_intervalInBoundsCameraPowerGestureOnInteractiveSetupIncomplete() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
         withUserSetupCompleteValue(false);
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
@@ -962,7 +1359,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -973,7 +1370,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -995,9 +1392,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalMidBoundsCameraPowerGestureOnInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1009,7 +1404,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -1020,7 +1415,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1042,9 +1437,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalOutOfBoundsCameraPowerGestureOnInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1067,7 +1460,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1087,9 +1480,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalInBoundsCameraPowerGestureOffNotInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(false);
-        withCameraDoubleTapPowerDisableSettingValue(1);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        disableDoubleTapPowerGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1101,7 +1492,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -1112,7 +1503,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1132,9 +1523,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalMidBoundsCameraPowerGestureOffNotInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(false);
-        withCameraDoubleTapPowerDisableSettingValue(1);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        disableDoubleTapPowerGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1146,7 +1535,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -1156,7 +1545,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1178,9 +1567,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalOutOfBoundsCameraPowerGestureOffNotInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(false);
-        withCameraDoubleTapPowerDisableSettingValue(1);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        disableDoubleTapPowerGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1202,7 +1589,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1223,10 +1610,7 @@ public class GestureLauncherServiceTest {
     @Test
     public void
     testInterceptPowerKeyDown_intervalInBoundsCameraPowerGestureOnNotInteractiveSetupComplete() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
-        withUserSetupCompleteValue(true);
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1238,7 +1622,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -1250,7 +1634,7 @@ public class GestureLauncherServiceTest {
         verify(mStatusBarManagerInternal).onCameraLaunchGestureDetected(
                 StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP);
         verify(mMetricsLogger)
-            .action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE, (int) interval);
+                .action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE, (int) interval);
         verify(mUiEventLogger, times(1))
                 .log(GestureLauncherService.GestureLauncherEvent.GESTURE_CAMERA_DOUBLE_TAP_POWER);
 
@@ -1272,9 +1656,7 @@ public class GestureLauncherServiceTest {
     @Test
     public void
     testInterceptPowerKeyDown_intervalInBoundsCameraPowerGestureOnNotInteractiveSetupIncomplete() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
         withUserSetupCompleteValue(false);
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
@@ -1287,7 +1669,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS - 1;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -1298,7 +1680,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1318,9 +1700,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalMidBoundsCameraPowerGestureOnNotInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1332,7 +1712,7 @@ public class GestureLauncherServiceTest {
         assertFalse(intercepted);
         assertFalse(outLaunched.value);
 
-        final long interval = CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS;
+        final long interval = POWER_DOUBLE_TAP_MAX_TIME_MS;
         eventTime += interval;
         keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
                 IGNORED_REPEAT);
@@ -1343,7 +1723,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1365,9 +1745,7 @@ public class GestureLauncherServiceTest {
 
     @Test
     public void testInterceptPowerKeyDown_intervalOutOfBoundsCameraPowerGestureOnNotInteractive() {
-        withCameraDoubleTapPowerEnableConfigValue(true);
-        withCameraDoubleTapPowerDisableSettingValue(0);
-        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        enableCameraGesture();
 
         long eventTime = INITIAL_EVENT_TIME_MILLIS;
         KeyEvent keyEvent = new KeyEvent(IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE,
@@ -1390,7 +1768,7 @@ public class GestureLauncherServiceTest {
         assertFalse(outLaunched.value);
 
         verify(mMetricsLogger, never())
-            .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
+                .action(eq(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE), anyInt());
         verify(mUiEventLogger, never()).log(any());
 
         final ArgumentCaptor<Integer> intervalCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -1414,7 +1792,7 @@ public class GestureLauncherServiceTest {
      * @return last event time.
      */
     private long triggerEmergencyGesture() {
-        return triggerEmergencyGesture(CAMERA_POWER_DOUBLE_TAP_MAX_TIME_MS - 1);
+        return triggerEmergencyGesture(POWER_DOUBLE_TAP_MAX_TIME_MS - 1);
     }
 
     /**
@@ -1473,6 +1851,34 @@ public class GestureLauncherServiceTest {
                 .thenReturn(enableConfigValue);
     }
 
+    private void withDoubleTapPowerModeConfigValue(
+            int modeConfigValue) {
+        when(mResources.getInteger(com.android.internal.R.integer.config_doubleTapPowerGestureMode))
+                .thenReturn(modeConfigValue);
+    }
+
+    private void withMultiTargetDoubleTapPowerGestureEnableSettingValue(boolean enable) {
+        Settings.Secure.putIntForUser(
+                mContentResolver,
+                Settings.Secure.DOUBLE_TAP_POWER_BUTTON_GESTURE_ENABLED,
+                enable ? 1 : 0,
+                UserHandle.USER_CURRENT);
+    }
+
+    private void withDoubleTapPowerGestureActionSettingValue(int action) {
+        Settings.Secure.putIntForUser(
+                mContentResolver,
+                Settings.Secure.DOUBLE_TAP_POWER_BUTTON_GESTURE,
+                action,
+                UserHandle.USER_CURRENT);
+    }
+
+    private void withDefaultDoubleTapPowerGestureActionConfig(int action) {
+        when(mResources.getInteger(
+                com.android.internal.R.integer.config_doubleTapPowerGestureMultiTargetDefaultAction
+        )).thenReturn(action);
+    }
+
     private void withEmergencyGestureEnabledConfigValue(boolean enableConfigValue) {
         when(mResources.getBoolean(
                 com.android.internal.R.bool.config_emergencyGestureEnabled))
@@ -1509,5 +1915,86 @@ public class GestureLauncherServiceTest {
                 Settings.Secure.USER_SETUP_COMPLETE,
                 userSetupCompleteValue,
                 UserHandle.USER_CURRENT);
+    }
+
+    private void setUpGetGestureTargetActivityPendingIntent(PendingIntent pendingIntent) {
+        doAnswer(
+                invocation -> {
+                    QuickAccessWalletClient.GesturePendingIntentCallback callback =
+                            (QuickAccessWalletClient.GesturePendingIntentCallback)
+                                    invocation.getArguments()[1];
+                    callback.onGesturePendingIntentRetrieved(pendingIntent);
+                    return null;
+                })
+                .when(mQuickAccessWalletClient)
+                .getGestureTargetActivityPendingIntent(any(), any());
+    }
+
+    private void setUpWalletFallbackPendingIntent(PendingIntent pendingIntent) {
+        doAnswer(
+                invocation -> {
+                    QuickAccessWalletClient.WalletPendingIntentCallback callback =
+                            (QuickAccessWalletClient.WalletPendingIntentCallback)
+                                    invocation.getArguments()[1];
+                    callback.onWalletPendingIntentRetrieved(pendingIntent);
+                    return null;
+                })
+                .when(mQuickAccessWalletClient)
+                .getWalletPendingIntent(any(), any());
+    }
+
+    private void enableWalletGesture() {
+        withDoubleTapPowerGestureActionSettingValue(LAUNCH_WALLET_ON_DOUBLE_TAP_POWER);
+        withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+        withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+
+        mGestureLauncherService.updateWalletDoubleTapPowerEnabled();
+        withUserSetupCompleteValue(true);
+    }
+
+    private void enableEmergencyGesture() {
+        withEmergencyGestureEnabledConfigValue(true);
+        withEmergencyGestureEnabledSettingValue(true);
+        mGestureLauncherService.updateEmergencyGestureEnabled();
+        withUserSetupCompleteValue(true);
+    }
+
+    private void enableCameraGesture() {
+        if (launchWalletOptionOnPowerDoubleTap()) {
+            withDoubleTapPowerModeConfigValue(
+                    DOUBLE_TAP_POWER_MULTI_TARGET_MODE);
+            withMultiTargetDoubleTapPowerGestureEnableSettingValue(true);
+            withDoubleTapPowerGestureActionSettingValue(LAUNCH_CAMERA_ON_DOUBLE_TAP_POWER);
+        } else {
+            withCameraDoubleTapPowerEnableConfigValue(true);
+            withCameraDoubleTapPowerDisableSettingValue(0);
+        }
+        mGestureLauncherService.updateCameraDoubleTapPowerEnabled();
+        withUserSetupCompleteValue(true);
+    }
+
+    private void disableDoubleTapPowerGesture() {
+        if (launchWalletOptionOnPowerDoubleTap()) {
+            withDoubleTapPowerModeConfigValue(DOUBLE_TAP_POWER_DISABLED_MODE);
+            withMultiTargetDoubleTapPowerGestureEnableSettingValue(false);
+        } else {
+            withCameraDoubleTapPowerEnableConfigValue(false);
+            withCameraDoubleTapPowerDisableSettingValue(1);
+        }
+        mGestureLauncherService.updateWalletDoubleTapPowerEnabled();
+        withUserSetupCompleteValue(true);
+    }
+
+    private void sendPowerKeyDownToGestureLauncherServiceAndAssertValues(
+            long eventTime, boolean expectedIntercept, boolean expectedOutLaunchedValue) {
+        KeyEvent keyEvent =
+                new KeyEvent(
+                        IGNORED_DOWN_TIME, eventTime, IGNORED_ACTION, IGNORED_CODE, IGNORED_REPEAT);
+        boolean interactive = true;
+        MutableBoolean outLaunched = new MutableBoolean(true);
+        boolean intercepted =
+                mGestureLauncherService.interceptPowerKeyDown(keyEvent, interactive, outLaunched);
+        assertEquals(intercepted, expectedIntercept);
+        assertEquals(outLaunched.value, expectedOutLaunchedValue);
     }
 }

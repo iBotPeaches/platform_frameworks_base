@@ -62,7 +62,7 @@ public class DataAggregator {
     /** Initialize DataSources */
     private void initialize() {
         mDataSources.add(new SecurityLogSource(mContext, this));
-        mDataSources.add(new NetworkLogSource(mContext, this));
+        mDataSources.add(new NetworkLogSource(this));
     }
 
     /**

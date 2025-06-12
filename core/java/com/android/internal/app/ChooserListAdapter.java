@@ -16,9 +16,12 @@
 
 package com.android.internal.app;
 
+import static android.service.chooser.Flags.notifySingleItemChangeOnIconLoad;
+
 import static com.android.internal.app.ChooserActivity.TARGET_TYPE_SHORTCUTS_FROM_PREDICTION_SERVICE;
 import static com.android.internal.app.ChooserActivity.TARGET_TYPE_SHORTCUTS_FROM_SHORTCUT_MANAGER;
 
+import android.annotation.Nullable;
 import android.app.prediction.AppPredictor;
 import android.content.ComponentName;
 import android.content.Context;
@@ -56,6 +59,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class ChooserListAdapter extends ResolverListAdapter {
     private static final String TAG = "ChooserListAdapter";
@@ -107,6 +111,9 @@ public class ChooserListAdapter extends ResolverListAdapter {
 
     // Represents the UserSpace in which the Initial Intents should be resolved.
     private final UserHandle mInitialIntentsUserSpace;
+
+    @Nullable
+    private Consumer<DisplayResolveInfo> mOnIconLoadedListener;
 
     // For pinned direct share labels, if the text spans multiple lines, the TextView will consume
     // the full width, even if the characters actually take up less than that. Measure the actual
@@ -216,6 +223,10 @@ public class ChooserListAdapter extends ResolverListAdapter {
                 DeviceConfig.NAMESPACE_SYSTEMUI,
                 SystemUiDeviceConfigFlags.APPLY_SHARING_APP_LIMITS_IN_SYSUI,
                 true);
+    }
+
+    public void setOnIconLoadedListener(Consumer<DisplayResolveInfo> onIconLoadedListener) {
+        mOnIconLoadedListener = onIconLoadedListener;
     }
 
     AppPredictor getAppPredictor() {
@@ -329,6 +340,15 @@ public class ChooserListAdapter extends ResolverListAdapter {
         }
     }
 
+    @Override
+    protected void onIconLoaded(DisplayResolveInfo info) {
+        if (notifySingleItemChangeOnIconLoad() && mOnIconLoadedListener != null) {
+            mOnIconLoadedListener.accept(info);
+        } else {
+            notifyDataSetChanged();
+        }
+    }
+
     private void loadDirectShareIcon(SelectableTargetInfo info) {
         LoadDirectShareIconTask task = (LoadDirectShareIconTask) mIconLoaders.get(info);
         if (task == null) {
@@ -362,8 +382,7 @@ public class ChooserListAdapter extends ResolverListAdapter {
                     }
                     String resolvedTarget = info.getResolvedComponentName().getPackageName()
                             + '#' + info.getDisplayLabel()
-                            + '#' + ResolverActivity.getResolveInfoUserHandle(
-                                    info.getResolveInfo(), getUserHandle()).getIdentifier();
+                            + '#' + info.getResolveInfo().userHandle.getIdentifier();
                     DisplayResolveInfo multiDri = consolidated.get(resolvedTarget);
                     if (multiDri == null) {
                         consolidated.put(resolvedTarget, info);

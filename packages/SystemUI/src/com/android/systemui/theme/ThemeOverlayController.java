@@ -18,14 +18,17 @@ package com.android.systemui.theme;
 
 import static android.util.TypedValue.TYPE_INT_COLOR_ARGB8;
 
+import static com.android.systemui.Flags.hardwareColorStyles;
 import static com.android.systemui.Flags.themeOverlayControllerWakefulnessDeprecation;
 import static com.android.systemui.keyguard.WakefulnessLifecycle.WAKEFULNESS_ASLEEP;
+import static com.android.systemui.monet.ColorScheme.GOOGLE_BLUE;
 import static com.android.systemui.theme.ThemeOverlayApplier.COLOR_SOURCE_HOME;
 import static com.android.systemui.theme.ThemeOverlayApplier.COLOR_SOURCE_LOCK;
 import static com.android.systemui.theme.ThemeOverlayApplier.COLOR_SOURCE_PRESET;
 import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_CATEGORY_ACCENT_COLOR;
 import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_CATEGORY_DYNAMIC_COLOR;
 import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_CATEGORY_SYSTEM_PALETTE;
+import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_CATEGORY_THEME_STYLE;
 import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_COLOR_BOTH;
 import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_COLOR_INDEX;
 import static com.android.systemui.theme.ThemeOverlayApplier.OVERLAY_COLOR_SOURCE;
@@ -73,6 +76,7 @@ import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.flags.Flags;
+import com.android.systemui.flags.SystemPropertiesHelper;
 import com.android.systemui.keyguard.WakefulnessLifecycle;
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor;
 import com.android.systemui.keyguard.shared.model.KeyguardState;
@@ -99,9 +103,11 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -136,9 +142,11 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     private final DeviceProvisionedController mDeviceProvisionedController;
     private final Resources mResources;
     // Current wallpaper colors associated to a user.
-    private final SparseArray<WallpaperColors> mCurrentColors = new SparseArray<>();
+    @VisibleForTesting
+    protected final SparseArray<WallpaperColors> mCurrentColors = new SparseArray<>();
     private final WallpaperManager mWallpaperManager;
     private final ActivityManager mActivityManager;
+    protected final SystemPropertiesHelper mSystemPropertiesHelper;
     @VisibleForTesting
     protected ColorScheme mColorScheme;
     // If fabricated overlays were already created for the current theme.
@@ -423,7 +431,9 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
             JavaAdapter javaAdapter,
             KeyguardTransitionInteractor keyguardTransitionInteractor,
             UiModeManager uiModeManager,
-            ActivityManager activityManager) {
+            ActivityManager activityManager,
+            SystemPropertiesHelper systemPropertiesHelper
+    ) {
         mContext = context;
         mIsMonetEnabled = featureFlags.isEnabled(Flags.MONET);
         mIsFidelityEnabled = featureFlags.isEnabled(Flags.COLOR_FIDELITY);
@@ -443,6 +453,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         mKeyguardTransitionInteractor = keyguardTransitionInteractor;
         mUiModeManager = uiModeManager;
         mActivityManager = activityManager;
+        mSystemPropertiesHelper = systemPropertiesHelper;
         dumpManager.registerDumpable(TAG, this);
 
         Flow<Boolean> isFinishedInAsleepStateFlow = mKeyguardTransitionInteractor
@@ -498,29 +509,75 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         mUserTracker.addCallback(mUserTrackerCallback, mMainExecutor);
         mDeviceProvisionedController.addCallback(mDeviceProvisionedListener);
 
+
+        // Condition only applies when booting to Setup Wizard.
+        // We should check if the device has specific hardware color styles, load the relative
+        // color palette and more also save the setting in our shared setting with ThemePicker.
+        WallpaperColors systemColor;
+        if (hardwareColorStyles() && !mDeviceProvisionedController.isCurrentUserSetup()) {
+            HardwareDefaultSetting defaultSettings = getThemeSettingsDefaults();
+            mThemeStyle = defaultSettings.style;
+
+            // we only use the first color anyway, so we can pass only the single color we have
+            systemColor = new WallpaperColors(
+                    /*primaryColor*/ defaultSettings.seedColor,
+                    /*secondaryColor*/ defaultSettings.seedColor,
+                    /*tertiaryColor*/ defaultSettings.seedColor
+            );
+
+            /* We update the json in THEME_CUSTOMIZATION_OVERLAY_PACKAGES to reflect the preset. */
+            final int currentUser = mUserTracker.getUserId();
+            final String overlayPackageJson = Objects.requireNonNullElse(
+                    mSecureSettings.getStringForUser(
+                            Settings.Secure.THEME_CUSTOMIZATION_OVERLAY_PACKAGES,
+                            currentUser),
+                    "{}"
+            );
+
+            try {
+                JSONObject object = new JSONObject(overlayPackageJson);
+                int seedColor = defaultSettings.seedColor.toArgb();
+                String seedColorStr = String.format("%06X", 0xFFFFFF & seedColor);
+                if (Objects.equals(defaultSettings.colorSource, COLOR_SOURCE_PRESET)) {
+                    object.put(OVERLAY_CATEGORY_SYSTEM_PALETTE, seedColorStr);
+                    object.put(OVERLAY_CATEGORY_ACCENT_COLOR, seedColorStr);
+                }
+                object.put(OVERLAY_COLOR_SOURCE, defaultSettings.colorSource);
+                object.put(OVERLAY_CATEGORY_THEME_STYLE, Style.toString(mThemeStyle));
+
+                mSecureSettings.putStringForUser(
+                        Settings.Secure.THEME_CUSTOMIZATION_OVERLAY_PACKAGES, object.toString(),
+                        UserHandle.USER_CURRENT);
+
+                Log.d(TAG, "Hardware Color Defaults loaded: " + object.toString());
+
+            } catch (JSONException e) {
+                Log.d(TAG, "Failed to store hardware color defaults in "
+                    + "THEME_CUSTOMIZATION_OVERLAY_PACKAGES.", e);
+            }
+
+            // now we have to update
+
+        } else {
+            systemColor = mWallpaperManager.getWallpaperColors(
+                    getDefaultWallpaperColorsSource(mUserTracker.getUserId()));
+        }
+
         // Upon boot, make sure we have the most up to date colors
         Runnable updateColors = () -> {
-            WallpaperColors systemColor = mWallpaperManager.getWallpaperColors(
-                    getDefaultWallpaperColorsSource(mUserTracker.getUserId()));
-            Runnable applyColors = () -> {
-                if (DEBUG) Log.d(TAG, "Boot colors: " + systemColor);
-                mCurrentColors.put(mUserTracker.getUserId(), systemColor);
-                reevaluateSystemTheme(false /* forceReload */);
-            };
-            if (mDeviceProvisionedController.isCurrentUserSetup()) {
-                mMainExecutor.execute(applyColors);
-            } else {
-                applyColors.run();
-            }
+            if (DEBUG) Log.d(TAG, "Boot colors: " + systemColor);
+            mCurrentColors.put(mUserTracker.getUserId(), systemColor);
+            reevaluateSystemTheme(false /* forceReload */);
         };
 
         // Whenever we're going directly to setup wizard, we need to process colors synchronously,
         // otherwise we'll see some jank when the activity is recreated.
         if (!mDeviceProvisionedController.isCurrentUserSetup()) {
-            updateColors.run();
+            mMainExecutor.execute(updateColors);
         } else {
             mBgExecutor.execute(updateColors);
         }
+
         mWallpaperManager.addOnColorsChangedListener(mOnColorsChangedListener, null,
                 UserHandle.USER_ALL);
 
@@ -604,7 +661,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
     @VisibleForTesting
     protected boolean isPrivateProfile(UserHandle userHandle) {
-        Context usercontext = mContext.createContextAsUser(userHandle,0);
+        Context usercontext = mContext.createContextAsUser(userHandle, 0);
         return usercontext.getSystemService(UserManager.class).isPrivateProfile();
     }
 
@@ -720,6 +777,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         return true;
     }
 
+    @SuppressWarnings("StringCaseLocaleUsage") // Package name is not localized
     private void updateThemeOverlays() {
         final int currentUser = mUserTracker.getUserId();
         final String overlayPackageJson = mSecureSettings.getStringForUser(
@@ -746,7 +804,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         OverlayIdentifier systemPalette = categoryToPackage.get(OVERLAY_CATEGORY_SYSTEM_PALETTE);
         if (mIsMonetEnabled && systemPalette != null && systemPalette.getPackageName() != null) {
             try {
-                String colorString =  systemPalette.getPackageName().toLowerCase();
+                String colorString = systemPalette.getPackageName().toLowerCase();
                 if (!colorString.startsWith("#")) {
                     colorString = "#" + colorString;
                 }
@@ -844,7 +902,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
             try {
                 JSONObject object = new JSONObject(overlayPackageJson);
                 style = Style.valueOf(
-                        object.getString(ThemeOverlayApplier.OVERLAY_CATEGORY_THEME_STYLE));
+                        object.getString(OVERLAY_CATEGORY_THEME_STYLE));
                 if (!validStyles.contains(style)) {
                     style = Style.TONAL_SPOT;
                 }
@@ -856,10 +914,84 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         return style;
     }
 
+    protected Pair<Integer, String> getHardwareColorSetting() {
+        String deviceColorProperty = "ro.boot.hardware.color";
+
+        String[] themeData = mResources.getStringArray(
+                com.android.internal.R.array.theming_defaults);
+
+        // Color can be hex (`#FF0000`) or `home_wallpaper`
+        Map<String, Pair<Integer, String>> themeMap = new HashMap<>();
+
+        // extract all theme settings
+        for (String themeEntry : themeData) {
+            String[] themeComponents = themeEntry.split("\\|");
+            if (themeComponents.length != 3) continue;
+            themeMap.put(themeComponents[0],
+                    new Pair<>(Style.valueOf(themeComponents[1]), themeComponents[2]));
+        }
+
+        Pair<Integer, String> fallbackTheme = themeMap.get("*");
+        if (fallbackTheme == null) {
+            Log.d(TAG, "Theming wildcard not found. Fallback to TONAL_SPOT|" + COLOR_SOURCE_HOME);
+            fallbackTheme = new Pair<>(Style.TONAL_SPOT, COLOR_SOURCE_HOME);
+        }
+
+        String deviceColorPropertyValue = mSystemPropertiesHelper.get(deviceColorProperty);
+        Pair<Integer, String> styleAndSource = themeMap.get(deviceColorPropertyValue);
+        if (styleAndSource == null) {
+            Log.d(TAG, "Sysprop `" + deviceColorProperty + "` of value '" + deviceColorPropertyValue
+                    + "' not found in theming_defaults: " + Arrays.toString(themeData));
+            styleAndSource = fallbackTheme;
+        }
+
+        return styleAndSource;
+    }
+
+    record HardwareDefaultSetting(Color seedColor, @Style.Type int style, String colorSource) {
+    }
+
+    @VisibleForTesting
+    protected HardwareDefaultSetting getThemeSettingsDefaults() {
+
+        Pair<Integer, String> styleAndSource = getHardwareColorSetting();
+
+        // Last fallback color
+        Color defaultSeedColor = Color.valueOf(GOOGLE_BLUE);
+
+        // defaultColor will come from wallpaper or be parsed from a string
+        boolean isWallpaper = styleAndSource.second.equals(COLOR_SOURCE_HOME);
+
+        if (isWallpaper) {
+            WallpaperColors wallpaperColors = mWallpaperManager.getWallpaperColors(
+                    getDefaultWallpaperColorsSource(mUserTracker.getUserId()));
+
+            if (wallpaperColors != null) {
+                defaultSeedColor = wallpaperColors.getPrimaryColor();
+            }
+
+            Log.d(TAG, "Default seed color read from home wallpaper: " + Integer.toHexString(
+                    defaultSeedColor.toArgb()));
+        } else {
+            try {
+                defaultSeedColor = Color.valueOf(Color.parseColor(styleAndSource.second));
+                Log.d(TAG, "Default seed color read from resource: " + Integer.toHexString(
+                        defaultSeedColor.toArgb()));
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Error parsing color: " + styleAndSource.second, e);
+                // defaultSeedColor remains unchanged in this case
+            }
+        }
+
+        return new HardwareDefaultSetting(defaultSeedColor, styleAndSource.first,
+                isWallpaper ? COLOR_SOURCE_HOME : COLOR_SOURCE_PRESET);
+    }
+
     @Override
     public void dump(@NonNull PrintWriter pw, @NonNull String[] args) {
         pw.println("mSystemColors=" + mCurrentColors);
         pw.println("mMainWallpaperColor=" + Integer.toHexString(mMainWallpaperColor));
+        pw.println("mContrast=" + mContrast);
         pw.println("mSecondaryOverlay=" + mSecondaryOverlay);
         pw.println("mNeutralOverlay=" + mNeutralOverlay);
         pw.println("mDynamicOverlay=" + mDynamicOverlay);

@@ -21,12 +21,16 @@ import static android.content.pm.PackageManager.FEATURE_WATCH;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.os.Parcel;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assume.assumeTrue;
+
 import android.util.ArrayMap;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -35,6 +39,19 @@ import org.junit.runner.RunWith;
 public class SystemFeaturesCacheTest {
 
     private SystemFeaturesCache mCache;
+
+    private SystemFeaturesCache mOriginalSingletonCache;
+
+    @Before
+    public void setUp() {
+        mOriginalSingletonCache = SystemFeaturesCache.getInstance();
+    }
+
+    @After
+    public void tearDown() {
+        SystemFeaturesCache.clearInstance();
+        SystemFeaturesCache.setInstance(mOriginalSingletonCache);
+    }
 
     @Test
     public void testNoFeatures() throws Exception {
@@ -84,27 +101,58 @@ public class SystemFeaturesCacheTest {
     }
 
     @Test
-    public void testParcel() throws Exception {
+    public void testGetAndSetFeatureVersions() throws Exception {
         ArrayMap<String, FeatureInfo> features = new ArrayMap<>();
         features.put(FEATURE_WATCH, createFeature(FEATURE_WATCH, 0));
         SystemFeaturesCache cache = new SystemFeaturesCache(features);
 
-        Parcel parcel = Parcel.obtain();
-        SystemFeaturesCache parceledCache;
-        try {
-            parcel.writeParcelable(cache, 0);
-            parcel.setDataPosition(0);
-            parceledCache = parcel.readParcelable(getClass().getClassLoader());
-        } finally {
-            parcel.recycle();
-        }
+        assertThat(cache.getSdkFeatureVersions().length)
+                .isEqualTo(PackageManager.SDK_FEATURE_COUNT);
 
-        assertThat(parceledCache.maybeHasFeature(FEATURE_WATCH, 0))
+        SystemFeaturesCache clonedCache = new SystemFeaturesCache(cache.getSdkFeatureVersions());
+        assertThat(cache.getSdkFeatureVersions()).isEqualTo(clonedCache.getSdkFeatureVersions());
+
+        assertThat(clonedCache.maybeHasFeature(FEATURE_WATCH, 0))
                 .isEqualTo(cache.maybeHasFeature(FEATURE_WATCH, 0));
-        assertThat(parceledCache.maybeHasFeature(FEATURE_PICTURE_IN_PICTURE, 0))
+        assertThat(clonedCache.maybeHasFeature(FEATURE_PICTURE_IN_PICTURE, 0))
                 .isEqualTo(cache.maybeHasFeature(FEATURE_PICTURE_IN_PICTURE, 0));
-        assertThat(parceledCache.maybeHasFeature("custom.feature", 0))
+        assertThat(clonedCache.maybeHasFeature("custom.feature", 0))
                 .isEqualTo(cache.maybeHasFeature("custom.feature", 0));
+    }
+
+    @Test
+    public void testInvalidFeatureVersions() throws Exception {
+        // Raw feature version arrays must match the predefined SDK feature count.
+        int[] invalidFeatureVersions = new int[PackageManager.SDK_FEATURE_COUNT - 1];
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new SystemFeaturesCache(invalidFeatureVersions));
+    }
+
+    @Test
+    public void testSingleton() throws Exception {
+        ArrayMap<String, FeatureInfo> features = new ArrayMap<>();
+        features.put(FEATURE_WATCH, createFeature(FEATURE_WATCH, 0));
+        SystemFeaturesCache cache = new SystemFeaturesCache(features);
+
+        SystemFeaturesCache.clearInstance();
+        assertThat(SystemFeaturesCache.hasInstance()).isFalse();
+        assertThrows(IllegalStateException.class, () -> SystemFeaturesCache.getInstance());
+
+        SystemFeaturesCache.setInstance(cache);
+        assertThat(SystemFeaturesCache.hasInstance()).isTrue();
+        assertThat(SystemFeaturesCache.getInstance()).isEqualTo(cache);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> SystemFeaturesCache.setInstance(new SystemFeaturesCache(features)));
+    }
+
+    @Test
+    public void testSingletonAutomaticallySetWithFeatureEnabled() {
+        assumeTrue(android.content.pm.Flags.cacheSdkSystemFeatures());
+        assertThat(SystemFeaturesCache.hasInstance()).isTrue();
+        assertThat(SystemFeaturesCache.getInstance()).isNotNull();
     }
 
     private static FeatureInfo createFeature(String name, int version) {

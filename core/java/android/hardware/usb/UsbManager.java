@@ -30,8 +30,10 @@ import android.annotation.RequiresFeature;
 import android.annotation.RequiresPermission;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.annotation.SystemService;
+import android.annotation.TestApi;
 import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.ComponentName;
@@ -1437,6 +1439,21 @@ public class UsbManager {
     }
 
     /**
+     * Returns true if the specified UVC gadget function support is enabled.
+     * <p>
+     * @hide
+     */
+    @TestApi
+    @SuppressLint("UnflaggedApi") // @TestApi without associated feature.
+    public boolean isUvcGadgetSupportEnabled() {
+        try {
+            return mService.isUvcGadgetSupportEnabled();
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
      * Sets the current USB functions when in device mode.
      * <p>
      * USB functions represent interfaces which are published to the host to access
@@ -1641,6 +1658,7 @@ public class UsbManager {
         }
     }
 
+    // TODO: b/396680593 Deprecate to de-dup with isUvcGadgetSupportEnabled()
     /**
      * Returns whether UVC is advertised to be supported or not. SELinux
      * enforces that this function returns {@code false} when called from a

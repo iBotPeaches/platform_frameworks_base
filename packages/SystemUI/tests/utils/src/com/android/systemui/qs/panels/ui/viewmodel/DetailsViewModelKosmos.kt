@@ -18,5 +18,11 @@ package com.android.systemui.qs.panels.ui.viewmodel
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.qs.pipeline.domain.interactor.currentTilesInteractor
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
 
-val Kosmos.detailsViewModel by Kosmos.Fixture { DetailsViewModel(currentTilesInteractor) }
+val Kosmos.detailsViewModel by Kosmos.Fixture {
+    DetailsViewModel(
+        currentTilesInteractor,
+        shadeModeInteractor
+    )
+}

@@ -167,4 +167,65 @@ flag {
     namespace: "location"
     description: "Flag for GNSS assistance interface"
     bug: "209078566"
+    is_exported: true
+}
+
+flag {
+    name: "update_min_location_request_interval"
+    namespace: "location"
+    description: "Flag for updating the default logic for the minimal interval for location request"
+    bug: "397444378"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "gnss_location_provider_overlay_2025_devices"
+    namespace: "location"
+    description: "Flag for GNSS location provider overlay for 2025 devices"
+    bug: "398254728"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "limit_fused_gps"
+    namespace: "location"
+    description: "Limits when GPS can be used for fused location requests"
+    bug: "401885179"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "fix_is_in_emergency_anr"
+    namespace: "location"
+    description: "Avoid calling IPC with a lock to avoid deadlock"
+    bug: "355384257"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "gnss_assistance_interface_jni"
+    namespace: "location"
+    description: "Flag for GNSS assistance interface JNI"
+    bug: "209078566"
+}
+
+flag {
+    name: "service_watcher_unstable_fallback"
+    namespace: "location"
+    description: "Flag for service watcher to fallback on an unstable service"
+    bug: "402997842"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "missing_attribution_tags_in_overlay"
+    namespace: "location"
+    description: "Adds missing attribution tags in the Fused and Gnss overlay"
+    bug: "403337028"
 }

@@ -37,6 +37,7 @@ import android.text.TextUtils;
  * Note: Since the span affects the position of the text, if the text is on the last line of a
  * TextView, it may appear cut.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SubscriptSpan extends MetricAffectingSpan implements ParcelableSpan {
 
     /**

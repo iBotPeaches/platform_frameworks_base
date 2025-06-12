@@ -16,10 +16,12 @@
 
 #include "FrameMetricsReporter.h"
 
+#include "FrameInfo.h"
+
 namespace android {
 namespace uirenderer {
 
-void FrameMetricsReporter::reportFrameMetrics(const int64_t* stats, bool hasPresentTime,
+void FrameMetricsReporter::reportFrameMetrics(const FrameInfoBuffer& stats, bool hasPresentTime,
                                               uint64_t frameNumber, int32_t surfaceControlId) {
     FatVector<sp<FrameMetricsObserver>, 10> copy;
     {

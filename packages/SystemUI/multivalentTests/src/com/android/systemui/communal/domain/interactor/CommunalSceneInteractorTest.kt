@@ -16,6 +16,8 @@
 
 package com.android.systemui.communal.domain.interactor
 
+import android.content.res.Configuration.ORIENTATION_LANDSCAPE
+import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
@@ -33,12 +35,15 @@ import com.android.systemui.flags.andSceneContainer
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.initialSceneKey
 import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.statusbar.policy.KeyguardStateController
+import com.android.systemui.statusbar.policy.keyguardStateController
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,9 +52,11 @@ import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
 class CommunalSceneInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
@@ -71,6 +78,7 @@ class CommunalSceneInteractorTest(flags: FlagsParameterization) : SysuiTestCase(
 
     private val repository = kosmos.communalSceneRepository
     private val underTest by lazy { kosmos.communalSceneInteractor }
+    private val keyguardStateController: KeyguardStateController = kosmos.keyguardStateController
 
     @DisableFlags(FLAG_SCENE_CONTAINER)
     @Test
@@ -126,7 +134,6 @@ class CommunalSceneInteractorTest(flags: FlagsParameterization) : SysuiTestCase(
             assertThat(currentScene).isEqualTo(CommunalScenes.Communal)
         }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @DisableFlags(FLAG_SCENE_CONTAINER)
     @Test
     fun snapToSceneWithDelay() =
@@ -136,7 +143,7 @@ class CommunalSceneInteractorTest(flags: FlagsParameterization) : SysuiTestCase(
             underTest.snapToScene(
                 CommunalScenes.Communal,
                 "test",
-                ActivityTransitionAnimator.TIMINGS.totalDuration
+                ActivityTransitionAnimator.TIMINGS.totalDuration,
             )
             assertThat(currentScene).isEqualTo(CommunalScenes.Blank)
             advanceTimeBy(ActivityTransitionAnimator.TIMINGS.totalDuration)
@@ -267,6 +274,48 @@ class CommunalSceneInteractorTest(flags: FlagsParameterization) : SysuiTestCase(
                     isUserInputOngoing = flowOf(false),
                 )
             assertThat(isIdleOnCommunal).isEqualTo(false)
+        }
+
+    @DisableFlags(FLAG_SCENE_CONTAINER)
+    @Test
+    fun isTransitioningToOrIdleOnCommunal() =
+        testScope.runTest {
+            // isIdleOnCommunal is false when not on communal.
+            val isTransitioningToOrIdleOnCommunal by
+                collectLastValue(underTest.isTransitioningToOrIdleOnCommunal)
+            assertThat(isTransitioningToOrIdleOnCommunal).isEqualTo(false)
+
+            val transitionState: MutableStateFlow<ObservableTransitionState> =
+                MutableStateFlow(
+                    ObservableTransitionState.Transition(
+                        fromScene = CommunalScenes.Blank,
+                        toScene = CommunalScenes.Communal,
+                        currentScene = flowOf(CommunalScenes.Communal),
+                        progress = flowOf(0f),
+                        isInitiatedByUserInput = false,
+                        isUserInputOngoing = flowOf(false),
+                    )
+                )
+
+            // Start transition to communal.
+            repository.setTransitionState(transitionState)
+            assertThat(isTransitioningToOrIdleOnCommunal).isEqualTo(true)
+
+            // Finish transition to communal
+            transitionState.value = ObservableTransitionState.Idle(CommunalScenes.Communal)
+            assertThat(isTransitioningToOrIdleOnCommunal).isEqualTo(true)
+
+            // Start transition away from communal.
+            transitionState.value =
+                ObservableTransitionState.Transition(
+                    fromScene = CommunalScenes.Communal,
+                    toScene = CommunalScenes.Blank,
+                    currentScene = flowOf(CommunalScenes.Blank),
+                    progress = flowOf(.1f),
+                    isInitiatedByUserInput = false,
+                    isUserInputOngoing = flowOf(false),
+                )
+            assertThat(isTransitioningToOrIdleOnCommunal).isEqualTo(false)
         }
 
     @DisableFlags(FLAG_SCENE_CONTAINER)
@@ -510,5 +559,58 @@ class CommunalSceneInteractorTest(flags: FlagsParameterization) : SysuiTestCase(
             // Finish transition to lock screen
             transitionState.value = ObservableTransitionState.Idle(Scenes.Lockscreen)
             assertThat(isCommunalVisible).isEqualTo(false)
+        }
+
+    @Test
+    fun willRotateToPortrait_whenKeyguardRotationNotAllowed() =
+        testScope.runTest {
+            whenever(keyguardStateController.isKeyguardScreenRotationAllowed()).thenReturn(false)
+            val willRotateToPortrait by collectLastValue(underTest.willRotateToPortrait)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_LANDSCAPE)
+            runCurrent()
+
+            assertThat(willRotateToPortrait).isEqualTo(true)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_PORTRAIT)
+            runCurrent()
+
+            assertThat(willRotateToPortrait).isEqualTo(false)
+        }
+
+    @Test
+    fun willRotateToPortrait_isFalse_whenKeyguardRotationIsAllowed() =
+        testScope.runTest {
+            whenever(keyguardStateController.isKeyguardScreenRotationAllowed()).thenReturn(true)
+            val willRotateToPortrait by collectLastValue(underTest.willRotateToPortrait)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_LANDSCAPE)
+            runCurrent()
+
+            assertThat(willRotateToPortrait).isEqualTo(false)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_PORTRAIT)
+            runCurrent()
+
+            assertThat(willRotateToPortrait).isEqualTo(false)
+        }
+
+    @Test
+    fun rotatedToPortrait() =
+        testScope.runTest {
+            val rotatedToPortrait by collectLastValue(underTest.rotatedToPortrait)
+            assertThat(rotatedToPortrait).isEqualTo(false)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_PORTRAIT)
+            runCurrent()
+            assertThat(rotatedToPortrait).isEqualTo(false)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_LANDSCAPE)
+            runCurrent()
+            assertThat(rotatedToPortrait).isEqualTo(false)
+
+            repository.setCommunalContainerOrientation(ORIENTATION_PORTRAIT)
+            runCurrent()
+            assertThat(rotatedToPortrait).isEqualTo(true)
         }
 }

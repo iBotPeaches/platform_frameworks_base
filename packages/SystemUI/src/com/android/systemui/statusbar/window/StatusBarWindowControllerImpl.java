@@ -47,7 +47,6 @@ import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.policy.SystemBarUtils;
 import com.android.systemui.animation.ActivityTransitionAnimator;
 import com.android.systemui.animation.DelegateTransitionAnimatorController;
@@ -58,7 +57,7 @@ import com.android.systemui.res.R;
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays;
 import com.android.systemui.statusbar.core.StatusBarRootModernization;
 import com.android.systemui.statusbar.data.repository.StatusBarConfigurationController;
-import com.android.systemui.statusbar.phone.StatusBarContentInsetsProvider;
+import com.android.systemui.statusbar.layout.StatusBarContentInsetsProvider;
 import com.android.systemui.statusbar.window.StatusBarWindowModule.InternalWindowViewInflater;
 import com.android.systemui.unfold.UnfoldTransitionProgressProvider;
 import com.android.systemui.unfold.util.JankMonitorTransitionProgressListener;
@@ -78,7 +77,7 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
     private static final boolean DEBUG = false;
 
     private final Context mContext;
-    private final ViewCaptureAwareWindowManager mWindowManager;
+    private final WindowManager mWindowManager;
     private final StatusBarConfigurationController mStatusBarConfigurationController;
     private final IWindowManager mIWindowManager;
     private final StatusBarContentInsetsProvider mContentInsetsProvider;
@@ -100,7 +99,7 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
     public StatusBarWindowControllerImpl(
             @Assisted Context context,
             @InternalWindowViewInflater StatusBarWindowViewInflater statusBarWindowViewInflater,
-            @Assisted ViewCaptureAwareWindowManager viewCaptureAwareWindowManager,
+            @Assisted WindowManager windowManager,
             @Assisted StatusBarConfigurationController statusBarConfigurationController,
             IWindowManager iWindowManager,
             @Assisted StatusBarContentInsetsProvider contentInsetsProvider,
@@ -108,7 +107,7 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
             Optional<UnfoldTransitionProgressProvider> unfoldTransitionProgressProvider,
             @Main Executor mainExecutor) {
         mContext = context;
-        mWindowManager = viewCaptureAwareWindowManager;
+        mWindowManager = windowManager;
         mStatusBarConfigurationController = statusBarConfigurationController;
         mIWindowManager = iWindowManager;
         mContentInsetsProvider = contentInsetsProvider;
@@ -163,7 +162,18 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
         mLp = getBarLayoutParams(mContext.getDisplay().getRotation());
         Trace.endSection();
 
-        mWindowManager.addView(mStatusBarWindowView, mLp);
+        try {
+            mWindowManager.addView(mStatusBarWindowView, mLp);
+        } catch (WindowManager.InvalidDisplayException e) {
+            // Wrapping this in a try/catch to avoid crashes when a display is instantly removed
+            // after being added, and initialization hasn't finished yet.
+            Log.e(
+                    TAG,
+                    "Unable to add view to WindowManager. Display with id "
+                            + mContext.getDisplayId()
+                            + " doesn't exist anymore.",
+                    e);
+        }
         mLpChanged.copyFrom(mLp);
 
         mContentInsetsProvider.addCallback(this::calculateStatusBarLocationsForAllRotations);
@@ -174,9 +184,17 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
 
     @Override
     public void stop() {
-        StatusBarConnectedDisplays.assertInNewMode();
+        StatusBarConnectedDisplays.unsafeAssertInNewMode();
 
-        mWindowManager.removeView(mStatusBarWindowView);
+        try {
+            mWindowManager.removeView(mStatusBarWindowView);
+        } catch (IllegalArgumentException e) {
+            // Wrapping this in a try/catch to avoid crashes when a display is instantly removed
+            // after being added, and initialization hasn't finished yet.
+            // When that happens, adding the View to WindowManager fails, and therefore removing
+            // it here will fail too, since it wasn't added in the first place.
+            Log.e(TAG, "Failed to remove View from WindowManager. View was not attached", e);
+        }
 
         if (StatusBarRootModernization.isEnabled()) {
             return;
@@ -244,7 +262,6 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
                 height,
                 WindowManager.LayoutParams.TYPE_STATUS_BAR,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_SPLIT_TOUCH
                         | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS,
                 PixelFormat.TRANSLUCENT);
         lp.privateFlags |= PRIVATE_FLAG_COLOR_SPACE_AGNOSTIC;
@@ -388,7 +405,7 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController 
         @Override
         StatusBarWindowControllerImpl create(
                 @NonNull Context context,
-                @NonNull ViewCaptureAwareWindowManager viewCaptureAwareWindowManager,
+                @NonNull WindowManager windowManager,
                 @NonNull StatusBarConfigurationController statusBarConfigurationController,
                 @NonNull StatusBarContentInsetsProvider contentInsetsProvider);
     }

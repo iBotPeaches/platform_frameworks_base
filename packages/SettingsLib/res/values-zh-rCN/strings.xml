@@ -107,18 +107,29 @@
     <string name="tv_bluetooth_battery_level_untethered_right" msgid="8610019317279155595">"右耳机电池电量 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="bluetooth_active_no_battery_level" msgid="4155462233006205630">"使用中"</string>
     <string name="bluetooth_saved_device" msgid="4895871321722311428">"已保存的设备"</string>
-    <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"使用中（仅左耳助听器）"</string>
+    <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"使用中（仅左耳）"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"使用中（仅右耳助听器）"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"使用中（左右耳助听器）"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"无法更新周围声音"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"使用中（仅限媒体）。电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"使用中（仅限媒体）。左侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"访客设备。电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"访客设备。左侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"访客设备（仅限媒体）。电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"访客设备（仅限媒体）。左侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"已连接（支持音频分享）。电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"已连接（支持音频分享）。左侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"已连接（支持音频分享）。左侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"已连接（支持音频分享）。右侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"已连接（支持音频分享）"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"访客设备（支持音频分享）。电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"访客设备（支持音频分享）。左侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>，右侧电池电量为 <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>。"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"访客设备（支持音频分享）"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"使用中（仅限媒体）"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"访客设备"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"访客设备（仅限媒体）"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"支持音频分享"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"访客设备。支持音频分享"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"使用中（仅限媒体），仅左侧"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"使用中（仅限媒体），仅右侧"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"使用中（仅限媒体），左侧和右侧"</string>
@@ -128,7 +139,7 @@
     <string name="bluetooth_profile_hid" msgid="2969922922664315866">"输入设备"</string>
     <string name="bluetooth_profile_pan" msgid="1006235139308318188">"互联网连接"</string>
     <string name="bluetooth_profile_pbap" msgid="2103406516858653017">"允许访问通讯录和通话记录"</string>
-    <string name="bluetooth_profile_pbap_summary" msgid="402819589201138227">"这些信息将用于来电通知等用途"</string>
+    <string name="bluetooth_profile_pbap_summary" msgid="402819589201138227">"相关信息将用于来电通知等用途"</string>
     <string name="bluetooth_profile_pan_nap" msgid="7871974753822470050">"共享互联网连接"</string>
     <string name="bluetooth_profile_map" msgid="8907204701162107271">"短信"</string>
     <string name="bluetooth_profile_sap" msgid="8304170950447934386">"SIM 卡访问权限"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"硬件加速渲染"</string>
     <string name="media_category" msgid="8122076702526144053">"媒体"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"监控"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"窗口管理"</string>
     <string name="strict_mode" msgid="889864762140862437">"启用严格模式"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"应用在主线程上执行长时间操作时闪烁屏幕"</string>
     <string name="pointer_location" msgid="7516929526199520173">"指针位置"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"过渡动画缩放"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Animator 时长缩放"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"模拟辅助显示设备"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"通知栏显示位置"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"应用"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"不保留 activity"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"用户离开后即销毁每个 activity"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView 实现"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"设置 WebView 实现"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"此选项已失效，请重试。"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView 开发者工具"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"未找到 WebView 软件包。"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"无法启动开发者工具。"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"图片颜色模式"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"使用 sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"已停用"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"正在快速充电"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"由管理员控制"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"由受限设置控制"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"通话期间无法使用"</string>
     <string name="disabled" msgid="8017887509554714950">"已停用"</string>
+    <string name="enabled" msgid="3997122818554810678">"已启用"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"允许"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"不允许"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"安装未知应用"</string>
@@ -568,7 +586,7 @@
     <string name="alarms_and_reminders_footer_title" msgid="6302587438389079695">"允许该应用设置闹钟以及安排在特定时间执行某些操作。这项权限开启后，该应用将在后台运行，可能会消耗更多电池电量。\n\n如果您关闭此权限，该应用设置的现有闹钟将不会响起，而且该应用安排在特定时间执行的现有活动也不会执行。"</string>
     <string name="keywords_alarms_and_reminders" msgid="6633360095891110611">"设置, 闹钟, 提醒, 时钟, schedule, alarm, reminder, clock"</string>
     <string name="zen_mode_do_not_disturb_name" msgid="6798711401734798283">"勿扰"</string>
-    <string name="zen_mode_settings_title" msgid="7374070457626419755">"勿扰模式"</string>
+    <string name="zen_mode_settings_title" msgid="7374070457626419755">"勿扰"</string>
     <string name="zen_mode_enable_dialog_turn_on" msgid="6418297231575050426">"开启"</string>
     <string name="zen_mode_settings_turn_on_dialog_title" msgid="2760567063190790696">"开启勿扰模式"</string>
     <string name="zen_mode_settings_summary_off" msgid="3832876036123504076">"永不"</string>
@@ -583,17 +601,17 @@
     <string name="zen_mode_forever" msgid="3339224497605461291">"直到您将其关闭"</string>
     <string name="zen_mode_starred_contacts_empty_name" msgid="933552939706125937">"（无姓名）"</string>
     <string name="time_unit_just_now" msgid="3006134267292728099">"刚刚"</string>
-    <string name="media_transfer_this_device_name" msgid="2357329267148436433">"这部手机"</string>
+    <string name="media_transfer_this_device_name" msgid="2357329267148436433">"本机"</string>
     <string name="media_transfer_this_device_name_tablet" msgid="2975593806278422086">"这部平板电脑"</string>
     <string name="media_transfer_this_device_name_desktop" msgid="7912386128141470452">"此计算机（内部）"</string>
     <string name="media_transfer_this_device_name_tv" msgid="8508713779441163887">"此电视"</string>
     <string name="media_transfer_dock_speaker_device_name" msgid="2856219597113881950">"基座音箱"</string>
     <string name="media_transfer_external_device_name" msgid="2588672258721846418">"外部设备"</string>
     <string name="media_transfer_default_device_name" msgid="4315604017399871828">"连接的设备"</string>
-    <string name="media_transfer_this_phone" msgid="7194341457812151531">"这部手机"</string>
+    <string name="media_transfer_this_phone" msgid="7194341457812151531">"本机"</string>
     <string name="media_transfer_digital_line_name" msgid="312091711951124301">"S/PDIF"</string>
     <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"模拟"</string>
-    <string name="media_transfer_aux_line_name" msgid="894135835967856689">"辅助"</string>
+    <string name="media_transfer_aux_line_name" msgid="894135835967856689">"AUX"</string>
     <string name="media_output_status_unknown_error" msgid="5098565887497902222">"无法在此设备上播放"</string>
     <string name="media_output_status_require_premium" msgid="8411255800047014822">"升级账号后才能切换"</string>
     <string name="media_output_status_not_support_downloads" msgid="4523828729240373315">"无法在此设备上播放下载的内容"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"内置扬声器"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"电视音频"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"连接时遇到问题。请关闭并重新开启设备"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"无法连接"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"有线音频设备"</string>
     <string name="help_label" msgid="3528360748637781274">"帮助和反馈"</string>
     <string name="storage_category" msgid="2287342585424631813">"存储空间"</string>
@@ -679,7 +698,7 @@
     <string name="guest_exit_quick_settings_button" msgid="1912362095913765471">"退出访客模式"</string>
     <string name="guest_notification_ephemeral" msgid="7263252466950923871">"退出时所有活动记录都将被删除"</string>
     <string name="guest_notification_non_ephemeral" msgid="6843799963012259330">"您可以在退出时保存或删除您的活动"</string>
-    <string name="guest_notification_non_ephemeral_non_first_login" msgid="8009307983766934876">"请立即重置以删除会话活动记录；或者，您也可以在退出时保存或删除活动记录"</string>
+    <string name="guest_notification_non_ephemeral_non_first_login" msgid="8009307983766934876">"重置可立即删除会话活动记录，您也可以在退出时保存或删除活动记录"</string>
     <string name="user_image_photo_selector" msgid="433658323306627093">"选择照片"</string>
     <string name="failed_attempts_now_wiping_device" msgid="4016329172216428897">"错误次数过多。系统将删除此设备上的数据。"</string>
     <string name="failed_attempts_now_wiping_user" msgid="469060411789668050">"错误次数过多。系统将删除此用户。"</string>

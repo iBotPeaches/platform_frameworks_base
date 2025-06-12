@@ -17,7 +17,7 @@
 
 package com.android.systemui.keyguard.ui.view.layout.sections
 
-import android.platform.test.annotations.EnableFlags
+import android.platform.test.annotations.DisableFlags
 import android.view.View
 import android.widget.LinearLayout
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -26,13 +26,13 @@ import androidx.constraintlayout.widget.ConstraintSet.GONE
 import androidx.constraintlayout.widget.ConstraintSet.VISIBLE
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.customization.R as customR
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController
 import com.android.systemui.keyguard.domain.interactor.KeyguardBlueprintInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardSmartspaceInteractor
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardRootViewModel
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardSmartspaceViewModel
 import com.android.systemui.res.R
 import com.android.systemui.shared.R as sharedR
@@ -50,7 +50,7 @@ import org.mockito.MockitoAnnotations
 
 @RunWith(AndroidJUnit4::class)
 @SmallTest
-@EnableFlags(Flags.FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT)
+@DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
 class SmartspaceSectionTest : SysuiTestCase() {
     private lateinit var underTest: SmartspaceSection
     @Mock private lateinit var keyguardClockViewModel: KeyguardClockViewModel
@@ -59,6 +59,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     @Mock private lateinit var keyguardUnlockAnimationController: KeyguardUnlockAnimationController
     @Mock private lateinit var keyguardSmartspaceInteractor: KeyguardSmartspaceInteractor
     @Mock private lateinit var blueprintInteractor: Lazy<KeyguardBlueprintInteractor>
+    @Mock private lateinit var keyguardRootViewModel: KeyguardRootViewModel
 
     private val smartspaceView = View(mContext).also { it.id = sharedR.id.bc_smartspace_view }
     private val weatherView = View(mContext).also { it.id = sharedR.id.weather_smartspace_view }
@@ -83,13 +84,14 @@ class SmartspaceSectionTest : SysuiTestCase() {
                 lockscreenSmartspaceController,
                 keyguardUnlockAnimationController,
                 blueprintInteractor,
+                keyguardRootViewModel,
             )
         constraintLayout = ConstraintLayout(mContext)
         whenever(lockscreenSmartspaceController.buildAndConnectView(any()))
             .thenReturn(smartspaceView)
-        whenever(lockscreenSmartspaceController.buildAndConnectWeatherView(any()))
+        whenever(lockscreenSmartspaceController.buildAndConnectWeatherView(any(), any()))
             .thenReturn(weatherView)
-        whenever(lockscreenSmartspaceController.buildAndConnectDateView(any())).thenReturn(dateView)
+        whenever(lockscreenSmartspaceController.buildAndConnectDateView(any(), any())).thenReturn(dateView)
         whenever(keyguardClockViewModel.hasCustomWeatherDataDisplay)
             .thenReturn(hasCustomWeatherDataDisplay)
         whenever(keyguardClockViewModel.clockShouldBeCentered).thenReturn(clockShouldBeCentered)
@@ -100,6 +102,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testAddViews_notSmartspaceEnabled() {
         whenever(keyguardSmartspaceViewModel.isSmartspaceEnabled).thenReturn(false)
         val constraintLayout = ConstraintLayout(mContext)
@@ -110,6 +113,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testAddViews_smartspaceEnabled_dateWeatherDecoupled() {
         whenever(keyguardSmartspaceViewModel.isDateWeatherDecoupled).thenReturn(true)
         underTest.addViews(constraintLayout)
@@ -128,6 +132,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testConstraintsWhenShadeLayoutIsNotWide() {
         underTest.addViews(constraintLayout)
         underTest.applyConstraints(constraintSet)
@@ -137,6 +142,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testConstraintsWhenShadeLayoutIsWide() {
         isShadeLayoutWide.value = true
 
@@ -148,6 +154,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testConstraintsWhenNotHasCustomWeatherDataDisplay() {
         whenever(keyguardSmartspaceViewModel.isDateWeatherDecoupled).thenReturn(true)
         underTest.addViews(constraintLayout)
@@ -162,6 +169,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testConstraintsWhenHasCustomWeatherDataDisplay() {
         hasCustomWeatherDataDisplay.value = true
         underTest.addViews(constraintLayout)
@@ -172,6 +180,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testNormalDateWeatherVisibility() {
         isWeatherVisibleFlow.value = true
         underTest.addViews(constraintLayout)
@@ -185,6 +194,7 @@ class SmartspaceSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testCustomDateWeatherVisibility() {
         hasCustomWeatherDataDisplay.value = true
         underTest.addViews(constraintLayout)

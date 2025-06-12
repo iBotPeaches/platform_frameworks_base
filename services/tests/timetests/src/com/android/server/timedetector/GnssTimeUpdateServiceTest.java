@@ -23,7 +23,7 @@ import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.AlarmManager;
@@ -126,7 +126,7 @@ public final class GnssTimeUpdateServiceTest {
         locationListener.onLocationChanged(location);
 
         verify(mMockLocationManager).removeUpdates(locationListener);
-        verifyZeroInteractions(mMockTimeDetectorInternal);
+        verifyNoMoreInteractions(mMockTimeDetectorInternal);
         verify(mMockAlarmManager).set(
                 eq(AlarmManager.ELAPSED_REALTIME_WAKEUP),
                 anyLong(),
@@ -150,7 +150,7 @@ public final class GnssTimeUpdateServiceTest {
 
         // Verify the service returned to location listening.
         verify(mMockLocationManager).requestLocationUpdates(any(), any(), any(), any());
-        verifyZeroInteractions(mMockAlarmManager, mMockTimeDetectorInternal);
+        verifyNoMoreInteractions(mMockAlarmManager, mMockTimeDetectorInternal);
     }
 
     // Tests what happens when a call is made to startGnssListeningInternal() when service is
@@ -172,7 +172,7 @@ public final class GnssTimeUpdateServiceTest {
         // listening again.
         verify(mMockAlarmManager).cancel(alarmListenerCaptor.getValue());
         verify(mMockLocationManager).requestLocationUpdates(any(), any(), any(), any());
-        verifyZeroInteractions(mMockTimeDetectorInternal);
+        verifyNoMoreInteractions(mMockTimeDetectorInternal);
     }
 
     private void advanceServiceToSleepingState(
@@ -190,7 +190,7 @@ public final class GnssTimeUpdateServiceTest {
                 any(), any(), any(), locationListenerCaptor.capture());
         LocationListener locationListener = locationListenerCaptor.getValue();
         Location location = new Location(LocationManager.GPS_PROVIDER);
-        verifyZeroInteractions(mMockAlarmManager, mMockTimeDetectorInternal);
+        verifyNoMoreInteractions(mMockAlarmManager, mMockTimeDetectorInternal);
 
         locationListener.onLocationChanged(location);
 

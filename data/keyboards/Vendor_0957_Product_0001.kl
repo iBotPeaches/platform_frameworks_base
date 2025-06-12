@@ -72,6 +72,8 @@ key usage 0x000c009F    NOTIFICATION
 key usage 0x000c008D    GUIDE
 key usage 0x000c0089    TV
 
+key usage 0x000c0187    FEATURED_APP_1    WAKE #FreeTv
+
 key usage 0x000c009C    CHANNEL_UP
 key usage 0x000c009D    CHANNEL_DOWN
 

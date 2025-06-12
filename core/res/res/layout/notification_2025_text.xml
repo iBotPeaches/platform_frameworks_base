@@ -13,14 +13,16 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License
   -->
+<!-- Note that we prefer layout_gravity="center_vertical" over gravity="center_vertical", since the
+ latter can cause jumpiness in expansion animations. -->
 <com.android.internal.widget.ImageFloatingTextView
     xmlns:android="http://schemas.android.com/apk/res/android"
     style="@style/Widget.DeviceDefault.Notification.Text"
     android:id="@+id/text"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/notification_text_height"
-    android:layout_gravity="top"
-    android:layout_marginTop="@dimen/notification_text_margin_top"
+    android:layout_height="wrap_content"
+    android:minHeight="@dimen/notification_text_height"
+    android:layout_gravity="center_vertical"
     android:ellipsize="end"
     android:fadingEdge="horizontal"
     android:gravity="top"

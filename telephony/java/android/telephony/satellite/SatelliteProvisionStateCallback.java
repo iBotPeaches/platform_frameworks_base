@@ -30,7 +30,6 @@ import java.util.List;
  * @hide
  */
 @SystemApi
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public interface SatelliteProvisionStateCallback {
     /**
      * Called when satellite provision state changes.
@@ -40,7 +39,6 @@ public interface SatelliteProvisionStateCallback {
      *                    It is generally expected that the provisioning app retries if
      *                    provisioning fails.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     void onSatelliteProvisionStateChanged(boolean provisioned);
 
     /**

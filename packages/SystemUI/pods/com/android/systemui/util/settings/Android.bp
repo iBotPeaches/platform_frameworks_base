@@ -14,27 +14,25 @@
 // limitations under the License.
 //
 
-soong_namespace {
-}
-
 package {
     default_applicable_licenses: ["frameworks_base_packages_SystemUI_license"],
 }
 
 java_library {
-    name: "api",
+    name: "com.android.systemui.util.settings-api",
     srcs: [
         "*.java",
         "*.kt",
     ],
     libs: [
         "//frameworks/libs/systemui:tracinglib-platform",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/dagger:api",
+        "com.android.systemui.dagger-api",
         "SystemUICommon",
         "androidx.annotation_annotation",
         "kotlinx_coroutines_android",
-        "jsr330",
     ],
-    kotlincflags: ["-Xjvm-default=all"],
+    defaults: [
+        "SystemUI_pod_defaults",
+    ],
     visibility: ["//frameworks/base/packages/SystemUI:__subpackages__"],
 }

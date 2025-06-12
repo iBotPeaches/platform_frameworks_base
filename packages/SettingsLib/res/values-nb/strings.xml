@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktiv (bare venstre)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktiv (bare høyre)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktiv (venstre og høyre)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Kunne ikke oppdatere omgivelsene"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktiv (bare medieinnhold) <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktiv (bare medieinnhold). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> batteri, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Gjesteenhet. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Gjesteenhet. V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Gjesteenhet (bare medieinnhold). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Gjesteenhet (bare medieinnhold). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Tilkoblet (støtter lyddeling). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Tilkoblet (støtter lyddeling). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> batteri, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Tilkoblet (støtter lyddeling). Venstre: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Tilkoblet (støtter lyddeling). Høyre: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Tilkoblet (støtter lyddeling)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Gjesteenhet (støtter lyddeling). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Gjesteenhet (støtter lyddeling). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> batteri."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Gjesteenhet (støtter lyddeling)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktiv (bare medieinnhold)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Gjesteenhet"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Gjesteenhet (bare medieinnhold)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Støtter lyddeling"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Gjesteenhet. Støtter lyddeling"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktiv (bare medieinnhold), bare venstre"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktiv (bare medieinnhold), bare høyre"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktiv (bare medieinnhold), høyre og venstre"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Maskinvareakselerert gjengivelse"</string>
     <string name="media_category" msgid="8122076702526144053">"Medier"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Overvåking"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Vindusadministrering"</string>
     <string name="strict_mode" msgid="889864762140862437">"Slå på streng modus"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Skjermblink ved lange apphandlinger på hovedtråd"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Pekerplassering"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Animasjonsskala for overgang"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Varighetsskala for animasjoner"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simulering av sekundærskjermer"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Plassering av skyggeskjermen"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Apper"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Ikke behold aktiviteter"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Fjern hver aktivitet så fort brukeren forlater den"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView-implementering"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Angi WebView-implementering"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Dette valget er ikke gyldig lenger. Prøv på nytt."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Utviklerverktøy for WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Fant ikke WebView-pakken."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Kunne ikke starte utviklerverktøyene."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Fargemodus for bilder"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Bruk sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Slått av"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Hurtiglading"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Kontrollert av administratoren"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Kontrollert av en begrenset innstilling"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Utilgjengelig under samtaler"</string>
     <string name="disabled" msgid="8017887509554714950">"Deaktivert"</string>
+    <string name="enabled" msgid="3997122818554810678">"Slått på"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Tillatt"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Ikke tillatt"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Installer ukjente apper"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Innebygd høyttaler"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"TV-lyd"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Tilkoblingsproblemer. Slå enheten av og på igjen"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Kan ikke koble til"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Lydenhet med kabel"</string>
     <string name="help_label" msgid="3528360748637781274">"Hjelp og tilbakemelding"</string>
     <string name="storage_category" msgid="2287342585424631813">"Lagring"</string>

@@ -25,6 +25,8 @@ import com.android.systemui.privacy.OngoingPrivacyChip
 import com.android.systemui.privacy.PrivacyItem
 import com.android.systemui.statusbar.BatteryStatusChip
 import com.android.systemui.statusbar.ConnectedDisplayChip
+import com.android.systemui.statusbar.core.NewStatusBarIcons
+import com.android.systemui.statusbar.events.ui.view.BatteryStatusEventComposeChip
 
 typealias ViewCreator = (context: Context) -> BackgroundAnimatableView
 
@@ -53,9 +55,7 @@ interface StatusEvent {
     }
 }
 
-class BGView(
-    context: Context
-) : View(context), BackgroundAnimatableView {
+class BGView(context: Context) : View(context), BackgroundAnimatableView {
     override val view: View
         get() = this
 
@@ -65,9 +65,7 @@ class BGView(
 }
 
 @SuppressLint("AppCompatCustomView")
-class BGImageView(
-    context: Context
-) : ImageView(context), BackgroundAnimatableView {
+class BGImageView(context: Context) : ImageView(context), BackgroundAnimatableView {
     override val view: View
         get() = this
 
@@ -84,8 +82,10 @@ class BatteryEvent(@IntRange(from = 0, to = 100) val batteryLevel: Int) : Status
     override val shouldAnnounceAccessibilityEvent: Boolean = false
 
     override val viewCreator: ViewCreator = { context ->
-        BatteryStatusChip(context).apply {
-            setBatteryLevel(batteryLevel)
+        if (NewStatusBarIcons.isEnabled) {
+            BatteryStatusEventComposeChip(batteryLevel, context)
+        } else {
+            BatteryStatusChip(context).apply { setBatteryLevel(batteryLevel) }
         }
     }
 
@@ -103,9 +103,7 @@ class ConnectedDisplayEvent : StatusEvent {
     override var contentDescription: String? = ""
     override val shouldAnnounceAccessibilityEvent: Boolean = true
 
-    override val viewCreator: ViewCreator = { context ->
-        ConnectedDisplayChip(context)
-    }
+    override val viewCreator: ViewCreator = { context -> ConnectedDisplayChip(context) }
 
     override fun toString(): String {
         return javaClass.simpleName
@@ -134,7 +132,8 @@ open class PrivacyEvent(override val showAnimation: Boolean = true) : StatusEven
     }
 
     override fun shouldUpdateFromEvent(other: StatusEvent?): Boolean {
-        return other is PrivacyEvent && (other.privacyItems != privacyItems ||
+        return other is PrivacyEvent &&
+            (other.privacyItems != privacyItems ||
                 other.contentDescription != contentDescription ||
                 (other.forceVisible && !forceVisible))
     }

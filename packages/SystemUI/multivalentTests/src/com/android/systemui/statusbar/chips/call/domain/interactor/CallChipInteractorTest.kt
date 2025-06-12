@@ -20,11 +20,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.statusbar.phone.ongoingcall.data.repository.ongoingCallRepository
 import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallModel
-import com.android.systemui.statusbar.phone.ongoingcall.shared.model.inCallModel
+import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallTestHelper.addOngoingCallState
+import com.android.systemui.statusbar.phone.ongoingcall.shared.model.OngoingCallTestHelper.removeOngoingCallState
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
 import kotlinx.coroutines.test.runTest
@@ -33,22 +36,20 @@ import org.junit.runner.RunWith
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class CallChipInteractorTest : SysuiTestCase() {
-    val kosmos = Kosmos()
+    val kosmos = testKosmos().useUnconfinedTestDispatcher()
     val repo = kosmos.ongoingCallRepository
 
     val underTest = kosmos.callChipInteractor
 
     @Test
-    fun ongoingCallState_matchesRepo() =
-        kosmos.testScope.runTest {
+    fun ongoingCallState_matchesState() =
+        kosmos.runTest {
             val latest by collectLastValue(underTest.ongoingCallState)
 
-            val inCall = inCallModel(startTimeMs = 1000)
-            repo.setOngoingCallState(inCall)
-            assertThat(latest).isEqualTo(inCall)
+            addOngoingCallState(key = "testKey")
+            assertThat(latest).isInstanceOf(OngoingCallModel.InCall::class.java)
 
-            val noCall = OngoingCallModel.NoCall
-            repo.setOngoingCallState(noCall)
-            assertThat(latest).isEqualTo(noCall)
+            removeOngoingCallState(key = "testKey")
+            assertThat(latest).isEqualTo(OngoingCallModel.NoCall)
         }
 }

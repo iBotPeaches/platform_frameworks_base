@@ -66,7 +66,7 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         assertTrue(
             "Notifs without any flags should be dismissible",
-            dismissibilityProvider.isDismissable(entry)
+            dismissibilityProvider.isDismissable(entry.key)
         )
     }
 
@@ -96,7 +96,7 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         assertFalse(
             "Non-dismiss Notifs should NOT be dismissible",
-            dismissibilityProvider.isDismissable(entry)
+            dismissibilityProvider.isDismissable(entry.key)
         )
     }
 
@@ -113,7 +113,7 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         assertFalse(
             "Ongoing Notifs should NOT be dismissible when the device is locked",
-            dismissibilityProvider.isDismissable(entry)
+            dismissibilityProvider.isDismissable(entry.key)
         )
     }
 
@@ -130,7 +130,7 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         assertTrue(
             "Ongoing Notifs should be dismissible when the device is unlocked",
-            dismissibilityProvider.isDismissable(entry)
+            dismissibilityProvider.isDismissable(entry.key)
         )
     }
 
@@ -148,7 +148,7 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         assertFalse(
             "Non-dismiss Notifs should NOT be dismissible",
-            dismissibilityProvider.isDismissable(entry)
+            dismissibilityProvider.isDismissable(entry.key)
         )
     }
 
@@ -174,16 +174,16 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         assertTrue(
             "Notifs without any flags should be dismissible",
-            dismissibilityProvider.isDismissable(noFlagEntry)
+            dismissibilityProvider.isDismissable(noFlagEntry.key)
         )
         assertTrue(
             "Ongoing Notifs should be dismissible when the device is unlocked",
-            dismissibilityProvider.isDismissable(ongoingEntry)
+            dismissibilityProvider.isDismissable(ongoingEntry.key)
         )
 
         assertFalse(
             "Non-dismiss Notifs should NOT be dismissible",
-            dismissibilityProvider.isDismissable(nonDismissEntry)
+            dismissibilityProvider.isDismissable(nonDismissEntry.key)
         )
     }
 
@@ -199,10 +199,13 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertFalse("Child should be non-dismissible", dismissibilityProvider.isDismissable(entry))
+        assertFalse(
+            "Child should be non-dismissible",
+            dismissibilityProvider.isDismissable(entry.key)
+        )
         assertFalse(
             "Summary should be non-dismissible",
-            dismissibilityProvider.isDismissable(summary)
+            dismissibilityProvider.isDismissable(summary.key)
         )
     }
 
@@ -219,10 +222,13 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertFalse("Child should be non-dismissible", dismissibilityProvider.isDismissable(entry))
+        assertFalse(
+            "Child should be non-dismissible",
+            dismissibilityProvider.isDismissable(entry.key)
+        )
         assertFalse(
             "Summary should be non-dismissible",
-            dismissibilityProvider.isDismissable(summary)
+            dismissibilityProvider.isDismissable(summary.key)
         )
     }
 
@@ -239,8 +245,11 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertTrue("Child should be dismissible", dismissibilityProvider.isDismissable(entry))
-        assertTrue("Summary should be dismissible", dismissibilityProvider.isDismissable(summary))
+        assertTrue("Child should be dismissible", dismissibilityProvider.isDismissable(entry.key))
+        assertTrue(
+            "Summary should be dismissible",
+            dismissibilityProvider.isDismissable(summary.key)
+        )
     }
 
     @Test
@@ -254,7 +263,10 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertFalse("Child should be non-dismissible", dismissibilityProvider.isDismissable(entry))
+        assertFalse(
+            "Child should be non-dismissible",
+            dismissibilityProvider.isDismissable(entry.key)
+        )
     }
 
     @Test
@@ -269,7 +281,10 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertFalse("Child should be non-dismissible", dismissibilityProvider.isDismissable(entry))
+        assertFalse(
+            "Child should be non-dismissible",
+            dismissibilityProvider.isDismissable(entry.key)
+        )
     }
 
     @Test
@@ -284,7 +299,7 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertTrue("Child should be dismissible", dismissibilityProvider.isDismissable(entry))
+        assertTrue("Child should be dismissible", dismissibilityProvider.isDismissable(entry.key))
     }
 
     @Test
@@ -299,10 +314,10 @@ class DismissibilityCoordinatorTest : SysuiTestCase() {
 
         onBeforeRenderListListener.onBeforeRenderList(listOf(group))
 
-        assertTrue("Child should be dismissible", dismissibilityProvider.isDismissable(entry))
+        assertTrue("Child should be dismissible", dismissibilityProvider.isDismissable(entry.key))
         assertFalse(
             "Summary should be non-dismissible",
-            dismissibilityProvider.isDismissable(summary)
+            dismissibilityProvider.isDismissable(summary.key)
         )
     }
 }

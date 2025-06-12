@@ -25,8 +25,6 @@ cc_library_shared {
     min_sdk_version: "",
 
     srcs: [
-        "android_media_ImageWriter.cpp",
-        "android_media_ImageReader.cpp",
         "android_media_JetPlayer.cpp",
         "android_media_MediaCrypto.cpp",
         "android_media_MediaCodec.cpp",
@@ -42,7 +40,6 @@ cc_library_shared {
         "android_media_MediaProfiles.cpp",
         "android_media_MediaRecorder.cpp",
         "android_media_MediaSync.cpp",
-        "android_media_PublicFormatUtils.cpp",
         "android_media_ResampleInputStream.cpp",
         "android_media_Streams.cpp",
         "android_media_SyncParams.cpp",
@@ -64,7 +61,6 @@ cc_library_shared {
         "libbinder",
         "libmedia",
         "libmedia_codeclist",
-        "libmedia_jni_utils",
         "libmedia_omx",
         "libmediametrics",
         "libmediadrm",
@@ -130,38 +126,6 @@ cc_library_shared {
 
     // TODO(b/330503129) Workaround build breakage.
     lto_O0: true,
-}
-
-cc_library_shared {
-    name: "libmedia_jni_utils",
-    srcs: [
-        ":libgui_frame_event_aidl",
-        "android_media_Utils.cpp",
-    ],
-
-    header_libs: [
-        "libgui_headers",
-    ],
-
-    shared_libs: [
-        "liblog",
-        "libui",
-        "libutils",
-    ],
-
-    include_dirs: [
-        "system/media/camera/include",
-    ],
-
-    export_include_dirs: ["."],
-
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wno-error=deprecated-declarations",
-        "-Wunused",
-        "-Wunreachable-code",
-    ],
 }
 
 cc_library_shared {

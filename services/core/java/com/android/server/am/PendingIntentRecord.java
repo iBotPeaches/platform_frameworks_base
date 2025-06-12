@@ -24,6 +24,8 @@ import static android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_COMPAT;
 import static android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_DENIED;
 import static android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_SYSTEM_DEFINED;
 import static android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE;
+import static android.os.PowerWhitelistManager.TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED;
+import static android.os.PowerWhitelistManager.TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED;
 import static android.os.Process.ROOT_UID;
 import static android.os.Process.SYSTEM_UID;
 
@@ -305,6 +307,10 @@ public final class PendingIntentRecord extends IIntentSender.Stub {
         this.stringName = null;
     }
 
+    @VisibleForTesting TempAllowListDuration getAllowlistDurationLocked(IBinder allowlistToken) {
+        return mAllowlistDuration.get(allowlistToken);
+    }
+
     void setAllowBgActivityStarts(IBinder token, int flags) {
         if (token == null) return;
         if ((flags & FLAG_ACTIVITY_SENDER) != 0) {
@@ -323,6 +329,13 @@ public final class PendingIntentRecord extends IIntentSender.Stub {
         mAllowBgActivityStartsForActivitySender.remove(token);
         mAllowBgActivityStartsForBroadcastSender.remove(token);
         mAllowBgActivityStartsForServiceSender.remove(token);
+        if (mAllowlistDuration != null) {
+            TempAllowListDuration duration = mAllowlistDuration.get(token);
+            if (duration != null
+                    && duration.type == TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED) {
+                duration.type = TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED;
+            }
+        }
     }
 
     public void registerCancelListenerLocked(IResultReceiver receiver) {
@@ -655,12 +668,13 @@ public final class PendingIntentRecord extends IIntentSender.Stub {
                                 getBackgroundStartPrivilegesForActivitySender(
                                         mAllowBgActivityStartsForBroadcastSender, allowlistToken,
                                         options, callingUid);
+                        final Bundle extras = createSafeActivityOptionsBundle(options);
                         // If a completion callback has been requested, require
                         // that the broadcast be delivered synchronously
                         int sent = controller.mAmInternal.broadcastIntentInPackage(key.packageName,
                                 key.featureId, uid, callingUid, callingPid, finalIntent,
                                 resolvedType, finishedReceiverThread, finishedReceiver, code, null,
-                                null, requiredPermission, options, (finishedReceiver != null),
+                                extras, requiredPermission, options, (finishedReceiver != null),
                                 false, userId, backgroundStartPrivileges,
                                 null /* broadcastAllowList */);
                         if (sent == ActivityManager.BROADCAST_SUCCESS) {
@@ -703,7 +717,33 @@ public final class PendingIntentRecord extends IIntentSender.Stub {
         return res;
     }
 
-    private BackgroundStartPrivileges getBackgroundStartPrivilegesForActivitySender(
+    /**
+     * Creates a safe ActivityOptions bundle with only the launchDisplayId set.
+     *
+     * <p>This prevents unintended data from being sent to the app process. The resulting bundle
+     * is then used by {@link ActivityThread#createDisplayContextIfNeeded} to create a display
+     * context for the {@link BroadcastReceiver}, ensuring that activities launched from the
+     * receiver's context are started on the correct display.
+     *
+     * @param optionsBundle The original ActivityOptions bundle.
+     * @return A new bundle containing only the launchDisplayId from the original options, or null
+     * if the original bundle is null.
+     */
+    @Nullable
+    private Bundle createSafeActivityOptionsBundle(@Nullable Bundle optionsBundle) {
+        if (!com.android.window.flags.Flags.supportWidgetIntentsOnConnectedDisplay()) {
+            return null;
+        }
+        if (optionsBundle == null) {
+            return null;
+        }
+        final ActivityOptions options = ActivityOptions.fromBundle(optionsBundle);
+        return ActivityOptions.makeBasic()
+                .setLaunchDisplayId(options.getLaunchDisplayId())
+                .toBundle();
+    }
+
+    @VisibleForTesting BackgroundStartPrivileges getBackgroundStartPrivilegesForActivitySender(
             IBinder allowlistToken) {
         return mAllowBgActivityStartsForActivitySender.contains(allowlistToken)
                 ? BackgroundStartPrivileges.allowBackgroundActivityStarts(allowlistToken)

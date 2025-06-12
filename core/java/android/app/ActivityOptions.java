@@ -488,6 +488,8 @@ public class ActivityOptions extends ComponentOptions {
     private static final String KEY_ALLOW_PASS_THROUGH_ON_TOUCH_OUTSIDE =
             "android.activity.allowPassThroughOnTouchOutside";
 
+    private static final String KEY_FLEXIBLE_LAUNCH_SIZE = "android.activity.flexibleLaunchSize";
+
     /**
      * @see #setLaunchCookie
      * @hide
@@ -588,6 +590,7 @@ public class ActivityOptions extends ComponentOptions {
     @BackgroundActivityStartMode
     private int mPendingIntentCreatorBackgroundActivityStartMode =
             MODE_BACKGROUND_ACTIVITY_START_SYSTEM_DEFINED;
+    private boolean mFlexibleLaunchSize = false;
     private boolean mDisableStartingWindow;
     private boolean mAllowPassThroughOnTouchOutside;
 
@@ -1451,6 +1454,7 @@ public class ActivityOptions extends ComponentOptions {
         mPendingIntentCreatorBackgroundActivityStartMode = opts.getInt(
                 KEY_PENDING_INTENT_CREATOR_BACKGROUND_ACTIVITY_START_MODE,
                 MODE_BACKGROUND_ACTIVITY_START_SYSTEM_DEFINED);
+        mFlexibleLaunchSize = opts.getBoolean(KEY_FLEXIBLE_LAUNCH_SIZE, /* defaultValue = */ false);
         mDisableStartingWindow = opts.getBoolean(KEY_DISABLE_STARTING_WINDOW);
         mAllowPassThroughOnTouchOutside = opts.getBoolean(KEY_ALLOW_PASS_THROUGH_ON_TOUCH_OUTSIDE);
         mAnimationAbortListener = IRemoteCallback.Stub.asInterface(
@@ -1846,6 +1850,7 @@ public class ActivityOptions extends ComponentOptions {
     }
 
     /** @hide */
+    @WindowConfiguration.WindowingMode
     public int getLaunchWindowingMode() {
         return mLaunchWindowingMode;
     }
@@ -1855,7 +1860,7 @@ public class ActivityOptions extends ComponentOptions {
      * @hide
      */
     @TestApi
-    public void setLaunchWindowingMode(int windowingMode) {
+    public void setLaunchWindowingMode(@WindowConfiguration.WindowingMode int windowingMode) {
         mLaunchWindowingMode = windowingMode;
     }
 
@@ -1892,13 +1897,16 @@ public class ActivityOptions extends ComponentOptions {
      * app to pass through touch events to it when touches fall outside the content window.
      *
      * <p> By default, touches that fall on a translucent non-touchable area of an overlaying
-     * activity window are blocked from passing through to the activity below (source activity),
+     * activity window may be blocked from passing through to the activity below (source activity),
      * unless the overlaying activity is from the same UID as the source activity. The source
      * activity may use this method to opt in and allow the overlaying activities from the
      * to-be-launched app to pass through touches to itself. The source activity needs to ensure
      * that it trusts the overlaying activity and its content is not vulnerable to UI redressing
      * attacks. The flag is ignored if the context calling
      * {@link Context#startActivity(Intent, Bundle)} is not an activity.
+     *
+     * <p> Apps with target SDK 36 and above that depend on cross-uid pass-through touches must
+     * opt in to ensure that pass-through touches work correctly.
      *
      * <p> For backward compatibility, apps with target SDK 35 and below may still receive
      * pass-through touches without opt-in if the cross-uid activity is launched by the source
@@ -2226,6 +2234,16 @@ public class ActivityOptions extends ComponentOptions {
         return mLaunchCookie;
     }
 
+    /**
+     * Set the ability for the current transition/animation to work cross-task.
+     * @param allowTaskOverride true to allow cross-task use, otherwise false.
+     *
+     * @hide
+     */
+    public ActivityOptions setOverrideTaskTransition(boolean allowTaskOverride) {
+        this.mOverrideTaskTransition = allowTaskOverride;
+        return this;
+    }
 
     /** @hide */
     public boolean getOverrideTaskTransition() {
@@ -2329,6 +2347,24 @@ public class ActivityOptions extends ComponentOptions {
      */
     public @BackgroundActivityStartMode int getPendingIntentCreatorBackgroundActivityStartMode() {
         return mPendingIntentCreatorBackgroundActivityStartMode;
+    }
+
+    /**
+     * Sets whether the size of the launch bounds is flexible, meaning it can be overridden to a
+     * different size during the launch params calculation.
+     * @hide
+     */
+    public ActivityOptions setFlexibleLaunchSize(boolean isFlexible) {
+        mFlexibleLaunchSize = isFlexible;
+        return this;
+    }
+
+    /**
+     * Gets whether the size of the launch bounds is flexible.
+     * @hide
+     */
+    public boolean getFlexibleLaunchSize() {
+        return mFlexibleLaunchSize;
     }
 
     /**
@@ -2586,6 +2622,9 @@ public class ActivityOptions extends ComponentOptions {
                 != MODE_BACKGROUND_ACTIVITY_START_SYSTEM_DEFINED) {
             b.putInt(KEY_PENDING_INTENT_CREATOR_BACKGROUND_ACTIVITY_START_MODE,
                     mPendingIntentCreatorBackgroundActivityStartMode);
+        }
+        if (mFlexibleLaunchSize) {
+            b.putBoolean(KEY_FLEXIBLE_LAUNCH_SIZE, mFlexibleLaunchSize);
         }
         if (mDisableStartingWindow) {
             b.putBoolean(KEY_DISABLE_STARTING_WINDOW, mDisableStartingWindow);

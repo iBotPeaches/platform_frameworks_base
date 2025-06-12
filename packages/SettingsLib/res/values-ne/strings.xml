@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"सक्रिय छ (बायाँ मात्र)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"सक्रिय छ (दायाँ मात्र)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"सक्रिय छ (दायाँ र बायाँ)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"वरपरका आवाजसम्बन्धी सेटिङ अपडेट गर्न सकिएन"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"सक्रिय छ (मिडिया मात्र)। <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"सक्रिय छ (मिडिया मात्र)। बायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, दायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ब्याट्री।"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"अतिथि डिभाइस। <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"अतिथि डिभाइस। बायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, दायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ब्याट्री।"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"अतिथि डिभाइस (मिडिया मात्र)। <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"अतिथि डिभाइस (मिडिया मात्र)। बायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, दायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ब्याट्री।"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"कनेक्ट गरिएको छ (अडियो सेयर गर्न मिल्छ)। <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"कनेक्ट गरिएको छ (अडियो सेयर गर्न मिल्छ)। बायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, दायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ब्याट्री।"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"कनेक्ट गरिएको छ (अडियो सेयर गर्न मिल्छ)। बायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"कनेक्ट गरिएको छ (अडियो सेयर गर्न मिल्छ)। दायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"कनेक्ट गरिएको छ (अडियो सेयर गर्न मिल्छ)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"अतिथि डिभाइस (अडियो सेयर गर्ने सुविधा प्रयोग गर्न मिल्छ)। <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ब्याट्री।"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"अतिथि डिभाइस (अडियो सेयर गर्ने सुविधा प्रयोग गर्न मिल्छ)। बायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, दायाँ: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ब्याट्री।"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"अतिथि डिभाइस (अडियो सेयर गर्ने सुविधा प्रयोग गर्न मिल्छ)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"सक्रिय छ (मिडिया मात्र)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"अतिथि डिभाइस"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"अतिथि डिभाइस (मिडिया मात्र)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"अडियो सेयर गर्न मिल्छ"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"अतिथि डिभाइस। अडियो सेयर गर्ने सुविधा प्रयोग गर्न मिल्छ"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"सक्रिय छ (मिडिया मात्र), बायाँ मात्र"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"सक्रिय छ (मिडिया मात्र), दायाँ मात्र"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"सक्रिय छ (मिडिया मात्र), बायाँ र दायाँ"</string>
@@ -261,7 +272,7 @@
     <string name="adb_paired_devices_title" msgid="5268997341526217362">"कनेक्ट गरिएका डिभाइस"</string>
     <string name="adb_wireless_device_connected_summary" msgid="3039660790249148713">"हाल जोडिएको छ"</string>
     <string name="adb_wireless_device_details_title" msgid="7129369670526565786">"डिभाइसको विवरण"</string>
-    <string name="adb_device_forget" msgid="193072400783068417">"बिर्सनुहोस्"</string>
+    <string name="adb_device_forget" msgid="193072400783068417">"हटाउनुहोस्"</string>
     <string name="adb_device_fingerprint_title_format" msgid="291504822917843701">"डिभाइसको फिंगरप्रिन्ट: <xliff:g id="FINGERPRINT_PARAM">%1$s</xliff:g>"</string>
     <string name="adb_wireless_connection_failed_title" msgid="664211177427438438">"वायरलेसमा जोड्न सकिएन"</string>
     <string name="adb_wireless_connection_failed_message" msgid="9213896700171602073">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> सही नेटवर्कमा जोडिएको कुरा सुनिश्चित गर्नुहोस्"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"हार्डवेयरले बढाएको रेन्डरिङ"</string>
     <string name="media_category" msgid="8122076702526144053">"मिडिया"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"अनुगमन गरिँदै छ"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"विन्डो व्यवस्थापन"</string>
     <string name="strict_mode" msgid="889864762140862437">"स्ट्रिक्ट मोड अन गर्नुहोस्"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"एपले मुख्य थ्रेडमा लामा गतिविधि गर्दा स्क्रिन फ्ल्यास गर्नुहोस्"</string>
     <string name="pointer_location" msgid="7516929526199520173">"पोइन्टरको स्थान"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"संक्रमण एनिमेसन स्केल"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"एनिमेसनको अवधि मापन"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"सहायक डिस्प्लेको नक्कल गर्नुहोस्"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"सेड देखाइने स्थिति"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"एपहरू"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"गतिविधि नराखियोस्"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"प्रयोगकर्ता कुनै गतिविधिबाट बाहिरिने बित्तिकै उक्त गतिविधि अन्त्य गर्नुहोस्"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView कार्यान्वयन"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"WebView कार्यान्वयन सेट गर्नुहोस्"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"यो छनोट अब मान्य छैन। फेरि प्रयास गर्नुहोस्।"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView सम्बन्धी विकासकर्ता टुलहरू"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView प्याकेज भेटिएन।"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"विकासकर्ताका टुलहरू लन्च गर्न सकिएन।"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"चित्र रङ्ग मोड"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGB प्रयोग गर्नुहोस्"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"अफ गरिएको छ"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"फास्ट चार्जिङ"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"प्रशासकद्वारा नियन्त्रित"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"प्रतिबन्धित सेटिङले नियन्त्रण गरेको"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"कल चलिरहेका बेला उपलब्ध छैन"</string>
     <string name="disabled" msgid="8017887509554714950">"असक्षम पारियो"</string>
+    <string name="enabled" msgid="3997122818554810678">"अन गरिएको छ"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"अनुमति छ"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"अनुमति छैन"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"अज्ञात एप इन्स्टल गर्ने अनुमति"</string>
@@ -609,11 +627,12 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"अन्तर्निर्मित स्पिकर"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"टिभीको अडियो"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"जोड्ने क्रममा समस्या भयो। यन्त्रलाई निष्क्रिय पारेर फेरि अन गर्नुहोस्"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"कनेक्ट गर्न सकिएन"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"तारयुक्त अडियो यन्त्र"</string>
     <string name="help_label" msgid="3528360748637781274">"मद्दत र प्रतिक्रिया"</string>
     <string name="storage_category" msgid="2287342585424631813">"भण्डारण"</string>
     <string name="shared_data_title" msgid="1017034836800864953">"सेयर गरिएको डेटा"</string>
-    <string name="shared_data_summary" msgid="5516326713822885652">"साझा डेटा हेर्नुहोस् र परिमार्जन गर्नुहोस्"</string>
+    <string name="shared_data_summary" msgid="5516326713822885652">"सेयर गरिएको डेटा हेर्नुहोस् र परिमार्जन गर्नुहोस्"</string>
     <string name="shared_data_no_blobs_text" msgid="3108114670341737434">"यो प्रयोगकर्तासँग कुनै पनि डेटा सेयर गरिएको छैन।"</string>
     <string name="shared_data_query_failure_text" msgid="3489828881998773687">"सेयर गरिएको डेटा प्राप्त गर्ने क्रममा कुनै त्रुटि भयो। फेरि प्रयास गर्नुहोस्।"</string>
     <string name="blob_id_text" msgid="8680078988996308061">"साझा डेटाको ID: <xliff:g id="BLOB_ID">%d</xliff:g>"</string>
@@ -647,15 +666,15 @@
     <string name="profile_info_settings_title" msgid="105699672534365099">"प्रोफाइलको जानकारी"</string>
     <string name="user_need_lock_message" msgid="4311424336209509301">"निषेधयुक्त प्रोफाइल बनाउनु अघि तपाईँको एप र व्यक्तिगत डेटा सुरक्षा गर्नाका लागि तपाईँले स्क्रिन लक सेटअप गर्नु पर्दछ ।"</string>
     <string name="user_set_lock_button" msgid="1427128184982594856">"लक सेट गर्नुहोस्"</string>
-    <string name="user_switch_to_user" msgid="6975428297154968543">"प्रयोगकर्ता बदलेर <xliff:g id="USER_NAME">%s</xliff:g> बनाउनुहोस्"</string>
+    <string name="user_switch_to_user" msgid="6975428297154968543">"<xliff:g id="USER_NAME">%s</xliff:g> प्रयोग गर्नुहोस्"</string>
     <string name="creating_new_user_dialog_message" msgid="7232880257538970375">"नयाँ प्रयोगकर्ता बनाइँदै छ…"</string>
     <string name="creating_new_guest_dialog_message" msgid="1114905602181350690">"नयाँ अतिथि बनाइँदै छ…"</string>
     <string name="add_user_failed" msgid="4809887794313944872">"नयाँ प्रयोगकर्ता सिर्जना गर्न सकिएन"</string>
     <string name="add_guest_failed" msgid="8074548434469843443">"नयाँ अतिथि बनाउन सकिएन"</string>
     <string name="user_nickname" msgid="262624187455825083">"उपनाम"</string>
     <string name="edit_user_info_message" msgid="6677556031419002895">"यो डिभाइस प्रयोग गर्ने सबै जना तपाईंले छनौट गर्ने नाम र फोटो देख्न सक्ने छन्।"</string>
-    <string name="user_add_user" msgid="7876449291500212468">"प्रयोगकर्ता कनेक्ट गर्नुहोस्"</string>
-    <string name="guest_new_guest" msgid="3482026122932643557">"अतिथि कनेक्ट गर्नुहोस्"</string>
+    <string name="user_add_user" msgid="7876449291500212468">"प्रयोगकर्ता थप्नुहोस्"</string>
+    <string name="guest_new_guest" msgid="3482026122932643557">"अतिथि थप्नुहोस्"</string>
     <string name="guest_exit_guest" msgid="5908239569510734136">"अथिति हटाउनुहोस्"</string>
     <string name="guest_reset_guest" msgid="6110013010356013758">"अतिथि सत्र रिसेट गर्नुहोस्"</string>
     <string name="guest_reset_guest_dialog_title" msgid="8047270010895437534">"अतिथिका रूपमा ब्राउज गर्ने सेसन रिसेट गर्ने हो?"</string>
@@ -688,7 +707,7 @@
     <string name="cached_apps_freezer_device_default" msgid="2616594131750144342">"डिफल्ट डिभाइस"</string>
     <string name="cached_apps_freezer_disabled" msgid="4816382260660472042">"असक्षम पारिएको छ"</string>
     <string name="cached_apps_freezer_enabled" msgid="8866703500183051546">"सक्षम पारिएको छ"</string>
-    <string name="cached_apps_freezer_reboot_dialog_text" msgid="695330563489230096">"यो परिवर्तन लागू गर्न तपाईंको यन्त्र अनिवार्य रूपमा रिबुट गर्नु पर्छ। अहिले रिबुट गर्नुहोस् वा रद्द गर्नुहोस्।"</string>
+    <string name="cached_apps_freezer_reboot_dialog_text" msgid="695330563489230096">"यो परिवर्तन लागू गर्न तपाईंको डिभाइस अनिवार्य रूपमा रिबुट गर्नु पर्छ। अहिले नै रिबुट गर्नुहोस् वा रद्द गर्नुहोस्।"</string>
     <string name="media_transfer_wired_headphone_name" msgid="8698668536022665254">"तारयुक्त हेडफोन"</string>
     <string name="media_transfer_headphone_name" msgid="1157798825650178478">"तारयुक्त अडियो"</string>
     <string name="media_transfer_usb_audio_name" msgid="1789292056757821355">"USB अडियो"</string>

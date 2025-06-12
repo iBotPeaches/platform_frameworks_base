@@ -19,14 +19,15 @@ package com.android.server.security.intrusiondetection;
 import android.Manifest.permission;
 import android.annotation.RequiresPermission;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.DevicePolicyManagerInternal;
 import android.app.admin.SecurityLog.SecurityEvent;
 import android.content.Context;
 import android.security.intrusiondetection.IntrusionDetectionEvent;
 import android.util.Slog;
 
+import com.android.server.LocalServices;
+
 import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -36,13 +37,13 @@ public class SecurityLogSource implements DataSource {
 
     private SecurityEventCallback mEventCallback;
     private DevicePolicyManager mDpm;
-    private Executor mExecutor;
+    private DevicePolicyManagerInternal mDpmInternal;
     private DataAggregator mDataAggregator;
 
     public SecurityLogSource(Context context, DataAggregator dataAggregator) {
         mDataAggregator = dataAggregator;
         mDpm = context.getSystemService(DevicePolicyManager.class);
-        mExecutor = Executors.newSingleThreadExecutor();
+        mDpmInternal = LocalServices.getService(DevicePolicyManagerInternal.class);
         mEventCallback = new SecurityEventCallback();
     }
 
@@ -50,12 +51,13 @@ public class SecurityLogSource implements DataSource {
     @RequiresPermission(permission.MANAGE_DEVICE_POLICY_AUDIT_LOGGING)
     public void enable() {
         enableAuditLog();
-        mDpm.setAuditLogEventCallback(mExecutor, mEventCallback);
+        mDpmInternal.setInternalEventsCallback(mEventCallback);
     }
 
     @Override
     @RequiresPermission(permission.MANAGE_DEVICE_POLICY_AUDIT_LOGGING)
     public void disable() {
+        mDpmInternal.setInternalEventsCallback(null);
         disableAuditLog();
     }
 
@@ -82,14 +84,15 @@ public class SecurityLogSource implements DataSource {
 
         @Override
         public void accept(List<SecurityEvent> events) {
-            if (events.size() == 0) {
+            if (events == null || events.size() == 0) {
                 Slog.w(TAG, "No events received; caller may not be authorized");
                 return;
             }
+
             List<IntrusionDetectionEvent> intrusionDetectionEvents =
                     events.stream()
                             .filter(event -> event != null)
-                            .map(event -> new IntrusionDetectionEvent(event))
+                            .map(event -> IntrusionDetectionEvent.createForSecurityEvent(event))
                             .collect(Collectors.toList());
             mDataAggregator.addBatchData(intrusionDetectionEvents);
         }

@@ -17,11 +17,11 @@
 package com.android.systemui.qs.tiles.impl.flashlight.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.flashlight.domain.model.FlashlightTileModel
 import com.android.systemui.statusbar.policy.FlashlightController
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -30,22 +30,23 @@ import kotlinx.coroutines.flow.flowOf
 /** Observes flashlight state changes providing the [FlashlightTileModel]. */
 class FlashlightTileDataInteractor
 @Inject
-constructor(
-    private val flashlightController: FlashlightController,
-) : QSTileDataInteractor<FlashlightTileModel> {
+constructor(private val flashlightController: FlashlightController) :
+    QSTileDataInteractor<FlashlightTileModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<FlashlightTileModel> = conflatedCallbackFlow {
         val callback =
             object : FlashlightController.FlashlightListener {
                 override fun onFlashlightChanged(enabled: Boolean) {
                     trySend(FlashlightTileModel.FlashlightAvailable(enabled))
                 }
+
                 override fun onFlashlightError() {
                     trySend(FlashlightTileModel.FlashlightAvailable(false))
                 }
+
                 override fun onFlashlightAvailabilityChanged(available: Boolean) {
                     trySend(
                         if (available)

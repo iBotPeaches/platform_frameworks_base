@@ -256,7 +256,12 @@ public class ContextHubService extends IContextHubService.Stub {
         public void handleServiceRestart() {
             Log.i(TAG, "Recovering from Context Hub HAL restart...");
             initExistingCallbacks();
-            mHubInfoRegistry.onHalRestart();
+            if (mHubInfoRegistry != null) {
+                mHubInfoRegistry.onHalRestart();
+            }
+            if (mEndpointManager != null) {
+                mEndpointManager.onHalRestart();
+            }
             resetSettings();
             if (Flags.reconnectHostEndpointsAfterHalRestart()) {
                 mClientManager.forEachClientOfHub(mContextHubId,
@@ -332,24 +337,27 @@ public class ContextHubService extends IContextHubService.Stub {
         if (Flags.offloadApi() && Flags.offloadImplementation()) {
             HubInfoRegistry registry;
             try {
-                registry = new HubInfoRegistry(mContextHubWrapper);
+                registry = new HubInfoRegistry(mContext, mContextHubWrapper);
                 mEndpointManager =
-                        new ContextHubEndpointManager(mContext, mContextHubWrapper, registry);
-                Log.i(TAG, "Enabling generic offload API");
-            } catch (UnsupportedOperationException e) {
+                        new ContextHubEndpointManager(
+                                mContext, mContextHubWrapper, registry, mTransactionManager);
+                mEndpointManager.init();
+                Log.d(TAG, "Enabling generic offload API");
+            } catch (InstantiationException | UnsupportedOperationException e) {
                 mEndpointManager = null;
                 registry = null;
-                Log.w(TAG, "Generic offload API not supported, disabling");
+                if (e instanceof UnsupportedOperationException) {
+                    Log.d(TAG, "Generic offload API not supported by HAL");
+                }
             }
             mHubInfoRegistry = registry;
         } else {
             mHubInfoRegistry = null;
             mEndpointManager = null;
-            Log.i(TAG, "Disabling generic offload API");
+            Log.d(TAG, "Disabling generic offload API due to flag config");
         }
 
         initDefaultClientMap();
-        initEndpointCallback();
 
         initLocationSettingNotifications();
         initWifiSettingNotifications();
@@ -526,18 +534,6 @@ public class ContextHubService extends IContextHubService.Stub {
             queryNanoAppsInternal(contextHubId);
         }
         mDefaultClientMap = Collections.unmodifiableMap(defaultClientMap);
-    }
-
-    private void initEndpointCallback() {
-        if (mHubInfoRegistry == null) {
-            return;
-        }
-        try {
-            mContextHubWrapper.registerEndpointCallback(
-                    new ContextHubHalEndpointCallback(mHubInfoRegistry, mEndpointManager));
-        } catch (RemoteException | UnsupportedOperationException e) {
-            Log.e(TAG, "Exception while registering IEndpointCallback", e);
-        }
     }
 
     /**
@@ -765,9 +761,7 @@ public class ContextHubService extends IContextHubService.Stub {
     @Override
     public List<HubInfo> getHubs() throws RemoteException {
         super.getHubs_enforcePermission();
-        if (mHubInfoRegistry == null) {
-            return Collections.emptyList();
-        }
+        checkHubDiscoveryPreconditions();
         return mHubInfoRegistry.getHubs();
     }
 
@@ -775,9 +769,7 @@ public class ContextHubService extends IContextHubService.Stub {
     @Override
     public List<HubEndpointInfo> findEndpoints(long endpointId) {
         super.findEndpoints_enforcePermission();
-        if (mHubInfoRegistry == null) {
-            return Collections.emptyList();
-        }
+        checkEndpointDiscoveryPreconditions();
         return mHubInfoRegistry.findEndpoints(endpointId);
     }
 
@@ -785,23 +777,29 @@ public class ContextHubService extends IContextHubService.Stub {
     @Override
     public List<HubEndpointInfo> findEndpointsWithService(String serviceDescriptor) {
         super.findEndpointsWithService_enforcePermission();
-        if (mHubInfoRegistry == null) {
-            return Collections.emptyList();
-        }
+        checkEndpointDiscoveryPreconditions();
         return mHubInfoRegistry.findEndpointsWithService(serviceDescriptor);
     }
 
     @android.annotation.EnforcePermission(android.Manifest.permission.ACCESS_CONTEXT_HUB)
     @Override
     public IContextHubEndpoint registerEndpoint(
-            HubEndpointInfo pendingHubEndpointInfo, IContextHubEndpointCallback callback)
+            HubEndpointInfo pendingHubEndpointInfo,
+            IContextHubEndpointCallback callback,
+            String packageName,
+            String attributionTag)
             throws RemoteException {
         super.registerEndpoint_enforcePermission();
         if (mEndpointManager == null) {
             Log.e(TAG, "Endpoint manager failed to initialize");
             throw new UnsupportedOperationException("Endpoint registration is not supported");
         }
-        return mEndpointManager.registerEndpoint(pendingHubEndpointInfo, callback);
+        if (callback == null) {
+            Log.e(TAG, "Endpoint callback is invalid");
+            throw new IllegalArgumentException("registerEndpoint must have a non-null callback");
+        }
+        return mEndpointManager.registerEndpoint(
+                pendingHubEndpointInfo, callback, packageName, attributionTag);
     }
 
     @android.annotation.EnforcePermission(android.Manifest.permission.ACCESS_CONTEXT_HUB)
@@ -832,10 +830,24 @@ public class ContextHubService extends IContextHubService.Stub {
         mHubInfoRegistry.unregisterEndpointDiscoveryCallback(callback);
     }
 
+    @android.annotation.EnforcePermission(android.Manifest.permission.ACCESS_CONTEXT_HUB)
+    @Override
+    public void onDiscoveryCallbackFinished() throws RemoteException {
+        super.onDiscoveryCallbackFinished_enforcePermission();
+        mHubInfoRegistry.onDiscoveryCallbackFinished();
+    }
+
     private void checkEndpointDiscoveryPreconditions() {
         if (mHubInfoRegistry == null) {
             Log.e(TAG, "Hub endpoint registry failed to initialize");
             throw new UnsupportedOperationException("Endpoint discovery is not supported");
+        }
+    }
+
+    private void checkHubDiscoveryPreconditions() {
+        if (mHubInfoRegistry == null) {
+            Log.e(TAG, "Hub registry failed to initialize");
+            throw new UnsupportedOperationException("Hub discovery is not supported");
         }
     }
 
@@ -1572,6 +1584,12 @@ public class ContextHubService extends IContextHubService.Stub {
         pw.println("");
         pw.println("=================== CLIENTS ====================");
         pw.println(mClientManager);
+
+        if (mEndpointManager != null) {
+            pw.println("");
+            pw.println("=================== ENDPOINTS ====================");
+            pw.println(mEndpointManager);
+        }
 
         pw.println("");
         pw.println("=================== TRANSACTIONS ====================");

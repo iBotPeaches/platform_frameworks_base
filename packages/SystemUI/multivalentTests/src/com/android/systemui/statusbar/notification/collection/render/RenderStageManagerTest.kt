@@ -24,15 +24,16 @@ import com.android.systemui.statusbar.notification.collection.GroupEntryBuilder
 import com.android.systemui.statusbar.notification.collection.ListEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntryBuilder
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.ShadeListBuilder
 import com.android.systemui.statusbar.notification.collection.listbuilder.OnAfterRenderEntryListener
 import com.android.systemui.statusbar.notification.collection.listbuilder.OnAfterRenderGroupListener
 import com.android.systemui.statusbar.notification.collection.listbuilder.OnAfterRenderListListener
+import com.android.systemui.util.mockito.withArgCaptor
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -40,6 +41,7 @@ import org.mockito.kotlin.spy
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoMoreInteractions
+import java.nio.channels.Pipe
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -59,10 +61,9 @@ class RenderStageManagerTest : SysuiTestCase() {
     fun setUp() {
         renderStageManager = RenderStageManager()
         renderStageManager.attach(shadeListBuilder)
-
-        val captor = argumentCaptor<ShadeListBuilder.OnRenderListListener>()
-        verify(shadeListBuilder).setOnRenderListListener(captor.capture())
-        onRenderListListener = captor.lastValue
+        onRenderListListener = withArgCaptor {
+            verify(shadeListBuilder).setOnRenderListListener(capture())
+        }
     }
 
     private fun setUpRenderer() {
@@ -102,7 +103,6 @@ class RenderStageManagerTest : SysuiTestCase() {
         // VERIFY that the renderer is not queried for group or row controllers
         inOrder(spyViewRenderer).apply {
             verify(spyViewRenderer, times(1)).onRenderList(any())
-            verify(spyViewRenderer, times(1)).getStackController()
             verify(spyViewRenderer, never()).getGroupController(any())
             verify(spyViewRenderer, never()).getRowController(any())
             verify(spyViewRenderer, times(1)).onDispatchComplete()
@@ -122,7 +122,6 @@ class RenderStageManagerTest : SysuiTestCase() {
         // VERIFY that the renderer is queried once per group/entry
         inOrder(spyViewRenderer).apply {
             verify(spyViewRenderer, times(1)).onRenderList(any())
-            verify(spyViewRenderer, times(1)).getStackController()
             verify(spyViewRenderer, times(2)).getGroupController(any())
             verify(spyViewRenderer, times(8)).getRowController(any())
             verify(spyViewRenderer, times(1)).onDispatchComplete()
@@ -145,7 +144,6 @@ class RenderStageManagerTest : SysuiTestCase() {
         // VERIFY that the renderer is queried once per group/entry
         inOrder(spyViewRenderer).apply {
             verify(spyViewRenderer, times(1)).onRenderList(any())
-            verify(spyViewRenderer, times(1)).getStackController()
             verify(spyViewRenderer, times(2)).getGroupController(any())
             verify(spyViewRenderer, times(8)).getRowController(any())
             verify(spyViewRenderer, times(1)).onDispatchComplete()
@@ -163,7 +161,7 @@ class RenderStageManagerTest : SysuiTestCase() {
         onRenderListListener.onRenderList(listWith2Groups8Entries())
 
         // VERIFY that the listeners are invoked once per group and once per entry
-        verify(onAfterRenderListListener, times(1)).onAfterRenderList(any(), any())
+        verify(onAfterRenderListListener, times(1)).onAfterRenderList(any())
         verify(onAfterRenderGroupListener, times(2)).onAfterRenderGroup(any(), any())
         verify(onAfterRenderEntryListener, times(8)).onAfterRenderEntry(any(), any())
         verifyNoMoreInteractions(
@@ -183,7 +181,7 @@ class RenderStageManagerTest : SysuiTestCase() {
         onRenderListListener.onRenderList(listOf())
 
         // VERIFY that the stack listener is invoked once but other listeners are not
-        verify(onAfterRenderListListener, times(1)).onAfterRenderList(any(), any())
+        verify(onAfterRenderListListener, times(1)).onAfterRenderList(any())
         verify(onAfterRenderGroupListener, never()).onAfterRenderGroup(any(), any())
         verify(onAfterRenderEntryListener, never()).onAfterRenderEntry(any(), any())
         verifyNoMoreInteractions(
@@ -202,9 +200,7 @@ class RenderStageManagerTest : SysuiTestCase() {
         )
 
     private class FakeNotifViewRenderer : NotifViewRenderer {
-        override fun onRenderList(notifList: List<ListEntry>) {}
-
-        override fun getStackController(): NotifStackController = mock()
+        override fun onRenderList(notifList: List<PipelineEntry>) {}
 
         override fun getGroupController(group: GroupEntry): NotifGroupController = mock()
 

@@ -24,20 +24,16 @@ import android.platform.test.annotations.RequiresFlagsDisabled
 import android.tools.flicker.junit.FlickerParametersRunnerFactory
 import android.tools.flicker.legacy.FlickerBuilder
 import android.tools.flicker.legacy.LegacyFlickerTest
-import android.tools.flicker.subject.exceptions.ExceptionMessageBuilder
-import android.tools.flicker.subject.exceptions.IncorrectRegionException
-import android.tools.flicker.subject.layers.LayerSubject
 import com.android.server.wm.flicker.helpers.PipAppHelper
 import com.android.wm.shell.Flags
 import com.android.wm.shell.flicker.pip.common.EnterPipTransition
+import com.android.wm.shell.flicker.pip.common.widthNotSmallerThan
 import org.junit.Assume
 import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.MethodSorters
 import org.junit.runners.Parameterized
-import kotlin.math.abs
-
 
 /**
  * Test entering pip from an app via auto-enter property when navigating to home.
@@ -74,22 +70,6 @@ open class AutoEnterPipOnGoToHomeTest(flicker: LegacyFlickerTest) : EnterPipTran
         setup {
             pipApp.launchViaIntent(wmHelper)
             pipApp.enableAutoEnterForPipActivity()
-        }
-    }
-
-    override val defaultTeardown: FlickerBuilder.() -> Unit = { teardown { pipApp.exit(wmHelper) } }
-
-    private val widthNotSmallerThan: LayerSubject.(LayerSubject) -> Unit = {
-        val width = visibleRegion.region.bounds.width()
-        val otherWidth = it.visibleRegion.region.bounds.width()
-        if (width < otherWidth && abs(width - otherWidth) > EPSILON) {
-            val errorMsgBuilder =
-                ExceptionMessageBuilder()
-                    .forSubject(this)
-                    .forIncorrectRegion("width. $width smaller than $otherWidth")
-                    .setExpected(width)
-                    .setActual(otherWidth)
-            throw IncorrectRegionException(errorMsgBuilder)
         }
     }
 
@@ -134,7 +114,7 @@ open class AutoEnterPipOnGoToHomeTest(flicker: LegacyFlickerTest) : EnterPipTran
     /** Checks that [pipApp] window is animated towards default position in right bottom corner */
     @FlakyTest(bugId = 255578530)
     @Test
-    fun pipLayerMovesTowardsRightBottomCorner() {
+    open fun pipLayerMovesTowardsRightBottomCorner() {
         // in gestural nav the swipe makes PiP first go upwards
         Assume.assumeFalse(flicker.scenario.isGesturalNavigation)
         flicker.assertLayers {
@@ -160,10 +140,5 @@ open class AutoEnterPipOnGoToHomeTest(flicker: LegacyFlickerTest) : EnterPipTran
     @Test
     override fun visibleLayersShownMoreThanOneConsecutiveEntry() {
         super.visibleLayersShownMoreThanOneConsecutiveEntry()
-    }
-
-    companion object {
-        // TODO(b/363080056): A margin of error allowed on certain layer size calculations.
-        const val EPSILON = 1
     }
 }

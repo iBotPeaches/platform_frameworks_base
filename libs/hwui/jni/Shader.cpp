@@ -266,11 +266,17 @@ static jlong RuntimeShader_getNativeFinalizer(JNIEnv*, jobject) {
     return static_cast<jlong>(reinterpret_cast<uintptr_t>(&SkRuntimeShaderBuilder_delete));
 }
 
-static jlong RuntimeShader_create(JNIEnv* env, jobject, jlong shaderBuilder, jlong matrixPtr) {
+static jlong RuntimeShader_create(JNIEnv* env, jobject, jlong shaderBuilder, jlong matrixPtr,
+                                  jlong colorSpacePtr) {
     SkRuntimeShaderBuilder* builder = reinterpret_cast<SkRuntimeShaderBuilder*>(shaderBuilder);
     const SkMatrix* matrix = reinterpret_cast<const SkMatrix*>(matrixPtr);
+    auto colorSpace = GraphicsJNI::getNativeColorSpace(colorSpacePtr);
     sk_sp<SkShader> shader = builder->makeShader(matrix);
     ThrowIAE_IfNull(env, shader);
+    if (colorSpace) {
+        shader = shader->makeWithWorkingColorSpace(colorSpace);
+        ThrowIAE_IfNull(env, shader);
+    }
     return reinterpret_cast<jlong>(shader.release());
 }
 
@@ -350,6 +356,10 @@ static void RuntimeShader_updateChild(JNIEnv* env, jobject, jlong shaderBuilder,
     UpdateChild(env, builder, name.c_str(), childEffect);
 }
 
+static void RuntimeShader_no(JNIEnv* env) {
+    jniThrowRuntimeException(env, "Not supported");
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 static const JNINativeMethod gShaderMethods[] = {
@@ -379,7 +389,8 @@ static const JNINativeMethod gComposeShaderMethods[] = {
 
 static const JNINativeMethod gRuntimeShaderMethods[] = {
         {"nativeGetFinalizer", "()J", (void*)RuntimeShader_getNativeFinalizer},
-        {"nativeCreateShader", "(JJ)J", (void*)RuntimeShader_create},
+        {"nativeCreateShader", "(JJ)J", (void*)RuntimeShader_no},
+        {"nativeCreateShader", "(JJJ)J", (void*)RuntimeShader_create},
         {"nativeCreateBuilder", "(Ljava/lang/String;)J", (void*)RuntimeShader_createShaderBuilder},
         {"nativeUpdateUniforms", "(JLjava/lang/String;[FZ)V",
          (void*)RuntimeShader_updateFloatArrayUniforms},

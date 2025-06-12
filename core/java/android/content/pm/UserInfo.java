@@ -183,6 +183,12 @@ public class UserInfo implements Parcelable {
      *
      * <p>This is not necessarily the system user. For example, it will not be the system user on
      * devices for which {@link UserManager#isHeadlessSystemUserMode()} returns true.
+     *
+     * <p>NB: Features should ideally not limit functionality to the main user. Ideally, they
+     * should either work for all users or for all admin users. If a feature should only work for
+     * select users, its determination of which user should be done intelligently or be
+     * customizable. Not all devices support a main user, and the idea of singling out one user as
+     * special is contrary to overall multiuser goals.
      */
     public static final int FLAG_MAIN = 0x00004000;
 
@@ -404,6 +410,11 @@ public class UserInfo implements Parcelable {
         return UserManager.isUserTypePrivateProfile(userType);
     }
 
+    @FlaggedApi(android.multiuser.Flags.FLAG_ALLOW_SUPERVISING_PROFILE)
+    public boolean isSupervisingProfile() {
+        return UserManager.isUserTypeSupervisingProfile(userType);
+    }
+
     /** See {@link #FLAG_DISABLED}*/
     @UnsupportedAppUsage
     public boolean isEnabled() {
@@ -483,10 +494,14 @@ public class UserInfo implements Parcelable {
     // TODO(b/142482943): Make this logic more specific and customizable. (canHaveProfile(userType))
     /* @hide */
     public boolean canHaveProfile() {
-        if (isProfile() || isGuest() || isRestricted()) {
+        if (!isFull() || isProfile() || isGuest() || isRestricted() || isDemo()) {
             return false;
         }
-        return isMain();
+        // NOTE: profiles used to be restricted just to the system user (and later to the main
+        // user), but from the framework point of view there is no need for such restriction, hence
+        // it's lifted
+        // TODO(b/374832167): check value of config_supportProfilesOnNonMainUser
+        return isMain() || android.multiuser.Flags.profilesForAll();
     }
 
     // TODO(b/142482943): Get rid of this (after removing it from all tests) if feasible.

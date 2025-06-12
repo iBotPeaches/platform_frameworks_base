@@ -22,13 +22,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
+import com.android.systemui.coroutines.collectValues
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.pipeline.shared.TilesUpgradePath
 import com.android.systemui.qs.pipeline.shared.logging.QSPipelineLogger
 import com.android.systemui.res.R
 import com.android.systemui.retail.data.repository.FakeRetailModeRepository
 import com.android.systemui.util.settings.FakeSettings
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -42,7 +44,6 @@ import org.mockito.MockitoAnnotations
 @SmallTest
 @EnabledOnRavenwood
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class TileSpecSettingsRepositoryTest : SysuiTestCase() {
 
     private lateinit var secureSettings: FakeSettings
@@ -92,6 +93,7 @@ class TileSpecSettingsRepositoryTest : SysuiTestCase() {
                 logger,
                 retailModeRepository,
                 userTileSpecRepositoryFactory,
+                testScope.backgroundScope,
             )
     }
 
@@ -231,6 +233,43 @@ class TileSpecSettingsRepositoryTest : SysuiTestCase() {
             underTest.resetToDefault(0)
 
             assertThat(tiles!!).containsExactlyElementsIn(DEFAULT_TILES.toTileSpecs())
+        }
+
+    @Test
+    fun readSettingsStored_emittedForUser() =
+        testScope.runTest {
+            val startingTiles = "a,b"
+            val userId = 10
+            storeTilesForUser(startingTiles, userId)
+
+            val tiles by collectLastValue(underTest.tilesSpecs(userId))
+            val tilesRead by collectLastValue(underTest.tilesUpgradePath.consumeAsFlow())
+
+            assertThat(tilesRead)
+                .isEqualTo(
+                    TilesUpgradePath.ReadFromSettings(startingTiles.toTileSpecs().toSet()) to userId
+                )
+        }
+
+    @Test
+    fun readSettingsStored_multipleUsers() =
+        testScope.runTest {
+            val startingTiles10 = "a"
+            val startingTiles11 = "b,c"
+            storeTilesForUser(startingTiles10, 10)
+            storeTilesForUser(startingTiles11, 11)
+
+            val tiles10 by collectLastValue(underTest.tilesSpecs(10))
+            val tiles11 by collectLastValue(underTest.tilesSpecs(11))
+
+            val tilesRead by collectValues(underTest.tilesUpgradePath.consumeAsFlow())
+
+            assertThat(tilesRead).hasSize(2)
+            assertThat(tilesRead)
+                .containsExactly(
+                    TilesUpgradePath.ReadFromSettings(startingTiles10.toTileSpecs().toSet()) to 10,
+                    TilesUpgradePath.ReadFromSettings(startingTiles11.toTileSpecs().toSet()) to 11,
+                )
         }
 
     private fun TestScope.storeTilesForUser(specs: String, forUser: Int) {

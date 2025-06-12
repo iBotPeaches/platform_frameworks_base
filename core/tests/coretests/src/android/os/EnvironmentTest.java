@@ -28,7 +28,7 @@ import static org.junit.Assert.assertEquals;
 
 import android.content.Context;
 import android.os.storage.StorageManager;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.InstrumentationRegistry;
@@ -46,7 +46,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = Environment.class)
+@DisabledOnRavenwood(blockedBy = Environment.class)
 public class EnvironmentTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

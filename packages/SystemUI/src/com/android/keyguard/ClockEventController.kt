@@ -43,7 +43,6 @@ import com.android.systemui.dagger.qualifiers.DisplaySpecific
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.flags.FeatureFlagsClassic
 import com.android.systemui.flags.Flags.REGION_SAMPLING
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor
 import com.android.systemui.keyguard.shared.model.Edge
@@ -56,9 +55,11 @@ import com.android.systemui.log.core.Logger
 import com.android.systemui.modes.shared.ModesUi
 import com.android.systemui.plugins.clocks.AlarmData
 import com.android.systemui.plugins.clocks.ClockController
+import com.android.systemui.plugins.clocks.ClockEventListener
 import com.android.systemui.plugins.clocks.ClockFaceController
 import com.android.systemui.plugins.clocks.ClockMessageBuffers
 import com.android.systemui.plugins.clocks.ClockTickRate
+import com.android.systemui.plugins.clocks.VRectF
 import com.android.systemui.plugins.clocks.WeatherData
 import com.android.systemui.plugins.clocks.ZenData
 import com.android.systemui.plugins.clocks.ZenData.ZenMode
@@ -71,6 +72,7 @@ import com.android.systemui.statusbar.policy.BatteryController.BatteryStateChang
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.statusbar.policy.ZenModeController
 import com.android.systemui.statusbar.policy.domain.interactor.ZenModeInteractor
+import com.android.systemui.util.annotations.DeprecatedSysuiVisibleForTesting
 import com.android.systemui.util.concurrency.DelayableExecutor
 import java.util.Locale
 import java.util.TimeZone
@@ -79,14 +81,14 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 
 /**
- * Controller for a Clock provided by the registry and used on the keyguard. Instantiated by
- * [KeyguardClockSwitchController]. Functionality is forked from [AnimatableClockController].
+ * Controller for a Clock provided by the registry and used on the keyguard. Functionality is forked
+ * from [AnimatableClockController].
  */
 open class ClockEventController
 @Inject
@@ -148,7 +150,7 @@ constructor(
         val clockStr = clock.toString()
         loggers.forEach { it.d({ "New Clock: $str1" }) { str1 = clockStr } }
 
-        clock.initialize(isDarkTheme(), dozeAmount, 0f)
+        clock.initialize(isDarkTheme(), dozeAmount.value, 0f, clockListener)
 
         if (!regionSamplingEnabled) {
             updateColors()
@@ -241,16 +243,15 @@ constructor(
     private var smallClockFrame: ViewGroup? = null
     private var onGlobalLayoutListener: OnGlobalLayoutListener? = null
 
-    private var isDozing = false
-        private set
-
     private var isCharging = false
-    private var dozeAmount = 0f
     private var isKeyguardVisible = false
     private var isRegistered = false
     private var disposableHandle: DisposableHandle? = null
     private val regionSamplingEnabled = featureFlags.isEnabled(REGION_SAMPLING)
     private var largeClockOnSecondaryDisplay = false
+
+    val dozeAmount = MutableStateFlow(0f)
+    val onClockBoundsChanged = MutableStateFlow<VRectF>(VRectF.ZERO)
 
     private fun isDarkTheme(): Boolean {
         val isLightTheme = TypedValue()
@@ -307,11 +308,18 @@ constructor(
     var smallTimeListener: TimeListener? = null
     var largeTimeListener: TimeListener? = null
     val shouldTimeListenerRun: Boolean
-        get() = isKeyguardVisible && dozeAmount < DOZE_TICKRATE_THRESHOLD
+        get() = isKeyguardVisible && dozeAmount.value < DOZE_TICKRATE_THRESHOLD
 
     private var weatherData: WeatherData? = null
     private var zenData: ZenData? = null
     private var alarmData: AlarmData? = null
+
+    private val clockListener =
+        object : ClockEventListener {
+            override fun onBoundsChanged(bounds: VRectF) {
+                onClockBoundsChanged.value = bounds
+            }
+        }
 
     private val configListener =
         object : ConfigurationController.ConfigurationListener {
@@ -348,14 +356,6 @@ constructor(
         object : KeyguardUpdateMonitorCallback() {
             override fun onKeyguardVisibilityChanged(visible: Boolean) {
                 isKeyguardVisible = visible
-                if (!MigrateClocksToBlueprint.isEnabled) {
-                    if (!isKeyguardVisible) {
-                        clock?.run {
-                            smallClock.animations.doze(if (isDozing) 1f else 0f)
-                            largeClock.animations.doze(if (isDozing) 1f else 0f)
-                        }
-                    }
-                }
 
                 if (visible) {
                     refreshTime()
@@ -388,18 +388,15 @@ constructor(
             }
 
             private fun refreshTime() {
-                if (!MigrateClocksToBlueprint.isEnabled) {
-                    return
-                }
-
                 clock?.smallClock?.events?.onTimeTick()
                 clock?.largeClock?.events?.onTimeTick()
             }
         }
 
-    @VisibleForTesting
-    internal fun listenForDnd(scope: CoroutineScope): Job {
-        ModesUi.assertInNewMode()
+    @DeprecatedSysuiVisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun listenForDnd(scope: CoroutineScope): Job {
+        ModesUi.unsafeAssertInNewMode()
         return scope.launch {
             zenModeInteractor.dndMode.collect {
                 val zenMode =
@@ -479,18 +476,13 @@ constructor(
         disposableHandle =
             parent.repeatWhenAttached {
                 repeatOnLifecycle(Lifecycle.State.CREATED) {
-                    listenForDozing(this)
                     if (ModesUi.isEnabled) {
                         listenForDnd(this)
                     }
-                    if (MigrateClocksToBlueprint.isEnabled) {
-                        listenForDozeAmountTransition(this)
-                        listenForAnyStateToAodTransition(this)
-                        listenForAnyStateToLockscreenTransition(this)
-                        listenForAnyStateToDozingTransition(this)
-                    } else {
-                        listenForDozeAmount(this)
-                    }
+                    listenForDozeAmountTransition(this)
+                    listenForAnyStateToAodTransition(this)
+                    listenForAnyStateToLockscreenTransition(this)
+                    listenForAnyStateToDozingTransition(this)
                 }
             }
         smallTimeListener?.update(shouldTimeListenerRun)
@@ -581,27 +573,30 @@ constructor(
         }
     }
 
+    fun handleFidgetTap(x: Float, y: Float) {
+        clock?.run {
+            smallClock.animations.onFidgetTap(x, y)
+            largeClock.animations.onFidgetTap(x, y)
+        }
+    }
+
     private fun handleDoze(doze: Float) {
-        dozeAmount = doze
         clock?.run {
             Trace.beginSection("$TAG#smallClock.animations.doze")
-            smallClock.animations.doze(dozeAmount)
+            smallClock.animations.doze(doze)
             Trace.endSection()
             Trace.beginSection("$TAG#largeClock.animations.doze")
-            largeClock.animations.doze(dozeAmount)
+            largeClock.animations.doze(doze)
             Trace.endSection()
         }
         smallTimeListener?.update(doze < DOZE_TICKRATE_THRESHOLD)
         largeTimeListener?.update(doze < DOZE_TICKRATE_THRESHOLD)
+        dozeAmount.value = doze
     }
 
-    @VisibleForTesting
-    internal fun listenForDozeAmount(scope: CoroutineScope): Job {
-        return scope.launch { keyguardInteractor.dozeAmount.collect { handleDoze(it) } }
-    }
-
-    @VisibleForTesting
-    internal fun listenForDozeAmountTransition(scope: CoroutineScope): Job {
+    @DeprecatedSysuiVisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun listenForDozeAmountTransition(scope: CoroutineScope): Job {
         return scope.launch {
             merge(
                     keyguardTransitionInteractor.transition(Edge.create(AOD, LOCKSCREEN)).map {
@@ -617,8 +612,9 @@ constructor(
     /**
      * When keyguard is displayed again after being gone, the clock must be reset to full dozing.
      */
-    @VisibleForTesting
-    internal fun listenForAnyStateToAodTransition(scope: CoroutineScope): Job {
+    @DeprecatedSysuiVisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun listenForAnyStateToAodTransition(scope: CoroutineScope): Job {
         return scope.launch {
             keyguardTransitionInteractor
                 .transition(Edge.create(to = AOD))
@@ -628,8 +624,9 @@ constructor(
         }
     }
 
-    @VisibleForTesting
-    internal fun listenForAnyStateToLockscreenTransition(scope: CoroutineScope): Job {
+    @DeprecatedSysuiVisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun listenForAnyStateToLockscreenTransition(scope: CoroutineScope): Job {
         return scope.launch {
             keyguardTransitionInteractor
                 .transition(Edge.create(to = LOCKSCREEN))
@@ -643,25 +640,14 @@ constructor(
      * When keyguard is displayed due to pulsing notifications when AOD is off, we should make sure
      * clock is in dozing state instead of LS state
      */
-    @VisibleForTesting
-    internal fun listenForAnyStateToDozingTransition(scope: CoroutineScope): Job {
+    @DeprecatedSysuiVisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun listenForAnyStateToDozingTransition(scope: CoroutineScope): Job {
         return scope.launch {
             keyguardTransitionInteractor
                 .transition(Edge.create(to = DOZING))
                 .filter { it.transitionState == TransitionState.FINISHED }
                 .collect { handleDoze(1f) }
-        }
-    }
-
-    @VisibleForTesting
-    internal fun listenForDozing(scope: CoroutineScope): Job {
-        return scope.launch {
-            combine(keyguardInteractor.dozeAmount, keyguardInteractor.isDozing) {
-                    localDozeAmount,
-                    localIsDozing ->
-                    localDozeAmount > dozeAmount || localIsDozing
-                }
-                .collect { localIsDozing -> isDozing = localIsDozing }
         }
     }
 
@@ -695,8 +681,7 @@ constructor(
             isRunning = true
             when (clockFace.config.tickRate) {
                 ClockTickRate.PER_MINUTE -> {
-                    // Handled by KeyguardClockSwitchController and
-                    // by KeyguardUpdateMonitorCallback#onTimeChanged.
+                    // Handled by KeyguardUpdateMonitorCallback#onTimeChanged.
                 }
                 ClockTickRate.PER_SECOND -> executor.execute(secondsRunnable)
                 ClockTickRate.PER_FRAME -> {

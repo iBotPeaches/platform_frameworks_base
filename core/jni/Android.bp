@@ -21,7 +21,6 @@ soong_config_module_type {
     config_namespace: "ANDROID",
     bool_variables: [
         "release_binder_death_recipient_weak_from_jni",
-        "release_package_libandroid_runtime_punch_holes",
     ],
     properties: [
         "cflags",
@@ -32,6 +31,7 @@ cc_library_shared_for_libandroid_runtime {
     name: "libandroid_runtime",
     host_supported: true,
     cflags: [
+        "-Wno-cast-function-type-mismatch",
         "-Wno-unused-parameter",
         "-Wno-non-virtual-dtor",
         "-Wno-maybe-uninitialized",
@@ -66,9 +66,6 @@ cc_library_shared_for_libandroid_runtime {
         release_binder_death_recipient_weak_from_jni: {
             cflags: ["-DBINDER_DEATH_RECIPIENT_WEAK_FROM_JNI"],
         },
-        release_package_libandroid_runtime_punch_holes: {
-            cflags: ["-DENABLE_PUNCH_HOLES"],
-        },
     },
 
     cpp_std: "gnu++20",
@@ -76,6 +73,9 @@ cc_library_shared_for_libandroid_runtime {
     srcs: [
         "android_animation_PropertyValuesHolder.cpp",
         "android_content_res_ApkAssets.cpp",
+        "android_media_ImageReader.cpp",
+        "android_media_PublicFormatUtils.cpp",
+        "android_media_Utils.cpp",
         "android_os_SystemClock.cpp",
         "android_os_SystemProperties.cpp",
         "android_text_AndroidCharacter.cpp",
@@ -134,6 +134,7 @@ cc_library_shared_for_libandroid_runtime {
                 "android_app_ActivityThread.cpp",
                 "android_app_NativeActivity.cpp",
                 "android_app_admin_SecurityLog.cpp",
+                "android_media_ImageWriter.cpp",
                 "android_opengl_EGL14.cpp",
                 "android_opengl_EGL15.cpp",
                 "android_opengl_EGLExt.cpp",
@@ -181,6 +182,8 @@ cc_library_shared_for_libandroid_runtime {
                 "android_os_NativeHandle.cpp",
                 "android_os_MemoryFile.cpp",
                 "android_os_MessageQueue.cpp",
+                "android_os_PerfettoTrace.cpp",
+                "android_os_PerfettoTrackEventExtra.cpp",
                 "android_os_Parcel.cpp",
                 "android_os_PerformanceHintManager.cpp",
                 "android_os_SELinux.cpp",
@@ -207,7 +210,6 @@ cc_library_shared_for_libandroid_runtime {
                 "android_media_AudioAttributes.cpp",
                 "android_media_AudioProductStrategies.cpp",
                 "android_media_AudioVolumeGroups.cpp",
-                "android_media_AudioVolumeGroupCallback.cpp",
                 "android_media_DeviceCallback.cpp",
                 "android_media_MediaMetricsJNI.cpp",
                 "android_media_MicrophoneInfo.cpp",
@@ -308,6 +310,7 @@ cc_library_shared_for_libandroid_runtime {
                 "audioflinger-aidl-cpp",
                 "audiopolicy-types-aidl-cpp",
                 "spatializer-aidl-cpp",
+                "volumegroupcallback-aidl-cpp",
                 "av-types-aidl-cpp",
                 "android.hardware.camera.device@3.2",
                 "camera_platform_flags_c_lib",
@@ -483,13 +486,26 @@ cc_library_shared_for_libandroid_runtime {
                 "libsqlite",
                 "libgui_window_info_static",
                 "libbinder",
+                "libbinder_ndk",
                 "libhidlbase", // libhwbinder is in here
+                "libaconfig_storage_read_api_cc",
             ],
+            version_script: "platform/linux/libandroid_runtime_export.txt",
+        },
+        darwin: {
+            host_ldlibs: [
+                "-framework AppKit",
+            ],
+            dist: {
+                targets: ["layoutlib_jni"],
+                dir: "layoutlib_native/darwin",
+            },
+            exported_symbols_list: "platform/darwin/libandroid_runtime_export.exp",
         },
         linux_glibc_x86_64: {
             ldflags: ["-static-libgcc"],
             dist: {
-                targets: ["layoutlib"],
+                targets: ["layoutlib_jni"],
                 dir: "layoutlib_native/linux",
                 tag: "stripped_all",
             },
@@ -516,5 +532,37 @@ cc_library_shared {
 
     required: [
         "vintf",
+    ],
+}
+
+cc_library_shared {
+    name: "libmedia_jni_utils",
+    srcs: [
+        ":libgui_frame_event_aidl",
+        "android_media_Utils.cpp",
+    ],
+
+    header_libs: [
+        "libgui_headers",
+    ],
+
+    shared_libs: [
+        "liblog",
+        "libui",
+        "libutils",
+    ],
+
+    include_dirs: [
+        "system/media/camera/include",
+    ],
+
+    export_include_dirs: ["."],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-error=deprecated-declarations",
+        "-Wunused",
+        "-Wunreachable-code",
     ],
 }

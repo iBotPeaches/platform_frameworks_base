@@ -25,12 +25,12 @@ import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.statusbar.pipeline.mobile.data.model.DataConnectionState
 import com.android.systemui.statusbar.pipeline.mobile.data.model.NetworkNameModel
 import com.android.systemui.statusbar.pipeline.mobile.data.model.ResolvedNetworkType
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionRepository
 import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityModel
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.FakeWifiRepository
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.TestScope
@@ -43,18 +43,31 @@ import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 
 @SmallTest
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
-class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
+class CarrierMergedConnectionRepositoryTest : CarrierMergedConnectionRepositoryTestBase() {
+    override fun recreateRepo() =
+        CarrierMergedConnectionRepository(
+            SUB_ID,
+            logger,
+            telephonyManager,
+            testScope.backgroundScope.coroutineContext,
+            testScope.backgroundScope,
+            wifiRepository,
+        )
+}
 
-    private lateinit var underTest: CarrierMergedConnectionRepository
+abstract class CarrierMergedConnectionRepositoryTestBase : SysuiTestCase() {
 
-    private lateinit var wifiRepository: FakeWifiRepository
-    @Mock private lateinit var logger: TableLogBuffer
-    @Mock private lateinit var telephonyManager: TelephonyManager
+    protected lateinit var underTest: MobileConnectionRepository
 
-    private val testDispatcher = UnconfinedTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
+    protected lateinit var wifiRepository: FakeWifiRepository
+    @Mock protected lateinit var logger: TableLogBuffer
+    @Mock protected lateinit var telephonyManager: TelephonyManager
+
+    protected val testDispatcher = UnconfinedTestDispatcher()
+    protected val testScope = TestScope(testDispatcher)
+
+    abstract fun recreateRepo(): MobileConnectionRepository
 
     @Before
     fun setUp() {
@@ -64,15 +77,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
 
         wifiRepository = FakeWifiRepository()
 
-        underTest =
-            CarrierMergedConnectionRepository(
-                SUB_ID,
-                logger,
-                telephonyManager,
-                testScope.backgroundScope.coroutineContext,
-                testScope.backgroundScope,
-                wifiRepository,
-            )
+        underTest = recreateRepo()
     }
 
     @Test
@@ -123,10 +128,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
             wifiRepository.setIsWifiDefault(true)
 
             wifiRepository.setWifiNetwork(
-                WifiNetworkModel.CarrierMerged.of(
-                    subscriptionId = SUB_ID,
-                    level = 3,
-                )
+                WifiNetworkModel.CarrierMerged.of(subscriptionId = SUB_ID, level = 3)
             )
 
             assertThat(latest).isEqualTo(3)
@@ -143,26 +145,17 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
             wifiRepository.setIsWifiEnabled(true)
             wifiRepository.setIsWifiDefault(true)
             wifiRepository.setWifiNetwork(
-                WifiNetworkModel.CarrierMerged.of(
-                    subscriptionId = SUB_ID,
-                    level = 3,
-                )
+                WifiNetworkModel.CarrierMerged.of(subscriptionId = SUB_ID, level = 3)
             )
             wifiRepository.setWifiActivity(
-                DataActivityModel(
-                    hasActivityIn = true,
-                    hasActivityOut = false,
-                )
+                DataActivityModel(hasActivityIn = true, hasActivityOut = false)
             )
 
             assertThat(latest!!.hasActivityIn).isTrue()
             assertThat(latest!!.hasActivityOut).isFalse()
 
             wifiRepository.setWifiActivity(
-                DataActivityModel(
-                    hasActivityIn = false,
-                    hasActivityOut = true,
-                )
+                DataActivityModel(hasActivityIn = false, hasActivityOut = true)
             )
 
             assertThat(latest!!.hasActivityIn).isFalse()
@@ -180,10 +173,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
             val typeJob = underTest.resolvedNetworkType.onEach { latestType = it }.launchIn(this)
 
             wifiRepository.setWifiNetwork(
-                WifiNetworkModel.CarrierMerged.of(
-                    subscriptionId = SUB_ID + 10,
-                    level = 3,
-                )
+                WifiNetworkModel.CarrierMerged.of(subscriptionId = SUB_ID + 10, level = 3)
             )
 
             assertThat(latestLevel).isNotEqualTo(3)
@@ -201,10 +191,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
             val job = underTest.primaryLevel.onEach { latest = it }.launchIn(this)
 
             wifiRepository.setWifiNetwork(
-                WifiNetworkModel.CarrierMerged.of(
-                    subscriptionId = SUB_ID,
-                    level = 3,
-                )
+                WifiNetworkModel.CarrierMerged.of(subscriptionId = SUB_ID, level = 3)
             )
             wifiRepository.setIsWifiEnabled(false)
 
@@ -221,10 +208,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
             val job = underTest.primaryLevel.onEach { latest = it }.launchIn(this)
 
             wifiRepository.setWifiNetwork(
-                WifiNetworkModel.CarrierMerged.of(
-                    subscriptionId = SUB_ID,
-                    level = 3,
-                )
+                WifiNetworkModel.CarrierMerged.of(subscriptionId = SUB_ID, level = 3)
             )
             wifiRepository.setIsWifiDefault(false)
 
@@ -282,6 +266,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
     fun networkName_usesSimOperatorNameAsInitial() =
         testScope.runTest {
             whenever(telephonyManager.simOperatorName).thenReturn("Test SIM name")
+            underTest = recreateRepo()
 
             var latest: NetworkNameModel? = null
             val job = underTest.networkName.onEach { latest = it }.launchIn(this)
@@ -295,6 +280,10 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
     fun networkName_updatesOnNetworkUpdate() =
         testScope.runTest {
             whenever(telephonyManager.simOperatorName).thenReturn("Test SIM name")
+            underTest = recreateRepo()
+
+            wifiRepository.setIsWifiEnabled(true)
+            wifiRepository.setIsWifiDefault(true)
 
             var latest: NetworkNameModel? = null
             val job = underTest.networkName.onEach { latest = it }.launchIn(this)
@@ -303,10 +292,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
 
             whenever(telephonyManager.simOperatorName).thenReturn("New SIM name")
             wifiRepository.setWifiNetwork(
-                WifiNetworkModel.CarrierMerged.of(
-                    subscriptionId = SUB_ID,
-                    level = 3,
-                )
+                WifiNetworkModel.CarrierMerged.of(subscriptionId = SUB_ID, level = 3)
             )
 
             assertThat(latest).isEqualTo(NetworkNameModel.SimDerived("New SIM name"))
@@ -322,7 +308,7 @@ class CarrierMergedConnectionRepositoryTest : SysuiTestCase() {
             assertThat(latest).isTrue()
         }
 
-    private companion object {
+    companion object {
         const val SUB_ID = 123
     }
 }

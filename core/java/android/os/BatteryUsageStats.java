@@ -129,12 +129,6 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
     // Max window size. CursorWindow uses only as much memory as needed.
     private static final long BATTERY_CONSUMER_CURSOR_WINDOW_SIZE = 20_000_000; // bytes
 
-    /**
-     * Used by tests to ensure all BatteryUsageStats instances are closed.
-     */
-    @VisibleForTesting
-    public static boolean DEBUG_INSTANCE_COUNT;
-
     private static final int STATSD_PULL_ATOM_MAX_BYTES = 45000;
 
     private static final int[] UID_USAGE_TIME_PROCESS_STATES = {
@@ -161,6 +155,7 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
     private final List<UserBatteryConsumer> mUserBatteryConsumers;
     private final AggregateBatteryConsumer[] mAggregateBatteryConsumers;
     private final BatteryStatsHistory mBatteryStatsHistory;
+    private final long mPreferredHistoryDurationMs;
     private final BatteryConsumer.BatteryConsumerDataLayout mBatteryConsumerDataLayout;
     private CursorWindow mBatteryConsumersCursorWindow;
 
@@ -174,6 +169,7 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
         mDischargedPowerUpperBound = builder.mDischargedPowerUpperBoundMah;
         mDischargeDurationMs = builder.mDischargeDurationMs;
         mBatteryStatsHistory = builder.mBatteryStatsHistory;
+        mPreferredHistoryDurationMs = builder.mPreferredHistoryDurationMs;
         mBatteryTimeRemainingMs = builder.mBatteryTimeRemainingMs;
         mChargeTimeRemainingMs = builder.mChargeTimeRemainingMs;
         mCustomPowerComponentNames = builder.mCustomPowerComponentNames;
@@ -402,8 +398,10 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
 
         if (source.readBoolean()) {
             mBatteryStatsHistory = BatteryStatsHistory.createFromBatteryUsageStatsParcel(source);
+            mPreferredHistoryDurationMs = source.readLong();
         } else {
             mBatteryStatsHistory = null;
+            mPreferredHistoryDurationMs = 0;
         }
     }
 
@@ -428,7 +426,7 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
 
         if (mBatteryStatsHistory != null) {
             dest.writeBoolean(true);
-            mBatteryStatsHistory.writeToBatteryUsageStatsParcel(dest);
+            mBatteryStatsHistory.writeToBatteryUsageStatsParcel(dest, mPreferredHistoryDurationMs);
         } else {
             dest.writeBoolean(false);
         }
@@ -823,12 +821,12 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
                         parser.getAttributeLong(null, XML_ATTR_DURATION));
                 builder.setBatteryCapacity(
                         parser.getAttributeDouble(null, XML_ATTR_BATTERY_CAPACITY));
-                builder.setDischargePercentage(
+                builder.addDischargePercentage(
                         parser.getAttributeInt(null, XML_ATTR_DISCHARGE_PERCENT));
-                builder.setDischargedPowerRange(
+                builder.addDischargedPowerRange(
                         parser.getAttributeDouble(null, XML_ATTR_DISCHARGE_LOWER),
                         parser.getAttributeDouble(null, XML_ATTR_DISCHARGE_UPPER));
-                builder.setDischargeDurationMs(
+                builder.addDischargeDurationMs(
                         parser.getAttributeLong(null, XML_ATTR_DISCHARGE_DURATION));
                 builder.setBatteryTimeRemainingMs(
                         parser.getAttributeLong(null, XML_ATTR_BATTERY_REMAINING));
@@ -919,6 +917,7 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
         private final SparseArray<UserBatteryConsumer.Builder> mUserBatteryConsumerBuilders =
                 new SparseArray<>();
         private BatteryStatsHistory mBatteryStatsHistory;
+        private long mPreferredHistoryDurationMs;
 
         public Builder(@NonNull String[] customPowerComponentNames) {
             this(customPowerComponentNames, false, false, false, 0);
@@ -1039,23 +1038,22 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
         }
 
         /**
-         * Sets the battery discharge amount since BatteryStats reset as percentage of the full
-         * charge.
+         * Accumulates the battery discharge amount as percentage of the full charge. Can exceed 100
          */
         @NonNull
-        public Builder setDischargePercentage(int dischargePercentage) {
-            mDischargePercentage = dischargePercentage;
+        public Builder addDischargePercentage(int dischargePercentage) {
+            mDischargePercentage += dischargePercentage;
             return this;
         }
 
         /**
-         * Sets the estimated battery discharge range.
+         * Accumulates the estimated battery discharge range.
          */
         @NonNull
-        public Builder setDischargedPowerRange(double dischargedPowerLowerBoundMah,
+        public Builder addDischargedPowerRange(double dischargedPowerLowerBoundMah,
                 double dischargedPowerUpperBoundMah) {
-            mDischargedPowerLowerBoundMah = dischargedPowerLowerBoundMah;
-            mDischargedPowerUpperBoundMah = dischargedPowerUpperBoundMah;
+            mDischargedPowerLowerBoundMah += dischargedPowerLowerBoundMah;
+            mDischargedPowerUpperBoundMah += dischargedPowerUpperBoundMah;
             return this;
         }
 
@@ -1063,8 +1061,8 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
          * Sets the total battery discharge time, in milliseconds.
          */
         @NonNull
-        public Builder setDischargeDurationMs(long durationMs) {
-            mDischargeDurationMs = durationMs;
+        public Builder addDischargeDurationMs(long durationMs) {
+            mDischargeDurationMs += durationMs;
             return this;
         }
 
@@ -1092,8 +1090,10 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
          * Sets the parceled recent history.
          */
         @NonNull
-        public Builder setBatteryHistory(BatteryStatsHistory batteryStatsHistory) {
+        public Builder setBatteryHistory(BatteryStatsHistory batteryStatsHistory,
+                long preferredHistoryDurationMs) {
             mBatteryStatsHistory = batteryStatsHistory;
+            mPreferredHistoryDurationMs = preferredHistoryDurationMs;
             return this;
         }
 
@@ -1261,11 +1261,16 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
         }
     }
 
+    /*
+     * Used by tests to ensure all BatteryUsageStats instances are closed.
+     */
+    private static volatile boolean sInstanceLeakDetectionEnabled;
+
     @GuardedBy("BatteryUsageStats.class")
     private static Map<CursorWindow, Exception> sInstances;
 
     private static void onCursorWindowAllocated(CursorWindow window) {
-        if (!DEBUG_INSTANCE_COUNT) {
+        if (!sInstanceLeakDetectionEnabled) {
             return;
         }
 
@@ -1278,7 +1283,7 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
     }
 
     private static void onCursorWindowReleased(CursorWindow window) {
-        if (!DEBUG_INSTANCE_COUNT) {
+        if (!sInstanceLeakDetectionEnabled) {
             return;
         }
 
@@ -1288,12 +1293,26 @@ public final class BatteryUsageStats implements Parcelable, Closeable {
     }
 
     /**
+     * Enables detection of leaked BatteryUsageStats instances, meaning instances that are created
+     * but not closed during the test execution.
+     */
+    @VisibleForTesting
+    public static void enableInstanceLeakDetection() {
+        sInstanceLeakDetectionEnabled = true;
+        synchronized (BatteryUsageStats.class) {
+            if (sInstances != null) {
+                sInstances.clear();
+            }
+        }
+    }
+
+    /**
      * Used by tests to ensure all BatteryUsageStats instances are closed.
      */
     @VisibleForTesting
     public static void assertAllInstancesClosed() {
-        if (!DEBUG_INSTANCE_COUNT) {
-            throw new IllegalStateException("DEBUG_INSTANCE_COUNT is false");
+        if (!sInstanceLeakDetectionEnabled) {
+            throw new IllegalStateException("Instance leak detection is not enabled");
         }
 
         synchronized (BatteryUsageStats.class) {

@@ -23,9 +23,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.accessibility.data.repository.FakeOneHandedModeRepository
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerSubject
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.onehanded.domain.OneHandedModeTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.onehanded.domain.model.OneHandedModeTileModel
 import com.google.common.truth.Truth.assertThat
@@ -42,11 +42,7 @@ class OneHandedModeTileUserActionInteractorTest : SysuiTestCase() {
     private val repository = FakeOneHandedModeRepository()
     private val inputHandler = FakeQSTileIntentUserInputHandler()
 
-    private val underTest =
-        OneHandedModeTileUserActionInteractor(
-            repository,
-            inputHandler,
-        )
+    private val underTest = OneHandedModeTileUserActionInteractor(repository, inputHandler)
 
     @Test
     fun handleClickWhenEnabled() = runTest {

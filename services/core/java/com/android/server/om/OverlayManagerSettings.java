@@ -21,18 +21,19 @@ import static com.android.server.om.OverlayManagerService.TAG;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.content.om.OverlayConstraint;
 import android.content.om.OverlayIdentifier;
 import android.content.om.OverlayInfo;
 import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.IndentingPrintWriter;
 import android.util.Pair;
 import android.util.Slog;
 import android.util.Xml;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.CollectionUtils;
-import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.XmlUtils;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
@@ -44,12 +45,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 /**
  * Data structure representing the current state of all overlay packages in the
@@ -79,7 +80,8 @@ final class OverlayManagerSettings {
         remove(overlay, userId);
         final SettingsItem item = new SettingsItem(overlay, userId, targetPackageName,
                 targetOverlayableName, baseCodePath, OverlayInfo.STATE_UNKNOWN, isEnabled,
-                isMutable, priority, overlayCategory, isFabricated);
+                isMutable, priority, overlayCategory, isFabricated,
+                Collections.emptyList() /* constraints */);
         insert(item);
         return item.getOverlayInfo();
     }
@@ -156,6 +158,15 @@ final class OverlayManagerSettings {
         return mItems.get(idx).setEnabled(enable);
     }
 
+    boolean setConstraints(@NonNull final OverlayIdentifier overlay, final int userId,
+            @NonNull final List<OverlayConstraint> constraints) throws BadKeyException {
+        final int idx = select(overlay, userId);
+        if (idx < 0) {
+            throw new BadKeyException(overlay, userId);
+        }
+        return mItems.get(idx).setConstraints(constraints);
+    }
+
     @OverlayInfo.State int getState(@NonNull final OverlayIdentifier overlay, final int userId)
             throws BadKeyException {
         final int idx = select(overlay, userId);
@@ -213,15 +224,39 @@ final class OverlayManagerSettings {
     }
 
     Set<String> getAllBaseCodePaths() {
+        // Overlays installed for multiple users have the same code path, avoid duplicates with Set.
         final Set<String> paths = new ArraySet<>();
         mItems.forEach(item -> paths.add(item.mBaseCodePath));
         return paths;
     }
 
     Set<Pair<OverlayIdentifier, String>> getAllIdentifiersAndBaseCodePaths() {
+        // Overlays installed for multiple users have the same code path, avoid duplicates with Set.
         final Set<Pair<OverlayIdentifier, String>> set = new ArraySet<>();
-        mItems.forEach(item -> set.add(new Pair(item.mOverlay, item.mBaseCodePath)));
+        mItems.forEach(item -> set.add(new Pair<>(item.mOverlay, item.mBaseCodePath)));
         return set;
+    }
+
+    @Nullable
+    Pair<OverlayIdentifier, String> getIdentifierAndBaseCodePath(@NonNull DumpState dumpState) {
+        if (dumpState.getPackageName() == null) {
+            return null;
+        }
+        OverlayIdentifier id = new OverlayIdentifier(dumpState.getPackageName(),
+                dumpState.getOverlayName());
+        final int userId = dumpState.getUserId();
+        for (int i = 0; i < mItems.size(); i++) {
+            final var item = mItems.get(i);
+            if (userId != UserHandle.USER_ALL && userId != item.mUserId) {
+                continue;
+            }
+            if (!id.equals(item.mOverlay)) {
+                continue;
+            }
+            // Overlays installed for multiple users have the same code path, return first found.
+            return new Pair<>(id, item.mBaseCodePath);
+        }
+        return null;
     }
 
     @NonNull
@@ -358,26 +393,29 @@ final class OverlayManagerSettings {
     }
 
     void dump(@NonNull final PrintWriter p, @NonNull DumpState dumpState) {
-        // select items to display
-        Stream<SettingsItem> items = mItems.stream();
-        if (dumpState.getUserId() != UserHandle.USER_ALL) {
-            items = items.filter(item -> item.mUserId == dumpState.getUserId());
-        }
-        if (dumpState.getPackageName() != null) {
-            items = items.filter(item -> item.mOverlay.getPackageName()
-                    .equals(dumpState.getPackageName()));
-        }
-        if (dumpState.getOverlayName() != null) {
-            items = items.filter(item -> item.mOverlay.getOverlayName()
-                    .equals(dumpState.getOverlayName()));
-        }
+        final int userId = dumpState.getUserId();
+        final String packageName = dumpState.getPackageName();
+        final String overlayName = dumpState.getOverlayName();
+        final String field = dumpState.getField();
+        final var pw = new IndentingPrintWriter(p, "  ");
 
-        // display items
-        final IndentingPrintWriter pw = new IndentingPrintWriter(p, "  ");
-        if (dumpState.getField() != null) {
-            items.forEach(item -> dumpSettingsItemField(pw, item, dumpState.getField()));
-        } else {
-            items.forEach(item -> dumpSettingsItem(pw, item));
+        for (int i = 0; i < mItems.size(); i++) {
+            final var item = mItems.get(i);
+            if (userId != UserHandle.USER_ALL && userId != item.mUserId) {
+                continue;
+            }
+            if (packageName != null && !packageName.equals(item.mOverlay.getPackageName())) {
+                continue;
+            }
+            if (overlayName != null && !overlayName.equals(item.mOverlay.getOverlayName())) {
+                continue;
+            }
+
+            if (field != null) {
+                dumpSettingsItemField(pw, item, field);
+            } else {
+                dumpSettingsItem(pw, item);
+            }
         }
     }
 
@@ -398,6 +436,8 @@ final class OverlayManagerSettings {
         pw.println("mPriority..............: " + item.mPriority);
         pw.println("mCategory..............: " + item.mCategory);
         pw.println("mIsFabricated..........: " + item.mIsFabricated);
+        pw.println("mConstraints...........: "
+                + OverlayConstraint.constraintsToString(item.mConstraints));
 
         pw.decreaseIndent();
         pw.println("}");
@@ -454,6 +494,7 @@ final class OverlayManagerSettings {
     static final class Serializer {
         private static final String TAG_OVERLAYS = "overlays";
         private static final String TAG_ITEM = "item";
+        private static final String TAG_CONSTRAINT = "constraint";
 
         private static final String ATTR_BASE_CODE_PATH = "baseCodePath";
         private static final String ATTR_IS_ENABLED = "isEnabled";
@@ -469,8 +510,11 @@ final class OverlayManagerSettings {
         private static final String ATTR_VERSION = "version";
         private static final String ATTR_IS_FABRICATED = "fabricated";
 
+        private static final String ATTR_CONSTRAINT_TYPE = "type";
+        private static final String ATTR_CONSTRAINT_VALUE = "value";
+
         @VisibleForTesting
-        static final int CURRENT_VERSION = 4;
+        static final int CURRENT_VERSION = 5;
 
         public static void restore(@NonNull final ArrayList<SettingsItem> table,
                 @NonNull final InputStream is) throws IOException, XmlPullParserException {
@@ -500,8 +544,9 @@ final class OverlayManagerSettings {
                     // and overwritten.
                     throw new XmlPullParserException("old version " + oldVersion + "; ignoring");
                 case 3:
-                    // Upgrading from version 3 to 4 is not a breaking change so do not ignore the
-                    // overlay file.
+                case 4:
+                    // Upgrading from versions 3 and 4 is not a breaking change, so do not
+                    // ignore the overlay file.
                     return;
                 default:
                     throw new XmlPullParserException("unrecognized version " + oldVersion);
@@ -527,12 +572,23 @@ final class OverlayManagerSettings {
             final boolean isFabricated = parser.getAttributeBoolean(null, ATTR_IS_FABRICATED,
                     false);
 
+            final List<OverlayConstraint> constraints = new ArrayList<>();
+            while (XmlUtils.nextElementWithin(parser, depth)) {
+                if (TAG_CONSTRAINT.equals(parser.getName())) {
+                    final OverlayConstraint constraint = new OverlayConstraint(
+                            parser.getAttributeInt(null, ATTR_CONSTRAINT_TYPE),
+                            parser.getAttributeInt(null, ATTR_CONSTRAINT_VALUE));
+                    constraints.add(constraint);
+                }
+            }
+
             return new SettingsItem(overlay, userId, targetPackageName, targetOverlayableName,
-                    baseCodePath, state, isEnabled, !isStatic, priority, category, isFabricated);
+                    baseCodePath, state, isEnabled, !isStatic, priority, category, isFabricated,
+                    constraints);
         }
 
         public static void persist(@NonNull final ArrayList<SettingsItem> table,
-                @NonNull final OutputStream os) throws IOException, XmlPullParserException {
+                @NonNull final OutputStream os) throws IOException {
             final TypedXmlSerializer xml = Xml.resolveSerializer(os);
             xml.startDocument(null, true);
             xml.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true);
@@ -564,6 +620,14 @@ final class OverlayManagerSettings {
             xml.attributeInt(null, ATTR_PRIORITY, item.mPriority);
             XmlUtils.writeStringAttribute(xml, ATTR_CATEGORY, item.mCategory);
             XmlUtils.writeBooleanAttribute(xml, ATTR_IS_FABRICATED, item.mIsFabricated);
+
+            for (OverlayConstraint constraint : item.mConstraints) {
+                xml.startTag(null, TAG_CONSTRAINT);
+                xml.attributeInt(null, ATTR_CONSTRAINT_TYPE, constraint.getType());
+                xml.attributeInt(null, ATTR_CONSTRAINT_VALUE, constraint.getValue());
+                xml.endTag(null, TAG_CONSTRAINT);
+            }
+
             xml.endTag(null, TAG_ITEM);
         }
     }
@@ -577,17 +641,19 @@ final class OverlayManagerSettings {
         private @OverlayInfo.State int mState;
         private boolean mIsEnabled;
         private OverlayInfo mCache;
-        private boolean mIsMutable;
+        private final boolean mIsMutable;
         private int mPriority;
         private String mCategory;
-        private boolean mIsFabricated;
+        private final boolean mIsFabricated;
+        @NonNull
+        private List<OverlayConstraint> mConstraints;
 
         SettingsItem(@NonNull final OverlayIdentifier overlay, final int userId,
                 @NonNull final String targetPackageName,
                 @Nullable final String targetOverlayableName, @NonNull final String baseCodePath,
                 final @OverlayInfo.State int state, final boolean isEnabled,
                 final boolean isMutable, final int priority,  @Nullable String category,
-                final boolean isFabricated) {
+                final boolean isFabricated, @NonNull final List<OverlayConstraint> constraints) {
             mOverlay = overlay;
             mUserId = userId;
             mTargetPackageName = targetPackageName;
@@ -600,6 +666,8 @@ final class OverlayManagerSettings {
             mIsMutable = isMutable;
             mPriority = priority;
             mIsFabricated = isFabricated;
+            Objects.requireNonNull(constraints);
+            mConstraints = constraints;
         }
 
         private String getTargetPackageName() {
@@ -666,11 +734,26 @@ final class OverlayManagerSettings {
             return false;
         }
 
+        private boolean setConstraints(@NonNull List<OverlayConstraint> constraints) {
+            Objects.requireNonNull(constraints);
+
+            if (!mIsMutable) {
+                return false;
+            }
+
+            if (!Objects.equals(mConstraints, constraints)) {
+                mConstraints = constraints;
+                invalidateCache();
+                return true;
+            }
+            return false;
+        }
+
         private OverlayInfo getOverlayInfo() {
             if (mCache == null) {
                 mCache = new OverlayInfo(mOverlay.getPackageName(), mOverlay.getOverlayName(),
                         mTargetPackageName, mTargetOverlayableName, mCategory, mBaseCodePath,
-                        mState, mUserId, mPriority, mIsMutable, mIsFabricated);
+                        mState, mUserId, mPriority, mIsMutable, mIsFabricated, mConstraints);
             }
             return mCache;
         }

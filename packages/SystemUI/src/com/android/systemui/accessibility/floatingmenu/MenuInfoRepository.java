@@ -20,6 +20,7 @@ import static android.provider.Settings.Secure.ACCESSIBILITY_FLOATING_MENU_FADE_
 import static android.provider.Settings.Secure.ACCESSIBILITY_FLOATING_MENU_MIGRATION_TOOLTIP_PROMPT;
 import static android.provider.Settings.Secure.ACCESSIBILITY_FLOATING_MENU_OPACITY;
 import static android.provider.Settings.Secure.ACCESSIBILITY_FLOATING_MENU_SIZE;
+import static android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES;
 
 import static com.android.internal.accessibility.common.ShortcutConstants.UserShortcutType.SOFTWARE;
 import static com.android.internal.accessibility.dialog.AccessibilityTargetHelper.getTargets;
@@ -29,6 +30,7 @@ import static com.android.systemui.accessibility.floatingmenu.MenuViewAppearance
 
 import android.annotation.FloatRange;
 import android.annotation.IntDef;
+import android.annotation.Nullable;
 import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
@@ -42,11 +44,14 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.view.accessibility.AccessibilityManager;
 
 import androidx.annotation.NonNull;
 
 import com.android.internal.accessibility.dialog.AccessibilityTarget;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.settingslib.bluetooth.HearingAidDeviceManager;
+import com.android.settingslib.utils.ThreadUtils;
 import com.android.systemui.Prefs;
 import com.android.systemui.util.settings.SecureSettings;
 
@@ -74,9 +79,17 @@ class MenuInfoRepository {
     private static final int DEFAULT_MIGRATION_TOOLTIP_VALUE_PROMPT = MigrationPrompt.DISABLED;
 
     private final Context mContext;
+    // Pref always get the userId from the context to store SharedPreferences for the correct user
+    private final Context mCurrentUserContext;
     private final Configuration mConfiguration;
+    private final AccessibilityManager mAccessibilityManager;
+    private final AccessibilityManager.AccessibilityServicesStateChangeListener
+            mA11yServicesStateChangeListener = manager -> onTargetFeaturesChanged();
+    private final HearingAidDeviceManager mHearingAidDeviceManager;
+    private final HearingAidDeviceManager.ConnectionStatusListener
+            mHearingDeviceStatusListener = this::onDevicesConnectionStatusChanged;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
-    private final OnSettingsContentsChanged mSettingsContentsCallback;
+    private final OnContentsChanged mSettingsContentsCallback;
     private final SecureSettings mSecureSettings;
     private Position mPercentagePosition;
 
@@ -142,24 +155,31 @@ class MenuInfoRepository {
         }
     };
 
-    MenuInfoRepository(Context context,
-            OnSettingsContentsChanged settingsContentsChanged, SecureSettings secureSettings) {
+    MenuInfoRepository(Context context, AccessibilityManager accessibilityManager,
+            OnContentsChanged settingsContentsChanged, SecureSettings secureSettings,
+            @Nullable HearingAidDeviceManager hearingAidDeviceManager) {
         mContext = context;
+        final int currentUserId = secureSettings.getRealUserHandle(UserHandle.USER_CURRENT);
+        mCurrentUserContext = context.createContextAsUser(
+                UserHandle.of(currentUserId), /* flags= */ 0);
+        mAccessibilityManager = accessibilityManager;
         mConfiguration = new Configuration(context.getResources().getConfiguration());
         mSettingsContentsCallback = settingsContentsChanged;
         mSecureSettings = secureSettings;
+        mHearingAidDeviceManager = hearingAidDeviceManager;
 
         mPercentagePosition = getStartPosition();
     }
 
     void loadMenuMoveToTucked(OnInfoReady<Boolean> callback) {
         callback.onReady(
-                Prefs.getBoolean(mContext, Prefs.Key.HAS_ACCESSIBILITY_FLOATING_MENU_TUCKED,
+                Prefs.getBoolean(
+                        mCurrentUserContext, Prefs.Key.HAS_ACCESSIBILITY_FLOATING_MENU_TUCKED,
                         DEFAULT_MOVE_TO_TUCKED_VALUE));
     }
 
     void loadDockTooltipVisibility(OnInfoReady<Boolean> callback) {
-        callback.onReady(Prefs.getBoolean(mContext,
+        callback.onReady(Prefs.getBoolean(mCurrentUserContext,
                 Prefs.Key.HAS_SEEN_ACCESSIBILITY_FLOATING_MENU_DOCK_TOOLTIP,
                 DEFAULT_HAS_SEEN_DOCK_TOOLTIP_VALUE));
     }
@@ -179,6 +199,14 @@ class MenuInfoRepository {
         callback.onReady(getTargets(mContext, SOFTWARE));
     }
 
+    void loadHearingDeviceStatus(OnInfoReady<Integer> callback) {
+        if (mHearingAidDeviceManager != null) {
+            callback.onReady(mHearingAidDeviceManager.getDevicesConnectionStatus());
+        } else {
+            callback.onReady(HearingAidDeviceManager.ConnectionStatus.NO_DEVICE_BONDED);
+        }
+    }
+
     void loadMenuSizeType(OnInfoReady<Integer> callback) {
         callback.onReady(getMenuSizeTypeFromSettings());
     }
@@ -193,19 +221,19 @@ class MenuInfoRepository {
     }
 
     void updateMoveToTucked(boolean isMoveToTucked) {
-        Prefs.putBoolean(mContext, Prefs.Key.HAS_ACCESSIBILITY_FLOATING_MENU_TUCKED,
+        Prefs.putBoolean(mCurrentUserContext, Prefs.Key.HAS_ACCESSIBILITY_FLOATING_MENU_TUCKED,
                 isMoveToTucked);
     }
 
     void updateMenuSavingPosition(Position percentagePosition) {
         mPercentagePosition = percentagePosition;
-        Prefs.putString(mContext, Prefs.Key.ACCESSIBILITY_FLOATING_MENU_POSITION,
+        Prefs.putString(mCurrentUserContext, Prefs.Key.ACCESSIBILITY_FLOATING_MENU_POSITION,
                 percentagePosition.toString());
     }
 
     void updateDockTooltipVisibility(boolean hasSeen) {
-        Prefs.putBoolean(mContext, Prefs.Key.HAS_SEEN_ACCESSIBILITY_FLOATING_MENU_DOCK_TOOLTIP,
-                hasSeen);
+        Prefs.putBoolean(mCurrentUserContext,
+                Prefs.Key.HAS_SEEN_ACCESSIBILITY_FLOATING_MENU_DOCK_TOOLTIP, hasSeen);
     }
 
     void updateMigrationTooltipVisibility(boolean visible) {
@@ -216,12 +244,12 @@ class MenuInfoRepository {
     }
 
     private void onTargetFeaturesChanged() {
-        mSettingsContentsCallback.onTargetFeaturesChanged(
-                getTargets(mContext, SOFTWARE));
+        List<AccessibilityTarget> targets = getTargets(mContext, SOFTWARE);
+        mSettingsContentsCallback.onTargetFeaturesChanged(targets);
     }
 
     private Position getStartPosition() {
-        final String absolutePositionString = Prefs.getString(mContext,
+        final String absolutePositionString = Prefs.getString(mCurrentUserContext,
                 Prefs.Key.ACCESSIBILITY_FLOATING_MENU_POSITION, /* defaultValue= */ null);
 
         final float defaultPositionXPercent =
@@ -238,6 +266,13 @@ class MenuInfoRepository {
                 mSecureSettings.getUriFor(Settings.Secure.ACCESSIBILITY_BUTTON_TARGETS),
                 /* notifyForDescendants */ false, mMenuTargetFeaturesContentObserver,
                 UserHandle.USER_CURRENT);
+        if (com.android.systemui.Flags.floatingMenuNotifyTargetsChangedOnStrictDiff()) {
+            mSecureSettings.registerContentObserverForUserSync(
+                    mSecureSettings.getUriFor(ENABLED_ACCESSIBILITY_SERVICES),
+                    /* notifyForDescendants */ false,
+                    mMenuTargetFeaturesContentObserver,
+                    UserHandle.USER_CURRENT);
+        }
         mSecureSettings.registerContentObserverForUserSync(
                 mSecureSettings.getUriFor(Settings.Secure.ACCESSIBILITY_FLOATING_MENU_SIZE),
                 /* notifyForDescendants */ false, mMenuSizeContentObserver,
@@ -251,6 +286,29 @@ class MenuInfoRepository {
                 /* notifyForDescendants */ false, mMenuFadeOutContentObserver,
                 UserHandle.USER_CURRENT);
         mContext.registerComponentCallbacks(mComponentCallbacks);
+
+        if (com.android.systemui.Flags.floatingMenuNotifyTargetsChangedOnStrictDiff()) {
+            mAccessibilityManager.addAccessibilityServicesStateChangeListener(
+                    mA11yServicesStateChangeListener);
+        }
+
+        if (com.android.settingslib.flags.Flags.hearingDeviceSetConnectionStatusReport()) {
+            registerConnectionStatusListener();
+        }
+    }
+
+    private void registerConnectionStatusListener() {
+        if (mHearingAidDeviceManager != null) {
+            mHearingAidDeviceManager.registerConnectionStatusListener(
+                    mHearingDeviceStatusListener, ThreadUtils.getBackgroundExecutor());
+        }
+    }
+
+    private void unregisterConnectionStatusListener() {
+        if (mHearingAidDeviceManager != null) {
+            mHearingAidDeviceManager.unregisterConnectionStatusListener(
+                    mHearingDeviceStatusListener);
+        }
     }
 
     void unregisterObserversAndCallbacks() {
@@ -258,14 +316,23 @@ class MenuInfoRepository {
         mContext.getContentResolver().unregisterContentObserver(mMenuSizeContentObserver);
         mContext.getContentResolver().unregisterContentObserver(mMenuFadeOutContentObserver);
         mContext.unregisterComponentCallbacks(mComponentCallbacks);
+
+        if (com.android.systemui.Flags.floatingMenuNotifyTargetsChangedOnStrictDiff()) {
+            mAccessibilityManager.removeAccessibilityServicesStateChangeListener(
+                    mA11yServicesStateChangeListener);
+        }
+
+        unregisterConnectionStatusListener();
     }
 
-    interface OnSettingsContentsChanged {
+    interface OnContentsChanged {
         void onTargetFeaturesChanged(List<AccessibilityTarget> newTargetFeatures);
 
         void onSizeTypeChanged(int newSizeType);
 
         void onFadeEffectInfoChanged(MenuFadeEffectInfo fadeEffectInfo);
+
+        void onDevicesConnectionStatusChanged(@HearingAidDeviceManager.ConnectionStatus int status);
     }
 
     interface OnInfoReady<T> {
@@ -287,5 +354,10 @@ class MenuInfoRepository {
         return mSecureSettings.getFloatForUser(
                 ACCESSIBILITY_FLOATING_MENU_OPACITY, DEFAULT_OPACITY_VALUE,
                 UserHandle.USER_CURRENT);
+    }
+
+    private void onDevicesConnectionStatusChanged(
+            @HearingAidDeviceManager.ConnectionStatus int status) {
+        mSettingsContentsCallback.onDevicesConnectionStatusChanged(status);
     }
 }

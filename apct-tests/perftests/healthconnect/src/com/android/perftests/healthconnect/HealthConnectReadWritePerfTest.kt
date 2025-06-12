@@ -32,8 +32,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class HealthConnectReadWritePerfTest {
 
-    @get:Rule
-    val perfStatusReporter = PerfStatusReporter()
+    @get:Rule val perfStatusReporter = PerfStatusReporter()
 
     private val context by lazy { InstrumentationRegistry.getInstrumentation().context }
 
@@ -41,9 +40,7 @@ class HealthConnectReadWritePerfTest {
         requireNotNull(context.getSystemService(HealthConnectManager::class.java))
     }
 
-    /**
-     * A first empty test just to setup the test package and make sure it runs properly.
-     */
+    /** A first empty test just to setup the test package and make sure it runs properly. */
     @Test
     fun placeholder() {
         val state = perfStatusReporter.benchmarkState

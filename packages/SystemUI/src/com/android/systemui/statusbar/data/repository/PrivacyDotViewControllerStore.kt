@@ -16,13 +16,12 @@
 
 package com.android.systemui.statusbar.data.repository
 
+import com.android.app.displaylib.PerDisplayRepository
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
-import com.android.systemui.display.data.repository.DisplayScopeRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.display.data.repository.SingleDisplayStore
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.events.PrivacyDotViewController
@@ -45,19 +44,22 @@ constructor(
     @Background backgroundApplicationScope: CoroutineScope,
     displayRepository: DisplayRepository,
     private val factory: PrivacyDotViewControllerImpl.Factory,
-    private val displayScopeRepository: DisplayScopeRepository,
+    private val displayScopeRepository: PerDisplayRepository<CoroutineScope>,
     private val statusBarConfigurationControllerStore: StatusBarConfigurationControllerStore,
     private val contentInsetsProviderStore: StatusBarContentInsetsProviderStore,
 ) :
     PrivacyDotViewControllerStore,
-    PerDisplayStoreImpl<PrivacyDotViewController>(backgroundApplicationScope, displayRepository) {
+    StatusBarPerDisplayStoreImpl<PrivacyDotViewController>(
+        backgroundApplicationScope,
+        displayRepository,
+    ) {
 
-    override fun createInstanceForDisplay(displayId: Int): PrivacyDotViewController {
-        return factory.create(
-            displayScopeRepository.scopeForDisplay(displayId),
-            statusBarConfigurationControllerStore.forDisplay(displayId),
-            contentInsetsProviderStore.forDisplay(displayId),
-        )
+    override fun createInstanceForDisplay(displayId: Int): PrivacyDotViewController? {
+        val configurationController =
+            statusBarConfigurationControllerStore.forDisplay(displayId) ?: return null
+        val contentInsetsProvider = contentInsetsProviderStore.forDisplay(displayId) ?: return null
+        val displayScope = displayScopeRepository[displayId] ?: return null
+        return factory.create(displayScope, configurationController, contentInsetsProvider)
     }
 
     override suspend fun onDisplayRemovalAction(instance: PrivacyDotViewController) {

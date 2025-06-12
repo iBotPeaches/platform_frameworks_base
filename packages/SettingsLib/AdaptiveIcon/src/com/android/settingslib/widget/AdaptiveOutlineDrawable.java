@@ -27,12 +27,12 @@ import android.graphics.Rect;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.os.RemoteException;
-import android.util.PathParser;
 import android.view.IWindowManager;
 import android.view.WindowManagerGlobal;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
+import androidx.core.graphics.PathParser;
 
 import com.android.settingslib.widget.adaptiveicon.R;
 

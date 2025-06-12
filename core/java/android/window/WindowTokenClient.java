@@ -106,8 +106,8 @@ public class WindowTokenClient extends Binder {
      * @param newConfig the updated {@link Configuration}
      * @param newDisplayId the updated {@link android.view.Display} ID
      */
-    @VisibleForTesting(visibility = PACKAGE)
     @MainThread
+    @VisibleForTesting(visibility = PACKAGE)
     public void onConfigurationChanged(Configuration newConfig, int newDisplayId) {
         onConfigurationChanged(newConfig, newDisplayId, true /* shouldReportConfigChange */);
     }
@@ -121,8 +121,6 @@ public class WindowTokenClient extends Binder {
                 newDisplayId, true /* shouldReportConfigChange */).recycleOnUse());
     }
 
-    // TODO(b/192048581): rewrite this method based on WindowContext and WindowProviderService
-    //  are inherited from WindowProvider.
     /**
      * Called when {@link Configuration} updates from the server side receive.
      *
@@ -169,7 +167,7 @@ public class WindowTokenClient extends Binder {
         CompatibilityInfo.applyOverrideIfNeeded(newConfig);
         final boolean displayChanged;
         final boolean shouldUpdateResources;
-        final int diff;
+        final int publicDiff;
         final Configuration currentConfig;
 
         synchronized (mConfiguration) {
@@ -177,7 +175,7 @@ public class WindowTokenClient extends Binder {
             shouldUpdateResources = shouldUpdateResources(this, mConfiguration,
                     newConfig, newConfig /* overrideConfig */, displayChanged,
                     null /* configChanged */);
-            diff = mConfiguration.diffPublicOnly(newConfig);
+            publicDiff = mConfiguration.diffPublicOnly(newConfig);
             currentConfig = mShouldDumpConfigForIme ? new Configuration(mConfiguration) : null;
             if (shouldUpdateResources) {
                 mConfiguration.setTo(newConfig);
@@ -200,17 +198,15 @@ public class WindowTokenClient extends Binder {
             // TODO(ag/9789103): update resource manager logic to track non-activity tokens
             mResourcesManager.updateResourcesForActivity(this, newConfig, newDisplayId);
 
-            if (shouldReportConfigChange && context instanceof WindowContext) {
-                final WindowContext windowContext = (WindowContext) context;
-                windowContext.dispatchConfigurationChanged(newConfig);
+            if (shouldReportConfigChange && context instanceof ConfigurationDispatcher dispatcher) {
+                // Updating resources implies some fields of configuration are updated despite they
+                // are public or not.
+                if (dispatcher.shouldReportPrivateChanges() || publicDiff != 0) {
+                    dispatcher.dispatchConfigurationChanged(newConfig);
+                }
             }
 
-            if (shouldReportConfigChange && diff != 0
-                    && context instanceof WindowProviderService) {
-                final WindowProviderService windowProviderService = (WindowProviderService) context;
-                windowProviderService.onConfigurationChanged(newConfig);
-            }
-            freeTextLayoutCachesIfNeeded(diff);
+            freeTextLayoutCachesIfNeeded(publicDiff);
             if (mShouldDumpConfigForIme) {
                 if (!shouldReportConfigChange) {
                     Log.d(TAG, "Only apply configuration update to Resources because "
@@ -219,7 +215,7 @@ public class WindowTokenClient extends Binder {
                             + ", config=" + context.getResources().getConfiguration()
                             + ", display ID=" + context.getDisplayId() + "\n"
                             + Debug.getCallers(5));
-                } else if (diff == 0) {
+                } else if (publicDiff == 0) {
                     Log.d(TAG, "Configuration not dispatch to IME because configuration has no "
                             + " public difference with updated config. "
                             + " Current config=" + context.getResources().getConfiguration()

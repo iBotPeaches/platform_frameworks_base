@@ -29,17 +29,16 @@ import com.android.systemui.keyguard.domain.interactor.keyguardQuickAffordanceIn
 import com.android.systemui.keyguard.domain.interactor.pulseExpansionInteractor
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.domain.interactor.sceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.shadeTestUtil
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableSceneContainer
@@ -127,12 +126,6 @@ class KeyguardBypassInteractorTest : SysuiTestCase() {
         kosmos.configureKeyguardBypass(isBypassAvailable = skipIsBypassAvailableCheck)
         underTest = kosmos.keyguardBypassInteractor
 
-        // bouncerShowing false, !onLockscreenScene false
-        // !onLockscreenScene false
-        setScene(
-            bouncerShowing = !skipBouncerShowingCheck,
-            onLockscreenScene = skipOnLockscreenSceneCheck,
-        )
         // alternateBouncerShowing false
         setAlternateBouncerShowing(!skipAlternateBouncerShowingCheck)
         // launchingAffordance false
@@ -141,6 +134,13 @@ class KeyguardBypassInteractorTest : SysuiTestCase() {
         setPulseExpanding(!skipPulseExpandingCheck)
         // qsExpanding false
         setQsExpanded(!skipQsExpandedCheck)
+
+        // bouncerShowing false, !onLockscreenScene false
+        // !onLockscreenScene false
+        setScene(
+            bouncerShowing = !skipBouncerShowingCheck,
+            onLockscreenScene = skipOnLockscreenSceneCheck,
+        )
     }
 
     private fun setAlternateBouncerShowing(alternateBouncerVisible: Boolean) {
@@ -148,10 +148,11 @@ class KeyguardBypassInteractorTest : SysuiTestCase() {
     }
 
     private fun setScene(bouncerShowing: Boolean, onLockscreenScene: Boolean) {
-        if (bouncerShowing) {
-            kosmos.sceneInteractor.changeScene(Scenes.Bouncer, "reason")
-        } else if (onLockscreenScene) {
+        if (onLockscreenScene) {
             kosmos.sceneInteractor.changeScene(Scenes.Lockscreen, "reason")
+            if (bouncerShowing) {
+                kosmos.sceneInteractor.showOverlay(Overlays.Bouncer, "reason")
+            }
         } else {
             kosmos.sceneInteractor.changeScene(Scenes.Shade, "reason")
         }

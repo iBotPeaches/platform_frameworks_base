@@ -28,7 +28,7 @@ import com.android.internal.widget.remotecompose.core.documentation.Documentatio
 import java.util.List;
 
 /** Represents the content of a LayoutComponent (i.e. the children components) */
-public class LayoutComponentContent extends Component implements ComponentStartOperation {
+public class LayoutComponentContent extends Component {
 
     public LayoutComponentContent(
             int componentId,
@@ -66,6 +66,12 @@ public class LayoutComponentContent extends Component implements ComponentStartO
         return "CONTENT";
     }
 
+    /**
+     * Write the operation on the buffer
+     *
+     * @param buffer
+     * @param componentId
+     */
     public static void apply(@NonNull WireBuffer buffer, int componentId) {
         buffer.start(Operations.LAYOUT_CONTENT);
         buffer.writeInt(componentId);

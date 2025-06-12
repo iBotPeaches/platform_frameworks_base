@@ -64,13 +64,14 @@ class ViewConfigCoordinatorTest : SysuiTestCase() {
     fun setUp() {
         whenever(pipeline.allNotifs).thenReturn(listOf(entry))
         whenever(entry.row).thenReturn(row)
-        coordinator = ViewConfigCoordinator(
-            configurationController,
-            lockscreenUserManager,
-            gutsManager,
-            keyguardUpdateMonitor,
-            colorUpdateLogger,
-        )
+        coordinator =
+            ViewConfigCoordinator(
+                configurationController,
+                lockscreenUserManager,
+                gutsManager,
+                keyguardUpdateMonitor,
+                colorUpdateLogger,
+            )
         coordinator.attach(pipeline)
         userChangedListener = withArgCaptor {
             verify(lockscreenUserManager).addUserChangedListener(capture())
@@ -95,7 +96,6 @@ class ViewConfigCoordinatorTest : SysuiTestCase() {
     fun themeChangePropagatesToEntry() {
         configurationListener.onThemeChanged()
         verify(entry).onDensityOrFontScaleChanged()
-        verify(entry).areGutsExposed()
         verifyNoMoreInteractions(entry, row)
     }
 
@@ -103,7 +103,6 @@ class ViewConfigCoordinatorTest : SysuiTestCase() {
     fun densityChangePropagatesToEntry() {
         configurationListener.onDensityOrFontScaleChanged()
         verify(entry).onDensityOrFontScaleChanged()
-        verify(entry).areGutsExposed()
         verifyNoMoreInteractions(entry, row)
     }
 
@@ -127,7 +126,6 @@ class ViewConfigCoordinatorTest : SysuiTestCase() {
         verify(entry).row
         verify(row).onUiModeChanged()
         verify(entry).onDensityOrFontScaleChanged()
-        verify(entry).areGutsExposed()
         verifyNoMoreInteractions(entry, row)
         clearInvocations(entry, row)
 
@@ -158,7 +156,6 @@ class ViewConfigCoordinatorTest : SysuiTestCase() {
         verify(entry).row
         verify(row).onUiModeChanged()
         verify(entry).onDensityOrFontScaleChanged()
-        verify(entry).areGutsExposed()
         verifyNoMoreInteractions(entry, row)
         clearInvocations(entry, row)
 
@@ -194,7 +191,6 @@ class ViewConfigCoordinatorTest : SysuiTestCase() {
         verify(entry).row
         verify(row).onUiModeChanged()
         verify(entry).onDensityOrFontScaleChanged()
-        verify(entry).areGutsExposed()
         verifyNoMoreInteractions(entry, row)
         clearInvocations(entry, row)
     }

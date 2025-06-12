@@ -20,7 +20,7 @@ import static com.android.internal.app.AppLocaleStore.AppLocaleResult.LocaleStat
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -123,7 +123,7 @@ public class AppLocaleCollectorTest {
         doReturn(mAllAppActiveLocales).when(mAppLocaleCollector).getAllAppActiveLocales();
         doReturn(mImeLocales).when(mAppLocaleCollector).getActiveImeLocales();
         doReturn(mSystemSupportedLocales).when(mAppLocaleCollector).getSystemSupportedLocale(
-                anyObject(), eq(null), eq(true));
+                any(), eq(null), eq(true));
         doReturn(mSystemCurrentLocales).when(
                 mAppLocaleCollector).getSystemCurrentLocales();
 
@@ -159,7 +159,7 @@ public class AppLocaleCollectorTest {
         doReturn(mAllAppActiveLocales).when(mAppLocaleCollector).getAllAppActiveLocales();
         doReturn(mImeLocales).when(mAppLocaleCollector).getActiveImeLocales();
         doReturn(mSystemSupportedLocales).when(mAppLocaleCollector).getSystemSupportedLocale(
-                anyObject(), eq(null), eq(true));
+                any(), eq(null), eq(true));
         doReturn(mSystemCurrentLocales).when(
                 mAppLocaleCollector).getSystemCurrentLocales();
 

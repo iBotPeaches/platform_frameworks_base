@@ -16,6 +16,10 @@
 
 package com.android.wallpaperbackup;
 
+import static android.app.Flags.FLAG_LIVE_WALLPAPER_CONTENT_HANDLING;
+
+import static com.android.wallpaperbackup.WallpaperEventLogger.WALLPAPER_DESCRIPTION_LOCK;
+import static com.android.wallpaperbackup.WallpaperEventLogger.WALLPAPER_DESCRIPTION_SYSTEM;
 import static com.android.wallpaperbackup.WallpaperEventLogger.WALLPAPER_IMG_LOCK;
 import static com.android.wallpaperbackup.WallpaperEventLogger.WALLPAPER_IMG_SYSTEM;
 import static com.android.wallpaperbackup.WallpaperEventLogger.WALLPAPER_LIVE_LOCK;
@@ -31,16 +35,20 @@ import android.app.WallpaperInfo;
 import android.app.backup.BackupAnnotations;
 import android.app.backup.BackupManager;
 import android.app.backup.BackupRestoreEventLogger;
+import android.app.wallpaper.WallpaperDescription;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.wallpaper.WallpaperService;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -63,6 +71,10 @@ public class WallpaperEventLoggerTest {
 
     private WallpaperEventLogger mWallpaperEventLogger;
     private WallpaperInfo mWallpaperInfo;
+    private WallpaperDescription mWallpaperDescription;
+
+    @Rule
+    public SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Before
     public void setUp() throws Exception {
@@ -73,6 +85,8 @@ public class WallpaperEventLoggerTest {
 
         mWallpaperInfo = getWallpaperInfo();
         mWallpaperEventLogger = new WallpaperEventLogger(mMockBackupManager, mMockBackupAgent);
+        mWallpaperDescription = new WallpaperDescription.Builder().setComponent(
+                mWallpaperInfo.getComponent()).build();
     }
 
     @Test
@@ -263,11 +277,35 @@ public class WallpaperEventLoggerTest {
     }
 
     @Test
+    @EnableFlags(FLAG_LIVE_WALLPAPER_CONTENT_HANDLING)
+    public void onSystemLiveWallpaperRestoredWithDescription_logsSuccess() {
+        setUpLoggerForRestore();
+
+        mWallpaperEventLogger.onSystemLiveWallpaperRestoredWithDescription(mWallpaperDescription);
+        BackupRestoreEventLogger.DataTypeResult result = getLogsForType(
+                WALLPAPER_DESCRIPTION_SYSTEM);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getSuccessCount()).isEqualTo(1);
+    }
+
+    @Test
     public void onLockLiveWallpaperRestored_logsSuccess() {
         setUpLoggerForRestore();
 
         mWallpaperEventLogger.onLockLiveWallpaperRestored(mWallpaperInfo.getComponent());
         BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_LIVE_LOCK);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getSuccessCount()).isEqualTo(1);
+    }
+
+    @Test
+    public void onLockLiveWallpaperRestoredWithDescription_logsSuccess() {
+        setUpLoggerForRestore();
+
+        mWallpaperEventLogger.onLockLiveWallpaperRestoredWithDescription(mWallpaperDescription);
+        BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_DESCRIPTION_LOCK);
 
         assertThat(result).isNotNull();
         assertThat(result.getSuccessCount()).isEqualTo(1);
@@ -286,11 +324,24 @@ public class WallpaperEventLoggerTest {
 
 
     @Test
-    public void onLiveWallpaperRestored_logsMetadata() {
+    public void onSystemLiveWallpaperRestored_logsMetadata() {
         setUpLoggerForRestore();
 
         mWallpaperEventLogger.onSystemLiveWallpaperRestored(mWallpaperInfo.getComponent());
         BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_LIVE_SYSTEM);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getMetadataHash()).isNotNull();
+    }
+
+    @Test
+    @EnableFlags(FLAG_LIVE_WALLPAPER_CONTENT_HANDLING)
+    public void onSystemLiveWallpaperRestoredDescription_logsMetadata() {
+        setUpLoggerForRestore();
+
+        mWallpaperEventLogger.onSystemLiveWallpaperRestoredWithDescription(mWallpaperDescription);
+        BackupRestoreEventLogger.DataTypeResult result = getLogsForType(
+                WALLPAPER_DESCRIPTION_SYSTEM);
 
         assertThat(result).isNotNull();
         assertThat(result.getMetadataHash()).isNotNull();
@@ -373,12 +424,47 @@ public class WallpaperEventLoggerTest {
     }
 
     @Test
-    public void onWallpaperRestoreException_liveTypeProcessed_doesNotLogForSameImgType() {
+    public void onSystemWallpaperRestoreException_liveTypeProcessed_doesNotLogForSameImgType() {
         setUpLoggerForRestore();
         mWallpaperEventLogger.onSystemLiveWallpaperRestored(mWallpaperInfo.getComponent());
 
         mWallpaperEventLogger.onRestoreException(new Exception());
         BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_IMG_SYSTEM);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @EnableFlags(FLAG_LIVE_WALLPAPER_CONTENT_HANDLING)
+    public void onSystemWallpaperRestoreException_descriptionProcessed_doesNotLogForSameImgType() {
+        setUpLoggerForRestore();
+        mWallpaperEventLogger.onSystemLiveWallpaperRestoredWithDescription(mWallpaperDescription);
+
+        mWallpaperEventLogger.onRestoreException(new Exception());
+        BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_IMG_SYSTEM);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    public void onLockWallpaperRestoreException_liveTypeProcessed_doesNotLogForSameImgType() {
+        setUpLoggerForRestore();
+        mWallpaperEventLogger.onLockLiveWallpaperRestored(mWallpaperInfo.getComponent());
+
+        mWallpaperEventLogger.onRestoreException(new Exception());
+        BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_IMG_LOCK);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @EnableFlags(FLAG_LIVE_WALLPAPER_CONTENT_HANDLING)
+    public void onLockWallpaperRestoreException_descriptionProcessed_doesNotLogForSameImgType() {
+        setUpLoggerForRestore();
+        mWallpaperEventLogger.onLockLiveWallpaperRestoredWithDescription(mWallpaperDescription);
+
+        mWallpaperEventLogger.onRestoreException(new Exception());
+        BackupRestoreEventLogger.DataTypeResult result = getLogsForType(WALLPAPER_IMG_LOCK);
 
         assertThat(result).isNull();
     }

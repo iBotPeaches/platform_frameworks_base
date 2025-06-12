@@ -51,6 +51,7 @@ import java.util.Objects;
  */
 public class HybridConversationNotificationView extends HybridNotificationView {
 
+    private static final int MAX_SUMMARIZATION_LINES = 1;
     private ImageView mConversationIconView;
     private TextView mConversationSenderName;
     private ViewStub mConversationFacePileStub;
@@ -288,18 +289,26 @@ public class HybridConversationNotificationView extends HybridNotificationView {
     public void setText(
             CharSequence titleText,
             CharSequence contentText,
-            CharSequence conversationSenderName
+            CharSequence conversationSenderName,
+            @Nullable CharSequence summarization
     ) {
         if (AsyncHybridViewInflation.isUnexpectedlyInLegacyMode()) return;
-        if (conversationSenderName == null) {
+        if (!TextUtils.isEmpty(summarization)) {
             mConversationSenderName.setVisibility(GONE);
+            contentText = summarization;
+            mTextView.setSingleLine(false);
+            mTextView.setMaxLines(MAX_SUMMARIZATION_LINES);
         } else {
-            mConversationSenderName.setVisibility(VISIBLE);
-            mConversationSenderName.setText(conversationSenderName);
+            mTextView.setSingleLine(true);
+            if (conversationSenderName == null) {
+                mConversationSenderName.setVisibility(GONE);
+            } else {
+                mConversationSenderName.setVisibility(VISIBLE);
+                mConversationSenderName.setText(conversationSenderName);
+            }
         }
-        // TODO (b/217799515): super.bind() doesn't use contentView, remove the contentView
-        //  argument when the flag is removed
-        super.bind(/* title = */ titleText, /* text = */ contentText, /* contentView = */ null);
+        super.bind(/* title = */ titleText, /* text = */ contentText,
+                /* stripSpans = */ TextUtils.isEmpty(summarization));
     }
 
     private static void setSize(View view, int size) {

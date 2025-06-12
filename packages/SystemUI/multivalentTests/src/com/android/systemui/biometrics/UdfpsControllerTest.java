@@ -16,6 +16,8 @@
 
 package com.android.systemui.biometrics;
 
+import static com.android.systemui.SysuiTestCaseExtKt.testKosmos;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -45,12 +47,12 @@ import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewRootImpl;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.logging.InstanceIdSequence;
 import com.android.internal.util.LatencyTracker;
 import com.android.keyguard.KeyguardUpdateMonitor;
@@ -69,7 +71,9 @@ import com.android.systemui.deviceentry.domain.interactor.DeviceEntryFaceAuthInt
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.keyguard.ScreenLifecycle;
+import com.android.systemui.keyguard.UserActivityNotifierKosmosKt;
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor;
+import com.android.systemui.kosmos.Kosmos;
 import com.android.systemui.log.SessionTracker;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
@@ -115,7 +119,7 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 @RunWithLooper(setAsMainLooper = true)
 public class UdfpsControllerTest extends SysuiTestCase {
-
+    private final Kosmos mKosmos = testKosmos(this);
     private static final long TEST_REQUEST_ID = 70;
 
     @Rule
@@ -129,7 +133,7 @@ public class UdfpsControllerTest extends SysuiTestCase {
     @Mock
     private FingerprintManager mFingerprintManager;
     @Mock
-    private ViewCaptureAwareWindowManager mWindowManager;
+    private WindowManager mWindowManager;
     @Mock
     private StatusBarStateController mStatusBarStateController;
     @Mock
@@ -192,8 +196,6 @@ public class UdfpsControllerTest extends SysuiTestCase {
     private AlternateBouncerInteractor mAlternateBouncerInteractor;
     @Mock
     private UdfpsOverlayInteractor mUdfpsOverlayInteractor;
-    @Mock
-    private UdfpsKeyguardAccessibilityDelegate mUdfpsKeyguardAccessibilityDelegate;
     @Mock
     private SelectedUserInteractor mSelectedUserInteractor;
 
@@ -321,14 +323,14 @@ public class UdfpsControllerTest extends SysuiTestCase {
                 mAlternateBouncerInteractor,
                 mInputManager,
                 mock(DeviceEntryFaceAuthInteractor.class),
-                mUdfpsKeyguardAccessibilityDelegate,
                 mSelectedUserInteractor,
                 mKeyguardTransitionInteractor,
                 mDeviceEntryUdfpsTouchOverlayViewModel,
                 mDefaultUdfpsTouchOverlayViewModel,
                 mUdfpsOverlayInteractor,
                 mPowerInteractor,
-                mock(CoroutineScope.class)
+                mock(CoroutineScope.class),
+                UserActivityNotifierKosmosKt.getUserActivityNotifier(mKosmos)
         );
         verify(mFingerprintManager).setUdfpsOverlayController(mOverlayCaptor.capture());
         mOverlayController = mOverlayCaptor.getValue();

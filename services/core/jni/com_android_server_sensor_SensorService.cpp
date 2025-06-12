@@ -60,6 +60,8 @@ public:
     void unregisterRuntimeSensor(jint handle);
     jboolean sendRuntimeSensorEvent(JNIEnv* env, jint handle, jint type, jlong timestamp,
                                     jfloatArray values);
+    jboolean sendRuntimeSensorAdditionalInfo(JNIEnv* env, jint handle, jint type, jint serial,
+                                             jlong timestamp, jfloatArray values);
 
 private:
     sp<SensorService> mService;
@@ -172,9 +174,9 @@ jboolean NativeSensorService::sendRuntimeSensorEvent(JNIEnv* env, jint handle, j
 
     sensors_event_t event{
             .version = sizeof(sensors_event_t),
-            .timestamp = timestamp,
             .sensor = handle,
             .type = type,
+            .timestamp = timestamp,
     };
 
     int valuesLength = env->GetArrayLength(values);
@@ -227,6 +229,42 @@ jboolean NativeSensorService::sendRuntimeSensorEvent(JNIEnv* env, jint handle, j
                 return false;
             }
             memcpy(event.data, sensorValues, valuesLength * sizeof(float));
+        }
+    }
+
+    status_t err = mService->sendRuntimeSensorEvent(event);
+    return err == OK;
+}
+
+jboolean NativeSensorService::sendRuntimeSensorAdditionalInfo(JNIEnv* env, jint handle, jint type,
+                                                              jint serial, jlong timestamp,
+                                                              jfloatArray values) {
+    if (mService == nullptr) {
+        ALOGD("Dropping sendRuntimeSensorAdditionalInfo, sensor service not available.");
+        return false;
+    }
+
+    sensors_event_t event{
+            .version = sizeof(sensors_event_t),
+            .sensor = handle,
+            .type = SENSOR_TYPE_ADDITIONAL_INFO,
+            .timestamp = timestamp,
+            .additional_info =
+                    (additional_info_event_t){
+                            .type = type,
+                            .serial = serial,
+                    },
+    };
+
+    if (values != nullptr) {
+        int valuesLength = env->GetArrayLength(values);
+        if (valuesLength > 14) {
+            ALOGD("Dropping sendRuntimeSensorAdditionalInfo, number of values exceeds maximum.");
+            return false;
+        }
+        if (valuesLength > 0) {
+            jfloat* sensorValues = env->GetFloatArrayElements(values, nullptr);
+            memcpy(event.additional_info.data_float, sensorValues, valuesLength * sizeof(float));
         }
     }
 
@@ -326,6 +364,13 @@ static jboolean sendRuntimeSensorEventNative(JNIEnv* env, jclass, jlong ptr, jin
     return service->sendRuntimeSensorEvent(env, handle, type, timestamp, values);
 }
 
+static jboolean sendRuntimeSensorAdditionalInfoNative(JNIEnv* env, jclass, jlong ptr, jint handle,
+                                                      jint type, jint serial, jlong timestamp,
+                                                      jfloatArray values) {
+    auto* service = reinterpret_cast<NativeSensorService*>(ptr);
+    return service->sendRuntimeSensorAdditionalInfo(env, handle, type, serial, timestamp, values);
+}
+
 static const JNINativeMethod methods[] = {
         {"startSensorServiceNative", "(L" PROXIMITY_ACTIVE_CLASS ";)J",
          reinterpret_cast<void*>(startSensorServiceNative)},
@@ -340,6 +385,8 @@ static const JNINativeMethod methods[] = {
          reinterpret_cast<void*>(unregisterRuntimeSensorNative)},
         {"sendRuntimeSensorEventNative", "(JIIJ[F)Z",
          reinterpret_cast<void*>(sendRuntimeSensorEventNative)},
+        {"sendRuntimeSensorAdditionalInfoNative", "(JIIIJ[F)Z",
+         reinterpret_cast<void*>(sendRuntimeSensorAdditionalInfoNative)},
 };
 
 int register_android_server_sensor_SensorService(JavaVM* vm, JNIEnv* env) {

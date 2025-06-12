@@ -531,8 +531,9 @@ public class WebChromeClient {
      * the chosen file(s). WebView can access all files that your app can access.
      * In case the file(s) are chosen through an untrusted source such as a third-party
      * app, it is your own app's responsibility to check what the returned Uris
-     * refer to before calling the <code>filePathCallback</code>. See
-     * {@link #createIntent} and {@link #parseResult} for more details.</p>
+     * refer to before calling the {@code filePathCallback}. See
+     * {@link FileChooserParams#createIntent} and {@link FileChooserParams#parseResult} for more
+     * details.
      *
      * @param webView The WebView instance that is initiating the request.
      * @param filePathCallback Invoke this callback to supply the list of paths to files to upload,

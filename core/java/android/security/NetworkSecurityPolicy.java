@@ -88,7 +88,10 @@ public class NetworkSecurityPolicy {
      * @hide
      */
     public void setCleartextTrafficPermitted(boolean permitted) {
-        FrameworkNetworkSecurityPolicy policy = new FrameworkNetworkSecurityPolicy(permitted);
+        libcore.net.NetworkSecurityPolicy currentPolicy =
+                libcore.net.NetworkSecurityPolicy.getInstance();
+        OverlayNetworkSecurityPolicy policy =
+                new OverlayNetworkSecurityPolicy(currentPolicy, permitted);
         libcore.net.NetworkSecurityPolicy.setInstance(policy);
     }
 

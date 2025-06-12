@@ -22,11 +22,12 @@ import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.activityStarter
 import com.android.systemui.qs.external.FakeCustomTileStatePersister
-import com.android.systemui.qs.external.tileServices
 import com.android.systemui.qs.external.tileServicesFacade
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.logging.QSTileLogger
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.shared.logging.QSTileLogger
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfigTestBuilder
 import com.android.systemui.qs.tiles.impl.custom.data.repository.FakeCustomTileDefaultsRepository
 import com.android.systemui.qs.tiles.impl.custom.data.repository.FakeCustomTilePackageUpdatesRepository
 import com.android.systemui.qs.tiles.impl.custom.data.repository.FakeCustomTileRepository
@@ -34,8 +35,6 @@ import com.android.systemui.qs.tiles.impl.custom.data.repository.FakePackageMana
 import com.android.systemui.qs.tiles.impl.custom.domain.interactor.CustomTileInteractor
 import com.android.systemui.qs.tiles.impl.custom.domain.interactor.CustomTileServiceInteractor
 import com.android.systemui.qs.tiles.impl.custom.domain.interactor.CustomTileUserActionInteractor
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfigTestBuilder
 import com.android.systemui.user.data.repository.userRepository
 import com.android.systemui.util.mockito.mock
 

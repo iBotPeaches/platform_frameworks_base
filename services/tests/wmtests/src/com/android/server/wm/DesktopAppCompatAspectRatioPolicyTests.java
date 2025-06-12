@@ -35,6 +35,7 @@ import static com.android.server.wm.AppCompatConfiguration.DEFAULT_LETTERBOX_ASP
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 
 import android.compat.testing.PlatformCompatChangeRule;
 import android.content.pm.ActivityInfo;
@@ -407,22 +408,22 @@ public class DesktopAppCompatAspectRatioPolicyTests extends WindowTestsBase {
         @Override
         void onPostActivityCreation(@NonNull ActivityRecord activity) {
             super.onPostActivityCreation(activity);
-            spyOn(activity.mAppCompatController.getAppCompatAspectRatioOverrides());
-            spyOn(activity.mAppCompatController.getDesktopAppCompatAspectRatioPolicy());
+            spyOn(activity.mAppCompatController.getAspectRatioOverrides());
+            spyOn(activity.mAppCompatController.getDesktopAspectRatioPolicy());
         }
 
         void setDesiredAspectRatio(float aspectRatio) {
             doReturn(aspectRatio).when(getDesktopAppCompatAspectRatioPolicy())
-                    .getDesiredAspectRatio(any());
+                    .getDesiredAspectRatio(any(), anyBoolean());
         }
 
         DesktopAppCompatAspectRatioPolicy getDesktopAppCompatAspectRatioPolicy() {
-            return getTopActivity().mAppCompatController.getDesktopAppCompatAspectRatioPolicy();
+            return getTopActivity().mAppCompatController.getDesktopAspectRatioPolicy();
         }
 
         float calculateAspectRatio() {
             return getDesktopAppCompatAspectRatioPolicy().calculateAspectRatio(
-                    getTopActivity().getTask());
+                    getTopActivity().getTask(), /* hasOrientationMismatch */ true);
         }
 
         ActivityRecord getTopActivity() {
@@ -430,7 +431,7 @@ public class DesktopAppCompatAspectRatioPolicyTests extends WindowTestsBase {
         }
 
         float getSplitScreenAspectRatio() {
-            return  getTopActivity().mAppCompatController.getAppCompatAspectRatioOverrides()
+            return  getTopActivity().mAppCompatController.getAspectRatioOverrides()
                     .getSplitScreenAspectRatio();
         }
 
@@ -442,7 +443,7 @@ public class DesktopAppCompatAspectRatioPolicyTests extends WindowTestsBase {
 
         void checkHasMinAspectRatioOverride(boolean expected) {
             assertEquals(expected, this.activity().top().mAppCompatController
-                    .getDesktopAppCompatAspectRatioPolicy().hasMinAspectRatioOverride(
+                    .getDesktopAspectRatioPolicy().hasMinAspectRatioOverride(
                             this.activity().top().getTask()));
         }
 

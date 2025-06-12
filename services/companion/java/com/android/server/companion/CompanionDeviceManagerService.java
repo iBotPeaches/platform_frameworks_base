@@ -31,6 +31,8 @@ import static android.os.UserHandle.getCallingUserId;
 
 import static com.android.internal.util.CollectionUtils.any;
 import static com.android.internal.util.Preconditions.checkState;
+import static com.android.server.companion.association.DisassociationProcessor.REASON_API;
+import static com.android.server.companion.association.DisassociationProcessor.REASON_PKG_DATA_CLEARED;
 import static com.android.server.companion.utils.PackageUtils.enforceUsesCompanionDeviceFeature;
 import static com.android.server.companion.utils.PackageUtils.isRestrictedSettingsAllowed;
 import static com.android.server.companion.utils.PermissionsUtils.enforceCallerCanManageAssociationsForPackage;
@@ -47,6 +49,7 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityManagerInternal;
 import android.app.AppOpsManager;
+import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.ecm.EnhancedConfirmationManager;
@@ -109,6 +112,8 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @SuppressLint("LongLogTag")
 public class CompanionDeviceManagerService extends SystemService {
@@ -226,7 +231,8 @@ public class CompanionDeviceManagerService extends SystemService {
         if (associations.isEmpty()) return;
 
         mCompanionExemptionProcessor.updateAtm(userId, associations);
-        mCompanionExemptionProcessor.updateAutoRevokeExemptions();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(mCompanionExemptionProcessor::updateAutoRevokeExemptions);
     }
 
     @Override
@@ -246,7 +252,7 @@ public class CompanionDeviceManagerService extends SystemService {
                     + packageName + "]. Cleaning up CDM data...");
 
             for (AssociationInfo association : associationsForPackage) {
-                mDisassociationProcessor.disassociate(association.getId());
+                mDisassociationProcessor.disassociate(association.getId(), REASON_PKG_DATA_CLEARED);
             }
 
             mCompanionAppBinder.onPackageChanged(userId);
@@ -299,8 +305,17 @@ public class CompanionDeviceManagerService extends SystemService {
             enforceCallerCanManageAssociationsForPackage(getContext(), userId, packageName,
                     "create associations");
 
-            mAssociationRequestsProcessor.processNewAssociationRequest(
-                    request, packageName, userId, callback);
+            if (request.isSkipRoleGrant()) {
+                checkCallerCanSkipRoleGrant();
+                mAssociationRequestsProcessor.createAssociation(userId, packageName,
+                        /* macAddress= */ null, request.getDisplayName(),
+                        request.getDeviceProfile(), /* associatedDevice= */ null,
+                        request.isSelfManaged(), callback, /* resultReceiver= */ null,
+                        request.getDeviceIcon(), /* skipRoleGrant= */ true);
+            } else {
+                mAssociationRequestsProcessor.processNewAssociationRequest(
+                        request, packageName, userId, callback);
+            }
         }
 
         @Override
@@ -413,7 +428,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
         @Override
         public void disassociate(int associationId) {
-            mDisassociationProcessor.disassociate(associationId);
+            mDisassociationProcessor.disassociate(associationId, REASON_API);
         }
 
         @Override
@@ -575,10 +590,10 @@ public class CompanionDeviceManagerService extends SystemService {
         @Override
         @EnforcePermission(DELIVER_COMPANION_MESSAGES)
         public void attachSystemDataTransport(String packageName, int userId, int associationId,
-                ParcelFileDescriptor fd) {
+                                              ParcelFileDescriptor fd, int flags) {
             attachSystemDataTransport_enforcePermission();
 
-            mTransportManager.attachSystemDataTransport(associationId, fd);
+            mTransportManager.attachSystemDataTransport(associationId, fd, flags);
         }
 
         @Override
@@ -609,7 +624,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
         @Override
         public void enablePermissionsSync(int associationId) {
-            if (getCallingUid() != SYSTEM_UID) {
+            if (UserHandle.getAppId(Binder.getCallingUid()) != SYSTEM_UID) {
                 throw new SecurityException("Caller must be system UID");
             }
             mSystemDataTransferProcessor.enablePermissionsSync(associationId);
@@ -617,7 +632,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
         @Override
         public void disablePermissionsSync(int associationId) {
-            if (getCallingUid() != SYSTEM_UID) {
+            if (UserHandle.getAppId(Binder.getCallingUid()) != SYSTEM_UID) {
                 throw new SecurityException("Caller must be system UID");
             }
             mSystemDataTransferProcessor.disablePermissionsSync(associationId);
@@ -625,7 +640,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
         @Override
         public PermissionSyncRequest getPermissionSyncRequest(int associationId) {
-            if (getCallingUid() != SYSTEM_UID) {
+            if (UserHandle.getAppId(Binder.getCallingUid()) != SYSTEM_UID) {
                 throw new SecurityException("Caller must be system UID");
             }
             return mSystemDataTransferProcessor.getPermissionSyncRequest(associationId);
@@ -666,7 +681,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
             final MacAddress macAddressObj = MacAddress.fromString(macAddress);
             mAssociationRequestsProcessor.createAssociation(userId, packageName, macAddressObj,
-                    null, null, null, false, null, null, null);
+                    null, null, null, false, null, null, null, false);
         }
 
         private void checkCanCallNotificationApi(String callingPackage, int userId) {
@@ -679,6 +694,21 @@ public class CompanionDeviceManagerService extends SystemService {
                             mAssociationStore.getActiveAssociationsByPackage(userId,
                                     callingPackage)),
                     "App must have an association before calling this API");
+        }
+
+        private void checkCallerCanSkipRoleGrant() {
+            final Context context =
+                    getContext().createContextAsUser(Binder.getCallingUserHandle(), 0);
+            final KeyguardManager keyguardManager =
+                    context.getSystemService(KeyguardManager.class);
+            if (keyguardManager != null && keyguardManager.isKeyguardSecure()) {
+                throw new SecurityException("Skipping CDM role grant requires insecure keyguard.");
+            }
+            if (getContext().checkCallingPermission(ASSOCIATE_COMPANION_DEVICES)
+                    != PERMISSION_GRANTED) {
+                throw new SecurityException(
+                        "Skipping CDM role grant requires ASSOCIATE_COMPANION_DEVICES permission.");
+            }
         }
 
         @Override
@@ -701,7 +731,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
         @Override
         public byte[] getBackupPayload(int userId) {
-            if (getCallingUid() != SYSTEM_UID) {
+            if (UserHandle.getAppId(Binder.getCallingUid()) != SYSTEM_UID) {
                 throw new SecurityException("Caller must be system");
             }
             return mBackupRestoreProcessor.getBackupPayload(userId);
@@ -709,7 +739,7 @@ public class CompanionDeviceManagerService extends SystemService {
 
         @Override
         public void applyRestoredPayload(byte[] payload, int userId) {
-            if (getCallingUid() != SYSTEM_UID) {
+            if (UserHandle.getAppId(Binder.getCallingUid()) != SYSTEM_UID) {
                 throw new SecurityException("Caller must be system");
             }
             mBackupRestoreProcessor.applyRestoredPayload(payload, userId);

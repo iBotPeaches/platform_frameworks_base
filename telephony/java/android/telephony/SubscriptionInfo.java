@@ -618,9 +618,9 @@ public class SubscriptionInfo implements Parcelable {
     @Deprecated
     public int getMcc() {
         try {
-            return mMcc == null ? 0 : Integer.parseInt(mMcc);
+            return TextUtils.isEmpty(mMcc) ? 0 : Integer.parseInt(mMcc);
         } catch (NumberFormatException e) {
-            Log.w(SubscriptionInfo.class.getSimpleName(), "MCC string is not a number");
+            Log.w(SubscriptionInfo.class.getSimpleName(), "MCC string is not a number: " + mMcc);
             return 0;
         }
     }
@@ -633,9 +633,9 @@ public class SubscriptionInfo implements Parcelable {
     @Deprecated
     public int getMnc() {
         try {
-            return mMnc == null ? 0 : Integer.parseInt(mMnc);
+            return TextUtils.isEmpty(mMnc) ? 0 : Integer.parseInt(mMnc);
         } catch (NumberFormatException e) {
-            Log.w(SubscriptionInfo.class.getSimpleName(), "MNC string is not a number");
+            Log.w(SubscriptionInfo.class.getSimpleName(), "MNC string is not a number: " + mMnc);
             return 0;
         }
     }
@@ -900,7 +900,6 @@ public class SubscriptionInfo implements Parcelable {
      * @return {@code true} if it is a non-terrestrial network subscription, {@code false}
      * otherwise.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public boolean isOnlyNonTerrestrialNetwork() {
         return mIsOnlyNonTerrestrialNetwork;
     }

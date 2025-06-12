@@ -21,13 +21,13 @@ import androidx.compose.runtime.Immutable
 import com.android.systemui.qs.panels.shared.model.SizedTile
 import com.android.systemui.qs.panels.shared.model.splitInRowsSequence
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
+import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.CategoryAndName
 
 /** Represents an item from a grid associated with a row and a span */
 sealed interface GridCell {
     val row: Int
     val span: GridItemSpan
-    val s: String
 }
 
 /**
@@ -40,7 +40,6 @@ data class TileGridCell(
     override val row: Int,
     override val width: Int,
     override val span: GridItemSpan = GridItemSpan(width),
-    override val s: String = "${tile.tileSpec.spec}-$row-$width",
     val column: Int,
 ) : GridCell, SizedTile<EditTileViewModel>, CategoryAndName by tile {
     val key: String = "${tile.tileSpec.spec}-$row"
@@ -52,12 +51,23 @@ data class TileGridCell(
     ) : this(tile = sizedTile.tile, row = row, column = column, width = sizedTile.width)
 }
 
+/**
+ * Represents a [EditTileViewModel] from the edit mode available tiles grid and whether it is
+ * available to add or not.
+ */
+@Immutable
+data class AvailableTileGridCell(
+    override val tile: EditTileViewModel,
+    override val width: Int = 1,
+    val isAvailable: Boolean = true,
+    val key: TileSpec = tile.tileSpec,
+) : SizedTile<EditTileViewModel>, CategoryAndName by tile
+
 /** Represents an empty space used to fill incomplete rows. Will always display as a 1x1 tile */
 @Immutable
 data class SpacerGridCell(
     override val row: Int,
     override val span: GridItemSpan = GridItemSpan(1),
-    override val s: String = "spacer",
 ) : GridCell
 
 /**

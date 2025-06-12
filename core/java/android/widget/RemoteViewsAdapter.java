@@ -242,7 +242,7 @@ public class RemoteViewsAdapter extends BaseAdapter implements Handler.Callback 
 
         @Override
         public void onNullBinding(ComponentName name) {
-            enqueueDeferredUnbindServiceMessage();
+            unbindNow();
         }
 
         @Override

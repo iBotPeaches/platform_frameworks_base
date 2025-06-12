@@ -33,7 +33,6 @@ import android.view.WindowManager;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.systemui.assist.AssistLogger;
@@ -67,7 +66,7 @@ public class DefaultUiController implements AssistManager.UiController {
     protected InvocationLightsView mInvocationLightsView;
     protected final AssistLogger mAssistLogger;
 
-    private final ViewCaptureAwareWindowManager mWindowManager;
+    private final WindowManager mWindowManager;
     private final MetricsLogger mMetricsLogger;
     private final Lazy<AssistManager> mAssistManagerLazy;
     private final WindowManager.LayoutParams mLayoutParams;
@@ -81,12 +80,12 @@ public class DefaultUiController implements AssistManager.UiController {
 
     @Inject
     public DefaultUiController(Context context, AssistLogger assistLogger,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager,
-            MetricsLogger metricsLogger, Lazy<AssistManager> assistManagerLazy,
+            WindowManager windowManager, MetricsLogger metricsLogger,
+            Lazy<AssistManager> assistManagerLazy,
             NavigationBarController navigationBarController) {
         mAssistLogger = assistLogger;
         mRoot = new FrameLayout(context);
-        mWindowManager = viewCaptureAwareWindowManager;
+        mWindowManager = windowManager;
         mMetricsLogger = metricsLogger;
         mAssistManagerLazy = assistManagerLazy;
 

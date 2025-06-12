@@ -276,7 +276,7 @@ public class AssociationStore {
     /**
      * Remove an association.
      */
-    public void removeAssociation(int id) {
+    public void removeAssociation(int id, String reason) {
         Slog.i(TAG, "Removing association id=[" + id + "]...");
 
         final AssociationInfo association;
@@ -290,6 +290,8 @@ public class AssociationStore {
             }
 
             writeCacheToDisk(association.getUserId());
+
+            mDiskStore.writeLastRemovedAssociation(association, reason);
 
             Slog.i(TAG, "Done removing association.");
         }
@@ -523,6 +525,14 @@ public class AssociationStore {
             out.append("\n");
             for (AssociationInfo a : getActiveAssociations()) {
                 out.append("  ").append(a.toString()).append('\n');
+            }
+        }
+
+        out.append("Last Removed Association:\n");
+        for (UserInfo user : mUserManager.getAliveUsers()) {
+            String lastRemovedAssociation = mDiskStore.readLastRemovedAssociation(user.id);
+            if (lastRemovedAssociation != null) {
+                out.append("  ").append(lastRemovedAssociation).append('\n');
             }
         }
     }

@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.os.FileBridge.FileBridgeOutputStream;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.test.MoreAsserts;
 
@@ -46,7 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ParcelFileDescriptor.class)
+@DisabledOnRavenwood(blockedBy = ParcelFileDescriptor.class)
 public class FileBridgeTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

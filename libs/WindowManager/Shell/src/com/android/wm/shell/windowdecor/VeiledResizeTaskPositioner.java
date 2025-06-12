@@ -53,7 +53,12 @@ import java.util.function.Supplier;
  * {@link com.android.wm.shell.windowdecor.ResizeVeil}.
  * If the drag is resizing the task, we resize the veil instead.
  * If the drag is repositioning, we update in the typical manner.
+ * <p>
+ * @deprecated This class will be replaced by
+ * {@link com.android.wm.shell.windowdecor.MultiDisplayVeiledResizeTaskPositioner}.
+ * TODO(b/383632995): Remove this class after MultiDisplayVeiledResizeTaskPositioner is launched.
  */
+@Deprecated
 public class VeiledResizeTaskPositioner implements TaskPositioner, Transitions.TransitionHandler {
     // Timeout used for resize and drag CUJs, this is longer than the default timeout to avoid
     // timing out in the middle of a resize or drag action.
@@ -104,7 +109,7 @@ public class VeiledResizeTaskPositioner implements TaskPositioner, Transitions.T
     }
 
     @Override
-    public Rect onDragPositioningStart(int ctrlType, float x, float y) {
+    public Rect onDragPositioningStart(int ctrlType, int displayId, float x, float y) {
         mCtrlType = ctrlType;
         mTaskBoundsAtDragStart.set(
                 mDesktopWindowDecoration.mTaskInfo.configuration.windowConfiguration.getBounds());
@@ -136,7 +141,7 @@ public class VeiledResizeTaskPositioner implements TaskPositioner, Transitions.T
     }
 
     @Override
-    public Rect onDragPositioningMove(float x, float y) {
+    public Rect onDragPositioningMove(int displayId, float x, float y) {
         if (Looper.myLooper() != mHandler.getLooper()) {
             // This method must run on the shell main thread to use the correct Choreographer
             // instance below.
@@ -170,7 +175,7 @@ public class VeiledResizeTaskPositioner implements TaskPositioner, Transitions.T
     }
 
     @Override
-    public Rect onDragPositioningEnd(float x, float y) {
+    public Rect onDragPositioningEnd(int displayId, float x, float y) {
         PointF delta = DragPositioningCallbackUtility.calculateDelta(x, y,
                 mRepositionStartPoint);
         if (isResizing()) {
@@ -199,6 +204,9 @@ public class VeiledResizeTaskPositioner implements TaskPositioner, Transitions.T
         mRepositionStartPoint.set(0, 0);
         return new Rect(mRepositionTaskBounds);
     }
+
+    @Override
+    public void close() {}
 
     private boolean isResizing() {
         return (mCtrlType & CTRL_TYPE_TOP) != 0 || (mCtrlType & CTRL_TYPE_BOTTOM) != 0

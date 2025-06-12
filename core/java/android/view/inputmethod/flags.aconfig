@@ -19,15 +19,6 @@ flag {
 }
 
 flag {
-    name: "imm_userhandle_hostsidetests"
-    is_exported: true
-    namespace: "input_method"
-    description: "Feature flag for replacing UserIdInt with UserHandle in some helper IMM functions"
-    bug: "301713309"
-    is_fixed_read_only: true
-}
-
-flag {
     name: "concurrent_input_methods"
     is_exported: true
     namespace: "input_method"
@@ -193,4 +184,54 @@ flag {
   bug: "331730488"
   is_fixed_read_only: true
   is_exported: true
+}
+
+flag {
+  name: "fallback_display_for_secondary_user_on_secondary_display"
+  namespace: "input_method"
+  description: "Feature flag to fix the fallback display bug for visible background users"
+  bug: "383228193"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "report_animating_insets_types"
+  namespace: "input_method"
+  description: "Adding animating insets types and report IME visibility at the beginning of hiding"
+  bug: "393049691"
+}
+
+flag {
+    name: "lower_ime_oom_importance"
+    namespace: "input_method"
+    description: "Lower keyboard app process oom importance to PERCEPTIBLE_APP_ADJ + 1."
+    bug: "372511805"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+  name: "invalidate_input_calls_restart"
+  namespace: "input_method"
+  description: "Feature flag to fix the race between invalidateInput and restartInput"
+  bug: "396066692"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "disallow_disabling_ime_navigation_bar"
+    namespace: "input_method"
+    description: "Disallows disabling the IME navigation bar through canImeRenderGesturalNavButtons"
+    bug: "402442590"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }

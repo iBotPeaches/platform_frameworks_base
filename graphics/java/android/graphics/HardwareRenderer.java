@@ -79,6 +79,7 @@ import sun.misc.Cleaner;
  * Failure to do so will cause the render thread to stall on that surface, blocking all
  * HardwareRenderer instances.</p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class HardwareRenderer {
     private static final String LOG_TAG = "HardwareRenderer";
 
@@ -658,12 +659,26 @@ public class HardwareRenderer {
     }
 
     /**
+     * @hide
+     */
+    public void addObserver(long nativeObserver) {
+        nAddObserver(mNativeProxy, nativeObserver);
+    }
+
+    /**
      * TODO: Public API this?
      *
      * @hide
      */
     public void removeObserver(HardwareRendererObserver observer) {
         nRemoveObserver(mNativeProxy, observer.getNativeInstance());
+    }
+
+    /**
+     * @hide
+     */
+    public void removeObserver(long nativeObserver) {
+        nRemoveObserver(mNativeProxy, nativeObserver);
     }
 
     /**
@@ -1465,6 +1480,18 @@ public class HardwareRenderer {
      * @hide
      */
     public static native void preload();
+
+    /**
+     * Initialize the Buffer Allocator singleton
+     *
+     * This takes 10-20ms on low-resourced devices, so doing it on-demand when an app
+     * tries to render its first frame causes drawFrames to be blocked for buffer
+     * allocation due to just initializing the allocator.
+     *
+     * Should only be called when a buffer is expected to be used.
+     * @hide
+     */
+    public static native void preInitBufferAllocator();
 
     /**
      * @hide

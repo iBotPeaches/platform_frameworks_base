@@ -37,6 +37,7 @@ import java.nio.ShortBuffer;
  * for the mesh. Once generated, a mesh object can be drawn through
  * {@link Canvas#drawMesh(Mesh, BlendMode, Paint)}
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Mesh {
     private long mNativeMeshWrapper;
     private boolean mIsIndexed;

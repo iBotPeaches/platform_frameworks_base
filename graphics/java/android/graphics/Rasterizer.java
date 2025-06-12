@@ -24,6 +24,7 @@ package android.graphics;
 /**
  * @removed feature is not supported by hw-accerlerated or PDF backends
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Rasterizer {
 
     protected void finalize() throws Throwable { }

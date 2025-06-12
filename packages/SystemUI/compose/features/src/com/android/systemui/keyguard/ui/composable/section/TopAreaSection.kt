@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -35,11 +34,9 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.animation.scene.MutableSceneTransitionLayoutState
-import com.android.compose.animation.scene.SceneScope
-import com.android.compose.animation.scene.SceneTransitionLayout
+import com.android.compose.animation.scene.ContentScope
+import com.android.compose.animation.scene.rememberMutableSceneTransitionLayoutState
 import com.android.compose.modifiers.thenIf
-import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
 import com.android.systemui.keyguard.ui.composable.blueprint.ClockScenes.largeClockScene
 import com.android.systemui.keyguard.ui.composable.blueprint.ClockScenes.smallClockScene
 import com.android.systemui.keyguard.ui.composable.blueprint.ClockScenes.splitShadeLargeClockScene
@@ -58,12 +55,11 @@ constructor(
     private val mediaCarouselSection: MediaCarouselSection,
     private val clockSection: DefaultClockSection,
     private val weatherClockSection: WeatherClockSection,
-    private val clockInteractor: KeyguardClockInteractor,
+    private val keyguardClockViewModel: KeyguardClockViewModel,
 ) {
     @Composable
-    fun SceneScope.DefaultClockLayout(
+    fun ContentScope.DefaultClockLayout(
         smartSpacePaddingTop: (Resources) -> Int,
-        isShadeLayoutWide: Boolean,
         modifier: Modifier = Modifier,
     ) {
         val currentClockLayout by clockViewModel.currentClockLayout.collectAsStateWithLifecycle()
@@ -83,9 +79,11 @@ constructor(
                     WeatherClockScenes.splitShadeLargeClockScene
             }
 
-        val state = remember {
-            MutableSceneTransitionLayoutState(currentScene, ClockTransition.defaultClockTransitions)
-        }
+        val state =
+            rememberMutableSceneTransitionLayoutState(
+                currentScene,
+                ClockTransition.defaultClockTransitions,
+            )
 
         // Update state whenever currentSceneKey has changed.
         LaunchedEffect(state, currentScene) {
@@ -95,7 +93,7 @@ constructor(
         }
 
         Column(modifier) {
-            SceneTransitionLayout(state) {
+            NestedSceneTransitionLayout(state, Modifier) {
                 scene(splitShadeLargeClockScene) {
                     LargeClockWithSmartSpace(
                         smartSpacePaddingTop = smartSpacePaddingTop,
@@ -129,16 +127,16 @@ constructor(
                     )
                 }
             }
-            with(mediaCarouselSection) { KeyguardMediaCarousel(isShadeLayoutWide) }
+            with(mediaCarouselSection) { KeyguardMediaCarousel() }
         }
     }
 
     @Composable
-    private fun SceneScope.SmallClockWithSmartSpace(
+    private fun ContentScope.SmallClockWithSmartSpace(
         smartSpacePaddingTop: (Resources) -> Int,
         modifier: Modifier = Modifier,
     ) {
-        val burnIn = rememberBurnIn(clockInteractor)
+        val burnIn = rememberBurnIn(keyguardClockViewModel)
 
         Column(modifier = modifier) {
             with(clockSection) {
@@ -159,11 +157,11 @@ constructor(
     }
 
     @Composable
-    private fun SceneScope.LargeClockWithSmartSpace(
+    private fun ContentScope.LargeClockWithSmartSpace(
         smartSpacePaddingTop: (Resources) -> Int,
         shouldOffSetClockToOneHalf: Boolean = false,
     ) {
-        val burnIn = rememberBurnIn(clockInteractor)
+        val burnIn = rememberBurnIn(keyguardClockViewModel)
         val isLargeClockVisible by clockViewModel.isLargeClockVisible.collectAsStateWithLifecycle()
 
         LaunchedEffect(isLargeClockVisible) {
@@ -200,11 +198,11 @@ constructor(
     }
 
     @Composable
-    private fun SceneScope.WeatherLargeClockWithSmartSpace(
+    private fun ContentScope.WeatherLargeClockWithSmartSpace(
         smartSpacePaddingTop: (Resources) -> Int,
         modifier: Modifier = Modifier,
     ) {
-        val burnIn = rememberBurnIn(clockInteractor)
+        val burnIn = rememberBurnIn(keyguardClockViewModel)
         val isLargeClockVisible by clockViewModel.isLargeClockVisible.collectAsStateWithLifecycle()
         val currentClockState = clockViewModel.currentClock.collectAsStateWithLifecycle()
 

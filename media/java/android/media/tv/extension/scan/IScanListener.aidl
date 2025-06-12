@@ -27,7 +27,7 @@ oneway interface IScanListener {
     // notify the scan progress.
     void onScanProgress(String scanProgress, in Bundle scanProgressInfo);
     // notify the scan completion.
-    void onScanCompleted(int scanResult);
+    void onScanCompleted(int scanResult, in Bundle optionScanInfo);
     // notify that the temporaily held channel list is stored.
     void onStoreCompleted(int storeResult);
 }

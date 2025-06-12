@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.LocaleList;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.method.LinkMovementMethod;
@@ -46,6 +47,7 @@ import java.util.Locale;
  */
 @SmallTest
 @RunWith(AndroidJUnit4.class)
+@DisabledOnRavenwood(blockedBy = Linkify.class)
 public class LinkifyTest {
 
     private static final LocaleList LOCALE_LIST_US = new LocaleList(Locale.US);

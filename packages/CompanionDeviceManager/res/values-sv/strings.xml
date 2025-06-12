@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Vill du tillåta att appen &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; får åtkomst till &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Se till att denna <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> har <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> aktiverat och håll din <xliff:g id="PROFILE_NAME">%3$s</xliff:g> i närheten."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Inga enheter hittades. Försök igen senare."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wifi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth och wifi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"klocka"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Välj en enhet för hantering av &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Välj en <xliff:g id="PROFILE_NAME">%1$s</xliff:g> för konfigurering"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Söker efter en <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Appen får synkronisera information, till exempel namnet på någon som ringer, och får åtkomst till dessa behörigheter på din <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Tillåt att &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; hanterar &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"enhet"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Vill du tillåta &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; att streama appar på din <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> till &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> får åtkomst till allt som visas eller spelas upp på <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, inklusive ljud, foton, betalningsuppgifter, lösenord och meddelanden.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> kan streama appar till <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> tills du tar bort åtkomsten till den här behörigheten."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> begär behörighet för <xliff:g id="DEVICE_NAME">%2$s</xliff:g> att streama appar från din <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Vill du tillåta att &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; streamar ljud och systemfunktioner mellan <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> och &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> får åtkomst till allt som spelas upp på <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> kan streama ljud till <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> tills du tar bort åtkomsten till den här behörigheten."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"enhet"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Den här appen kommer att kunna synkronisera information mellan telefonen och den valda enheten, till exempel namnet på någon som ringer"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Tillåt"</string>
     <string name="consent_no" msgid="2640796915611404382">"Tillåt inte"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Avbryt"</string>
     <string name="consent_back" msgid="2560683030046918882">"Tillbaka"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Scrolla nedåt i listan"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Nedåtpil"</string>
     <string name="permission_expand" msgid="893185038020887411">"Utöka <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Komprimera <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Vill du ge apparna på &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; samma behörigheter som de har på &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

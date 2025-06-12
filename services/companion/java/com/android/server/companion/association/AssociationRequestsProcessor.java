@@ -28,6 +28,7 @@ import static com.android.server.companion.utils.PackageUtils.enforceUsesCompani
 import static com.android.server.companion.utils.PermissionsUtils.enforcePermissionForCreatingAssociation;
 import static com.android.server.companion.utils.RolesUtils.addRoleHolderForAssociation;
 import static com.android.server.companion.utils.RolesUtils.isRoleHolder;
+import static com.android.server.companion.utils.RolesUtils.isRolelessProfile;
 import static com.android.server.companion.utils.Utils.prepareForIpc;
 
 import static java.util.Objects.requireNonNull;
@@ -57,13 +58,16 @@ import android.os.Handler;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.UserHandle;
+import android.util.ArraySet;
 import android.util.Slog;
 
 import com.android.internal.R;
 import com.android.server.companion.CompanionDeviceManagerService;
 import com.android.server.companion.utils.PackageUtils;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Class responsible for handling incoming {@link AssociationRequest}s.
@@ -129,6 +133,12 @@ public class AssociationRequestsProcessor {
     private static final int ASSOCIATE_WITHOUT_PROMPT_MAX_PER_TIME_WINDOW = 5;
     private static final long ASSOCIATE_WITHOUT_PROMPT_WINDOW_MS = 60 * 60 * 1000; // 60 min;
 
+    // Set of profiles for which the association dialog cannot be skipped.
+    private static final Set<String> DEVICE_PROFILES_WITH_REQUIRED_CONFIRMATION = new ArraySet<>(
+            Arrays.asList(
+                    AssociationRequest.DEVICE_PROFILE_APP_STREAMING,
+                    AssociationRequest.DEVICE_PROFILE_NEARBY_DEVICE_STREAMING));
+
     private final @NonNull Context mContext;
     private final @NonNull PackageManagerInternal mPackageManagerInternal;
     private final @NonNull AssociationStore mAssociationStore;
@@ -173,6 +183,7 @@ public class AssociationRequestsProcessor {
         // 2a. Check if association can be created without launching UI (i.e. CDM needs NEITHER
         // to perform discovery NOR to collect user consent).
         if (request.isSelfManaged() && !request.isForceConfirmation()
+                && !DEVICE_PROFILES_WITH_REQUIRED_CONFIRMATION.contains(request.getDeviceProfile())
                 && !willAddRoleHolder(request, packageName, userId)) {
             // 2a.1. Create association right away.
             createAssociationAndNotifyApplication(request, packageName, userId,
@@ -282,8 +293,8 @@ public class AssociationRequestsProcessor {
         Binder.withCleanCallingIdentity(() -> {
             createAssociation(userId, packageName, macAddress, request.getDisplayName(),
                     request.getDeviceProfile(), request.getAssociatedDevice(),
-                    request.isSelfManaged(),
-                    callback, resultReceiver, request.getDeviceIcon());
+                    request.isSelfManaged(), callback, resultReceiver, request.getDeviceIcon(),
+                    /* skipRoleGrant= */ false);
         });
     }
 
@@ -294,7 +305,8 @@ public class AssociationRequestsProcessor {
             @Nullable MacAddress macAddress, @Nullable CharSequence displayName,
             @Nullable String deviceProfile, @Nullable AssociatedDevice associatedDevice,
             boolean selfManaged, @Nullable IAssociationRequestCallback callback,
-            @Nullable ResultReceiver resultReceiver, @Nullable Icon deviceIcon) {
+            @Nullable ResultReceiver resultReceiver, @Nullable Icon deviceIcon,
+            boolean skipRoleGrant) {
         final int id = mAssociationStore.getNextId();
         final long timestamp = System.currentTimeMillis();
 
@@ -303,8 +315,17 @@ public class AssociationRequestsProcessor {
                 selfManaged, /* notifyOnDeviceNearby */ false, /* revoked */ false,
                 /* pending */ false, timestamp, Long.MAX_VALUE, /* systemDataSyncFlags */ 0,
                 deviceIcon, /* deviceId */ null);
-        // Add role holder for association (if specified) and add new association to store.
-        maybeGrantRoleAndStoreAssociation(association, callback, resultReceiver);
+
+        if (skipRoleGrant) {
+            Slog.i(TAG, "Created association for " + association.getDeviceProfile() + " and userId="
+                    + association.getUserId() + ", packageName="
+                    + association.getPackageName() + " without granting role");
+            mAssociationStore.addAssociation(association);
+            sendCallbackAndFinish(association, callback, resultReceiver);
+        } else {
+            // Add role holder for association (if specified) and add new association to store.
+            maybeGrantRoleAndStoreAssociation(association, callback, resultReceiver);
+        }
     }
 
     /**
@@ -313,12 +334,20 @@ public class AssociationRequestsProcessor {
     public void maybeGrantRoleAndStoreAssociation(@NonNull AssociationInfo association,
             @Nullable IAssociationRequestCallback callback,
             @Nullable ResultReceiver resultReceiver) {
-        // If the "Device Profile" is specified, make the companion application a holder of the
-        // corresponding role.
-        // If it is null, then the operation will succeed without granting any role.
+        final String deviceProfile = association.getDeviceProfile();
+
+        // If device profile is not specified or role-less, skip role grant and store association.
+        if (deviceProfile == null || isRolelessProfile(deviceProfile)) {
+            mAssociationStore.addAssociation(association);
+            sendCallbackAndFinish(association, callback, resultReceiver);
+            return;
+        }
+
+        // If the "Device Profile" is specified and it is associated with a role, then make the
+        // companion application a holder of the corresponding role.
         addRoleHolderForAssociation(mContext, association, success -> {
             if (success) {
-                Slog.i(TAG, "Added " + association.getDeviceProfile() + " role to userId="
+                Slog.i(TAG, "Added " + deviceProfile + " role to userId="
                         + association.getUserId() + ", packageName="
                         + association.getPackageName());
                 mAssociationStore.addAssociation(association);
@@ -326,7 +355,7 @@ public class AssociationRequestsProcessor {
             } else {
                 Slog.e(TAG, "Failed to add u" + association.getUserId()
                         + "\\" + association.getPackageName()
-                        + " to the list of " + association.getDeviceProfile() + " holders.");
+                        + " to the list of " + deviceProfile + " holders.");
                 sendCallbackAndFinish(null, callback, resultReceiver);
             }
         });
@@ -406,7 +435,7 @@ public class AssociationRequestsProcessor {
     private boolean willAddRoleHolder(@NonNull AssociationRequest request,
             @NonNull String packageName, @UserIdInt int userId) {
         final String deviceProfile = request.getDeviceProfile();
-        if (deviceProfile == null) return false;
+        if (deviceProfile == null || isRolelessProfile(deviceProfile)) return false;
 
         final boolean isRoleHolder = Binder.withCleanCallingIdentity(
                 () -> isRoleHolder(mContext, userId, packageName, deviceProfile));

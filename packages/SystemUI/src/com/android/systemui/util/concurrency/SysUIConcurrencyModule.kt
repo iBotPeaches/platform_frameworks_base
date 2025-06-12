@@ -53,6 +53,14 @@ object SysUIConcurrencyModule {
     private const val NOTIFICATION_INFLATION_SLOW_DISPATCH_THRESHOLD = 1000L
     private const val NOTIFICATION_INFLATION_SLOW_DELIVERY_THRESHOLD = 1000L
 
+    /**
+     * Choreographer instance for the main thread.
+     * TODO(b/395887935): Lets move this to @Main and provide thread-local references
+     */
+    @Provides
+    @SysUISingleton
+    fun providesChoreographer(): Choreographer = Choreographer.getInstance()
+
     /** Background Looper */
     @Provides
     @SysUISingleton
@@ -99,10 +107,7 @@ object SysUIConcurrencyModule {
     @Provides
     @SysUISingleton
     @NotifInflation
-    fun provideNotifInflationLooper(@Background bgLooper: Looper): Looper {
-        if (!Flags.dedicatedNotifInflationThread()) {
-            return bgLooper
-        }
+    fun provideNotifInflationLooper(): Looper {
         val thread = HandlerThread("NotifInflation", Process.THREAD_PRIORITY_BACKGROUND)
         thread.start()
         val looper = thread.getLooper()

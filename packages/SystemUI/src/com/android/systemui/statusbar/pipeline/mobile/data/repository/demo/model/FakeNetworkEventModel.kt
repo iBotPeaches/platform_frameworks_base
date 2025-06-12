@@ -25,11 +25,13 @@ import com.android.settingslib.SignalIcon
  * Nullable fields represent optional command line arguments
  */
 sealed interface FakeNetworkEventModel {
+    // Null means the default (chosen by the repository)
+    val subId: Int?
+
     data class Mobile(
         val level: Int?,
         val dataType: SignalIcon.MobileIconGroup?,
-        // Null means the default (chosen by the repository)
-        val subId: Int?,
+        override val subId: Int?,
         val carrierId: Int?,
         val inflateStrength: Boolean = false,
         @DataActivityType val activity: Int?,
@@ -40,8 +42,5 @@ sealed interface FakeNetworkEventModel {
         val ntn: Boolean = false,
     ) : FakeNetworkEventModel
 
-    data class MobileDisabled(
-        // Null means the default (chosen by the repository)
-        val subId: Int?
-    ) : FakeNetworkEventModel
+    data class MobileDisabled(override val subId: Int?) : FakeNetworkEventModel
 }

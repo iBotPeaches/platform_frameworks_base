@@ -69,12 +69,11 @@ import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IRcsConfigCallback;
 import android.telephony.satellite.INtnSignalStrengthCallback;
 import android.telephony.satellite.ISatelliteCapabilitiesCallback;
-import android.telephony.satellite.ISatelliteCommunicationAllowedStateCallback;
+import android.telephony.satellite.ISatelliteCommunicationAccessStateCallback;
 import android.telephony.satellite.ISatelliteDatagramCallback;
 import android.telephony.satellite.ISatelliteDisallowedReasonsCallback;
 import android.telephony.satellite.ISatelliteTransmissionUpdateCallback;
 import android.telephony.satellite.ISatelliteProvisionStateCallback;
-import android.telephony.satellite.ISatelliteSupportedStateCallback;
 import android.telephony.satellite.ISatelliteModemStateCallback;
 import android.telephony.satellite.ISelectedNbIotSatelliteSubscriptionCallback;
 import android.telephony.satellite.NtnSignalStrength;
@@ -3136,6 +3135,16 @@ interface ITelephony {
     boolean setSatelliteIgnoreCellularServiceState(in boolean enabled);
 
     /**
+     * This API can be used by only CTS to control the feature
+     * {@code config_support_disable_satellite_while_enable_in_progress}.
+     *
+     * @param reset Whether to reset the override.
+     * @param supported Whether to support the feature.
+     * @return {@code true} if the value is set successfully, {@code false} otherwise.
+     */
+    boolean setSupportDisableSatelliteWhileEnableInProgress(boolean reset, boolean supported);
+
+    /**
      * This API can be used by only CTS to update satellite pointing UI app package and class names.
      *
      * @param packageName The package name of the satellite pointing UI app.
@@ -3204,6 +3213,31 @@ interface ITelephony {
             in List<String> satelliteCountryCodes, String satelliteAccessConfigurationFile);
 
     /**
+     * This API can be used by only CTS to override the satellite access allowed state for
+     * a list of subscription IDs.
+     *
+     * @param subIdListStr The string representation of the list of subscription IDs,
+     *                     which are numbers separated by comma.
+     * @return {@code true} if the satellite access allowed state is set successfully,
+     * {@code false} otherwise.
+     */
+    boolean setSatelliteAccessAllowedForSubscriptions(in String subIdListStr);
+
+    /**
+     * This API can be used by only CTS to override satellite TN scanning support.
+     *
+     * @param reset {@code true} mean the overridden configs should not be used, {@code false}
+     *              otherwise.
+     * @param concurrentTnScanningSupported Whether concurrent TN scanning is supported.
+     * @param tnScanningDuringSatelliteSessionAllowed Whether TN scanning is allowed during
+     * a satellite session.
+     * @return {@code true} if the TN scanning support is set successfully,
+     * {@code false} otherwise.
+     */
+    boolean setTnScanningSupport(in boolean reset, in boolean concurrentTnScanningSupported,
+        in boolean tnScanningDuringSatelliteSessionAllowed);
+
+    /**
      * This API can be used in only testing to override oem-enabled satellite provision status.
      *
      * @param reset {@code true} mean the overriding status should not be used, {@code false}
@@ -3212,6 +3246,15 @@ interface ITelephony {
      * @return {@code true} if the provision status is set successfully, {@code false} otherwise.
      */
     boolean setOemEnabledSatelliteProvisionStatus(in boolean reset, in boolean isProvisioned);
+
+    /**
+     * This API is used by CTS to override the version of the config data
+     *
+     * @param reset Whether to restore the original version
+     * @param version The overriding version
+     * @return {@code true} if successful, {@code false} otherwise
+     */
+    boolean overrideConfigDataVersion(in boolean reset, in int version);
 
     /**
      * Test method to confirm the file contents are not altered.
@@ -3425,8 +3468,7 @@ interface ITelephony {
      */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission("
             + "android.Manifest.permission.SATELLITE_COMMUNICATION)")
-    int registerForSatelliteSupportedStateChanged(
-            in ISatelliteSupportedStateCallback callback);
+    int registerForSatelliteSupportedStateChanged(in IBooleanConsumer callback);
 
     /**
      * Unregisters for supported state changed from satellite modem.
@@ -3436,8 +3478,7 @@ interface ITelephony {
      */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission("
             + "android.Manifest.permission.SATELLITE_COMMUNICATION)")
-    void unregisterForSatelliteSupportedStateChanged(
-            in ISatelliteSupportedStateCallback callback);
+    void unregisterForSatelliteSupportedStateChanged(in IBooleanConsumer callback);
 
     /**
      * Registers for satellite communication allowed state changed.
@@ -3449,20 +3490,20 @@ interface ITelephony {
      */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission("
             + "android.Manifest.permission.SATELLITE_COMMUNICATION)")
-    int registerForCommunicationAllowedStateChanged(int subId,
-            in ISatelliteCommunicationAllowedStateCallback callback);
+    int registerForCommunicationAccessStateChanged(int subId,
+            in ISatelliteCommunicationAccessStateCallback callback);
 
     /**
      * Unregisters for satellite communication allowed state.
      * If callback was not registered before, the request will be ignored.
      *
      * @param subId The subId of the subscription to unregister for supported state changed.
-     * @param callback The callback that was passed to registerForCommunicationAllowedStateChanged.
+     * @param callback The callback that was passed to registerForCommunicationAccessStateChanged.
      */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission("
             + "android.Manifest.permission.SATELLITE_COMMUNICATION)")
-    void unregisterForCommunicationAllowedStateChanged(int subId,
-            in ISatelliteCommunicationAllowedStateCallback callback);
+    void unregisterForCommunicationAccessStateChanged(int subId,
+            in ISatelliteCommunicationAccessStateCallback callback);
 
     /**
      * This API can be used by only CTS to override the boolean configs used by the
@@ -3599,4 +3640,38 @@ interface ITelephony {
      * @hide
      */
     int getCarrierIdFromIdentifier(in CarrierIdentifier carrierIdentifier);
+
+
+    /**
+     * Get list of applications that are optimized for low bandwidth satellite data.
+     *
+     * @return List of Application Name with data optimized network property.
+     * {@link #PROPERTY_SATELLITE_DATA_OPTIMIZED}
+     */
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission("
+                      + "android.Manifest.permission.SATELLITE_COMMUNICATION)")
+    List<String> getSatelliteDataOptimizedApps();
+
+    /**
+     * Method to return the current satellite data service policy supported mode for the
+     * subscriptionId based on subscription id. Note: Iif any error or invalid sub id
+     * {@Link SatelliteDataSupportMode#SATELLITE_DATA_SUPPORT_UNKNOWN} will be returned.
+     *
+     * @param subId current subscription id.
+     *
+     * @return Supported modes {@link SatelliteDataSupportMode}
+     * @throws IllegalArgumentException if the subscription is invalid.
+     * @hide
+     */
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission("
+                      + "android.Manifest.permission.SATELLITE_COMMUNICATION)")
+    int getSatelliteDataSupportMode(in int subId);
+
+    /**
+     * This API can be used by only CTS to ignore plmn list from storage.
+     *
+     * @param enabled Whether to enable boolean config.
+     * @return {@code true} if the value is set successfully, {@code false} otherwise.
+     */
+    boolean setSatelliteIgnorePlmnListFromStorage(in boolean enabled);
 }

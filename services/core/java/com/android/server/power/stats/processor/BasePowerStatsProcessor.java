@@ -24,22 +24,21 @@ import static com.android.server.power.stats.processor.AggregatedPowerStatsConfi
 
 import android.os.BatteryConsumer;
 import android.os.PersistableBundle;
-import android.util.SparseLongArray;
+import android.util.IntArray;
 
 import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.format.BasePowerStatsLayout;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.function.DoubleSupplier;
 
 class BasePowerStatsProcessor extends PowerStatsProcessor {
     private final DoubleSupplier mBatteryCapacitySupplier;
     private PowerEstimationPlan mPlan;
     private long mStartTimestamp;
-    private final SparseLongArray mUidStartTimestamps = new SparseLongArray();
     private static final BasePowerStatsLayout sStatsLayout = new BasePowerStatsLayout();
     private final PowerStats.Descriptor mPowerStatsDescriptor;
+    private final PowerStats mPowerStats;
     private final long[] mTmpUidStatsArray;
     private double mBatteryCapacityUah;
     private int mBatteryLevel;
@@ -59,12 +58,12 @@ class BasePowerStatsProcessor extends PowerStatsProcessor {
                 sStatsLayout.getDeviceStatsArrayLength(), null, 0,
                 sStatsLayout.getUidStatsArrayLength(), extras);
         mTmpUidStatsArray = new long[sStatsLayout.getUidStatsArrayLength()];
+        mPowerStats = new PowerStats(mPowerStatsDescriptor);
     }
 
     @Override
     void start(PowerComponentAggregatedPowerStats stats, long timestampMs) {
         mStartTimestamp = timestampMs;
-        mUidStartTimestamps.clear();
         stats.setPowerStatsDescriptor(mPowerStatsDescriptor);
         mBatteryCapacityUah = mBatteryCapacitySupplier.getAsDouble() * 1000;
         mBatteryLevel = UNSPECIFIED;
@@ -73,6 +72,9 @@ class BasePowerStatsProcessor extends PowerStatsProcessor {
         mCumulativeDischargeUah = 0;
         mCumulativeDischargePct = 0;
         mCumulativeDischargeDurationMs = 0;
+
+        // Establish a baseline
+        stats.addProcessedPowerStats(mPowerStats, timestampMs);
     }
 
     @Override
@@ -101,52 +103,41 @@ class BasePowerStatsProcessor extends PowerStatsProcessor {
     }
 
     @Override
-    public void setUidState(PowerComponentAggregatedPowerStats stats, int uid,
-            @AggregatedPowerStatsConfig.TrackedState int stateId, int state, long timestampMs) {
-        super.setUidState(stats, uid, stateId, state, timestampMs);
-        if (stateId == STATE_PROCESS_STATE && mUidStartTimestamps.indexOfKey(uid) < 0) {
-            mUidStartTimestamps.put(uid, timestampMs);
-        }
-    }
-
-    @Override
     void finish(PowerComponentAggregatedPowerStats stats, long timestampMs) {
         if (mPlan == null) {
             mPlan = new PowerEstimationPlan(stats.getConfig());
         }
 
-        PowerStats powerStats = new PowerStats(mPowerStatsDescriptor);
-        sStatsLayout.setUsageDuration(powerStats.stats, timestampMs - mStartTimestamp);
+        sStatsLayout.setUsageDuration(mPowerStats.stats, timestampMs - mStartTimestamp);
 
-        sStatsLayout.addBatteryDischargePercent(powerStats.stats, mCumulativeDischargePct);
+        sStatsLayout.addBatteryDischargePercent(mPowerStats.stats, mCumulativeDischargePct);
         if (mCumulativeDischargeUah != 0) {
-            sStatsLayout.addBatteryDischargeUah(powerStats.stats,
+            sStatsLayout.addBatteryDischargeUah(mPowerStats.stats,
                     mCumulativeDischargeUah);
         } else {
-            sStatsLayout.addBatteryDischargeUah(powerStats.stats,
+            sStatsLayout.addBatteryDischargeUah(mPowerStats.stats,
                     (long) (mCumulativeDischargePct * mBatteryCapacityUah / 100.0));
         }
-        sStatsLayout.addBatteryDischargeDuration(powerStats.stats, mCumulativeDischargeDurationMs);
+        sStatsLayout.addBatteryDischargeDuration(mPowerStats.stats, mCumulativeDischargeDurationMs);
+
         mCumulativeDischargePct = 0;
         mCumulativeDischargeUah = 0;
         mCumulativeDischargeDurationMs = 0;
 
-        List<Integer> uids = new ArrayList<>();
-        stats.collectUids(uids);
-
-        if (!uids.isEmpty()) {
+        // Note that we are calling `getUids` rather than `getActiveUids`, because this Processor
+        // deals with duration rather than power estimation, so it needs to process *all* known
+        // UIDs, not just the ones that contributed PowerStats
+        IntArray uids = stats.getUids();
+        if (uids.size() != 0) {
+            long durationMs = timestampMs - mStartTimestamp;
             for (int i = uids.size() - 1; i >= 0; i--) {
-                Integer uid = uids.get(i);
-                long durationMs = timestampMs - mUidStartTimestamps.get(uid, mStartTimestamp);
-                mUidStartTimestamps.put(uid, timestampMs);
-
                 long[] uidStats = new long[sStatsLayout.getUidStatsArrayLength()];
                 sStatsLayout.setUidUsageDuration(uidStats, durationMs);
-                powerStats.uidStats.put(uid, uidStats);
+                mPowerStats.uidStats.put(uids.get(i), uidStats);
             }
         }
 
-        stats.addPowerStats(powerStats, timestampMs);
+        stats.addPowerStats(mPowerStats, timestampMs);
 
         for (int i = mPlan.uidStateEstimates.size() - 1; i >= 0; i--) {
             UidStateEstimate uidStateEstimate = mPlan.uidStateEstimates.get(i);
@@ -169,5 +160,7 @@ class BasePowerStatsProcessor extends PowerStatsProcessor {
         }
 
         mStartTimestamp = timestampMs;
+        Arrays.fill(mPowerStats.stats, 0);
+        mPowerStats.uidStats.clear();
     }
 }

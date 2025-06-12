@@ -33,6 +33,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.Toolbar;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -42,6 +43,7 @@ import com.android.settingslib.widget.SettingsThemeHelper;
 
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
+import com.google.android.material.button.MaterialButton;
 
 /**
  * A delegate that allows to use the collapsing toolbar layout in hosts that doesn't want/need to
@@ -80,6 +82,8 @@ public class CollapsingToolbarDelegate {
     private AppBarLayout mAppBarLayout;
     @NonNull
     private Toolbar mToolbar;
+    @Nullable
+    private MaterialButton mActionButton;
     @NonNull
     private FrameLayout mContentFrameLayout;
     @NonNull
@@ -88,6 +92,10 @@ public class CollapsingToolbarDelegate {
     private boolean mUseCollapsingToolbar;
 
     private boolean mIsExpressiveTheme;
+
+    public CollapsingToolbarDelegate(@NonNull HostCallback hostCallback) {
+        this(hostCallback, /* useCollapsingToolbar= */ true);
+    }
 
     public CollapsingToolbarDelegate(@NonNull HostCallback hostCallback,
             boolean useCollapsingToolbar) {
@@ -150,6 +158,7 @@ public class CollapsingToolbarDelegate {
         }
         autoSetCollapsingToolbarLayoutScrolling();
         mContentFrameLayout = view.findViewById(R.id.content_frame);
+        mActionButton = view.findViewById(R.id.action_button);
         if (activity instanceof AppCompatActivity) {
             Log.d(TAG, "onCreateView: from AppCompatActivity and sub-class.");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -209,6 +218,42 @@ public class CollapsingToolbarDelegate {
             }
             actionBar.setDisplayShowTitleEnabled(true);
         }
+    }
+
+    /**
+     * Show/Hide the action button on the Toolbar.
+     * @param enabled true to show the button, otherwise it's hidden.
+     */
+    public void setActionButtonEnabled(boolean enabled) {
+        if (mActionButton == null) {
+            return;
+        }
+        int visibility = enabled ? View.VISIBLE : View.GONE;
+        mActionButton.setVisibility(visibility);
+    }
+
+    /** Set the icon to the action button */
+    public void setActionButtonIcon(@NonNull Context context, @DrawableRes int drawableRes) {
+        if (mActionButton == null) {
+            return;
+        }
+        mActionButton.setIcon(context.getResources().getDrawable(drawableRes, context.getTheme()));
+    }
+
+    /** Set the text to the action button */
+    public void setActionButtonText(@Nullable CharSequence text) {
+        if (mActionButton == null) {
+            return;
+        }
+        mActionButton.setText(text);
+    }
+
+    /** Set the OnClick listener to the action button */
+    public void setActionButtonOnClickListener(@Nullable View.OnClickListener listener) {
+        if (mActionButton == null) {
+            return;
+        }
+        mActionButton.setOnClickListener(listener);
     }
 
     /** Return an instance of CoordinatorLayout. */

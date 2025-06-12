@@ -16,6 +16,7 @@
 
 package android.view;
 
+import android.annotation.SuppressLint;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.view.SurfaceControl.Transaction;
@@ -39,6 +40,9 @@ public class SyncRtSurfaceTransactionApplier {
     public static final int FLAG_BACKGROUND_BLUR_RADIUS = 1 << 5;
     public static final int FLAG_VISIBILITY = 1 << 6;
     public static final int FLAG_TRANSACTION = 1 << 7;
+    public static final int FLAG_EARLY_WAKEUP_START = 1 << 8;
+    public static final int FLAG_EARLY_WAKEUP_END = 1 << 9;
+    public static final int FLAG_OPAQUE = 1 << 10;
 
     private SurfaceControl mTargetSc;
     private final ViewRootImpl mTargetViewRootImpl;
@@ -99,6 +103,7 @@ public class SyncRtSurfaceTransactionApplier {
         }
     }
 
+    @SuppressLint("MissingPermission")
     public static void applyParams(Transaction t, SurfaceParams params, float[] tmpFloat9) {
         if ((params.flags & FLAG_TRANSACTION) != 0) {
             t.merge(params.mergeTransaction);
@@ -128,6 +133,15 @@ public class SyncRtSurfaceTransactionApplier {
             } else {
                 t.hide(params.surface);
             }
+        }
+        if ((params.flags & FLAG_EARLY_WAKEUP_START) != 0) {
+            t.setEarlyWakeupStart();
+        }
+        if ((params.flags & FLAG_EARLY_WAKEUP_END) != 0) {
+            t.setEarlyWakeupEnd();
+        }
+        if ((params.flags & FLAG_OPAQUE) != 0) {
+            t.setOpaque(params.surface, params.opaque);
         }
     }
 
@@ -172,6 +186,7 @@ public class SyncRtSurfaceTransactionApplier {
             Rect windowCrop;
             int layer;
             boolean visible;
+            boolean opaque;
             Transaction mergeTransaction;
 
             /**
@@ -263,17 +278,48 @@ public class SyncRtSurfaceTransactionApplier {
             }
 
             /**
+             * Provides a hint to SurfaceFlinger to change its offset so that SurfaceFlinger
+             * wakes up earlier to compose surfaces.
+             * @return this Builder
+             */
+            public Builder withEarlyWakeupStart() {
+                flags |= FLAG_EARLY_WAKEUP_START;
+                return this;
+            }
+
+            /**
+             * Removes the early wake up hint set by earlyWakeupStart.
+             * @return this Builder
+             */
+            public Builder withEarlyWakeupEnd() {
+                flags |= FLAG_EARLY_WAKEUP_END;
+                return this;
+            }
+
+            /**
+             * @param opaque Indicates weather the surface must be considered opaque.
+             * @return this Builder
+             */
+            public Builder withOpaque(boolean opaque) {
+                this.opaque = opaque;
+                flags |= FLAG_OPAQUE;
+                return this;
+            }
+
+            /**
              * @return a new SurfaceParams instance
              */
             public SurfaceParams build() {
                 return new SurfaceParams(surface, flags, alpha, matrix, windowCrop, layer,
-                        cornerRadius, backgroundBlurRadius, visible, mergeTransaction);
+                        cornerRadius, backgroundBlurRadius, visible, mergeTransaction,
+                        opaque);
             }
         }
 
         private SurfaceParams(SurfaceControl surface, int params, float alpha, Matrix matrix,
                 Rect windowCrop, int layer, float cornerRadius,
-                int backgroundBlurRadius, boolean visible, Transaction mergeTransaction) {
+                int backgroundBlurRadius, boolean visible,
+                Transaction mergeTransaction, boolean opaque) {
             this.flags = params;
             this.surface = surface;
             this.alpha = alpha;
@@ -284,6 +330,7 @@ public class SyncRtSurfaceTransactionApplier {
             this.backgroundBlurRadius = backgroundBlurRadius;
             this.visible = visible;
             this.mergeTransaction = mergeTransaction;
+            this.opaque = opaque;
         }
 
         private final int flags;
@@ -312,5 +359,6 @@ public class SyncRtSurfaceTransactionApplier {
         public final boolean visible;
 
         public final Transaction mergeTransaction;
+        public final boolean opaque;
     }
 }

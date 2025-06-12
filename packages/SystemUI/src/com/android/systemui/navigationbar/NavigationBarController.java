@@ -72,4 +72,8 @@ public interface NavigationBarController {
     /** @return {@link NavigationBar} on the default display. */
     @Nullable
     NavigationBar getDefaultNavigationBar();
+
+    /** @return {@link NavigationBar} for a specific display, or null if not available. */
+    @Nullable
+    NavigationBar getNavigationBar(int displayId);
 }

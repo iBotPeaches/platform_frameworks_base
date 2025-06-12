@@ -134,10 +134,7 @@ class BrightnessDialogTest(val flags: FlagsParameterization) : SysuiTestCase() {
         val frame = activityRule.activity.requireViewById<View>(viewId)
 
         val lp = frame.layoutParams as ViewGroup.MarginLayoutParams
-        val horizontalMargin =
-            activityRule.activity.resources.getDimensionPixelSize(
-                R.dimen.notification_side_paddings
-            )
+        val horizontalMargin = 0
         assertThat(lp.leftMargin).isEqualTo(horizontalMargin)
         assertThat(lp.rightMargin).isEqualTo(horizontalMargin)
 

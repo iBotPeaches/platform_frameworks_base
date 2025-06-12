@@ -144,7 +144,10 @@ internal constructor(
         )
         log { "ViewConfigCoordinator.updateNotificationsOnUiModeChanged()" }
         traceSection("updateNotifOnUiModeChanged") {
-            mPipeline?.allNotifs?.forEach { entry -> entry.row?.onUiModeChanged() }
+            mPipeline?.allNotifs?.forEach { entry ->
+                entry.row?.onUiModeChanged()
+                mGutsManager.closeAndUndoGuts()
+            }
         }
     }
 
@@ -152,10 +155,7 @@ internal constructor(
         colorUpdateLogger.logEvent("VCC.updateNotificationsOnDensityOrFontScaleChanged()")
         mPipeline?.allNotifs?.forEach { entry ->
             entry.onDensityOrFontScaleChanged()
-            val exposedGuts = entry.areGutsExposed()
-            if (exposedGuts) {
-                mGutsManager.onDensityOrFontScaleChanged(entry)
-            }
+            mGutsManager.closeAndUndoGuts()
         }
     }
 

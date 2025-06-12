@@ -25,18 +25,35 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Used to represent a long */
-public class LongConstant extends Operation {
+public class LongConstant extends Operation implements Serializable {
+    private static final String CLASS_NAME = "LongConstant";
+
     private static final int OP_CODE = Operations.DATA_LONG;
     private long mValue;
-    private int mId;
+    public final int mId;
 
+    /**
+     * @param id the id of the constant
+     * @param value the value of the constant
+     */
     public LongConstant(int id, long value) {
         mId = id;
         mValue = value;
+    }
+
+    /**
+     * Copy the value from another longConstant
+     *
+     * @param from the constant to copy from
+     */
+    public void update(LongConstant from) {
+        mValue = from.mValue;
     }
 
     /**
@@ -46,6 +63,15 @@ public class LongConstant extends Operation {
      */
     public long getValue() {
         return mValue;
+    }
+
+    /**
+     * Set the value of the long constant
+     *
+     * @param value the value to set it to
+     */
+    public void setValue(long value) {
+        mValue = value;
     }
 
     @Override
@@ -106,5 +132,10 @@ public class LongConstant extends Operation {
                 .description("A boolean and its associated id")
                 .field(DocumentedOperation.INT, "id", "id of Int")
                 .field(LONG, "value", "The long Value");
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("id", mId).add("value", mValue);
     }
 }

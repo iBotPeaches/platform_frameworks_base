@@ -31,11 +31,18 @@ public abstract class StartingData {
     static final int AFTER_TRANSACTION_REMOVE_DIRECTLY = 1;
     /** Do copy splash screen to client after transaction done. */
     static final int AFTER_TRANSACTION_COPY_TO_CLIENT = 2;
+    /**
+     * Remove the starting window after transition finish.
+     * Used when activity doesn't request show when locked, so the app window should never show to
+     * the user if device is locked.
+     **/
+    static final int AFTER_TRANSITION_FINISH = 3;
 
     @IntDef(prefix = { "AFTER_TRANSACTION" }, value = {
             AFTER_TRANSACTION_IDLE,
             AFTER_TRANSACTION_REMOVE_DIRECTLY,
             AFTER_TRANSACTION_COPY_TO_CLIENT,
+            AFTER_TRANSITION_FINISH,
     })
     @interface AfterTransaction {}
 
@@ -60,18 +67,6 @@ public abstract class StartingData {
 
     /** Whether the starting window is drawn. */
     boolean mIsDisplayed;
-
-    /**
-     * For Shell transition.
-     * There will be a transition happen on attached activity, do not remove starting window during
-     * this period, because the transaction to show app window may not apply before remove starting
-     * window.
-     * Note this isn't equal to transition playing, the period should be
-     * Sync finishNow -> Start transaction apply.
-     * @deprecated TODO(b/362347290): cleanup after fix ramp up
-     */
-    @Deprecated
-    boolean mWaitForSyncTransactionCommit;
 
     /**
      * For Shell transition.
@@ -114,7 +109,6 @@ public abstract class StartingData {
     public String toString() {
         return getClass().getSimpleName() + "{"
                 + Integer.toHexString(System.identityHashCode(this))
-                + " waitForSyncTransactionCommit=" + mWaitForSyncTransactionCommit
                 + " removeAfterTransaction= " + mRemoveAfterTransaction
                 + "}";
     }

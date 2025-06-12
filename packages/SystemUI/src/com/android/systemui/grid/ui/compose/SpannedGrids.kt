@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.systemui.grid.ui.compose
 
+import androidx.collection.IntIntPair
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.semantics.CollectionInfo
 import androidx.compose.ui.semantics.CollectionItemInfo
 import androidx.compose.ui.semantics.collectionInfo
@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastForEachIndexed
+import androidx.compose.ui.util.fastMapIndexed
 import kotlin.math.max
 
 /**
@@ -63,7 +65,12 @@ fun HorizontalSpannedGrid(
     rowSpacing: Dp,
     spans: List<Int>,
     modifier: Modifier = Modifier,
-    composables: @Composable BoxScope.(spanIndex: Int) -> Unit,
+    keys: (spanIndex: Int) -> Any = { it },
+    composables:
+        @Composable
+        BoxScope.(
+            spanIndex: Int, row: Int, isFirstInColumn: Boolean, isLastInColumn: Boolean,
+        ) -> Unit,
 ) {
     SpannedGrid(
         primarySpaces = rows,
@@ -72,12 +79,13 @@ fun HorizontalSpannedGrid(
         spans = spans,
         isVertical = false,
         modifier = modifier,
+        keys = keys,
         composables = composables,
     )
 }
 
 /**
- * Horizontal (non lazy) grid that supports [spans] for its elements.
+ * Vertical (non lazy) grid that supports [spans] for its elements.
  *
  * The elements will be laid down horizontally first, and then by rows. So assuming LTR layout, it
  * will be (for a span list `[2, 1, 2, 1, 1, 1, 1, 1]` and 4 columns):
@@ -103,7 +111,10 @@ fun VerticalSpannedGrid(
     rowSpacing: Dp,
     spans: List<Int>,
     modifier: Modifier = Modifier,
-    composables: @Composable BoxScope.(spanIndex: Int) -> Unit,
+    keys: (spanIndex: Int) -> Any = { it },
+    composables:
+        @Composable
+        BoxScope.(spanIndex: Int, column: Int, isFirstInRow: Boolean, isLastInRow: Boolean) -> Unit,
 ) {
     SpannedGrid(
         primarySpaces = columns,
@@ -112,6 +123,7 @@ fun VerticalSpannedGrid(
         spans = spans,
         isVertical = true,
         modifier = modifier,
+        keys = keys,
         composables = composables,
     )
 }
@@ -124,7 +136,10 @@ private fun SpannedGrid(
     spans: List<Int>,
     isVertical: Boolean,
     modifier: Modifier = Modifier,
-    composables: @Composable BoxScope.(spanIndex: Int) -> Unit,
+    keys: (spanIndex: Int) -> Any = { it },
+    composables:
+        @Composable
+        BoxScope.(spanIndex: Int, secondaryAxis: Int, isFirst: Boolean, isLast: Boolean) -> Unit,
 ) {
     val crossAxisArrangement = Arrangement.spacedBy(crossAxisSpacing)
     spans.forEachIndexed { index, span ->
@@ -133,7 +148,6 @@ private fun SpannedGrid(
                 "expected rance of [1, $primarySpaces]"
         }
     }
-
     if (isVertical) {
         check(crossAxisSpacing >= 0.dp) { "Negative columnSpacing $crossAxisSpacing" }
         check(mainAxisSpacing >= 0.dp) { "Negative rowSpacing $mainAxisSpacing" }
@@ -141,43 +155,52 @@ private fun SpannedGrid(
         check(mainAxisSpacing >= 0.dp) { "Negative columnSpacing $mainAxisSpacing" }
         check(crossAxisSpacing >= 0.dp) { "Negative rowSpacing $crossAxisSpacing" }
     }
-
-    val totalMainAxisGroups: Int =
+    // List of primary axis index to secondary axis index
+    // This is keyed to the size of the spans list for performance reasons as we don't expect the
+    // spans value to change outside of edit mode.
+    val positions = remember(spans.size) { Array(spans.size) { IntIntPair(0, 0) } }
+    val totalMainAxisGroups =
         remember(primarySpaces, spans) {
-            var currentAccumulated = 0
-            var groups = 1
-            spans.forEach { span ->
-                if (currentAccumulated + span <= primarySpaces) {
-                    currentAccumulated += span
-                } else {
-                    groups += 1
-                    currentAccumulated = span
+            var mainAxisGroup = 0
+            var currentSlot = 0
+            spans.fastForEachIndexed { index, span ->
+                if (currentSlot + span > primarySpaces) {
+                    currentSlot = 0
+                    mainAxisGroup += 1
                 }
+                positions[index] = IntIntPair(mainAxisGroup, currentSlot)
+                currentSlot += span
             }
-            groups
+            mainAxisGroup + 1
         }
-
     val slotPositionsAndSizesCache = remember {
         object {
             var sizes = IntArray(0)
             var positions = IntArray(0)
         }
     }
-
     Layout(
         {
             (0 until spans.size).map { spanIndex ->
-                Box(
-                    Modifier.semantics {
-                        collectionItemInfo =
-                            if (isVertical) {
-                                CollectionItemInfo(spanIndex, 1, 0, 1)
-                            } else {
-                                CollectionItemInfo(0, 1, spanIndex, 1)
-                            }
+                key(keys(spanIndex)) {
+                    Box(
+                        Modifier.semantics {
+                            collectionItemInfo =
+                                if (isVertical) {
+                                    CollectionItemInfo(spanIndex, 1, 0, 1)
+                                } else {
+                                    CollectionItemInfo(0, 1, spanIndex, 1)
+                                }
+                        }
+                    ) {
+                        val position = positions[spanIndex]
+                        composables(
+                            spanIndex,
+                            position.second,
+                            position.second == 0,
+                            positions.getOrNull(spanIndex + 1)?.first != position.first,
+                        )
                     }
-                ) {
-                    composables(spanIndex)
                 }
             }
         },
@@ -197,7 +220,6 @@ private fun SpannedGrid(
             slotPositionsAndSizesCache.sizes,
         )
         val cellSizesInCrossAxis = slotPositionsAndSizesCache.sizes
-
         // with is needed because of the double receiver (Density, Arrangement).
         with(crossAxisArrangement) {
             arrange(
@@ -208,68 +230,73 @@ private fun SpannedGrid(
             )
         }
         val startPositions = slotPositionsAndSizesCache.positions
-
         val mainAxisSpacingPx = mainAxisSpacing.roundToPx()
         val mainAxisTotalGaps = (totalMainAxisGroups - 1) * mainAxisSpacingPx
-        val mainAxisSize = if (isVertical) constraints.maxHeight else constraints.maxWidth
+        val mainAxisMaxSize = if (isVertical) constraints.maxHeight else constraints.maxWidth
         val mainAxisElementConstraint =
-            if (mainAxisSize == Constraints.Infinity) {
+            if (mainAxisMaxSize == Constraints.Infinity) {
                 Constraints.Infinity
             } else {
-                max(0, (mainAxisSize - mainAxisTotalGaps) / totalMainAxisGroups)
+                max(0, (mainAxisMaxSize - mainAxisTotalGaps) / totalMainAxisGroups)
             }
 
-        val mainAxisSizes = IntArray(totalMainAxisGroups) { 0 }
-
-        var currentSlot = 0
-        var mainAxisGroup = 0
+        var mainAxisTotalSize = mainAxisTotalGaps
+        var currentMainAxis = 0
+        var currentMainAxisMax = 0
         val placeables =
-            measurables.mapIndexed { index, measurable ->
+            measurables.fastMapIndexed { index, measurable ->
                 val span = spans[index]
-                if (currentSlot + span > primarySpaces) {
-                    currentSlot = 0
-                    mainAxisGroup += 1
-                }
+                val position = positions[index]
                 val crossAxisConstraint =
-                    calculateWidth(cellSizesInCrossAxis, startPositions, currentSlot, span)
-                PlaceResult(
-                        measurable.measure(
-                            makeConstraint(
-                                isVertical,
-                                mainAxisElementConstraint,
-                                crossAxisConstraint,
-                            )
-                        ),
-                        currentSlot,
-                        mainAxisGroup,
+                    calculateWidth(cellSizesInCrossAxis, startPositions, position.second, span)
+
+                measurable
+                    .measure(
+                        makeConstraint(isVertical, mainAxisElementConstraint, crossAxisConstraint)
                     )
                     .also {
-                        currentSlot += span
-                        mainAxisSizes[mainAxisGroup] =
-                            max(
-                                mainAxisSizes[mainAxisGroup],
-                                if (isVertical) it.placeable.height else it.placeable.width,
-                            )
+                        val placeableSize = if (isVertical) it.height else it.width
+                        if (position.first != currentMainAxis) {
+                            // New row -- Add the max size to the total and reset the max
+                            mainAxisTotalSize += currentMainAxisMax
+                            currentMainAxisMax = placeableSize
+                            currentMainAxis = position.first
+                        } else {
+                            currentMainAxisMax = max(currentMainAxisMax, placeableSize)
+                        }
                     }
             }
+        mainAxisTotalSize += currentMainAxisMax
 
-        val mainAxisTotalSize = mainAxisTotalGaps + mainAxisSizes.sum()
-        val mainAxisStartingPoints =
-            mainAxisSizes.runningFold(0) { acc, value -> acc + value + mainAxisSpacingPx }
         val height = if (isVertical) mainAxisTotalSize else crossAxisSize
         val width = if (isVertical) crossAxisSize else mainAxisTotalSize
 
         layout(width, height) {
-            placeables.forEach { (placeable, slot, mainAxisGroup) ->
+            var previousMainAxis = 0
+            var currentMainAxisPosition = 0
+            var currentMainAxisMax = 0
+            placeables.forEachIndexed { index, placeable ->
+                val slot = positions[index].second
+                val mainAxisSize = if (isVertical) placeable.height else placeable.width
+
+                if (positions[index].first != previousMainAxis) {
+                    // Move up a row + padding
+                    currentMainAxisPosition += currentMainAxisMax + mainAxisSpacingPx
+                    currentMainAxisMax = mainAxisSize
+                    previousMainAxis = positions[index].first
+                } else {
+                    currentMainAxisMax = max(currentMainAxisMax, mainAxisSize)
+                }
+
                 val x =
                     if (isVertical) {
                         startPositions[slot]
                     } else {
-                        mainAxisStartingPoints[mainAxisGroup]
+                        currentMainAxisPosition
                     }
                 val y =
                     if (isVertical) {
-                        mainAxisStartingPoints[mainAxisGroup]
+                        currentMainAxisPosition
                     } else {
                         startPositions[slot]
                     }
@@ -313,9 +340,3 @@ private fun calculateCellsCrossAxisSize(
         outArray[index] = slotSize + if (index < remainingPixels) 1 else 0
     }
 }
-
-private data class PlaceResult(
-    val placeable: Placeable,
-    val slotIndex: Int,
-    val mainAxisGroup: Int,
-)

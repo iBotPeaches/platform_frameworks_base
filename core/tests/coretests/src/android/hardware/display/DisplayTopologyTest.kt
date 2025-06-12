@@ -22,6 +22,8 @@ import android.hardware.display.DisplayTopology.TreeNode.POSITION_BOTTOM
 import android.hardware.display.DisplayTopology.TreeNode.POSITION_LEFT
 import android.hardware.display.DisplayTopology.TreeNode.POSITION_TOP
 import android.hardware.display.DisplayTopology.TreeNode.POSITION_RIGHT
+import android.util.SparseArray
+import android.util.SparseIntArray
 import android.view.Display
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
@@ -86,7 +88,7 @@ class DisplayTopologyTest {
         verifyDisplay(display1, displayId1, width1, height1, noOfChildren = 1)
 
         val display2 = display1.children[0]
-        verifyDisplay(display1.children[0], displayId2, width2, height2, POSITION_TOP,
+        verifyDisplay(display2, displayId2, width2, height2, POSITION_TOP,
             offset = width1 / 2 - width2 / 2, noOfChildren = 1)
 
         var display = display2
@@ -94,6 +96,76 @@ class DisplayTopologyTest {
             display = display.children[0]
             // The last display should have no children
             verifyDisplay(display, id = i, width1, height1, POSITION_RIGHT, offset = 0f,
+                noOfChildren = if (i < noOfDisplays) 1 else 0)
+        }
+    }
+
+    @Test
+    fun updateDisplay() {
+        val displayId = 1
+        val width = 800f
+        val height = 600f
+
+        val newWidth = 1000f
+        val newHeight = 500f
+        topology.addDisplay(displayId, width, height)
+        assertThat(topology.updateDisplay(displayId, newWidth, newHeight)).isTrue()
+
+        assertThat(topology.primaryDisplayId).isEqualTo(displayId)
+        verifyDisplay(topology.root!!, displayId, newWidth, newHeight, noOfChildren = 0)
+    }
+
+    @Test
+    fun updateDisplay_notUpdated() {
+        val displayId = 1
+        val width = 800f
+        val height = 600f
+        topology.addDisplay(displayId, width, height)
+
+        // Same size
+        assertThat(topology.updateDisplay(displayId, width, height)).isFalse()
+
+        // Display doesn't exist
+        assertThat(topology.updateDisplay(/* displayId= */ 100, width, height)).isFalse()
+
+        assertThat(topology.primaryDisplayId).isEqualTo(displayId)
+        verifyDisplay(topology.root!!, displayId, width, height, noOfChildren = 0)
+    }
+
+    @Test
+    fun updateDisplayDoesNotAffectDefaultTopology() {
+        val width1 = 700f
+        val height = 600f
+        topology.addDisplay(/* displayId= */ 1, width1, height)
+
+        val width2 = 800f
+        val noOfDisplays = 30
+        for (i in 2..noOfDisplays) {
+            topology.addDisplay(/* displayId= */ i, width2, height)
+        }
+
+        val displaysToUpdate = arrayOf(3, 7, 18)
+        val newWidth = 1000f
+        val newHeight = 1500f
+        for (i in displaysToUpdate) {
+            assertThat(topology.updateDisplay(/* displayId= */ i, newWidth, newHeight)).isTrue()
+        }
+
+        assertThat(topology.primaryDisplayId).isEqualTo(1)
+
+        val display1 = topology.root!!
+        verifyDisplay(display1, id = 1, width1, height, noOfChildren = 1)
+
+        val display2 = display1.children[0]
+        verifyDisplay(display2, id = 2, width2, height, POSITION_TOP,
+            offset = width1 / 2 - width2 / 2, noOfChildren = 1)
+
+        var display = display2
+        for (i in 3..noOfDisplays) {
+            display = display.children[0]
+            // The last display should have no children
+            verifyDisplay(display, id = i, if (i in displaysToUpdate) newWidth else width2,
+                if (i in displaysToUpdate) newHeight else height, POSITION_RIGHT, offset = 0f,
                 noOfChildren = if (i < noOfDisplays) 1 else 0)
         }
     }
@@ -117,7 +189,7 @@ class DisplayTopologyTest {
         }
 
         var removedDisplays = arrayOf(20)
-        topology.removeDisplay(20)
+        assertThat(topology.removeDisplay(20)).isTrue()
 
         assertThat(topology.primaryDisplayId).isEqualTo(displayId1)
 
@@ -139,11 +211,11 @@ class DisplayTopologyTest {
                 noOfChildren = if (i < noOfDisplays) 1 else 0)
         }
 
-        topology.removeDisplay(22)
+        assertThat(topology.removeDisplay(22)).isTrue()
         removedDisplays += 22
-        topology.removeDisplay(23)
+        assertThat(topology.removeDisplay(23)).isTrue()
         removedDisplays += 23
-        topology.removeDisplay(25)
+        assertThat(topology.removeDisplay(25)).isTrue()
         removedDisplays += 25
 
         assertThat(topology.primaryDisplayId).isEqualTo(displayId1)
@@ -174,7 +246,7 @@ class DisplayTopologyTest {
         val height = 600f
 
         topology.addDisplay(displayId, width, height)
-        topology.removeDisplay(displayId)
+        assertThat(topology.removeDisplay(displayId)).isTrue()
 
         assertThat(topology.primaryDisplayId).isEqualTo(Display.INVALID_DISPLAY)
         assertThat(topology.root).isNull()
@@ -187,7 +259,7 @@ class DisplayTopologyTest {
         val height = 600f
 
         topology.addDisplay(displayId, width, height)
-        topology.removeDisplay(3)
+        assertThat(topology.removeDisplay(3)).isFalse()
 
         assertThat(topology.primaryDisplayId).isEqualTo(displayId)
         verifyDisplay(topology.root!!, displayId, width, height, noOfChildren = 0)
@@ -203,7 +275,7 @@ class DisplayTopologyTest {
         topology = DisplayTopology(/* root= */ null, displayId2)
         topology.addDisplay(displayId1, width, height)
         topology.addDisplay(displayId2, width, height)
-        topology.removeDisplay(displayId2)
+        assertThat(topology.removeDisplay(displayId2)).isTrue()
 
         assertThat(topology.primaryDisplayId).isEqualTo(displayId1)
         verifyDisplay(topology.root!!, displayId1, width, height, noOfChildren = 0)
@@ -564,18 +636,139 @@ class DisplayTopologyTest {
             //         222
             RectF(0f, 0f, 30f, 30f),
             RectF(40f, 10f, 70f, 40f),
-            RectF(80.5f, 50f, 110f, 80f), // left+=0.5 to cause a preference for
-                                                            // TOP/BOTTOM attach
+            RectF(80.5f, 50f, 110f, 80f),
         )
 
         verifyDisplay(root, id = 0, width = 30f, height = 30f, noOfChildren = 1)
         verifyDisplay(
                 root.children[0], id = 1, width = 30f, height = 30f, POSITION_RIGHT, offset = 10f,
                 noOfChildren = 1)
-        // In the case of corner adjacency, we prefer a left/right attachment.
         verifyDisplay(
-                root.children[0].children[0], id = 2, width = 29.5f, height = 30f, POSITION_BOTTOM,
+                root.children[0].children[0], id = 2, width = 29.5f, height = 30f, POSITION_RIGHT,
                 offset = 30f, noOfChildren = 0)
+    }
+
+    @Test
+    fun rearrange_preferLessShiftInOverlapDimension() {
+        val root = rearrangeRects(
+            // '*' represents overlap
+            // Clamping requires moving display 2 and 1 slightly to avoid overlap with 0. We should
+            // shift the minimal amount to avoid overlap - e.g. display 2 shifts left (10 pixels)
+            // rather than up (20 pixels).
+            // 222
+            // 22*00
+            // 22*00
+            //   0**1
+            //    111
+            //    111
+            RectF(20f, 10f, 50f, 40f),
+            RectF(30f, 30f, 60f, 60f),
+            RectF(0f, 0f, 30f, 30f),
+        )
+
+        verifyDisplay(root, id = 0, width = 30f, height = 30f, noOfChildren = 2)
+        verifyDisplay(
+                root.children[0], id = 1, width = 30f, height = 30f, POSITION_BOTTOM, offset = 10f,
+                noOfChildren = 0)
+        verifyDisplay(
+                root.children[1], id = 2, width = 30f, height = 30f, POSITION_LEFT, offset = -10f,
+                noOfChildren = 0)
+    }
+
+    @Test
+    fun rearrange_doNotAttachCornerForShortOverlapOnLongEdgeBottom() {
+        val root = rearrangeRects(
+            RectF(0f, 0f, 1920f, 1080f),
+            RectF(1850f, 1070f, 3770f, 2150f),
+        )
+
+        verifyDisplay(root, id = 0, width = 1920f, height = 1080f, noOfChildren = 1)
+        verifyDisplay(
+                root.children[0], id = 1, width = 1920f, height = 1080f, POSITION_BOTTOM,
+                offset = 1850f, noOfChildren = 0)
+    }
+
+    @Test
+    fun rearrange_doNotAttachCornerForShortOverlapOnLongEdgeLeft() {
+        val root = rearrangeRects(
+            RectF(0f, 0f, 1080f, 1920f),
+            RectF(-1070f, -1880f, 10f, 40f),
+        )
+
+        verifyDisplay(root, id = 0, width = 1080f, height = 1920f, noOfChildren = 1)
+        verifyDisplay(
+                root.children[0], id = 1, width = 1080f, height = 1920f, POSITION_LEFT,
+                offset = -1880f, noOfChildren = 0)
+    }
+
+    @Test
+    fun rearrange_preferLongHorizontalShiftOverAttachToCorner() {
+        // An earlier implementation decided vertical or horizontal clamp direction based on the abs
+        // value of the overlap in each dimension, rather than the raw overlap.
+
+        // This horizontal span is twice the height of displays, making abs(xOverlap) > yOverlap,
+        // i.e. abs(-60) > 30
+        //      |
+        //    |----|
+        // 000      111
+        // 000      111
+        // 000      111
+
+        // Before fix:
+        // 000
+        // 000
+        // 000
+        //    111
+        //    111
+        //    111
+
+        // After fix:
+        // 000111
+        // 000111
+        // 000111
+
+        val root = rearrangeRects(
+            RectF(0f, 0f, 30f, 30f),
+            RectF(90f, 0f, 120f, 30f),
+        )
+
+        verifyDisplay(root, id = 0, width = 30f, height = 30f, noOfChildren = 1)
+        verifyDisplay(
+                root.children[0], id = 1, width = 30f, height = 30f, POSITION_RIGHT,
+                offset = 0f, noOfChildren = 0)
+    }
+
+    @Test
+    fun rearrange_preferLongVerticalShiftOverAttachToCorner() {
+        // Before:
+        // 111
+        // 111
+        // 111
+        //        |
+        //        |- This vertical span is 40dp
+        //        |
+        //        |
+        //   000
+        //   000
+        //   000
+
+        // After:
+        // 111
+        // 111
+        // 111
+        //   000
+        //   000
+        //   000
+
+        val root = rearrangeRects(
+            RectF(20f, 70f, 50f, 100f),
+            RectF(00f, 0f, 30f, 30f),
+        )
+
+        verifyDisplay(root, id = 0, width = 30f, height = 30f, noOfChildren = 1)
+        verifyDisplay(
+                root.children[0], id = 1, width = 30f, height = 30f, POSITION_TOP,
+                offset = -20f, noOfChildren = 0)
     }
 
     @Test
@@ -615,6 +808,278 @@ class DisplayTopologyTest {
         val actualDisplay4 = actualDisplay2.children[0]
         verifyDisplay(actualDisplay4, id = 4, width = 200f, height = 600f, POSITION_RIGHT,
             offset = 0f, noOfChildren = 0)
+    }
+
+    @Test
+    fun coordinates() {
+        // 1122222244
+        // 1122222244
+        // 11      44
+        // 11      44
+        // 1133333344
+        // 1133333344
+
+        val display1 = DisplayTopology.TreeNode(/* displayId= */ 1, /* width= */ 200f,
+            /* height= */ 600f, /* position= */ 0, /* offset= */ 0f)
+
+        val display2 = DisplayTopology.TreeNode(/* displayId= */ 2, /* width= */ 600f,
+            /* height= */ 200f, POSITION_RIGHT, /* offset= */ 0f)
+        display1.addChild(display2)
+
+        val display3 = DisplayTopology.TreeNode(/* displayId= */ 3, /* width= */ 600f,
+            /* height= */ 200f, POSITION_RIGHT, /* offset= */ 400f)
+        display1.addChild(display3)
+
+        val display4 = DisplayTopology.TreeNode(/* displayId= */ 4, /* width= */ 200f,
+            /* height= */ 600f, POSITION_RIGHT, /* offset= */ 0f)
+        display2.addChild(display4)
+
+        topology = DisplayTopology(display1, /* primaryDisplayId= */ 1)
+        val coords = topology.absoluteBounds
+
+        val expectedCoords = SparseArray<RectF>()
+        expectedCoords.append(1, RectF(0f, 0f, 200f, 600f))
+        expectedCoords.append(2, RectF(200f, 0f, 800f, 200f))
+        expectedCoords.append(3, RectF(200f, 400f, 800f, 600f))
+        expectedCoords.append(4, RectF(800f, 0f, 1000f, 600f))
+        assertThat(coords.contentEquals(expectedCoords)).isTrue()
+    }
+
+    @Test
+    fun graph() {
+        // 1122222244
+        // 1122222244
+        // 11      44
+        // 11      44
+        // 1133333344
+        // 1133333344
+        //        555
+        //        555
+        //        555
+
+        val densityPerDisplay = SparseIntArray()
+
+        val display1 = DisplayTopology.TreeNode(/* displayId= */ 1, /* width= */ 200f,
+            /* height= */ 600f, /* position= */ 0, /* offset= */ 0f)
+        val density1 = 100
+        densityPerDisplay.append(1, density1)
+
+        val display2 = DisplayTopology.TreeNode(/* displayId= */ 2, /* width= */ 600f,
+            /* height= */ 200f, POSITION_RIGHT, /* offset= */ 0f)
+        display1.addChild(display2)
+        val density2 = 200
+        densityPerDisplay.append(2, density2)
+
+        val primaryDisplayId = 3
+        val display3 = DisplayTopology.TreeNode(primaryDisplayId, /* width= */ 600f,
+            /* height= */ 200f, POSITION_RIGHT, /* offset= */ 400f)
+        display1.addChild(display3)
+        val density3 = 150
+        densityPerDisplay.append(3, density3)
+
+        val display4 = DisplayTopology.TreeNode(/* displayId= */ 4, /* width= */ 200f,
+            /* height= */ 600f, POSITION_RIGHT, /* offset= */ 0f)
+        display2.addChild(display4)
+        val density4 = 300
+        densityPerDisplay.append(4, density4)
+
+        val display5 = DisplayTopology.TreeNode(/* displayId= */ 5, /* width= */ 300f,
+            /* height= */ 300f, POSITION_BOTTOM, /* offset= */ -100f)
+        display4.addChild(display5)
+        val density5 = 300
+        densityPerDisplay.append(5, density5)
+
+        topology = DisplayTopology(display1, primaryDisplayId)
+        val graph = topology.getGraph(densityPerDisplay)!!
+        val nodes = graph.displayNodes
+
+        assertThat(graph.primaryDisplayId).isEqualTo(primaryDisplayId)
+        assertThat(nodes.map {it.displayId}).containsExactly(1, 2, 3, 4, 5)
+        for (node in nodes) {
+            assertThat(node.density).isEqualTo(densityPerDisplay.get(node.displayId))
+            when (node.displayId) {
+                1 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_RIGHT,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_RIGHT,
+                        /* offsetDp= */ 400f))
+                2 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_LEFT,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 4, POSITION_RIGHT,
+                        /* offsetDp= */ 0f))
+                3 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_LEFT,
+                        /* offsetDp= */ -400f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 4, POSITION_RIGHT,
+                        /* offsetDp= */ -400f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 5, POSITION_BOTTOM,
+                        /* offsetDp= */ 500f))
+                4 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_LEFT,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_LEFT,
+                        /* offsetDp= */ 400f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 5, POSITION_BOTTOM,
+                        /* offsetDp= */ -100f))
+                5 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_TOP,
+                        /* offsetDp= */ -500f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 4, POSITION_TOP,
+                        /* offsetDp= */ 100f))
+            }
+        }
+    }
+
+    @Test
+    fun graph_corner() {
+        // 1122244
+        // 1122244
+        // 1122244
+        //   333
+        // 55
+
+        val densityPerDisplay = SparseIntArray()
+
+        val display1 = DisplayTopology.TreeNode(/* displayId= */ 1, /* width= */ 200f,
+            /* height= */ 300f, /* position= */ 0, /* offset= */ 0f)
+        val density1 = 100
+        densityPerDisplay.append(1, density1)
+
+        val display2 = DisplayTopology.TreeNode(/* displayId= */ 2, /* width= */ 300f,
+            /* height= */ 300f, POSITION_RIGHT, /* offset= */ 0f)
+        display1.addChild(display2)
+        val density2 = 200
+        densityPerDisplay.append(2, density2)
+
+        val primaryDisplayId = 3
+        val display3 = DisplayTopology.TreeNode(primaryDisplayId, /* width= */ 300f,
+            /* height= */ 100f, POSITION_BOTTOM, /* offset= */ 0f)
+        display2.addChild(display3)
+        val density3 = 150
+        densityPerDisplay.append(3, density3)
+
+        val display4 = DisplayTopology.TreeNode(/* displayId= */ 4, /* width= */ 200f,
+            /* height= */ 300f, POSITION_RIGHT, /* offset= */ 0f)
+        display2.addChild(display4)
+        val density4 = 300
+        densityPerDisplay.append(4, density4)
+
+        val display5 = DisplayTopology.TreeNode(/* displayId= */ 5, /* width= */ 200f,
+            /* height= */ 100f, POSITION_BOTTOM, /* offset= */ -200f)
+        display3.addChild(display5)
+        val density5 = 300
+        densityPerDisplay.append(5, density5)
+
+        topology = DisplayTopology(display1, primaryDisplayId)
+        val graph = topology.getGraph(densityPerDisplay)!!
+        val nodes = graph.displayNodes
+
+        assertThat(graph.primaryDisplayId).isEqualTo(primaryDisplayId)
+        assertThat(nodes.map {it.displayId}).containsExactly(1, 2, 3, 4, 5)
+        for (node in nodes) {
+            assertThat(node.density).isEqualTo(densityPerDisplay.get(node.displayId))
+            when (node.displayId) {
+                1 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_RIGHT,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_RIGHT,
+                        /* offsetDp= */ 300f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_BOTTOM,
+                        /* offsetDp= */ 200f))
+                2 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_LEFT,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_BOTTOM,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 4, POSITION_RIGHT,
+                        /* offsetDp= */ 0f))
+                3 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_LEFT,
+                        /* offsetDp= */ -300f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_TOP,
+                        /* offsetDp= */ -200f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_TOP,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 4, POSITION_RIGHT,
+                        /* offsetDp= */ -300f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 4, POSITION_TOP,
+                        /* offsetDp= */ 300f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 5, POSITION_LEFT,
+                        /* offsetDp= */ 100f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 5, POSITION_BOTTOM,
+                        /* offsetDp= */ -200f))
+                4 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_LEFT,
+                        /* offsetDp= */ 0f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_LEFT,
+                        /* offsetDp= */ 300f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_BOTTOM,
+                        /* offsetDp= */ -300f))
+                5 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_TOP,
+                        /* offsetDp= */ 200f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_RIGHT,
+                        /* offsetDp= */ -100f))
+            }
+        }
+    }
+
+    @Test
+    fun graph_smallGap() {
+        // 11122
+        // 11122
+        // 11133
+        // 11133
+
+        // There is a gap between displays 2 and 3, small enough for them to still be adjacent.
+
+        val densityPerDisplay = SparseIntArray()
+
+        val display1 = DisplayTopology.TreeNode(/* displayId= */ 1, /* width= */ 300f,
+            /* height= */ 400f, /* position= */ 0, /* offset= */ 0f)
+        val density1 = 100
+        densityPerDisplay.append(1, density1)
+
+        val display2 = DisplayTopology.TreeNode(/* displayId= */ 2, /* width= */ 200f,
+            /* height= */ 200f, POSITION_RIGHT, /* offset= */ -1f)
+        display1.addChild(display2)
+        val density2 = 200
+        densityPerDisplay.append(2, density2)
+
+        val primaryDisplayId = 3
+        val display3 = DisplayTopology.TreeNode(primaryDisplayId, /* width= */ 200f,
+            /* height= */ 200f, POSITION_RIGHT, /* offset= */ 201f)
+        display1.addChild(display3)
+        val density3 = 150
+        densityPerDisplay.append(3, density3)
+
+        topology = DisplayTopology(display1, primaryDisplayId)
+        val graph = topology.getGraph(densityPerDisplay)!!
+        val nodes = graph.displayNodes
+
+        assertThat(graph.primaryDisplayId).isEqualTo(primaryDisplayId)
+        assertThat(nodes.map {it.displayId}).containsExactly(1, 2, 3)
+        for (node in nodes) {
+            assertThat(node.density).isEqualTo(densityPerDisplay.get(node.displayId))
+            when (node.displayId) {
+                1 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_RIGHT,
+                        /* offsetDp= */ -1f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_RIGHT,
+                        /* offsetDp= */ 201f))
+                2 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_LEFT,
+                        /* offsetDp= */ 1f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 3, POSITION_BOTTOM,
+                        /* offsetDp= */ 0f))
+                3 -> assertThat(node.adjacentDisplays.toSet()).containsExactly(
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 1, POSITION_LEFT,
+                        /* offsetDp= */ -201f),
+                    DisplayTopologyGraph.AdjacentDisplay(/* displayId= */ 2, POSITION_TOP,
+                        /* offsetDp= */ 0f))
+            }
+        }
     }
 
     /**

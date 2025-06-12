@@ -19,73 +19,54 @@ package com.android.systemui.statusbar.notification.shelf.ui.viewmodel
 import android.os.PowerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.systemui.SysUITestComponent
-import com.android.systemui.SysUITestModule
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.TestMocksModule
-import com.android.systemui.collectLastValue
-import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.keyguard.data.repository.FakeDeviceEntryFaceAuthRepository
-import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
-import com.android.systemui.power.data.repository.FakePowerRepository
-import com.android.systemui.runTest
-import com.android.systemui.statusbar.LockscreenShadeTransitionController
-import com.android.systemui.statusbar.SysuiStatusBarStateController
-import com.android.systemui.statusbar.notification.row.ui.viewmodel.ActivatableNotificationViewModelModule
-import com.android.systemui.statusbar.phone.ScreenOffAnimationController
-import com.android.systemui.util.mockito.eq
-import com.android.systemui.util.mockito.mock
-import com.android.systemui.util.mockito.whenever
+import com.android.systemui.coroutines.collectLastValue
+import com.android.systemui.flags.EnableSceneContainer
+import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFaceAuthRepository
+import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
+import com.android.systemui.kosmos.testCase
+import com.android.systemui.plugins.statusbar.statusBarStateController
+import com.android.systemui.power.data.repository.fakePowerRepository
+import com.android.systemui.shade.domain.interactor.enableDualShade
+import com.android.systemui.shade.domain.interactor.enableSingleShade
+import com.android.systemui.shade.domain.interactor.enableSplitShade
+import com.android.systemui.statusbar.lockscreenShadeTransitionController
+import com.android.systemui.statusbar.phone.screenOffAnimationController
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import dagger.BindsInstance
-import dagger.Component
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito
 import org.mockito.Mockito.verify
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 @SmallTest
 class NotificationShelfViewModelTest : SysuiTestCase() {
 
-    @Component(modules = [SysUITestModule::class, ActivatableNotificationViewModelModule::class])
-    @SysUISingleton
-    interface TestComponent : SysUITestComponent<NotificationShelfViewModel> {
-
-        val deviceEntryFaceAuthRepository: FakeDeviceEntryFaceAuthRepository
-        val keyguardRepository: FakeKeyguardRepository
-        val powerRepository: FakePowerRepository
-
-        @Component.Factory
-        interface Factory {
-            fun create(
-                @BindsInstance test: SysuiTestCase,
-                mocks: TestMocksModule,
-            ): TestComponent
+    private val kosmos =
+        testKosmos().apply {
+            testCase = this@NotificationShelfViewModelTest
+            lockscreenShadeTransitionController = mock()
+            screenOffAnimationController = mock()
+            statusBarStateController = mock()
+            whenever(screenOffAnimationController.allowWakeUpIfDozing()).thenReturn(true)
         }
-    }
+    private val deviceEntryFaceAuthRepository = kosmos.fakeDeviceEntryFaceAuthRepository
+    private val keyguardRepository = kosmos.fakeKeyguardRepository
+    private val powerRepository = kosmos.fakePowerRepository
+    private val keyguardTransitionController by lazy { kosmos.lockscreenShadeTransitionController }
 
-    private val keyguardTransitionController: LockscreenShadeTransitionController = mock()
-    private val screenOffAnimationController: ScreenOffAnimationController = mock {
-        whenever(allowWakeUpIfDozing()).thenReturn(true)
-    }
-    private val statusBarStateController: SysuiStatusBarStateController = mock()
-
-    private val testComponent: TestComponent =
-        DaggerNotificationShelfViewModelTest_TestComponent.factory()
-            .create(
-                test = this,
-                mocks =
-                    TestMocksModule(
-                        lockscreenShadeTransitionController = keyguardTransitionController,
-                        screenOffAnimationController = screenOffAnimationController,
-                        statusBarStateController = statusBarStateController,
-                    )
-            )
+    private val underTest by lazy { kosmos.notificationShelfViewModel }
 
     @Test
     fun canModifyColorOfNotifications_whenKeyguardNotShowing() =
-        testComponent.runTest {
+        kosmos.runTest {
             val canModifyNotifColor by collectLastValue(underTest.canModifyColorOfNotifications)
 
             keyguardRepository.setKeyguardShowing(false)
@@ -95,7 +76,7 @@ class NotificationShelfViewModelTest : SysuiTestCase() {
 
     @Test
     fun canModifyColorOfNotifications_whenKeyguardShowingAndNotBypass() =
-        testComponent.runTest {
+        kosmos.runTest {
             val canModifyNotifColor by collectLastValue(underTest.canModifyColorOfNotifications)
 
             keyguardRepository.setKeyguardShowing(true)
@@ -106,7 +87,7 @@ class NotificationShelfViewModelTest : SysuiTestCase() {
 
     @Test
     fun cannotModifyColorOfNotifications_whenBypass() =
-        testComponent.runTest {
+        kosmos.runTest {
             val canModifyNotifColor by collectLastValue(underTest.canModifyColorOfNotifications)
 
             keyguardRepository.setKeyguardShowing(true)
@@ -117,7 +98,7 @@ class NotificationShelfViewModelTest : SysuiTestCase() {
 
     @Test
     fun isClickable_whenKeyguardShowing() =
-        testComponent.runTest {
+        kosmos.runTest {
             val isClickable by collectLastValue(underTest.isClickable)
 
             keyguardRepository.setKeyguardShowing(true)
@@ -127,7 +108,7 @@ class NotificationShelfViewModelTest : SysuiTestCase() {
 
     @Test
     fun isNotClickable_whenKeyguardNotShowing() =
-        testComponent.runTest {
+        kosmos.runTest {
             val isClickable by collectLastValue(underTest.isClickable)
 
             keyguardRepository.setKeyguardShowing(false)
@@ -137,7 +118,7 @@ class NotificationShelfViewModelTest : SysuiTestCase() {
 
     @Test
     fun onClicked_goesToLockedShade() =
-        with(testComponent) {
+        kosmos.runTest {
             whenever(statusBarStateController.isDozing).thenReturn(true)
 
             underTest.onShelfClicked()
@@ -145,5 +126,49 @@ class NotificationShelfViewModelTest : SysuiTestCase() {
             assertThat(powerRepository.lastWakeReason).isNotNull()
             assertThat(powerRepository.lastWakeReason).isEqualTo(PowerManager.WAKE_REASON_GESTURE)
             verify(keyguardTransitionController).goToLockedShade(Mockito.isNull(), eq(true))
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun isAlignedToEnd_splitShade_true() =
+        kosmos.runTest {
+            val isShelfAlignedToEnd by collectLastValue(underTest.isAlignedToEnd)
+
+            kosmos.enableSplitShade()
+
+            assertThat(isShelfAlignedToEnd).isTrue()
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun isAlignedToEnd_singleShade_false() =
+        kosmos.runTest {
+            val isShelfAlignedToEnd by collectLastValue(underTest.isAlignedToEnd)
+
+            kosmos.enableSingleShade()
+
+            assertThat(isShelfAlignedToEnd).isFalse()
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun isAlignedToEnd_dualShade_wideScreen_false() =
+        kosmos.runTest {
+            val isShelfAlignedToEnd by collectLastValue(underTest.isAlignedToEnd)
+
+            kosmos.enableDualShade(wideLayout = true)
+
+            assertThat(isShelfAlignedToEnd).isFalse()
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun isAlignedToEnd_dualShade_narrowScreen_false() =
+        kosmos.runTest {
+            val isShelfAlignedToEnd by collectLastValue(underTest.isAlignedToEnd)
+
+            kosmos.enableDualShade(wideLayout = false)
+
+            assertThat(isShelfAlignedToEnd).isFalse()
         }
 }

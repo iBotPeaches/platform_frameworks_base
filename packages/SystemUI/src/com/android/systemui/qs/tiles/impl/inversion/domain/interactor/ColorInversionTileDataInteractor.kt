@@ -18,8 +18,8 @@ package com.android.systemui.qs.tiles.impl.inversion.domain.interactor
 
 import android.os.UserHandle
 import com.android.systemui.accessibility.data.repository.ColorInversionRepository
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.inversion.domain.model.ColorInversionTileModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -29,15 +29,15 @@ import kotlinx.coroutines.flow.map
 /** Observes color inversion state changes providing the [ColorInversionTileModel]. */
 class ColorInversionTileDataInteractor
 @Inject
-constructor(
-    private val colorInversionRepository: ColorInversionRepository,
-) : QSTileDataInteractor<ColorInversionTileModel> {
+constructor(private val colorInversionRepository: ColorInversionRepository) :
+    QSTileDataInteractor<ColorInversionTileModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<ColorInversionTileModel> {
         return colorInversionRepository.isEnabled(user).map { ColorInversionTileModel(it) }
     }
+
     override fun availability(user: UserHandle): Flow<Boolean> = flowOf(true)
 }

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.LocaleList;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -116,6 +117,7 @@ public class DateUtilsTest {
     }
 
     @Test
+    @DisabledOnRavenwood(reason = "DateFormat.set24HourTimePref is not available on host JVM")
     public void testFormatSameDayTime() {
         // This test assumes a default DateFormat.is24Hour setting.
         DateFormat.set24HourTimePref(null);

@@ -16,6 +16,8 @@
 package com.android.settingslib.dream;
 
 
+import static android.service.dreams.Flags.FLAG_ALLOW_DREAM_WHEN_POSTURED;
+
 import static com.android.settingslib.dream.DreamBackend.COMPLICATION_TYPE_DATE;
 import static com.android.settingslib.dream.DreamBackend.COMPLICATION_TYPE_HOME_CONTROLS;
 import static com.android.settingslib.dream.DreamBackend.COMPLICATION_TYPE_TIME;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.when;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
+import android.platform.test.annotations.EnableFlags;
 import android.provider.Settings;
 
 import org.junit.After;
@@ -171,6 +174,58 @@ public final class DreamBackendTest {
                 );
         assertThat(mBackend.getEnabledComplications())
                 .containsExactlyElementsIn(enabledComplications);
+    }
+
+    @Test
+    @EnableFlags(FLAG_ALLOW_DREAM_WHEN_POSTURED)
+    public void testChargingAndPosturedBothEnabled() {
+        Settings.Secure.putInt(
+                mContext.getContentResolver(),
+                Settings.Secure.SCREENSAVER_ACTIVATE_ON_SLEEP,
+                1
+        );
+        Settings.Secure.putInt(
+                mContext.getContentResolver(),
+                Settings.Secure.SCREENSAVER_ACTIVATE_ON_POSTURED,
+                1
+        );
+
+        assertThat(mBackend.getWhenToDreamSetting()).isEqualTo(DreamBackend.WHILE_CHARGING);
+    }
+
+    @Test
+    public void testChargingAndDockedBothEnabled() {
+        Settings.Secure.putInt(
+                mContext.getContentResolver(),
+                Settings.Secure.SCREENSAVER_ACTIVATE_ON_SLEEP,
+                1
+        );
+        Settings.Secure.putInt(
+                mContext.getContentResolver(),
+                Settings.Secure.SCREENSAVER_ACTIVATE_ON_DOCK,
+                1
+        );
+
+        assertThat(mBackend.getWhenToDreamSetting()).isEqualTo(
+                DreamBackend.WHILE_CHARGING_OR_DOCKED);
+    }
+
+    @Test
+    @EnableFlags(FLAG_ALLOW_DREAM_WHEN_POSTURED)
+    public void testPosturedAndDockedBothEnabled() {
+        Settings.Secure.putInt(
+                mContext.getContentResolver(),
+                Settings.Secure.SCREENSAVER_ACTIVATE_ON_POSTURED,
+                1
+        );
+        Settings.Secure.putInt(
+                mContext.getContentResolver(),
+                Settings.Secure.SCREENSAVER_ACTIVATE_ON_DOCK,
+                1
+        );
+
+        assertThat(mBackend.getWhenToDreamSetting()).isEqualTo(
+                DreamBackend.WHILE_DOCKED);
     }
 
     private void setControlsEnabledOnLockscreen(boolean enabled) {

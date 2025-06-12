@@ -433,10 +433,8 @@ class OwnersData {
                 out.attributeBoolean(null, ATTR_RESET_PASSWORD_WITH_TOKEN_MIGRATED,
                         mResetPasswordWithTokenMigrated);
             }
-            if (Flags.setMtePolicyCoexistence()) {
-                out.attributeBoolean(null, ATTR_MEMORY_TAGGING_MIGRATED,
-                        mMemoryTaggingMigrated);
-            }
+            out.attributeBoolean(null, ATTR_MEMORY_TAGGING_MIGRATED,
+                    mMemoryTaggingMigrated);
             if (Flags.setKeyguardDisabledFeaturesCoexistence()) {
                 out.attributeBoolean(null, ATTR_SET_KEYGUARD_DISABLED_FEATURES_MIGRATED,
                         mSetKeyguardDisabledFeaturesMigrated);
@@ -514,8 +512,7 @@ class OwnersData {
                     mResetPasswordWithTokenMigrated = Flags.resetPasswordWithTokenCoexistence()
                             && parser.getAttributeBoolean(null,
                             ATTR_RESET_PASSWORD_WITH_TOKEN_MIGRATED, false);
-                    mMemoryTaggingMigrated = Flags.setMtePolicyCoexistence()
-                            && parser.getAttributeBoolean(null,
+                    mMemoryTaggingMigrated = parser.getAttributeBoolean(null,
                             ATTR_MEMORY_TAGGING_MIGRATED, false);
                     mSetKeyguardDisabledFeaturesMigrated =
                             Flags.setKeyguardDisabledFeaturesCoexistence()

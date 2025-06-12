@@ -16,8 +16,9 @@
 package com.android.systemui.statusbar.notification.row
 
 import android.annotation.SuppressLint
-import android.app.Flags
 import android.app.Notification
+import android.app.Notification.EXTRA_SUMMARIZED_CONTENT
+import android.app.Notification.MessagingStyle
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
@@ -43,12 +44,16 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.NotifInflation
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.InflationTask
+import com.android.systemui.statusbar.NotificationLockscreenUserManager.REDACTION_TYPE_OTP
 import com.android.systemui.statusbar.NotificationRemoteInputManager
 import com.android.systemui.statusbar.notification.ConversationNotificationProcessor
 import com.android.systemui.statusbar.notification.InflationException
+import com.android.systemui.statusbar.notification.NmSummarizationUiFlag
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
+import com.android.systemui.statusbar.notification.logKey
 import com.android.systemui.statusbar.notification.promoted.PromotedNotificationContentExtractor
 import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModels
 import com.android.systemui.statusbar.notification.row.NotificationContentView.VISIBLE_TYPE_CONTRACTED
 import com.android.systemui.statusbar.notification.row.NotificationContentView.VISIBLE_TYPE_EXPANDED
 import com.android.systemui.statusbar.notification.row.NotificationContentView.VISIBLE_TYPE_HEADSUP
@@ -73,6 +78,7 @@ import com.android.systemui.statusbar.notification.row.shared.NotificationConten
 import com.android.systemui.statusbar.notification.row.shared.NotificationRowContentBinderRefactor
 import com.android.systemui.statusbar.notification.row.ui.viewbinder.SingleLineViewBinder
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationViewWrapper
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.notification.stack.NotificationChildrenContainer
 import com.android.systemui.statusbar.policy.InflatedSmartReplyState
 import com.android.systemui.statusbar.policy.InflatedSmartReplyViewHolder
@@ -120,10 +126,10 @@ constructor(
             // We don't want to reinflate anything for removed notifications. Otherwise views might
             // be readded to the stack, leading to leaks. This may happen with low-priority groups
             // where the removal of already removed children can lead to a reinflation.
-            logger.logNotBindingRowWasRemoved(entry)
+            logger.logNotBindingRowWasRemoved(row.loggingKey)
             return
         }
-        logger.logBinding(entry, contentToBind)
+        logger.logBinding(row.loggingKey, contentToBind)
         val sbn: StatusBarNotification = entry.sbn
 
         // To check if the notification has inline image and preload inline image if necessary.
@@ -143,9 +149,7 @@ constructor(
                 entry,
                 conversationProcessor,
                 row,
-                bindParams.isMinimized,
-                bindParams.usesIncreasedHeight,
-                bindParams.usesIncreasedHeadsUpHeight,
+                bindParams,
                 callback,
                 remoteInputManager.remoteViewsOnClickHandler,
                 /* isMediaFlagEnabled = */ smartReplyStateInflater,
@@ -179,10 +183,8 @@ constructor(
                 reInflateFlags = reInflateFlags,
                 entry = entry,
                 builder = builder,
-                isMinimized = bindParams.isMinimized,
-                usesIncreasedHeight = bindParams.usesIncreasedHeight,
-                usesIncreasedHeadsUpHeight = bindParams.usesIncreasedHeadsUpHeight,
-                systemUIContext = systemUIContext,
+                bindParams,
+                systemUiContext = systemUIContext,
                 packageContext = packageContext,
                 row = row,
                 notifLayoutInflaterFactoryProvider = notifLayoutInflaterFactoryProvider,
@@ -244,7 +246,7 @@ constructor(
     override fun cancelBind(entry: NotificationEntry, row: ExpandableNotificationRow): Boolean {
         val abortedTask: Boolean = entry.abortTask()
         if (abortedTask) {
-            logger.logCancelBindAbortedTask(entry)
+            logger.logCancelBindAbortedTask(row.loggingKey)
         }
         return abortedTask
     }
@@ -255,7 +257,7 @@ constructor(
         row: ExpandableNotificationRow,
         @InflationFlag contentToUnbind: Int,
     ) {
-        logger.logUnbinding(entry, contentToUnbind)
+        logger.logUnbinding(row.loggingKey, contentToUnbind)
         var curFlag = 1
         var contentLeftToUnbind = contentToUnbind
         while (contentLeftToUnbind != 0) {
@@ -371,9 +373,7 @@ constructor(
         private val entry: NotificationEntry,
         private val conversationProcessor: ConversationNotificationProcessor,
         private val row: ExpandableNotificationRow,
-        private val isMinimized: Boolean,
-        private val usesIncreasedHeight: Boolean,
-        private val usesIncreasedHeadsUpHeight: Boolean,
+        private val bindParams: BindParams,
         private val callback: InflationCallback?,
         private val remoteViewClickHandler: InteractionHandler?,
         private val smartRepliesInflater: SmartReplyStateInflater,
@@ -420,7 +420,7 @@ constructor(
                 try {
                     return@trace Result.success(doInBackgroundInternal())
                 } catch (e: Exception) {
-                    logger.logAsyncTaskException(entry, "inflating", e)
+                    logger.logAsyncTaskException(entry.logKey, "inflating", e)
                     return@trace Result.failure(e)
                 }
             }
@@ -441,10 +441,8 @@ constructor(
                     reInflateFlags = reInflateFlags,
                     entry = entry,
                     builder = recoveredBuilder,
-                    isMinimized = isMinimized,
-                    usesIncreasedHeight = usesIncreasedHeight,
-                    usesIncreasedHeadsUpHeight = usesIncreasedHeadsUpHeight,
-                    systemUIContext = context,
+                    bindParams = bindParams,
+                    systemUiContext = context,
                     packageContext = packageContext,
                     row = row,
                     notifLayoutInflaterFactoryProvider = notifLayoutInflaterFactoryProvider,
@@ -454,11 +452,11 @@ constructor(
                     logger = logger,
                 )
             logger.logAsyncTaskProgress(
-                entry,
+                row.loggingKey,
                 "getting existing smart reply state (on wrong thread!)",
             )
             val previousSmartReplyState: InflatedSmartReplyState? = row.existingSmartReplyState
-            logger.logAsyncTaskProgress(entry, "inflating smart reply views")
+            logger.logAsyncTaskProgress(entry.logKey, "inflating smart reply views")
             inflateSmartReplyViews(
                 /* result = */ inflationProgress,
                 reInflateFlags,
@@ -470,7 +468,7 @@ constructor(
                 logger,
             )
             if (AsyncHybridViewInflation.isEnabled) {
-                logger.logAsyncTaskProgress(entry, "inflating single line view")
+                logger.logAsyncTaskProgress(entry.logKey, "inflating single line view")
                 inflationProgress.inflatedSingleLineView =
                     inflationProgress.contentModel.singleLineViewModel?.let {
                         SingleLineViewInflater.inflatePrivateSingleLineView(
@@ -484,7 +482,7 @@ constructor(
             }
 
             if (LockscreenOtpRedaction.isEnabled) {
-                logger.logAsyncTaskProgress(entry, "inflating public single line view")
+                logger.logAsyncTaskProgress(entry.logKey, "inflating public single line view")
                 inflationProgress.inflatedPublicSingleLineView =
                     inflationProgress.contentModel.publicSingleLineViewModel?.let { viewModel ->
                         SingleLineViewInflater.inflatePublicSingleLineView(
@@ -497,10 +495,16 @@ constructor(
                     }
             }
 
-            logger.logAsyncTaskProgress(entry, "getting row image resolver (on wrong thread!)")
+            logger.logAsyncTaskProgress(entry.logKey, "loading RON images")
+            inflationProgress.rowImageInflater.loadImagesSynchronously(packageContext)
+
+            logger.logAsyncTaskProgress(
+                entry.logKey,
+                "getting row image resolver (on wrong thread!)",
+            )
             val imageResolver = row.imageResolver
             // wait for image resolver to finish preloading
-            logger.logAsyncTaskProgress(entry, "waiting for preloaded images")
+            logger.logAsyncTaskProgress(entry.logKey, "waiting for preloaded images")
             imageResolver.waitForPreloadedImages(IMG_PRELOAD_TIMEOUT_MS)
             return inflationProgress
         }
@@ -514,7 +518,7 @@ constructor(
                         apply(
                             inflationExecutor,
                             inflateSynchronously,
-                            isMinimized,
+                            bindParams.isMinimized,
                             progress,
                             reInflateFlags,
                             remoteViewCache,
@@ -538,7 +542,7 @@ constructor(
             val ident: String = (sbn.packageName + "/0x" + Integer.toHexString(sbn.id))
             Log.e(TAG, "couldn't inflate view for notification $ident", e)
             callback?.handleInflationException(
-                row.entry,
+                if (NotificationBundleUi.isEnabled) entry else row.entryLegacy,
                 InflationException("Couldn't inflate contentViews$e"),
             )
 
@@ -547,20 +551,20 @@ constructor(
         }
 
         override fun abort() {
-            logger.logAsyncTaskProgress(entry, "cancelling inflate")
+            logger.logAsyncTaskProgress(entry.logKey, "cancelling inflate")
             cancel(/* mayInterruptIfRunning= */ true)
             if (cancellationSignal != null) {
-                logger.logAsyncTaskProgress(entry, "cancelling apply")
+                logger.logAsyncTaskProgress(entry.logKey, "cancelling apply")
                 cancellationSignal!!.cancel()
             }
-            logger.logAsyncTaskProgress(entry, "aborted")
+            logger.logAsyncTaskProgress(entry.logKey, "aborted")
         }
 
-        override fun handleInflationException(entry: NotificationEntry, e: Exception) {
+        override fun handleInflationException(e: Exception) {
             handleError(e)
         }
 
-        override fun onAsyncInflationFinished(entry: NotificationEntry) {
+        override fun onAsyncInflationFinished() {
             this.entry.onInflationTaskFinished()
             row.onNotificationUpdated()
             callback?.onAsyncInflationFinished(this.entry)
@@ -589,9 +593,10 @@ constructor(
     @VisibleForTesting
     class InflationProgress(
         @VisibleForTesting val packageContext: Context,
+        val rowImageInflater: RowImageInflater,
         val remoteViews: NewRemoteViews,
         val contentModel: NotificationContentModel,
-        val extractedPromotedNotificationContentModel: PromotedNotificationContentModel?,
+        val promotedContent: PromotedNotificationContentModels?,
     ) {
 
         var inflatedContentView: View? = null
@@ -640,11 +645,11 @@ constructor(
                 (reInflateFlags and FLAG_CONTENT_VIEW_HEADS_UP != 0 &&
                     result.remoteViews.headsUp != null)
             if (inflateContracted || inflateExpanded || inflateHeadsUp) {
-                logger.logAsyncTaskProgress(entry, "inflating contracted smart reply state")
+                logger.logAsyncTaskProgress(entry.logKey, "inflating contracted smart reply state")
                 result.inflatedSmartReplyState = inflater.inflateSmartReplyState(entry)
             }
             if (inflateExpanded) {
-                logger.logAsyncTaskProgress(entry, "inflating expanded smart reply state")
+                logger.logAsyncTaskProgress(entry.logKey, "inflating expanded smart reply state")
                 result.expandedInflatedSmartReplies =
                     inflater.inflateSmartReplyViewHolder(
                         context,
@@ -655,7 +660,7 @@ constructor(
                     )
             }
             if (inflateHeadsUp) {
-                logger.logAsyncTaskProgress(entry, "inflating heads up smart reply state")
+                logger.logAsyncTaskProgress(entry.logKey, "inflating heads up smart reply state")
                 result.headsUpInflatedSmartReplies =
                     inflater.inflateSmartReplyViewHolder(
                         context,
@@ -671,10 +676,8 @@ constructor(
             @InflationFlag reInflateFlags: Int,
             entry: NotificationEntry,
             builder: Notification.Builder,
-            isMinimized: Boolean,
-            usesIncreasedHeight: Boolean,
-            usesIncreasedHeadsUpHeight: Boolean,
-            systemUIContext: Context,
+            bindParams: BindParams,
+            systemUiContext: Context,
             packageContext: Context,
             row: ExpandableNotificationRow,
             notifLayoutInflaterFactoryProvider: NotifLayoutInflaterFactory.Provider,
@@ -683,23 +686,40 @@ constructor(
             promotedNotificationContentExtractor: PromotedNotificationContentExtractor,
             logger: NotificationRowContentBinderLogger,
         ): InflationProgress {
-            val promoted =
+            val rowImageInflater =
+                RowImageInflater.newInstance(
+                    previousIndex = row.mImageModelIndex,
+                    // inflating the contracted view is the legacy invalidation trigger
+                    reinflating = reInflateFlags and FLAG_CONTENT_VIEW_CONTRACTED != 0,
+                )
+
+            val promotedContent =
                 if (PromotedNotificationContentModel.featureFlagEnabled()) {
-                    logger.logAsyncTaskProgress(entry, "extracting promoted notification content")
-                    val extracted =
-                        promotedNotificationContentExtractor.extractContent(entry, builder)
                     logger.logAsyncTaskProgress(
-                        entry,
-                        "extracted promoted notification content: {extracted}",
+                        entry.logKey,
+                        "extracting promoted notification content",
                     )
-                    extracted
+                    val imageModelProvider = rowImageInflater.useForContentModel()
+                    promotedNotificationContentExtractor
+                        .extractContent(
+                            entry,
+                            builder,
+                            bindParams.redactionType,
+                            imageModelProvider,
+                        )
+                        .also {
+                            logger.logAsyncTaskProgress(
+                                entry.logKey,
+                                "extracted promoted notification content: ${it?.toRedactedString()}",
+                            )
+                        }
                 } else {
                     null
                 }
 
             // process conversations and extract the messaging style
             val messagingStyle =
-                if (entry.ranking.isConversation) {
+                if (NmSummarizationUiFlag.isEnabled || entry.ranking.isConversation) {
                     conversationProcessor.processNotification(entry, builder, logger)
                 } else null
 
@@ -707,9 +727,10 @@ constructor(
                 createRemoteViews(
                     reInflateFlags = reInflateFlags,
                     builder = builder,
-                    isMinimized = isMinimized,
-                    usesIncreasedHeight = usesIncreasedHeight,
-                    usesIncreasedHeadsUpHeight = usesIncreasedHeadsUpHeight,
+                    bindParams = bindParams,
+                    entry = entry,
+                    systemUiContext = systemUiContext,
+                    packageContext = packageContext,
                     row = row,
                     notifLayoutInflaterFactoryProvider = notifLayoutInflaterFactoryProvider,
                     headsUpStyleProvider = headsUpStyleProvider,
@@ -721,12 +742,15 @@ constructor(
                     AsyncHybridViewInflation.isEnabled &&
                         reInflateFlags and FLAG_CONTENT_VIEW_SINGLE_LINE != 0
                 ) {
-                    logger.logAsyncTaskProgress(entry, "inflating single line view model")
+                    logger.logAsyncTaskProgress(entry.logKey, "inflating single line view model")
                     SingleLineViewInflater.inflateSingleLineViewModel(
                         notification = entry.sbn.notification,
                         messagingStyle = messagingStyle,
                         builder = builder,
-                        systemUiContext = systemUIContext,
+                        systemUiContext = systemUiContext,
+                        redactText = false,
+                        summarization =
+                            entry.sbn.notification.extras.getCharSequence(EXTRA_SUMMARIZED_CONTENT),
                     )
                 } else null
 
@@ -735,11 +759,25 @@ constructor(
                     LockscreenOtpRedaction.isEnabled &&
                         reInflateFlags and FLAG_CONTENT_VIEW_PUBLIC_SINGLE_LINE != 0
                 ) {
-                    logger.logAsyncTaskProgress(entry, "inflating public single line view model")
-                    SingleLineViewInflater.inflateRedactedSingleLineViewModel(
-                        systemUIContext,
-                        entry.ranking.isConversation,
+                    logger.logAsyncTaskProgress(
+                        entry.logKey,
+                        "inflating public single line view model",
                     )
+                    if (bindParams.redactionType == REDACTION_TYPE_OTP) {
+                        SingleLineViewInflater.inflateSingleLineViewModel(
+                            notification = entry.sbn.notification,
+                            messagingStyle = messagingStyle,
+                            builder = builder,
+                            systemUiContext = systemUiContext,
+                            redactText = true,
+                            summarization = null,
+                        )
+                    } else {
+                        SingleLineViewInflater.inflatePublicSingleLineViewModel(
+                            systemUiContext,
+                            entry.ranking.isConversation,
+                        )
+                    }
                 } else null
 
             val headsUpStatusBarModel =
@@ -757,58 +795,104 @@ constructor(
 
             return InflationProgress(
                 packageContext = packageContext,
+                rowImageInflater = rowImageInflater,
                 remoteViews = remoteViews,
                 contentModel = contentModel,
-                extractedPromotedNotificationContentModel = promoted,
+                promotedContent = promotedContent,
             )
+        }
+
+        private fun createSensitiveContentMessageNotification(
+            original: Notification,
+            originalStyle: Notification.Style?,
+            sysUiContext: Context,
+            packageContext: Context,
+        ): Notification.Builder {
+            val redacted = Notification.Builder(packageContext, original.channelId)
+            redacted.setContentTitle(original.extras.getCharSequence(Notification.EXTRA_TITLE))
+            val redactedMessage =
+                sysUiContext.getString(R.string.redacted_otp_notification_single_line_text)
+
+            if (originalStyle is MessagingStyle) {
+                val newStyle = MessagingStyle(originalStyle.user)
+                newStyle.conversationTitle = originalStyle.conversationTitle
+                newStyle.isGroupConversation = false
+                newStyle.conversationType = originalStyle.conversationType
+                newStyle.shortcutIcon = originalStyle.shortcutIcon
+                newStyle.setBuilder(redacted)
+                val latestMessage = MessagingStyle.findLatestIncomingMessage(originalStyle.messages)
+                if (latestMessage != null) {
+                    val newMessage =
+                        MessagingStyle.Message(
+                            redactedMessage,
+                            latestMessage.timestamp,
+                            latestMessage.senderPerson,
+                        )
+                    newStyle.addMessage(newMessage)
+                }
+                redacted.style = newStyle
+            } else {
+                redacted.setContentText(redactedMessage)
+            }
+            redacted.setLargeIcon(original.getLargeIcon())
+            redacted.setSmallIcon(original.smallIcon)
+            redacted.setWhen(original.getWhen())
+            return redacted
         }
 
         private fun createRemoteViews(
             @InflationFlag reInflateFlags: Int,
             builder: Notification.Builder,
-            isMinimized: Boolean,
-            usesIncreasedHeight: Boolean,
-            usesIncreasedHeadsUpHeight: Boolean,
+            bindParams: BindParams,
+            entry: NotificationEntry,
+            systemUiContext: Context,
+            packageContext: Context,
             row: ExpandableNotificationRow,
             notifLayoutInflaterFactoryProvider: NotifLayoutInflaterFactory.Provider,
             headsUpStyleProvider: HeadsUpStyleProvider,
             logger: NotificationRowContentBinderLogger,
         ): NewRemoteViews {
             return TraceUtils.trace("NotificationContentInflater.createRemoteViews") {
-                val entryForLogging: NotificationEntry = row.entry
                 val contracted =
                     if (reInflateFlags and FLAG_CONTENT_VIEW_CONTRACTED != 0) {
                         logger.logAsyncTaskProgress(
-                            entryForLogging,
+                            row.loggingKey,
                             "creating contracted remote view",
                         )
-                        createContentView(builder, isMinimized, usesIncreasedHeight)
+                        createContentView(builder, bindParams.isMinimized)
                     } else null
                 val expanded =
                     if (reInflateFlags and FLAG_CONTENT_VIEW_EXPANDED != 0) {
-                        logger.logAsyncTaskProgress(
-                            entryForLogging,
-                            "creating expanded remote view",
-                        )
-                        createExpandedView(builder, isMinimized)
+                        logger.logAsyncTaskProgress(row.loggingKey, "creating expanded remote view")
+                        createExpandedView(builder, bindParams.isMinimized)
                     } else null
                 val headsUp =
                     if (reInflateFlags and FLAG_CONTENT_VIEW_HEADS_UP != 0) {
-                        logger.logAsyncTaskProgress(
-                            entryForLogging,
-                            "creating heads up remote view",
-                        )
+                        logger.logAsyncTaskProgress(row.loggingKey, "creating heads up remote view")
                         val isHeadsUpCompact = headsUpStyleProvider.shouldApplyCompactStyle()
                         if (isHeadsUpCompact) {
                             builder.createCompactHeadsUpContentView()
                         } else {
-                            builder.createHeadsUpContentView(usesIncreasedHeadsUpHeight)
+                            @Suppress("DEPRECATION") builder.createHeadsUpContentView()
                         }
                     } else null
                 val public =
                     if (reInflateFlags and FLAG_CONTENT_VIEW_PUBLIC != 0) {
-                        logger.logAsyncTaskProgress(entryForLogging, "creating public remote view")
-                        builder.makePublicContentView(isMinimized)
+                        logger.logAsyncTaskProgress(row.loggingKey, "creating public remote view")
+                        if (
+                            LockscreenOtpRedaction.isEnabled &&
+                                bindParams.redactionType == REDACTION_TYPE_OTP
+                        ) {
+                            createSensitiveContentMessageNotification(
+                                    entry.sbn.notification,
+                                    builder.style,
+                                    systemUiContext,
+                                    packageContext,
+                                )
+                                .createContentView()
+                        } else {
+                            builder.makePublicContentView(bindParams.isMinimized)
+                        }
                     } else null
                 val normalGroupHeader =
                     if (
@@ -816,7 +900,7 @@ constructor(
                             reInflateFlags and FLAG_GROUP_SUMMARY_HEADER != 0
                     ) {
                         logger.logAsyncTaskProgress(
-                            entryForLogging,
+                            row.loggingKey,
                             "creating group summary remote view",
                         )
                         builder.makeNotificationGroupHeader()
@@ -827,7 +911,7 @@ constructor(
                             reInflateFlags and FLAG_LOW_PRIORITY_GROUP_SUMMARY_HEADER != 0
                     ) {
                         logger.logAsyncTaskProgress(
-                            entryForLogging,
+                            row.loggingKey,
                             "creating low-priority group summary remote view",
                         )
                         builder.makeLowPriorityContentView(true /* useRegularSubtext */)
@@ -899,14 +983,14 @@ constructor(
                 val applyCallback: ApplyCallback =
                     object : ApplyCallback() {
                         override fun setResultView(v: View) {
-                            logger.logAsyncTaskProgress(entry, "contracted view applied")
+                            logger.logAsyncTaskProgress(entry.logKey, "contracted view applied")
                             result.inflatedContentView = v
                         }
 
                         override val remoteView: RemoteViews
                             get() = result.remoteViews.contracted
                     }
-                logger.logAsyncTaskProgress(entry, "applying contracted view")
+                logger.logAsyncTaskProgress(entry.logKey, "applying contracted view")
                 applyRemoteView(
                     inflationExecutor = inflationExecutor,
                     inflateSynchronously = inflateSynchronously,
@@ -938,14 +1022,14 @@ constructor(
                 val applyCallback: ApplyCallback =
                     object : ApplyCallback() {
                         override fun setResultView(v: View) {
-                            logger.logAsyncTaskProgress(entry, "expanded view applied")
+                            logger.logAsyncTaskProgress(entry.logKey, "expanded view applied")
                             result.inflatedExpandedView = v
                         }
 
                         override val remoteView: RemoteViews
                             get() = result.remoteViews.expanded
                     }
-                logger.logAsyncTaskProgress(entry, "applying expanded view")
+                logger.logAsyncTaskProgress(entry.logKey, "applying expanded view")
                 applyRemoteView(
                     inflationExecutor = inflationExecutor,
                     inflateSynchronously = inflateSynchronously,
@@ -977,14 +1061,14 @@ constructor(
                 val applyCallback: ApplyCallback =
                     object : ApplyCallback() {
                         override fun setResultView(v: View) {
-                            logger.logAsyncTaskProgress(entry, "heads up view applied")
+                            logger.logAsyncTaskProgress(entry.logKey, "heads up view applied")
                             result.inflatedHeadsUpView = v
                         }
 
                         override val remoteView: RemoteViews
                             get() = result.remoteViews.headsUp
                     }
-                logger.logAsyncTaskProgress(entry, "applying heads up view")
+                logger.logAsyncTaskProgress(entry.logKey, "applying heads up view")
                 applyRemoteView(
                     inflationExecutor = inflationExecutor,
                     inflateSynchronously = inflateSynchronously,
@@ -1016,14 +1100,14 @@ constructor(
                 val applyCallback: ApplyCallback =
                     object : ApplyCallback() {
                         override fun setResultView(v: View) {
-                            logger.logAsyncTaskProgress(entry, "public view applied")
+                            logger.logAsyncTaskProgress(entry.logKey, "public view applied")
                             result.inflatedPublicView = v
                         }
 
                         override val remoteView: RemoteViews
                             get() = result.remoteViews.public!!
                     }
-                logger.logAsyncTaskProgress(entry, "applying public view")
+                logger.logAsyncTaskProgress(entry.logKey, "applying public view")
                 applyRemoteView(
                     inflationExecutor = inflationExecutor,
                     inflateSynchronously = inflateSynchronously,
@@ -1058,14 +1142,17 @@ constructor(
                     val applyCallback: ApplyCallback =
                         object : ApplyCallback() {
                             override fun setResultView(v: View) {
-                                logger.logAsyncTaskProgress(entry, "group header view applied")
+                                logger.logAsyncTaskProgress(
+                                    entry.logKey,
+                                    "group header view applied",
+                                )
                                 result.inflatedGroupHeaderView = v as NotificationHeaderView?
                             }
 
                             override val remoteView: RemoteViews
                                 get() = result.remoteViews.normalGroupHeader!!
                         }
-                    logger.logAsyncTaskProgress(entry, "applying group header view")
+                    logger.logAsyncTaskProgress(entry.logKey, "applying group header view")
                     applyRemoteView(
                         inflationExecutor = inflationExecutor,
                         inflateSynchronously = inflateSynchronously,
@@ -1101,7 +1188,7 @@ constructor(
                         object : ApplyCallback() {
                             override fun setResultView(v: View) {
                                 logger.logAsyncTaskProgress(
-                                    entry,
+                                    entry.logKey,
                                     "low-priority group header view applied",
                                 )
                                 result.inflatedMinimizedGroupHeaderView =
@@ -1111,7 +1198,10 @@ constructor(
                             override val remoteView: RemoteViews
                                 get() = result.remoteViews.minimizedGroupHeader!!
                         }
-                    logger.logAsyncTaskProgress(entry, "applying low priority group header view")
+                    logger.logAsyncTaskProgress(
+                        entry.logKey,
+                        "applying low priority group header view",
+                    )
                     applyRemoteView(
                         inflationExecutor = inflationExecutor,
                         inflateSynchronously = inflateSynchronously,
@@ -1149,7 +1239,7 @@ constructor(
             )
             val cancellationSignal = CancellationSignal()
             cancellationSignal.setOnCancelListener {
-                logger.logAsyncTaskProgress(entry, "apply cancelled")
+                logger.logAsyncTaskProgress(entry.logKey, "apply cancelled")
                 Trace.endAsyncSection(APPLY_TRACE_METHOD, System.identityHashCode(row))
                 runningInflations.values.forEach(
                     Consumer { obj: CancellationSignal -> obj.cancel() }
@@ -1206,7 +1296,8 @@ constructor(
                     handleInflationError(
                         runningInflations,
                         e,
-                        row.entry,
+                        row,
+                        entry,
                         callback,
                         logger,
                         "applying view synchronously",
@@ -1231,7 +1322,8 @@ constructor(
                             handleInflationError(
                                 runningInflations,
                                 InflationException(invalidReason),
-                                row.entry,
+                                row,
+                                entry,
                                 callback,
                                 logger,
                                 "applied invalid view",
@@ -1290,7 +1382,8 @@ constructor(
                             handleInflationError(
                                 runningInflations,
                                 e,
-                                row.entry,
+                                row,
+                                entry,
                                 callback,
                                 logger,
                                 "applying view",
@@ -1326,9 +1419,17 @@ constructor(
          */
         @VisibleForTesting
         fun isValidView(view: View, entry: NotificationEntry, resources: Resources): String? {
-            return if (!satisfiesMinHeightRequirement(view, entry, resources)) {
-                "inflated notification does not meet minimum height requirement"
-            } else null
+            if (!satisfiesMinHeightRequirement(view, entry, resources)) {
+                return "inflated notification does not meet minimum height requirement"
+            }
+
+            if (NotificationCustomContentMemoryVerifier.requiresImageViewMemorySizeCheck(entry)) {
+                if (!NotificationCustomContentMemoryVerifier.satisfiesMemoryLimits(view, entry)) {
+                    return "inflated notification does not meet maximum memory size requirement"
+                }
+            }
+
+            return null
         }
 
         private fun satisfiesMinHeightRequirement(
@@ -1385,15 +1486,16 @@ constructor(
         private fun handleInflationError(
             runningInflations: HashMap<Int, CancellationSignal>,
             e: Exception,
-            notification: NotificationEntry,
+            notification: ExpandableNotificationRow?,
+            entry: NotificationEntry,
             callback: InflationCallback?,
             logger: NotificationRowContentBinderLogger,
             logContext: String,
         ) {
             Assert.isMainThread()
-            logger.logAsyncTaskException(notification, logContext, e)
+            logger.logAsyncTaskException(notification?.loggingKey, logContext, e)
             runningInflations.values.forEach(Consumer { obj: CancellationSignal -> obj.cancel() })
-            callback?.handleInflationException(notification, e)
+            callback?.handleInflationException(entry, e)
         }
 
         /**
@@ -1416,12 +1518,14 @@ constructor(
             if (runningInflations.isNotEmpty()) {
                 return false
             }
-            logger.logAsyncTaskProgress(entry, "finishing")
+            logger.logAsyncTaskProgress(row.loggingKey, "finishing")
+
+            // Put the new image index on the row
+            row.mImageModelIndex = result.rowImageInflater.getNewImageIndex()
 
             entry.setContentModel(result.contentModel)
             if (PromotedNotificationContentModel.featureFlagEnabled()) {
-                entry.promotedNotificationContentModel =
-                    result.extractedPromotedNotificationContentModel
+                entry.promotedNotificationContentModels = result.promotedContent
             }
 
             result.inflatedSmartReplyState?.let { row.privateLayout.setInflatedSmartReplyState(it) }
@@ -1598,11 +1702,12 @@ constructor(
         private fun createContentView(
             builder: Notification.Builder,
             isMinimized: Boolean,
-            useLarge: Boolean,
         ): RemoteViews {
             return if (isMinimized) {
                 builder.makeLowPriorityContentView(false /* useRegularSubtext */)
-            } else builder.createContentView(useLarge)
+            } else {
+                @Suppress("DEPRECATION") builder.createContentView()
+            }
         }
 
         /**

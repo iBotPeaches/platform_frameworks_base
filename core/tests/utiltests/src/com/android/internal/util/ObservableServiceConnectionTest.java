@@ -29,7 +29,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
@@ -52,7 +52,7 @@ import java.util.concurrent.Executor;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ObservableServiceConnection.class)
+@DisabledOnRavenwood(blockedBy = ObservableServiceConnection.class)
 public class ObservableServiceConnectionTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

@@ -17,19 +17,14 @@
 package android.content.res
 
 import android.platform.test.annotations.Presubmit
-import android.platform.test.ravenwood.RavenwoodRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @Presubmit
 @RunWith(AndroidJUnit4::class)
 class FontScaleConverterTest {
-
-    @get:Rule
-    val ravenwoodRule: RavenwoodRule = RavenwoodRule.Builder().build()
 
     @Test
     fun straightInterpolation() {

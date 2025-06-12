@@ -27,6 +27,7 @@ import android.credentials.GetCredentialException;
 import android.credentials.GetCredentialRequest;
 import android.credentials.GetCredentialResponse;
 import android.credentials.IGetCredentialCallback;
+import android.credentials.flags.Flags;
 import android.credentials.selection.ProviderData;
 import android.credentials.selection.RequestInfo;
 import android.os.Binder;
@@ -146,6 +147,12 @@ public class GetRequestSession extends RequestSession<GetCredentialRequest,
         if (response != null) {
             mRequestSessionMetric.collectChosenProviderStatus(
                     ProviderStatusForMetrics.FINAL_SUCCESS.getMetricCode());
+            if (Flags.fixMetricDuplicationEmits()) {
+                if (response.getCredential() != null) {
+                    mRequestSessionMetric.collectChosenClassType(response.getCredential()
+                            .getType());
+                }
+            }
             respondToClientWithResponseAndFinish(response);
         } else {
             mRequestSessionMetric.collectChosenProviderStatus(

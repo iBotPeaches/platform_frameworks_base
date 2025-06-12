@@ -22,6 +22,8 @@ import com.android.systemui.log.LogBufferFactory
 import com.android.systemui.plugins.qs.QSContainerController
 import com.android.systemui.qs.ui.adapter.QSSceneAdapterImpl
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractor
+import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractorPassThrough
 import com.android.systemui.shade.carrier.ShadeCarrierGroupControllerLog
 import com.android.systemui.shade.data.repository.PrivacyChipRepository
 import com.android.systemui.shade.data.repository.PrivacyChipRepositoryImpl
@@ -35,6 +37,8 @@ import com.android.systemui.shade.domain.interactor.ShadeAnimationInteractorLega
 import com.android.systemui.shade.domain.interactor.ShadeAnimationInteractorSceneContainerImpl
 import com.android.systemui.shade.domain.interactor.ShadeBackActionInteractor
 import com.android.systemui.shade.domain.interactor.ShadeBackActionInteractorImpl
+import com.android.systemui.shade.domain.interactor.ShadeExpandedStateInteractor
+import com.android.systemui.shade.domain.interactor.ShadeExpandedStateInteractorImpl
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.shade.domain.interactor.ShadeInteractorImpl
 import com.android.systemui.shade.domain.interactor.ShadeInteractorLegacyImpl
@@ -43,13 +47,22 @@ import com.android.systemui.shade.domain.interactor.ShadeLockscreenInteractor
 import com.android.systemui.shade.domain.interactor.ShadeLockscreenInteractorImpl
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractorImpl
+import com.android.systemui.window.dagger.WindowRootViewBlurModule
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import javax.inject.Provider
 
 /** Module for classes related to the notification shade. */
-@Module(includes = [StartShadeModule::class, ShadeViewProviderModule::class])
+@Module(
+    includes =
+        [
+            StartShadeModule::class,
+            ShadeViewProviderModule::class,
+            WindowRootViewBlurModule::class,
+            ShadeDisplayAwareWithShadeWindowModule::class,
+        ]
+)
 abstract class ShadeModule {
     companion object {
         @Provides
@@ -145,6 +158,19 @@ abstract class ShadeModule {
 
         @Provides
         @SysUISingleton
+        fun providesBrightnessMirrorInteractor(
+            sceneContainerOn: Provider<BrightnessMirrorShowingInteractorPassThrough>,
+            sceneContainerOff: Provider<NotificationPanelViewController>,
+        ): BrightnessMirrorShowingInteractor {
+            return if (SceneContainerFlag.isEnabled) {
+                sceneContainerOn.get()
+            } else {
+                sceneContainerOff.get()
+            }
+        }
+
+        @Provides
+        @SysUISingleton
         fun providesQSContainerController(impl: QSSceneAdapterImpl): QSContainerController {
             return impl
         }
@@ -176,4 +202,10 @@ abstract class ShadeModule {
     @Binds
     @SysUISingleton
     abstract fun bindShadeModeInteractor(impl: ShadeModeInteractorImpl): ShadeModeInteractor
+
+    @Binds
+    @SysUISingleton
+    abstract fun bindShadeExpandedStateInteractor(
+        impl: ShadeExpandedStateInteractorImpl
+    ): ShadeExpandedStateInteractor
 }

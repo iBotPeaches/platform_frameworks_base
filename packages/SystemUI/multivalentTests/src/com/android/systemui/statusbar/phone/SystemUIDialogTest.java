@@ -16,6 +16,8 @@
 
 package com.android.systemui.statusbar.phone;
 
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static junit.framework.Assert.assertFalse;
@@ -27,10 +29,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Configuration;
-import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.platform.test.ravenwood.RavenwoodRule;
@@ -40,11 +42,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.systemui.Dependency;
-import com.android.systemui.Flags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.animation.DialogTransitionAnimator;
 import com.android.systemui.animation.back.BackAnimationSpec;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.kosmos.KosmosJavaAdapter;
 import com.android.systemui.model.SysUiState;
 
 import org.junit.Before;
@@ -69,6 +71,7 @@ public class SystemUIDialogTest extends SysuiTestCase {
     private BroadcastDispatcher mBroadcastDispatcher;
     @Mock
     private SystemUIDialog.Delegate mDelegate;
+    private SysUiState mSysUiState;
 
     // TODO(b/292141694): build out Ravenwood support for DeviceFlagsValueProvider
     // Ravenwood already has solid support for SetFlagsRule, but CheckFlagsRule will be added soon
@@ -79,7 +82,8 @@ public class SystemUIDialogTest extends SysuiTestCase {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-
+        KosmosJavaAdapter kosmos = new KosmosJavaAdapter(this);
+        mSysUiState = kosmos.getSysuiState();
         mDependency.injectTestDependency(BroadcastDispatcher.class, mBroadcastDispatcher);
         when(mDelegate.getBackAnimationSpec(ArgumentMatchers.any()))
                 .thenReturn(mock(BackAnimationSpec.class));
@@ -120,7 +124,22 @@ public class SystemUIDialogTest extends SysuiTestCase {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_PREDICTIVE_BACK_ANIMATE_DIALOGS)
+    public void testRegisterReceiverWithoutAcsd() {
+        SystemUIDialog dialog = createDialogWithDelegate(mContext, mDelegate,
+                false /* shouldAcsdDismissDialog */);
+        final ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
+                ArgumentCaptor.forClass(BroadcastReceiver.class);
+        final ArgumentCaptor<IntentFilter> intentFilterCaptor =
+                ArgumentCaptor.forClass(IntentFilter.class);
+
+        dialog.show();
+        verify(mBroadcastDispatcher).registerReceiver(broadcastReceiverCaptor.capture(),
+                intentFilterCaptor.capture(), ArgumentMatchers.eq(null), ArgumentMatchers.any());
+        assertTrue(intentFilterCaptor.getValue().hasAction(Intent.ACTION_SCREEN_OFF));
+        assertFalse(intentFilterCaptor.getValue().hasAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+    }
+
+    @Test
     public void usePredictiveBackAnimFlag() {
         final SystemUIDialog dialog = new SystemUIDialog(mContext);
 
@@ -159,11 +178,36 @@ public class SystemUIDialogTest extends SysuiTestCase {
         assertThat(calledStop.get()).isTrue();
     }
 
+    /** Regression test for b/386871258 */
+    @Test
+    public void sysuiStateUpdated() {
+        SystemUIDialog dialog1 =
+                createDialogWithDelegate(mContext, mDelegate, /* shouldAcsDismissDialog */ true);
+        SystemUIDialog dialog2 =
+                createDialogWithDelegate(mContext, mDelegate, /* shouldAcsDismissDialog */ true);
+
+        dialog1.show();
+        assertThat((mSysUiState.getFlags() & SYSUI_STATE_DIALOG_SHOWING) != 0).isTrue();
+
+        dialog2.show();
+        assertThat((mSysUiState.getFlags() & SYSUI_STATE_DIALOG_SHOWING) != 0).isTrue();
+
+        dialog2.dismiss();
+        // explicitly call onWindowFocusChanged to simulate dialog 1 regaining focus
+        dialog1.onWindowFocusChanged(/* hasFocus= */ true);
+        assertThat((mSysUiState.getFlags() & SYSUI_STATE_DIALOG_SHOWING) != 0).isTrue();
+
+        dialog1.dismiss();
+        assertThat((mSysUiState.getFlags() & SYSUI_STATE_DIALOG_SHOWING) != 0).isFalse();
+    }
+
+
     @Test
     public void delegateIsCalled_inCorrectOrder() {
         Configuration configuration = new Configuration();
         InOrder inOrder = Mockito.inOrder(mDelegate);
-        SystemUIDialog dialog = createDialogWithDelegate();
+        SystemUIDialog dialog = createDialogWithDelegate(mContext, mDelegate,
+                true /* shouldAcsdDismissDialog */);
 
         dialog.show();
         dialog.onWindowFocusChanged(/* hasFocus= */ true);
@@ -178,14 +222,15 @@ public class SystemUIDialogTest extends SysuiTestCase {
         inOrder.verify(mDelegate).onStop(dialog);
     }
 
-    private SystemUIDialog createDialogWithDelegate() {
+    private SystemUIDialog createDialogWithDelegate(Context context,
+            SystemUIDialog.Delegate delegate, boolean shouldAcsdDismissDialog) {
         SystemUIDialog.Factory factory = new SystemUIDialog.Factory(
                 getContext(),
                 Dependency.get(SystemUIDialogManager.class),
-                Dependency.get(SysUiState.class),
+                mSysUiState,
                 Dependency.get(BroadcastDispatcher.class),
                 Dependency.get(DialogTransitionAnimator.class)
         );
-        return factory.create(mDelegate);
+        return factory.create(delegate, context, shouldAcsdDismissDialog);
     }
 }

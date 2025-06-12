@@ -21,7 +21,6 @@ import static com.google.common.truth.Truth.assertThat;
 import android.os.BatteryConsumer;
 import android.os.Process;
 import android.os.UidBatteryConsumer;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -36,16 +35,12 @@ import org.junit.runner.RunWith;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class GnssPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
     private static final double PRECISION = 0.00001;
 
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
     private static final int APP_UID2 = Process.FIRST_APPLICATION_UID + 222;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_GPS_ON, 360.0)
             .setAveragePower(PowerProfile.POWER_GPS_SIGNAL_QUALITY_BASED,

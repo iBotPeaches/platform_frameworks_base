@@ -45,3 +45,35 @@ HSPLandroid/os/MessageQueue$OnFileDescriptorEventListener;->*
 HSPLandroid/os/MessageQueue$StackNodeType;->*
 HSPLandroid/os/MessageQueue$StateNode;->*
 HSPLandroid/os/MessageQueue$TimedParkStateNode;->*
+
+# For now, compile all methods in PerfettoTrace and PerfettoTrackEventExtra.
+# Similar to the existing Trace APIs, these new APIs can impact the performance
+# of many subsystems including MessageQueue. This also keeps benchmark
+# comparisons between both APIs fair.
+HSPLandroid/os/PerfettoTrace$Category;->*
+HSPLandroid/os/PerfettoTrace;->*
+HSPLandroid/os/PerfettoTrackEventExtra;->*
+HSPLandroid/os/PerfettoTrackEventExtra$Builder;->*
+HSPLandroid/os/PerfettoTrackEventExtra$ArgBool;->*
+HSPLandroid/os/PerfettoTrackEventExtra$ArgInt64;->*
+HSPLandroid/os/PerfettoTrackEventExtra$ArgDouble;->*
+HSPLandroid/os/PerfettoTrackEventExtra$ArgString;->*
+HSPLandroid/os/PerfettoTrackEventExtra$CounterInt64;->*
+HSPLandroid/os/PerfettoTrackEventExtra$CounterDouble;->*
+HSPLandroid/os/PerfettoTrackEventExtra$CounterTrack;->*
+HSPLandroid/os/PerfettoTrackEventExtra$NamedTrack;->*
+HSPLandroid/os/PerfettoTrackEventExtra$Flow;->*
+HSPLandroid/os/PerfettoTrackEventExtra$Proto;->*
+HSPLandroid/os/PerfettoTrackEventExtra$FieldInt64;->*
+HSPLandroid/os/PerfettoTrackEventExtra$FieldDouble;->*
+HSPLandroid/os/PerfettoTrackEventExtra$FieldString;->*
+HSPLandroid/os/PerfettoTrackEventExtra$FieldNested;->*
+HSPLandroid/os/PerfettoTrackEventExtra$Pool;->*
+HSPLandroid/os/PerfettoTrackEventExtra$RingBuffer;->*
+
+# While the SystemFeaturesMetadata static cache isn't heavyweight, ensure it's
+# pre-initialized in the boot image to avoid redundant per-process overhead.
+# TODO(b/326623529): Consider removing this after the feature has fully ramped
+# and is captured with the boot image profiling pipeline.
+HSPLcom/android/internal/pm/SystemFeaturesMetadata;->*
+Lcom/android/internal/pm/SystemFeaturesMetadata;

@@ -22,7 +22,6 @@ import android.tools.flicker.legacy.FlickerBuilder
 import android.tools.flicker.legacy.LegacyFlickerTest
 import android.tools.flicker.legacy.LegacyFlickerTestFactory
 import android.tools.traces.component.ComponentNameMatcher
-import android.tools.traces.component.EdgeExtensionComponentMatcher
 import androidx.test.filters.FlakyTest
 import androidx.test.filters.RequiresDevice
 import com.android.wm.shell.flicker.splitscreen.benchmark.CopyContentInSplitBenchmark
@@ -99,7 +98,6 @@ class CopyContentInSplit(override val flicker: LegacyFlickerTest) :
                         ComponentNameMatcher.SPLASH_SCREEN,
                         ComponentNameMatcher.SNAPSHOT,
                         ComponentNameMatcher.IME_SNAPSHOT,
-                        EdgeExtensionComponentMatcher(),
                         magnifierLayer,
                         popupWindowLayer
                     )

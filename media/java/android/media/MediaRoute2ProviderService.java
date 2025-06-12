@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -96,12 +97,10 @@ public abstract class MediaRoute2ProviderService extends Service {
      * system media, as described by {@link MediaRoute2Info#getSupportedRoutingTypes()}.
      *
      * @see #onCreateSystemRoutingSession
-     * @hide
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     @SdkConstant(SdkConstant.SdkConstantType.INTENT_CATEGORY)
-    public static final String SERVICE_INTERFACE_SYSTEM_MEDIA =
+    public static final String CATEGORY_SYSTEM_MEDIA =
             "android.media.MediaRoute2ProviderService.SYSTEM_MEDIA";
 
     /**
@@ -165,9 +164,7 @@ public abstract class MediaRoute2ProviderService extends Service {
      * The request has failed because the requested operation is not implemented by the provider.
      *
      * @see #notifyRequestFailed
-     * @hide
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     public static final int REASON_UNIMPLEMENTED = 5;
 
@@ -175,9 +172,7 @@ public abstract class MediaRoute2ProviderService extends Service {
      * The request has failed because the provider has failed to route system media.
      *
      * @see #notifyRequestFailed
-     * @hide
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     public static final int REASON_FAILED_TO_REROUTE_SYSTEM_MEDIA = 6;
 
@@ -217,7 +212,7 @@ public abstract class MediaRoute2ProviderService extends Service {
      * package (for example, if they affect the entire system).
      */
     @GuardedBy("mRequestIdsLock")
-    private final LongSparseArray<Integer> mSystemMediaSessionCreationRequests =
+    private final LongSparseArray<Integer> mSystemRoutingSessionCreationRequests =
             new LongSparseArray<>();
 
     @GuardedBy("mSessionLock")
@@ -225,6 +220,10 @@ public abstract class MediaRoute2ProviderService extends Service {
 
     @GuardedBy("mSessionLock")
     private final ArrayMap<String, MediaStreams> mOngoingMediaStreams = new ArrayMap<>();
+
+    @GuardedBy("mSessionLock")
+    private final ArrayMap<String, RoutingSessionInfo> mPendingSystemSessionReleases =
+            new ArrayMap<>();
 
     public MediaRoute2ProviderService() {
         mHandler = new Handler(Looper.getMainLooper());
@@ -346,8 +345,15 @@ public abstract class MediaRoute2ProviderService extends Service {
     /**
      * Notifies the system of the successful creation of a system media routing session.
      *
-     * <p>This method can only be called as the result of a prior call to {@link
+     * <p>This method must only be called as the result of a prior call to {@link
      * #onCreateSystemRoutingSession}.
+     *
+     * <p>This method returns a {@link MediaStreams} instance that holds the media streams to route
+     * as part of the newly created routing session. May be null if system media capture failed, in
+     * which case you can ignore the return value, as you will receive a call to {@link
+     * #onReleaseSession} where you can clean up this session. {@link AudioRecord#startRecording()}
+     * must be called immediately on {@link MediaStreams#getAudioRecord()} after calling this
+     * method, in order to start streaming audio to the receiver.
      *
      * @param requestId the ID of the {@link #onCreateSystemRoutingSession} request which this call
      *     is in response to.
@@ -355,17 +361,15 @@ public abstract class MediaRoute2ProviderService extends Service {
      *     session.
      * @param formats the {@link MediaStreamsFormats} that describes the format for the {@link
      *     MediaStreams} to return.
-     * @return a {@link MediaStreams} instance that holds the media streams to route as part of the
-     *     newly created routing session. May be null if system media capture failed, in which case
-     *     you can ignore the return value, as you will receive a call to {@link #onReleaseSession}
-     *     where you can clean up this session
-     * @hide
+     * @return The {@link MediaStreams} to route as part of the new session, or null if system media
+     *     capture failed and the result can be ignored.
+     * @throws IllegalStateException If the provided {@code requestId} doesn't correspond to a
+     *     previous call to {@link #onCreateSystemRoutingSession}.
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     @RequiresPermission(Manifest.permission.MODIFY_AUDIO_ROUTING)
     @Nullable
-    public final MediaStreams notifySystemMediaSessionCreated(
+    public final MediaStreams notifySystemRoutingSessionCreated(
             long requestId,
             @NonNull RoutingSessionInfo sessionInfo,
             @NonNull MediaStreamsFormats formats) {
@@ -374,7 +378,7 @@ public abstract class MediaRoute2ProviderService extends Service {
         if (DEBUG) {
             Log.d(
                     TAG,
-                    "notifySystemMediaSessionCreated: Creating a session. requestId="
+                    "notifySystemRoutingSessionCreated: Creating a session. requestId="
                             + requestId
                             + ", sessionInfo="
                             + sessionInfo);
@@ -382,8 +386,8 @@ public abstract class MediaRoute2ProviderService extends Service {
 
         Integer uid;
         synchronized (mRequestIdsLock) {
-            uid = mSystemMediaSessionCreationRequests.get(requestId);
-            mSystemMediaSessionCreationRequests.remove(requestId);
+            uid = mSystemRoutingSessionCreationRequests.get(requestId);
+            mSystemRoutingSessionCreationRequests.remove(requestId);
         }
 
         if (uid == null) {
@@ -417,7 +421,7 @@ public abstract class MediaRoute2ProviderService extends Service {
         }
 
         AudioFormat audioFormat = formats.mAudioFormat;
-        var mediaStreamsBuilder = new MediaStreams.Builder();
+        var mediaStreamsBuilder = new MediaStreams.Builder(sessionInfo);
         if (audioFormat != null) {
             populateAudioStream(audioFormat, uid, mediaStreamsBuilder);
         }
@@ -458,7 +462,6 @@ public abstract class MediaRoute2ProviderService extends Service {
         if (uid != Process.INVALID_UID) {
             audioMixingRuleBuilder.addMixRule(AudioMixingRule.RULE_MATCH_UID, uid);
         }
-
         AudioMix mix =
                 new AudioMix.Builder(audioMixingRuleBuilder.build())
                         .setFormat(audioFormat)
@@ -471,7 +474,11 @@ public abstract class MediaRoute2ProviderService extends Service {
             Log.e(TAG, "Couldn't fetch the audio manager.");
             return;
         }
-        audioManager.registerAudioPolicy(audioPolicy);
+        int audioPolicyResult = audioManager.registerAudioPolicy(audioPolicy);
+        if (audioPolicyResult != AudioManager.SUCCESS) {
+            Log.e(TAG, "Failed to register the audio policy.");
+            return;
+        }
         var audioRecord = audioPolicy.createAudioRecordSink(mix);
         if (audioRecord == null) {
             Log.e(TAG, "Audio record creation failed.");
@@ -494,7 +501,10 @@ public abstract class MediaRoute2ProviderService extends Service {
 
         String sessionId = sessionInfo.getId();
         synchronized (mSessionLock) {
-            if (mSessionInfos.containsKey(sessionId)) {
+            var mediaStreams = mOngoingMediaStreams.get(sessionId);
+            if (Flags.enableMirroringInMediaRouter2() && mediaStreams != null) {
+                mediaStreams.mSessionInfo = sessionInfo;
+            } else if (mSessionInfos.containsKey(sessionId)) {
                 mSessionInfos.put(sessionId, sessionInfo);
             } else {
                 Log.w(TAG, "notifySessionUpdated: Ignoring unknown session info.");
@@ -521,8 +531,14 @@ public abstract class MediaRoute2ProviderService extends Service {
         RoutingSessionInfo sessionInfo;
         synchronized (mSessionLock) {
             sessionInfo = mSessionInfos.remove(sessionId);
-            maybeReleaseMediaStreams(sessionId);
-
+            if (Flags.enableMirroringInMediaRouter2()) {
+                if (sessionInfo == null) {
+                    sessionInfo = maybeReleaseMediaStreams(sessionId);
+                }
+                if (sessionInfo == null) {
+                    sessionInfo = mPendingSystemSessionReleases.remove(sessionId);
+                }
+            }
             if (sessionInfo == null) {
                 Log.w(TAG, "notifySessionReleased: Ignoring unknown session info.");
                 return;
@@ -539,18 +555,26 @@ public abstract class MediaRoute2ProviderService extends Service {
         }
     }
 
-    /** Releases any system media routing resources associated with the given {@code sessionId}. */
-    private void maybeReleaseMediaStreams(String sessionId) {
+    /**
+     * Releases any system media routing resources associated with the given {@code sessionId}.
+     *
+     * @return The {@link RoutingSessionInfo} that corresponds to the released media streams, or
+     *     null if no streams were released.
+     */
+    @Nullable
+    private RoutingSessionInfo maybeReleaseMediaStreams(String sessionId) {
         if (!Flags.enableMirroringInMediaRouter2()) {
-            return;
+            return null;
         }
         synchronized (mSessionLock) {
             var streams = mOngoingMediaStreams.remove(sessionId);
             if (streams != null) {
                 releaseAudioStream(streams.mAudioPolicy, streams.mAudioRecord);
                 // TODO: b/380431086: Release the video stream once implemented.
+                return streams.mSessionInfo;
             }
         }
+        return null;
     }
 
     // We cannot reach the code that requires MODIFY_AUDIO_ROUTING without holding it.
@@ -630,37 +654,34 @@ public abstract class MediaRoute2ProviderService extends Service {
     /**
      * Called when the service receives a request to create a system routing session.
      *
-     * <p>This method will only be called for routes that support routing of the system media, as
-     * described by {@link MediaRoute2Info#getSupportedRoutingTypes()}.
+     * <p>This method must be overridden by subclasses that support routes that support routing
+     * {@link MediaRoute2Info#getSupportedRoutingTypes() system media}. The provided {@code routeId}
+     * will always correspond to a route that supports routing of the system media, as per {@link
+     * MediaRoute2Info#getSupportedRoutingTypes()}.
      *
-     * <p>Implementors of this method must call {@link #notifySystemMediaSessionCreated} with the
+     * <p>Implementors of this method must call {@link #notifySystemRoutingSessionCreated} with the
      * given {@code requestId} to indicate a successful session creation. If the session creation
      * fails (for example, if the connection to the receiver device fails), the implementor must
      * call {@link #notifyRequestFailed}, passing the {@code requestId}.
      *
      * <p>Unlike {@link #onCreateSession}, system sessions route the system media (for example,
      * audio and/or video) which is to be retrieved by calling {@link
-     * #notifySystemMediaSessionCreated}.
+     * #notifySystemRoutingSessionCreated}.
      *
      * <p>Changes to the session can be notified by calling {@link #notifySessionUpdated}.
      *
      * @param requestId the ID of this request
-     * @param packageName the package name of the application whose media to route.
      * @param routeId the ID of the route initially being {@link
      *     RoutingSessionInfo#getSelectedRoutes() selected}.
-     * @param sessionHints an optional bundle of arguments sent by {@link MediaRouter2}, or null if
-     *     none.
+     * @param parameters {@link SystemRoutingSessionParams} for the session creation.
      * @see RoutingSessionInfo.Builder
-     * @see #notifySystemMediaSessionCreated
-     * @hide
+     * @see #notifySystemRoutingSessionCreated
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     public void onCreateSystemRoutingSession(
             long requestId,
-            @NonNull String packageName,
             @NonNull String routeId,
-            @Nullable Bundle sessionHints) {
+            @NonNull SystemRoutingSessionParams parameters) {
         mHandler.post(() -> notifyRequestFailed(requestId, REASON_UNIMPLEMENTED));
     }
 
@@ -738,12 +759,29 @@ public abstract class MediaRoute2ProviderService extends Service {
 
     /**
      * Updates routes of the provider and notifies the system media router service.
+     *
+     * @throws IllegalArgumentException If {@code routes} contains a route that {@link
+     *     MediaRoute2Info#getSupportedRoutingTypes() supports} both system media routing and remote
+     *     routing but doesn't contain any {@link MediaRoute2Info#getDeduplicationIds()
+     *     deduplication ids}.
      */
     public final void notifyRoutes(@NonNull Collection<MediaRoute2Info> routes) {
         requireNonNull(routes, "routes must not be null");
         List<MediaRoute2Info> sanitizedRoutes = new ArrayList<>(routes.size());
 
         for (MediaRoute2Info route : routes) {
+            if (Flags.enableMirroringInMediaRouter2()
+                    && route.supportsRemoteRouting()
+                    && route.supportsSystemMediaRouting()
+                    && route.getDeduplicationIds().isEmpty()) {
+                String errorMessage =
+                        TextUtils.formatSimple(
+                                "Route with id='%s' name='%s' supports both system media and remote"
+                                    + " type routing, but doesn't contain a deduplication id, which"
+                                    + " it needs. You can add the route id as a deduplication id.",
+                                route.getOriginalId(), route.getName());
+                throw new IllegalArgumentException(errorMessage);
+            }
             if (route.isSystemRouteType()) {
                 Log.w(
                         TAG,
@@ -813,6 +851,9 @@ public abstract class MediaRoute2ProviderService extends Service {
         List<RoutingSessionInfo> sessions;
         synchronized (mSessionLock) {
             sessions = new ArrayList<>(mSessionInfos.values());
+            if (Flags.enableMirroringInMediaRouter2()) {
+                mOngoingMediaStreams.values().forEach(it -> sessions.add(it.mSessionInfo));
+            }
         }
 
         try {
@@ -865,7 +906,13 @@ public abstract class MediaRoute2ProviderService extends Service {
                 Log.w(TAG, description + ": Ignoring empty sessionId from system service.");
                 return false;
             }
-            if (getSessionInfo(sessionId) == null) {
+            boolean idMatchesSystemSession = false;
+            if (Flags.enableMirroringInMediaRouter2()) {
+                synchronized (mSessionLock) {
+                    idMatchesSystemSession = mOngoingMediaStreams.containsKey(sessionId);
+                }
+            }
+            if (!idMatchesSystemSession && getSessionInfo(sessionId) == null) {
                 Log.w(TAG, description + ": Ignoring unknown session from system service. "
                         + "sessionId=" + sessionId);
                 return false;
@@ -939,24 +986,29 @@ public abstract class MediaRoute2ProviderService extends Service {
                 int uid,
                 String packageName,
                 String routeId,
-                @Nullable Bundle sessionHints) {
-            if (!checkCallerIsSystem()) {
+                @Nullable Bundle extras) {
+            if (!Flags.enableMirroringInMediaRouter2() || !checkCallerIsSystem()) {
                 return;
             }
             if (!checkRouteIdIsValid(routeId, "requestCreateSession")) {
                 return;
             }
             synchronized (mRequestIdsLock) {
-                mSystemMediaSessionCreationRequests.put(requestId, uid);
+                mSystemRoutingSessionCreationRequests.put(requestId, uid);
             }
+            var sessionParamsBuilder =
+                    new SystemRoutingSessionParams.Builder().setPackageName(packageName);
+            if (extras != null) {
+                sessionParamsBuilder.setExtras(extras);
+            }
+            var sessionParams = sessionParamsBuilder.build();
             mHandler.sendMessage(
                     obtainMessage(
                             MediaRoute2ProviderService::onCreateSystemRoutingSession,
                             MediaRoute2ProviderService.this,
                             requestId,
-                            packageName,
                             routeId,
-                            sessionHints));
+                            sessionParams));
         }
 
         @Override
@@ -1019,12 +1071,16 @@ public abstract class MediaRoute2ProviderService extends Service {
             if (!checkCallerIsSystem()) {
                 return;
             }
-            if (!checkSessionIdIsValid(sessionId, "releaseSession")) {
-                return;
+            synchronized (mSessionLock) {
+                // We proactively release the system media routing session resources when the
+                // system requests it, to ensure it happens immediately.
+                RoutingSessionInfo releasedSession = maybeReleaseMediaStreams(sessionId);
+                if (releasedSession != null) {
+                    mPendingSystemSessionReleases.put(sessionId, releasedSession);
+                } else if (!checkSessionIdIsValid(sessionId, "releaseSession")) {
+                    return;
+                }
             }
-            // We proactively release the system media routing once the system requests it, to
-            // ensure it happens immediately.
-            maybeReleaseMediaStreams(sessionId);
 
             addRequestId(requestId);
             mHandler.sendMessage(obtainMessage(MediaRoute2ProviderService::onReleaseSession,
@@ -1033,23 +1089,29 @@ public abstract class MediaRoute2ProviderService extends Service {
     }
 
     /**
-     * Holds the streams to be routed as part of a system media routing session.
+     * Holds the streams to be routed as part of a {@link #onCreateSystemRoutingSession system media
+     * routing session}.
      *
-     * <p>The encoded data format matches the {@link MediaStreamsFormats} passed to {@link
-     * #notifySystemMediaSessionCreated}.
-     *
-     * @hide
+     * <p>The encoded data format will match the {@link MediaStreamsFormats} passed to {@link
+     * #notifySystemRoutingSessionCreated}.
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     public static final class MediaStreams {
 
         @Nullable private final AudioPolicy mAudioPolicy;
         @Nullable private final AudioRecord mAudioRecord;
 
+        /**
+         * Holds the last {@link RoutingSessionInfo} associated with these streams.
+         */
+        @NonNull
+        // Access guarded by mSessionsLock, but it's not convenient to enforce through @GuardedBy.
+        private RoutingSessionInfo mSessionInfo;
+
         // TODO: b/380431086: Add the video equivalent.
 
         private MediaStreams(Builder builder) {
+            this.mSessionInfo = builder.mSessionInfo;
             this.mAudioPolicy = builder.mAudioPolicy;
             this.mAudioRecord = builder.mAudioRecord;
         }
@@ -1070,8 +1132,18 @@ public abstract class MediaRoute2ProviderService extends Service {
          */
         public static final class Builder {
 
+            @NonNull private RoutingSessionInfo mSessionInfo;
             @Nullable private AudioPolicy mAudioPolicy;
             @Nullable private AudioRecord mAudioRecord;
+
+            /**
+             * Constructor.
+             *
+             * @param sessionInfo The {@link RoutingSessionInfo} associated with these streams.
+             */
+            Builder(@NonNull RoutingSessionInfo sessionInfo) {
+                mSessionInfo = requireNonNull(sessionInfo);
+            }
 
             /** Populates system media audio-related structures. */
             public Builder setAudioStream(
@@ -1088,15 +1160,91 @@ public abstract class MediaRoute2ProviderService extends Service {
         }
     }
 
+    /**
+     * Holds parameters associated with a {@link #onCreateSystemRoutingSession session creation
+     * request}.
+     */
+    @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
+    public static final class SystemRoutingSessionParams {
+
+        private final String mPackageName;
+        private final Bundle mExtras;
+
+        private SystemRoutingSessionParams(Builder builder) {
+            this.mPackageName = builder.mPackageName;
+            this.mExtras = builder.mExtras;
+        }
+
+        /**
+         * Returns the name of the package associated with the session, or an empty string if not
+         * applicable.
+         *
+         * <p>The package name is not applicable if the session is not associated with a specific
+         * package, for example is the session affects the entire system.
+         */
+        @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
+        @NonNull
+        public String getPackageName() {
+            return mPackageName;
+        }
+
+        /** Returns a bundle provided by the client that triggered the session creation request. */
+        @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
+        @NonNull
+        public Bundle getExtras() {
+            return mExtras;
+        }
+
+        /** A builder for {@link SystemRoutingSessionParams}. */
+        public static final class Builder {
+            private String mPackageName;
+            private Bundle mExtras;
+
+            /** Constructor. */
+            public Builder() {
+                mPackageName = "";
+                mExtras = Bundle.EMPTY;
+            }
+
+            /**
+             * Sets the {@link #getExtras() extras}.
+             *
+             * <p>The default value is an empty {@link Bundle}.
+             *
+             * <p>Do not mutate the given {@link Bundle} after passing it to this method. You can
+             * use {@link Bundle#deepCopy()} to keep a mutable copy.
+             */
+            @NonNull
+            public Builder setExtras(@NonNull Bundle extras) {
+                mExtras = Objects.requireNonNull(extras);
+                return this;
+            }
+
+            /**
+             * Sets the {@link #getPackageName()}.
+             *
+             * <p>The default value is an empty string.
+             */
+            @NonNull
+            public Builder setPackageName(@NonNull String packageName) {
+                mPackageName = Objects.requireNonNull(packageName);
+                return this;
+            }
+
+            /** Returns a new {@link SystemRoutingSessionParams} instance. */
+            @NonNull
+            public SystemRoutingSessionParams build() {
+                return new SystemRoutingSessionParams(this);
+            }
+        }
+    }
 
     /**
      * Holds the formats to encode media data to be read from {@link MediaStreams}.
      *
      * @see MediaStreams
-     * @see #notifySystemMediaSessionCreated
-     * @hide
+     * @see #notifySystemRoutingSessionCreated
      */
-    // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
     @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
     public static final class MediaStreamsFormats {
 
@@ -1110,29 +1258,25 @@ public abstract class MediaRoute2ProviderService extends Service {
 
         /**
          * Returns the audio format to use for creating the {@link MediaStreams#getAudioRecord} to
-         * return from {@link #notifySystemMediaSessionCreated}.
-         *
-         * @hide
+         * return from {@link #notifySystemRoutingSessionCreated}. May be null if the session
+         * doesn't support system audio.
          */
-        // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
         @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
+        @Nullable
         public AudioFormat getAudioFormat() {
             return mAudioFormat;
         }
 
         /**
          * Builder for {@link MediaStreamsFormats}
-         *
-         * @hide
          */
-        // TODO: b/362507305 - Unhide once the implementation and CTS are in place.
         @FlaggedApi(Flags.FLAG_ENABLE_MIRRORING_IN_MEDIA_ROUTER_2)
         public static final class Builder {
             private AudioFormat mAudioFormat;
 
             /**
              * Sets the audio format to use for creating the {@link MediaStreams#getAudioRecord} to
-             * return from {@link #notifySystemMediaSessionCreated}.
+             * return from {@link #notifySystemRoutingSessionCreated}.
              *
              * @param audioFormat the audio format
              * @return this builder

@@ -27,6 +27,7 @@ public class AuthenticationStatsTest {
         AuthenticationStats authenticationStats =
                 new AuthenticationStats(1 /* userId */ , 0 /* totalAttempts */,
                         0 /* rejectedAttempts */, 0 /* enrollmentNotifications */,
+                        100L /* lastEnrollmentTime */, 200L /* lastFrrNotificationTime */,
                         0 /* modality */);
 
         authenticationStats.authenticate(true /* authenticated */);
@@ -38,5 +39,8 @@ public class AuthenticationStatsTest {
 
         assertEquals(authenticationStats.getTotalAttempts(), 2);
         assertEquals(authenticationStats.getRejectedAttempts(), 1);
+
+        assertEquals(authenticationStats.getLastEnrollmentTime(), 100L);
+        assertEquals(authenticationStats.getLastFrrNotificationTime(), 200L);
     }
 }

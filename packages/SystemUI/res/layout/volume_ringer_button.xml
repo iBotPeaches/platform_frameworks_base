@@ -13,21 +13,13 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<FrameLayout  xmlns:android="http://schemas.android.com/apk/res/android"
+<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content" >
-
-    <ImageButton
-        android:id="@+id/volume_drawer_button"
-        android:layout_width="@dimen/volume_dialog_ringer_drawer_button_size"
-        android:layout_height="@dimen/volume_dialog_ringer_drawer_button_size"
-        android:padding="@dimen/volume_dialog_ringer_drawer_button_icon_radius"
-        android:layout_marginBottom="@dimen/volume_dialog_components_spacing"
-        android:contentDescription="@string/volume_ringer_mode"
-        android:gravity="center"
-        android:tint="?androidprv:attr/materialColorOnSurface"
-        android:src="@drawable/volume_ringer_item_bg"
-        android:background="@drawable/volume_ringer_item_bg"/>
-
-</FrameLayout>
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/volume_ringer_item_bg"
+    android:contentDescription="@string/volume_ringer_mode"
+    android:gravity="center"
+    android:padding="@dimen/volume_dialog_ringer_drawer_button_icon_radius"
+    android:src="@drawable/volume_ringer_item_bg"
+    android:tint="@androidprv:color/materialColorOnSurface" />

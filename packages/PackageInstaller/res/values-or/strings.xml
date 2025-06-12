@@ -58,7 +58,7 @@
     <string name="uninstall_application_title" msgid="4045420072401428123">"ଆପ୍‌କୁ ଅନଇନଷ୍ଟଲ୍ କରନ୍ତୁ"</string>
     <string name="uninstall_update_title" msgid="824411791011583031">"ଅପଡେଟ୍‍ ଅନଇନଷ୍ଟଲ୍‌ କରନ୍ତୁ"</string>
     <string name="uninstall_activity_text" msgid="1928194674397770771">"<xliff:g id="ACTIVITY_NAME">%1$s</xliff:g> ହେଉଛି ନିମ୍ନ ଆପ୍‍ର ଏକ ଅଂଶ।"</string>
-    <string name="uninstall_application_text" msgid="3816830743706143980">"ଆପଣ ଏହି ଆପ୍‍ ଅନଇନଷ୍ଟଲ୍‌ କରିବାକୁ ଚାହାଁନ୍ତି କି?"</string>
+    <string name="uninstall_application_text" msgid="3816830743706143980">"ଆପଣ ଏହି ଆପ ଅନଇନଷ୍ଟଲ କରିବାକୁ ଚାହାଁନ୍ତି କି?"</string>
     <string name="archive_application_text" msgid="8482325710714386348">"ଆପଣଙ୍କ ବ୍ୟକ୍ତିଗତ ଡାଟା ସେଭ ହୋଇଯିବ"</string>
     <string name="archive_application_text_all_users" msgid="3151229641681672580">"ସମସ୍ତ ୟୁଜରଙ୍କ ପାଇଁ ଏହି ଆପକୁ ଆର୍କାଇଭ କରିବେ? ଆପଣଙ୍କ ବ୍ୟକ୍ତିଗତ ଡାଟା ସେଭ ହୋଇଯିବ"</string>
     <string name="archive_application_text_current_user_work_profile" msgid="1450487362134779752">"ଆପଣଙ୍କ ୱାର୍କ ପ୍ରୋଫାଇଲରେ ଏହି ଆପକୁ ଆର୍କାଇଭ କରିବେ? ଆପଣଙ୍କ ବ୍ୟକ୍ତିଗତ ଡାଟା ସେଭ ହୋଇଯିବ"</string>

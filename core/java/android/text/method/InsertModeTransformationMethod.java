@@ -58,6 +58,7 @@ import java.lang.reflect.Array;
  *   the new transformed text: "hello abc\n\n world", and the highlight range will be [5, 11).
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class InsertModeTransformationMethod implements TransformationMethod, TextWatcher {
     /** The start offset of the highlight range in the original text, inclusive. */
     private int mStart;

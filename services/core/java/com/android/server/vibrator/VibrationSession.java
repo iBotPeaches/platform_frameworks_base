@@ -106,7 +106,7 @@ interface VibrationSession {
      * complete (e.g. on(), perform(), compose()). This does not mean the vibration is complete,
      * since its playback might have one or more interactions with the vibrator hardware.
      */
-    void notifyVibratorCallback(int vibratorId, long vibrationId);
+    void notifyVibratorCallback(int vibratorId, long vibrationId, long stepId);
 
     /**
      * Notify all synced vibrators have completed the last synchronized command during the playback

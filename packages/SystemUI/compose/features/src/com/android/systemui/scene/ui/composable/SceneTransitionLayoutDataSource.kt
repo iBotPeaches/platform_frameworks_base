@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.scene.ui.composable
 
 import androidx.compose.runtime.snapshotFlow
@@ -26,7 +24,6 @@ import com.android.compose.animation.scene.TransitionKey
 import com.android.compose.animation.scene.observableTransitionState
 import com.android.systemui.scene.shared.model.SceneDataSource
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -62,10 +59,7 @@ class SceneTransitionLayoutDataSource(
                 initialValue = emptySet(),
             )
 
-    override fun changeScene(
-        toScene: SceneKey,
-        transitionKey: TransitionKey?,
-    ) {
+    override fun changeScene(toScene: SceneKey, transitionKey: TransitionKey?) {
         state.setTargetScene(
             targetScene = toScene,
             transitionKey = transitionKey,
@@ -74,9 +68,7 @@ class SceneTransitionLayoutDataSource(
     }
 
     override fun snapToScene(toScene: SceneKey) {
-        state.snapToScene(
-            scene = toScene,
-        )
+        state.snapTo(scene = toScene)
     }
 
     override fun showOverlay(overlay: OverlayKey, transitionKey: TransitionKey?) {
@@ -102,5 +94,17 @@ class SceneTransitionLayoutDataSource(
             animationScope = coroutineScope,
             transitionKey = transitionKey,
         )
+    }
+
+    override fun instantlyShowOverlay(overlay: OverlayKey) {
+        state.snapTo(overlays = state.currentOverlays + overlay)
+    }
+
+    override fun instantlyHideOverlay(overlay: OverlayKey) {
+        state.snapTo(overlays = state.currentOverlays - overlay)
+    }
+
+    override fun freezeAndAnimateToCurrentState() {
+        state.currentTransition?.freezeAndAnimateToCurrentState()
     }
 }

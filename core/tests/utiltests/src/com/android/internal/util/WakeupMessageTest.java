@@ -24,8 +24,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
-import android.platform.test.ravenwood.RavenwoodRule;
+import android.platform.test.annotations.DisabledOnRavenwood;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -47,18 +46,13 @@ import org.mockito.stubbing.Answer;
  */
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = WakeupMessage.class)
+@DisabledOnRavenwood(blockedBy = WakeupMessage.class)
 public class WakeupMessageTest {
     private static final String TEST_CMD_NAME = "TEST cmd Name";
     private static final int TEST_CMD = 18;
     private static final int TEST_ARG1 = 33;
     private static final int TEST_ARG2 = 182;
     private static final Object TEST_OBJ = "hello";
-
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     @Mock Context mContext;
     @Mock AlarmManager mAlarmManager;

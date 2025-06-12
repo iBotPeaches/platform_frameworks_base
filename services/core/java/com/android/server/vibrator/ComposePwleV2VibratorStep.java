@@ -72,7 +72,8 @@ final class ComposePwleV2VibratorStep extends AbstractComposedVibratorStep {
                         + controller.getVibratorInfo().getId());
             }
             PwlePoint[] pwlesArray = pwles.toArray(new PwlePoint[pwles.size()]);
-            long vibratorOnResult = controller.on(pwlesArray, getVibration().id);
+            int stepId = conductor.nextVibratorCallbackStepId(getVibratorId());
+            long vibratorOnResult = controller.on(pwlesArray, getVibration().id, stepId);
             handleVibratorOnResult(vibratorOnResult);
             getVibration().stats.reportComposePwle(vibratorOnResult, pwlesArray);
 
@@ -94,7 +95,7 @@ final class ComposePwleV2VibratorStep extends AbstractComposedVibratorStep {
 
         // Loop once after reaching the limit to see if breaking it will really be necessary, then
         // apply the best break position found, otherwise return the full list as it fits the limit.
-        for (int i = startIndex; pwlePoints.size() < limit; i++) {
+        for (int i = startIndex; pwlePoints.size() <= limit; i++) {
             if (i == segmentCount) {
                 if (repeatIndex >= 0) {
                     i = repeatIndex;

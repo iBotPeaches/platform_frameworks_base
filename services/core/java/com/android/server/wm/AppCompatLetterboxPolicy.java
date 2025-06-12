@@ -16,9 +16,14 @@
 
 package com.android.server.wm;
 
+import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
+import static android.content.res.Configuration.ORIENTATION_UNDEFINED;
 import static android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_STARTING;
 import static android.view.WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
+import static android.window.DesktopModeFlags.EXCLUDE_CAPTION_FROM_APP_BOUNDS;
 
 import static com.android.server.wm.AppCompatConfiguration.LETTERBOX_BACKGROUND_WALLPAPER;
 import static com.android.server.wm.AppCompatConfiguration.letterboxBackgroundTypeToString;
@@ -28,6 +33,7 @@ import static com.android.server.wm.AppCompatLetterboxUtils.calculateLetterboxPo
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.content.res.Configuration.Orientation;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.view.SurfaceControl;
@@ -44,6 +50,8 @@ import java.io.PrintWriter;
  */
 class AppCompatLetterboxPolicy {
 
+    private static final int DIFF_TOLERANCE_PX = 1;
+
     @NonNull
     private final ActivityRecord mActivityRecord;
     @NonNull
@@ -52,8 +60,16 @@ class AppCompatLetterboxPolicy {
     private final AppCompatRoundedCorners mAppCompatRoundedCorners;
     @NonNull
     private final AppCompatConfiguration mAppCompatConfiguration;
+    // Convenience temporary object to save allocation when calculating Rect.
+    @NonNull
+    private final Rect mTmpRect = new Rect();
 
     private boolean mLastShouldShowLetterboxUi;
+
+    // Whether the activity is eligible to be letterboxed for fixed orientation with respect to its
+    // requested orientation, even when it's letterbox for another reason (e.g., size compat mode)
+    // and therefore #isLetterboxedForFixedOrientationAndAspectRatio returns false.
+    private boolean mIsEligibleForFixedOrientationLetterbox;
 
     AppCompatLetterboxPolicy(@NonNull ActivityRecord  activityRecord,
             @NonNull AppCompatConfiguration appCompatConfiguration) {
@@ -62,8 +78,12 @@ class AppCompatLetterboxPolicy {
                 : new LegacyLetterboxPolicyState();
         // TODO (b/358334569) Improve cutout logic dependency on app compat.
         mAppCompatRoundedCorners = new AppCompatRoundedCorners(mActivityRecord,
-                this::isLetterboxedNotForDisplayCutout);
+                this::ieEligibleForRoundedCorners);
         mAppCompatConfiguration = appCompatConfiguration;
+    }
+
+    void resetFixedOrientationLetterboxEligibility() {
+        mIsEligibleForFixedOrientationLetterbox = false;
     }
 
     /** Cleans up {@link Letterbox} if it exists.*/
@@ -71,7 +91,7 @@ class AppCompatLetterboxPolicy {
         mLetterboxPolicyState.stop();
     }
 
-    /** @return {@value true} if the letterbox policy is running and the activity letterboxed. */
+    /** @return {@code true} if the letterbox policy is running and the activity letterboxed. */
     boolean isRunning() {
         return mLetterboxPolicyState.isRunning();
     }
@@ -89,6 +109,43 @@ class AppCompatLetterboxPolicy {
     /** Gets the inner bounds of letterbox. The bounds will be empty if there is no letterbox. */
     void getLetterboxInnerBounds(@NonNull Rect outBounds) {
         mLetterboxPolicyState.getLetterboxInnerBounds(outBounds);
+    }
+
+    /**
+     * Checks if the current activity is eligible to be letterboxed because of a fixed orientation.
+     *
+     * @param forcedOrientation The requeste orientation
+     * @param parentOrientation The orientation of the parent container.
+     * @return {@code true} if the activity can be letterboxed because of the requested fixed
+     * orientation.
+     */
+    boolean resolveFixedOrientationLetterboxEligibility(@Orientation int forcedOrientation,
+            @Orientation int parentOrientation) {
+        mIsEligibleForFixedOrientationLetterbox = forcedOrientation != ORIENTATION_UNDEFINED
+                && forcedOrientation != parentOrientation;
+        return mIsEligibleForFixedOrientationLetterbox;
+    }
+
+    /**
+     * Whether this activity is eligible for letterbox eduction.
+     *
+     * <p>Conditions that need to be met:
+     *
+     * <ul>
+     *     <li>{@link AppCompatConfiguration#getIsEducationEnabled} is true.
+     *     <li>The activity is eligible for fixed orientation letterbox.
+     *     <li>The activity is in fullscreen.
+     *     <li>The activity is portrait-only.
+     *     <li>The activity doesn't have a starting window (education should only be displayed
+     *     once the starting window is removed in {@link ActivityRecord#removeStartingWindow}).
+     * </ul>
+     */
+    boolean isEligibleForLetterboxEducation() {
+        return mAppCompatConfiguration.getIsEducationEnabled()
+                && mIsEligibleForFixedOrientationLetterbox
+                && mActivityRecord.getWindowingMode() == WINDOWING_MODE_FULLSCREEN
+                && mActivityRecord.getRequestedConfigurationOrientation() == ORIENTATION_PORTRAIT
+                && mActivityRecord.mStartingWindow == null;
     }
 
     @Nullable
@@ -154,19 +211,19 @@ class AppCompatLetterboxPolicy {
 
     @VisibleForTesting
     boolean shouldShowLetterboxUi(@NonNull WindowState mainWindow) {
-        if (mActivityRecord.mAppCompatController.getAppCompatOrientationOverrides()
+        if (mActivityRecord.mAppCompatController.getOrientationOverrides()
                 .getIsRelaunchingAfterRequestedOrientationChanged()) {
             return mLastShouldShowLetterboxUi;
         }
 
         final boolean shouldShowLetterboxUi =
-                (mActivityRecord.isInLetterboxAnimation() || mActivityRecord.isVisible()
+                (mActivityRecord.isVisible()
                         || mActivityRecord.isVisibleRequested())
                         && mainWindow.areAppWindowBoundsLetterboxed()
                         // Check for FLAG_SHOW_WALLPAPER explicitly instead of using
                         // WindowContainer#showWallpaper because the later will return true when
                         // this activity is using blurred wallpaper for letterbox background.
-                        && (mainWindow.getAttrs().flags & FLAG_SHOW_WALLPAPER) == 0;
+                        && (mainWindow.mAttrs.flags & FLAG_SHOW_WALLPAPER) == 0;
 
         mLastShouldShowLetterboxUi = shouldShowLetterboxUi;
 
@@ -205,9 +262,9 @@ class AppCompatLetterboxPolicy {
         }
         pw.println(prefix + "  letterboxReason="
                 + AppCompatUtils.getLetterboxReasonString(mActivityRecord, mainWin));
-        mActivityRecord.mAppCompatController.getAppCompatReachabilityPolicy().dump(pw, prefix);
+        mActivityRecord.mAppCompatController.getReachabilityPolicy().dump(pw, prefix);
         final AppCompatLetterboxOverrides letterboxOverride = mActivityRecord.mAppCompatController
-                .getAppCompatLetterboxOverrides();
+                .getLetterboxOverrides();
         pw.println(prefix + "  letterboxBackgroundColor=" + Integer.toHexString(
                 letterboxOverride.getLetterboxBackgroundColor().toArgb()));
         pw.println(prefix + "  letterboxBackgroundType="
@@ -226,7 +283,7 @@ class AppCompatLetterboxPolicy {
 
     private void updateWallpaperForLetterbox(@NonNull WindowState mainWindow) {
         final AppCompatLetterboxOverrides letterboxOverrides = mActivityRecord
-                .mAppCompatController.getAppCompatLetterboxOverrides();
+                .mAppCompatController.getLetterboxOverrides();
         final @LetterboxBackgroundType int letterboxBackgroundType =
                 letterboxOverrides.getLetterboxBackgroundType();
         boolean wallpaperShouldBeShown =
@@ -244,9 +301,33 @@ class AppCompatLetterboxPolicy {
         }
     }
 
+    private boolean ieEligibleForRoundedCorners(@NonNull WindowState mainWindow) {
+        return isLetterboxedNotForDisplayCutout(mainWindow)
+                && !isFreeformActivityMatchParentAppBoundsHeight();
+    }
+
     private boolean isLetterboxedNotForDisplayCutout(@NonNull WindowState mainWindow) {
         return shouldShowLetterboxUi(mainWindow)
                 && !mainWindow.isLetterboxedForDisplayCutout();
+    }
+
+    private boolean isFreeformActivityMatchParentAppBoundsHeight() {
+        if (!EXCLUDE_CAPTION_FROM_APP_BOUNDS.isTrue()) {
+            return false;
+        }
+        final Task task = mActivityRecord.getTask();
+        if (task == null) {
+            return false;
+        }
+        final Rect parentAppBounds = task.getWindowConfiguration().getAppBounds();
+        if (parentAppBounds == null) {
+            return false;
+        }
+
+        mLetterboxPolicyState.getLetterboxInnerBounds(mTmpRect);
+        final int diff = parentAppBounds.height() - mTmpRect.height();
+        // Compare bounds with tolerance of 1 px to account for rounding error calculations.
+        return task.getWindowingMode() == WINDOWING_MODE_FREEFORM && diff <= DIFF_TOLERANCE_PX;
     }
 
     private static boolean shouldNotLayoutLetterbox(@Nullable WindowState w) {
@@ -274,15 +355,13 @@ class AppCompatLetterboxPolicy {
         public void layoutLetterboxIfNeeded(@NonNull WindowState w) {
             if (!isRunning()) {
                 final AppCompatLetterboxOverrides letterboxOverrides = mActivityRecord
-                        .mAppCompatController.getAppCompatLetterboxOverrides();
+                        .mAppCompatController.getLetterboxOverrides();
                 final AppCompatReachabilityPolicy reachabilityPolicy = mActivityRecord
-                        .mAppCompatController.getAppCompatReachabilityPolicy();
+                        .mAppCompatController.getReachabilityPolicy();
                 mLetterbox = new Letterbox(() -> mActivityRecord.makeChildSurface(null),
                         mActivityRecord.mWmService.mTransactionFactory,
-                        reachabilityPolicy, letterboxOverrides,
-                        this::getLetterboxParentSurface);
-                mLetterbox.attachInput(w);
-                mActivityRecord.mAppCompatController.getAppCompatReachabilityPolicy()
+                        reachabilityPolicy, letterboxOverrides);
+                mActivityRecord.mAppCompatController.getReachabilityPolicy()
                         .setLetterboxInnerBoundsSupplier(mLetterbox::getInnerFrame);
             }
             final Point letterboxPosition = new Point();
@@ -292,7 +371,7 @@ class AppCompatLetterboxPolicy {
             final Rect innerFrame = new Rect();
             calculateLetterboxInnerBounds(mActivityRecord, w, innerFrame);
             mLetterbox.layout(spaceToFill, innerFrame, letterboxPosition);
-            if (mActivityRecord.mAppCompatController.getAppCompatReachabilityOverrides()
+            if (mActivityRecord.mAppCompatController.getReachabilityOverrides()
                     .isDoubleTapEvent()) {
                 // We need to notify Shell that letterbox position has changed.
                 mActivityRecord.getTask().dispatchTaskInfoChangedIfNeeded(true /* force */);
@@ -322,7 +401,7 @@ class AppCompatLetterboxPolicy {
                 mLetterbox.destroy();
                 mLetterbox = null;
             }
-            mActivityRecord.mAppCompatController.getAppCompatReachabilityPolicy()
+            mActivityRecord.mAppCompatController.getReachabilityPolicy()
                     .setLetterboxInnerBoundsSupplier(null);
         }
 
@@ -335,7 +414,7 @@ class AppCompatLetterboxPolicy {
             }
             start(winHint);
             if (isRunning() && mLetterbox.needsApplySurfaceChanges()) {
-                mLetterbox.applySurfaceChanges(t, inputT);
+                mLetterbox.applySurfaceChanges(t, inputT, winHint);
             }
         }
 
@@ -389,15 +468,6 @@ class AppCompatLetterboxPolicy {
         public boolean isFullyTransparentBarAllowed(@NonNull Rect rect) {
             return !isRunning() || mLetterbox.notIntersectsOrFullyContains(rect);
         }
-
-        @Nullable
-        private SurfaceControl getLetterboxParentSurface() {
-            if (mActivityRecord.isInLetterboxAnimation()) {
-                return mActivityRecord.getTask().getSurfaceControl();
-            }
-            return mActivityRecord.getSurfaceControl();
-        }
-
     }
 
     /**
@@ -416,7 +486,7 @@ class AppCompatLetterboxPolicy {
             calculateLetterboxPosition(mActivityRecord, mLetterboxPosition);
             calculateLetterboxOuterBounds(mActivityRecord, mOuterBounds);
             calculateLetterboxInnerBounds(mActivityRecord, w, mInnerBounds);
-            mActivityRecord.mAppCompatController.getAppCompatReachabilityPolicy()
+            mActivityRecord.mAppCompatController.getReachabilityPolicy()
                     .setLetterboxInnerBoundsSupplier(() -> mInnerBounds);
         }
 
@@ -439,7 +509,7 @@ class AppCompatLetterboxPolicy {
             mLetterboxPosition.set(0, 0);
             mInnerBounds.setEmpty();
             mOuterBounds.setEmpty();
-            mActivityRecord.mAppCompatController.getAppCompatReachabilityPolicy()
+            mActivityRecord.mAppCompatController.getReachabilityPolicy()
                     .setLetterboxInnerBoundsSupplier(null);
         }
 

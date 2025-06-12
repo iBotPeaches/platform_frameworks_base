@@ -63,7 +63,7 @@ constructor(
                     edgeWithoutSceneContainer = Edge.create(to = KeyguardState.GONE),
                 ),
                 transitionInteractor.isFinishedIn(
-                    scene = Scenes.Gone,
+                    content = Scenes.Gone,
                     stateWithoutSceneContainer = KeyguardState.GONE,
                 ),
                 notificationLaunchInteractor.isLaunchAnimationRunning,
@@ -74,18 +74,14 @@ constructor(
                         // If the notification launch animation is running, leave the alpha at 0f.
                         // The ActivityLaunchAnimator will morph it from the notification at the
                         // appropriate time.
-                        return@combine KeyguardSurfaceBehindModel(
-                            alpha = 0f,
-                        )
+                        return@combine KeyguardSurfaceBehindModel(alpha = 0f)
                     } else if (
                         inWindowLauncherUnlockAnimationInteractor.get().isLauncherUnderneath()
                     ) {
                         // The Launcher icons have their own translation/alpha animations during the
                         // in-window animation. We'll just make the surface visible and let Launcher
                         // do its thing.
-                        return@combine KeyguardSurfaceBehindModel(
-                            alpha = 1f,
-                        )
+                        return@combine KeyguardSurfaceBehindModel(alpha = 1f)
                     } else {
                         // Otherwise, animate a surface in via alpha/translation, and apply the
                         // swipe velocity (if available) to the translation spring.
@@ -113,10 +109,10 @@ constructor(
         notificationLaunchInteractor.isLaunchAnimationRunning
             .sample(
                 transitionInteractor.isFinishedIn(
-                    scene = Scenes.Gone,
+                    content = Scenes.Gone,
                     stateWithoutSceneContainer = KeyguardState.GONE,
                 ),
-                ::Pair
+                ::Pair,
             )
             .map { (animationRunning, isOnGone) -> animationRunning && !isOnGone }
             .onStart { emit(false) }
@@ -126,10 +122,9 @@ constructor(
      * means we're going to animate the surface, even if animators aren't yet running).
      */
     val isAnimatingSurface =
-        combine(
-            repository.isAnimatingSurface,
-            isNotificationLaunchAnimationRunningOnKeyguard,
-        ) { animatingSurface, animatingLaunch ->
+        combine(repository.isAnimatingSurface, isNotificationLaunchAnimationRunningOnKeyguard) {
+            animatingSurface,
+            animatingLaunch ->
             animatingSurface || animatingLaunch
         }
 

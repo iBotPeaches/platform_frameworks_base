@@ -18,7 +18,7 @@ package com.android.systemui.statusbar.notification.collection.listbuilder.plugg
 
 import androidx.annotation.NonNull;
 
-import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 
 import java.util.Comparator;
@@ -29,7 +29,7 @@ import java.util.List;
  */
 public abstract class NotifComparator
         extends Pluggable<NotifComparator>
-        implements Comparator<ListEntry> {
+        implements Comparator<PipelineEntry> {
 
     protected NotifComparator(String name) {
         super(name);
@@ -41,5 +41,5 @@ public abstract class NotifComparator
      * @return a negative integer, zero, or a positive integer as the first argument is less than
      *      equal to, or greater than the second (same as standard Comparator<> interface).
      */
-    public abstract int compare(@NonNull ListEntry o1, @NonNull ListEntry o2);
+    public abstract int compare(@NonNull PipelineEntry o1, @NonNull PipelineEntry o2);
 }

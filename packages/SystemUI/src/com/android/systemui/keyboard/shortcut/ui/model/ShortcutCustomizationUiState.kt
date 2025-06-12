@@ -24,6 +24,7 @@ sealed interface ShortcutCustomizationUiState {
         val errorMessage: String = "",
         val defaultCustomShortcutModifierKey: ShortcutKey.Icon.ResIdIcon,
         val pressedKeys: List<ShortcutKey> = emptyList(),
+        val pressedKeysDescription: String = "",
     ) : ShortcutCustomizationUiState
 
     data object DeleteShortcutDialog : ShortcutCustomizationUiState

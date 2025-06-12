@@ -37,6 +37,7 @@ import android.view.View;
  * with hardware keyboards.  Software input methods have no obligation to trigger
  * the methods in this class.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class QwertyKeyListener extends BaseKeyListener {
     private static QwertyKeyListener[] sInstance =
         new QwertyKeyListener[Capitalize.values().length * 2];

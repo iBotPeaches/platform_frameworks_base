@@ -20,7 +20,16 @@ import com.android.systemui.Flags
 import com.android.systemui.flags.FlagToken
 import com.android.systemui.flags.RefactorFlagUtils
 
-/** Helper for reading or using the keyguard wm state refactor flag state. */
+/**
+ * Helper for reading or using the keyguard_wm_state_refactor flag state.
+ *
+ * keyguard_wm_state_refactor works both with and without flexiglass (scene_container), but
+ * flexiglass requires keyguard_wm_state_refactor. For this reason, this class will return isEnabled
+ * if either keyguard_wm_state_refactor OR scene_container are enabled. This enables us to roll out
+ * keyguard_wm_state_refactor independently of scene_container, while also ensuring that
+ * scene_container rolling out ahead of keyguard_wm_state_refactor causes code gated by
+ * KeyguardWmStateRefactor to be enabled as well.
+ */
 @Suppress("NOTHING_TO_INLINE")
 object KeyguardWmStateRefactor {
     /** The aconfig flag name */
@@ -30,10 +39,9 @@ object KeyguardWmStateRefactor {
     val token: FlagToken
         get() = FlagToken(FLAG_NAME, isEnabled)
 
-    /** Is the refactor enabled */
     @JvmStatic
     inline val isEnabled
-        get() = Flags.keyguardWmStateRefactor()
+        get() = Flags.keyguardWmStateRefactor() || Flags.sceneContainer()
 
     /**
      * Called to ensure code is only run when the flag is enabled. This protects users from the

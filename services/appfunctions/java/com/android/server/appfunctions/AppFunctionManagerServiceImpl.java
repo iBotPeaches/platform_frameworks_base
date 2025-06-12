@@ -20,6 +20,8 @@ import static android.app.appfunctions.AppFunctionRuntimeMetadata.APP_FUNCTION_R
 import static android.app.appfunctions.AppFunctionRuntimeMetadata.APP_FUNCTION_RUNTIME_NAMESPACE;
 
 import static com.android.server.appfunctions.AppFunctionExecutors.THREAD_POOL_EXECUTOR;
+import static com.android.server.appfunctions.CallerValidator.CAN_EXECUTE_APP_FUNCTIONS_ALLOWED_HAS_PERMISSION;
+import static com.android.server.appfunctions.CallerValidator.CAN_EXECUTE_APP_FUNCTIONS_DENIED;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -27,6 +29,7 @@ import android.annotation.WorkerThread;
 import android.app.appfunctions.AppFunctionException;
 import android.app.appfunctions.AppFunctionManager;
 import android.app.appfunctions.AppFunctionManagerHelper;
+import android.app.appfunctions.AppFunctionManagerHelper.AppFunctionNotFoundException;
 import android.app.appfunctions.AppFunctionRuntimeMetadata;
 import android.app.appfunctions.AppFunctionStaticMetadataHelper;
 import android.app.appfunctions.ExecuteAppFunctionAidlRequest;
@@ -50,6 +53,10 @@ import android.app.appsearch.observer.ObserverSpec;
 import android.app.appsearch.observer.SchemaChangeInfo;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManagerInternal;
+import android.content.pm.SigningInfo;
 import android.os.Binder;
 import android.os.CancellationSignal;
 import android.os.IBinder;
@@ -87,8 +94,10 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
     private final Context mContext;
     private final Map<String, Object> mLocks = new WeakHashMap<>();
     private final AppFunctionsLoggerWrapper mLoggerWrapper;
+    private final PackageManagerInternal mPackageManagerInternal;
 
-    public AppFunctionManagerServiceImpl(@NonNull Context context) {
+    public AppFunctionManagerServiceImpl(
+            @NonNull Context context, @NonNull PackageManagerInternal packageManagerInternal) {
         this(
                 context,
                 new RemoteServiceCallerImpl<>(
@@ -96,7 +105,8 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
                 new CallerValidatorImpl(context),
                 new ServiceHelperImpl(context),
                 new ServiceConfigImpl(),
-                new AppFunctionsLoggerWrapper(context));
+                new AppFunctionsLoggerWrapper(context),
+                packageManagerInternal);
     }
 
     @VisibleForTesting
@@ -106,13 +116,15 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
             CallerValidator callerValidator,
             ServiceHelper appFunctionInternalServiceHelper,
             ServiceConfig serviceConfig,
-            AppFunctionsLoggerWrapper loggerWrapper) {
+            AppFunctionsLoggerWrapper loggerWrapper,
+            PackageManagerInternal packageManagerInternal) {
         mContext = Objects.requireNonNull(context);
         mRemoteServiceCaller = Objects.requireNonNull(remoteServiceCaller);
         mCallerValidator = Objects.requireNonNull(callerValidator);
         mInternalServiceHelper = Objects.requireNonNull(appFunctionInternalServiceHelper);
         mServiceConfig = serviceConfig;
         mLoggerWrapper = loggerWrapper;
+        mPackageManagerInternal = Objects.requireNonNull(packageManagerInternal);
     }
 
     /** Called when the user is unlocked. */
@@ -155,21 +167,8 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
         int callingPid = Binder.getCallingPid();
 
         final SafeOneTimeExecuteAppFunctionCallback safeExecuteAppFunctionCallback =
-                new SafeOneTimeExecuteAppFunctionCallback(executeAppFunctionCallback,
-                        new SafeOneTimeExecuteAppFunctionCallback.CompletionCallback() {
-                            @Override
-                            public void finalizeOnSuccess(
-                                    @NonNull ExecuteAppFunctionResponse result) {
-                                mLoggerWrapper.logAppFunctionSuccess(requestInternal, result,
-                                        callingUid);
-                            }
-
-                            @Override
-                            public void finalizeOnError(@NonNull AppFunctionException error) {
-                                mLoggerWrapper.logAppFunctionError(requestInternal,
-                                        error.getErrorCode(), callingUid);
-                            }
-                        });
+                initializeSafeExecuteAppFunctionCallback(
+                        requestInternal, executeAppFunctionCallback, callingUid);
 
         String validatedCallingPackage;
         try {
@@ -239,30 +238,42 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
                         requestInternal.getCallingPackage(),
                         targetPackageName,
                         requestInternal.getClientRequest().getFunctionIdentifier())
-                .thenAccept(
-                        canExecute -> {
-                            if (!canExecute) {
-                                throw new SecurityException(
-                                        "Caller does not have permission to execute the"
-                                                + " appfunction");
-                            }
-                        })
                 .thenCompose(
-                        isEnabled ->
-                                isAppFunctionEnabled(
-                                        requestInternal.getClientRequest().getFunctionIdentifier(),
-                                        requestInternal.getClientRequest().getTargetPackageName(),
-                                        getAppSearchManagerAsUser(requestInternal.getUserHandle()),
-                                        THREAD_POOL_EXECUTOR))
-                .thenAccept(
-                        isEnabled -> {
-                            if (!isEnabled) {
-                                throw new DisabledAppFunctionException(
-                                        "The app function is disabled");
+                        canExecuteResult -> {
+                            if (canExecuteResult == CAN_EXECUTE_APP_FUNCTIONS_DENIED) {
+                                return AndroidFuture.failedFuture(new SecurityException(
+                                        "Caller does not have permission to execute the"
+                                                + " appfunction"));
                             }
+                            return isAppFunctionEnabled(
+                                    requestInternal
+                                            .getClientRequest()
+                                            .getFunctionIdentifier(),
+                                    requestInternal
+                                            .getClientRequest()
+                                            .getTargetPackageName(),
+                                    getAppSearchManagerAsUser(
+                                            requestInternal.getUserHandle()),
+                                    THREAD_POOL_EXECUTOR)
+                                    .thenApply(
+                                            isEnabled -> {
+                                                if (!isEnabled) {
+                                                    throw new DisabledAppFunctionException(
+                                                            "The app function is disabled");
+                                                }
+                                                return canExecuteResult;
+                                            });
                         })
                 .thenAccept(
-                        unused -> {
+                        canExecuteResult -> {
+                            int bindFlags = Context.BIND_AUTO_CREATE;
+                            if (canExecuteResult
+                                    == CAN_EXECUTE_APP_FUNCTIONS_ALLOWED_HAS_PERMISSION) {
+                                // If the caller doesn't have the permission, do not use
+                                // BIND_FOREGROUND_SERVICE to avoid it raising its process state by
+                                // calling its own AppFunctions.
+                                bindFlags |= Context.BIND_FOREGROUND_SERVICE;
+                            }
                             Intent serviceIntent =
                                     mInternalServiceHelper.resolveAppFunctionService(
                                             targetPackageName, targetUser);
@@ -273,15 +284,33 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
                                                 "Cannot find the target service."));
                                 return;
                             }
+                            // Grant target app implicit visibility to the caller
+                            final int grantRecipientUserId = targetUser.getIdentifier();
+                            final int grantRecipientAppId =
+                                    UserHandle.getAppId(
+                                            mPackageManagerInternal.getPackageUid(
+                                                    requestInternal
+                                                            .getClientRequest()
+                                                            .getTargetPackageName(),
+                                                    /* flags= */ 0,
+                                                    /* userId= */ grantRecipientUserId));
+                            if (grantRecipientAppId > 0) {
+                                mPackageManagerInternal.grantImplicitAccess(
+                                        grantRecipientUserId,
+                                        serviceIntent,
+                                        grantRecipientAppId,
+                                        callingUid,
+                                        /* direct= */ true);
+                            }
                             bindAppFunctionServiceUnchecked(
                                     requestInternal,
                                     serviceIntent,
                                     targetUser,
                                     localCancelTransport,
                                     safeExecuteAppFunctionCallback,
-                                    /* bindFlags= */ Context.BIND_AUTO_CREATE
-                                            | Context.BIND_FOREGROUND_SERVICE,
-                                    callerBinder);
+                                    bindFlags,
+                                    callerBinder,
+                                    callingUid);
                         })
                 .exceptionally(
                         ex -> {
@@ -433,7 +462,8 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
             @NonNull ICancellationSignal cancellationSignalTransport,
             @NonNull SafeOneTimeExecuteAppFunctionCallback safeExecuteAppFunctionCallback,
             int bindFlags,
-            @NonNull IBinder callerBinder) {
+            @NonNull IBinder callerBinder,
+            int callingUid) {
         CancellationSignal cancellationSignal =
                 CancellationSignal.fromTransport(cancellationSignalTransport);
         ICancellationCallback cancellationCallback =
@@ -454,7 +484,11 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
                         new RunAppFunctionServiceCallback(
                                 requestInternal,
                                 cancellationCallback,
-                                safeExecuteAppFunctionCallback),
+                                safeExecuteAppFunctionCallback,
+                                getPackageSigningInfo(
+                                        targetUser,
+                                        requestInternal.getCallingPackage(),
+                                        callingUid)),
                         callerBinder);
 
         if (!bindServiceResult) {
@@ -464,6 +498,23 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
                             AppFunctionException.ERROR_SYSTEM_ERROR,
                             "Failed to bind the AppFunctionService."));
         }
+    }
+
+    @NonNull
+    private SigningInfo getPackageSigningInfo(
+            @NonNull UserHandle targetUser, @NonNull String packageName, int uid) {
+        Objects.requireNonNull(packageName);
+        Objects.requireNonNull(targetUser);
+
+        PackageInfo packageInfo;
+        packageInfo =
+                Objects.requireNonNull(
+                        mPackageManagerInternal.getPackageInfo(
+                                packageName,
+                                PackageManager.GET_SIGNING_CERTIFICATES,
+                                uid,
+                                targetUser.getIdentifier()));
+        return Objects.requireNonNull(packageInfo.signingInfo);
     }
 
     private AppSearchManager getAppSearchManagerAsUser(@NonNull UserHandle userHandle) {
@@ -476,7 +527,9 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
             e = e.getCause();
         }
         int resultCode = AppFunctionException.ERROR_SYSTEM_ERROR;
-        if (e instanceof AppSearchException appSearchException) {
+        if (e instanceof AppFunctionNotFoundException) {
+            resultCode = AppFunctionException.ERROR_FUNCTION_NOT_FOUND;
+        } else if (e instanceof AppSearchException appSearchException) {
             resultCode =
                     mapAppSearchResultFailureCodeToExecuteAppFunctionResponse(
                             appSearchException.getResultCode());
@@ -572,6 +625,38 @@ public class AppFunctionManagerServiceImpl extends IAppFunctionManager.Stub {
             mLocks.values().removeAll(Collections.singleton(null)); // Remove null values
             return mLocks.computeIfAbsent(callingPackage, k -> new Object());
         }
+    }
+
+    /**
+     * Returns a new {@link SafeOneTimeExecuteAppFunctionCallback} initialized with a {@link
+     * SafeOneTimeExecuteAppFunctionCallback.CompletionCallback} that logs the results.
+     */
+    @VisibleForTesting
+    SafeOneTimeExecuteAppFunctionCallback initializeSafeExecuteAppFunctionCallback(
+            @NonNull ExecuteAppFunctionAidlRequest requestInternal,
+            @NonNull IExecuteAppFunctionCallback executeAppFunctionCallback,
+            int callingUid) {
+        return new SafeOneTimeExecuteAppFunctionCallback(
+                executeAppFunctionCallback,
+                new SafeOneTimeExecuteAppFunctionCallback.CompletionCallback() {
+                    @Override
+                    public void finalizeOnSuccess(
+                            @NonNull ExecuteAppFunctionResponse result,
+                            long executionStartTimeMillis) {
+                        mLoggerWrapper.logAppFunctionSuccess(
+                                requestInternal, result, callingUid, executionStartTimeMillis);
+                    }
+
+                    @Override
+                    public void finalizeOnError(
+                            @NonNull AppFunctionException error, long executionStartTimeMillis) {
+                        mLoggerWrapper.logAppFunctionError(
+                                requestInternal,
+                                error.getErrorCode(),
+                                callingUid,
+                                executionStartTimeMillis);
+                    }
+                });
     }
 
     private static class AppFunctionMetadataObserver implements ObserverCallback {

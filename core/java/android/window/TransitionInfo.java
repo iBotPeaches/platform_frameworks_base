@@ -29,6 +29,7 @@ import static android.view.Display.INVALID_DISPLAY;
 import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_UNSPECIFIED;
 import static android.view.WindowManager.TRANSIT_CHANGE;
 import static android.view.WindowManager.TRANSIT_CLOSE;
+import static android.view.WindowManager.TRANSIT_FLAG_AOD_APPEARING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_APPEARING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY;
 import static android.view.WindowManager.TRANSIT_NONE;
@@ -56,8 +57,6 @@ import android.os.Parcelable;
 import android.view.Surface;
 import android.view.SurfaceControl;
 import android.view.WindowManager;
-
-import com.android.window.flags.Flags;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -211,7 +210,7 @@ public final class TransitionInfo implements Parcelable {
             FLAG_CONFIG_AT_END,
             FLAG_IS_TASK_DISPLAY_AREA,
             FLAG_FIRST_CUSTOM
-    }, flag = true)
+    })
     public @interface ChangeFlags {}
 
     private final @TransitionType int mType;
@@ -219,10 +218,6 @@ public final class TransitionInfo implements Parcelable {
     private int mTrack = 0;
     private final ArrayList<Change> mChanges = new ArrayList<>();
     private final ArrayList<Root> mRoots = new ArrayList<>();
-
-    // TODO(b/327332488): Clean-up usages after the flag is fully enabled.
-    @Deprecated
-    private AnimationOptions mOptions;
 
     /** This is only a BEST-EFFORT id used for log correlation. DO NOT USE for any real work! */
     private int mDebugId = -1;
@@ -238,7 +233,6 @@ public final class TransitionInfo implements Parcelable {
         mFlags = in.readInt();
         in.readTypedList(mChanges, Change.CREATOR);
         in.readTypedList(mRoots, Root.CREATOR);
-        mOptions = in.readTypedObject(AnimationOptions.CREATOR);
         mDebugId = in.readInt();
         mTrack = in.readInt();
     }
@@ -250,7 +244,6 @@ public final class TransitionInfo implements Parcelable {
         dest.writeInt(mFlags);
         dest.writeTypedList(mChanges);
         dest.writeTypedList(mRoots, flags);
-        dest.writeTypedObject(mOptions, flags);
         dest.writeInt(mDebugId);
         dest.writeInt(mTrack);
     }
@@ -284,18 +277,6 @@ public final class TransitionInfo implements Parcelable {
     /** @see #getRoot */
     public void addRoot(@NonNull Root other) {
         mRoots.add(other);
-    }
-
-    /**
-     * @deprecated Set {@link AnimationOptions} to change. This method is only used if
-     * {@link Flags#FLAG_MOVE_ANIMATION_OPTIONS_TO_CHANGE} is disabled.
-     */
-    @Deprecated
-    public void setAnimationOptions(@Nullable AnimationOptions options) {
-        if (Flags.moveAnimationOptionsToChange()) {
-            return;
-        }
-        mOptions = options;
     }
 
     public @TransitionType int getType() {
@@ -360,16 +341,6 @@ public final class TransitionInfo implements Parcelable {
     }
 
     /**
-     * @deprecated Use {@link Change#getAnimationOptions()} instead. This method is called only
-     * if {@link Flags#FLAG_MOVE_ANIMATION_OPTIONS_TO_CHANGE} is disabled.
-     */
-    @Deprecated
-    @Nullable
-    public AnimationOptions getAnimationOptions() {
-        return mOptions;
-    }
-
-    /**
      * @return the list of {@link Change}s in this transition. The list is sorted top-to-bottom
      *         in Z (meaning index 0 is the top-most container).
      */
@@ -405,7 +376,8 @@ public final class TransitionInfo implements Parcelable {
      */
     public boolean hasChangesOrSideEffects() {
         return !mChanges.isEmpty() || isKeyguardGoingAway()
-                || (mFlags & TRANSIT_FLAG_KEYGUARD_APPEARING) != 0;
+                || (mFlags & TRANSIT_FLAG_KEYGUARD_APPEARING) != 0
+                || (mFlags & TRANSIT_FLAG_AOD_APPEARING) != 0;
     }
 
     /**
@@ -455,9 +427,6 @@ public final class TransitionInfo implements Parcelable {
         StringBuilder sb = new StringBuilder();
         sb.append("{id=").append(mDebugId).append(" t=").append(transitTypeToString(mType))
                 .append(" f=0x").append(Integer.toHexString(mFlags)).append(" trk=").append(mTrack);
-        if (mOptions != null) {
-            sb.append(" opt=").append(mOptions);
-        }
         sb.append(" r=[");
         for (int i = 0; i < mRoots.size(); ++i) {
             if (i > 0) {
@@ -656,8 +625,6 @@ public final class TransitionInfo implements Parcelable {
         for (int i = 0; i < mRoots.size(); ++i) {
             out.mRoots.add(mRoots.get(i).localRemoteCopy());
         }
-        // Doesn't have any native stuff, so no need for actual copy
-        out.mOptions = mOptions;
         return out;
     }
 
@@ -860,9 +827,6 @@ public final class TransitionInfo implements Parcelable {
          * Sets {@link AnimationOptions} to override animation.
          */
         public void setAnimationOptions(@Nullable AnimationOptions options) {
-            if (!Flags.moveAnimationOptionsToChange()) {
-                return;
-            }
             mAnimationOptions = options;
         }
 
@@ -1190,7 +1154,6 @@ public final class TransitionInfo implements Parcelable {
             mEnterResId = in.readInt();
             mChangeResId = in.readInt();
             mExitResId = in.readInt();
-            mBackgroundColor = in.readInt();
             mOverrideTaskTransition = in.readBoolean();
             mPackageName = in.readString();
             mTransitionBounds.readFromParcel(in);
@@ -1241,23 +1204,6 @@ public final class TransitionInfo implements Parcelable {
         }
 
         /**
-         * Make options for a custom animation based on anim resources.
-         *
-         * @param packageName the package name to find the animation resources
-         * @param enterResId the open animation resources ID
-         * @param exitResId the close animation resources ID
-         * @param backgroundColor the background color
-         * @param overrideTaskTransition whether to override the task transition
-         */
-        @NonNull
-        public static AnimationOptions makeCustomAnimOptions(@NonNull String packageName,
-                @AnimRes int enterResId, @AnimRes int exitResId, @ColorInt int backgroundColor,
-                boolean overrideTaskTransition) {
-            return makeCustomAnimOptions(packageName, enterResId, DEFAULT_ANIMATION_RESOURCES_ID,
-                    exitResId, backgroundColor, overrideTaskTransition);
-        }
-
-        /**
          * Creates a {@link android.app.ActivityOptions#ANIM_CUSTOM} {@link AnimationOptions}.
          *
          * @param packageName the package name that includes the animation resources.
@@ -1269,13 +1215,12 @@ public final class TransitionInfo implements Parcelable {
         @NonNull
         public static AnimationOptions makeCustomAnimOptions(@NonNull String packageName,
                 @AnimRes int enterResId, @AnimRes int changeResId, @AnimRes int exitResId,
-                @ColorInt int backgroundColor, boolean overrideTaskTransition) {
+                boolean overrideTaskTransition) {
             AnimationOptions options = new AnimationOptions(ANIM_CUSTOM);
             options.mPackageName = packageName;
             options.mEnterResId = enterResId;
             options.mChangeResId = changeResId;
             options.mExitResId = exitResId;
-            options.mBackgroundColor = backgroundColor;
             options.mOverrideTaskTransition = overrideTaskTransition;
             return options;
         }
@@ -1289,12 +1234,13 @@ public final class TransitionInfo implements Parcelable {
             return options;
         }
 
-        /** Make options for a scale-up animation. */
+        /** Make options for a scale-up animation with task override option */
         @NonNull
         public static AnimationOptions makeScaleUpAnimOptions(int startX, int startY, int width,
-                int height) {
+                int height, boolean overrideTaskTransition) {
             AnimationOptions options = new AnimationOptions(ANIM_SCALE_UP);
             options.mTransitionBounds.set(startX, startY, startX + width, startY + height);
+            options.mOverrideTaskTransition = overrideTaskTransition;
             return options;
         }
 
@@ -1350,10 +1296,6 @@ public final class TransitionInfo implements Parcelable {
             return mExitResId;
         }
 
-        public @ColorInt int getBackgroundColor() {
-            return mBackgroundColor;
-        }
-
         public boolean getOverrideTaskTransition() {
             return mOverrideTaskTransition;
         }
@@ -1389,7 +1331,6 @@ public final class TransitionInfo implements Parcelable {
             dest.writeInt(mEnterResId);
             dest.writeInt(mChangeResId);
             dest.writeInt(mExitResId);
-            dest.writeInt(mBackgroundColor);
             dest.writeBoolean(mOverrideTaskTransition);
             dest.writeString(mPackageName);
             mTransitionBounds.writeToParcel(dest, flags);

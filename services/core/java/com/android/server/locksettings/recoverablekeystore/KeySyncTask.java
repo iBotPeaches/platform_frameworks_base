@@ -168,6 +168,11 @@ public class KeySyncTask implements Runnable {
     }
 
     private void syncKeys() throws RemoteException {
+        if (mCredential != null && mCredential.length >= 80) {
+            // The value is likely a randomly generated profile password
+            // It doesn't match string typed by the user.
+            Log.e(TAG, "Unexpected credential length for user " + mUserId);
+        }
         if (mCredentialUpdated && mRecoverableKeyStoreDb.getBadRemoteGuessCounter(mUserId) != 0) {
             mRecoverableKeyStoreDb.setBadRemoteGuessCounter(mUserId, 0);
         }

@@ -41,8 +41,8 @@ public abstract class NotifFilter extends Pluggable<NotifFilter> {
      *              this entry will not have any grouping nor sorting information.
      *              If this filter is registered via {@link NotifPipeline#addFinalizeFilter},
      *              this entry will have grouping and sorting information.
-     * @param now A timestamp in SystemClock.uptimeMillis that represents "now" for the purposes of
-     *            pipeline execution. This value will be the same for all pluggable calls made
+     * @param now A timestamp in SystemClock.elapsedRealtime that represents "now" for the purposes
+     *            of pipeline execution. This value will be the same for all pluggable calls made
      *            during this pipeline run, giving pluggables a stable concept of "now" to compare
      *            various entries against.
      * @return True if the notif should be removed from the list

@@ -15,4 +15,20 @@
 
 # List all the ravenwood test modules.
 
-jq -r 'to_entries[] | select( .value.compatibility_suites | index("ravenwood-tests") ) | .key' "$OUT/module-info.json" | sort
+set -e
+
+in="$OUT/module-info.json"
+cache="$OUT/ravenwood-test-list.cached.tmp"
+cache_temp="$OUT/ravenwood-test-list.temp.tmp"
+
+if [[ "$in" -nt "$cache" ]] ; then
+    rm -f "$cache_temp" "$cache"
+
+    # First, create to a temp file, and once it's completed, rename it
+    # to the actual cache file, so that if the command failed or is interrupted,
+    # we don't update the cache.
+    jq -r 'to_entries[] | select( .value.compatibility_suites | index("ravenwood-tests") ) | .key' "$OUT/module-info.json" | sort > "$cache_temp"
+    mv "$cache_temp" "$cache"
+fi
+
+cat "$cache"

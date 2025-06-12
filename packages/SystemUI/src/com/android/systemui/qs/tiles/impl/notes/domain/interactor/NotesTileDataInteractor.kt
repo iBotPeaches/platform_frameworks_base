@@ -19,8 +19,8 @@ package com.android.systemui.qs.tiles.impl.notes.domain.interactor
 import android.os.UserHandle
 import com.android.systemui.Flags
 import com.android.systemui.notetask.NoteTaskEnabledKey
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.notes.domain.model.NotesTileModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow

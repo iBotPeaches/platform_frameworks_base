@@ -28,6 +28,7 @@ import android.text.TextUtils;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SpellCheckSpan implements ParcelableSpan {
 
     private boolean mSpellCheckInProgress;

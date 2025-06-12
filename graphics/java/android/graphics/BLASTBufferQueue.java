@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 /**
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class BLASTBufferQueue {
     // Note: This field is accessed by native code.
     public long mNativeObject; // BLASTBufferQueue*
@@ -49,18 +50,25 @@ public final class BLASTBufferQueue {
     private static native void nativeSetTransactionHangCallback(long ptr,
             TransactionHangCallback callback);
     private static native void nativeSetApplyToken(long ptr, IBinder applyToken);
+    private static native void nativeSetWaitForBufferReleaseCallback(long ptr,
+            WaitForBufferReleaseCallback callback);
 
     public interface TransactionHangCallback {
         void onTransactionHang(String reason);
     }
 
-    /** Create a new connection with the surface flinger. */
-    public BLASTBufferQueue(String name, SurfaceControl sc, int width, int height,
-            @PixelFormat.Format int format) {
-        this(name, true /* updateDestinationFrame */);
-        update(sc, width, height, format);
+
+    public interface WaitForBufferReleaseCallback {
+        /**
+         * Indicates that the client is waiting on buffer release
+         * due to no free buffers being available to render into.
+         * @param durationNanos The length of time in nanoseconds
+         * that the client was blocked on buffer release.
+         */
+        void onWaitForBufferRelease(long durationNanos);
     }
 
+    /** Create a new connection with the surface flinger. */
     public BLASTBufferQueue(String name, boolean updateDestinationFrame) {
         mNativeObject = nativeCreate(name, updateDestinationFrame);
     }
@@ -209,5 +217,12 @@ public final class BLASTBufferQueue {
 
     public void setApplyToken(IBinder applyToken) {
         nativeSetApplyToken(mNativeObject, applyToken);
+    }
+
+    /**
+     * Propagate callback about being blocked on buffer release.
+     */
+    public void setWaitForBufferReleaseCallback(WaitForBufferReleaseCallback waitCallback) {
+        nativeSetWaitForBufferReleaseCallback(mNativeObject, waitCallback);
     }
 }

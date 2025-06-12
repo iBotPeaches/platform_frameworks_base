@@ -16,12 +16,14 @@
 
 package com.android.wallpaperbackup;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.WallpaperInfo;
 import android.app.backup.BackupManager;
 import android.app.backup.BackupRestoreEventLogger;
 import android.app.backup.BackupRestoreEventLogger.BackupRestoreDataType;
 import android.app.backup.BackupRestoreEventLogger.BackupRestoreError;
+import android.app.wallpaper.WallpaperDescription;
 import android.content.ComponentName;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -53,6 +55,16 @@ public class WallpaperEventLogger {
     @VisibleForTesting
     static final String WALLPAPER_LIVE_LOCK = "wlp_live_lock";
 
+    /* Live component used as system (or home) screen wallpaper */
+    @BackupRestoreDataType
+    @VisibleForTesting
+    static final String WALLPAPER_DESCRIPTION_SYSTEM = "wlp_description_system";
+
+    /* Live component used as lock screen wallpaper */
+    @BackupRestoreDataType
+    @VisibleForTesting
+    static final String WALLPAPER_DESCRIPTION_LOCK = "wlp_description_lock";
+
     @BackupRestoreError
     static final String ERROR_INELIGIBLE = "ineligible";
     @BackupRestoreError
@@ -63,6 +75,8 @@ public class WallpaperEventLogger {
     static final String ERROR_QUOTA_EXCEEDED = "quota_exceeded";
     @BackupRestoreError
     static final String ERROR_SET_COMPONENT_EXCEPTION = "exception_in_set_component";
+    @BackupRestoreError
+    static final String ERROR_SET_DESCRIPTION_EXCEPTION = "exception_in_set_description";
     @BackupRestoreError
     static final String ERROR_LIVE_PACKAGE_NOT_INSTALLED = "live_pkg_not_installed_in_restore";
 
@@ -115,11 +129,11 @@ public class WallpaperEventLogger {
     }
 
     void onSystemImageWallpaperRestored() {
-        logRestoreSuccessInternal(WALLPAPER_IMG_SYSTEM, /* liveComponentWallpaperInfo */ null);
+        logRestoreSuccessInternal(WALLPAPER_IMG_SYSTEM, (ComponentName) null);
     }
 
     void onLockImageWallpaperRestored() {
-        logRestoreSuccessInternal(WALLPAPER_IMG_LOCK, /* liveComponentWallpaperInfo */ null);
+        logRestoreSuccessInternal(WALLPAPER_IMG_LOCK, (ComponentName) null);
     }
 
     void onSystemLiveWallpaperRestored(ComponentName wpService) {
@@ -146,6 +160,13 @@ public class WallpaperEventLogger {
         logRestoreFailureInternal(WALLPAPER_LIVE_LOCK, error);
     }
 
+    void onSystemLiveWallpaperRestoredWithDescription(@NonNull WallpaperDescription description) {
+        logRestoreSuccessInternal(WALLPAPER_DESCRIPTION_SYSTEM, description);
+    }
+
+    void onLockLiveWallpaperRestoredWithDescription(@NonNull WallpaperDescription description) {
+        logRestoreSuccessInternal(WALLPAPER_DESCRIPTION_LOCK, description);
+    }
 
 
     /**
@@ -168,15 +189,17 @@ public class WallpaperEventLogger {
      */
     void onRestoreException(Exception exception) {
         String error = exception.getClass().getName();
-        if (!mProcessedDataTypes.contains(WALLPAPER_IMG_SYSTEM) && !mProcessedDataTypes.contains(
-                WALLPAPER_LIVE_SYSTEM)) {
+        if (!(mProcessedDataTypes.contains(WALLPAPER_IMG_SYSTEM) || mProcessedDataTypes.contains(
+                WALLPAPER_LIVE_SYSTEM) || mProcessedDataTypes.contains(
+                WALLPAPER_DESCRIPTION_SYSTEM))) {
             mLogger.logItemsRestoreFailed(WALLPAPER_IMG_SYSTEM, /* count */ 1, error);
         }
-        if (!mProcessedDataTypes.contains(WALLPAPER_IMG_LOCK) && !mProcessedDataTypes.contains(
-                WALLPAPER_LIVE_LOCK)) {
+        if (!(mProcessedDataTypes.contains(WALLPAPER_IMG_LOCK) || mProcessedDataTypes.contains(
+                WALLPAPER_LIVE_LOCK) || mProcessedDataTypes.contains(WALLPAPER_DESCRIPTION_LOCK))) {
             mLogger.logItemsRestoreFailed(WALLPAPER_IMG_LOCK, /* count */ 1, error);
         }
     }
+
     private void logBackupSuccessInternal(@BackupRestoreDataType String which,
             @Nullable WallpaperInfo liveComponentWallpaperInfo) {
         mLogger.logItemsBackedUp(which, /* count */ 1);
@@ -197,6 +220,13 @@ public class WallpaperEventLogger {
         mProcessedDataTypes.add(which);
     }
 
+    private void logRestoreSuccessInternal(@BackupRestoreDataType String which,
+            @NonNull WallpaperDescription description) {
+        mLogger.logItemsRestored(which, /* count */ 1);
+        logRestoredLiveWallpaperDescription(which, description);
+        mProcessedDataTypes.add(which);
+    }
+
     private void logRestoreFailureInternal(@BackupRestoreDataType String which,
             @BackupRestoreError String error) {
         mLogger.logItemsRestoreFailed(which, /* count */ 1, error);
@@ -214,6 +244,13 @@ public class WallpaperEventLogger {
             ComponentName wpService) {
         if (wpService != null) {
             mLogger.logRestoreMetadata(wallpaperType, wpService.getClassName());
+        }
+    }
+
+    private void logRestoredLiveWallpaperDescription(@BackupRestoreDataType String wallpaperType,
+            WallpaperDescription description) {
+        if (description != null) {
+            mLogger.logRestoreMetadata(wallpaperType, description.toString());
         }
     }
 }

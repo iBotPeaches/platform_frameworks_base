@@ -26,9 +26,10 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public class ComponentStart extends Operation implements ComponentStartOperation {
+public class ComponentStart extends Operation implements Container {
 
     int mType = DEFAULT;
     float mX;
@@ -36,6 +37,8 @@ public class ComponentStart extends Operation implements ComponentStartOperation
     float mWidth;
     float mHeight;
     int mComponentId;
+
+    @NonNull public ArrayList<Operation> mList = new ArrayList<>();
 
     public int getType() {
         return mType;
@@ -123,6 +126,12 @@ public class ComponentStart extends Operation implements ComponentStartOperation
     public static final int LAYOUT_ROW = 15;
     public static final int LAYOUT_COLUMN = 16;
 
+    /**
+     * Returns the string representation of the component type
+     *
+     * @param type
+     * @return a string representing the component type
+     */
     @NonNull
     public static String typeDescription(int type) {
         switch (type) {
@@ -176,6 +185,15 @@ public class ComponentStart extends Operation implements ComponentStartOperation
         return Operations.COMPONENT_START;
     }
 
+    /**
+     * Write the operation on the buffer
+     *
+     * @param buffer
+     * @param type
+     * @param componentId
+     * @param width
+     * @param height
+     */
     public static void apply(
             @NonNull WireBuffer buffer, int type, int componentId, float width, float height) {
         buffer.start(Operations.COMPONENT_START);
@@ -185,6 +203,11 @@ public class ComponentStart extends Operation implements ComponentStartOperation
         buffer.writeFloat(height);
     }
 
+    /**
+     * Return the size of the operation in byte
+     *
+     * @return the size in byte
+     */
     public static int size() {
         return 1 + 4 + 4 + 4;
     }
@@ -216,5 +239,11 @@ public class ComponentStart extends Operation implements ComponentStartOperation
                 .field(INT, "COMPONENT_ID", "unique id for this component")
                 .field(FLOAT, "WIDTH", "width of the component")
                 .field(FLOAT, "HEIGHT", "height of the component");
+    }
+
+    @NonNull
+    @Override
+    public ArrayList<Operation> getList() {
+        return mList;
     }
 }

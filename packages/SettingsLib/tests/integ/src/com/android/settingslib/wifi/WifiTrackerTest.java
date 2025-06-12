@@ -71,7 +71,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
@@ -197,7 +197,7 @@ public class WifiTrackerTest {
                 .registerNetworkScoreCache(
                         anyInt(),
                         mScoreCacheCaptor.capture(),
-                        Matchers.anyInt());
+                        ArgumentMatchers.anyInt());
 
         // Capture requested keys and count down latch if present
         doAnswer(
@@ -213,7 +213,7 @@ public class WifiTrackerTest {
                         }
                         return true;
                     }
-                }).when(mockNetworkScoreManager).requestScores(Matchers.<NetworkKey[]>any());
+                }).when(mockNetworkScoreManager).requestScores(ArgumentMatchers.<NetworkKey[]>any());
 
         // We use a latch to detect callbacks as Tracker initialization state often invokes
         // callbacks
@@ -464,9 +464,9 @@ public class WifiTrackerTest {
         startTracking(tracker);
         verify(mockNetworkScoreManager)
                 .registerNetworkScoreCache(
-                          Matchers.anyInt(),
+                          ArgumentMatchers.anyInt(),
                           mScoreCacheCaptor.capture(),
-                          Matchers.anyInt());
+                          ArgumentMatchers.anyInt());
 
         WifiNetworkScoreCache scoreCache = mScoreCacheCaptor.getValue();
 

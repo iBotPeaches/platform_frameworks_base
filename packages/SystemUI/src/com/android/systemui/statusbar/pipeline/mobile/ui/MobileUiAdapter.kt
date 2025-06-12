@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.pipeline.mobile.ui
 
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -27,7 +28,7 @@ import java.io.PrintWriter
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
-import com.android.app.tracing.coroutines.launchTraced as launch
+import kotlinx.coroutines.flow.combine
 
 /**
  * This class is intended to provide a context to collect on the
@@ -56,12 +57,23 @@ constructor(
         // Start notifying the icon controller of subscriptions
         scope.launch {
             isCollecting = true
-            mobileIconsViewModel.subscriptionIdsFlow.collectLatest {
-                logger.logUiAdapterSubIdsSentToIconController(it)
-                lastValue = it
-                iconController.setNewMobileIconSubIds(it)
-                shadeCarrierGroupController?.updateModernMobileIcons(it)
-            }
+            combine(
+                    mobileIconsViewModel.subscriptionIdsFlow,
+                    mobileIconsViewModel.isStackable,
+                    ::Pair,
+                )
+                .collectLatest { (subIds, isStackable) ->
+                    logger.logUiAdapterSubIdsSentToIconController(subIds, isStackable)
+                    lastValue = subIds
+                    if (isStackable) {
+                        // Passing an empty list to remove pre-existing mobile icons.
+                        // StackedMobileBindableIcon will show the stacked icon instead.
+                        iconController.setNewMobileIconSubIds(emptyList())
+                    } else {
+                        iconController.setNewMobileIconSubIds(subIds)
+                    }
+                    shadeCarrierGroupController?.updateModernMobileIcons(subIds)
+                }
         }
     }
 

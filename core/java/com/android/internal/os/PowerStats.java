@@ -128,6 +128,7 @@ public final class PowerStats {
          * Extra parameters specific to the power component, e.g. the availability of power
          * monitors.
          */
+        @NonNull
         public final PersistableBundle extras;
 
         private PowerStatsFormatter mDeviceStatsFormatter;
@@ -269,20 +270,41 @@ public final class PowerStats {
                     stateStatsArrayLength, uidStatsArrayLength, extras);
         }
 
+        @SuppressWarnings("deprecation")
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof Descriptor)) return false;
             Descriptor that = (Descriptor) o;
-            return powerComponentId == that.powerComponentId
-                    && statsArrayLength == that.statsArrayLength
-                    && stateLabels.contentEquals(that.stateLabels)
-                    && stateStatsArrayLength == that.stateStatsArrayLength
-                    && uidStatsArrayLength == that.uidStatsArrayLength
-                    && Objects.equals(name, that.name)
-                    && extras.size() == that.extras.size()        // Unparcel the Parcel if not yet
-                    && Bundle.kindofEquals(extras,
-                    that.extras);  // Since the Parcel is now unparceled, do a deep comparison
+            if (powerComponentId != that.powerComponentId
+                    || statsArrayLength != that.statsArrayLength
+                    || !stateLabels.contentEquals(that.stateLabels)
+                    || stateStatsArrayLength != that.stateStatsArrayLength
+                    || uidStatsArrayLength != that.uidStatsArrayLength
+                    || !Objects.equals(name, that.name)) {
+                return false;
+            }
+
+            // Getting the size has the side-effect of unparceling the Bundle if not yet
+            if (extras.size() != that.extras.size()) {
+                return false;
+            }
+
+            if (Bundle.kindofEquals(extras, that.extras)) {
+                return true;
+            }
+
+            // Since `kindofEquals` does not deep-compare arrays, we do that separately, albeit at
+            // the expense of creating an iterator and using a deprecated API, `bundle.get`.
+            // There is no performance concern, because the situation where PowerStatsDescriptors
+            // are changed in an incompatible way are exceedingly rare, occurring at most
+            // once per power component after a system upgrade.
+            for (String key : extras.keySet()) {
+                if (!Objects.deepEquals(extras.get(key), that.extras.get(key))) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /**

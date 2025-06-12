@@ -35,6 +35,7 @@ import com.android.wm.shell.bubbles.BubbleDebugConfig.TAG_WITH_CLASS_NAME
 import com.android.wm.shell.bubbles.BubbleEducationController
 import com.android.wm.shell.bubbles.BubbleViewProvider
 import com.android.wm.shell.bubbles.setup
+import com.android.wm.shell.shared.TypefaceUtils
 import com.android.wm.shell.shared.animation.PhysicsAnimator
 import com.android.wm.shell.shared.bubbles.BubblePopupDrawable
 import com.android.wm.shell.shared.bubbles.BubblePopupView
@@ -108,6 +109,10 @@ class BubbleEducationViewController(private val context: Context, private val li
         root.getBoundsOnScreen(rootBounds)
         educationView =
             createEducationView(R.layout.bubble_bar_stack_education, root).apply {
+                TypefaceUtils.setTypeface(findViewById(R.id.education_title),
+                    TypefaceUtils.FontFamily.GSF_HEADLINE_SMALL_EMPHASIZED)
+                TypefaceUtils.setTypeface(findViewById(R.id.education_text),
+                    TypefaceUtils.FontFamily.GSF_BODY_MEDIUM)
                 setArrowDirection(BubblePopupDrawable.ArrowDirection.DOWN)
                 updateEducationPosition(view = this, position, rootBounds)
                 val arrowToEdgeOffset = popupDrawable?.config?.cornerRadius ?: 0f
@@ -153,6 +158,10 @@ class BubbleEducationViewController(private val context: Context, private val li
 
         educationView =
             createEducationView(R.layout.bubble_bar_manage_education, root).apply {
+                TypefaceUtils.setTypeface(findViewById(R.id.education_manage_title),
+                    TypefaceUtils.FontFamily.GSF_HEADLINE_SMALL_EMPHASIZED)
+                TypefaceUtils.setTypeface(findViewById(R.id.education_manage_text),
+                    TypefaceUtils.FontFamily.GSF_BODY_MEDIUM)
                 pivotY = 0f
                 doOnLayout { it.pivotX = it.width / 2f }
                 setOnClickListener { hideEducation(animated = true) }

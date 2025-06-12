@@ -21,6 +21,7 @@ import static android.service.dreams.Flags.dreamHandlesBeingObscured;
 import static android.service.dreams.Flags.dreamHandlesConfirmKeys;
 import static android.service.dreams.Flags.startAndStopDozingInBackground;
 
+import android.Manifest;
 import android.annotation.FlaggedApi;
 import android.annotation.IdRes;
 import android.annotation.IntDef;
@@ -254,7 +255,6 @@ public class DreamService extends Service implements Window.Callback {
             "android.service.dream.DreamService.dream_overlay_component";
 
     private final IDreamManager mDreamManager;
-    private final Handler mHandler;
     private IBinder mDreamToken;
     private Window mWindow;
     private Activity mActivity;
@@ -323,19 +323,89 @@ public class DreamService extends Service implements Window.Callback {
         /** Returns the associated service info */
         ServiceInfo getServiceInfo();
 
-        /** Returns the handler to be used for any posted operation */
-        Handler getHandler();
-
         /** Returns the package manager */
         PackageManager getPackageManager();
 
         /** Returns the resources */
         Resources getResources();
+
+        /** Returns a specialized handler to ensure Runnables are not suspended */
+        WakefulHandler getWakefulHandler();
+    }
+
+    /**
+     * {@link WakefulHandler} is an interface for defining an object that helps post work without
+     * being interrupted by doze state.
+     *
+     * @hide
+     */
+    public interface WakefulHandler {
+        /** Posts a {@link Runnable} to be ran on the underlying {@link Handler}. */
+        void postIfNeeded(Runnable r);
+
+        /**
+         * Returns the underlying {@link Handler}. Should only be used for passing the handler into
+         * a function and not for directly calling methods on it.
+         */
+        Handler getHandler();
+    }
+
+    /**
+     * {@link WakefulHandlerImpl} ensures work on a handler is not suspended by wrapping the call
+     * with a partial wakelock. Note that this is only needed for Doze DreamService implementations.
+     * In this case, the component should have wake lock permissions. When such permission is not
+     * available, this class behaves like an ordinary handler.
+     */
+    private static final class WakefulHandlerImpl implements WakefulHandler {
+        private static final String SERVICE_HANDLER_WAKE_LOCK_TAG = "dream:service:handler";
+        private Context mContext;
+        private Handler mHandler;
+
+        private PowerManager.WakeLock mWakeLock;
+
+        private PowerManager.WakeLock getWakeLock() {
+            if (mContext.checkCallingOrSelfPermission(Manifest.permission.WAKE_LOCK)
+                    != PERMISSION_GRANTED) {
+                return null;
+            }
+
+            final PowerManager powerManager = mContext.getSystemService(PowerManager.class);
+
+            if (powerManager == null) {
+                return null;
+            }
+
+            return powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                    SERVICE_HANDLER_WAKE_LOCK_TAG);
+        }
+
+        WakefulHandlerImpl(Context context) {
+            mContext = context;
+            mHandler = new Handler(Looper.getMainLooper());
+            mWakeLock = getWakeLock();
+        }
+
+        @Override
+        public void postIfNeeded(Runnable r) {
+            if (mHandler.getLooper().isCurrentThread()) {
+                r.run();
+            } else if (mWakeLock != null) {
+                mHandler.post(mWakeLock.wrap(r));
+            } else {
+                mHandler.post(r);
+            }
+        }
+
+        @Override
+        public Handler getHandler() {
+            return mHandler;
+        }
     }
 
     private static final class DefaultInjector implements Injector {
         private Context mContext;
         private Class<?> mClassName;
+        private WakefulHandler mWakefulHandler;
 
         public void init(Context context) {
             mContext = context;
@@ -346,8 +416,6 @@ public class DreamService extends Service implements Window.Callback {
         public DreamOverlayConnectionHandler createOverlayConnection(
                 ComponentName overlayComponent,
                 Runnable onDisconnected) {
-            final Resources resources = mContext.getResources();
-
             return new DreamOverlayConnectionHandler(
                     /* context= */ mContext,
                     Looper.getMainLooper(),
@@ -381,8 +449,14 @@ public class DreamService extends Service implements Window.Callback {
         }
 
         @Override
-        public Handler getHandler() {
-            return new Handler(Looper.getMainLooper());
+        public WakefulHandler getWakefulHandler() {
+            synchronized (this) {
+                if (mWakefulHandler == null) {
+                    mWakefulHandler = new WakefulHandlerImpl(mContext);
+                }
+            }
+
+            return mWakefulHandler;
         }
 
         @Override
@@ -394,7 +468,6 @@ public class DreamService extends Service implements Window.Callback {
         public Resources getResources() {
             return mContext.getResources();
         }
-
     }
 
     public DreamService() {
@@ -412,7 +485,6 @@ public class DreamService extends Service implements Window.Callback {
         mInjector = injector;
         mInjector.init(this);
         mDreamManager = mInjector.getDreamManager();
-        mHandler = mInjector.getHandler();
     }
 
     /**
@@ -455,7 +527,7 @@ public class DreamService extends Service implements Window.Callback {
 
                         // Simply wake up in the case the device is not locked.
                         if (!keyguardManager.isKeyguardLocked()) {
-                            wakeUp();
+                            wakeUp(false);
                             return true;
                         }
 
@@ -477,11 +549,11 @@ public class DreamService extends Service implements Window.Callback {
 
         if (!mInteractive) {
             if (mDebug) Slog.v(mTag, "Waking up on keyEvent");
-            wakeUp();
+            wakeUp(false);
             return true;
         } else if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (mDebug) Slog.v(mTag, "Waking up on back key");
-            wakeUp();
+            wakeUp(false);
             return true;
         }
         return mWindow.superDispatchKeyEvent(event);
@@ -492,7 +564,7 @@ public class DreamService extends Service implements Window.Callback {
     public boolean dispatchKeyShortcutEvent(KeyEvent event) {
         if (!mInteractive) {
             if (mDebug) Slog.v(mTag, "Waking up on keyShortcutEvent");
-            wakeUp();
+            wakeUp(false);
             return true;
         }
         return mWindow.superDispatchKeyShortcutEvent(event);
@@ -505,7 +577,7 @@ public class DreamService extends Service implements Window.Callback {
         // but finish()es on any other kind of activity
         if (!mInteractive && event.getActionMasked() == MotionEvent.ACTION_UP) {
             if (mDebug) Slog.v(mTag, "Waking up on touchEvent");
-            wakeUp();
+            wakeUp(false);
             return true;
         }
         return mWindow.superDispatchTouchEvent(event);
@@ -516,7 +588,7 @@ public class DreamService extends Service implements Window.Callback {
     public boolean dispatchTrackballEvent(MotionEvent event) {
         if (!mInteractive) {
             if (mDebug) Slog.v(mTag, "Waking up on trackballEvent");
-            wakeUp();
+            wakeUp(false);
             return true;
         }
         return mWindow.superDispatchTrackballEvent(event);
@@ -527,7 +599,7 @@ public class DreamService extends Service implements Window.Callback {
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
         if (!mInteractive) {
             if (mDebug) Slog.v(mTag, "Waking up on genericMotionEvent");
-            wakeUp();
+            wakeUp(false);
             return true;
         }
         return mWindow.superDispatchGenericMotionEvent(event);
@@ -925,32 +997,43 @@ public class DreamService extends Service implements Window.Callback {
         }
     }
 
-    private synchronized void updateDoze() {
-        if (mDreamToken == null) {
-            Slog.w(mTag, "Updating doze without a dream token.");
-            return;
-        }
+    private void postIfNeeded(Runnable runnable) {
+        // The handler is based on the populated context is not ready at construction time.
+        // therefore we fetch on demand.
+        mInjector.getWakefulHandler().postIfNeeded(runnable);
+    }
 
-        if (mDozing) {
-            try {
-                Slog.v(mTag, "UpdateDoze mDozeScreenState=" + mDozeScreenState
-                        + " mDozeScreenBrightness=" + mDozeScreenBrightness
-                        + " mDozeScreenBrightnessFloat=" + mDozeScreenBrightnessFloat);
-                if (startAndStopDozingInBackground()) {
-                    mDreamManager.startDozingOneway(
-                            mDreamToken, mDozeScreenState, mDozeScreenStateReason,
-                            mDozeScreenBrightnessFloat, mDozeScreenBrightness,
-                            mUseNormalBrightnessForDoze);
-                } else {
-                    mDreamManager.startDozing(
-                            mDreamToken, mDozeScreenState, mDozeScreenStateReason,
-                            mDozeScreenBrightnessFloat, mDozeScreenBrightness,
-                            mUseNormalBrightnessForDoze);
-                }
-            } catch (RemoteException ex) {
-                // system server died
+    /**
+     * Updates doze state. Note that this must be called on the mHandler.
+     */
+    private void updateDoze() {
+        postIfNeeded(() -> {
+            if (mDreamToken == null) {
+                Slog.w(mTag, "Updating doze without a dream token.");
+                return;
             }
-        }
+
+            if (mDozing) {
+                try {
+                    Slog.v(mTag, "UpdateDoze mDozeScreenState=" + mDozeScreenState
+                            + " mDozeScreenBrightness=" + mDozeScreenBrightness
+                            + " mDozeScreenBrightnessFloat=" + mDozeScreenBrightnessFloat);
+                    if (startAndStopDozingInBackground()) {
+                        mDreamManager.startDozingOneway(
+                                mDreamToken, mDozeScreenState, mDozeScreenStateReason,
+                                mDozeScreenBrightnessFloat, mDozeScreenBrightness,
+                                mUseNormalBrightnessForDoze);
+                    } else {
+                        mDreamManager.startDozing(
+                                mDreamToken, mDozeScreenState, mDozeScreenStateReason,
+                                mDozeScreenBrightnessFloat, mDozeScreenBrightness,
+                                mUseNormalBrightnessForDoze);
+                    }
+                } catch (RemoteException ex) {
+                    // system server died
+                }
+            }
+        });
     }
 
     /**
@@ -966,14 +1049,20 @@ public class DreamService extends Service implements Window.Callback {
      */
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P, trackingBug = 115609023)
     public void stopDozing() {
-        if (mDozing) {
-            mDozing = false;
-            try {
-                mDreamManager.stopDozing(mDreamToken);
-            } catch (RemoteException ex) {
-                // system server died
+        postIfNeeded(() -> {
+            if (mDreamToken == null) {
+                return;
             }
-        }
+
+            if (mDozing) {
+                mDozing = false;
+                try {
+                    mDreamManager.stopDozing(mDreamToken);
+                } catch (RemoteException ex) {
+                    // system server died
+                }
+            }
+        });
     }
 
     /**
@@ -1200,13 +1289,23 @@ public class DreamService extends Service implements Window.Callback {
         mOverlayCallback = new IDreamOverlayCallback.Stub() {
             @Override
             public void onExitRequested() {
-                // Simply finish dream when exit is requested.
-                mHandler.post(() -> finish());
+                final long token = Binder.clearCallingIdentity();
+                try {
+                    // Simply finish dream when exit is requested.
+                    postIfNeeded(() -> finishInternal());
+                } finally {
+                    Binder.restoreCallingIdentity(token);
+                }
             }
 
             @Override
             public void onRedirectWake(boolean redirect) {
-                mRedirectWake = redirect;
+                final long token = Binder.clearCallingIdentity();
+                try {
+                    mRedirectWake = redirect;
+                } finally {
+                    Binder.restoreCallingIdentity(token);
+                }
             }
         };
 
@@ -1299,9 +1398,13 @@ public class DreamService extends Service implements Window.Callback {
      * </p>
      */
     public final void finish() {
+        postIfNeeded(this::finishInternal);
+    }
+
+    private void finishInternal() {
         // If there is an active overlay connection, signal that the dream is ending before
-        // continuing. Note that the overlay cannot rely on the unbound state, since another dream
-        // might have bound to it in the meantime.
+        // continuing. Note that the overlay cannot rely on the unbound state, since another
+        // dream might have bound to it in the meantime.
         if (mOverlayConnection != null) {
             mOverlayConnection.addConsumer(overlay -> {
                 try {
@@ -1357,7 +1460,7 @@ public class DreamService extends Service implements Window.Callback {
      * </p>
      */
     public final void wakeUp() {
-        wakeUp(false);
+        postIfNeeded(()-> wakeUp(false));
     }
 
     /**
@@ -1559,7 +1662,7 @@ public class DreamService extends Service implements Window.Callback {
         if (mActivity != null && !mActivity.isFinishing()) {
             mActivity.finishAndRemoveTask();
         } else {
-            finish();
+            finishInternal();
         }
 
         mDreamToken = null;
@@ -1719,7 +1822,7 @@ public class DreamService extends Service implements Window.Callback {
                             // the window reference in order to fully release the DreamActivity.
                             mWindow = null;
                             mActivity = null;
-                            finish();
+                            finishInternal();
                         }
 
                         if (mOverlayConnection != null && mDreamStartOverlayConsumer != null) {
@@ -1806,7 +1909,8 @@ public class DreamService extends Service implements Window.Callback {
 
     @Override
     protected void dump(final FileDescriptor fd, PrintWriter pw, final String[] args) {
-        DumpUtils.dumpAsync(mHandler, (pw1, prefix) -> dumpOnHandler(fd, pw1, args), pw, "", 1000);
+        DumpUtils.dumpAsync(mInjector.getWakefulHandler().getHandler(),
+                (pw1, prefix) -> dumpOnHandler(fd, pw1, args), pw, "", 1000);
     }
 
     /** @hide */
@@ -1862,31 +1966,52 @@ public class DreamService extends Service implements Window.Callback {
                 return;
             }
 
-            service.mHandler.post(() -> consumer.accept(service));
+            service.postIfNeeded(() -> consumer.accept(service));
         }
 
         @Override
         public void attach(final IBinder dreamToken, final boolean canDoze,
                 final boolean isPreviewMode, IRemoteCallback started) {
-            post(dreamService -> dreamService.attach(dreamToken, canDoze, isPreviewMode, started));
+            final long token = Binder.clearCallingIdentity();
+            try {
+                post(dreamService -> dreamService.attach(dreamToken, canDoze, isPreviewMode,
+                        started));
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
         }
 
         @Override
         public void detach() {
-            post(DreamService::detach);
+            final long token = Binder.clearCallingIdentity();
+            try {
+                post(DreamService::detach);
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
         }
 
         @Override
         public void wakeUp() {
-            post(dreamService -> dreamService.wakeUp(true /*fromSystem*/));
+            final long token = Binder.clearCallingIdentity();
+            try {
+                post(dreamService -> dreamService.wakeUp(true /*fromSystem*/));
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
         }
 
         @Override
         public void comeToFront() {
-            if (!dreamHandlesBeingObscured()) {
-                return;
+            final long token = Binder.clearCallingIdentity();
+            try {
+                if (!dreamHandlesBeingObscured()) {
+                    return;
+                }
+                post(DreamService::comeToFront);
+            } finally {
+                Binder.restoreCallingIdentity(token);
             }
-            post(DreamService::comeToFront);
         }
     }
 

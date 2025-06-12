@@ -28,6 +28,7 @@ import android.os.Parcelable;
  * @hide
  */
 @SuppressWarnings("UnusedDeclaration")
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class GraphicBuffer implements Parcelable {
     // Note: keep usage flags in sync with GraphicBuffer.h and gralloc.h
     public static final int USAGE_SW_READ_NEVER = 0x0;

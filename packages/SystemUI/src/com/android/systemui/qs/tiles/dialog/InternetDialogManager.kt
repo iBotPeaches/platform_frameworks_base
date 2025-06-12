@@ -23,6 +23,8 @@ import com.android.systemui.animation.Expandable
 import com.android.systemui.coroutines.newTracingContext
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.qs.flags.QsDetailedView
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -32,31 +34,37 @@ import kotlinx.coroutines.cancel
 private const val TAG = "InternetDialogFactory"
 private val DEBUG = Log.isLoggable(TAG, Log.DEBUG)
 
-/** Factory to create [InternetDialogDelegate] objects. */
+/** Factory to create [InternetDialogDelegateLegacy] objects. */
 @SysUISingleton
 class InternetDialogManager
 @Inject
 constructor(
     private val dialogTransitionAnimator: DialogTransitionAnimator,
-    private val dialogFactory: InternetDialogDelegate.Factory,
+    private val dialogFactory: InternetDialogDelegateLegacy.Factory,
     @Background private val bgDispatcher: CoroutineDispatcher,
+    private val shadeModeInteractor: ShadeModeInteractor,
 ) {
     private lateinit var coroutineScope: CoroutineScope
+
     companion object {
         private const val INTERACTION_JANK_TAG = "internet"
         var dialog: SystemUIDialog? = null
     }
 
     /**
-     * Creates a [InternetDialogDelegate]. The dialog will be animated from [expandable] if it is
-     * not null.
+     * Creates a [InternetDialogDelegateLegacy]. The dialog will be animated from [expandable] if it
+     * is not null.
      */
     fun create(
         aboveStatusBar: Boolean,
         canConfigMobileData: Boolean,
         canConfigWifi: Boolean,
-        expandable: Expandable?
+        expandable: Expandable?,
     ) {
+        if (shadeModeInteractor.isDualShade) {
+            // If `QsDetailedView` is enabled, it should show the details view.
+            QsDetailedView.assertInLegacyMode()
+        }
         if (dialog != null) {
             if (DEBUG) {
                 Log.d(TAG, "InternetDialog is showing, do not create it twice.")
@@ -68,6 +76,7 @@ constructor(
                 dialogFactory
                     .create(aboveStatusBar, canConfigMobileData, canConfigWifi, coroutineScope)
                     .createDialog()
+
             val controller =
                 expandable?.dialogTransitionController(
                     DialogCuj(InteractionJankMonitor.CUJ_SHADE_DIALOG_OPEN, INTERACTION_JANK_TAG)
@@ -76,10 +85,9 @@ constructor(
                 dialogTransitionAnimator.show(
                     dialog!!,
                     controller,
-                    animateBackgroundBoundsChange = true
+                    animateBackgroundBoundsChange = true,
                 )
-            }
-                ?: dialog?.show()
+            } ?: dialog?.show()
         }
     }
 

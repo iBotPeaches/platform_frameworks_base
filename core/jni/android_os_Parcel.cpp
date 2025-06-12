@@ -558,8 +558,7 @@ static void android_os_Parcel_destroy(JNIEnv* env, jclass clazz, jlong nativePtr
     delete parcel;
 }
 
-static jbyteArray android_os_Parcel_marshall(JNIEnv* env, jclass clazz, jlong nativePtr)
-{
+static Parcel* parcel_for_marshall(JNIEnv* env, jlong nativePtr) {
     Parcel* parcel = reinterpret_cast<Parcel*>(nativePtr);
     if (parcel == NULL) {
        return NULL;
@@ -577,6 +576,16 @@ static jbyteArray android_os_Parcel_marshall(JNIEnv* env, jclass clazz, jlong na
         return NULL;
     }
 
+    return parcel;
+}
+
+static jbyteArray android_os_Parcel_marshall(JNIEnv* env, jclass clazz, jlong nativePtr)
+{
+    Parcel* parcel = parcel_for_marshall(env, nativePtr);
+    if (parcel == NULL) {
+       return NULL;
+    }
+
     jbyteArray ret = env->NewByteArray(parcel->dataSize());
 
     if (ret != NULL)
@@ -590,6 +599,56 @@ static jbyteArray android_os_Parcel_marshall(JNIEnv* env, jclass clazz, jlong na
     }
 
     return ret;
+}
+
+static long ensure_capacity(JNIEnv* env, Parcel* parcel, jint remaining) {
+    long dataSize = parcel->dataSize();
+    if (remaining < dataSize) {
+        jnihelp::ThrowException(env, "java/nio/BufferOverflowException", "()V");
+        return -1;
+    }
+    return dataSize;
+}
+
+static int android_os_Parcel_marshall_array(JNIEnv* env, jclass clazz, jlong nativePtr,
+                                            jbyteArray data, jint offset, jint remaining)
+{
+    Parcel* parcel = parcel_for_marshall(env, nativePtr);
+    if (parcel == NULL) {
+       return 0;
+    }
+
+    long data_size = ensure_capacity(env, parcel, remaining);
+    if (data_size < 0) {
+        return 0;
+    }
+
+    jbyte* array = (jbyte*)env->GetPrimitiveArrayCritical(data, 0);
+    if (array != NULL)
+    {
+        memcpy(array + offset, parcel->data(), data_size);
+        env->ReleasePrimitiveArrayCritical(data, array, 0);
+    }
+    return data_size;
+}
+
+static int android_os_Parcel_marshall_buffer(JNIEnv* env, jclass clazz, jlong nativePtr,
+                                             jobject javaBuffer, jint offset, jint remaining) {
+    Parcel* parcel = parcel_for_marshall(env, nativePtr);
+    if (parcel == NULL) {
+       return 0;
+    }
+
+    long data_size = ensure_capacity(env, parcel, remaining);
+    if (data_size < 0) {
+        return 0;
+    }
+
+    jbyte* buffer = (jbyte*)env->GetDirectBufferAddress(javaBuffer);
+    if (buffer != NULL) {
+        memcpy(buffer + offset, parcel->data(), data_size);
+    }
+    return data_size;
 }
 
 static void android_os_Parcel_unmarshall(JNIEnv* env, jclass clazz, jlong nativePtr,
@@ -610,6 +669,25 @@ static void android_os_Parcel_unmarshall(JNIEnv* env, jclass clazz, jlong native
         memcpy(raw, (array + offset), length);
 
         env->ReleasePrimitiveArrayCritical(data, array, 0);
+    }
+}
+
+static void android_os_Parcel_unmarshall_buffer(JNIEnv* env, jclass clazz, jlong nativePtr,
+                                                jobject javaBuffer, jint offset, jint length)
+{
+    Parcel* parcel = reinterpret_cast<Parcel*>(nativePtr);
+    if (parcel == NULL || length < 0) {
+       return;
+    }
+
+    jbyte* buffer = (jbyte*)env->GetDirectBufferAddress(javaBuffer);
+    if (buffer)
+    {
+        parcel->setDataSize(length);
+        parcel->setDataPosition(0);
+
+        void* raw = parcel->writeInplace(length);
+        memcpy(raw, (buffer + offset), length);
     }
 }
 
@@ -911,7 +989,10 @@ static const JNINativeMethod gParcelMethods[] = {
     {"nativeDestroy",             "(J)V", (void*)android_os_Parcel_destroy},
 
     {"nativeMarshall",            "(J)[B", (void*)android_os_Parcel_marshall},
+    {"nativeMarshallArray",       "(J[BII)I", (void*)android_os_Parcel_marshall_array},
+    {"nativeMarshallBuffer",      "(JLjava/nio/ByteBuffer;II)I", (void*)android_os_Parcel_marshall_buffer},
     {"nativeUnmarshall",          "(J[BII)V", (void*)android_os_Parcel_unmarshall},
+    {"nativeUnmarshallBuffer",    "(JLjava/nio/ByteBuffer;II)V", (void*)android_os_Parcel_unmarshall_buffer},
     {"nativeCompareData",         "(JJ)I", (void*)android_os_Parcel_compareData},
     {"nativeCompareDataInRange",  "(JIJII)Z", (void*)android_os_Parcel_compareDataInRange},
     {"nativeAppendFrom",          "(JJII)V", (void*)android_os_Parcel_appendFrom},

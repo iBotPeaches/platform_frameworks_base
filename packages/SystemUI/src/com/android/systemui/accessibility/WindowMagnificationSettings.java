@@ -56,7 +56,6 @@ import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Switch;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.graphics.SfVsyncFrameCallbackProvider;
 import com.android.systemui.common.ui.view.SeekBarWithIconButtonsView;
@@ -75,7 +74,6 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
     private final Context mContext;
     private final AccessibilityManager mAccessibilityManager;
     private final WindowManager mWindowManager;
-    private final ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
     private final SecureSettings mSecureSettings;
 
     private final Runnable mWindowInsetChangeRunnable;
@@ -137,11 +135,10 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
     @VisibleForTesting
     WindowMagnificationSettings(Context context, WindowMagnificationSettingsCallback callback,
             SfVsyncFrameCallbackProvider sfVsyncFrameProvider, SecureSettings secureSettings,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+            WindowManager windowManager) {
         mContext = context;
         mAccessibilityManager = mContext.getSystemService(AccessibilityManager.class);
-        mWindowManager = mContext.getSystemService(WindowManager.class);
-        mViewCaptureAwareWindowManager = viewCaptureAwareWindowManager;
+        mWindowManager = windowManager;
         mSfVsyncFrameProvider = sfVsyncFrameProvider;
         mCallback = callback;
         mSecureSettings = secureSettings;
@@ -174,13 +171,14 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
         @Override
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
             // Notify the service to update the magnifier scale only when the progress changed is
-            // triggered by user interaction on seekbar
-            if (fromUser) {
-                final float scale = transformProgressToScale(progress);
-                // We don't need to update the persisted scale when the seekbar progress is
-                // changing. The update should be triggered when the changing is ended.
-                mCallback.onMagnifierScale(scale, /* updatePersistence= */ false);
+            // triggered by user interaction on seekbar.
+            if (!fromUser) {
+                return;
             }
+            final float scale = transformProgressToScale(progress);
+            // We don't need to update the persisted scale when the seekbar progress is
+            // changing. The update should be triggered when the changing is ended.
+            mCallback.onMagnifierScale(scale, /* updatePersistence= */ false);
         }
 
         @Override
@@ -195,7 +193,7 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
 
         @Override
         public void onUserInteractionFinalized(SeekBar seekBar, @ControlUnitType int control) {
-            // Update the Settings persisted scale only when user interaction with seekbar ends
+            // Update the Settings persisted scale only when user interaction with seekbar ends.
             final int progress = seekBar.getProgress();
             final float scale = transformProgressToScale(progress);
             mCallback.onMagnifierScale(scale, /* updatePersistence= */ true);
@@ -323,7 +321,7 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
 
         // Unregister observer before removing view
         mSecureSettings.unregisterContentObserverSync(mMagnificationCapabilityObserver);
-        mViewCaptureAwareWindowManager.removeView(mSettingView);
+        mWindowManager.removeView(mSettingView);
         mIsVisible = false;
         if (resetPosition) {
             mParams.x = 0;
@@ -381,7 +379,7 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
                 mParams.y = mDraggableWindowBounds.bottom;
             }
 
-            mViewCaptureAwareWindowManager.addView(mSettingView, mParams);
+            mWindowManager.addView(mSettingView, mParams);
 
             mSecureSettings.registerContentObserverForUserSync(
                     Settings.Secure.ACCESSIBILITY_MAGNIFICATION_CAPABILITY,
@@ -392,15 +390,6 @@ class WindowMagnificationSettings implements MagnificationGestureDetector.OnGest
             setSystemGestureExclusion();
             mIsVisible = true;
             mCallback.onSettingsPanelVisibilityChanged(/* shown= */ true);
-
-            if (resetPosition) {
-                // We could not put focus on the settings panel automatically
-                // since it is an inactive window. Therefore, we announce the existence of
-                // magnification settings for accessibility when it is opened.
-                mSettingView.announceForAccessibility(
-                        mContext.getResources().getString(
-                                R.string.accessibility_magnification_settings_panel_description));
-            }
         }
         mContext.registerReceiver(mScreenOffReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF));
     }

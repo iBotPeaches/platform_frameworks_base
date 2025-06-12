@@ -22,7 +22,7 @@ import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.kotlin.MatchersKt.eq;
 
@@ -118,7 +118,7 @@ public class PipResizeAnimatorTest {
         });
 
         verify(mMockStartCallback).run();
-        verifyZeroInteractions(mMockEndCallback);
+        verifyNoMoreInteractions(mMockEndCallback);
     }
 
     @Test

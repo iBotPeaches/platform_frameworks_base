@@ -28,6 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import android.annotation.NonNull;
 import android.content.ComponentName;
 import android.content.ContextWrapper;
 import android.content.res.Resources;
@@ -46,6 +47,7 @@ import android.window.TaskSnapshot;
 import com.android.server.LocalServices;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.BaseAppSnapshotPersister.PersistInfoProvider;
+import com.android.window.flags.Flags;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -113,7 +115,7 @@ class TaskSnapshotPersisterTestBase extends WindowTestsBase {
         mSnapshotPersistQueue = new SnapshotPersistQueue();
         PersistInfoProvider provider =
                 TaskSnapshotController.createPersistInfoProvider(mWm, userId -> FILES_DIR);
-        mPersister = new TaskSnapshotPersister(mSnapshotPersistQueue, provider);
+        mPersister = new TaskSnapshotPersister(mSnapshotPersistQueue, provider, false);
         mLoader = new AppSnapshotLoader(provider);
         mSnapshotPersistQueue.start();
     }
@@ -129,10 +131,31 @@ class TaskSnapshotPersisterTestBase extends WindowTestsBase {
             return;
         }
         for (File file : files) {
-            if (!file.isDirectory()) {
-                file.delete();
+            if (file.isDirectory()) {
+                final File[] subFiles = file.listFiles();
+                if (subFiles == null) {
+                    continue;
+                }
+                for (File subFile : subFiles) {
+                    subFile.delete();
+                }
             }
+            file.delete();
         }
+    }
+
+    File[] convertFilePath(@NonNull String... fileNames) {
+        final File[] files = new File[fileNames.length];
+        final String path;
+        if (Flags.scrambleSnapshotFileName()) {
+            path = mPersister.mPersistInfoProvider.getDirectory(mTestUserId).getPath();
+        } else {
+            path = FILES_DIR.getPath() + "/snapshots/";
+        }
+        for (int i = 0; i < fileNames.length; i++) {
+            files[i] = new File(path, fileNames[i]);
+        }
+        return files;
     }
 
     TaskSnapshot createSnapshot() {

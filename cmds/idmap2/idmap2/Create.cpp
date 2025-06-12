@@ -35,6 +35,7 @@ using android::idmap2::BinaryStreamVisitor;
 using android::idmap2::CommandLineOptions;
 using android::idmap2::Error;
 using android::idmap2::Idmap;
+using android::idmap2::IdmapConstraints;
 using android::idmap2::OverlayResourceContainer;
 using android::idmap2::Result;
 using android::idmap2::TargetResourceContainer;
@@ -104,8 +105,10 @@ Result<Unit> Create(const std::vector<std::string>& args) {
     return Error("failed to load apk overlay '%s'", overlay_apk_path.c_str());
   }
 
+  // TODO(b/371801644): Add command-line support for RRO constraints.
+  auto constraints = std::make_unique<const IdmapConstraints>();
   const auto idmap = Idmap::FromContainers(**target, **overlay, overlay_name, fulfilled_policies,
-                                           !ignore_overlayable);
+                                           !ignore_overlayable, std::move(constraints));
   if (!idmap) {
     return Error(idmap.GetError(), "failed to create idmap");
   }

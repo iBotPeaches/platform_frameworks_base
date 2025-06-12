@@ -25,6 +25,7 @@ import android.os.Build;
  * A color filter that can be used to tint the source pixels using a single
  * color and a specific {@link PorterDuff Porter-Duff composite mode}.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PorterDuffColorFilter extends ColorFilter {
     @ColorInt
     private int mColor;

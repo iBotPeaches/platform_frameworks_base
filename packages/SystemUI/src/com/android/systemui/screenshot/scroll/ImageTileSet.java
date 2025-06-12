@@ -29,6 +29,7 @@ import androidx.annotation.UiThread;
 
 import com.android.internal.util.CallbackRegistry;
 import com.android.internal.util.CallbackRegistry.NotifierCallback;
+import com.android.systemui.dagger.qualifiers.Main;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -49,7 +50,7 @@ class ImageTileSet {
     private CallbackRegistry<OnContentChangedListener, ImageTileSet, Rect> mContentListeners;
 
     @Inject
-    ImageTileSet(@UiThread Handler handler) {
+    ImageTileSet(@Main Handler handler) {
         mHandler = handler;
     }
 

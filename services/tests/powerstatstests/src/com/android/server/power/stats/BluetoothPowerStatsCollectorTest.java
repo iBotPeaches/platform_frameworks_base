@@ -57,11 +57,6 @@ public class BluetoothPowerStatsCollectorTest {
     private static final int ISOLATED_UID = 99123;
 
     @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
-    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setPowerStatsThrottlePeriodMillis(BatteryConsumer.POWER_COMPONENT_BLUETOOTH, 1000);
 
@@ -225,7 +220,10 @@ public class BluetoothPowerStatsCollectorTest {
     }
 
     private PowerStats collectPowerStats() {
-        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector);
+        List<BluetoothActivityEnergyInfo> expected = new ArrayList<>();
+        List<BluetoothActivityEnergyInfo> observed = new ArrayList<>();
+        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector,
+                (info, elapsedRealtimeMs, uptimeMs) -> observed.add(info));
         collector.setEnabled(true);
 
         when(mConsumedEnergyRetriever.getVoltageMv()).thenReturn(3500);
@@ -236,6 +234,7 @@ public class BluetoothPowerStatsCollectorTest {
                 mockUidTraffic(APP_UID1, 100, 200),
                 mockUidTraffic(APP_UID2, 300, 400),
                 mockUidTraffic(ISOLATED_UID, 500, 600));
+        expected.add(mBluetoothActivityEnergyInfo);
 
         mUidScanTimes.put(APP_UID1, 100);
 
@@ -248,6 +247,7 @@ public class BluetoothPowerStatsCollectorTest {
                 mockUidTraffic(APP_UID1, 1100, 2200),
                 mockUidTraffic(APP_UID2, 3300, 4400),
                 mockUidTraffic(ISOLATED_UID, 5500, 6600));
+        expected.add(mBluetoothActivityEnergyInfo);
 
         mUidScanTimes.clear();
         mUidScanTimes.put(APP_UID1, 200);
@@ -257,7 +257,10 @@ public class BluetoothPowerStatsCollectorTest {
         mockConsumedEnergy(777, 64321);
 
         mStatsRule.setTime(20000, 20000);
-        return collector.collectStats();
+        PowerStats powerStats = collector.collectStats();
+
+        assertThat(observed).isEqualTo(expected);
+        return powerStats;
     }
 
     private void mockConsumedEnergy(int consumerId, long energyUWs) {

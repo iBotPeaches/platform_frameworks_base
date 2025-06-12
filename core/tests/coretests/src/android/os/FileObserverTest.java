@@ -19,7 +19,7 @@ package android.os;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Log;
 
@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = FileObserver.class)
+@DisabledOnRavenwood(blockedBy = FileObserver.class)
 public class FileObserverTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

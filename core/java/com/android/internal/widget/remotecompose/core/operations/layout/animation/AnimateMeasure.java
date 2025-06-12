@@ -38,8 +38,8 @@ public class AnimateMeasure {
     private final @NonNull Component mComponent;
     private final @NonNull ComponentMeasure mOriginal;
     private final @NonNull ComponentMeasure mTarget;
-    private int mDuration;
-    private int mDurationVisibilityChange = mDuration;
+    private float mDuration;
+    private float mDurationVisibilityChange = mDuration;
     private @NonNull AnimationSpec.ANIMATION mEnterAnimation = AnimationSpec.ANIMATION.FADE_IN;
     private @NonNull AnimationSpec.ANIMATION mExitAnimation = AnimationSpec.ANIMATION.FADE_OUT;
     private int mMotionEasingType = GeneralEasing.CUBIC_STANDARD;
@@ -64,8 +64,8 @@ public class AnimateMeasure {
             @NonNull Component component,
             @NonNull ComponentMeasure original,
             @NonNull ComponentMeasure target,
-            int duration,
-            int durationVisibilityChange,
+            float duration,
+            float durationVisibilityChange,
             @NonNull AnimationSpec.ANIMATION enterAnimation,
             @NonNull AnimationSpec.ANIMATION exitAnimation,
             int motionEasingType,
@@ -94,6 +94,11 @@ public class AnimateMeasure {
         component.mVisibility = target.getVisibility();
     }
 
+    /**
+     * Update the current bounds/visibility/etc given the current time
+     *
+     * @param currentTime the time we use to evaluate the animation
+     */
     public void update(long currentTime) {
         long elapsed = currentTime - mStartTime;
         float motionProgress = elapsed / (float) mDuration;
@@ -138,7 +143,7 @@ public class AnimateMeasure {
      */
     public void paint(@NonNull PaintContext context) {
         if (mOriginal.getVisibility() != mTarget.getVisibility()) {
-            if (mTarget.getVisibility() == Component.Visibility.GONE) {
+            if (mTarget.isGone()) {
                 switch (mExitAnimation) {
                     case PARTICLE:
                         // particleAnimation(context, component, original, target, vp)
@@ -224,8 +229,7 @@ public class AnimateMeasure {
                         mParticleAnimation.animate(context, mComponent, mOriginal, mTarget, mVp);
                         break;
                 }
-            } else if (mOriginal.getVisibility() == Component.Visibility.GONE
-                    && mTarget.getVisibility() == Component.Visibility.VISIBLE) {
+            } else if (mOriginal.isGone() && mTarget.isVisible()) {
                 switch (mEnterAnimation) {
                     case ROTATE:
                         float px = mTarget.getX() + mTarget.getW() / 2f;
@@ -318,12 +322,11 @@ public class AnimateMeasure {
             } else {
                 mComponent.paintingComponent(context);
             }
-        } else if (mTarget.getVisibility() == Component.Visibility.VISIBLE) {
+        } else if (mTarget.isVisible()) {
             mComponent.paintingComponent(context);
         }
 
         if (mP >= 1f && mVp >= 1f) {
-            mComponent.mAnimateMeasure = null;
             mComponent.mVisibility = mTarget.getVisibility();
         }
     }
@@ -348,16 +351,27 @@ public class AnimateMeasure {
         return mOriginal.getH() * (1 - mP) + mTarget.getH() * mP;
     }
 
+    /**
+     * Returns the visibility for this measure
+     *
+     * @return the current visibility (possibly interpolated)
+     */
     public float getVisibility() {
         if (mOriginal.getVisibility() == mTarget.getVisibility()) {
             return 1f;
-        } else if (mTarget.getVisibility() == Component.Visibility.VISIBLE) {
+        } else if (mTarget.isVisible()) {
             return mVp;
         } else {
             return 1 - mVp;
         }
     }
 
+    /**
+     * Set the target values from the given measure
+     *
+     * @param measure the target measure
+     * @param currentTime the current time
+     */
     public void updateTarget(@NonNull ComponentMeasure measure, long currentTime) {
         mOriginal.setX(getX());
         mOriginal.setY(getY());
@@ -367,7 +381,7 @@ public class AnimateMeasure {
         float targetY = mTarget.getY();
         float targetW = mTarget.getW();
         float targetH = mTarget.getH();
-        Component.Visibility targetVisibility = mTarget.getVisibility();
+        int targetVisibility = mTarget.getVisibility();
         if (targetX != measure.getX()
                 || targetY != measure.getY()
                 || targetW != measure.getW()
@@ -378,7 +392,13 @@ public class AnimateMeasure {
             mTarget.setW(measure.getW());
             mTarget.setH(measure.getH());
             mTarget.setVisibility(measure.getVisibility());
-            mStartTime = currentTime;
+            // We shouldn't reset the leftover animation time here
+            // 1/ if we are eg fading out a component, and an updateTarget comes on, we don't want
+            //    to restart the full animation time
+            // 2/ if no visibility change but quick updates come in (eg live resize) it seems
+            //    better as well to not restart the animation time and only allows the original
+            //    time to wrap up
+            // mStartTime = currentTime;
         }
     }
 }

@@ -22,8 +22,8 @@ import android.view.InputChannel
 import android.view.InputEvent
 import android.view.InputEventReceiver
 import android.view.KeyEvent
-import org.junit.Assert.assertEquals
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 
@@ -42,12 +42,17 @@ private fun assertKeyEvent(expected: KeyEvent, received: KeyEvent) {
 }
 
 private fun getTestKeyEvent(): KeyEvent {
-    return KeyEvent(1 /*downTime*/, 1 /*eventTime*/, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_A, 0 /*repeat*/)
+    return KeyEvent(
+        1 /*downTime*/,
+        1 /*eventTime*/,
+        KeyEvent.ACTION_DOWN,
+        KeyEvent.KEYCODE_A,
+        0, /*repeat*/
+    )
 }
 
 private class CrashingInputEventReceiver(channel: InputChannel, looper: Looper) :
-        InputEventReceiver(channel, looper) {
+    InputEventReceiver(channel, looper) {
     override fun onInputEvent(event: InputEvent) {
         try {
             throw IllegalArgumentException("This receiver crashes when it receives input event")
@@ -61,6 +66,7 @@ class InputEventSenderAndReceiverTest {
     companion object {
         private const val TAG = "InputEventSenderAndReceiverTest"
     }
+
     private val mHandlerThread = HandlerThread("Process input events")
     private lateinit var mReceiver: SpyInputEventReceiver
     private lateinit var mSender: SpyInputEventSender
@@ -98,8 +104,8 @@ class InputEventSenderAndReceiverTest {
     // The timeline case is slightly unusual because it goes from InputConsumer to InputPublisher.
     @Test
     fun testSendAndReceiveTimeline() {
-        val sent = SpyInputEventSender.Timeline(
-            inputEventId = 1, gpuCompletedTime = 2, presentTime = 3)
+        val sent =
+            SpyInputEventSender.Timeline(inputEventId = 1, gpuCompletedTime = 2, presentTime = 3)
         mReceiver.reportTimeline(sent.inputEventId, sent.gpuCompletedTime, sent.presentTime)
         val received = mSender.getTimeline()
         assertEquals(sent, received)
@@ -110,8 +116,8 @@ class InputEventSenderAndReceiverTest {
     // event processing.
     @Test
     fun testSendAndReceiveInvalidTimeline() {
-        val sent = SpyInputEventSender.Timeline(
-            inputEventId = 1, gpuCompletedTime = 3, presentTime = 2)
+        val sent =
+            SpyInputEventSender.Timeline(inputEventId = 1, gpuCompletedTime = 3, presentTime = 2)
         mReceiver.reportTimeline(sent.inputEventId, sent.gpuCompletedTime, sent.presentTime)
         mSender.assertNoEvents()
         // Sender will no longer receive callbacks for this fd, even if receiver sends a valid
@@ -123,9 +129,8 @@ class InputEventSenderAndReceiverTest {
     /**
      * If a receiver throws an exception during 'onInputEvent' execution, the 'finally' block still
      * completes, and therefore, finishInputEvent is called. Make sure that there's no crash in the
-     * native layer in these circumstances.
-     * In this test, we are reusing the 'mHandlerThread', but we are creating new sender and
-     * receiver.
+     * native layer in these circumstances. In this test, we are reusing the 'mHandlerThread', but
+     * we are creating new sender and receiver.
      */
     @Test
     fun testCrashingReceiverDoesNotCrash() {

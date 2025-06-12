@@ -25,6 +25,7 @@ import android.annotation.Nullable;
 import android.graphics.FontListParser;
 import android.graphics.Typeface;
 import android.os.LocaleList;
+import android.ravenwood.annotation.RavenwoodReplace;
 import android.text.FontConfig;
 import android.util.ArrayMap;
 import android.util.Log;
@@ -32,6 +33,7 @@ import android.util.SparseIntArray;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.ravenwood.RavenwoodEnvironment;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -50,22 +52,45 @@ import java.util.Set;
 /**
  * Provides the system font configurations.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class SystemFonts {
     private static final String TAG = "SystemFonts";
 
-    private static final String FONTS_XML = "/system/etc/font_fallback.xml";
-    private static final String LEGACY_FONTS_XML = "/system/etc/fonts.xml";
+    private static final String FONTS_XML = getFontsXmlDir() + "font_fallback.xml";
+    /** @hide */
+    public static final String LEGACY_FONTS_XML = getFontsXmlDir() + "fonts.xml";
 
     /** @hide */
-    public static final String SYSTEM_FONT_DIR = "/system/fonts/";
+    public static final String SYSTEM_FONT_DIR = getSystemFontDir();
     private static final String OEM_XML = "/product/etc/fonts_customization.xml";
     /** @hide */
     public static final String OEM_FONT_DIR = "/product/fonts/";
+
+    private static final String DEVICE_FONTS_XML_DIR = "/system/etc/";
+    private static final String DEVICE_FONT_DIR = "/system/fonts/";
 
     private SystemFonts() {}  // Do not instansiate.
 
     private static final Object LOCK = new Object();
     private static @GuardedBy("sLock") Set<Font> sAvailableFonts;
+
+    @RavenwoodReplace
+    private static String getFontsXmlDir() {
+        return DEVICE_FONTS_XML_DIR;
+    }
+
+    private static String getFontsXmlDir$ravenwood() {
+        return RavenwoodEnvironment.getInstance().getRavenwoodRuntimePath() + "fonts/";
+    }
+
+    @RavenwoodReplace
+    private static String getSystemFontDir() {
+        return DEVICE_FONT_DIR;
+    }
+
+    private static String getSystemFontDir$ravenwood() {
+        return RavenwoodEnvironment.getInstance().getRavenwoodRuntimePath() + "fonts/";
+    }
 
     /**
      * Returns all available font files in the system.

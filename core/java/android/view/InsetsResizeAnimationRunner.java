@@ -233,6 +233,11 @@ public class InsetsResizeAnimationRunner implements InsetsAnimationControlRunner
     }
 
     @Override
+    public boolean willUpdateSurface() {
+        return false;
+    }
+
+    @Override
     public boolean hasZeroInsetsIme() {
         return false;
     }

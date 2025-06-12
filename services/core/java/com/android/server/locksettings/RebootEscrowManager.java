@@ -428,15 +428,11 @@ class RebootEscrowManager {
 
     /** Wrapper function to set error code serialized through handler, */
     private void setLoadEscrowDataErrorCode(@RebootEscrowErrorCode int value, Handler handler) {
-        if (Flags.waitForInternetRor()) {
-            mInjector.post(
-                    handler,
-                    () -> {
-                        mLoadEscrowDataErrorCode = value;
-                    });
-        } else {
-            mLoadEscrowDataErrorCode = value;
-        }
+        mInjector.post(
+                handler,
+                () -> {
+                    mLoadEscrowDataErrorCode = value;
+                });
     }
 
     /** Wrapper function to compare and set error code serialized through handler. */
@@ -511,23 +507,17 @@ class RebootEscrowManager {
             mWakeLock.acquire(mInjector.getWakeLockTimeoutMillis());
         }
 
-        if (Flags.waitForInternetRor()) {
-            // Timeout to stop retrying same as the wake lock timeout.
-            mInjector.postDelayed(
-                    retryHandler,
-                    () -> {
-                        mRebootEscrowTimedOut = true;
-                    },
-                    mInjector.getLoadEscrowTimeoutMillis());
+        // Timeout to stop retrying same as the wake lock timeout.
+        mInjector.postDelayed(
+                retryHandler,
+                () -> {
+                    mRebootEscrowTimedOut = true;
+                },
+                mInjector.getLoadEscrowTimeoutMillis());
 
-            mInjector.post(
-                    retryHandler,
-                    () -> loadRebootEscrowDataOnInternet(retryHandler, users, rebootEscrowUsers));
-            return;
-        }
-
-        mInjector.post(retryHandler, () -> loadRebootEscrowDataWithRetry(
-                retryHandler, 0, users, rebootEscrowUsers));
+        mInjector.post(
+                retryHandler,
+                () -> loadRebootEscrowDataOnInternet(retryHandler, users, rebootEscrowUsers));
     }
 
     void scheduleLoadRebootEscrowDataOrFail(
@@ -548,27 +538,13 @@ class RebootEscrowManager {
             return;
         }
 
-        if (Flags.waitForInternetRor()) {
-            if (mRebootEscrowTimedOut) {
-                Slog.w(TAG, "Failed to load reboot escrow data within timeout");
-                compareAndSetLoadEscrowDataErrorCode(
-                        ERROR_NONE, ERROR_TIMEOUT_EXHAUSTED, retryHandler);
-            } else {
-                Slog.w(
-                        TAG,
-                        "Failed to load reboot escrow data after " + attemptNumber + " attempts");
-                compareAndSetLoadEscrowDataErrorCode(
-                        ERROR_NONE, ERROR_RETRY_COUNT_EXHAUSTED, retryHandler);
-            }
-            onGetRebootEscrowKeyFailed(users, attemptNumber, retryHandler);
-            return;
-        }
-
-        Slog.w(TAG, "Failed to load reboot escrow data after " + attemptNumber + " attempts");
-        if (mInjector.serverBasedResumeOnReboot() && !mInjector.isNetworkConnected()) {
-            mLoadEscrowDataErrorCode = ERROR_NO_NETWORK;
+        if (mRebootEscrowTimedOut) {
+            Slog.w(TAG, "Failed to load reboot escrow data within timeout");
+            compareAndSetLoadEscrowDataErrorCode(ERROR_NONE, ERROR_TIMEOUT_EXHAUSTED, retryHandler);
         } else {
-            mLoadEscrowDataErrorCode = ERROR_RETRY_COUNT_EXHAUSTED;
+            Slog.w(TAG, "Failed to load reboot escrow data after " + attemptNumber + " attempts");
+            compareAndSetLoadEscrowDataErrorCode(
+                    ERROR_NONE, ERROR_RETRY_COUNT_EXHAUSTED, retryHandler);
         }
         onGetRebootEscrowKeyFailed(users, attemptNumber, retryHandler);
     }

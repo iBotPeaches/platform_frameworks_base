@@ -159,7 +159,17 @@ class RecentsMixedTransition extends DefaultMixedHandler.MixedTransition {
             // If pair-to-pair switching, the post-recents clean-up isn't needed.
             wct = wct != null ? wct : new WindowContainerTransaction();
             if (mAnimType != ANIM_TYPE_PAIR_TO_PAIR) {
-                mSplitHandler.onRecentsInSplitAnimationFinish(wct, finishTransaction);
+                // We've dispatched to the mLeftoversHandler to handle the rest of the transition
+                // and called onRecentsInSplitAnimationStart(), but if the recents handler is not
+                // actually handling the transition, then onRecentsInSplitAnimationFinishing()
+                // won't actually get called by the recents handler.  In such cases, we still need
+                // to clean up after the changes from the start call.
+                boolean splitNotifiedByRecents = mRecentsHandler == mLeftoversHandler;
+                if (!splitNotifiedByRecents) {
+                    mSplitHandler.onRecentsInSplitAnimationFinishing(
+                            mSplitHandler.wctIsReorderingSplitToTop(wct),
+                            wct, finishTransaction);
+                }
             } else {
                 // notify pair-to-pair recents animation finish
                 mSplitHandler.onRecentsPairToPairAnimationFinish(wct);
@@ -177,24 +187,47 @@ class RecentsMixedTransition extends DefaultMixedHandler.MixedTransition {
         return handled;
     }
 
+    /**
+     * Called when the recents animation during split is about to finish.
+     */
+    void onAnimateRecentsDuringSplitFinishing(boolean returnToApp,
+            @NonNull WindowContainerTransaction finishWct,
+            @NonNull SurfaceControl.Transaction finishT) {
+        if (mAnimType != ANIM_TYPE_PAIR_TO_PAIR) {
+            mSplitHandler.onRecentsInSplitAnimationFinishing(returnToApp, finishWct, finishT);
+        }
+    }
+
+    /**
+     * Called when the recents animation during desktop is about to finish.
+     */
+    void onAnimateRecentsDuringDesktopFinishing(boolean returnToApp,
+            @NonNull WindowContainerTransaction finishWct) {
+        mDesktopTasksController.onRecentsInDesktopAnimationFinishing(mTransition, finishWct,
+                returnToApp);
+    }
+
     @Override
     void mergeAnimation(
             @NonNull IBinder transition, @NonNull TransitionInfo info,
-            @NonNull SurfaceControl.Transaction t, @NonNull IBinder mergeTarget,
+            @NonNull SurfaceControl.Transaction startT, @NonNull SurfaceControl.Transaction finishT,
+            @NonNull IBinder mergeTarget,
             @NonNull Transitions.TransitionFinishCallback finishCallback) {
         switch (mType) {
             case TYPE_RECENTS_DURING_DESKTOP:
-                mLeftoversHandler.mergeAnimation(transition, info, t, mergeTarget, finishCallback);
+                mLeftoversHandler.mergeAnimation(transition, info, startT, finishT, mergeTarget,
+                        finishCallback);
                 return;
             case TYPE_RECENTS_DURING_KEYGUARD:
                 if ((info.getFlags() & TRANSIT_FLAG_KEYGUARD_UNOCCLUDING) != 0) {
-                    handoverTransitionLeashes(mInfo, info, t, mFinishT);
+                    handoverTransitionLeashes(mInfo, info, startT, finishT);
                     if (animateKeyguard(
-                            this, info, t, mFinishT, mFinishCB, mKeyguardHandler, mPipHandler)) {
+                            this, info, startT, finishT, mFinishCB, mKeyguardHandler,
+                            mPipHandler)) {
                         finishCallback.onTransitionFinished(null);
                     }
                 }
-                mLeftoversHandler.mergeAnimation(transition, info, t, mergeTarget,
+                mLeftoversHandler.mergeAnimation(transition, info, startT, finishT, mergeTarget,
                         finishCallback);
                 return;
             case TYPE_RECENTS_DURING_SPLIT:
@@ -203,7 +236,8 @@ class RecentsMixedTransition extends DefaultMixedHandler.MixedTransition {
                     // another pair.
                     mAnimType = DefaultMixedHandler.MixedTransition.ANIM_TYPE_PAIR_TO_PAIR;
                 }
-                mLeftoversHandler.mergeAnimation(transition, info, t, mergeTarget, finishCallback);
+                mLeftoversHandler.mergeAnimation(transition, info, startT, finishT, mergeTarget,
+                        finishCallback);
                 return;
             default:
                 throw new IllegalStateException("Playing a Recents mixed transition with unknown or"

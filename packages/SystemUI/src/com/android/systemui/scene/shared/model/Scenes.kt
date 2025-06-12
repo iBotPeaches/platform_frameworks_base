@@ -24,12 +24,6 @@ import com.android.compose.animation.scene.SceneKey
  * PLEASE KEEP THE KEYS SORTED ALPHABETICALLY.
  */
 object Scenes {
-    /**
-     * The bouncer is the scene that displays authentication challenges like PIN, password, or
-     * pattern.
-     */
-    @JvmField val Bouncer = SceneKey("bouncer")
-
     /** The communal scene shows the glanceable hub when device is locked and docked. */
     @JvmField val Communal = SceneKey("communal")
 

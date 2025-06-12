@@ -132,6 +132,12 @@ public final class ColorDisplayService extends SystemService {
     private static final int NOT_SET = -1;
 
     /**
+     * Min and Max values for percentage of RBC setting.
+     */
+    private static final int PERCENTAGE_MIN = 0;
+    private static final int PERCENTAGE_MAX = 100;
+
+    /**
      * Evaluator used to animate color matrix transitions.
      */
     private static final ColorMatrixEvaluator COLOR_MATRIX_EVALUATOR = new ColorMatrixEvaluator();
@@ -168,8 +174,7 @@ public final class ColorDisplayService extends SystemService {
             new NightDisplayTintController();
     private final TintController mGlobalSaturationTintController =
             new GlobalSaturationTintController();
-    private final ReduceBrightColorsTintController mReduceBrightColorsTintController =
-            new ReduceBrightColorsTintController();
+    private final ReduceBrightColorsTintController mReduceBrightColorsTintController;
 
     @VisibleForTesting
     final Handler mHandler;
@@ -201,7 +206,13 @@ public final class ColorDisplayService extends SystemService {
     private boolean mEvenDimmerActivated;
 
     public ColorDisplayService(Context context) {
+        this(context, new ReduceBrightColorsTintController());
+    }
+
+    @VisibleForTesting
+    public ColorDisplayService(Context context, ReduceBrightColorsTintController rbcController) {
         super(context);
+        mReduceBrightColorsTintController = rbcController;
         mHandler = new TintHandler(DisplayThread.get().getLooper());
         mVisibleBackgroundUsersEnabled = isVisibleBackgroundUsersEnabled();
         mUserManager = UserManagerService.getInstance();
@@ -571,27 +582,37 @@ public final class ColorDisplayService extends SystemService {
         return mColorModeCompositionColorSpaces.get(mode, Display.COLOR_MODE_INVALID);
     }
 
-    private void onDisplayColorModeChanged(int mode) {
+    @VisibleForTesting
+    void onDisplayColorModeChanged(int mode) {
         if (mode == NOT_SET) {
             return;
         }
 
+        mReduceBrightColorsTintController.cancelAnimator();
         mNightDisplayTintController.cancelAnimator();
         mDisplayWhiteBalanceTintController.cancelAnimator();
 
+        final DisplayTransformManager dtm = getLocalService(DisplayTransformManager.class);
+
         if (mNightDisplayTintController.isAvailable(getContext())) {
-            final DisplayTransformManager dtm = getLocalService(DisplayTransformManager.class);
             mNightDisplayTintController.setUp(getContext(), dtm.needsLinearColorMatrix(mode));
             mNightDisplayTintController
                     .setMatrix(mNightDisplayTintController.getColorTemperatureSetting());
+        }
+
+        if (mReduceBrightColorsTintController.isAvailable(getContext())) {
+            // Different color modes may require different coefficients to be loaded for RBC.
+            // Re-set up RBC so that it can recalculate its transform matrix with new values.
+            mReduceBrightColorsTintController.setUp(getContext(), dtm.needsLinearColorMatrix(mode));
+            onReduceBrightColorsStrengthLevelChanged(); // Trigger matrix recalc + updates
         }
 
         // dtm.setColorMode() needs to be called before
         // updateDisplayWhiteBalanceStatus(), this is because the latter calls
         // DisplayTransformManager.needsLinearColorMatrix(), therefore it is dependent
         // on the state of DisplayTransformManager.
-        final DisplayTransformManager dtm = getLocalService(DisplayTransformManager.class);
         dtm.setColorMode(mode, mNightDisplayTintController.getMatrix(),
+                mReduceBrightColorsTintController.getMatrix(),
                 getCompositionColorSpace(mode));
 
         if (mDisplayWhiteBalanceTintController.isAvailable(getContext())) {
@@ -681,15 +702,25 @@ public final class ColorDisplayService extends SystemService {
         if (mCurrentUser == UserHandle.USER_NULL) {
             return;
         }
-        int strength = Secure.getIntForUser(getContext().getContentResolver(),
+
+        int percentage = Secure.getIntForUser(getContext().getContentResolver(),
                 Secure.REDUCE_BRIGHT_COLORS_LEVEL, NOT_SET, mCurrentUser);
-        if (strength == NOT_SET) {
-            strength = getContext().getResources().getInteger(
+        final int deviceRange;
+
+        if (percentage == NOT_SET) {
+            deviceRange = getContext().getResources().getInteger(
                     R.integer.config_reduceBrightColorsStrengthDefault);
+        } else {
+            final int deviceMin = getContext().getResources().getInteger(
+                    R.integer.config_reduceBrightColorsStrengthMin);
+            final int deviceMax = getContext().getResources().getInteger(
+                    R.integer.config_reduceBrightColorsStrengthMax);
+            deviceRange = (int) MathUtils.constrainedMap(
+                    deviceMin, deviceMax, PERCENTAGE_MIN, PERCENTAGE_MAX, percentage);
         }
-        mReduceBrightColorsTintController.setMatrix(strength);
+        mReduceBrightColorsTintController.setMatrix(deviceRange);
         if (mReduceBrightColorsListener != null) {
-            mReduceBrightColorsListener.onReduceBrightColorsStrengthChanged(strength);
+            mReduceBrightColorsListener.onReduceBrightColorsStrengthChanged(deviceRange);
         }
     }
 

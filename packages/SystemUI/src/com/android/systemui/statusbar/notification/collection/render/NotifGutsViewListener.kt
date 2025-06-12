@@ -15,16 +15,21 @@
  */
 package com.android.systemui.statusbar.notification.collection.render
 
+import com.android.systemui.statusbar.notification.collection.EntryAdapter
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.row.NotificationGuts
 
-/**
- * Interface for listening to guts open and close events.
- */
+/** Interface for listening to guts open and close events. */
 interface NotifGutsViewListener {
     /** A notification's guts are being opened */
     fun onGutsOpen(entry: NotificationEntry, guts: NotificationGuts)
 
     /** A notification's guts are being closed */
     fun onGutsClose(entry: NotificationEntry)
+
+    /** A notification's guts are being opened */
+    fun onGutsOpen(entryAdapter: EntryAdapter, guts: NotificationGuts)
+
+    /** A notification's guts are being closed */
+    fun onGutsClose(entryAdapter: EntryAdapter)
 }

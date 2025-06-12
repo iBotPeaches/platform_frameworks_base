@@ -32,7 +32,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.os.UEventObserver;
 import android.sysprop.InputProperties;
 import android.text.TextUtils;
 import android.util.IndentingPrintWriter;
@@ -83,8 +82,6 @@ final class KeyboardBacklightController implements
     private static final long TRANSITION_ANIMATION_DURATION_MILLIS =
             Duration.ofSeconds(1).toMillis();
 
-    private static final String UEVENT_KEYBOARD_BACKLIGHT_TAG = "kbd_backlight";
-
     @VisibleForTesting
     static final int[] DEFAULT_BRIGHTNESS_VALUE_FOR_LEVEL =
             new int[DEFAULT_NUM_BRIGHTNESS_CHANGE_STEPS + 1];
@@ -93,7 +90,6 @@ final class KeyboardBacklightController implements
     private final NativeInputManagerService mNative;
     private final Handler mHandler;
     private final AnimatorFactory mAnimatorFactory;
-    private final UEventManager mUEventManager;
     // Always access on handler thread or need to lock this for synchronization.
     private final SparseArray<KeyboardBacklightState> mKeyboardBacklights = new SparseArray<>(1);
     // Maintains state if all backlights should be on or turned off
@@ -124,19 +120,18 @@ final class KeyboardBacklightController implements
     }
 
     KeyboardBacklightController(Context context, NativeInputManagerService nativeService,
-            Looper looper, UEventManager uEventManager) {
-        this(context, nativeService, looper, ValueAnimator::ofInt, uEventManager);
+            Looper looper) {
+        this(context, nativeService, looper, ValueAnimator::ofInt);
     }
 
     @VisibleForTesting
     KeyboardBacklightController(Context context, NativeInputManagerService nativeService,
-            Looper looper, AnimatorFactory animatorFactory, UEventManager uEventManager) {
+            Looper looper, AnimatorFactory animatorFactory) {
         mContext = context;
         mNative = nativeService;
         mHandler = new Handler(looper, this::handleMessage);
         mAnimatorFactory = animatorFactory;
         mAmbientController = new AmbientKeyboardBacklightController(context, looper);
-        mUEventManager = uEventManager;
         Resources res = mContext.getResources();
         mUserInactivityThresholdMs = res.getInteger(
                 com.android.internal.R.integer.config_keyboardBacklightTimeoutMs);
@@ -153,17 +148,6 @@ final class KeyboardBacklightController implements
         Message msg = Message.obtain(mHandler, MSG_UPDATE_EXISTING_DEVICES,
                 inputManager.getInputDeviceIds());
         mHandler.sendMessage(msg);
-
-        // Observe UEvents for "kbd_backlight" sysfs nodes.
-        // We want to observe creation of such LED nodes since they might be created after device
-        // FD created and InputDevice creation logic doesn't initialize LED nodes which leads to
-        // backlight not working.
-        mUEventManager.addListener(new UEventManager.UEventListener() {
-            @Override
-            public void onUEvent(UEventObserver.UEvent event) {
-                onKeyboardBacklightUEvent(event);
-            }
-        }, UEVENT_KEYBOARD_BACKLIGHT_TAG);
 
         // Start ambient backlight controller
         mAmbientController.systemRunning();
@@ -411,17 +395,6 @@ final class KeyboardBacklightController implements
     private void onKeyboardBacklightListenerDied(int pid) {
         synchronized (mKeyboardBacklightListenerRecords) {
             mKeyboardBacklightListenerRecords.remove(pid);
-        }
-    }
-
-    @VisibleForTesting
-    public void onKeyboardBacklightUEvent(UEventObserver.UEvent event) {
-        if ("ADD".equalsIgnoreCase(event.get("ACTION")) && "LEDS".equalsIgnoreCase(
-                event.get("SUBSYSTEM"))) {
-            final String devPath = event.get("DEVPATH");
-            if (isValidBacklightNodePath(devPath)) {
-                mNative.sysfsNodeChanged("/sys" + devPath);
-            }
         }
     }
 

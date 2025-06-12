@@ -29,7 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.os.CancellationSignal;
@@ -230,7 +230,7 @@ public class PendingInsetsControllerTest {
         InsetsController secondController = mock(InsetsController.class);
         mPendingInsetsController.replayAndAttach(secondController);
         verify(mReplayedController).show(eq(systemBars()));
-        verifyZeroInteractions(secondController);
+        verifyNoMoreInteractions(secondController);
     }
 
     @Test

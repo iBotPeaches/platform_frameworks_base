@@ -16,6 +16,8 @@
 package com.android.server.blob;
 
 import static android.app.blob.BlobStoreManager.COMMIT_RESULT_ERROR;
+import static android.app.blob.BlobStoreManager.MAX_CERTIFICATE_LENGTH;
+import static android.app.blob.BlobStoreManager.MAX_PACKAGE_NAME_LENGTH;
 import static android.app.blob.XmlTags.ATTR_CREATION_TIME_MS;
 import static android.app.blob.XmlTags.ATTR_ID;
 import static android.app.blob.XmlTags.ATTR_PACKAGE;
@@ -328,6 +330,11 @@ class BlobStoreSession extends IBlobStoreSession.Stub {
             @NonNull byte[] certificate) {
         assertCallerIsOwner();
         Objects.requireNonNull(packageName, "packageName must not be null");
+        Preconditions.checkArgument(packageName.length() <= MAX_PACKAGE_NAME_LENGTH,
+                "packageName is longer than " + MAX_PACKAGE_NAME_LENGTH + " chars");
+        Objects.requireNonNull(certificate, "certificate must not be null");
+        Preconditions.checkArgument(certificate.length <= MAX_CERTIFICATE_LENGTH,
+                "certificate is longer than " + MAX_CERTIFICATE_LENGTH + " chars");
         synchronized (mSessionLock) {
             if (mState != STATE_OPENED) {
                 throw new IllegalStateException("Not allowed to change access type in state: "

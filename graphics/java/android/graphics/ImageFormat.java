@@ -24,6 +24,7 @@ import com.android.internal.camera.flags.Flags;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class ImageFormat {
      /** @hide */
      @Retention(RetentionPolicy.SOURCE)

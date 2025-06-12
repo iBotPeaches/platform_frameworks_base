@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.os.Parcel;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.runner.AndroidJUnit4;
@@ -39,13 +39,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = MemoryIntArray.class)
+@DisabledOnRavenwood(blockedBy = MemoryIntArray.class)
 public class MemoryIntArrayTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();
 
     static {
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             System.loadLibrary("cutils");
             System.loadLibrary("memoryintarraytest");
         }

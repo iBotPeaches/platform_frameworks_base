@@ -110,21 +110,26 @@ class EnsureActivitiesVisibleHelper {
 
                 if (adjacentTaskFragments != null && adjacentTaskFragments.contains(
                         childTaskFragment)) {
-                    if (!childTaskFragment.isTranslucent(starting)
-                            && !childTaskFragment.getAdjacentTaskFragment().isTranslucent(
-                                    starting)) {
+                    final boolean isTranslucent = childTaskFragment.isTranslucent(starting)
+                            || childTaskFragment.forOtherAdjacentTaskFragments(
+                                    adjacentTaskFragment -> {
+                                        return adjacentTaskFragment.isTranslucent(starting);
+                                    });
+                    if (!isTranslucent) {
                         // Everything behind two adjacent TaskFragments are occluded.
                         mBehindFullyOccludedContainer = true;
                     }
                     continue;
                 }
 
-                final TaskFragment adjacentTaskFrag = childTaskFragment.getAdjacentTaskFragment();
-                if (adjacentTaskFrag != null) {
+                if (childTaskFragment.hasAdjacentTaskFragment()) {
                     if (adjacentTaskFragments == null) {
                         adjacentTaskFragments = new ArrayList<>();
                     }
-                    adjacentTaskFragments.add(adjacentTaskFrag);
+                    final ArrayList<TaskFragment> adjacentTfs = adjacentTaskFragments;
+                    childTaskFragment.forOtherAdjacentTaskFragments(adjacentTf -> {
+                        adjacentTfs.add(adjacentTf);
+                    });
                 }
             } else if (child.asActivityRecord() != null) {
                 setActivityVisibilityState(child.asActivityRecord(), starting, resumeTopActivity);

@@ -40,6 +40,7 @@ import com.android.internal.util.Preconditions;
  * @see android.text.TextShaper#shapeText(CharSequence, int, int, TextDirectionHeuristic, TextPaint,
  * TextShaper.GlyphsConsumer)
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TextRunShaper {
     private TextRunShaper() {}  // Do not instantiate
 

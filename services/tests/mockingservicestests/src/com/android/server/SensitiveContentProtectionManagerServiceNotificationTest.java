@@ -33,6 +33,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.role.RoleManager;
+import android.companion.AssociationRequest;
 import android.content.pm.PackageManagerInternal;
 import android.media.projection.MediaProjectionInfo;
 import android.media.projection.MediaProjectionManager;
@@ -67,6 +69,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
 import java.util.Set;
 
 @SmallTest
@@ -116,6 +119,9 @@ public class SensitiveContentProtectionManagerServiceNotificationTest {
     private PackageManagerInternal mPackageManagerInternal;
 
     @Mock
+    private RoleManager mRoleManager;
+
+    @Mock
     private StatusBarNotification mNotification1;
 
     @Mock
@@ -161,7 +167,8 @@ public class SensitiveContentProtectionManagerServiceNotificationTest {
         setupSensitiveNotification();
 
         mSensitiveContentProtectionManagerService.init(mProjectionManager, mWindowManager,
-                mPackageManagerInternal, new ArraySet<>(Set.of(EXEMPTED_SCREEN_RECORDER_PACKAGE)));
+                mPackageManagerInternal, mRoleManager,
+                new ArraySet<>(Set.of(EXEMPTED_SCREEN_RECORDER_PACKAGE)));
 
         // Obtain useful mMediaProjectionCallback
         verify(mProjectionManager).addCallback(mMediaProjectionCallbackCaptor.capture(), any());
@@ -312,6 +319,18 @@ public class SensitiveContentProtectionManagerServiceNotificationTest {
     private MediaProjectionInfo createExemptMediaProjectionInfo() {
         return new MediaProjectionInfo(
                 EXEMPTED_SCREEN_RECORDER_PACKAGE, Process.myUserHandle(), null);
+    }
+
+    @Test
+    public void mediaProjectionOnStart_verifyExemptedAppStreamingPackage() {
+        MediaProjectionInfo mediaProjectionInfo = createMediaProjectionInfo();
+        when(mRoleManager.getRoleHoldersAsUser(AssociationRequest.DEVICE_PROFILE_APP_STREAMING,
+                mediaProjectionInfo.getUserHandle())).thenReturn(
+                List.of(mediaProjectionInfo.getPackageName()));
+
+        mMediaProjectionCallbackCaptor.getValue().onStart(mediaProjectionInfo);
+
+        verify(mWindowManager, never()).addBlockScreenCaptureForApps(mPackageInfoCaptor.capture());
     }
 
     @Test

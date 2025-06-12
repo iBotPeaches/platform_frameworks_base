@@ -25,6 +25,9 @@ object StatusBarRootModernization {
     /** Aconfig flag for removing the fragment */
     const val FLAG_NAME = Flags.FLAG_STATUS_BAR_ROOT_MODERNIZATION
 
+    /** Shows a "compose->bar" text in the status bar for debug purposes */
+    const val SHOW_DISAMBIGUATION = false
+
     /** A token used for dependency declaration */
     val token: FlagToken
         get() = FlagToken(FLAG_NAME, isEnabled)
@@ -49,7 +52,9 @@ object StatusBarRootModernization {
      * Caution!! Using this check incorrectly will cause crashes in nextfood builds!
      */
     @JvmStatic
-    inline fun assertInNewMode() = RefactorFlagUtils.assertInNewMode(isEnabled, FLAG_NAME)
+    @Deprecated("Avoid crashing.", ReplaceWith("if (this.isUnexpectedlyInLegacyMode()) return"))
+    inline fun unsafeAssertInNewMode() =
+        RefactorFlagUtils.unsafeAssertInNewMode(isEnabled, FLAG_NAME)
 
     /**
      * Called to ensure code is only run when the flag is disabled. This will throw an exception if

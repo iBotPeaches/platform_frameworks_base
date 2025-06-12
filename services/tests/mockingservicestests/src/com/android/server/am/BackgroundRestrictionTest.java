@@ -88,7 +88,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.clearInvocations;
@@ -747,7 +747,7 @@ public final class BackgroundRestrictionTest {
             mCurrentTimeMillis = 10_000L;
             doReturn(mCurrentTimeMillis - windowMs).when(stats).getStatsStartTimestamp();
             doReturn(mCurrentTimeMillis).when(stats).getStatsEndTimestamp();
-            doReturn(statsList).when(mBatteryStatsInternal).getBatteryUsageStats(anyObject());
+            doReturn(statsList).when(mBatteryStatsInternal).getBatteryUsageStats(any());
             mAppFGSTracker.onForegroundServiceStateChanged(testPkgName, testUid,
                     testPid, true);
             mAppFGSTracker.onForegroundServiceNotificationUpdated(
@@ -1925,7 +1925,7 @@ public final class BackgroundRestrictionTest {
             mCurrentTimeMillis = 10_000L;
             doReturn(mCurrentTimeMillis - windowMs).when(stats).getStatsStartTimestamp();
             doReturn(mCurrentTimeMillis).when(stats).getStatsEndTimestamp();
-            doReturn(statsList).when(mBatteryStatsInternal).getBatteryUsageStats(anyObject());
+            doReturn(statsList).when(mBatteryStatsInternal).getBatteryUsageStats(any());
 
             // Run with a media playback service which starts/stops immediately, we should
             // goto the restricted bucket.
@@ -3170,7 +3170,7 @@ public final class BackgroundRestrictionTest {
                         inv.getArgument(2));
                 return null;
             }).when(telephonyManager).registerCarrierPrivilegesCallback(
-                    anyInt(), anyObject(), anyObject());
+                    anyInt(), any(), any());
         }
 
         public void registerCarrierPrivilegesCallback(int phoneId, Executor executor,

@@ -52,6 +52,10 @@
 #include <renderthread/RenderThread.h>
 #include <src/image/SkImage_Base.h>
 #include <thread/CommonPool.h>
+#ifdef __ANDROID__
+#include <gui/SurfaceControl.h>
+#include <ui/GraphicBufferAllocator.h>
+#endif
 #include <utils/Color.h>
 #include <utils/RefBase.h>
 #include <utils/StrongPointer.h>
@@ -214,9 +218,11 @@ static void android_view_ThreadedRenderer_setSurface(JNIEnv* env, jobject clazz,
 
 static void android_view_ThreadedRenderer_setSurfaceControl(JNIEnv* env, jobject clazz,
         jlong proxyPtr, jlong surfaceControlPtr) {
+#ifdef __ANDROID__
     RenderProxy* proxy = reinterpret_cast<RenderProxy*>(proxyPtr);
-    ASurfaceControl* surfaceControl = reinterpret_cast<ASurfaceControl*>(surfaceControlPtr);
-    proxy->setSurfaceControl(surfaceControl);
+    SurfaceControl* surfaceControl = reinterpret_cast<SurfaceControl*>(surfaceControlPtr);
+    proxy->setSurfaceControl(sp<SurfaceControl>::fromExisting(surfaceControl));
+#endif
 }
 
 static jboolean android_view_ThreadedRenderer_pause(JNIEnv* env, jobject clazz,
@@ -681,7 +687,7 @@ static void android_view_ThreadedRenderer_setFrameCompleteCallback(JNIEnv* env,
 
 class CopyRequestAdapter : public CopyRequest {
 public:
-    CopyRequestAdapter(JavaVM* vm, jobject jCopyRequest, Rect srcRect)
+    CopyRequestAdapter(JavaVM* vm, jobject jCopyRequest, ::android::uirenderer::Rect srcRect)
             : CopyRequest(srcRect), mRefHolder(vm, jCopyRequest) {}
 
     virtual SkBitmap getDestinationBitmap(int srcWidth, int srcHeight) override {
@@ -707,8 +713,9 @@ static void android_view_ThreadedRenderer_copySurfaceInto(JNIEnv* env, jobject c
                                                           jobject jCopyRequest) {
     JavaVM* vm = nullptr;
     LOG_ALWAYS_FATAL_IF(env->GetJavaVM(&vm) != JNI_OK, "Unable to get Java VM");
-    auto copyRequest = std::make_shared<CopyRequestAdapter>(vm, env->NewGlobalRef(jCopyRequest),
-                                                            Rect(left, top, right, bottom));
+    auto copyRequest = std::make_shared<CopyRequestAdapter>(
+            vm, env->NewGlobalRef(jCopyRequest),
+            ::android::uirenderer::Rect(left, top, right, bottom));
     ANativeWindow* window = fromSurface(env, jsurface);
     RenderProxy::copySurfaceInto(window, std::move(copyRequest));
     ANativeWindow_release(window);
@@ -849,6 +856,17 @@ static void android_view_ThreadedRenderer_preload(JNIEnv*, jclass) {
     RenderProxy::preload();
 }
 
+static void android_view_ThreadedRenderer_preInitBufferAllocator(JNIEnv*, jclass) {
+#ifdef __ANDROID__
+    CommonPool::async([] {
+        ATRACE_NAME("preInitBufferAllocator:GraphicBufferAllocator");
+        // This involves several binder calls which we do not want blocking
+        // critical path of the activity that is launching.
+        GraphicBufferAllocator::getInstance();
+    });
+#endif
+}
+
 static void android_view_ThreadedRenderer_setRtAnimationsEnabled(JNIEnv* env, jobject clazz,
                                                                  jboolean enabled) {
     RenderProxy::setRtAnimationsEnabled(enabled);
@@ -901,20 +919,22 @@ static jboolean android_view_ThreadedRenderer_isDrawingEnabled(JNIEnv*, jclass) 
 
 static void android_view_ThreadedRenderer_addObserver(JNIEnv* env, jclass clazz,
         jlong proxyPtr, jlong observerPtr) {
-    HardwareRendererObserver* observer = reinterpret_cast<HardwareRendererObserver*>(observerPtr);
+    FrameMetricsObserver* rawObserver = reinterpret_cast<FrameMetricsObserver*>(observerPtr);
+    sp<FrameMetricsObserver> observer = sp<FrameMetricsObserver>::fromExisting(rawObserver);
     renderthread::RenderProxy* renderProxy =
             reinterpret_cast<renderthread::RenderProxy*>(proxyPtr);
 
-    renderProxy->addFrameMetricsObserver(observer);
+    renderProxy->addFrameMetricsObserver(std::move(observer));
 }
 
 static void android_view_ThreadedRenderer_removeObserver(JNIEnv* env, jclass clazz,
         jlong proxyPtr, jlong observerPtr) {
-    HardwareRendererObserver* observer = reinterpret_cast<HardwareRendererObserver*>(observerPtr);
+    FrameMetricsObserver* rawObserver = reinterpret_cast<FrameMetricsObserver*>(observerPtr);
+    sp<FrameMetricsObserver> observer = sp<FrameMetricsObserver>::fromExisting(rawObserver);
     renderthread::RenderProxy* renderProxy =
             reinterpret_cast<renderthread::RenderProxy*>(proxyPtr);
 
-    renderProxy->removeFrameMetricsObserver(observer);
+    renderProxy->removeFrameMetricsObserver(std::move(observer));
 }
 
 // ----------------------------------------------------------------------------
@@ -1040,6 +1060,8 @@ static const JNINativeMethod gMethods[] = {
          (void*)android_view_ThreadedRenderer_setDisplayDensityDpi},
         {"nInitDisplayInfo", "(IIFIJJZZZ)V", (void*)android_view_ThreadedRenderer_initDisplayInfo},
         {"preload", "()V", (void*)android_view_ThreadedRenderer_preload},
+        {"preInitBufferAllocator", "()V",
+         (void*)android_view_ThreadedRenderer_preInitBufferAllocator},
         {"isWebViewOverlaysEnabled", "()Z",
          (void*)android_view_ThreadedRenderer_isWebViewOverlaysEnabled},
         {"nSetDrawingEnabled", "(Z)V", (void*)android_view_ThreadedRenderer_setDrawingEnabled},

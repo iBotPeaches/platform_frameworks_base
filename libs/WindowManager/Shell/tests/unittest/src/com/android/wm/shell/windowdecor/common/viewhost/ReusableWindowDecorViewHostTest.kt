@@ -20,6 +20,7 @@ import android.testing.TestableLooper
 import android.view.SurfaceControl
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import androidx.test.filters.SmallTest
 import com.android.wm.shell.ShellTestCase
 import com.google.common.truth.Truth.assertThat
@@ -30,6 +31,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.times
+import org.mockito.kotlin.clearInvocations
+import org.mockito.kotlin.never
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 
@@ -47,24 +51,46 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
     fun update_differentView_replacesView() = runTest {
         val view = View(context)
         val lp = WindowManager.LayoutParams()
-        val reusableVH = createReusableViewHost()
-        reusableVH.updateView(view, lp, context.resources.configuration, null)
+        val rootView = FrameLayout(context)
+        val reusableVH = createReusableViewHost(rootView)
+        reusableVH.updateView(view, lp, context.resources.configuration)
 
-        assertThat(reusableVH.rootView.childCount).isEqualTo(1)
-        assertThat(reusableVH.rootView.getChildAt(0)).isEqualTo(view)
+        assertThat(rootView.childCount).isEqualTo(1)
+        assertThat(rootView.getChildAt(0)).isEqualTo(view)
 
         val newView = View(context)
         val newLp = WindowManager.LayoutParams()
-        reusableVH.updateView(newView, newLp, context.resources.configuration, null)
+        reusableVH.updateView(newView, newLp, context.resources.configuration)
 
-        assertThat(reusableVH.rootView.childCount).isEqualTo(1)
-        assertThat(reusableVH.rootView.getChildAt(0)).isEqualTo(newView)
+        assertThat(rootView.childCount).isEqualTo(1)
+        assertThat(rootView.getChildAt(0)).isEqualTo(newView)
+    }
+
+    @Test
+    fun update_sameView_doesNotReplaceView() = runTest {
+        val view = View(context)
+        val lp = WindowManager.LayoutParams()
+        val spyRootView = spy(FrameLayout(context))
+        val reusableVH = createReusableViewHost(spyRootView)
+        reusableVH.updateView(view, lp, context.resources.configuration)
+
+        verify(spyRootView, times(1)).removeAllViews()
+        assertThat(spyRootView.childCount).isEqualTo(1)
+        assertThat(spyRootView.getChildAt(0)).isEqualTo(view)
+
+        reusableVH.updateView(view, lp, context.resources.configuration)
+
+        clearInvocations(spyRootView)
+        verify(spyRootView, never()).removeAllViews()
+        assertThat(spyRootView.childCount).isEqualTo(1)
+        assertThat(spyRootView.getChildAt(0)).isEqualTo(view)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun updateView_clearsPendingAsyncJob() = runTest {
-        val reusableVH = createReusableViewHost()
+        val rootView = FrameLayout(context)
+        val reusableVH = createReusableViewHost(rootView)
         val asyncView = View(context)
         val syncView = View(context)
         val asyncAttrs = WindowManager.LayoutParams(100, 100)
@@ -83,7 +109,6 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
             view = syncView,
             attrs = syncAttrs,
             configuration = context.resources.configuration,
-            onDrawTransaction = null,
         )
 
         // Would run coroutine if it hadn't been cancelled.
@@ -91,7 +116,7 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
 
         assertThat(reusableVH.viewHostAdapter.isInitialized()).isTrue()
         // View host view/attrs should match the ones from the sync call.
-        assertThat(reusableVH.rootView.getChildAt(0)).isEqualTo(syncView)
+        assertThat(rootView.getChildAt(0)).isEqualTo(syncView)
         assertThat(reusableVH.view()!!.layoutParams.width).isEqualTo(syncAttrs.width)
     }
 
@@ -118,7 +143,8 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun updateViewAsync_clearsPendingAsyncJob() = runTest {
-        val reusableVH = createReusableViewHost()
+        val rootView = FrameLayout(context)
+        val reusableVH = createReusableViewHost(rootView)
 
         val view = View(context)
         reusableVH.updateViewAsync(
@@ -136,7 +162,7 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
         advanceUntilIdle()
 
         assertThat(reusableVH.viewHostAdapter.isInitialized()).isTrue()
-        assertThat(reusableVH.rootView.getChildAt(0)).isEqualTo(otherView)
+        assertThat(rootView.getChildAt(0)).isEqualTo(otherView)
     }
 
     @Test
@@ -148,7 +174,6 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
             view = view,
             attrs = WindowManager.LayoutParams(100, 100),
             configuration = context.resources.configuration,
-            onDrawTransaction = null,
         )
 
         val t = mock(SurfaceControl.Transaction::class.java)
@@ -159,19 +184,23 @@ class ReusableWindowDecorViewHostTest : ShellTestCase() {
 
     @Test
     fun warmUp_addsRootView() = runTest {
-        val reusableVH = createReusableViewHost().apply { warmUp() }
+        val rootView = FrameLayout(context)
+        val reusableVH = createReusableViewHost(rootView).apply { warmUp() }
 
         assertThat(reusableVH.viewHostAdapter.isInitialized()).isTrue()
-        assertThat(reusableVH.view()).isEqualTo(reusableVH.rootView)
+        assertThat(reusableVH.view()).isEqualTo(rootView)
     }
 
-    private fun CoroutineScope.createReusableViewHost() =
+    private fun CoroutineScope.createReusableViewHost(
+        rootView: FrameLayout = FrameLayout(context)
+    ) =
         ReusableWindowDecorViewHost(
             context = context,
             mainScope = this,
             display = context.display,
             id = 1,
             viewHostAdapter = spy(SurfaceControlViewHostAdapter(context, context.display)),
+            rootView
         )
 
     private fun ReusableWindowDecorViewHost.view(): View? = viewHostAdapter.viewHost?.view

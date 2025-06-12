@@ -36,6 +36,7 @@ import static android.os.UserManager.USER_TYPE_PROFILE_CLONE;
 import static android.os.UserManager.USER_TYPE_PROFILE_COMMUNAL;
 import static android.os.UserManager.USER_TYPE_PROFILE_MANAGED;
 import static android.os.UserManager.USER_TYPE_PROFILE_PRIVATE;
+import static android.os.UserManager.USER_TYPE_PROFILE_SUPERVISING;
 import static android.os.UserManager.USER_TYPE_PROFILE_TEST;
 import static android.os.UserManager.USER_TYPE_SYSTEM_HEADLESS;
 
@@ -111,6 +112,7 @@ public final class UserTypeFactory {
         builders.put(USER_TYPE_PROFILE_CLONE, getDefaultTypeProfileClone());
         builders.put(USER_TYPE_PROFILE_COMMUNAL, getDefaultTypeProfileCommunal());
         builders.put(USER_TYPE_PROFILE_PRIVATE, getDefaultTypeProfilePrivate());
+        builders.put(USER_TYPE_PROFILE_SUPERVISING, getDefaultTypeProfileSupervising());
         if (Build.IS_DEBUGGABLE) {
             builders.put(USER_TYPE_PROFILE_TEST, getDefaultTypeProfileTest());
         }
@@ -128,6 +130,7 @@ public final class UserTypeFactory {
                 .setName(USER_TYPE_PROFILE_CLONE)
                 .setBaseType(FLAG_PROFILE)
                 .setMaxAllowedPerParent(1)
+                .setProfileParentRequired(true)
                 .setLabels(R.string.profile_label_clone)
                 .setIconBadge(com.android.internal.R.drawable.ic_clone_icon_badge)
                 .setBadgePlain(com.android.internal.R.drawable.ic_clone_badge)
@@ -177,6 +180,7 @@ public final class UserTypeFactory {
                 .setBaseType(FLAG_PROFILE)
                 .setDefaultUserInfoPropertyFlags(FLAG_MANAGED_PROFILE)
                 .setMaxAllowedPerParent(1)
+                .setProfileParentRequired(true)
                 .setLabels(
                         R.string.profile_label_work,
                         R.string.profile_label_work_2,
@@ -226,6 +230,7 @@ public final class UserTypeFactory {
                 .setName(USER_TYPE_PROFILE_TEST)
                 .setBaseType(FLAG_PROFILE)
                 .setMaxAllowedPerParent(2)
+                .setProfileParentRequired(true)
                 .setLabels(
                         R.string.profile_label_test,
                         R.string.profile_label_test,
@@ -259,6 +264,7 @@ public final class UserTypeFactory {
                 .setName(USER_TYPE_PROFILE_COMMUNAL)
                 .setBaseType(FLAG_PROFILE)
                 .setMaxAllowed(1)
+                .setProfileParentRequired(false)
                 .setEnabled(UserManager.isCommunalProfileEnabled() ? 1 : 0)
                 .setLabels(R.string.profile_label_communal)
                 .setIconBadge(com.android.internal.R.drawable.ic_test_icon_badge_experiment)
@@ -295,6 +301,7 @@ public final class UserTypeFactory {
         return new UserTypeDetails.Builder()
                 .setName(USER_TYPE_PROFILE_PRIVATE)
                 .setBaseType(FLAG_PROFILE)
+                .setProfileParentRequired(true)
                 .setMaxAllowedPerParent(1)
                 .setEnabled(UserManager.isPrivateProfileEnabled() ? 1 : 0)
                 .setLabels(R.string.profile_label_private)
@@ -335,6 +342,29 @@ public final class UserTypeFactory {
                                 UserProperties.PROFILE_API_VISIBILITY_HIDDEN)
                         .setItemsRestrictedOnHomeScreen(true)
                         .setUpdateCrossProfileIntentFiltersOnOTA(true));
+    }
+
+    /**
+     * Returns the Builder for the default {@link UserManager#USER_TYPE_PROFILE_SUPERVISING}
+     * configuration.
+     */
+    private static UserTypeDetails.Builder getDefaultTypeProfileSupervising() {
+        return new UserTypeDetails.Builder()
+                .setName(USER_TYPE_PROFILE_SUPERVISING)
+                .setBaseType(FLAG_PROFILE)
+                .setMaxAllowed(1)
+                .setProfileParentRequired(false)
+                .setEnabled(android.multiuser.Flags.allowSupervisingProfile() ? 1 : 0)
+                .setLabels(R.string.profile_label_supervising)
+                .setDefaultRestrictions(getDefaultSupervisingProfileRestrictions())
+                .setDefaultSecureSettings(getDefaultNonManagedProfileSecureSettings())
+                .setDefaultUserProperties(new UserProperties.Builder()
+                        .setStartWithParent(false)
+                        .setShowInLauncher(UserProperties.SHOW_IN_LAUNCHER_NO)
+                        .setShowInSettings(UserProperties.SHOW_IN_SETTINGS_NO)
+                        .setShowInQuietMode(UserProperties.SHOW_IN_QUIET_MODE_HIDDEN)
+                        .setCredentialShareableWithParent(false)
+                        .setAlwaysVisible(true));
     }
 
     /**
@@ -387,6 +417,7 @@ public final class UserTypeFactory {
                 .setBaseType(FLAG_FULL)
                 .setDefaultUserInfoPropertyFlags(FLAG_RESTRICTED)
                 .setMaxAllowed(UNLIMITED_NUMBER_OF_USERS)
+                .setProfileParentRequired(false) // they have a "parent", but not a profile parent
                 // NB: UserManagerService.createRestrictedProfile() applies hardcoded restrictions.
                 .setDefaultRestrictions(null);
     }
@@ -440,6 +471,12 @@ public final class UserTypeFactory {
     static Bundle getDefaultPrivateProfileRestrictions() {
         final Bundle restrictions = getDefaultProfileRestrictions();
         restrictions.putBoolean(UserManager.DISALLOW_BLUETOOTH_SHARING, true);
+        return restrictions;
+    }
+
+    private static Bundle getDefaultSupervisingProfileRestrictions() {
+        final Bundle restrictions = getDefaultProfileRestrictions();
+        restrictions.putBoolean(UserManager.DISALLOW_INSTALL_APPS, true);
         return restrictions;
     }
 
@@ -541,6 +578,8 @@ public final class UserTypeFactory {
                     builder = new UserTypeDetails.Builder();
                     builder.setName(typeName);
                     builder.setBaseType(FLAG_PROFILE);
+                    // Custom parentless profiles are not yet supported.
+                    builder.setProfileParentRequired(true);
                     builders.put(typeName, builder);
                 } else {
                     throw new IllegalArgumentException("Creation of non-profile user type "

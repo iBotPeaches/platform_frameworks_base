@@ -39,6 +39,7 @@ import java.util.Objects;
  *
  * @see Layout#getRangeForRect(RectF, SegmentFinder, Layout.TextInclusionStrategy)
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class SegmentFinder {
     /**
      * Return value of previousStartBoundary(int), previousEndBoundary(int), nextStartBoundary(int),

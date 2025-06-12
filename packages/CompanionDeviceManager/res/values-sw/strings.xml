@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Kidhibiti cha Vifaa Visaidizi"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Ungependa kuruhusu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ifikie &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Hakikisha kuwa umewasha <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> kwenye <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> na uweke <xliff:g id="PROFILE_NAME">%3$s</xliff:g> karibu nawe."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Hakuna vifaa vilivyopatikana. Tafadhali jaribu tena baadaye."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth na Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"saa"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Chagua kifaa cha kudhibitiwa na &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Chagua <xliff:g id="PROFILE_NAME">%1$s</xliff:g> ili uweke mipangilio"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Inatafuta <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Programu hii itaruhusiwa kusawazisha maelezo, kama vile jina la mtu anayepiga simu na kufikia ruhusa hizi kwenye <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> yako"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Ungependa kuruhusu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; idhibiti &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"kifaa"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Ungependa kuruhusu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; itiririshe programu za <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> yako kwenye &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Programu ya <xliff:g id="APP_NAME_0">%1$s</xliff:g> itafikia chochote kinachoonekana au kuchezwa kwenye <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, ikiwa ni pamoja na sauti, picha, maelezo ya malipo, manenosiri na ujumbe.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> itaweza kutiririsha programu kwenye <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> hadi utakapoondoa ruhusa hii."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Programu ya <xliff:g id="APP_NAME">%1$s</xliff:g> inaomba ruhusa kwa niaba ya <xliff:g id="DEVICE_NAME">%2$s</xliff:g> ili itiririshe programu kwenye <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> yako"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Ungependa kuruhusu &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; itiririshe sauti na vipengele vya mfumo kati ya <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> na &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; yako?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> itafikia chochote kinachochezwa kwenye <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> itaweza kutiririsha sauti kwenye <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> hadi utakapoondoa ruhusa hii."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"kifaa"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Programu hii itaweza kusawazisha maelezo, kama vile jina la mtu anayepiga simu, kati ya simu yako na kifaa ulichochagua"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Ruhusu"</string>
     <string name="consent_no" msgid="2640796915611404382">"Usiruhusu"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Ghairi"</string>
     <string name="consent_back" msgid="2560683030046918882">"Nyuma"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Sogeza chini kwenye orodha"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Kishale kinachoelekeza chini"</string>
     <string name="permission_expand" msgid="893185038020887411">"Panua <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Kunja <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Ungependa kuzipa programu katika &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; ruhusa ile ile kama kwenye &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

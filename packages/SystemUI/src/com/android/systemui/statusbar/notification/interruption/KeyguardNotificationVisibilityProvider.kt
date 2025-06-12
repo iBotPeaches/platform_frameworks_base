@@ -19,7 +19,7 @@ import com.android.systemui.settings.UserTracker
 import com.android.systemui.statusbar.NotificationLockscreenUserManager
 import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.SysuiStatusBarStateController
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.provider.HighPriorityProvider
 import com.android.systemui.statusbar.policy.KeyguardStateController
@@ -198,7 +198,7 @@ constructor(
             else -> false
         }
 
-    private fun shouldHideIfEntrySilent(entry: ListEntry): Boolean =
+    private fun shouldHideIfEntrySilent(entry: PipelineEntry): Boolean =
         when {
             // Show if explicitly high priority (not hidden)
             highPriorityProvider.isExplicitlyHighPriority(entry) -> false

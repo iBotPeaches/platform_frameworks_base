@@ -21,8 +21,8 @@ import org.junit.rules.ExternalResource
 import org.mockito.Mockito
 
 /**
- * A test rule that temporarily replaces the [IInputManager] connection to the server with a mock
- * to be used for testing.
+ * A test rule that temporarily replaces the [IInputManager] connection to the server with a mock to
+ * be used for testing.
  */
 class MockInputManagerRule : ExternalResource() {
 

@@ -30,13 +30,14 @@ import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.plugins.activityStarter
 import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.settings.userTracker
+import com.android.systemui.shade.data.repository.shadeDialogContextInteractor
 import com.android.systemui.shade.domain.interactor.panelExpansionInteractor
 import com.android.systemui.shade.domain.interactor.shadeAnimationInteractor
 import com.android.systemui.shade.shadeController
 import com.android.systemui.statusbar.commandQueue
 import com.android.systemui.statusbar.notification.collection.provider.launchFullScreenIntentProvider
 import com.android.systemui.statusbar.notification.collection.render.notificationVisibilityProvider
-import com.android.systemui.statusbar.notification.headsup.headsUpManager
+import com.android.systemui.statusbar.notification.headsup.mockHeadsUpManager
 import com.android.systemui.statusbar.notification.notificationTransitionAnimatorControllerProvider
 import com.android.systemui.statusbar.notification.row.onUserInteractionCallback
 import com.android.systemui.statusbar.notificationClickNotifier
@@ -47,18 +48,16 @@ import com.android.systemui.statusbar.notificationShadeWindowController
 import com.android.systemui.statusbar.policy.keyguardStateController
 import com.android.systemui.wmshell.bubblesManager
 import java.util.Optional
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-@OptIn(ExperimentalCoroutinesApi::class)
 val Kosmos.statusBarNotificationActivityStarter by
     Kosmos.Fixture {
         StatusBarNotificationActivityStarter(
             applicationContext,
-            applicationContext.displayId,
+            shadeDialogContextInteractor,
             fakeExecutorHandler,
             fakeExecutor,
             notificationVisibilityProvider,
-            headsUpManager,
+            mockHeadsUpManager,
             activityStarter,
             commandQueue,
             notificationClickNotifier,

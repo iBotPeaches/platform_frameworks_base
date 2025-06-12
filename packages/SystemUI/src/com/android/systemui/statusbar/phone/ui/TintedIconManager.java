@@ -20,19 +20,30 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.android.systemui.dagger.SysUISingleton;
+import com.android.systemui.dagger.qualifiers.Application;
+import com.android.systemui.kairos.ExperimentalKairosApi;
+import com.android.systemui.kairos.KairosNetwork;
 import com.android.systemui.statusbar.StatusIconDisplayable;
 import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider;
 import com.android.systemui.statusbar.phone.DemoStatusIcons;
 import com.android.systemui.statusbar.phone.StatusBarIconHolder;
 import com.android.systemui.statusbar.phone.StatusBarLocation;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter;
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter;
+
+import dagger.Lazy;
+
+import kotlin.OptIn;
+
+import kotlinx.coroutines.CoroutineScope;
 
 import javax.inject.Inject;
 
 /**
  * Version of {@link IconManager} that can tint the icons to a particular color.
  */
+@OptIn(markerClass = ExperimentalKairosApi.class)
 public class TintedIconManager extends IconManager {
     // The main tint, used as the foreground in non layer drawables
     private int mColor;
@@ -44,13 +55,17 @@ public class TintedIconManager extends IconManager {
             StatusBarLocation location,
             WifiUiAdapter wifiUiAdapter,
             MobileUiAdapter mobileUiAdapter,
-            MobileContextProvider mobileContextProvider
+            Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
+            MobileContextProvider mobileContextProvider,
+            KairosNetwork kairosNetwork,
+            CoroutineScope appScope
     ) {
         super(group,
                 location,
                 wifiUiAdapter,
                 mobileUiAdapter,
-                mobileContextProvider);
+                mobileUiAdapterKairos,
+                mobileContextProvider, kairosNetwork, appScope);
     }
 
     @Override
@@ -99,16 +114,25 @@ public class TintedIconManager extends IconManager {
         private final WifiUiAdapter mWifiUiAdapter;
         private final MobileContextProvider mMobileContextProvider;
         private final MobileUiAdapter mMobileUiAdapter;
+        private final Lazy<MobileUiAdapterKairos> mMobileUiAdapterKairos;
+        private final KairosNetwork mKairosNetwork;
+        private final CoroutineScope mAppScope;
 
         @Inject
         public Factory(
                 WifiUiAdapter wifiUiAdapter,
                 MobileUiAdapter mobileUiAdapter,
-                MobileContextProvider mobileContextProvider
+                MobileContextProvider mobileContextProvider,
+                Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
+                KairosNetwork kairosNetwork,
+                @Application CoroutineScope appScope
         ) {
             mWifiUiAdapter = wifiUiAdapter;
             mMobileUiAdapter = mobileUiAdapter;
             mMobileContextProvider = mobileContextProvider;
+            mMobileUiAdapterKairos = mobileUiAdapterKairos;
+            mKairosNetwork = kairosNetwork;
+            mAppScope = appScope;
         }
 
         /** Creates a new {@link TintedIconManager} for the given view group and location. */
@@ -118,7 +142,10 @@ public class TintedIconManager extends IconManager {
                     location,
                     mWifiUiAdapter,
                     mMobileUiAdapter,
-                    mMobileContextProvider);
+                    mMobileUiAdapterKairos,
+                    mMobileContextProvider,
+                    mKairosNetwork,
+                    mAppScope);
         }
     }
 }

@@ -21,6 +21,7 @@ import android.content.Context
 import android.content.pm.PackageManager.NameNotFoundException
 import android.util.Log
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessibilityNew
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Keyboard
@@ -30,6 +31,7 @@ import com.android.compose.ui.graphics.painter.DrawablePainter
 import com.android.systemui.Flags.keyboardShortcutHelperShortcutCustomizer
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.keyboard.shortcut.domain.interactor.ShortcutHelperCategoriesInteractor
+import com.android.systemui.keyboard.shortcut.domain.interactor.ShortcutHelperCustomizationModeInteractor
 import com.android.systemui.keyboard.shortcut.domain.interactor.ShortcutHelperStateInteractor
 import com.android.systemui.keyboard.shortcut.shared.model.Shortcut
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategory
@@ -41,6 +43,7 @@ import com.android.systemui.keyboard.shortcut.ui.model.ShortcutCategoryUi
 import com.android.systemui.keyboard.shortcut.ui.model.ShortcutsUiState
 import com.android.systemui.res.R
 import com.android.systemui.settings.UserTracker
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,7 +54,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 class ShortcutHelperViewModel
 @Inject
@@ -63,6 +65,7 @@ constructor(
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     private val stateInteractor: ShortcutHelperStateInteractor,
     categoriesInteractor: ShortcutHelperCategoriesInteractor,
+    private val customizationModeInteractor: ShortcutHelperCustomizationModeInteractor,
 ) {
 
     private val searchQuery = MutableStateFlow("")
@@ -75,7 +78,11 @@ constructor(
             .flowOn(backgroundDispatcher)
 
     val shortcutsUiState =
-        combine(searchQuery, categoriesInteractor.shortcutCategories) { query, categories ->
+        combine(
+                searchQuery,
+                categoriesInteractor.shortcutCategories,
+                customizationModeInteractor.customizationMode,
+            ) { query, categories, isCustomizationModeEnabled ->
                 if (categories.isEmpty()) {
                     ShortcutsUiState.Inactive
                 } else {
@@ -89,8 +96,10 @@ constructor(
                         searchQuery = query,
                         shortcutCategories = shortcutCategoriesUi,
                         defaultSelectedCategory = getDefaultSelectedCategory(filteredCategories),
-                        isShortcutCustomizerFlagEnabled = keyboardShortcutHelperShortcutCustomizer(),
-                        shouldShowResetButton = shouldShowResetButton(shortcutCategoriesUi)
+                        isShortcutCustomizerFlagEnabled =
+                            keyboardShortcutHelperShortcutCustomizer(),
+                        shouldShowResetButton = shouldShowResetButton(shortcutCategoriesUi),
+                        isCustomizationModeEnabled = isCustomizationModeEnabled,
                     )
                 }
             }
@@ -129,7 +138,7 @@ constructor(
                     val iconDrawable =
                         userContext.packageManager.getApplicationIcon(type.packageName)
                     IconSource(painter = DrawablePainter(drawable = iconDrawable))
-                } catch (e: NameNotFoundException) {
+                } catch (_: NameNotFoundException) {
                     Log.w(
                         "ShortcutHelperViewModel",
                         "Package not found when retrieving icon for ${type.packageName}",
@@ -137,6 +146,9 @@ constructor(
                     IconSource(imageVector = Icons.Default.Android)
                 }
             }
+
+            ShortcutCategoryType.Accessibility ->
+                IconSource(imageVector = Icons.Default.AccessibilityNew)
         }
     }
 
@@ -151,6 +163,8 @@ constructor(
             ShortcutCategoryType.AppCategories ->
                 context.getString(R.string.shortcut_helper_category_app_shortcuts)
             is CurrentApp -> getApplicationLabelForCurrentApp(type)
+            ShortcutCategoryType.Accessibility ->
+                context.getString(R.string.shortcutHelper_category_accessibility)
         }
 
     private fun getApplicationLabelForCurrentApp(type: CurrentApp): String {
@@ -234,6 +248,8 @@ constructor(
 
     fun onViewClosed() {
         stateInteractor.onViewClosed()
+        resetSearchQuery()
+        resetCustomizationMode()
     }
 
     fun onViewOpened() {
@@ -242,5 +258,17 @@ constructor(
 
     fun onSearchQueryChanged(query: String) {
         searchQuery.value = query
+    }
+
+    fun toggleCustomizationMode(isCustomizing: Boolean) {
+        customizationModeInteractor.toggleCustomizationMode(isCustomizing)
+    }
+
+    private fun resetSearchQuery() {
+        searchQuery.value = ""
+    }
+
+    private fun resetCustomizationMode() {
+        customizationModeInteractor.toggleCustomizationMode(false)
     }
 }

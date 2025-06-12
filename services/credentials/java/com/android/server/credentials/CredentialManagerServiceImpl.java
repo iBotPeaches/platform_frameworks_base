@@ -21,11 +21,16 @@ import static com.android.server.credentials.CredentialManagerService.getPrimary
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.credentials.CredentialManager;
 import android.credentials.CredentialProviderInfo;
+import android.credentials.flags.Flags;
 import android.service.credentials.CredentialProviderInfoFactory;
+import android.service.credentials.CredentialProviderService;
 import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
@@ -57,6 +62,13 @@ public final class CredentialManagerServiceImpl extends
         }
     }
 
+    @Nullable
+    @Override
+    @GuardedBy("mLock")
+    public ComponentName getServiceComponentName() {
+        return getComponentName();
+    }
+
     @GuardedBy("mLock")
     public ComponentName getComponentName() {
         return mInfo.getServiceInfo().getComponentName();
@@ -71,14 +83,16 @@ public final class CredentialManagerServiceImpl extends
         mInfo = providerInfo;
     }
 
-    @Override // from PerUserSystemService when a new setting based service is to be created
+    @Override // from PerUserSystemService when a new service is to be created
     @GuardedBy("mLock")
     protected ServiceInfo newServiceInfoLocked(@NonNull ComponentName serviceComponent)
-            throws PackageManager.NameNotFoundException {
+            throws PackageManager.NameNotFoundException, SecurityException, NullPointerException {
+        boolean isSystemProvider = false;
         if (mInfo != null) {
             Slog.i(TAG, "newServiceInfoLocked, mInfo not null : "
                     + mInfo.getServiceInfo().getComponentName().flattenToString() + " , "
                     + serviceComponent.flattenToString());
+            isSystemProvider = mInfo.isSystemProvider();
         } else {
             Slog.i(TAG, "newServiceInfoLocked, mInfo null, "
                     + serviceComponent.flattenToString());
@@ -87,7 +101,7 @@ public final class CredentialManagerServiceImpl extends
                 getPrimaryProvidersForUserId(mMaster.getContext(), mUserId);
         mInfo = CredentialProviderInfoFactory.create(
                 getContext(), serviceComponent,
-                mUserId, /*isSystemProvider=*/false,
+                mUserId, isSystemProvider,
                 primaryProviders.contains(serviceComponent));
         return mInfo.getServiceInfo();
     }
@@ -141,15 +155,63 @@ public final class CredentialManagerServiceImpl extends
      * @param packageName package of the app being updated.
      */
     @GuardedBy("mLock")
+    @SuppressWarnings("GuardedBy") // ErrorProne requires this.mMaster.mLock which is the case
+    // because this method is called by this.mMaster anyway
     protected void handlePackageUpdateLocked(@NonNull String packageName) {
         if (mInfo != null && mInfo.getServiceInfo() != null
                 && mInfo.getServiceInfo().getComponentName()
                 .getPackageName().equals(packageName)) {
-            try {
-                newServiceInfoLocked(mInfo.getServiceInfo().getComponentName());
-            } catch (PackageManager.NameNotFoundException e) {
-                Slog.e(TAG, "Issue while updating serviceInfo: " + e.getMessage());
+            if (Flags.packageUpdateFixEnabled()) {
+                try {
+                    updateCredentialProviderInfo(mInfo.getServiceInfo().getComponentName(),
+                            mInfo.isSystemProvider());
+                } catch (SecurityException | PackageManager.NameNotFoundException
+                         | NullPointerException e) {
+                    Slog.w(TAG, "Unable to update provider, must be removed: " + e.getMessage());
+                    mMaster.handleServiceRemovedMultiModeLocked(mInfo.getComponentName(), mUserId);
+                }
+            } else {
+                try {
+                    newServiceInfoLocked(mInfo.getServiceInfo().getComponentName());
+                } catch (PackageManager.NameNotFoundException e) {
+                    Slog.e(TAG, "Issue while updating serviceInfo: " + e.getMessage());
+                }
             }
         }
+    }
+
+    @GuardedBy("mLock")
+    private void updateCredentialProviderInfo(ComponentName componentName, boolean isSystemProvider)
+            throws SecurityException, PackageManager.NameNotFoundException {
+        Slog.d(TAG, "Updating credential provider: " + componentName.flattenToString());
+        if (!isValidCredentialProviderInfo(componentName, mUserId, isSystemProvider)) {
+            throw new SecurityException("Service has not been set up correctly");
+        }
+        newServiceInfoLocked(componentName);
+    }
+
+    private boolean isValidCredentialProviderInfo(ComponentName componentName, int userId,
+            boolean isSystemProvider) {
+        Context context = getContext();
+        if (context == null) {
+            return false;
+        }
+        String serviceInterface = CredentialProviderService.SERVICE_INTERFACE;
+        if (isSystemProvider) {
+            serviceInterface = CredentialProviderService.SYSTEM_SERVICE_INTERFACE;
+        }
+        final List<ResolveInfo> resolveInfos =
+                context.getPackageManager()
+                        .queryIntentServicesAsUser(
+                                new Intent(serviceInterface),
+                                PackageManager.ResolveInfoFlags.of(PackageManager.GET_META_DATA),
+                                userId);
+        for (ResolveInfo resolveInfo : resolveInfos) {
+            final ServiceInfo serviceInfo = resolveInfo.serviceInfo;
+            if (serviceInfo.getComponentName().equals(componentName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -46,6 +46,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.om.IOverlayManager;
+import android.content.om.OverlayConstraint;
 import android.content.om.OverlayIdentifier;
 import android.content.om.OverlayInfo;
 import android.content.om.OverlayManagerTransaction;
@@ -250,14 +251,17 @@ public final class OverlayManagerService extends SystemService {
 
     private final Object mLock = new Object();
 
+    @GuardedBy("mLock")
     private final AtomicFile mSettingsFile;
 
     private final PackageManagerHelperImpl mPackageManager;
 
     private final UserManagerService mUserManager;
 
+    @GuardedBy("mLock")
     private final OverlayManagerSettings mSettings;
 
+    @GuardedBy("mLock")
     private final OverlayManagerServiceImpl mImpl;
 
     private final OverlayActorEnforcer mActorEnforcer;
@@ -294,7 +298,9 @@ public final class OverlayManagerService extends SystemService {
             UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
             umi.addUserLifecycleListener(new UserLifecycleListener());
 
-            restoreSettings();
+            // No async stuff happening in the constructor yet, so it's OK to call a ...Locked()
+            // method without a lock here.
+            restoreSettingsLocked();
 
             // Wipe all shell overlays on boot, to recover from a potentially broken device
             String shellPkgName = TextUtils.emptyIfNull(
@@ -399,6 +405,20 @@ public final class OverlayManagerService extends SystemService {
             userIds = new int[] { UserHandle.getUserId(uid) };
         }
         return userIds;
+    }
+
+    /**
+     * Ensure that the caller has permission to interact with the given userId.
+     * If the calling user is not the same as the provided user, the caller needs
+     * to hold the INTERACT_ACROSS_USERS_FULL permission (or be system uid or
+     * root).
+     *
+     * @param userId the user to interact with
+     * @param message message for any SecurityException
+     */
+    static int handleIncomingUser(final int userId, @NonNull final String message) {
+        return ActivityManager.handleIncomingUser(Binder.getCallingPid(),
+                Binder.getCallingUid(), userId, false, true, message, null);
     }
 
     private void handlePackageAdd(String packageName, Bundle extras, int userId) {
@@ -653,6 +673,18 @@ public final class OverlayManagerService extends SystemService {
         @Override
         public boolean setEnabled(@Nullable final String packageName, final boolean enable,
                 int userIdArg) {
+            return setEnabled(packageName, enable, userIdArg,
+                    Collections.emptyList() /* constraints */);
+        }
+
+        @Override
+        public boolean enableWithConstraints(@Nullable final String packageName, int userIdArg,
+                @NonNull final List<OverlayConstraint> constraints) {
+            return setEnabled(packageName, true /* enable */, userIdArg, constraints);
+        }
+
+        private boolean setEnabled(@Nullable final String packageName, final boolean enable,
+                int userIdArg, @NonNull final List<OverlayConstraint> constraints) {
             if (packageName == null) {
                 return false;
             }
@@ -669,7 +701,7 @@ public final class OverlayManagerService extends SystemService {
                     synchronized (mLock) {
                         try {
                             updateTargetPackagesLocked(
-                                    mImpl.setEnabled(overlay, enable, realUserId));
+                                    mImpl.setEnabled(overlay, enable, realUserId, constraints));
                             return true;
                         } catch (OperationFailedException e) {
                             return false;
@@ -900,25 +932,28 @@ public final class OverlayManagerService extends SystemService {
                 throws RemoteException {
             try {
                 traceBegin(TRACE_TAG_RRO, "OMS#commit " + transaction);
-                try {
-                    executeAllRequests(transaction);
-                } catch (Exception e) {
-                    final long ident = Binder.clearCallingIdentity();
+                synchronized (mLock) {
                     try {
-                        restoreSettings();
-                    } finally {
-                        Binder.restoreCallingIdentity(ident);
+                        executeAllRequestsLocked(transaction);
+                    } catch (Exception e) {
+                        final long ident = Binder.clearCallingIdentity();
+                        try {
+                            restoreSettingsLocked();
+                        } finally {
+                            Binder.restoreCallingIdentity(ident);
+                        }
+                        Slog.d(TAG, "commit failed: " + e.getMessage(), e);
+                        throw new SecurityException("commit failed"
+                                + (DEBUG || Build.IS_DEBUGGABLE ? ": " + e.getMessage() : ""));
                     }
-                    Slog.d(TAG, "commit failed: " + e.getMessage(), e);
-                    throw new SecurityException("commit failed"
-                            + (DEBUG || Build.IS_DEBUGGABLE ? ": " + e.getMessage() : ""));
                 }
             } finally {
                 traceEnd(TRACE_TAG_RRO);
             }
         }
 
-        private Set<UserPackage> executeRequest(
+        @GuardedBy("mLock")
+        private Set<UserPackage> executeRequestLocked(
                 @NonNull final OverlayManagerTransaction.Request request)
                 throws OperationFailedException {
             Objects.requireNonNull(request, "Transaction contains a null request");
@@ -950,8 +985,8 @@ public final class OverlayManagerService extends SystemService {
                 final String pkgName = request.overlay.getPackageName();
                 if (callingUid != Process.ROOT_UID && !ArrayUtils.contains(
                         mPackageManager.getPackagesForUid(callingUid), pkgName)) {
-                    throw new IllegalArgumentException("UID " + callingUid + " does own package"
-                            + "name " + pkgName);
+                    throw new IllegalArgumentException("UID " + callingUid + " does not own "
+                            + "packageName " + pkgName);
                 }
             } else {
                 // Enforce actor requirements for enabling, disabling, and reordering overlays.
@@ -965,13 +1000,15 @@ public final class OverlayManagerService extends SystemService {
                     case TYPE_SET_ENABLED:
                         Set<UserPackage> result = null;
                         result = CollectionUtils.addAll(result,
-                                mImpl.setEnabled(request.overlay, true, realUserId));
+                                mImpl.setEnabled(request.overlay, true /* enable */, realUserId,
+                                        request.constraints));
                         result = CollectionUtils.addAll(result,
                                 mImpl.setHighestPriority(request.overlay, realUserId));
                         return CollectionUtils.emptyIfNull(result);
 
                     case TYPE_SET_DISABLED:
-                        return mImpl.setEnabled(request.overlay, false, realUserId);
+                        return mImpl.setEnabled(request.overlay, false /* enable */, realUserId,
+                                request.constraints);
 
                     case TYPE_REGISTER_FABRICATED:
                         final FabricatedOverlayInternal fabricated =
@@ -993,33 +1030,29 @@ public final class OverlayManagerService extends SystemService {
             }
         }
 
-        private void executeAllRequests(@NonNull final OverlayManagerTransaction transaction)
+        @GuardedBy("mLock")
+        private void executeAllRequestsLocked(@NonNull final OverlayManagerTransaction transaction)
                 throws OperationFailedException {
             if (DEBUG) {
                 Slog.d(TAG, "commit " + transaction);
             }
-            if (transaction == null) {
-                throw new IllegalArgumentException("null transaction");
+
+            // execute the requests (as calling user)
+            Set<UserPackage> affectedPackagesToUpdate = null;
+            for (Iterator<Request> it = transaction.getRequests(); it.hasNext(); ) {
+                Request request = it.next();
+                affectedPackagesToUpdate = CollectionUtils.addAll(affectedPackagesToUpdate,
+                        executeRequestLocked(request));
             }
 
-            synchronized (mLock) {
-                // execute the requests (as calling user)
-                Set<UserPackage> affectedPackagesToUpdate = null;
-                for (Iterator<Request> it = transaction.getRequests(); it.hasNext(); ) {
-                    Request request = it.next();
-                    affectedPackagesToUpdate = CollectionUtils.addAll(affectedPackagesToUpdate,
-                            executeRequest(request));
-                }
-
-                // past the point of no return: the entire transaction has been
-                // processed successfully, we can no longer fail: continue as
-                // system_server
-                final long ident = Binder.clearCallingIdentity();
-                try {
-                    updateTargetPackagesLocked(affectedPackagesToUpdate);
-                } finally {
-                    Binder.restoreCallingIdentity(ident);
-                }
+            // past the point of no return: the entire transaction has been
+            // processed successfully, we can no longer fail: continue as
+            // system_server
+            final long ident = Binder.clearCallingIdentity();
+            try {
+                updateTargetPackagesLocked(affectedPackagesToUpdate);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
             }
         }
 
@@ -1035,7 +1068,7 @@ public final class OverlayManagerService extends SystemService {
         @Override
         protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             final DumpState dumpState = new DumpState();
-            dumpState.setUserId(UserHandle.USER_ALL);
+            int userId = UserHandle.USER_ALL;
 
             int opti = 0;
             while (opti < args.length) {
@@ -1062,10 +1095,10 @@ public final class OverlayManagerService extends SystemService {
                         return;
                     }
                     try {
-                        dumpState.setUserId(Integer.parseInt(args[opti]));
+                        userId = UserHandle.parseUserArg(args[opti]);
                         opti++;
-                    } catch (NumberFormatException e) {
-                        pw.println("Error: user argument is not a number: " + args[opti]);
+                    } catch (Exception e) {
+                        pw.println("Error: " + e.getMessage());
                         return;
                     }
                 } else if ("--verbose".equals(opt)) {
@@ -1101,26 +1134,15 @@ public final class OverlayManagerService extends SystemService {
             }
 
             enforceDumpPermission("dump");
+            final int realUserId = userId != UserHandle.USER_ALL
+                    ? handleIncomingUser(userId, "dump") : userId;
+            dumpState.setUserId(realUserId);
             synchronized (mLock) {
                 mImpl.dump(pw, dumpState);
                 if (dumpState.getPackageName() == null) {
                     mPackageManager.dump(pw, dumpState);
                 }
             }
-        }
-
-        /**
-         * Ensure that the caller has permission to interact with the given userId.
-         * If the calling user is not the same as the provided user, the caller needs
-         * to hold the INTERACT_ACROSS_USERS_FULL permission (or be system uid or
-         * root).
-         *
-         * @param userId the user to interact with
-         * @param message message for any SecurityException
-         */
-        private int handleIncomingUser(final int userId, @NonNull final String message) {
-            return ActivityManager.handleIncomingUser(Binder.getCallingPid(),
-                    Binder.getCallingUid(), userId, false, true, message, null);
         }
 
         /**
@@ -1443,12 +1465,14 @@ public final class OverlayManagerService extends SystemService {
         }
     }
 
+    @GuardedBy("mLock")
     private void updateTargetPackagesLocked(@Nullable UserPackage updatedTarget) {
         if (updatedTarget != null) {
             updateTargetPackagesLocked(Set.of(updatedTarget));
         }
     }
 
+    @GuardedBy("mLock")
     private void updateTargetPackagesLocked(@Nullable Set<UserPackage> updatedTargets) {
         if (CollectionUtils.isEmpty(updatedTargets)) {
             return;
@@ -1544,6 +1568,7 @@ public final class OverlayManagerService extends SystemService {
     }
 
     @NonNull
+    @GuardedBy("mLock")
     private SparseArray<List<String>> updatePackageManagerLocked(
             @Nullable Set<UserPackage> targets) {
         if (CollectionUtils.isEmpty(targets)) {
@@ -1564,6 +1589,7 @@ public final class OverlayManagerService extends SystemService {
      *         targetPackageNames: the target themselves and shared libraries)
      */
     @NonNull
+    @GuardedBy("mLock")
     private List<String> updatePackageManagerLocked(@NonNull Collection<String> targetPackageNames,
             final int userId) {
         try {
@@ -1619,6 +1645,7 @@ public final class OverlayManagerService extends SystemService {
         }
     }
 
+    @GuardedBy("mLock")
     private void persistSettingsLocked() {
         if (DEBUG) {
             Slog.d(TAG, "Writing overlay settings");
@@ -1634,35 +1661,35 @@ public final class OverlayManagerService extends SystemService {
         }
     }
 
-    private void restoreSettings() {
+    @GuardedBy("mLock")
+    private void restoreSettingsLocked() {
         try {
             traceBegin(TRACE_TAG_RRO, "OMS#restoreSettings");
-            synchronized (mLock) {
-                if (!mSettingsFile.getBaseFile().exists()) {
-                    return;
+
+            if (!mSettingsFile.getBaseFile().exists()) {
+                return;
+            }
+            try (FileInputStream stream = mSettingsFile.openRead()) {
+                mSettings.restore(stream);
+
+                // We might have data for dying users if the device was
+                // restarted before we received USER_REMOVED. Remove data for
+                // users that will not exist after the system is ready.
+
+                final List<UserInfo> liveUsers = mUserManager.getUsers(true /*excludeDying*/);
+                final int[] liveUserIds = new int[liveUsers.size()];
+                for (int i = 0; i < liveUsers.size(); i++) {
+                    liveUserIds[i] = liveUsers.get(i).getUserHandle().getIdentifier();
                 }
-                try (FileInputStream stream = mSettingsFile.openRead()) {
-                    mSettings.restore(stream);
+                Arrays.sort(liveUserIds);
 
-                    // We might have data for dying users if the device was
-                    // restarted before we received USER_REMOVED. Remove data for
-                    // users that will not exist after the system is ready.
-
-                    final List<UserInfo> liveUsers = mUserManager.getUsers(true /*excludeDying*/);
-                    final int[] liveUserIds = new int[liveUsers.size()];
-                    for (int i = 0; i < liveUsers.size(); i++) {
-                        liveUserIds[i] = liveUsers.get(i).getUserHandle().getIdentifier();
+                for (int userId : mSettings.getUsers()) {
+                    if (Arrays.binarySearch(liveUserIds, userId) < 0) {
+                        mSettings.removeUser(userId);
                     }
-                    Arrays.sort(liveUserIds);
-
-                    for (int userId : mSettings.getUsers()) {
-                        if (Arrays.binarySearch(liveUserIds, userId) < 0) {
-                            mSettings.removeUser(userId);
-                        }
-                    }
-                } catch (IOException | XmlPullParserException e) {
-                    Slog.e(TAG, "failed to restore overlay state", e);
                 }
+            } catch (IOException | XmlPullParserException e) {
+                Slog.e(TAG, "failed to restore overlay state", e);
             }
         } finally {
             traceEnd(TRACE_TAG_RRO);

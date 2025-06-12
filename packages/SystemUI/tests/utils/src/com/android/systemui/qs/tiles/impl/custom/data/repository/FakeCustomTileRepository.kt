@@ -20,7 +20,7 @@ import android.os.UserHandle
 import android.service.quicksettings.Tile
 import com.android.systemui.qs.external.FakeCustomTileStatePersister
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.impl.custom.data.entity.CustomTileDefaults
+import com.android.systemui.qs.tiles.impl.custom.data.model.CustomTileDefaults
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 
@@ -54,11 +54,8 @@ class FakeCustomTileRepository(
 
     override suspend fun isTileToggleable(): Boolean = realDelegate.isTileToggleable()
 
-    override suspend fun updateWithTile(
-        user: UserHandle,
-        newTile: Tile,
-        isPersistable: Boolean,
-    ) = realDelegate.updateWithTile(user, newTile, isPersistable)
+    override suspend fun updateWithTile(user: UserHandle, newTile: Tile, isPersistable: Boolean) =
+        realDelegate.updateWithTile(user, newTile, isPersistable)
 
     override suspend fun updateWithDefaults(
         user: UserHandle,

@@ -33,7 +33,7 @@ def run_diff(file1, file2):
                '--ignore-space-change',
 
                # Ignore the class file version.
-               '--ignore-matching-lines=^ *\(major\|minor\) version:$',
+               '--ignore-matching-lines=^ *\\(major\\|minor\\) version:$',
 
                # We shouldn't need `--ignore-matching-lines`, but somehow
                # the golden files were generated without these lines for b/388562869,

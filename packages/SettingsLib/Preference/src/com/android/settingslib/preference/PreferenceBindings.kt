@@ -19,41 +19,10 @@ package com.android.settingslib.preference
 import android.content.Context
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
-import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import androidx.preference.TwoStatePreference
-import com.android.settingslib.metadata.EXTRA_BINDING_SCREEN_KEY
 import com.android.settingslib.metadata.PreferenceMetadata
-import com.android.settingslib.metadata.PreferenceScreenMetadata
-import com.android.settingslib.metadata.PreferenceTitleProvider
 import com.android.settingslib.widget.MainSwitchPreference
-
-/** Binding of preference group associated with [PreferenceCategory]. */
-interface PreferenceScreenBinding : PreferenceBinding {
-
-    override fun bind(preference: Preference, metadata: PreferenceMetadata) {
-        super.bind(preference, metadata)
-        val context = preference.context
-        val screenMetadata = metadata as PreferenceScreenMetadata
-        // Pass the preference key to fragment, so that the fragment could find associated
-        // preference screen registered in PreferenceScreenRegistry
-        preference.extras.putString(EXTRA_BINDING_SCREEN_KEY, preference.key)
-        if (preference is PreferenceScreen) {
-            val screenTitle = screenMetadata.screenTitle
-            preference.title =
-                if (screenTitle != 0) {
-                    context.getString(screenTitle)
-                } else {
-                    screenMetadata.getScreenTitle(context)
-                        ?: (this as? PreferenceTitleProvider)?.getTitle(context)
-                }
-        }
-    }
-
-    companion object {
-        @JvmStatic val INSTANCE = object : PreferenceScreenBinding {}
-    }
-}
 
 /** Binding of preference category associated with [PreferenceCategory]. */
 interface PreferenceCategoryBinding : PreferenceBinding {
@@ -66,19 +35,25 @@ interface PreferenceCategoryBinding : PreferenceBinding {
 }
 
 /** A boolean value type preference associated with the abstract [TwoStatePreference]. */
-interface TwoStatePreferenceBinding : PreferenceBinding {
+interface BooleanValuePreferenceBinding : PreferenceBinding {
 
     override fun bind(preference: Preference, metadata: PreferenceMetadata) {
         super.bind(preference, metadata)
         (preference as TwoStatePreference).apply {
+            // MUST suppress persistent when initializing the checked state:
+            //   1. default value is written to datastore if not set (b/396260949)
+            //   2. avoid redundant read to the datastore
+            val suppressPersistent = isPersistent
+            if (suppressPersistent) isPersistent = false
             // "false" is kind of placeholder, metadata datastore should provide the default value
             isChecked = preferenceDataStore!!.getBoolean(key, false)
+            if (suppressPersistent) isPersistent = true
         }
     }
 }
 
 /** A boolean value type preference associated with [SwitchPreferenceCompat]. */
-interface SwitchPreferenceBinding : TwoStatePreferenceBinding {
+interface SwitchPreferenceBinding : BooleanValuePreferenceBinding {
 
     override fun createWidget(context: Context): Preference = SwitchPreferenceCompat(context)
 
@@ -88,7 +63,7 @@ interface SwitchPreferenceBinding : TwoStatePreferenceBinding {
 }
 
 /** A boolean value type preference associated with [MainSwitchPreference]. */
-interface MainSwitchPreferenceBinding : TwoStatePreferenceBinding {
+interface MainSwitchPreferenceBinding : BooleanValuePreferenceBinding {
 
     override fun createWidget(context: Context): Preference = MainSwitchPreference(context)
 

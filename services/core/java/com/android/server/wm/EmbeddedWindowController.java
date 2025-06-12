@@ -34,6 +34,7 @@ import android.util.proto.ProtoOutputStream;
 import android.view.InputApplicationHandle;
 import android.view.InputChannel;
 import android.view.WindowInsets;
+import android.view.WindowInsets.Type.InsetsType;
 import android.window.InputTransferToken;
 
 import com.android.internal.protolog.ProtoLog;
@@ -208,7 +209,8 @@ class EmbeddedWindowController {
                     "Transfer request must originate from owner of transferFromToken");
         }
         final boolean didTransfer = mInputManagerService.transferTouchGesture(
-                ew.getInputChannelToken(), transferToHostWindowState.mInputChannelToken);
+                ew.getInputChannelToken(), transferToHostWindowState.mInputChannelToken,
+                /* transferEntireGesture */ true);
         if (didTransfer) {
             ew.mGestureToEmbedded = false;
         }
@@ -227,7 +229,7 @@ class EmbeddedWindowController {
         }
         final boolean didTransfer = mInputManagerService.transferTouchGesture(
                 hostWindowState.mInputChannelToken,
-                ew.getInputChannelToken());
+                ew.getInputChannelToken(), /* transferEntireGesture */ true);
         if (didTransfer) {
             ew.mGestureToEmbedded = true;
             mAtmService.mBackNavigationController.onEmbeddedWindowGestureTransferred(
@@ -260,7 +262,7 @@ class EmbeddedWindowController {
 
         // The EmbeddedWindow can only request the IME. All other insets types are requested by
         // the host window.
-        private @WindowInsets.Type.InsetsType int mRequestedVisibleTypes = 0;
+        private @InsetsType int mRequestedVisibleTypes = 0;
 
         /** Whether the gesture is transferred to embedded window. */
         boolean mGestureToEmbedded = false;
@@ -354,24 +356,28 @@ class EmbeddedWindowController {
         }
 
         @Override
-        public boolean isRequestedVisible(@WindowInsets.Type.InsetsType int types) {
+        public boolean isRequestedVisible(@InsetsType int types) {
             return (mRequestedVisibleTypes & types) != 0;
         }
 
         @Override
-        public @WindowInsets.Type.InsetsType int getRequestedVisibleTypes() {
+        public @InsetsType int getRequestedVisibleTypes() {
             return mRequestedVisibleTypes;
         }
 
         /**
          * Only the IME can be requested from the EmbeddedWindow.
-         * @param requestedVisibleTypes other types than {@link WindowInsets.Type.IME} are
+         * @param requestedVisibleTypes other types than {@link WindowInsets.Type#ime()} are
          *                              not sent to system server via WindowlessWindowManager.
+         * @return an integer as the changed requested visible insets types.
          */
-        void setRequestedVisibleTypes(@WindowInsets.Type.InsetsType int requestedVisibleTypes) {
+        @InsetsType int setRequestedVisibleTypes(@InsetsType int requestedVisibleTypes) {
             if (mRequestedVisibleTypes != requestedVisibleTypes) {
+                final int changedTypes = mRequestedVisibleTypes ^ requestedVisibleTypes;
                 mRequestedVisibleTypes = requestedVisibleTypes;
+                return changedTypes;
             }
+            return 0;
         }
 
         @Override

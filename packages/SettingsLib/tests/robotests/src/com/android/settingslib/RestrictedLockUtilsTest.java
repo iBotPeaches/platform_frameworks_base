@@ -458,6 +458,16 @@ public class RestrictedLockUtilsTest {
         assertThat(intentCaptor.getValue().getExtra(EXTRA_RESTRICTION)).isNull();
     }
 
+    /** See b/386971405. Ensure that the code does not crash when the user is not found. */
+    @Test
+    public void checkIfKeyguardFeaturesDisabled_returnsNull_whenUserDoesNotExist() {
+        when(mUserManager.getUserInfo(mUserId)).thenReturn(null);
+        assertThat(
+                        RestrictedLockUtilsInternal.checkIfKeyguardFeaturesDisabled(
+                                mContext, KEYGUARD_DISABLE_FINGERPRINT, mUserId))
+                .isNull();
+    }
+
     private UserInfo setUpUser(int userId, ComponentName[] admins) {
         UserInfo userInfo = new UserInfo(userId, "primary", 0);
         when(mUserManager.getUserInfo(userId)).thenReturn(userInfo);

@@ -48,6 +48,7 @@ import java.util.Set;
  *     </ol>
  * </p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class EmojiConsistency {
     /* Cannot construct */
     private EmojiConsistency() { }

@@ -220,12 +220,69 @@ sealed interface ObservableTransitionState {
                     isInPreviewStage,
                 )
             }
+
+            fun showOverlay(
+                overlay: OverlayKey,
+                fromScene: SceneKey,
+                currentOverlays: Flow<Set<OverlayKey>>,
+                progress: Flow<Float>,
+                isInitiatedByUserInput: Boolean,
+                isUserInputOngoing: Flow<Boolean>,
+                previewProgress: Flow<Float> = flowOf(0f),
+                isInPreviewStage: Flow<Boolean> = flowOf(false),
+            ): ShowOrHideOverlay {
+                return ShowOrHideOverlay(
+                    overlay = overlay,
+                    fromContent = fromScene,
+                    toContent = overlay,
+                    currentScene = fromScene,
+                    currentOverlays = currentOverlays,
+                    progress = progress,
+                    isInitiatedByUserInput = isInitiatedByUserInput,
+                    isUserInputOngoing = isUserInputOngoing,
+                    previewProgress = previewProgress,
+                    isInPreviewStage = isInPreviewStage,
+                )
+            }
+
+            fun hideOverlay(
+                overlay: OverlayKey,
+                toScene: SceneKey,
+                currentOverlays: Flow<Set<OverlayKey>>,
+                progress: Flow<Float>,
+                isInitiatedByUserInput: Boolean,
+                isUserInputOngoing: Flow<Boolean>,
+                previewProgress: Flow<Float> = flowOf(0f),
+                isInPreviewStage: Flow<Boolean> = flowOf(false),
+            ): ShowOrHideOverlay {
+                return ShowOrHideOverlay(
+                    overlay = overlay,
+                    fromContent = overlay,
+                    toContent = toScene,
+                    currentScene = toScene,
+                    currentOverlays = currentOverlays,
+                    progress = progress,
+                    isInitiatedByUserInput = isInitiatedByUserInput,
+                    isUserInputOngoing = isUserInputOngoing,
+                    previewProgress = previewProgress,
+                    isInPreviewStage = isInPreviewStage,
+                )
+            }
         }
     }
 
-    fun isIdle(scene: SceneKey? = null): Boolean {
-        return this is Idle && (scene == null || this.currentScene == scene)
+    fun isIdle(scene: SceneKey? = null, overlay: OverlayKey? = null): Boolean {
+        return this is Idle &&
+            (scene == null || this.currentScene == scene) &&
+            (overlay == null || overlay in this.currentOverlays)
     }
+
+    fun isIdle(content: ContentKey?): Boolean =
+        when (content) {
+            is SceneKey -> isIdle(scene = content)
+            is OverlayKey -> isIdle(overlay = content)
+            null -> this is Idle
+        }
 
     fun isTransitioning(from: ContentKey? = null, to: ContentKey? = null): Boolean {
         return this is Transition &&

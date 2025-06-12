@@ -165,7 +165,6 @@ public class Watchdog implements Dumpable {
             "android.hardware.sensors@1.0::ISensors",
             "android.hardware.sensors@2.0::ISensors",
             "android.hardware.sensors@2.1::ISensors",
-            "android.hardware.vibrator@1.0::IVibrator",
             "android.hardware.vr@1.0::IVr",
             "android.system.suspend@1.0::ISystemSuspend"
     );
@@ -191,6 +190,9 @@ public class Watchdog implements Dumpable {
             "android.hardware.sensors.ISensors/",
             "android.hardware.vibrator.IVibrator/",
             "android.hardware.vibrator.IVibratorManager/",
+            "android.hardware.wifi.hostapd.IHostapd/",
+            "android.hardware.wifi.IWifi/",
+            "android.hardware.wifi.supplicant.ISupplicant/",
             "android.system.suspend.ISystemSuspend/",
     };
 

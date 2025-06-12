@@ -48,6 +48,8 @@ using namespace std;
  * (see AndroidRuntime.cpp).
  */
 
+extern int register_android_media_ImageReader(JNIEnv* env);
+extern int register_android_media_PublicFormatUtils(JNIEnv* env);
 extern int register_android_os_Binder(JNIEnv* env);
 extern int register_libcore_util_NativeAllocationRegistry(JNIEnv* env);
 
@@ -126,6 +128,10 @@ static const std::unordered_map<std::string, RegJNIRec> gRegJNIMap = {
         {"android.database.sqlite.SQLiteDebug", REG_JNI(register_android_database_SQLiteDebug)},
         {"android.database.sqlite.SQLiteRawStatement",
          REG_JNI(register_android_database_SQLiteRawStatement)},
+#endif
+        {"android.media.ImageReader", REG_JNI(register_android_media_ImageReader)},
+        {"android.media.PublicFormatUtils", REG_JNI(register_android_media_PublicFormatUtils)},
+#ifdef __linux__
         {"android.os.Binder", REG_JNI(register_android_os_Binder)},
         {"android.os.FileObserver", REG_JNI(register_android_os_FileObserver)},
         {"android.os.MessageQueue", REG_JNI(register_android_os_MessageQueue)},
@@ -274,12 +280,18 @@ static string getJavaProperty(JNIEnv* env, const char* property_name,
     return string(chars.c_str());
 }
 
-static void loadIcuData(string icuPath) {
+static void loadIcuData(JNIEnv* env, string icuPath) {
     void* addr = mmapFile(icuPath.c_str());
+    if (addr == nullptr) {
+        jniThrowRuntimeException(env, "Failed to map the ICU data file.");
+    }
     UErrorCode err = U_ZERO_ERROR;
     udata_setCommonData(addr, &err);
     if (err != U_ZERO_ERROR) {
-        ALOGE("Unable to load ICU data\n");
+        jniThrowRuntimeException(env,
+                                 format("udata_setCommonData failed with error code {}",
+                                        u_errorName(err))
+                                         .c_str());
     }
 }
 
@@ -290,12 +302,12 @@ static void loadIcuData() {
     JNIEnv* env = AndroidRuntime::getJNIEnv();
     string icuPath = base::GetProperty("ro.icu.data.path", "");
     if (!icuPath.empty()) {
-        loadIcuData(icuPath);
+        loadIcuData(env, icuPath);
     } else {
         // fallback to read from java.lang.System.getProperty
         string icuPathFromJava = getJavaProperty(env, "icu.data.path");
         if (!icuPathFromJava.empty()) {
-            loadIcuData(icuPathFromJava);
+            loadIcuData(env, icuPathFromJava);
         }
     }
 

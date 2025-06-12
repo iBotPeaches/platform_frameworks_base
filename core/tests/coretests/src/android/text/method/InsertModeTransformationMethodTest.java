@@ -19,6 +19,7 @@ package android.text.method;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Context;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresFlagsDisabled;
 import android.platform.test.annotations.RequiresFlagsEnabled;
@@ -44,6 +45,7 @@ import org.junit.runner.RunWith;
 @Presubmit
 @SmallTest
 @RunWith(AndroidJUnit4.class)
+@DisabledOnRavenwood(blockedBy = View.class)
 public class InsertModeTransformationMethodTest {
     private static View sView;
     private static final String TEXT = "abc def";

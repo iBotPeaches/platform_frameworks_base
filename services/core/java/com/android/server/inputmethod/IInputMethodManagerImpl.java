@@ -89,8 +89,8 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
 
     @BinderThread
     interface Callback {
-        void addClient(IInputMethodClient client, IRemoteInputConnection inputConnection,
-                int selfReportedDisplayId);
+        void addClient(@NonNull IInputMethodClient client,
+                @NonNull IRemoteInputConnection inputConnection, int selfReportedDisplayId);
 
         InputMethodInfo getCurrentInputMethodInfoAsUser(@UserIdInt int userId);
 
@@ -132,8 +132,8 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
                 @Nullable EditorInfo editorInfo, IRemoteInputConnection inputConnection,
                 IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
                 int unverifiedTargetSdkVersion, @UserIdInt int userId,
-                @NonNull ImeOnBackInvokedDispatcher imeDispatcher, int startInputSeq,
-                boolean useAsyncShowHideMethod);
+                @NonNull ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible,
+                int startInputSeq, boolean useAsyncShowHideMethod);
 
         InputBindResult startInputOrWindowGainedFocus(
                 @StartInputReason int startInputReason, IInputMethodClient client,
@@ -142,7 +142,7 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
                 @Nullable EditorInfo editorInfo, IRemoteInputConnection inputConnection,
                 IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
                 int unverifiedTargetSdkVersion, @UserIdInt int userId,
-                @NonNull ImeOnBackInvokedDispatcher imeDispatcher);
+                @NonNull ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible);
 
         void showInputMethodPickerFromClient(IInputMethodClient client, int auxiliarySubtypeMode);
 
@@ -158,6 +158,9 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
                 Manifest.permission.INTERACT_ACROSS_USERS_FULL,
                 Manifest.permission.WRITE_SECURE_SETTINGS})
         void onImeSwitchButtonClickFromSystem(int displayId);
+
+        @PermissionVerified(Manifest.permission.TEST_INPUT_METHOD)
+        boolean shouldShowImeSwitcherButtonForTest();
 
         InputMethodSubtype getCurrentInputMethodSubtype(@UserIdInt int userId);
 
@@ -239,9 +242,9 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
     }
 
     @Override
-    public void addClient(IInputMethodClient client, IRemoteInputConnection inputmethod,
-            int untrustedDisplayId) {
-        mCallback.addClient(client, inputmethod, untrustedDisplayId);
+    public void addClient(@NonNull IInputMethodClient client,
+            @NonNull IRemoteInputConnection fallbackInputConnection, int untrustedDisplayId) {
+        mCallback.addClient(client, fallbackInputConnection, untrustedDisplayId);
     }
 
     @Override
@@ -321,11 +324,11 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
             IRemoteInputConnection inputConnection,
             IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
             int unverifiedTargetSdkVersion, @UserIdInt int userId,
-            @NonNull ImeOnBackInvokedDispatcher imeDispatcher) {
+            @NonNull ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible) {
         return mCallback.startInputOrWindowGainedFocus(
                 startInputReason, client, windowToken, startInputFlags, softInputMode,
                 windowFlags, editorInfo, inputConnection, remoteAccessibilityInputConnection,
-                unverifiedTargetSdkVersion, userId, imeDispatcher);
+                unverifiedTargetSdkVersion, userId, imeDispatcher, imeRequestedVisible);
     }
 
     @Override
@@ -337,13 +340,13 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
             IRemoteInputConnection inputConnection,
             IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
             int unverifiedTargetSdkVersion, @UserIdInt int userId,
-            @NonNull ImeOnBackInvokedDispatcher imeDispatcher, int startInputSeq,
-            boolean useAsyncShowHideMethod) {
+            @NonNull ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible,
+            int startInputSeq, boolean useAsyncShowHideMethod) {
         mCallback.startInputOrWindowGainedFocusAsync(
                 startInputReason, client, windowToken, startInputFlags, softInputMode,
                 windowFlags, editorInfo, inputConnection, remoteAccessibilityInputConnection,
-                unverifiedTargetSdkVersion, userId, imeDispatcher, startInputSeq,
-                useAsyncShowHideMethod);
+                unverifiedTargetSdkVersion, userId, imeDispatcher, imeRequestedVisible,
+                startInputSeq, useAsyncShowHideMethod);
     }
 
     @Override
@@ -380,6 +383,14 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
         mCallback.onImeSwitchButtonClickFromSystem(displayId);
     }
 
+    @EnforcePermission(Manifest.permission.TEST_INPUT_METHOD)
+    @Override
+    public boolean shouldShowImeSwitcherButtonForTest() {
+        super.shouldShowImeSwitcherButtonForTest_enforcePermission();
+
+        return mCallback.shouldShowImeSwitcherButtonForTest();
+    }
+
     @Override
     public InputMethodSubtype getCurrentInputMethodSubtype(@UserIdInt int userId) {
         return mCallback.getCurrentInputMethodSubtype(userId);
@@ -403,7 +414,7 @@ final class IInputMethodManagerImpl extends IInputMethodManager.Stub {
     }
 
     @Override
-    public void reportPerceptibleAsync(IBinder windowToken, boolean perceptible) {
+    public void reportPerceptibleAsync(@NonNull IBinder windowToken, boolean perceptible) {
         mCallback.reportPerceptibleAsync(windowToken, perceptible);
     }
 

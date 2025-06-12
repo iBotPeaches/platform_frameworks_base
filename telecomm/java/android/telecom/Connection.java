@@ -912,6 +912,16 @@ public abstract class Connection extends Conferenceable {
     public static final String EVENT_CALL_HOLD_FAILED = "android.telecom.event.CALL_HOLD_FAILED";
 
     /**
+     * Connection event used to inform Telecom when a resume operation on a call has failed.
+     * <p>
+     * Sent via {@link #sendConnectionEvent(String, Bundle)}.  The {@link Bundle} parameter is
+     * expected to be null when this connection event is used.
+     */
+    @FlaggedApi(Flags.FLAG_CALL_SEQUENCING_CALL_RESUME_FAILED)
+    public static final String EVENT_CALL_RESUME_FAILED =
+            "android.telecom.event.CALL_RESUME_FAILED";
+
+    /**
      * Connection event used to inform Telecom when a switch operation on a call has failed.
      * <p>
      * Sent via {@link #sendConnectionEvent(String, Bundle)}.  The {@link Bundle} parameter is
@@ -1235,6 +1245,10 @@ public abstract class Connection extends Conferenceable {
 
         if ((properties & PROPERTY_IS_DOWNGRADED_CONFERENCE) == PROPERTY_IS_DOWNGRADED_CONFERENCE) {
             builder.append(isLong ? " PROPERTY_IS_DOWNGRADED_CONFERENCE" : " dngrd_conf");
+        }
+
+        if ((properties & PROPERTY_CROSS_SIM) == PROPERTY_CROSS_SIM) {
+            builder.append(isLong ? " PROPERTY_CROSS_SIM" : " xsim");
         }
 
         builder.append("]");

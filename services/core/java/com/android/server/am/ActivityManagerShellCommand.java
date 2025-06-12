@@ -449,6 +449,8 @@ final class ActivityManagerShellCommand extends ShellCommand {
                     return runSetAppZygotePreloadTimeout(pw);
                 case "set-media-foreground-service":
                     return runSetMediaForegroundService(pw);
+                case "clear-bad-process":
+                    return runClearBadProcess(pw);
                 default:
                     return handleDefaultCommands(cmd);
             }
@@ -4276,6 +4278,27 @@ final class ActivityManagerShellCommand extends ShellCommand {
         return 0;
     }
 
+    int runClearBadProcess(PrintWriter pw) throws RemoteException {
+        int userId = UserHandle.USER_CURRENT;
+        String opt;
+        while ((opt = getNextOption()) != null) {
+            if ("--user".equals(opt)) {
+                userId = UserHandle.parseUserArg(getNextArgRequired());
+            } else {
+                getErrPrintWriter().println("Error: unknown option " + opt);
+                return -1;
+            }
+        }
+        final String processName = getNextArgRequired();
+        if (userId == UserHandle.USER_CURRENT) {
+            userId = mInternal.getCurrentUserId();
+        }
+
+        pw.println("Clearing '" + processName + "' in u" + userId + " from bad processes list");
+        mInternal.mAppErrors.clearBadProcessForUser(processName, userId);
+        return 0;
+    }
+
     private Resources getResources(PrintWriter pw) throws RemoteException {
         // system resources does not contain all the device configuration, construct it manually.
         Configuration config = mInterface.getConfiguration();
@@ -4321,6 +4344,7 @@ final class ActivityManagerShellCommand extends ShellCommand {
             pw.println("    lru: raw LRU process list");
             pw.println("    binder-proxies: stats on binder objects and IPCs");
             pw.println("    settings: currently applied config settings");
+            pw.println("    cao: cached app optimizer state");
             pw.println("    timers: the current ANR timer state");
             pw.println("    service [COMP_SPEC]: service client-side state");
             pw.println("    package [PACKAGE_NAME]: all state related to given package");
@@ -4717,6 +4741,8 @@ final class ActivityManagerShellCommand extends ShellCommand {
             pw.println("  set-media-foreground-service inactive|active [--user USER_ID] <PACKAGE>"
                             + " <NOTIFICATION_ID>");
             pw.println("         Set an app's media service inactive or active.");
+            pw.println("  clear-bad-process [--user USER_ID] <PROCESS_NAME>");
+            pw.println("         Clears a process from the bad processes list.");
             Intent.printIntentArgsHelp(pw, "");
         }
     }

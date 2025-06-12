@@ -24,6 +24,7 @@ import android.hardware.input.KeyGestureEvent.KEY_GESTURE_TYPE_HOME
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.KeyEvent.ACTION_DOWN
+import android.view.KeyEvent.ACTION_UP
 import android.view.KeyEvent.KEYCODE_A
 import android.view.KeyEvent.META_ALT_ON
 import android.view.KeyEvent.META_CTRL_ON
@@ -43,11 +44,12 @@ import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategoryType
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategoryType.MultiTasking
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategoryType.System
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCommand
-import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCustomizationRequestInfo
+import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCustomizationRequestInfo.SingleShortcutCustomization
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutKey
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutSubCategory
 import com.android.systemui.keyboard.shortcut.shared.model.shortcut
 import com.android.systemui.keyboard.shortcut.shared.model.shortcutCategory
+import com.android.systemui.keyboard.shortcut.shared.model.shortcutCommand
 import com.android.systemui.res.R
 
 object TestShortcuts {
@@ -531,19 +533,14 @@ object TestShortcuts {
 
     val expectedShortcutCategoriesWithSimpleShortcutCombination =
         listOf(
-            simpleShortcutCategory(System, "System apps", "Open assistant"),
+            simpleShortcutCategory(System, "System apps", "Open digital assistant"),
             simpleShortcutCategory(System, "System controls", "Go to home screen"),
             simpleShortcutCategory(System, "System apps", "Open settings"),
             simpleShortcutCategory(System, "System controls", "Lock screen"),
             simpleShortcutCategory(System, "System controls", "View notifications"),
-            simpleShortcutCategory(System, "System apps", "Take a note"),
             simpleShortcutCategory(System, "System controls", "Take screenshot"),
             simpleShortcutCategory(System, "System controls", "Go back"),
-            simpleShortcutCategory(
-                MultiTasking,
-                "Split screen",
-                "Switch to full screen",
-            ),
+            simpleShortcutCategory(MultiTasking, "Split screen", "Use full screen"),
             simpleShortcutCategory(
                 MultiTasking,
                 "Split screen",
@@ -572,7 +569,6 @@ object TestShortcuts {
             simpleInputGestureData(
                 keyGestureType = KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_NOTIFICATION_PANEL
             ),
-            simpleInputGestureData(keyGestureType = KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES),
             simpleInputGestureData(
                 keyGestureType = KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT
             ),
@@ -596,14 +592,27 @@ object TestShortcuts {
         )
 
     val allAppsShortcutAddRequest =
-        ShortcutCustomizationRequestInfo.Add(
+        SingleShortcutCustomization.Add(
             label = "Open apps list",
             categoryType = System,
             subCategoryLabel = "System controls",
         )
 
+    val launchCalendarShortcutAddRequest =
+        SingleShortcutCustomization.Add(
+            label = "Calendar",
+            categoryType = ShortcutCategoryType.AppCategories,
+            subCategoryLabel = "Applications",
+            defaultShortcutCommand =
+                shortcutCommand {
+                    key("Ctrl")
+                    key("Alt")
+                    key("A")
+                },
+        )
+
     val allAppsShortcutDeleteRequest =
-        ShortcutCustomizationRequestInfo.Delete(
+        SingleShortcutCustomization.Delete(
             label = "Open apps list",
             categoryType = System,
             subCategoryLabel = "System controls",
@@ -690,7 +699,7 @@ object TestShortcuts {
             android.view.KeyEvent(
                 /* downTime = */ SystemClock.uptimeMillis(),
                 /* eventTime = */ SystemClock.uptimeMillis(),
-                /* action = */ ACTION_DOWN,
+                /* action = */ ACTION_UP,
                 /* code = */ KEYCODE_A,
                 /* repeat = */ 0,
                 /* metaState = */ 0,
@@ -698,7 +707,7 @@ object TestShortcuts {
         )
 
     val standardAddShortcutRequest =
-        ShortcutCustomizationRequestInfo.Add(
+        SingleShortcutCustomization.Add(
             label = "Standard shortcut",
             categoryType = System,
             subCategoryLabel = "Standard subcategory",

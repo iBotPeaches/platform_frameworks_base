@@ -29,7 +29,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.app.AppOpsManager;
 import android.content.Context;
@@ -176,9 +176,9 @@ public class CameraPrivacyLightControllerTest {
         prepareCameraPrivacyLightController(List.of(getNextLight(true)), Collections.EMPTY_SET,
                 true, new int[0], mDefaultAlsThresholdsLux, mDefaultAlsAveragingIntervalMillis);
 
-        verifyZeroInteractions(mLightsManager);
-        verifyZeroInteractions(mAppOpsManager);
-        verifyZeroInteractions(mSensorManager);
+        verifyNoMoreInteractions(mLightsManager);
+        verifyNoMoreInteractions(mAppOpsManager);
+        verifyNoMoreInteractions(mSensorManager);
     }
 
     @Test

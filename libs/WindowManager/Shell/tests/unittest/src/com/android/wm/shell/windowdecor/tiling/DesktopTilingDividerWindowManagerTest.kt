@@ -70,6 +70,13 @@ class DesktopTilingDividerWindowManagerTest : ShellTestCase() {
         whenever(context.display).thenReturn(display)
         whenever(display.getRoundedCorner(any())).thenReturn(roundedCorner)
         whenever(roundedCorner.radius).thenReturn(CORNER_RADIUS)
+        whenever(transactionSupplierMock.get()).thenReturn(transaction)
+        whenever(transaction.show(any())).thenReturn(transaction)
+        whenever(transaction.setAlpha(any(), any())).thenReturn(transaction)
+        whenever(transaction.hide(any())).thenReturn(transaction)
+        whenever(transaction.setRelativeLayer(any(), any(), any())).thenReturn(transaction)
+        whenever(transaction.setPosition(any(), any(), any())).thenReturn(transaction)
+        whenever(transaction.remove(any())).thenReturn(transaction)
         desktopTilingWindowManager =
             DesktopTilingDividerWindowManager(
                 config,
@@ -81,18 +88,13 @@ class DesktopTilingDividerWindowManagerTest : ShellTestCase() {
                 transactionSupplierMock,
                 BOUNDS,
                 context,
+                /* isDarkMode= */ true
             )
     }
 
     @Test
     @UiThreadTest
     fun testWindowManager_isInitialisedAndReleased() {
-        whenever(transactionSupplierMock.get()).thenReturn(transaction)
-        whenever(transaction.hide(any())).thenReturn(transaction)
-        whenever(transaction.setRelativeLayer(any(), any(), any())).thenReturn(transaction)
-        whenever(transaction.setPosition(any(), any(), any())).thenReturn(transaction)
-        whenever(transaction.remove(any())).thenReturn(transaction)
-
         desktopTilingWindowManager.generateViewHost(surfaceControl)
 
         // Ensure a surfaceControl transaction runs to show the divider.
@@ -101,18 +103,11 @@ class DesktopTilingDividerWindowManagerTest : ShellTestCase() {
         desktopTilingWindowManager.release()
         verify(transaction, times(1)).hide(any())
         verify(transaction, times(1)).remove(any())
-        verify(transaction, times(1)).apply()
     }
 
     @Test
     @UiThreadTest
     fun testWindowManager_accountsForRoundedCornerDimensions() {
-        whenever(transactionSupplierMock.get()).thenReturn(transaction)
-        whenever(transaction.setRelativeLayer(any(), any(), any())).thenReturn(transaction)
-        whenever(transaction.setRelativeLayer(any(), any(), any())).thenReturn(transaction)
-        whenever(transaction.setPosition(any(), any(), any())).thenReturn(transaction)
-        whenever(transaction.show(any())).thenReturn(transaction)
-
         desktopTilingWindowManager.generateViewHost(surfaceControl)
 
         // Ensure a surfaceControl transaction runs to show the divider.

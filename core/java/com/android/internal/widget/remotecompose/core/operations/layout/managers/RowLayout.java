@@ -28,17 +28,19 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentStartOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.LayoutComponent;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.ComponentMeasure;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.MeasurePass;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.Size;
+import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ScrollModifierOperation;
+import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.WidthInModifierOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.utils.DebugLog;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
 /** Simple Row layout implementation - also supports weight and horizontal/vertical positioning */
-public class RowLayout extends LayoutManager implements ComponentStartOperation {
+public class RowLayout extends LayoutManager {
     public static final int START = 1;
     public static final int CENTER = 2;
     public static final int END = 3;
@@ -92,7 +94,8 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
     @NonNull
     @Override
     public String toString() {
-        return "ROW ["
+        return getSerializedName()
+                + " ["
                 + mComponentId
                 + ":"
                 + mAnimationId
@@ -134,7 +137,7 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
         for (Component c : mChildrenComponents) {
             c.measure(context, 0f, currentMaxWidth, 0f, maxHeight, measure);
             ComponentMeasure m = measure.get(c);
-            if (m.getVisibility() != Visibility.GONE) {
+            if (!m.isGone()) {
                 size.setWidth(size.getWidth() + m.getW());
                 size.setHeight(Math.max(size.getHeight(), m.getH()));
                 visibleChildrens++;
@@ -160,7 +163,7 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
         for (Component child : mChildrenComponents) {
             child.measure(context, minWidth, mw, minHeight, maxHeight, measure);
             ComponentMeasure m = measure.get(child);
-            if (m.getVisibility() != Visibility.GONE) {
+            if (!m.isGone()) {
                 mw -= m.getW();
             }
         }
@@ -168,13 +171,23 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
     }
 
     @Override
-    public float intrinsicWidth(@Nullable RemoteContext context) {
+    public float minIntrinsicWidth(@Nullable RemoteContext context) {
         float width = computeModifierDefinedWidth(context);
         float componentWidths = 0f;
         for (Component c : mChildrenComponents) {
-            componentWidths += c.intrinsicWidth(context);
+            componentWidths += c.minIntrinsicWidth(context);
         }
         return Math.max(width, componentWidths);
+    }
+
+    @Override
+    public float minIntrinsicHeight(@Nullable RemoteContext context) {
+        float height = computeModifierDefinedHeight(context);
+        float componentHeights = 0f;
+        for (Component c : mChildrenComponents) {
+            componentHeights = Math.max(componentHeights, c.minIntrinsicHeight(context));
+        }
+        return Math.max(height, componentHeights);
     }
 
     @Override
@@ -213,43 +226,67 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
                     mComponentModifiers.getVerticalScrollDimension() - mPaddingTop - mPaddingBottom;
         }
 
-        boolean hasWeights = false;
-        float totalWeights = 0f;
-        for (Component child : mChildrenComponents) {
-            ComponentMeasure childMeasure = measure.get(child);
-            if (childMeasure.getVisibility() == Visibility.GONE) {
-                continue;
-            }
-            if (child instanceof LayoutComponent
-                    && ((LayoutComponent) child).getWidthModifier().hasWeight()) {
-                hasWeights = true;
-                totalWeights += ((LayoutComponent) child).getWidthModifier().getValue();
-            } else {
-                childrenWidth += childMeasure.getW();
-            }
-        }
+        boolean checkWeights = true;
 
-        // TODO: need to move the weight measuring in the measure function,
-        // currently we'll measure unnecessarily
-        if (hasWeights) {
-            float availableSpace = selfWidth - childrenWidth;
+        while (checkWeights) {
+            checkWeights = false;
+            childrenWidth = 0f;
+            childrenHeight = 0f;
+            boolean hasWeights = false;
+            float totalWeights = 0f;
             for (Component child : mChildrenComponents) {
+                ComponentMeasure childMeasure = measure.get(child);
+                if (childMeasure.isGone()) {
+                    continue;
+                }
                 if (child instanceof LayoutComponent
                         && ((LayoutComponent) child).getWidthModifier().hasWeight()) {
-                    ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
-                        continue;
-                    }
-                    float weight = ((LayoutComponent) child).getWidthModifier().getValue();
-                    childMeasure.setW((weight * availableSpace) / totalWeights);
-                    child.measure(
-                            context,
-                            childMeasure.getW(),
-                            childMeasure.getW(),
-                            childMeasure.getH(),
-                            childMeasure.getH(),
-                            measure);
+                    hasWeights = true;
+                    totalWeights += ((LayoutComponent) child).getWidthModifier().getValue();
+                } else {
+                    childrenWidth += childMeasure.getW();
                 }
+            }
+
+            // TODO: need to move the weight measuring in the measure function,
+            // currently we'll measure unnecessarily
+            if (hasWeights) {
+                float availableSpace = selfWidth - childrenWidth;
+                for (Component child : mChildrenComponents) {
+                    if (child instanceof LayoutComponent
+                            && ((LayoutComponent) child).getWidthModifier().hasWeight()) {
+                        ComponentMeasure childMeasure = measure.get(child);
+                        if (childMeasure.isGone()) {
+                            continue;
+                        }
+                        float weight = ((LayoutComponent) child).getWidthModifier().getValue();
+                        float childWidth = (weight * availableSpace) / totalWeights;
+                        WidthInModifierOperation widthInConstraints =
+                                ((LayoutComponent) child).getWidthModifier().getWidthIn();
+                        if (widthInConstraints != null) {
+                            float min = widthInConstraints.getMin();
+                            float max = widthInConstraints.getMax();
+                            if (min != -1) {
+                                childWidth = Math.max(min, childWidth);
+                            }
+                            if (max != -1) {
+                                childWidth = Math.min(max, childWidth);
+                            }
+                        }
+                        childMeasure.setW(childWidth);
+                        child.measure(
+                                context,
+                                childMeasure.getW(),
+                                childMeasure.getW(),
+                                childMeasure.getH(),
+                                childMeasure.getH(),
+                                measure);
+                    }
+                }
+            }
+
+            if (applyVisibility(selfWidth, selfHeight, measure) && hasWeights) {
+                checkWeights = true;
             }
         }
 
@@ -257,7 +294,7 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
         int visibleChildrens = 0;
         for (Component child : mChildrenComponents) {
             ComponentMeasure childMeasure = measure.get(child);
-            if (childMeasure.getVisibility() == Visibility.GONE) {
+            if (childMeasure.isGone()) {
                 continue;
             }
             childrenWidth += childMeasure.getW();
@@ -285,17 +322,22 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
             case SPACE_BETWEEN:
                 for (Component child : mChildrenComponents) {
                     ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
+                    if (childMeasure.isGone()) {
                         continue;
                     }
                     total += childMeasure.getW();
                 }
-                horizontalGap = (selfWidth - total) / (visibleChildrens - 1);
+                if (visibleChildrens > 1) {
+                    horizontalGap = (selfWidth - total) / (visibleChildrens - 1);
+                } else {
+                    // we center the element
+                    tx = (selfWidth - childrenWidth) / 2f;
+                }
                 break;
             case SPACE_EVENLY:
                 for (Component child : mChildrenComponents) {
                     ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
+                    if (childMeasure.isGone()) {
                         continue;
                     }
                     total += childMeasure.getW();
@@ -306,7 +348,7 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
             case SPACE_AROUND:
                 for (Component child : mChildrenComponents) {
                     ComponentMeasure childMeasure = measure.get(child);
-                    if (childMeasure.getVisibility() == Visibility.GONE) {
+                    if (childMeasure.isGone()) {
                         continue;
                     }
                     total += childMeasure.getW();
@@ -331,7 +373,7 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
             }
             childMeasure.setX(tx);
             childMeasure.setY(ty);
-            if (childMeasure.getVisibility() == Visibility.GONE) {
+            if (childMeasure.isGone()) {
                 continue;
             }
             tx += childMeasure.getW();
@@ -343,6 +385,17 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
             tx += mSpacedBy;
         }
         DebugLog.e();
+    }
+
+    @Override
+    public void getLocationInWindow(@NonNull float[] value, boolean forSelf) {
+        super.getLocationInWindow(value, forSelf);
+
+        if (!forSelf && mHorizontalScrollDelegate instanceof ScrollModifierOperation) {
+            ScrollModifierOperation smo = (ScrollModifierOperation) mHorizontalScrollDelegate;
+
+            value[0] += smo.getScrollX();
+        }
     }
 
     /**
@@ -364,6 +417,16 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
         return Operations.LAYOUT_ROW;
     }
 
+    /**
+     * Write the operation to the buffer
+     *
+     * @param buffer wire buffer
+     * @param componentId component id
+     * @param animationId animation id (-1 if not set)
+     * @param horizontalPositioning horizontal positioning rules
+     * @param verticalPositioning vertical positioning rules
+     * @param spacedBy spaced by value
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int componentId,
@@ -371,7 +434,7 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
             int horizontalPositioning,
             int verticalPositioning,
             float spacedBy) {
-        buffer.start(Operations.LAYOUT_ROW);
+        buffer.start(id());
         buffer.writeInt(componentId);
         buffer.writeInt(animationId);
         buffer.writeInt(horizontalPositioning);
@@ -447,5 +510,36 @@ public class RowLayout extends LayoutManager implements ComponentStartOperation 
                 mHorizontalPositioning,
                 mVerticalPositioning,
                 mSpacedBy);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        super.serialize(serializer);
+        serializer.add("verticalPositioning", getPositioningString(mVerticalPositioning));
+        serializer.add("horizontalPositioning", getPositioningString(mHorizontalPositioning));
+        serializer.add("spacedBy", mSpacedBy);
+    }
+
+    private String getPositioningString(int pos) {
+        switch (pos) {
+            case START:
+                return "START";
+            case CENTER:
+                return "CENTER";
+            case END:
+                return "END";
+            case TOP:
+                return "TOP";
+            case BOTTOM:
+                return "BOTTOM";
+            case SPACE_BETWEEN:
+                return "SPACE_BETWEEN";
+            case SPACE_EVENLY:
+                return "SPACE_EVENLY";
+            case SPACE_AROUND:
+                return "SPACE_AROUND";
+            default:
+                return "NONE";
+        }
     }
 }

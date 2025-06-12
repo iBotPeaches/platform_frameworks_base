@@ -30,6 +30,7 @@ import android.os.ShellCommand;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.util.Slog;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -94,6 +95,8 @@ final public class SettingsService extends Binder {
     }
 
     final static class MyShellCommand extends ShellCommand {
+        private static final String LOG_TAG = "SettingsShellCmd";
+
         final SettingsProvider mProvider;
         final boolean mDumping;
 
@@ -115,6 +118,7 @@ final public class SettingsService extends Binder {
         String mTag = null;
         int mResetMode = -1;
         boolean mMakeDefault;
+        boolean mOverrideableByRestore;
 
         MyShellCommand(SettingsProvider provider, boolean dumping) {
             mProvider = provider;
@@ -209,6 +213,7 @@ final public class SettingsService extends Binder {
                         return -1;
                     }
                     break;
+                // At this point, mVerb == PUT
                 } else if (mKey == null) {
                     mKey = arg;
                     // keep going; there's another PUT arg
@@ -217,36 +222,8 @@ final public class SettingsService extends Binder {
                     // what we have so far is a valid command
                     valid = true;
                     // keep going; there may be another PUT arg
-                } else if (mTag == null) {
-                    mTag = arg;
-                    if ("default".equalsIgnoreCase(mTag)) {
-                        mTag = null;
-                        mMakeDefault = true;
-                        if (peekNextArg() == null) {
-                            valid = true;
-                        } else {
-                            perr.println("Too many arguments");
-                            return -1;
-                        }
-                        break;
-                    }
-                    if (peekNextArg() == null) {
-                        valid = true;
-                        break;
-                    }
-                } else { // PUT, final arg
-                    if (!"default".equalsIgnoreCase(arg)) {
-                        perr.println("Argument expected to be 'default'");
-                        return -1;
-                    }
-                    mMakeDefault = true;
-                    if (peekNextArg() == null) {
-                        valid = true;
-                    } else {
-                        perr.println("Too many arguments");
-                        return -1;
-                    }
-                    break;
+                } else {
+                    valid = parseOptionalPutArgument(arg);
                 }
             } while ((arg = getNextArg()) != null);
 
@@ -275,7 +252,8 @@ final public class SettingsService extends Binder {
                     pout.println(getForUser(iprovider, mUser, mTable, mKey));
                     break;
                 case PUT:
-                    putForUser(iprovider, mUser, mTable, mKey, mValue, mTag, mMakeDefault);
+                    putForUser(iprovider, mUser, mTable, mKey, mValue, mTag, mMakeDefault,
+                            mOverrideableByRestore);
                     break;
                 case DELETE:
                     pout.println("Deleted "
@@ -295,6 +273,41 @@ final public class SettingsService extends Binder {
             }
 
             return 0;
+        }
+
+        private boolean parseOptionalPutArgument(String arg) {
+            boolean valid = true;
+            // Given that the order is TAG default overrideableByRestore, we need to parse from the
+            // opposite direction
+            switch (arg) {
+                case "overrideableByRestore":
+                    if (mOverrideableByRestore) {
+                        valid = false;
+                    } else {
+                        mOverrideableByRestore = true;
+                    }
+                    break;
+                case "default":
+                    if (mMakeDefault || mOverrideableByRestore) {
+                        valid = false;
+                    } else {
+                        mMakeDefault = true;
+                    }
+                    break;
+                default: // tag
+                    if (mMakeDefault || mOverrideableByRestore || mTag != null) {
+                        valid = false;
+                    } else {
+                        mTag = arg;
+                    }
+                    break;
+            }
+            if (!valid) {
+                Slog.e(LOG_TAG, "parseOptionalPutArgument(" + arg + "): invalid state ("
+                        + "mTag=" + mTag + ", mMakeDefault=" + mMakeDefault
+                        + ", mOverrideableByRestore=" + mOverrideableByRestore + ")");
+            }
+            return valid;
         }
 
         List<String> listForUser(IContentProvider provider, int userHandle, String table) {
@@ -351,7 +364,11 @@ final public class SettingsService extends Binder {
         }
 
         void putForUser(IContentProvider provider, int userHandle, final String table,
-                final String key, final String value, String tag, boolean makeDefault) {
+                final String key, final String value, String tag, boolean makeDefault,
+                boolean overrideableByRestore) {
+            Slog.v(LOG_TAG, "putForUser(userId=" + userHandle + ", table=" + table + ", key=" + key
+                    + ", value=" + value + ", tag=" + tag + ", makeDefault=" + makeDefault
+                    + ", overrideableByRestore=" + overrideableByRestore + ")");
             final String callPutCommand;
             if ("system".equals(table)) {
                 callPutCommand = Settings.CALL_METHOD_PUT_SYSTEM;
@@ -376,6 +393,9 @@ final public class SettingsService extends Binder {
                 }
                 if (makeDefault) {
                     arg.putBoolean(Settings.CALL_METHOD_MAKE_DEFAULT_KEY, true);
+                }
+                if (overrideableByRestore) {
+                    arg.putBoolean(Settings.CALL_METHOD_OVERRIDEABLE_BY_RESTORE_KEY, true);
                 }
                 final AttributionSource attributionSource = new AttributionSource(
                         Binder.getCallingUid(), resolveCallingPackage(), /*attributionTag*/ null);
@@ -474,10 +494,11 @@ final public class SettingsService extends Binder {
                 pw.println("      Print this help text.");
                 pw.println("  get [--user <USER_ID> | current] NAMESPACE KEY");
                 pw.println("      Retrieve the current value of KEY.");
-                pw.println("  put [--user <USER_ID> | current] NAMESPACE KEY VALUE [TAG] [default]");
+                pw.println("  put [--user <USER_ID> | current] NAMESPACE KEY VALUE [TAG] [default] [overrideableByRestore]");
                 pw.println("      Change the contents of KEY to VALUE.");
-                pw.println("      TAG to associate with the setting.");
+                pw.println("      TAG to associate with the setting (cannot be default or overrideableByRestore).");
                 pw.println("      {default} to set as the default, case-insensitive only for global/secure namespace");
+                pw.println("      {overrideableByRestore} to let the value be overridden by BackupManager on restore operations");
                 pw.println("  delete [--user <USER_ID> | current] NAMESPACE KEY");
                 pw.println("      Delete the entry for KEY.");
                 pw.println("  reset [--user <USER_ID> | current] NAMESPACE {PACKAGE_NAME | RESET_MODE}");

@@ -21,8 +21,8 @@ import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.qrcodescanner.controller.QRCodeScannerController
 import com.android.systemui.qrcodescanner.controller.QRCodeScannerController.DEFAULT_QR_CODE_SCANNER_CHANGE
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.qr.domain.model.QRCodeScannerTileModel
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
@@ -44,7 +44,7 @@ constructor(
 ) : QSTileDataInteractor<QRCodeScannerTileModel> {
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<QRCodeScannerTileModel> =
         conflatedCallbackFlow {
                 qrController.registerQRCodeScannerChangeObservers(DEFAULT_QR_CODE_SCANNER_CHANGE)

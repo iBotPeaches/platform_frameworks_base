@@ -68,6 +68,7 @@ import android.provider.Settings;
 import android.security.KeyChain;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.euicc.EuiccManager;
 import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
 import android.util.ArrayMap;
@@ -151,6 +152,7 @@ public class MockSystemServices {
     public final File dataDir;
     public final PolicyPathProvider pathProvider;
     public final SupervisionManagerInternal supervisionManagerInternal;
+    public final EuiccManager euiccManager;
 
     private final Map<String, PackageState> mTestPackageStates = new ArrayMap<>();
 
@@ -206,6 +208,7 @@ public class MockSystemServices {
         roleManagerForMock = mock(RoleManagerForMock.class);
         subscriptionManager = mock(SubscriptionManager.class);
         supervisionManagerInternal = mock(SupervisionManagerInternal.class);
+        euiccManager = mock(EuiccManager.class);
 
         // Package manager is huge, so we use a partial mock instead.
         packageManager = spy(realContext.getPackageManager());

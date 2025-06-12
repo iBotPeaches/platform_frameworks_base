@@ -109,6 +109,7 @@ public final class PreferenceScreen extends PreferenceGroup implements AdapterVi
     private int mLayoutResId = com.android.internal.R.layout.preference_list_fragment;
     private Drawable mDividerDrawable;
     private boolean mDividerSpecified;
+    private boolean mDialogFitsSystemWindows = false;
 
     /**
      * Do NOT use this constructor, use {@link PreferenceManager#createPreferenceScreen(Context)}.
@@ -133,6 +134,18 @@ public final class PreferenceScreen extends PreferenceGroup implements AdapterVi
         }
 
         a.recycle();
+    }
+
+    /**
+     * Used in {@link #onClick()} to override the {@link View#setFitsSystemWindows(boolean)} for
+     * the dialog that shows.  This is set separately to limit the scope of this change to just
+     * the {@link PreferenceScreen} instances which have demonstrated an issue with edge to edge.
+     *
+     * @param dialogFitsSystemWindows value passed to {@link View#setFitsSystemWindows(boolean)}.
+     * @hide
+     */
+    public void setDialogFitsSystemWindows(boolean dialogFitsSystemWindows) {
+        mDialogFitsSystemWindows = dialogFitsSystemWindows;
     }
 
     /**
@@ -201,6 +214,11 @@ public final class PreferenceScreen extends PreferenceGroup implements AdapterVi
         View childPrefScreen = inflater.inflate(mLayoutResId, null);
         View titleView = childPrefScreen.findViewById(android.R.id.title);
         mListView = (ListView) childPrefScreen.findViewById(android.R.id.list);
+        // Don't override any potential state that may exist on mListView.  If it was already marked
+        // as "setFitsSystemWindows(true)" somewhere else don't change to "false" here.
+        if (mDialogFitsSystemWindows) {
+            mListView.setFitsSystemWindows(true);
+        }
         if (mDividerSpecified) {
             mListView.setDivider(mDividerDrawable);
         }

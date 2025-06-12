@@ -33,12 +33,12 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.when;
 
+import android.annotation.SuppressLint;
 import android.hardware.power.stats.EnergyConsumerAttribution;
 import android.hardware.power.stats.EnergyConsumerResult;
 import android.hardware.power.stats.EnergyConsumerType;
 import android.os.Handler;
 import android.os.Process;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import com.android.internal.os.Clock;
 import com.android.internal.os.PowerStats;
@@ -63,11 +63,6 @@ import java.util.function.Consumer;
 
 public class CustomEnergyConsumerPowerStatsTest {
     @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
-    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule();
 
     public static final int ENERGY_CONSUMER_ID1 = 77;
@@ -154,6 +149,7 @@ public class CustomEnergyConsumerPowerStatsTest {
                 .isEqualTo(6000);
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void processStats() throws Exception {
         AggregatedPowerStats aggregatedPowerStats = createAggregatedPowerStats();

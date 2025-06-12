@@ -41,7 +41,6 @@ import com.android.systemui.testKosmos
 import com.android.systemui.util.CarrierConfigTracker
 import com.android.systemui.util.mockito.mock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.TestScope
@@ -54,7 +53,6 @@ import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 
 @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class LocationBasedMobileIconViewModelTest : SysuiTestCase() {
@@ -73,7 +71,6 @@ class LocationBasedMobileIconViewModelTest : SysuiTestCase() {
     private val connectivityRepository = FakeConnectivityRepository()
     private val flags =
         FakeFeatureFlagsClassic().also {
-            it.set(Flags.NEW_NETWORK_SLICE_UI, false)
             it.set(Flags.FILTER_PROVISIONING_NETWORK_SUBSCRIPTIONS, true)
         }
 
@@ -135,7 +132,7 @@ class LocationBasedMobileIconViewModelTest : SysuiTestCase() {
                 iconsInteractor.isForceHidden,
                 repository,
                 context,
-                MobileIconCarrierIdOverridesFake()
+                MobileIconCarrierIdOverridesFake(),
             )
 
         commonImpl =
@@ -144,7 +141,6 @@ class LocationBasedMobileIconViewModelTest : SysuiTestCase() {
                 interactor,
                 airplaneModeInteractor,
                 constants,
-                flags,
                 testScope.backgroundScope,
             )
 

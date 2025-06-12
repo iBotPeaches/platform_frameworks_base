@@ -16,11 +16,34 @@
 
 package com.android.systemui.communal.data.repository
 
+import com.android.systemui.Flags.glanceableHubBlurredBackground
+import com.android.systemui.Flags.glanceableHubV2
+import com.android.systemui.communal.shared.model.CommunalBackgroundType
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
+import javax.inject.Named
 
 @Module
 interface CommunalSettingsRepositoryModule {
+    companion object {
+        const val DEFAULT_BACKGROUND_TYPE = "default_background_type"
+
+        @Provides
+        @Named(DEFAULT_BACKGROUND_TYPE)
+        fun providesDefaultBackgroundType(): CommunalBackgroundType {
+            if (glanceableHubBlurredBackground()) {
+                return CommunalBackgroundType.BLUR
+            }
+
+            if (glanceableHubV2()) {
+                return CommunalBackgroundType.SCRIM
+            }
+
+            return CommunalBackgroundType.ANIMATED
+        }
+    }
+
     @Binds
     fun communalSettingsRepository(impl: CommunalSettingsRepositoryImpl): CommunalSettingsRepository
 }

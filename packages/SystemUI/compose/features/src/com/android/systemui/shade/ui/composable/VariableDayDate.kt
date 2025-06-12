@@ -4,35 +4,32 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.systemui.shade.ui.composable.ShadeHeader.Colors.shadeHeaderText
-import com.android.systemui.shade.ui.viewmodel.ShadeHeaderViewModel
 
 @Composable
 fun VariableDayDate(
-    viewModel: ShadeHeaderViewModel,
+    longerDateText: String,
+    shorterDateText: String,
+    textColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    val longerText = viewModel.longerDateText.collectAsStateWithLifecycle()
-    val shorterText = viewModel.shorterDateText.collectAsStateWithLifecycle()
-
     Layout(
         contents =
             listOf(
                 {
                     Text(
-                        text = longerText.value,
+                        text = longerDateText,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.shadeHeaderText,
+                        color = textColor,
                         maxLines = 1,
                     )
                 },
                 {
                     Text(
-                        text = shorterText.value,
+                        text = shorterDateText,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.shadeHeaderText,
+                        color = textColor,
                         maxLines = 1,
                     )
                 },

@@ -192,6 +192,7 @@ import java.lang.ref.WeakReference;
  * top-level content is desired, and finally calling {@link Surface#unlockCanvasAndPost(Canvas)}.
  * </p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class RenderNode {
 
     // Use a Holder to allow static initialization in the boot image.

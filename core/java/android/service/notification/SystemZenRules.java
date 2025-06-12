@@ -16,7 +16,6 @@
 
 package android.service.notification;
 
-import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.StringRes;
@@ -47,7 +46,6 @@ public final class SystemZenRules {
     public static final String PACKAGE_ANDROID = "android";
 
     /** Updates existing system-owned rules to use the new Modes fields (type, etc). */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public static void maybeUpgradeRules(Context context, ZenModeConfig config) {
         for (ZenRule rule : config.automaticRules.values()) {
             if (isSystemOwnedRule(rule)) {
@@ -69,7 +67,6 @@ public final class SystemZenRules {
         return PACKAGE_ANDROID.equals(rule.pkg);
     }
 
-    @FlaggedApi(Flags.FLAG_MODES_API)
     private static void upgradeSystemProviderRule(Context context, ZenRule rule) {
         ScheduleInfo scheduleInfo = ZenModeConfig.tryParseScheduleConditionId(rule.conditionId);
         if (scheduleInfo != null) {

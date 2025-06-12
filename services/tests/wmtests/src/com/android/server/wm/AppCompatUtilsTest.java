@@ -98,6 +98,24 @@ public class AppCompatUtilsTest extends WindowTestsBase {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void getLetterboxReasonString_isLetterboxedForSafeRegionOnly() {
+        runTestScenario((robot) -> {
+            robot.applyOnActivity((a) -> {
+                a.createActivityWithComponent();
+                a.checkTopActivityInSizeCompatMode(/* inScm */ false);
+            });
+            robot.setIsLetterboxedForFixedOrientationAndAspectRatio(
+                    /* forFixedOrientationAndAspectRatio */ false);
+            robot.setIsLetterboxedForDisplayCutout(/* displayCutout */ false);
+            robot.setIsLetterboxedForAspectRatioOnly(/* forAspectRatio */ false);
+            robot.setIsLetterboxedForSafeRegionOnlyAllowed(/* safeRegionOnly */ true);
+
+            robot.checkTopActivityLetterboxReason(/* expected */ "SAFE_REGION");
+        });
+    }
+
+    @Test
     public void getLetterboxReasonString_aspectRatio() {
         runTestScenario((robot) -> {
             robot.applyOnActivity((a) -> {
@@ -124,6 +142,7 @@ public class AppCompatUtilsTest extends WindowTestsBase {
                     /* forFixedOrientationAndAspectRatio */ false);
             robot.setIsLetterboxedForDisplayCutout(/* displayCutout */ false);
             robot.setIsLetterboxedForAspectRatioOnly(/* forAspectRatio */ false);
+            robot.setIsLetterboxedForSafeRegionOnlyAllowed(/* safeRegionOnly */ false);
 
             robot.checkTopActivityLetterboxReason(/* expected */ "UNKNOWN_REASON");
         });
@@ -252,7 +271,8 @@ public class AppCompatUtilsTest extends WindowTestsBase {
         @Override
         void onPostActivityCreation(@NonNull ActivityRecord activity) {
             super.onPostActivityCreation(activity);
-            spyOn(activity.mAppCompatController.getAppCompatAspectRatioPolicy());
+            spyOn(activity.mAppCompatController.getAspectRatioPolicy());
+            spyOn(activity.mAppCompatController.getSafeRegionPolicy());
         }
 
         @Override
@@ -272,18 +292,23 @@ public class AppCompatUtilsTest extends WindowTestsBase {
 
         void setIsLetterboxedForFixedOrientationAndAspectRatio(
                 boolean forFixedOrientationAndAspectRatio) {
-            when(activity().top().mAppCompatController.getAppCompatAspectRatioPolicy()
+            when(activity().top().mAppCompatController.getAspectRatioPolicy()
                     .isLetterboxedForFixedOrientationAndAspectRatio())
                         .thenReturn(forFixedOrientationAndAspectRatio);
         }
 
         void setIsLetterboxedForAspectRatioOnly(boolean forAspectRatio) {
-            when(activity().top().mAppCompatController.getAppCompatAspectRatioPolicy()
+            when(activity().top().mAppCompatController.getAspectRatioPolicy()
                     .isLetterboxedForAspectRatioOnly()).thenReturn(forAspectRatio);
         }
 
         void setIsLetterboxedForDisplayCutout(boolean displayCutout) {
             when(mWindowState.isLetterboxedForDisplayCutout()).thenReturn(displayCutout);
+        }
+
+        void setIsLetterboxedForSafeRegionOnlyAllowed(boolean safeRegionOnly) {
+            when(activity().top().mAppCompatController.getSafeRegionPolicy()
+                    .isLetterboxedForSafeRegionOnlyAllowed()).thenReturn(safeRegionOnly);
         }
 
         void setFreeformCameraCompatMode(@FreeformCameraCompatMode int mode) {

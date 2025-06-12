@@ -6,7 +6,7 @@ import android.os.UserHandle
 import android.provider.Settings
 import android.util.Log
 import com.android.systemui.broadcast.BroadcastDispatcher
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.common.shared.model.PackageChangeModel.Empty.user
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -20,7 +20,6 @@ import com.android.systemui.util.kotlin.emitOnStart
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -75,7 +74,6 @@ constructor(
             }
             .emitOnStart()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     override val restoreData =
         run {
                 val mutex = Mutex()

@@ -82,6 +82,7 @@ import java.util.Locale;
  * first-strong estimation algorithm. It can also be configured to use a custom directionality
  * estimation object.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class BidiFormatter {
 
     /**

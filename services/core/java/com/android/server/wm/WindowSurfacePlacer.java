@@ -42,9 +42,6 @@ class WindowSurfacePlacer {
     /** Only do a maximum of 6 repeated layouts. After that quit */
     private int mLayoutRepeatCount;
 
-    static final int SET_UPDATE_ROTATION                = 1 << 0;
-    static final int SET_WALLPAPER_ACTION_PENDING       = 1 << 1;
-
     private boolean mTraversalScheduled;
     private int mDeferDepth = 0;
     /** The number of layout requests when deferring. */
@@ -127,7 +124,6 @@ class WindowSurfacePlacer {
             mService.mAnimationHandler.removeCallbacks(mPerformSurfacePlacement);
             loopCount--;
         } while (mTraversalScheduled && loopCount > 0);
-        mService.mRoot.mWallpaperActionPending = false;
     }
 
     private void performSurfacePlacementLoop() {

@@ -20,6 +20,7 @@ import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import javax.inject.Inject
@@ -33,7 +34,7 @@ constructor(
     private val extraDimDialogDelegateProvider: Provider<ExtraDimDialogDelegate>,
     private val mActivityStarter: ActivityStarter,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
-    private val mainHandler: Handler,
+    @Main private val mainHandler: Handler,
 ) {
     private var dialog: SystemUIDialog? = null
 

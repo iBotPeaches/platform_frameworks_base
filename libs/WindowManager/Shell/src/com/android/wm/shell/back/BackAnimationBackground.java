@@ -19,6 +19,8 @@ package com.android.wm.shell.back;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS;
 
+import static com.android.window.flags.Flags.enableMultidisplayTrackpadBackGesture;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.graphics.Color;
@@ -59,9 +61,9 @@ public class BackAnimationBackground {
      * @param statusbarHeight The height of the statusbar (in px).
      */
     public void ensureBackground(Rect startRect, int color,
-            @NonNull SurfaceControl.Transaction transaction, int statusbarHeight) {
+            @NonNull SurfaceControl.Transaction transaction, int statusbarHeight, int displayId) {
         ensureBackground(startRect, color, transaction, statusbarHeight,
-                null /* cropBounds */, 0 /* cornerRadius */);
+                null /* cropBounds */, 0 /* cornerRadius */, displayId);
     }
 
     /**
@@ -76,7 +78,7 @@ public class BackAnimationBackground {
      */
     public void ensureBackground(Rect startRect, int color,
             @NonNull SurfaceControl.Transaction transaction, int statusbarHeight,
-            @Nullable Rect cropBounds, float cornerRadius) {
+            @Nullable Rect cropBounds, float cornerRadius, int displayId) {
         if (mBackgroundSurface != null) {
             return;
         }
@@ -91,7 +93,11 @@ public class BackAnimationBackground {
                 .setCallsite("BackAnimationBackground")
                 .setColorLayer();
 
-        mRootTaskDisplayAreaOrganizer.attachToDisplayArea(DEFAULT_DISPLAY, colorLayerBuilder);
+        if (enableMultidisplayTrackpadBackGesture()) {
+            mRootTaskDisplayAreaOrganizer.attachToDisplayArea(displayId, colorLayerBuilder);
+        } else {
+            mRootTaskDisplayAreaOrganizer.attachToDisplayArea(DEFAULT_DISPLAY, colorLayerBuilder);
+        }
         mBackgroundSurface = colorLayerBuilder.build();
         transaction.setColor(mBackgroundSurface, colorComponents)
                 .setLayer(mBackgroundSurface, BACKGROUND_LAYER)

@@ -89,6 +89,7 @@
     <string name="NetworkPreferenceSwitchTitle" msgid="1008329951315753038">"Мобильная сеть недоступна"</string>
     <string name="NetworkPreferenceSwitchSummary" msgid="2086506181486324860">"Нажмите, чтобы выбрать другую сеть."</string>
     <string name="EmergencyCallWarningTitle" msgid="1615688002899152860">"Экстренные вызовы недоступны"</string>
+    <string name="emergency_calling_do_not_show_again" msgid="5034171343309733068">"Больше не показывать"</string>
     <string name="EmergencyCallWarningSummary" msgid="9102799172089265268">"Для экстренных вызовов нужна мобильная сеть."</string>
     <string name="notification_channel_network_alert" msgid="4788053066033851841">"Оповещения"</string>
     <string name="notification_channel_call_forward" msgid="8230490317314272406">"Переадресация вызовов"</string>
@@ -270,6 +271,7 @@
     <string name="global_action_bug_report" msgid="5127867163044170003">"Отчет об ошибке"</string>
     <string name="global_action_logout" msgid="6093581310002476511">"Закончить сеанс"</string>
     <string name="global_action_screenshot" msgid="2610053466156478564">"Скриншот"</string>
+    <string name="global_action_standby" msgid="6786920589970257642">"Режим ожидания"</string>
     <string name="bugreport_title" msgid="8549990811777373050">"Отчет об ошибке"</string>
     <string name="bugreport_message" msgid="5212529146119624326">"Информация о текущем состоянии вашего устройства будет собрана и отправлена по электронной почте. Подготовка отчета займет некоторое время."</string>
     <string name="bugreport_option_interactive_title" msgid="7968287837902871289">"Интерактивный отчет"</string>
@@ -303,6 +305,7 @@
     <string name="notification_channel_network_alerts" msgid="6312366315654526528">"Оповещения сети"</string>
     <string name="notification_channel_network_available" msgid="6083697929214165169">"Сеть доступна"</string>
     <string name="notification_channel_vpn" msgid="1628529026203808999">"Статус VPN"</string>
+    <string name="notification_channel_system_time" msgid="1660313368058030441">"Время и часовые пояса"</string>
     <string name="notification_channel_device_admin" msgid="6384932669406095506">"Уведомления от вашего администратора"</string>
     <string name="notification_channel_alerts" msgid="5070241039583668427">"Уведомления"</string>
     <string name="notification_channel_retail_mode" msgid="3732239154256431213">"Деморежим для магазина"</string>
@@ -310,6 +313,7 @@
     <string name="notification_channel_heavy_weight_app" msgid="17455756500828043">"Приложение активно"</string>
     <string name="notification_channel_foreground_service" msgid="7102189948158885178">"Приложения, расходующие заряд"</string>
     <string name="notification_channel_accessibility_magnification" msgid="1707913872219798098">"Увеличение"</string>
+    <string name="notification_channel_accessibility_hearing_device" msgid="7816963856388758952">"Слуховой аппарат"</string>
     <string name="notification_channel_accessibility_security_policy" msgid="1727787021725251912">"Сервисы специальных возможностей"</string>
     <string name="notification_channel_display" msgid="6905032605735615090">"Экран"</string>
     <string name="foreground_service_app_in_background" msgid="1439289699671273555">"Приложение \"<xliff:g id="APP_NAME">%1$s</xliff:g>\" расходует заряд"</string>
@@ -352,6 +356,10 @@
     <string name="permgroupdesc_sensors" msgid="2610631290633747752">"доступ к данным датчиков о состоянии организма"</string>
     <string name="permgrouplab_notifications" msgid="5472972361980668884">"Уведомления"</string>
     <string name="permgroupdesc_notifications" msgid="4608679556801506580">"показ уведомлений"</string>
+    <string name="permgrouplab_xr_tracking" msgid="7418994009794287471">"данные XR для отслеживания"</string>
+    <string name="permgroupdesc_xr_tracking" msgid="6777198859446500821">"доступ к данным расширенной реальности с информацией о вас и окружающей обстановке"</string>
+    <string name="permgrouplab_xr_tracking_sensitive" msgid="1194833982988144536">"конфиденц. данные XR для отслеживания"</string>
+    <string name="permgroupdesc_xr_tracking_sensitive" msgid="9178027369004805829">"доступ к конфиденциальным данным для отслеживания, например направления взгляда"</string>
     <string name="capability_title_canRetrieveWindowContent" msgid="7554282892101587296">"Получать содержимое окна"</string>
     <string name="capability_desc_canRetrieveWindowContent" msgid="6195610527625237661">"Анализировать содержимое активного окна."</string>
     <string name="capability_title_canRequestTouchExploration" msgid="327598364696316213">"Включать Изучение касанием"</string>
@@ -647,6 +655,22 @@
     <string name="permdesc_imagesWrite" msgid="5195054463269193317">"Приложение сможет вносить изменения в вашу фотоколлекцию."</string>
     <string name="permlab_mediaLocation" msgid="7368098373378598066">"Доступ к геоданным в медиаколлекции"</string>
     <string name="permdesc_mediaLocation" msgid="597912899423578138">"Приложение получит доступ к геоданным в вашей медиаколлекции."</string>
+    <string name="permlab_eye_tracking_coarse" msgid="7989596289790269059">"отслеживание примерного направления взгляда"</string>
+    <string name="permdesc_eye_tracking_coarse" msgid="870510233930553355">"Приложение сможет отслеживать примерное направление взгляда."</string>
+    <string name="permlab_eye_tracking_fine" msgid="6914457357027049512">"отслеживание направления взгляда"</string>
+    <string name="permdesc_eye_tracking_fine" msgid="5788889152304524730">"Приложение получит доступ к точным данным о направлении взгляда."</string>
+    <string name="permlab_face_tracking" msgid="2272048395128283324">"отслеживание лица"</string>
+    <string name="permdesc_face_tracking" msgid="2622783922311211866">"Приложение получит доступ к данным для отслеживания лица."</string>
+    <string name="permlab_hand_tracking" msgid="6478233866595566940">"отслеживание рук"</string>
+    <string name="permdesc_hand_tracking" msgid="8639715900104966456">"Приложение получит доступ к данным для отслеживания рук."</string>
+    <string name="permlab_head_tracking" msgid="1309731456372087270">"отслеживание движения головы"</string>
+    <string name="permdesc_head_tracking" msgid="231597390513699188">"Приложение получит доступ к данным для отслеживания движений головы."</string>
+    <string name="permlab_scene_understanding_coarse" msgid="6518646430502858641">"понимание обстановки вокруг вас"</string>
+    <string name="permdesc_scene_understanding_coarse" msgid="4508880777646198656">"Приложение получит доступ к данным для отслеживания обстановки вокруг вас."</string>
+    <string name="permlab_scene_understanding_fine" msgid="409126403264393251">"глубокое понимание обстановки вокруг вас"</string>
+    <string name="permdesc_scene_understanding_fine" msgid="6223368011593524179">"Приложение получит доступ к подробным данным для отслеживания обстановки вокруг вас."</string>
+    <string name="permlab_xr_tracking_in_background" msgid="7117098718465619023">"доступ к данным XR в фоновом режиме"</string>
+    <string name="permdesc_xr_tracking_in_background" msgid="939504041387836853">"Приложение получит доступ к данным расширенной реальности в фоновом режиме."</string>
     <string name="biometric_app_setting_name" msgid="3339209978734534457">"Использовать биометрию"</string>
     <string name="biometric_or_screen_lock_app_setting_name" msgid="5348462421758257752">"Использовать биометрию или блокировку экрана"</string>
     <string name="biometric_dialog_default_title" msgid="55026799173208210">"Подтвердите, что это вы"</string>
@@ -1011,7 +1035,7 @@
     <string name="lockscreen_password_wrong" msgid="8605355913868947490">"Повторите попытку"</string>
     <string name="lockscreen_storage_locked" msgid="634993789186443380">"Разблок. для доступа ко всем функциям и данным"</string>
     <string name="faceunlock_multiple_failures" msgid="681991538434031708">"Все попытки войти с помощью фейсконтроля использованы"</string>
-    <string name="lockscreen_missing_sim_message_short" msgid="1229301273156907613">"SIM-карта отсутствует"</string>
+    <string name="lockscreen_missing_sim_message_short" msgid="1229301273156907613">"Нет SIM-карты"</string>
     <string name="lockscreen_missing_sim_message" product="tablet" msgid="3986843848305639161">"В планшете отсутствует SIM-карта."</string>
     <string name="lockscreen_missing_sim_message" product="tv" msgid="3903140876952198273">"В устройстве Android TV отсутствует SIM-карта."</string>
     <string name="lockscreen_missing_sim_message" product="default" msgid="6184187634180854181">"В телефоне отсутствует SIM-карта."</string>
@@ -1407,6 +1431,8 @@
     <string name="install_carrier_app_notification_button" msgid="6257740533102594290">"Скачать приложение"</string>
     <string name="carrier_app_notification_title" msgid="5815477368072060250">"Установлена новая SIM-карта"</string>
     <string name="carrier_app_notification_text" msgid="6567057546341958637">"Нажмите, чтобы настроить."</string>
+    <string name="time_zone_change_notification_title" msgid="5232503069219193218">"Ваш часовой пояс изменился"</string>
+    <string name="time_zone_change_notification_body" msgid="6135793674904665585">"Новый часовой пояс: <xliff:g id="TIME_ZONE_DISPLAY_NAME">%1$s</xliff:g> (<xliff:g id="TIME_ZONE_OFFSET">%2$s</xliff:g>)."</string>
     <string name="time_picker_dialog_title" msgid="9053376764985220821">"Настройка времени"</string>
     <string name="date_picker_dialog_title" msgid="5030520449243071926">"Настройка даты"</string>
     <string name="date_time_set" msgid="4603445265164486816">"Установить"</string>
@@ -1780,6 +1806,11 @@
     <string name="one_handed_mode_feature_name" msgid="2334330034828094891">"Режим управления одной рукой"</string>
     <string name="reduce_bright_colors_feature_name" msgid="3222994553174604132">"Дополнительное уменьшение яркости"</string>
     <string name="hearing_aids_feature_name" msgid="1125892105105852542">"Слуховые аппараты"</string>
+    <string name="autoclick_feature_name" msgid="8149248738736949630">"Автонажатие"</string>
+    <string name="hearing_device_status_disconnected" msgid="497547752953543832">"Отключено"</string>
+    <string name="hearing_device_status_connected" msgid="2149385149669918764">"Подключено"</string>
+    <string name="hearing_device_status_active" msgid="4770378695482566032">"Активно"</string>
+    <string name="hearing_device_status_loading" msgid="5717083847663109747">"Загрузка…"</string>
     <string name="accessibility_shortcut_enabling_service" msgid="5473495203759847687">"Использован жест с кнопками регулировки громкости. Функция \"<xliff:g id="SERVICE_NAME">%1$s</xliff:g>\" включена."</string>
     <string name="accessibility_shortcut_disabling_service" msgid="8675244165062700619">"Использован жест с кнопками регулировки громкости. Функция \"<xliff:g id="SERVICE_NAME">%1$s</xliff:g>\" отключена."</string>
     <string name="accessibility_shortcut_spoken_feedback" msgid="3760999147597564314">"Отпустите кнопки громкости. Чтобы включить <xliff:g id="SERVICE_NAME">%1$s</xliff:g>, нажмите и удерживайте обе кнопки регулировки громкости в течение трех секунд."</string>
@@ -1790,7 +1821,12 @@
     <string name="accessibility_gesture_instructional_text" msgid="4133877896011098550">"Функция теперь будет включаться при выполнении действия быстрого запуска. Проведите двумя пальцами по экрану снизу вверх."</string>
     <string name="accessibility_gesture_3finger_instructional_text" msgid="1124458279366968154">"Функция теперь будет включаться при выполнении действия быстрого запуска. Проведите тремя пальцами по экрану снизу вверх."</string>
     <string name="accessibility_magnification_chooser_text" msgid="1502075582164931596">"Увеличение"</string>
-    <string name="user_switched" msgid="7249833311585228097">"Выбран аккаунт пользователя <xliff:g id="NAME">%1$s</xliff:g>."</string>
+    <string name="hearing_device_switch_phone_mic_notification_title" msgid="6645178038359708836">"Переключиться на микрофон телефона?"</string>
+    <string name="hearing_device_switch_hearing_mic_notification_title" msgid="4612074852145289569">"Переключиться на микрофон слухового аппарата?"</string>
+    <string name="hearing_device_switch_phone_mic_notification_text" msgid="1332426273666077412">"Вы можете использовать микрофон телефона, если вас не устраивает качество звука или если у слухового аппарата низкий заряд батареи. Микрофон будет переключен только на время звонка."</string>
+    <string name="hearing_device_switch_hearing_mic_notification_text" msgid="8288368365767284208">"Вы можете использовать микрофон слухового аппарата, когда разговариваете по телефону. Микрофон будет переключен только на время звонка."</string>
+    <string name="hearing_device_notification_switch_button" msgid="3619524619430941300">"Переключиться"</string>
+    <string name="hearing_device_notification_settings_button" msgid="6673651052880279178">"Настройки"</string>
     <string name="user_switching_message" msgid="1912993630661332336">"Смена профиля на \"<xliff:g id="NAME">%1$s</xliff:g>\"…"</string>
     <string name="user_logging_out_message" msgid="7216437629179710359">"Выход из аккаунта <xliff:g id="NAME">%1$s</xliff:g>…"</string>
     <string name="owner_name" msgid="8713560351570795743">"Владелец"</string>
@@ -1932,7 +1968,7 @@
     <string name="lock_to_app_unlock_pattern" msgid="2694204070499712503">"Запрашивать графический ключ"</string>
     <string name="lock_to_app_unlock_password" msgid="9126722403506560473">"Запрашивать пароль"</string>
     <string name="package_installed_device_owner" msgid="8684974629306529138">"Установлено администратором.\nЧтобы посмотреть предоставленные разрешения, перейдите в настройки."</string>
-    <string name="package_updated_device_owner" msgid="7560272363805506941">"Обновлено администратором"</string>
+    <string name="package_updated_device_owner" msgid="7770195449213776218">"Обновлено администратором.\nЧтобы посмотреть предоставленные разрешения, перейдите в настройки."</string>
     <string name="package_deleted_device_owner" msgid="2292335928930293023">"Удалено администратором"</string>
     <string name="confirm_battery_saver" msgid="5247976246208245754">"ОК"</string>
     <string name="battery_saver_description_with_learn_more" msgid="5444908404021316250">"В режиме энергосбережения включается тёмная тема, ограничиваются или отключаются фоновые процессы, а также некоторые визуальные эффекты, часть функций и сетевых подключений."</string>
@@ -2075,6 +2111,9 @@
     <string name="unpin_target" msgid="3963318576590204447">"Открепить"</string>
     <string name="unpin_specific_target" msgid="3859828252160908146">"Открепить приложение \"<xliff:g id="LABEL">%1$s</xliff:g>\""</string>
     <string name="app_info" msgid="6113278084877079851">"О приложении"</string>
+    <string name="shortcut_group_a11y_title" msgid="2992150163811583865">"Получатели Direct Share"</string>
+    <string name="suggested_apps_group_a11y_title" msgid="2804876567839501831">"Рекомендуемые приложения"</string>
+    <string name="all_apps_group_a11y_title" msgid="7020352520224108745">"Список приложений"</string>
     <string name="negative_duration" msgid="1938335096972945232">"−<xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="demo_starting_message" msgid="6577581216125805905">"Запуск деморежима…"</string>
     <string name="demo_restarting_message" msgid="1160053183701746766">"Сброс данных…"</string>
@@ -2229,6 +2268,20 @@
     <string name="accessibility_system_action_dpad_left_label" msgid="6557647179116479152">"D-pad – влево"</string>
     <string name="accessibility_system_action_dpad_right_label" msgid="9180196950365804081">"D-pad – вправо"</string>
     <string name="accessibility_system_action_dpad_center_label" msgid="8149791419358224893">"D-pad – по центру"</string>
+    <string name="accessibility_autoclick_type_settings_panel_title" msgid="7354373370578758696">"Панель настроек типа автонажатия"</string>
+    <string name="accessibility_autoclick_left_click" msgid="2301793352260551080">"Нажать левую кнопку"</string>
+    <string name="accessibility_autoclick_right_click" msgid="4353495816526181293">"Нажать правую кнопку"</string>
+    <string name="accessibility_autoclick_double_click" msgid="2103826849116176478">"Нажать дважды"</string>
+    <string name="accessibility_autoclick_drag" msgid="1499559489796843224">"Перетащить"</string>
+    <string name="accessibility_autoclick_scroll" msgid="3499385943728726933">"Прокрутить"</string>
+    <string name="accessibility_autoclick_pause" msgid="3272200156172573568">"Приостановить"</string>
+    <string name="accessibility_autoclick_position" msgid="2933660969907663545">"Положение"</string>
+    <string name="accessibility_autoclick_scroll_up" msgid="2044948780797117443">"Прокрутка вверх"</string>
+    <string name="accessibility_autoclick_scroll_down" msgid="3733401063292018116">"Прокрутка вниз"</string>
+    <string name="accessibility_autoclick_scroll_left" msgid="8564421367992824198">"Прокрутка влево"</string>
+    <string name="accessibility_autoclick_scroll_right" msgid="8932417330753984265">"Прокрутка вправо"</string>
+    <string name="accessibility_autoclick_scroll_exit" msgid="3788610039146769696">"Отключить режим прокрутки"</string>
+    <string name="accessibility_autoclick_scroll_panel_title" msgid="7120598166296447036">"Панель прокрутки"</string>
     <string name="as_app_forced_to_restricted_bucket" msgid="8233871289353898964">"Приложение \"<xliff:g id="PACKAGE_NAME">%1$s</xliff:g>\" помещено в категорию с ограниченным доступом."</string>
     <string name="conversation_single_line_name_display" msgid="8958948312915255999">"<xliff:g id="SENDER_NAME">%1$s</xliff:g>:"</string>
     <string name="conversation_single_line_image_placeholder" msgid="6983271082911936900">"Отправлено изображение"</string>
@@ -2236,7 +2289,7 @@
     <string name="conversation_title_fallback_group_chat" msgid="456073374993104303">"Групповой чат"</string>
     <string name="unread_convo_overflow" msgid="920517615597353833">"<xliff:g id="MAX_UNREAD_COUNT">%1$d</xliff:g>+"</string>
     <string name="resolver_personal_tab" msgid="2051260504014442073">"Личный"</string>
-    <string name="resolver_work_tab" msgid="2690019516263167035">"Рабочее"</string>
+    <string name="resolver_work_tab" msgid="2690019516263167035">"Рабочий"</string>
     <string name="resolver_personal_tab_accessibility" msgid="5739524949153091224">"Просмотр личных данных"</string>
     <string name="resolver_work_tab_accessibility" msgid="4753168230363802734">"Просмотр рабочих данных"</string>
     <string name="resolver_cross_profile_blocked" msgid="3014597376026044840">"Заблокировано вашим администратором"</string>
@@ -2436,6 +2489,7 @@
     <string name="profile_label_work_3" msgid="4834572253956798917">"Рабочий 3"</string>
     <string name="profile_label_test" msgid="9168641926186071947">"Тестовый"</string>
     <string name="profile_label_communal" msgid="8743921499944800427">"Совместный"</string>
+    <string name="profile_label_supervising" msgid="5649312778545745371">"Управляющий профиль"</string>
     <string name="accessibility_label_managed_profile" msgid="3366526886209832641">"Рабочий профиль"</string>
     <string name="accessibility_label_private_profile" msgid="1436459319135548969">"Частное пространство"</string>
     <string name="accessibility_label_clone_profile" msgid="7579118375042398784">"Клонированный"</string>
@@ -2446,6 +2500,7 @@
     <string name="screen_not_shared_sensitive_content" msgid="7058419185079565001">"Для безопасности содержимое приложения при демонстрации экрана скрыто."</string>
     <string name="satellite_notification_title" msgid="4026338973463121526">"Автоматически подключено к системам спутниковой связи"</string>
     <string name="satellite_notification_summary" msgid="5207364139430767162">"Вы можете отправлять и получать сообщения без доступа к мобильной сети или Wi-Fi."</string>
+    <string name="satellite_notification_summary_with_data" msgid="6486843676720429049">"Вы можете обмениваться сообщениями и использовать ограниченный объем трафика по спутниковой связи."</string>
     <string name="satellite_notification_manual_title" msgid="1097504441849466279">"Включить спутниковый обмен сообщениями?"</string>
     <string name="satellite_notification_manual_summary" msgid="901206289846283445">"Отправляйте и получайте сообщения без подключения к мобильной сети или Wi-Fi."</string>
     <string name="satellite_notification_open_message" msgid="4149234979688273729">"Открыть Сообщения"</string>
@@ -2502,4 +2557,10 @@
     <string name="keyboard_shortcut_group_applications_maps" msgid="7950000659522589471">"Карты"</string>
     <string name="keyboard_shortcut_group_applications" msgid="3010389163951364798">"Приложения"</string>
     <string name="fingerprint_loe_notification_msg" msgid="3927447270148854546">"Ваши отпечатки больше не распознаются. Настройте разблокировку по отпечатку пальца снова."</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_title" msgid="468577168569874967">"Разблокируйте экран"</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_text" msgid="6695268246267993166">"Устройство Android заблокировано. Чтобы использовать USB-устройство, переподключите его после разблокировки экрана."</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_title" msgid="3461195995882871461">"Обнаружено подозрительное USB-устройство"</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_text" msgid="6537085605929303187">"Передача данных по USB отключена."</string>
+    <string name="fingerprint_frr_notification_title" msgid="3668331918920659093">"Проблемы с разблокировкой по отпечатку пальца?"</string>
+    <string name="fingerprint_frr_notification_msg" msgid="2162966846624639252">"Нажмите, чтобы посмотреть советы о том, как разблокировать экран."</string>
 </resources>

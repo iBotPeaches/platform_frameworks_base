@@ -28,3 +28,14 @@ flag {
     description: "Adjust the default bucket evaluation parameters"
     bug: "379909479"
 }
+
+flag {
+    name: "persist_restore_to_rare_apps_list"
+    namespace: "backstage_power"
+    description: "Persist the list of apps which are put in the RARE bucket upon restore."
+    is_fixed_read_only: true
+    bug: "383766428"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}

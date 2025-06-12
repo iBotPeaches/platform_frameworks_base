@@ -231,6 +231,7 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
     private int mLastRightInset = 0;
     @UnsupportedAppUsage
     private int mLastLeftInset = 0;
+    private WindowInsets mLastInsets = null;
     private boolean mLastHasTopStableInset = false;
     private boolean mLastHasBottomStableInset = false;
     private boolean mLastHasRightStableInset = false;
@@ -1100,6 +1101,7 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
             mLastWindowFlags = attrs.flags;
 
             if (insets != null) {
+                mLastInsets = insets;
                 mLastForceConsumingTypes = insets.getForceConsumingTypes();
                 mLastForceConsumingOpaqueCaptionBar = insets.isForceConsumingOpaqueCaptionBar();
 
@@ -1176,6 +1178,7 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
                     mForceWindowDrawsBarBackgrounds, requestedVisibleTypes);
         }
 
+        int consumingTypes = 0;
         // When we expand the window with FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS or
         // mForceWindowDrawsBarBackgrounds, we still need to ensure that the rest of the view
         // hierarchy doesn't notice it, unless they've explicitly asked for it.
@@ -1186,43 +1189,47 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
         //
         // Note: Once the app uses the R+ Window.setDecorFitsSystemWindows(false) API we no longer
         // consume insets because they might no longer set SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION.
-        boolean hideNavigation = (sysUiVisibility & SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
+        final boolean hideNavigation = (sysUiVisibility & SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
                 || (requestedVisibleTypes & WindowInsets.Type.navigationBars()) == 0;
-        boolean decorFitsSystemWindows = mWindow.mDecorFitsSystemWindows;
-        boolean forceConsumingNavBar =
+        final boolean decorFitsSystemWindows = mWindow.mDecorFitsSystemWindows;
+
+        final boolean fitsNavBar =
+                (sysUiVisibility & SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) == 0
+                        && decorFitsSystemWindows
+                        && !hideNavigation;
+        final boolean forceConsumingNavBar =
                 ((mForceWindowDrawsBarBackgrounds || mDrawLegacyNavigationBarBackgroundHandled)
                         && (attrs.flags & FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS) == 0
-                        && (sysUiVisibility & SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) == 0
-                        && decorFitsSystemWindows
-                        && !hideNavigation)
+                        && fitsNavBar)
                 || ((mLastForceConsumingTypes & WindowInsets.Type.navigationBars()) != 0
                         && hideNavigation);
-
-        boolean consumingNavBar =
-                ((attrs.flags & FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS) != 0
-                        && (sysUiVisibility & SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) == 0
-                        && decorFitsSystemWindows
-                        && !hideNavigation)
+        final boolean consumingNavBar =
+                ((attrs.flags & FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS) != 0 && fitsNavBar)
                 || forceConsumingNavBar;
+        if (consumingNavBar) {
+            consumingTypes |= WindowInsets.Type.navigationBars();
+        }
 
-        // If we didn't request fullscreen layout, but we still got it because of the
-        // mForceWindowDrawsBarBackgrounds flag, also consume top inset.
+        // If the fullscreen layout was not requested, but still received because of the
+        // mForceWindowDrawsBarBackgrounds flag, also consume status bar.
         // If we should always consume system bars, only consume that if the app wanted to go to
         // fullscreen, as otherwise we can expect the app to handle it.
-        boolean fullscreen = (sysUiVisibility & SYSTEM_UI_FLAG_FULLSCREEN) != 0
+        final boolean fullscreen = (sysUiVisibility & SYSTEM_UI_FLAG_FULLSCREEN) != 0
                 || (attrs.flags & FLAG_FULLSCREEN) != 0;
         final boolean hideStatusBar = fullscreen
                 || (requestedVisibleTypes & WindowInsets.Type.statusBars()) == 0;
-        boolean consumingStatusBar =
-                ((sysUiVisibility & SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN) == 0
-                        && decorFitsSystemWindows
-                        && (attrs.flags & FLAG_LAYOUT_IN_SCREEN) == 0
-                        && (attrs.flags & FLAG_LAYOUT_INSET_DECOR) == 0
-                        && mForceWindowDrawsBarBackgrounds
-                        && mLastTopInset != 0)
+        if (((sysUiVisibility & SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN) == 0
+                && decorFitsSystemWindows
+                && (attrs.flags & FLAG_LAYOUT_IN_SCREEN) == 0
+                && (attrs.flags & FLAG_LAYOUT_INSET_DECOR) == 0
+                && mForceWindowDrawsBarBackgrounds
+                && mLastTopInset != 0)
                 || ((mLastForceConsumingTypes & WindowInsets.Type.statusBars()) != 0
-                        && hideStatusBar);
+                        && hideStatusBar)) {
+            consumingTypes |= WindowInsets.Type.statusBars();
+        }
 
+        // Decide if caption bar need to be consumed
         final boolean hideCaptionBar = fullscreen
                 || (requestedVisibleTypes & WindowInsets.Type.captionBar()) == 0;
         final boolean consumingCaptionBar =
@@ -1237,22 +1244,23 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
                         && mLastForceConsumingOpaqueCaptionBar
                         && isOpaqueCaptionBar;
 
-        final int consumedTop =
-                (consumingStatusBar || consumingCaptionBar || consumingOpaqueCaptionBar)
-                        ? mLastTopInset : 0;
-        int consumedRight = consumingNavBar ? mLastRightInset : 0;
-        int consumedBottom = consumingNavBar ? mLastBottomInset : 0;
-        int consumedLeft = consumingNavBar ? mLastLeftInset : 0;
+        if (consumingCaptionBar || consumingOpaqueCaptionBar) {
+            consumingTypes |= WindowInsets.Type.captionBar();
+        }
+
+        final Insets consumedInsets = mLastInsets != null
+                ? mLastInsets.getInsets(consumingTypes) : Insets.NONE;
 
         if (mContentRoot != null
                 && mContentRoot.getLayoutParams() instanceof MarginLayoutParams) {
             MarginLayoutParams lp = (MarginLayoutParams) mContentRoot.getLayoutParams();
-            if (lp.topMargin != consumedTop || lp.rightMargin != consumedRight
-                    || lp.bottomMargin != consumedBottom || lp.leftMargin != consumedLeft) {
-                lp.topMargin = consumedTop;
-                lp.rightMargin = consumedRight;
-                lp.bottomMargin = consumedBottom;
-                lp.leftMargin = consumedLeft;
+            if (lp.topMargin != consumedInsets.top || lp.rightMargin != consumedInsets.right
+                    || lp.bottomMargin != consumedInsets.bottom || lp.leftMargin !=
+                    consumedInsets.left) {
+                lp.topMargin = consumedInsets.top;
+                lp.rightMargin = consumedInsets.right;
+                lp.bottomMargin = consumedInsets.bottom;
+                lp.leftMargin = consumedInsets.left;
                 mContentRoot.setLayoutParams(lp);
 
                 if (insets == null) {
@@ -1261,11 +1269,8 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
                     requestApplyInsets();
                 }
             }
-            if (insets != null && (consumedLeft > 0
-                    || consumedTop > 0
-                    || consumedRight > 0
-                    || consumedBottom > 0)) {
-                insets = insets.inset(consumedLeft, consumedTop, consumedRight, consumedBottom);
+            if (insets != null && !Insets.NONE.equals(consumedInsets)) {
+                insets = insets.inset(consumedInsets);
             }
         }
 

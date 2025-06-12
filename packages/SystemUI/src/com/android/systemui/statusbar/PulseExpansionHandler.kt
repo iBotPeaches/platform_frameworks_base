@@ -140,8 +140,8 @@ constructor(
 
     private fun canHandleMotionEvent(): Boolean {
         return wakeUpCoordinator.canShowPulsingHuns &&
-            !shadeInteractor.isQsExpanded.value &&
-            !bouncerShowing
+                !shadeInteractor.isQsExpanded.value &&
+                !bouncerShowing
     }
 
     private fun startExpansion(event: MotionEvent): Boolean {
@@ -194,7 +194,7 @@ constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val finishExpanding =
             (event.action == MotionEvent.ACTION_CANCEL || event.action == MotionEvent.ACTION_UP) &&
-                isExpanding
+                    isExpanding
 
         val isDraggingNotificationOrCanBypass =
             mStartingChild?.showingPulsing() == true || bypassController.canBypass()
@@ -218,8 +218,8 @@ constructor(
                 velocityTracker!!.computeCurrentVelocity(/* units= */ 1000)
                 val canExpand =
                     moveDistance > 0 &&
-                        velocityTracker!!.getYVelocity() > -1000 &&
-                        statusBarStateController.state != StatusBarState.SHADE
+                            velocityTracker!!.getYVelocity() > -1000 &&
+                            statusBarStateController.state != StatusBarState.SHADE
                 if (!falsingManager.isUnlockingDisabled && !isFalseTouch && canExpand) {
                     finishExpansion()
                 } else {
@@ -266,11 +266,11 @@ constructor(
             val child = mStartingChild!!
             val newHeight =
                 Math.min((child.collapsedHeight + expansionHeight).toInt(), child.maxContentHeight)
-            child.actualHeight = newHeight
+            child.setFinalActualHeight(newHeight)
         } else {
             wakeUpCoordinator.setNotificationsVisibleForExpansion(
                 height >
-                    lockscreenShadeTransitionController.distanceUntilShowingPulsingNotifications,
+                        lockscreenShadeTransitionController.distanceUntilShowingPulsingNotifications,
                 /*animate= */ true,
                 /*increaseSpeed= */ true,
             )
@@ -301,7 +301,7 @@ constructor(
         anim.duration = animationDuration
         anim.addUpdateListener { animation: ValueAnimator ->
             // don't use reflection, because the `actualHeight` field may be obfuscated
-            child.actualHeight = animation.animatedValue as Int
+            child.setFinalActualHeight(animation.animatedValue as Int)
         }
         anim.addListener(
             object : AnimatorListenerAdapter() {

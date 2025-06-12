@@ -73,7 +73,7 @@ public abstract class WebIconDatabase {
      */
     public abstract void requestIconForPageUrl(String url, IconListener listener);
 
-    /** {@hide}
+    /** @hide
      */
     @SuppressWarnings("HiddenAbstractMethod")
     @SystemApi

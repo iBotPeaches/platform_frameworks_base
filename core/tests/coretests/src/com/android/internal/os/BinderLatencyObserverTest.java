@@ -23,7 +23,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 
 import android.os.Binder;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.ArrayMap;
@@ -50,7 +50,7 @@ import java.util.Random;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 @Presubmit
-@IgnoreUnderRavenwood(blockedBy = BinderLatencyObserver.class)
+@DisabledOnRavenwood(blockedBy = BinderLatencyObserver.class)
 public class BinderLatencyObserverTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

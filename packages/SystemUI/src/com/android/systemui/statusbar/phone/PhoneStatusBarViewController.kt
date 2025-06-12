@@ -18,6 +18,7 @@ package com.android.systemui.statusbar.phone
 import android.app.StatusBarManager.WINDOW_STATUS_BAR
 import android.graphics.Point
 import android.util.Log
+import android.view.Display.DEFAULT_DISPLAY
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
@@ -43,6 +44,7 @@ import com.android.systemui.shade.display.StatusBarTouchShadeDisplayPolicy
 import com.android.systemui.shade.domain.interactor.PanelExpansionInteractor
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround
 import com.android.systemui.shared.animation.UnfoldMoveFromCenterAnimator
+import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.data.repository.StatusBarContentInsetsProviderStore
 import com.android.systemui.statusbar.policy.Clock
 import com.android.systemui.statusbar.policy.ConfigurationController
@@ -81,7 +83,7 @@ private constructor(
     private val configurationController: ConfigurationController,
     private val statusOverlayHoverListenerFactory: StatusOverlayHoverListenerFactory,
     private val darkIconDispatcher: DarkIconDispatcher,
-    private val statusBarContentInsetsProvider: StatusBarContentInsetsProvider,
+    private val statusBarContentInsetsProviderStore: StatusBarContentInsetsProviderStore,
     private val lazyStatusBarShadeDisplayPolicy: Lazy<StatusBarTouchShadeDisplayPolicy>,
 ) : ViewController<PhoneStatusBarView>(view) {
 
@@ -89,6 +91,8 @@ private constructor(
     private lateinit var clock: Clock
     private lateinit var startSideContainer: View
     private lateinit var endSideContainer: View
+    private val statusBarContentInsetsProvider
+        get() = statusBarContentInsetsProviderStore.forDisplay(context.displayId)
 
     private val iconsOnTouchListener =
         object : View.OnTouchListener {
@@ -100,6 +104,7 @@ private constructor(
                 // intercepted. See [View.OnTouchEvent]
                 if (event.source == InputDevice.SOURCE_MOUSE) {
                     if (event.action == MotionEvent.ACTION_UP) {
+                        dispatchEventToShadeDisplayPolicy(event)
                         v.performClick()
                         shadeController.animateExpandShade()
                     }
@@ -108,6 +113,15 @@ private constructor(
                 return false
             }
         }
+
+    private fun dispatchEventToShadeDisplayPolicy(event: MotionEvent) {
+        if (ShadeWindowGoesAround.isEnabled) {
+            // Notify the shade display policy that the status bar was touched. This may cause
+            // the shade to change display if the touch was in a display different than the shade
+            // one.
+            lazyStatusBarShadeDisplayPolicy.get().onStatusBarTouched(event, mView.width)
+        }
+    }
 
     private val configurationListener =
         object : ConfigurationController.ConfigurationListener {
@@ -186,11 +200,9 @@ private constructor(
     init {
         // These should likely be done in `onInit`, not `init`.
         mView.setTouchEventHandler(PhoneStatusBarViewTouchHandler())
-        mView.setHasCornerCutoutFetcher {
-            statusBarContentInsetsProvider.currentRotationHasCornerCutout()
-        }
-        mView.setInsetsFetcher {
-            statusBarContentInsetsProvider.getStatusBarContentInsetsForCurrentRotation()
+        statusBarContentInsetsProvider?.let {
+            mView.setHasCornerCutoutFetcher { it.currentRotationHasCornerCutout() }
+            mView.setInsetsFetcher { it.getStatusBarContentInsetsForCurrentRotation() }
         }
         mView.init(userChipViewModel)
     }
@@ -230,9 +242,6 @@ private constructor(
                 !upOrCancel || shadeController.isExpandedVisible,
             )
         }
-        if (ShadeWindowGoesAround.isEnabled && event.action == MotionEvent.ACTION_DOWN) {
-            lazyStatusBarShadeDisplayPolicy.get().onStatusBarTouched(context.displayId)
-        }
     }
 
     private fun addDarkReceivers() {
@@ -247,6 +256,9 @@ private constructor(
 
     inner class PhoneStatusBarViewTouchHandler : Gefingerpoken {
         override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                dispatchEventToShadeDisplayPolicy(event)
+            }
             return if (Flags.statusBarSwipeOverChip()) {
                 shadeViewController.handleExternalInterceptTouch(event)
             } else {
@@ -296,7 +308,19 @@ private constructor(
                     return true
                 }
             }
-            return shadeViewController.handleExternalTouch(event)
+
+            // With the StatusBarConnectedDisplays changes, status bar touches should result in
+            // shade interaction only if ShadeWindowGoesAround.isEnabled or if touch is on default
+            // display.
+            return if (
+                !StatusBarConnectedDisplays.isEnabled ||
+                    ShadeWindowGoesAround.isEnabled ||
+                    context.displayId == DEFAULT_DISPLAY
+            ) {
+                shadeViewController.handleExternalTouch(event)
+            } else {
+                false
+            }
         }
     }
 
@@ -378,7 +402,7 @@ private constructor(
                 configurationController,
                 statusOverlayHoverListenerFactory,
                 darkIconDispatcher,
-                statusBarContentInsetsProviderStore.defaultDisplay,
+                statusBarContentInsetsProviderStore,
                 lazyStatusBarShadeDisplayPolicy,
             )
         }

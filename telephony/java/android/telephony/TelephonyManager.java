@@ -180,7 +180,7 @@ import java.util.stream.IntStream;
  * permission-protected. Your application cannot access the protected
  * information unless it has the appropriate permissions declared in
  * its manifest file. Where permissions apply, they are noted in the
- * the methods through which you access the protected information.
+ * methods through which you access the protected information.
  *
  * <p>TelephonyManager is intended for use on devices that implement
  * {@link android.content.pm.PackageManager#FEATURE_TELEPHONY FEATURE_TELEPHONY}. On devices
@@ -633,11 +633,14 @@ public class TelephonyManager {
     }
 
     /**
-     * Returns the multi SIM variant
-     * Returns DSDS for Dual SIM Dual Standby
-     * Returns DSDA for Dual SIM Dual Active
-     * Returns TSTS for Triple SIM Triple Standby
-     * Returns UNKNOWN for others
+     * Returns the multi SIM variant.
+     *
+     * <ul>
+     *   <li>Returns DSDS for Dual SIM Dual Standby.</li>
+     *   <li>Returns DSDA for Dual SIM Dual Active.</li>
+     *   <li>Returns TSTS for Triple SIM Triple Standby.</li>
+     *   <li>Returns UNKNOWN for others.</li>
+     * </ul>
      */
     /** {@hide} */
     @UnsupportedAppUsage
@@ -657,10 +660,14 @@ public class TelephonyManager {
 
     /**
      * Returns the number of phones available.
-     * Returns 0 if none of voice, sms, data is not supported
-     * Returns 1 for Single standby mode (Single SIM functionality).
-     * Returns 2 for Dual standby mode (Dual SIM functionality).
-     * Returns 3 for Tri standby mode (Tri SIM functionality).
+     *
+     * <ul>
+     *   <li>Returns 0 if none of voice, sms, data is supported.</li>
+     *   <li>Returns 1 for Single standby mode (Single SIM functionality).</li>
+     *   <li>Returns 2 for Dual standby mode (Dual SIM functionality).</li>
+     *   <li>Returns 3 for Tri standby mode (Tri SIM functionality).</li>
+     * </ul>
+     *
      * @deprecated Use {@link #getActiveModemCount} instead.
      */
     @Deprecated
@@ -671,10 +678,12 @@ public class TelephonyManager {
     /**
      * Returns the number of logical modems currently configured to be activated.
      *
-     * Returns 0 if none of voice, sms, data is not supported
-     * Returns 1 for Single standby mode (Single SIM functionality).
-     * Returns 2 for Dual standby mode (Dual SIM functionality).
-     * Returns 3 for Tri standby mode (Tri SIM functionality).
+     * <ul>
+     *   <li>Returns 0 if none of voice, sms, data is supported.</li>
+     *   <li>Returns 1 for Single standby mode (Single SIM functionality).</li>
+     *   <li>Returns 2 for Dual standby mode (Dual SIM functionality).</li>
+     *   <li>Returns 3 for Tri standby mode (Tri SIM functionality).</li>
+     * </ul>
      */
     public int getActiveModemCount() {
         int modemCount = 1;
@@ -682,7 +691,7 @@ public class TelephonyManager {
             case UNKNOWN:
                 modemCount = 1;
                 // check for voice and data support, 0 if not supported
-                if (!isVoiceCapable() && !isSmsCapable() && !isDataCapable()) {
+                if (!isDeviceVoiceCapable() && !isSmsCapable() && !isDataCapable()) {
                     modemCount = 0;
                 }
                 break;
@@ -1232,7 +1241,6 @@ public class TelephonyManager {
      * {@link #EXTRA_EMERGENCY_CALL_TO_SATELLITE_LAUNCH_INTENT} will not be included in the event
      * {@link #EVENT_DISPLAY_EMERGENCY_MESSAGE}.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final String EVENT_DISPLAY_EMERGENCY_MESSAGE =
             "android.telephony.event.DISPLAY_EMERGENCY_MESSAGE";
 
@@ -1247,7 +1255,6 @@ public class TelephonyManager {
      * <p>
      * Set in the extras for the {@link #EVENT_DISPLAY_EMERGENCY_MESSAGE} connection event.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final String EXTRA_EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE =
             "android.telephony.extra.EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE";
 
@@ -1255,7 +1262,6 @@ public class TelephonyManager {
      * Extra key used with the {@link #EVENT_DISPLAY_EMERGENCY_MESSAGE} for a {@link PendingIntent}
      * which will be launched by the Dialer app.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final String EXTRA_EMERGENCY_CALL_TO_SATELLITE_LAUNCH_INTENT =
             "android.telephony.extra.EMERGENCY_CALL_TO_SATELLITE_LAUNCH_INTENT";
 
@@ -2438,6 +2444,7 @@ public class TelephonyManager {
      * as follows:
      *
      * <ul>
+     *     <li>If the device is running Android 25Q2 or later, then null is returned.</li>
      *     <li>If the calling app's target SDK is API level 28 or lower and the app has the
      *     READ_PHONE_STATE permission then null is returned.</li>
      *     <li>If the calling app's target SDK is API level 28 or lower and the app does not have
@@ -2446,7 +2453,8 @@ public class TelephonyManager {
      * </ul>
      *
      * @deprecated Legacy CDMA is unsupported.
-     * @throws UnsupportedOperationException If the device does not have
+     * @throws UnsupportedOperationException If the device is running
+     *          Android 25Q1 or earlier and does not have
      *          {@link PackageManager#FEATURE_TELEPHONY_CDMA}.
      */
     @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
@@ -2806,7 +2814,7 @@ public class TelephonyManager {
      */
     @RequiresFeature(PackageManager.FEATURE_TELEPHONY)
     public int getPhoneType() {
-        if (!isVoiceCapable() && !isDataCapable()) {
+        if (!isDeviceVoiceCapable() && !isDataCapable()) {
             return PHONE_TYPE_NONE;
         }
         return getCurrentPhoneType();
@@ -3197,12 +3205,6 @@ public class TelephonyManager {
      * For 5G NSA, the network type will be {@link #NETWORK_TYPE_LTE}.
      */
     public static final int NETWORK_TYPE_NR = TelephonyProtoEnums.NETWORK_TYPE_NR; // 20.
-    /**
-     * 3GPP NB-IOT (Narrowband Internet of Things) over Non-Terrestrial-Networks technology.
-     */
-    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
-    public static final int NETWORK_TYPE_NB_IOT_NTN =
-            TelephonyProtoEnums.NETWORK_TYPE_NB_IOT_NTN; // 21
 
     private static final @NetworkType int[] NETWORK_TYPES = {
             NETWORK_TYPE_GPRS,
@@ -3279,7 +3281,6 @@ public class TelephonyManager {
      * @see #NETWORK_TYPE_EHRPD
      * @see #NETWORK_TYPE_HSPAP
      * @see #NETWORK_TYPE_NR
-     * @see #NETWORK_TYPE_NB_IOT_NTN
      *
      * @hide
      */
@@ -3340,7 +3341,6 @@ public class TelephonyManager {
      * @see #NETWORK_TYPE_EHRPD
      * @see #NETWORK_TYPE_HSPAP
      * @see #NETWORK_TYPE_NR
-     * @see #NETWORK_TYPE_NB_IOT_NTN
      *
      * @throws UnsupportedOperationException If the device does not have
      *          {@link PackageManager#FEATURE_TELEPHONY_RADIO_ACCESS}.
@@ -3371,14 +3371,13 @@ public class TelephonyManager {
                 return telephony.getDataNetworkTypeForSubscriber(subId, getOpPackageName(),
                         getAttributionTag());
             } else {
-                // This can happen when the ITelephony interface is not up yet.
+                Log.e(TAG, "getDataNetworkType: ITelephony interface is not up yet");
                 return NETWORK_TYPE_UNKNOWN;
             }
-        } catch(RemoteException ex) {
-            // This shouldn't happen in the normal case
-            return NETWORK_TYPE_UNKNOWN;
-        } catch (NullPointerException ex) {
-            // This could happen before phone restarts due to crashing
+        } catch (RemoteException // Shouldn't happen in the normal case
+                | NullPointerException ex // Could happen before phone restarts due to crashing
+        ) {
+            Log.e(TAG, "getDataNetworkType: " + ex.getMessage());
             return NETWORK_TYPE_UNKNOWN;
         }
     }
@@ -3491,8 +3490,6 @@ public class TelephonyManager {
                 return "LTE_CA";
             case NETWORK_TYPE_NR:
                 return "NR";
-            case NETWORK_TYPE_NB_IOT_NTN:
-                return "NB_IOT_NTN";
             case NETWORK_TYPE_UNKNOWN:
                 return "UNKNOWN";
             default:
@@ -3543,8 +3540,6 @@ public class TelephonyManager {
                 return NETWORK_TYPE_BITMASK_LTE;
             case NETWORK_TYPE_NR:
                 return NETWORK_TYPE_BITMASK_NR;
-            case NETWORK_TYPE_NB_IOT_NTN:
-                return NETWORK_TYPE_BITMASK_NB_IOT_NTN;
             case NETWORK_TYPE_IWLAN:
                 return NETWORK_TYPE_BITMASK_IWLAN;
             case NETWORK_TYPE_IDEN:
@@ -6387,6 +6382,7 @@ public class TelephonyManager {
      * @deprecated use {@link #getImsPrivateUserIdentity()}
      */
     @UnsupportedAppUsage
+    @Deprecated
     public String getIsimImpi() {
         try {
             IPhoneSubInfo info = getSubscriberInfoService();
@@ -6476,6 +6472,7 @@ public class TelephonyManager {
      * @deprecated use {@link #getImsPublicUserIdentities()}
      */
     @UnsupportedAppUsage
+    @Deprecated
     @Nullable
     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
     public String[] getIsimImpu() {
@@ -7079,7 +7076,8 @@ public class TelephonyManager {
      */
     @Deprecated
     public boolean isVoiceCapable() {
-        return hasCapability(PackageManager.FEATURE_TELEPHONY_CALLING,
+        if (mContext == null) return true;
+        return mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_voice_capable);
     }
 
@@ -7103,7 +7101,8 @@ public class TelephonyManager {
      * @see SubscriptionInfo#getServiceCapabilities()
      */
     public boolean isDeviceVoiceCapable() {
-        return isVoiceCapable();
+        return hasCapability(PackageManager.FEATURE_TELEPHONY_CALLING,
+                com.android.internal.R.bool.config_voice_capable);
     }
 
     /**
@@ -10337,9 +10336,6 @@ public class TelephonyManager {
      * This API will result in allowing an intersection of allowed network types for all reasons,
      * including the configuration done through other reasons.
      *
-     * If device supports satellite service, then
-     * {@link #NETWORK_TYPE_NB_IOT_NTN} is added to allowed network types for reason by default.
-     *
      * @param reason the reason the allowed network type change is taking place
      * @param allowedNetworkTypes The bitmask of allowed network type
      * @throws IllegalStateException if the Telephony process is not currently available.
@@ -10388,10 +10384,6 @@ public class TelephonyManager {
      * specific reason.
      * <p>Requires permission: android.Manifest.READ_PRIVILEGED_PHONE_STATE or
      * that the calling app has carrier privileges (see {@link #hasCarrierPrivileges}).
-     *
-     * If device supports satellite service, then
-     * {@link #NETWORK_TYPE_NB_IOT_NTN} is added to allowed network types for reason by
-     * default.
      *
      * @param reason the reason the allowed network type change is taking place
      * @return the allowed network type bitmask
@@ -10459,7 +10451,7 @@ public class TelephonyManager {
      */
     public static String convertNetworkTypeBitmaskToString(
             @NetworkTypeBitMask long networkTypeBitmask) {
-        String networkTypeName = IntStream.rangeClosed(NETWORK_TYPE_GPRS, NETWORK_TYPE_NB_IOT_NTN)
+        String networkTypeName = IntStream.rangeClosed(NETWORK_TYPE_GPRS, NETWORK_TYPE_NR)
                 .filter(x -> {
                     return (networkTypeBitmask & getBitMaskForNetworkType(x))
                             == getBitMaskForNetworkType(x);
@@ -10586,9 +10578,19 @@ public class TelephonyManager {
     public boolean hasCarrierPrivileges(int subId) {
         try {
             ITelephony telephony = getITelephony();
-            if (telephony != null) {
-                return telephony.getCarrierPrivilegeStatus(subId)
-                        == CARRIER_PRIVILEGE_STATUS_HAS_ACCESS;
+            if (telephony == null) {
+                Rlog.e(TAG, "hasCarrierPrivileges: no Telephony service");
+                return false;
+            }
+            int status = telephony.getCarrierPrivilegeStatus(subId);
+            switch (status) {
+                case CARRIER_PRIVILEGE_STATUS_HAS_ACCESS:
+                    return true;
+                case CARRIER_PRIVILEGE_STATUS_NO_ACCESS:
+                    return false;
+                default:
+                    Rlog.e(TAG, "hasCarrierPrivileges: " + status);
+                    return false;
             }
         } catch (RemoteException ex) {
             Rlog.e(TAG, "hasCarrierPrivileges RemoteException", ex);
@@ -14053,6 +14055,7 @@ public class TelephonyManager {
      * @hide
      */
     @SystemApi
+    @Deprecated
     @RequiresPermission(android.Manifest.permission.MODIFY_PHONE_STATE)
     @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CARRIERLOCK)
     public int setAllowedCarriers(int slotIndex, List<CarrierIdentifier> carriers) {
@@ -15140,8 +15143,7 @@ public class TelephonyManager {
                     NETWORK_TYPE_BITMASK_LTE_CA,
                     NETWORK_TYPE_BITMASK_NR,
                     NETWORK_TYPE_BITMASK_IWLAN,
-                    NETWORK_TYPE_BITMASK_IDEN,
-                    NETWORK_TYPE_BITMASK_NB_IOT_NTN
+                    NETWORK_TYPE_BITMASK_IDEN
             })
     public @interface NetworkTypeBitMask {}
 
@@ -15248,12 +15250,6 @@ public class TelephonyManager {
      */
     public static final long NETWORK_TYPE_BITMASK_IWLAN = (1 << (NETWORK_TYPE_IWLAN -1));
 
-    /**
-     * network type bitmask indicating the support of readio tech NB IOT NTN.
-     */
-    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
-    public static final long NETWORK_TYPE_BITMASK_NB_IOT_NTN = (1 << (NETWORK_TYPE_NB_IOT_NTN - 1));
-
     /** @hide */
     public static final long NETWORK_CLASS_BITMASK_2G = NETWORK_TYPE_BITMASK_GSM
                 | NETWORK_TYPE_BITMASK_GPRS
@@ -15282,9 +15278,6 @@ public class TelephonyManager {
     public static final long NETWORK_CLASS_BITMASK_5G = NETWORK_TYPE_BITMASK_NR;
 
     /** @hide */
-    public static final long NETWORK_CLASS_BITMASK_NTN = NETWORK_TYPE_BITMASK_NB_IOT_NTN;
-
-    /** @hide */
     public static final long NETWORK_STANDARDS_FAMILY_BITMASK_3GPP = NETWORK_TYPE_BITMASK_GSM
             | NETWORK_TYPE_BITMASK_GPRS
             | NETWORK_TYPE_BITMASK_EDGE
@@ -15296,8 +15289,7 @@ public class TelephonyManager {
             | NETWORK_TYPE_BITMASK_TD_SCDMA
             | NETWORK_TYPE_BITMASK_LTE
             | NETWORK_TYPE_BITMASK_LTE_CA
-            | NETWORK_TYPE_BITMASK_NR
-            | NETWORK_TYPE_BITMASK_NB_IOT_NTN;
+            | NETWORK_TYPE_BITMASK_NR;
 
     /** @hide
      * @deprecated Legacy CDMA is unsupported.
@@ -15355,11 +15347,15 @@ public class TelephonyManager {
      * {@link android.Manifest.permission#MODIFY_PHONE_STATE MODIFY_PHONE_STATE}
      *
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MODIFY_PHONE_STATE)
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     @SystemApi
     public void notifyOtaEmergencyNumberDbInstalled() {
         try {
@@ -15384,11 +15380,15 @@ public class TelephonyManager {
      * {@link android.Manifest.permission#READ_ACTIVE_EMERGENCY_SESSION}
      *
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.READ_ACTIVE_EMERGENCY_SESSION)
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     @SystemApi
     public void updateOtaEmergencyNumberDbFilePath(
             @NonNull ParcelFileDescriptor otaParcelFileDescriptor) {
@@ -15412,11 +15412,15 @@ public class TelephonyManager {
      * {@link android.Manifest.permission#READ_ACTIVE_EMERGENCY_SESSION}
      *
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.READ_ACTIVE_EMERGENCY_SESSION)
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     @SystemApi
     public void resetOtaEmergencyNumberDbFilePath() {
         try {
@@ -15498,11 +15502,15 @@ public class TelephonyManager {
      * or throw a SecurityException if the caller does not have the permission.
      *
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      */
     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
     @NonNull
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     public Map<Integer, List<EmergencyNumber>> getEmergencyNumberList() {
         Map<Integer, List<EmergencyNumber>> emergencyNumberList = new HashMap<>();
         try {
@@ -15556,11 +15564,15 @@ public class TelephonyManager {
      * or throw a SecurityException if the caller does not have the permission.
      * @throws IllegalStateException if the Telephony process is not currently available.
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      */
     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
     @NonNull
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     public Map<Integer, List<EmergencyNumber>> getEmergencyNumberList(
             @EmergencyServiceCategories int categories) {
         Map<Integer, List<EmergencyNumber>> emergencyNumberListForCategories = new HashMap<>();
@@ -15626,9 +15638,13 @@ public class TelephonyManager {
      * SIM card(s), Android database, modem, network or defaults; {@code false} otherwise.
      * @throws IllegalStateException if the Telephony process is not currently available.
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      */
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     public boolean isEmergencyNumber(@NonNull String number) {
         try {
             ITelephony telephony = getITelephony();
@@ -15665,7 +15681,8 @@ public class TelephonyManager {
      * have the required permission/privileges
      * @throws IllegalStateException if the Telephony process is not currently available.
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      *
      * @deprecated Please use {@link TelephonyManager#isEmergencyNumber(String)} instead.
      * @hide
@@ -15673,7 +15690,10 @@ public class TelephonyManager {
     @Deprecated
     @SystemApi
     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     public boolean isPotentialEmergencyNumber(@NonNull String number) {
         try {
             ITelephony telephony = getITelephony();
@@ -15693,15 +15713,19 @@ public class TelephonyManager {
      * Returns the emergency number database version.
      *
      * <p>Requires Permission:
-     *   {@link android.Manifest.permission#READ_PRIVILEGED_PHONE_STATE READ_PRIVILEGED_PHONE_STATE}
+     *   {@link android.Manifest.permission#READ_PRIVILEGED_PHONE_STATE}
      *
      * @throws UnsupportedOperationException If the device does not have
-     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING}.
+     *          {@link PackageManager#FEATURE_TELEPHONY_CALLING} or
+     *          {@link PackageManager#FEATURE_TELEPHONY_MESSAGING}.
      * @hide
      */
     @SystemApi
     @RequiresPermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
-    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
+    @RequiresFeature(anyOf = {
+        PackageManager.FEATURE_TELEPHONY_CALLING,
+        PackageManager.FEATURE_TELEPHONY_MESSAGING
+    })
     public int getEmergencyNumberDbVersion() {
         try {
             ITelephony telephony = getITelephony();
@@ -18338,7 +18362,7 @@ public class TelephonyManager {
      */
     public static boolean isNetworkTypeValid(@NetworkType int networkType) {
         return networkType >= TelephonyManager.NETWORK_TYPE_UNKNOWN &&
-                networkType <= TelephonyManager.NETWORK_TYPE_NB_IOT_NTN;
+                networkType <= TelephonyManager.NETWORK_TYPE_NR;
     }
 
     /**
@@ -19396,7 +19420,6 @@ public class TelephonyManager {
      *
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_ENABLE_IDENTIFIER_DISCLOSURE_TRANSPARENCY)
     @RequiresPermission(Manifest.permission.MODIFY_PHONE_STATE)
     @SystemApi
     public void setEnableCellularIdentifierDisclosureNotifications(boolean enable) {
@@ -19422,7 +19445,6 @@ public class TelephonyManager {
      *
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_ENABLE_IDENTIFIER_DISCLOSURE_TRANSPARENCY)
     @RequiresPermission(Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
     @SystemApi
     public boolean isCellularIdentifierDisclosureNotificationsEnabled() {
@@ -19450,7 +19472,6 @@ public class TelephonyManager {
      * and integrity algorithms in use
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_ENABLE_MODEM_CIPHER_TRANSPARENCY)
     @RequiresPermission(Manifest.permission.MODIFY_PHONE_STATE)
     @SystemApi
     public void setNullCipherNotificationsEnabled(boolean enable) {
@@ -19477,7 +19498,6 @@ public class TelephonyManager {
      * and integrity algorithms in use
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_ENABLE_MODEM_CIPHER_TRANSPARENCY)
     @RequiresPermission(Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
     @SystemApi
     public boolean isNullCipherNotificationsEnabled() {

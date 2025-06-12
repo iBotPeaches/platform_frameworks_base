@@ -31,6 +31,13 @@ flag {
 }
 
 flag {
+     namespace: "system_performance"
+     name: "enable_theme_service"
+     description: "Switches from SystemUi's ThemeOverlayController to Server's ThemeService."
+     bug: "333694176"
+}
+
+flag {
      name: "allow_removing_vpn_service"
      namespace: "wear_frameworks"
      description: "Allow removing VpnManagerService"
@@ -58,4 +65,19 @@ flag {
      description: "Remove GameManagerService from Wear"
      bug: "340929737"
      is_fixed_read_only: true
+}
+
+flag {
+     name: "remove_app_integrity_manager_service"
+     namespace: "package_manager_service"
+     description: "Remove AppIntegrityManagerService"
+     bug: "364200023"
+}
+
+flag {
+     name: "wear_gesture_api"
+     namespace: "wear_frameworks"
+     description: "Whether the Wear Gesture API is available."
+     bug: "396154116"
+     is_exported: true
 }

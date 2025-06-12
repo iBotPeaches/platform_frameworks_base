@@ -42,3 +42,11 @@ flag {
   description: "Add DISPLAY_BT2020 ColorSpace support"
   bug: "344038816"
 }
+
+flag {
+  name: "gradient_drawable_shape_arc_for_rounded_cap"
+  is_fixed_read_only: true
+  namespace: "wear_frameworks"
+  description: "Make GradientDrawable support arc shape for drawing ring with rounded stroke cap."
+  bug: "380000245"
+}

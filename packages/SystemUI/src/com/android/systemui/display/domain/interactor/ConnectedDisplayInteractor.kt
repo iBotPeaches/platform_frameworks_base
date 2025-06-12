@@ -18,6 +18,7 @@ package com.android.systemui.display.domain.interactor
 
 import android.companion.virtual.VirtualDeviceManager
 import android.view.Display
+import com.android.app.displaylib.DisplayRepository as DisplayRepositoryFromLib
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DeviceStateRepository
@@ -138,7 +139,8 @@ constructor(
             .distinctUntilChanged()
             .flowOn(backgroundCoroutineDispatcher)
 
-    private fun DisplayRepository.PendingDisplay.toInteractorPendingDisplay(): PendingDisplay =
+    private fun DisplayRepositoryFromLib.PendingDisplay.toInteractorPendingDisplay():
+        PendingDisplay =
         object : PendingDisplay {
             override suspend fun enable() = this@toInteractorPendingDisplay.enable()
 

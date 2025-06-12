@@ -23,16 +23,24 @@
             />
             <solid android:color="@android:color/transparent" />
             <size
-                android:height="64dp"/>
+                android:height="@dimen/media_output_dialog_item_height"/>
+        </shape>
+    </item>
+    <item android:id="@+id/contrast_dot" android:right="8dp" android:gravity="center_vertical|end">
+        <shape android:shape="oval">
+            <solid android:color="@color/media_dialog_seekbar_progress" />
+            <size
+                android:width="4dp"
+                android:height="4dp" />
         </shape>
     </item>
     <item android:id="@android:id/progress">
         <clip>
             <shape>
                 <corners
-                    android:radius="16dp"/>
+                    android:radius="@dimen/media_output_dialog_background_radius"/>
                 <size
-                    android:height="64dp"/>
+                    android:height="@dimen/media_output_dialog_item_height"/>
                 <solid android:color="@color/material_dynamic_primary80" />
             </shape>
         </clip>

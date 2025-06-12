@@ -21,6 +21,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.os.Environment;
@@ -204,6 +205,11 @@ class WatchlistReportDbHelper extends SQLiteOpenHelper {
             return false;
         }
         final String clause = WhiteListReportContract.TIMESTAMP + "< " + untilTimestamp;
-        return db.delete(WhiteListReportContract.TABLE, clause, null) != 0;
+        try {
+            return db.delete(WhiteListReportContract.TABLE, clause, null) != 0;
+        } catch (SQLiteDatabaseCorruptException e) {
+            Slog.e(TAG, "Error deleting records", e);
+            return false;
+        }
     }
 }

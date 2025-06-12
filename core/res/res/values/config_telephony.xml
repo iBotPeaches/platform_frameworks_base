@@ -64,6 +64,13 @@
     <integer name="auto_data_switch_performance_stability_time_threshold_millis">120000</integer>
     <java-symbol type="integer" name="auto_data_switch_performance_stability_time_threshold_millis" />
 
+    <!-- Define the bar for switching data back to the default SIM when both SIMs are out of service
+         in milliseconds. A value of 0 means an immediate switch, otherwise for a negative value,
+         the threshold defined by auto_data_switch_availability_stability_time_threshold_millis
+         will be used instead. -->
+    <integer name="auto_data_switch_availability_switchback_stability_time_threshold_millis">150000</integer>
+    <java-symbol type="integer" name="auto_data_switch_availability_switchback_stability_time_threshold_millis" />
+
     <!-- Define the maximum retry times when a validation for switching failed.-->
     <integer name="auto_data_switch_validation_max_retry">7</integer>
     <java-symbol type="integer" name="auto_data_switch_validation_max_retry" />
@@ -73,18 +80,13 @@
     <bool name="auto_data_switch_ping_test_before_switch">true</bool>
     <java-symbol type="bool" name="auto_data_switch_ping_test_before_switch" />
 
-    <!-- TODO: remove after V -->
-    <!-- Boolean indicating whether allow to use a roaming nonDDS if user enabled its roaming. -->
-    <bool name="auto_data_switch_allow_roaming">true</bool>
-    <java-symbol type="bool" name="auto_data_switch_allow_roaming" />
-
     <!-- Define the tolerated gap of score for auto data switch decision, larger than which the
          device will switch to the SIM with higher score. The score is used in conjunction with the
          score table defined in
          CarrierConfigManager#KEY_AUTO_DATA_SWITCH_RAT_SIGNAL_SCORE_STRING_ARRAY.
          If 0, the device always switch to the higher score SIM.
          If < 0, the network type and signal strength based auto switch is disabled. -->
-    <integer name="auto_data_switch_score_tolerance">-1</integer>
+    <integer name="auto_data_switch_score_tolerance">7000</integer>
     <java-symbol type="integer" name="auto_data_switch_score_tolerance" />
 
     <!-- Boolean indicating whether the Iwlan data service supports persistence of iwlan ipsec
@@ -259,7 +261,24 @@
          to identify providers that should be ignored if the carrier config
          carrier_supported_satellite_services_per_provider_bundle does not support them.
          -->
-    <string-array name="config_satellite_providers" translatable="false"></string-array>
+    <string-array name="config_satellite_providers" translatable="false">
+        <!-- T-Mobile - USA -->
+        <item>"310830"</item>
+        <!-- Entel Chile - Chile -->
+        <item>"73029"</item>
+        <!-- KDDI - Japan -->
+        <item>"44055"</item>
+        <!-- Kyivstar - Ukraine -->
+        <item>"255707"</item>
+        <!-- One NZ - New Zealand -->
+        <item>"53013"</item>
+        <!-- Optus - Australia -->
+        <item>"50559"</item>
+        <!-- Rogers - Canada -->
+        <item>"302723"</item>
+        <!-- Telstra - Australia -->
+        <item>"50511"</item>
+    </string-array>
     <java-symbol type="array" name="config_satellite_providers" />
 
     <!-- The identifier of the satellite's SIM profile. The identifier is composed of MCC and MNC
@@ -298,6 +317,11 @@
          datagrams are always sent to modem. -->
     <bool name="config_send_satellite_datagram_to_modem_in_demo_mode">false</bool>
     <java-symbol type="bool" name="config_send_satellite_datagram_to_modem_in_demo_mode" />
+
+    <!-- Whether the device supports disabling satellite while satellite enabling is in progress.
+         -->
+    <bool name="config_support_disable_satellite_while_enable_in_progress">true</bool>
+    <java-symbol type="bool" name="config_support_disable_satellite_while_enable_in_progress" />
 
     <!-- List of country codes where oem-enabled satellite services are either allowed or disallowed
          by the device. Each country code is a lowercase 2 character ISO-3166-1 alpha-2.
@@ -512,4 +536,14 @@
     </integer-array>
     <java-symbol type="array" name="config_verizon_satellite_enabled_tagids" />
 
+    <!-- Telephony config for un-supported network capabilities in string array
+         format. Refer to getNetworkCapabilityFromString() in DataUtils.java for available
+         capabilities. -->
+    <string-array name="config_unsupported_network_capabilities" translatable="false"></string-array>
+    <java-symbol type="array" name="config_unsupported_network_capabilities" />
+
+    <!-- Whether to enable APDU sender optimization i.e. a logical channel is opened and
+         kept open for multiple APDU commands within one session.-->
+    <bool name="euicc_optimize_apdu_sender">false</bool>
+    <java-symbol type="bool" name="euicc_optimize_apdu_sender" />
 </resources>

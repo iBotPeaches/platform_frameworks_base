@@ -11,6 +11,26 @@ flag {
 }
 
 flag {
+    name: "disable_set_bluetooth_ad2p_on_calls"
+    namespace: "media_better_together"
+    description: "Prevents calls to AudioService.setBluetoothA2dpOn(), known to cause incorrect audio routing to the built-in speakers."
+    bug: "294968421"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "disable_transfer_when_apps_do_not_support"
+    namespace: "media_better_together"
+    description: "Fixes a bug causing output switcher routes to be incorrectly enabled for media transfer."
+    bug: "373404114"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "enable_audio_input_device_routing_and_volume_control"
     namespace: "media_better_together"
     description: "Allows audio input devices routing and volume control via system settings."
@@ -42,6 +62,24 @@ flag {
 }
 
 flag {
+    name: "enable_fix_for_empty_system_routes_crash"
+    namespace: "media_better_together"
+    description: "Fixes a bug causing SystemUI to crash due to an empty system routes list in the routing framework."
+    bug: "357468728"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "enable_suggested_device_api"
+    is_exported: true
+    namespace: "media_better_together"
+    description: "Enables the API allowing proxy routers to suggest routes."
+    bug: "393216553"
+}
+
+flag {
     name: "enable_full_scan_with_media_content_control"
     namespace: "media_better_together"
     description: "Allows holders of the MEDIA_CONTENT_CONTROL permission to scan for routes while not in the foreground."
@@ -57,6 +95,13 @@ flag {
     namespace: "media_solutions"
     description: "Exposes RoutingController#getTransferableRoutes() (previously hidden) to the public API."
     bug: "323154573"
+}
+
+flag {
+    name: "enable_media_route_2_info_provider_package_name"
+    namespace: "media_better_together"
+    description: "Enables a new API to obtain the provider package name from MediaRoute2Info."
+    bug: "378788958"
 }
 
 flag {
@@ -105,6 +150,33 @@ flag {
     namespace: "media_solutions"
     description: "Enables apps owning a MediaBrowserService to disconnect all connected browsers."
     bug: "185136506"
+}
+
+flag {
+    name: "enable_output_switcher_session_grouping"
+    namespace: "media_better_together"
+    description: "Enables selected items in Output Switcher to be grouped together."
+    bug: "388347018"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "enable_output_switcher_device_grouping"
+    namespace: "media_better_together"
+    description: "Enables selected items in Output Switcher to be grouped together."
+    bug: "388347018"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+  name: "enable_output_switcher_redesign"
+  namespace: "media_better_together"
+  description: "Enables visual update for the Media Output Switcher"
+  bug: "388296370"
 }
 
 flag {
@@ -157,6 +229,17 @@ flag {
 }
 
 flag {
+    name: "enable_use_of_singleton_audio_manager_route_controller"
+    is_exported: true
+    namespace: "media_better_together"
+    description: "Use singleton AudioManagerRouteController shared across all users."
+    bug: "372868909"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "enable_use_of_bluetooth_device_get_alias_for_mr2info_get_name"
     namespace: "media_solutions"
     description: "Use BluetoothDevice.getAlias to populate the name of Bluetooth MediaRoute2Infos."
@@ -175,4 +258,21 @@ flag {
     namespace: "media_solutions"
     description: "Fallbacks to the default handling for volume adjustment when media session has fixed volume handling and its app is in the foreground and setting a media controller."
     bug: "293743975"
+}
+
+flag {
+    name: "fix_output_media_item_list_index_out_of_bounds_exception"
+    namespace: "media_better_together"
+    description: "Fixes a bug of causing IndexOutOfBoundsException when building media item list."
+    bug: "398246089"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "enable_output_switcher_personal_audio_sharing"
+    namespace: "cross_device_experiences"
+    description: "Enables personal audio sharing in the output switcher."
+    bug: "385672684"
 }

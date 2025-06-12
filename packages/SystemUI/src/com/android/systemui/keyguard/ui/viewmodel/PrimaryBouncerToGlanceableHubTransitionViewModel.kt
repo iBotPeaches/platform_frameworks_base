@@ -16,20 +16,31 @@
 
 package com.android.systemui.keyguard.ui.viewmodel
 
+import com.android.systemui.Flags
+import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
+import com.android.systemui.communal.shared.model.CommunalBackgroundType
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.FromPrimaryBouncerTransitionInteractor.Companion.TO_GLANCEABLE_HUB_DURATION
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState.GLANCEABLE_HUB
 import com.android.systemui.keyguard.shared.model.KeyguardState.PRIMARY_BOUNCER
 import com.android.systemui.keyguard.ui.KeyguardTransitionAnimationFlow
+import com.android.systemui.keyguard.ui.transitions.BlurConfig
 import com.android.systemui.keyguard.ui.transitions.DeviceEntryIconTransition
+import com.android.systemui.keyguard.ui.transitions.PrimaryBouncerTransition
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapLatest
 
 @SysUISingleton
 class PrimaryBouncerToGlanceableHubTransitionViewModel
 @Inject
-constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTransition {
+constructor(
+    blurConfig: BlurConfig,
+    animationFlow: KeyguardTransitionAnimationFlow,
+    communalSettingsInteractor: CommunalSettingsInteractor,
+) : DeviceEntryIconTransition, PrimaryBouncerTransition {
     private val transitionAnimation =
         animationFlow
             .setup(duration = TO_GLANCEABLE_HUB_DURATION, edge = Edge.INVALID)
@@ -37,4 +48,18 @@ constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTra
 
     override val deviceEntryParentViewAlpha: Flow<Float> =
         transitionAnimation.immediatelyTransitionTo(1f)
+
+    override val windowBlurRadius: Flow<Float> =
+        if (Flags.glanceableHubBlurredBackground()) {
+            communalSettingsInteractor.communalBackground
+                .filter { it != CommunalBackgroundType.BLUR }
+                .flatMapLatest {
+                    transitionAnimation.immediatelyTransitionTo(blurConfig.minBlurRadiusPx)
+                }
+        } else {
+            transitionAnimation.immediatelyTransitionTo(blurConfig.minBlurRadiusPx)
+        }
+
+    override val notificationBlurRadius: Flow<Float> =
+        transitionAnimation.immediatelyTransitionTo(0.0f)
 }

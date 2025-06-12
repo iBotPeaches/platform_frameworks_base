@@ -18,37 +18,28 @@ package com.android.ravenwoodtest.servicestest;
 
 import static org.junit.Assert.assertEquals;
 
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.ravenwood.example.BlueManager;
 import android.ravenwood.example.RedManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public class RavenwoodServicesDependenciesTest {
-    // NOTE: we carefully only ask for RedManager here, and rely on Ravenwood internals to spin
-    // up the implicit dependency on BlueManager
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProcessSystem()
-            .setServicesRequired(RedManager.class)
-            .build();
-
     @Test
     public void testDirect() {
-        final RedManager red = mRavenwood.getContext().getSystemService(
-                RedManager.class);
+        final RedManager red = InstrumentationRegistry.getInstrumentation().getContext()
+                .getSystemService(RedManager.class);
         assertEquals("blue+red", red.getInterfaceDescriptor());
     }
 
     @Test
     public void testIndirect() {
-        final BlueManager blue = mRavenwood.getContext().getSystemService(
-                BlueManager.class);
+        final BlueManager blue = InstrumentationRegistry.getInstrumentation().getContext()
+                .getSystemService(BlueManager.class);
         assertEquals("blue", blue.getInterfaceDescriptor());
     }
 }

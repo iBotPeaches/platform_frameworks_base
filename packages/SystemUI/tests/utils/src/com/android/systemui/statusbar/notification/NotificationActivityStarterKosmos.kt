@@ -18,6 +18,10 @@ package com.android.systemui.statusbar.notification
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.statusbar.phone.statusBarNotificationActivityStarter
+import org.mockito.kotlin.mock
 
 var Kosmos.notificationActivityStarter: NotificationActivityStarter by
     Kosmos.Fixture { statusBarNotificationActivityStarter }
+
+var Kosmos.mockNotificationActivityStarter: NotificationActivityStarter by
+Kosmos.Fixture { mock<NotificationActivityStarter>() }

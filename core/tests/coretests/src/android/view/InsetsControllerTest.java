@@ -1195,6 +1195,24 @@ public class InsetsControllerTest {
         });
     }
 
+    @Test
+    public void testAnimatingTypes() throws Exception {
+        prepareControls();
+
+        final int types = navigationBars() | statusBars();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            clearInvocations(mTestHost);
+            mController.hide(types);
+            // quickly jump to final state by cancelling it.
+            mController.cancelExistingAnimations();
+        });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+
+        verify(mTestHost, times(1)).updateAnimatingTypes(eq(types), any() /* statsToken */);
+        verify(mTestHost, times(1)).updateAnimatingTypes(eq(0) /* animatingTypes */,
+                any() /* statsToken */);
+    }
+
     private void waitUntilNextFrame() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         Choreographer.getMainThreadInstance().postCallback(Choreographer.CALLBACK_COMMIT,

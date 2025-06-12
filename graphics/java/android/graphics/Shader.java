@@ -29,6 +29,7 @@ import libcore.util.NativeAllocationRegistry;
  * paint.setShader(shader). After that any object (other than a bitmap) that is
  * drawn with that paint will get its color(s) from the shader.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Shader {
 
     private static class NoImagePreloadHolder {

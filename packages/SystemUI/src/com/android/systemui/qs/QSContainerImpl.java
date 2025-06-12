@@ -255,7 +255,7 @@ public class QSContainerImpl extends FrameLayout implements Dumpable {
      * @return size in pixels of QQS
      */
     public int getQqsHeight() {
-        SceneContainerFlag.assertInNewMode();
+        SceneContainerFlag.unsafeAssertInNewMode();
         return mHeader.getMeasuredHeight();
     }
 

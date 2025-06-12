@@ -22,10 +22,10 @@ import android.telephony.TelephonyManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerSubject.Companion.assertThat
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx.click
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx.longClick
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject.Companion.assertThat
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx.click
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx.longClick
 import com.android.systemui.qs.tiles.impl.airplane.domain.model.AirplaneModeTileModel
 import com.android.systemui.statusbar.pipeline.airplane.data.repository.FakeAirplaneModeRepository
 import com.android.systemui.statusbar.pipeline.airplane.domain.interactor.AirplaneModeInteractor

@@ -24,11 +24,15 @@ import dagger.Binds
 import dagger.Module
 
 @Module
-abstract class RetailModeModule {
+public abstract class RetailModeModule {
 
     @Binds
-    abstract fun bindsRetailModeRepository(impl: RetailModeSettingsRepository): RetailModeRepository
+    public abstract fun bindsRetailModeRepository(
+        impl: RetailModeSettingsRepository
+    ): RetailModeRepository
 
     @Binds
-    abstract fun bindsRetailModeInteractor(impl: RetailModeInteractorImpl): RetailModeInteractor
+    public abstract fun bindsRetailModeInteractor(
+        impl: RetailModeInteractorImpl
+    ): RetailModeInteractor
 }

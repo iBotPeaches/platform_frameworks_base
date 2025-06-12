@@ -27,8 +27,10 @@ import androidx.annotation.NonNull;
 
 import com.android.internal.view.RotationPolicy.RotationPolicyListener;
 import com.android.systemui.dagger.SysUISingleton;
+import com.android.systemui.rotationlock.DeviceStateAutoRotateModule.BoundsDeviceStateAutoRotateModule;
 import com.android.systemui.util.wrapper.RotationPolicyWrapper;
 
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.inject.Inject;
@@ -50,21 +52,25 @@ public final class RotationLockControllerImpl implements RotationLockController 
     };
 
     private final RotationPolicyWrapper mRotationPolicy;
-    private final DeviceStateRotationLockSettingController
+    private final Optional<DeviceStateRotationLockSettingController>
             mDeviceStateRotationLockSettingController;
     private final boolean mIsPerDeviceStateRotationLockEnabled;
 
     @Inject
     public RotationLockControllerImpl(
             RotationPolicyWrapper rotationPolicyWrapper,
-            DeviceStateRotationLockSettingController deviceStateRotationLockSettingController,
+            Optional<DeviceStateRotationLockSettingController>
+                    deviceStateRotationLockSettingController,
             @Named(DEVICE_STATE_ROTATION_LOCK_DEFAULTS) String[] deviceStateRotationLockDefaults
     ) {
         mRotationPolicy = rotationPolicyWrapper;
-        mDeviceStateRotationLockSettingController = deviceStateRotationLockSettingController;
         mIsPerDeviceStateRotationLockEnabled = deviceStateRotationLockDefaults.length > 0;
-        if (mIsPerDeviceStateRotationLockEnabled) {
-            mCallbacks.add(mDeviceStateRotationLockSettingController);
+        mDeviceStateRotationLockSettingController =
+                deviceStateRotationLockSettingController;
+
+        if (mIsPerDeviceStateRotationLockEnabled
+                && mDeviceStateRotationLockSettingController.isPresent()) {
+            mCallbacks.add(mDeviceStateRotationLockSettingController.get());
         }
 
         setListening(true);
@@ -113,8 +119,9 @@ public final class RotationLockControllerImpl implements RotationLockController 
         } else {
             mRotationPolicy.unregisterRotationPolicyListener(mRotationPolicyListener);
         }
-        if (mIsPerDeviceStateRotationLockEnabled) {
-            mDeviceStateRotationLockSettingController.setListening(listening);
+        if (mIsPerDeviceStateRotationLockEnabled
+                && mDeviceStateRotationLockSettingController.isPresent()) {
+            mDeviceStateRotationLockSettingController.get().setListening(listening);
         }
     }
 

@@ -18,6 +18,7 @@ package com.android.internal.widget.remotecompose.core.operations.layout.modifie
 import static com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation.INT;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 
 import com.android.internal.widget.remotecompose.core.CoreDocument;
 import com.android.internal.widget.remotecompose.core.Operation;
@@ -31,17 +32,25 @@ import com.android.internal.widget.remotecompose.core.operations.TouchExpression
 import com.android.internal.widget.remotecompose.core.operations.Utils;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
 import com.android.internal.widget.remotecompose.core.operations.layout.DecoratorComponent;
+import com.android.internal.widget.remotecompose.core.operations.layout.LayoutComponent;
 import com.android.internal.widget.remotecompose.core.operations.layout.ListActionsOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.RootLayoutComponent;
 import com.android.internal.widget.remotecompose.core.operations.layout.ScrollDelegate;
 import com.android.internal.widget.remotecompose.core.operations.layout.TouchHandler;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.semantics.ScrollableComponent;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.SerializeTags;
 
 import java.util.List;
 
 /** Represents a scroll modifier. */
 public class ScrollModifierOperation extends ListActionsOperation
-        implements TouchHandler, DecoratorComponent, ScrollDelegate, VariableSupport {
+        implements TouchHandler,
+                DecoratorComponent,
+                ScrollDelegate,
+                VariableSupport,
+                ScrollableComponent {
     private static final int OP_CODE = Operations.MODIFIER_SCROLL;
     public static final String CLASS_NAME = "ScrollModifierOperation";
 
@@ -134,6 +143,12 @@ public class ScrollModifierOperation extends ListActionsOperation
         apply(buffer, mDirection, mPositionExpression, mMax, mNotchMax);
     }
 
+    /**
+     * Serialize the string
+     *
+     * @param indent padding to display
+     * @param serializer append the string
+     */
     // @Override
     public void serializeToString(int indent, StringSerializer serializer) {
         serializer.append(indent, "SCROLL = [" + mDirection + "]");
@@ -189,6 +204,15 @@ public class ScrollModifierOperation extends ListActionsOperation
         return OP_CODE;
     }
 
+    /**
+     * Write the operation to the buffer
+     *
+     * @param buffer a WireBuffer
+     * @param direction direction of the scroll (HORIZONTAL, VERTICAL)
+     * @param position the current position
+     * @param max the maximum position
+     * @param notchMax the maximum notch
+     */
     public static void apply(
             WireBuffer buffer, int direction, float position, float max, float notchMax) {
         buffer.start(OP_CODE);
@@ -198,6 +222,12 @@ public class ScrollModifierOperation extends ListActionsOperation
         buffer.writeFloat(notchMax);
     }
 
+    /**
+     * Read this operation and add it to the list of operations
+     *
+     * @param buffer the buffer to read
+     * @param operations the list of operations that will be added to
+     */
     public static void read(WireBuffer buffer, List<Operation> operations) {
         int direction = buffer.readInt();
         float position = buffer.readFloat();
@@ -206,23 +236,49 @@ public class ScrollModifierOperation extends ListActionsOperation
         operations.add(new ScrollModifierOperation(direction, position, max, notchMax));
     }
 
+    /**
+     * Populate the documentation with a description of this operation
+     *
+     * @param doc to append the description to.
+     */
     public static void documentation(DocumentationBuilder doc) {
         doc.operation("Modifier Operations", OP_CODE, CLASS_NAME)
                 .description("define a Scroll Modifier")
                 .field(INT, "direction", "");
     }
 
+    private float getMaxScrollPosition(Component component, int direction) {
+        if (component instanceof LayoutComponent) {
+            LayoutComponent layoutComponent = (LayoutComponent) component;
+            int numChildren = layoutComponent.getChildrenComponents().size();
+            if (numChildren > 0) {
+                Component lastChild = layoutComponent.getChildrenComponents().get(numChildren - 1);
+                if (direction == 0) { // VERTICAL
+                    return lastChild.getY();
+                } else {
+                    return lastChild.getX();
+                }
+            }
+        }
+        return 0f;
+    }
+
     @Override
     public void layout(RemoteContext context, Component component, float width, float height) {
         mWidth = width;
         mHeight = height;
-        if (mDirection == 0) { // VERTICAL
-            context.loadFloat(Utils.idFromNan(mMax), mMaxScrollY);
-            context.loadFloat(Utils.idFromNan(mNotchMax), mContentDimension);
-        } else {
-            context.loadFloat(Utils.idFromNan(mMax), mMaxScrollX);
-            context.loadFloat(Utils.idFromNan(mNotchMax), mContentDimension);
+        float max = mMaxScrollY;
+        if (mDirection != 0) { // HORIZONTAL
+            max = mMaxScrollX;
         }
+        if (mTouchExpression != null) {
+            float maxScrollPosition = getMaxScrollPosition(component, mDirection);
+            if (maxScrollPosition > 0) {
+                max = maxScrollPosition;
+            }
+        }
+        context.loadFloat(Utils.idFromNan(mMax), max);
+        context.loadFloat(Utils.idFromNan(mNotchMax), mContentDimension);
     }
 
     @Override
@@ -278,12 +334,24 @@ public class ScrollModifierOperation extends ListActionsOperation
     public void onTouchCancel(
             RemoteContext context, CoreDocument document, Component component, float x, float y) {}
 
+    /**
+     * Set the horizontal scroll dimension
+     *
+     * @param hostDimension the horizontal host dimension
+     * @param contentDimension the horizontal content dimension
+     */
     public void setHorizontalScrollDimension(float hostDimension, float contentDimension) {
         mHostDimension = hostDimension;
         mContentDimension = contentDimension;
         mMaxScrollX = contentDimension - hostDimension;
     }
 
+    /**
+     * Set the vertical scroll dimension
+     *
+     * @param hostDimension the vertical host dimension
+     * @param contentDimension the vertical content dimension
+     */
     public void setVerticalScrollDimension(float hostDimension, float contentDimension) {
         mHostDimension = hostDimension;
         mContentDimension = contentDimension;
@@ -323,5 +391,83 @@ public class ScrollModifierOperation extends ListActionsOperation
     @Override
     public void reset() {
         // nothing here for now
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addTags(SerializeTags.MODIFIER)
+                .addType("ScrollModifierOperation")
+                .add("direction", mDirection)
+                .add("max", mMax)
+                .add("notchMax", mNotchMax)
+                .add("scrollValue", isVerticalScroll() ? mScrollY : mScrollX)
+                .add("maxScrollValue", isVerticalScroll() ? mMaxScrollY : mMaxScrollX)
+                .add("contentDimension", mContentDimension)
+                .add("hostDimension", mHostDimension);
+    }
+
+    @Override
+    public int scrollDirection() {
+        if (handlesVerticalScroll()) {
+            return ScrollableComponent.SCROLL_VERTICAL;
+        } else {
+            return ScrollableComponent.SCROLL_HORIZONTAL;
+        }
+    }
+
+    @Override
+    public int scrollByOffset(RemoteContext context, int offset) {
+        // TODO work out how to avoid disabling this
+        mTouchExpression = null;
+
+        if (handlesVerticalScroll()) {
+            mScrollY = Math.max(-mMaxScrollY, Math.min(0, mScrollY + offset));
+        } else {
+            mScrollX = Math.max(-mMaxScrollX, Math.min(0, mScrollX + offset));
+        }
+        return offset;
+    }
+
+    @Override
+    public boolean scrollDirection(RemoteContext context, ScrollDirection direction) {
+        float offset = mHostDimension * 0.7f;
+
+        if (direction == ScrollDirection.FORWARD
+                || direction == ScrollDirection.DOWN
+                || direction == ScrollDirection.RIGHT) {
+            offset *= -1;
+        }
+
+        return scrollByOffset(context, (int) offset) != 0;
+    }
+
+    @Override
+    public boolean showOnScreen(RemoteContext context, Component child) {
+        float[] locationInWindow = new float[2];
+        child.getLocationInWindow(locationInWindow);
+
+        int offset = 0;
+        if (handlesVerticalScroll()) {
+            offset = (int) -locationInWindow[1];
+        } else {
+            offset = (int) -locationInWindow[0];
+        }
+
+        if (offset == 0) {
+            return true;
+        } else {
+            return scrollByOffset(context, offset) != 0;
+        }
+    }
+
+    @Nullable
+    @Override
+    public ScrollAxisRange getScrollAxisRange() {
+        if (handlesVerticalScroll()) {
+            return new ScrollAxisRange(mScrollY, mMaxScrollY, true, true);
+        } else {
+            return new ScrollAxisRange(mScrollX, mMaxScrollX, true, true);
+        }
     }
 }

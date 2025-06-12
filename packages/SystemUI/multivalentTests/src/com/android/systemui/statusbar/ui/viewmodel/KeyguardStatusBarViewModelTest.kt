@@ -16,6 +16,8 @@
 
 package com.android.systemui.statusbar.ui.viewmodel
 
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
@@ -30,16 +32,16 @@ import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.data.repository.sceneContainerRepository
 import com.android.systemui.scene.domain.interactor.sceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.domain.interactor.keyguardStatusBarInteractor
+import com.android.systemui.statusbar.headsup.shared.StatusBarNoHunBehavior
 import com.android.systemui.statusbar.notification.data.repository.FakeHeadsUpRowRepository
 import com.android.systemui.statusbar.notification.stack.data.repository.headsUpNotificationRepository
 import com.android.systemui.statusbar.notification.stack.domain.interactor.headsUpNotificationInteractor
-import com.android.systemui.statusbar.policy.BatteryController
 import com.android.systemui.statusbar.policy.batteryController
+import com.android.systemui.statusbar.policy.fake
 import com.android.systemui.testKosmos
-import com.android.systemui.util.mockito.argumentCaptor
-import com.android.systemui.util.mockito.capture
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
@@ -48,12 +50,11 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.verify
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
-@SmallTest
 @OptIn(ExperimentalCoroutinesApi::class)
+@SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
 class KeyguardStatusBarViewModelTest(flags: FlagsParameterization) : SysuiTestCase() {
     private val kosmos = testKosmos()
@@ -95,6 +96,15 @@ class KeyguardStatusBarViewModelTest(flags: FlagsParameterization) : SysuiTestCa
     }
 
     @Test
+    fun isVisible_lockscreen_true() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.isVisible)
+            kosmos.sceneContainerRepository.snapToScene(Scenes.Lockscreen)
+
+            assertThat(latest).isTrue()
+        }
+
+    @Test
     fun isVisible_dozing_false() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isVisible)
@@ -116,18 +126,44 @@ class KeyguardStatusBarViewModelTest(flags: FlagsParameterization) : SysuiTestCa
         }
 
     @Test
+    fun isVisible_notificationsShadeOverlay_false() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.isVisible)
+
+            kosmos.sceneContainerRepository.snapToScene(Scenes.Lockscreen)
+            kosmos.sceneContainerRepository.showOverlay(Overlays.NotificationsShade)
+            runCurrent()
+
+            assertThat(latest).isFalse()
+        }
+
+    @Test
+    fun isVisible_quickSettingsShadeOverlay_false() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.isVisible)
+
+            kosmos.sceneContainerRepository.snapToScene(Scenes.Lockscreen)
+            kosmos.sceneContainerRepository.showOverlay(Overlays.QuickSettingsShade)
+            runCurrent()
+
+            assertThat(latest).isFalse()
+        }
+
+    @Test
     fun isVisible_sceneBouncer_false() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isVisible)
 
-            kosmos.sceneContainerRepository.snapToScene(Scenes.Bouncer)
+            kosmos.sceneContainerRepository.snapToScene(Scenes.Lockscreen)
+            kosmos.sceneContainerRepository.showOverlay(Overlays.Bouncer)
 
             assertThat(latest).isFalse()
         }
 
     @Test
     @EnableSceneContainer
-    fun isVisible_headsUpStatusBarShown_false() =
+    @DisableFlags(StatusBarNoHunBehavior.FLAG_NAME)
+    fun isVisible_headsUpShown_noHunBehaviorFlagOff_false() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isVisible)
 
@@ -142,6 +178,26 @@ class KeyguardStatusBarViewModelTest(flags: FlagsParameterization) : SysuiTestCa
 
             // THEN KeyguardStatusBar is NOT visible to make space for HeadsUpStatusBar
             assertThat(latest).isFalse()
+        }
+
+    @Test
+    @EnableSceneContainer
+    @EnableFlags(StatusBarNoHunBehavior.FLAG_NAME)
+    fun isVisible_headsUpShown_noHunBehaviorFlagOn_true() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.isVisible)
+
+            // WHEN HUN displayed on the bypass lock screen
+            headsUpRepository.setNotifications(FakeHeadsUpRowRepository("key 0", isPinned = true))
+            keyguardTransitionRepository.emitInitialStepsFromOff(
+                KeyguardState.LOCKSCREEN,
+                testSetup = true,
+            )
+            kosmos.sceneContainerRepository.snapToScene(Scenes.Lockscreen)
+            faceAuthRepository.isBypassEnabled.value = true
+
+            // THEN KeyguardStatusBar is still visible because StatusBarNoHunBehavior is enabled
+            assertThat(latest).isTrue()
         }
 
     @Test
@@ -161,23 +217,12 @@ class KeyguardStatusBarViewModelTest(flags: FlagsParameterization) : SysuiTestCa
             val latest by collectLastValue(underTest.isBatteryCharging)
             runCurrent()
 
-            val captor = argumentCaptor<BatteryController.BatteryStateChangeCallback>()
-            verify(batteryController).addCallback(capture(captor))
-            val callback = captor.value
-
-            callback.onBatteryLevelChanged(
-                /* level= */ 2,
-                /* pluggedIn= */ false,
-                /* charging= */ true,
-            )
+            batteryController.fake._level = 2
+            batteryController.fake._isPluggedIn = true
 
             assertThat(latest).isTrue()
 
-            callback.onBatteryLevelChanged(
-                /* level= */ 2,
-                /* pluggedIn= */ true,
-                /* charging= */ false,
-            )
+            batteryController.fake._isPluggedIn = false
 
             assertThat(latest).isFalse()
         }
@@ -188,12 +233,9 @@ class KeyguardStatusBarViewModelTest(flags: FlagsParameterization) : SysuiTestCa
             val job = underTest.isBatteryCharging.launchIn(this)
             runCurrent()
 
-            val captor = argumentCaptor<BatteryController.BatteryStateChangeCallback>()
-            verify(batteryController).addCallback(capture(captor))
-
             job.cancel()
             runCurrent()
 
-            verify(batteryController).removeCallback(captor.value)
+            assertThat(batteryController.fake.listeners).isEmpty()
         }
 }

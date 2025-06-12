@@ -39,12 +39,21 @@ import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__DISPLAY_PRESENTATION_TYPE__INLINE;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__DISPLAY_PRESENTATION_TYPE__MENU;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__DISPLAY_PRESENTATION_TYPE__UNKNOWN_AUTOFILL_DISPLAY_PRESENTATION_TYPE;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_DELAY_AFTER_ANIMATION_END;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_FILL_DIALOG_DISABLED;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_LAST_TRIGGERED_ID_CHANGED;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_SCREEN_HAS_CREDMAN_FIELD;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_TIMEOUT_AFTER_DELAY;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_TIMEOUT_SINCE_IME_ANIMATED;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_UNKNOWN;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_WAIT_FOR_IME_ANIMATION;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__ANY_SHOWN;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_ACTIVITY_FINISHED;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_FILL_REQUEST_FAILED;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_NO_FOCUS;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_REQUEST_TIMEOUT;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_SESSION_COMMITTED_PREMATURELY;
+import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_SUGGESTION_FILTER_OUT;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_UNKNOWN_REASON;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_VIEW_CHANGED;
 import static com.android.internal.util.FrameworkStatsLog.AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_VIEW_FOCUSED_BEFORE_FILL_DIALOG_RESPONSE;
@@ -98,6 +107,7 @@ public final class PresentationStatsEventLogger {
             NOT_SHOWN_REASON_REQUEST_FAILED,
             NOT_SHOWN_REASON_NO_FOCUS,
             NOT_SHOWN_REASON_SESSION_COMMITTED_PREMATURELY,
+            NOT_SHOWN_REASON_SUGGESTION_FILTERED,
             NOT_SHOWN_REASON_UNKNOWN
     })
     @Retention(RetentionPolicy.SOURCE)
@@ -155,8 +165,24 @@ public final class PresentationStatsEventLogger {
             DETECTION_PREFER_PCC
     })
     @Retention(RetentionPolicy.SOURCE)
-    public @interface DetectionPreference {
-    }
+    public @interface DetectionPreference {}
+
+    /**
+     * The fill dialog not shown reason. These are wrappers around
+     * {@link com.android.os.AtomsProto.AutofillPresentationEventReported.FillDialogNotShownReason}.
+     */
+    @IntDef(prefix = {"FILL_DIALOG_NOT_SHOWN_REASON"}, value = {
+        FILL_DIALOG_NOT_SHOWN_REASON_UNKNOWN,
+        FILL_DIALOG_NOT_SHOWN_REASON_FILL_DIALOG_DISABLED,
+        FILL_DIALOG_NOT_SHOWN_REASON_SCREEN_HAS_CREDMAN_FIELD,
+        FILL_DIALOG_NOT_SHOWN_REASON_LAST_TRIGGERED_ID_CHANGED,
+        FILL_DIALOG_NOT_SHOWN_REASON_WAIT_FOR_IME_ANIMATION,
+        FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_SINCE_IME_ANIMATED,
+        FILL_DIALOG_NOT_SHOWN_REASON_DELAY_AFTER_ANIMATION_END,
+        FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_AFTER_DELAY
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface FillDialogNotShownReason {}
 
     public static final int NOT_SHOWN_REASON_ANY_SHOWN =
             AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__ANY_SHOWN;
@@ -178,6 +204,8 @@ public final class PresentationStatsEventLogger {
             AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_SESSION_COMMITTED_PREMATURELY;
     public static final int NOT_SHOWN_REASON_UNKNOWN =
             AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_UNKNOWN_REASON;
+    public static final int NOT_SHOWN_REASON_SUGGESTION_FILTERED =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__PRESENTATION_EVENT_RESULT__NONE_SHOWN_SUGGESTION_FILTER_OUT;
 
     public static final int AUTHENTICATION_TYPE_UNKNOWN =
             AUTOFILL_PRESENTATION_EVENT_REPORTED__AUTHENTICATION_TYPE__AUTHENTICATION_TYPE_UNKNOWN;
@@ -214,6 +242,25 @@ public final class PresentationStatsEventLogger {
             AUTOFILL_FILL_RESPONSE_REPORTED__DETECTION_PREFERENCE__DETECTION_PREFER_AUTOFILL_PROVIDER;
     public static final int DETECTION_PREFER_PCC =
             AUTOFILL_FILL_RESPONSE_REPORTED__DETECTION_PREFERENCE__DETECTION_PREFER_PCC;
+
+    // Values for AutofillFillResponseReported.fill_dialog_not_shown_reason
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_UNKNOWN =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_UNKNOWN;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_FILL_DIALOG_DISABLED =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_FILL_DIALOG_DISABLED;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_SCREEN_HAS_CREDMAN_FIELD =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_SCREEN_HAS_CREDMAN_FIELD;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_LAST_TRIGGERED_ID_CHANGED =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_LAST_TRIGGERED_ID_CHANGED;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_WAIT_FOR_IME_ANIMATION =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_WAIT_FOR_IME_ANIMATION;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_SINCE_IME_ANIMATED =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_TIMEOUT_SINCE_IME_ANIMATED;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_DELAY_AFTER_ANIMATION_END =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_DELAY_AFTER_ANIMATION_END;
+    public static final int FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_AFTER_DELAY =
+            AUTOFILL_PRESENTATION_EVENT_REPORTED__FILL_DIALOG_NOT_SHOWN_REASON__REASON_TIMEOUT_AFTER_DELAY;
+
 
     private static final int DEFAULT_VALUE_INT = -1;
 
@@ -286,12 +333,43 @@ public final class PresentationStatsEventLogger {
         });
     }
 
+    /**
+     * Call this when first entering the View. It will check if there are pre-existing characters
+     * in the view, and sets NOT_SHOWN_REASON_SUGGESTION_FILTERED if there is
+     */
+    public void maybeSetNoPresentationEventReasonSuggestionsFiltered(AutofillValue value) {
+        mEventInternal.ifPresent(
+                event -> {
+                    if (value == null || !value.isText()) {
+                        return;
+                    }
+
+                    int length = value.getTextValue().length();
+
+                    if (length > 0) {
+                        maybeSetNoPresentationEventReason(NOT_SHOWN_REASON_SUGGESTION_FILTERED);
+                    }
+                });
+    }
+
     public void maybeSetNoPresentationEventReasonIfNoReasonExists(@NotShownReason int reason) {
-        mEventInternal.ifPresent(event -> {
-            if (event.mCountShown == 0 && event.mNoPresentationReason == NOT_SHOWN_REASON_UNKNOWN) {
-                event.mNoPresentationReason = reason;
-            }
-        });
+        mEventInternal.ifPresent(
+                event -> {
+                    if (event.mCountShown != 0) {
+                        return;
+                    }
+
+                    // The only events that can be overwritten.
+                    // NOT_SHOWN_REASON_UNKNOWN is the default for inline/dropdown
+                    // NOT_SHOWN_REASON_NO_FOCUS is the default for fill dialog
+                    if (event.mNoPresentationReason != NOT_SHOWN_REASON_UNKNOWN
+                            || event.mNoPresentationReason != NOT_SHOWN_REASON_NO_FOCUS) {
+                        Slog.d(TAG, "Not setting no presentation reason because it already exists");
+                        return;
+                    }
+
+                    event.mNoPresentationReason = reason;
+                });
     }
 
     public void maybeSetAvailableCount(@Nullable List<Dataset> datasetList,
@@ -836,6 +914,43 @@ public final class PresentationStatsEventLogger {
     }
 
     /**
+     * Set fill_dialog_not_shown_reason
+     * @param reason
+     */
+    public void maybeSetFillDialogNotShownReason(@FillDialogNotShownReason int reason) {
+        mEventInternal.ifPresent(event -> {
+            if ((event.mFillDialogNotShownReason
+                    == FILL_DIALOG_NOT_SHOWN_REASON_DELAY_AFTER_ANIMATION_END
+                    || event.mFillDialogNotShownReason
+                    == FILL_DIALOG_NOT_SHOWN_REASON_WAIT_FOR_IME_ANIMATION) && reason
+                    == FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_SINCE_IME_ANIMATED) {
+                event.mFillDialogNotShownReason = FILL_DIALOG_NOT_SHOWN_REASON_TIMEOUT_AFTER_DELAY;
+            } else {
+                event.mFillDialogNotShownReason = reason;
+            }
+        });
+    }
+
+    /**
+     * Set fill_dialog_ready_to_show_ms
+     * @param val
+     */
+    public void maybeSetFillDialogReadyToShowMs(long val) {
+        mEventInternal.ifPresent(event -> {
+            event.mFillDialogReadyToShowMs = (int) (val - mSessionStartTimestamp);
+        });
+    }
+
+    /**
+     * Set ime_animation_finish_ms
+     * @param val
+     */
+    public void maybeSetImeAnimationFinishMs(long val) {
+        mEventInternal.ifPresent(event -> {
+            event.mImeAnimationFinishMs = (int) (val - mSessionStartTimestamp);
+        });
+    }
+    /**
      * Set the log contains relayout metrics.
      * This is being added as a temporary measure to add logging.
      * In future, when we map Session's old view states to the new autofill id's as part of fixing
@@ -924,7 +1039,13 @@ public final class PresentationStatsEventLogger {
                     + " event.notExpiringResponseDuringAuthCount="
                     + event.mFixExpireResponseDuringAuthCount
                     + " event.notifyViewEnteredIgnoredDuringAuthCount="
-                    + event.mNotifyViewEnteredIgnoredDuringAuthCount);
+                    + event.mNotifyViewEnteredIgnoredDuringAuthCount
+                    + " event.fillDialogNotShownReason="
+                    + event.mFillDialogNotShownReason
+                    + " event.fillDialogReadyToShowMs="
+                    + event.mFillDialogReadyToShowMs
+                    + " event.imeAnimationFinishMs="
+                    + event.mImeAnimationFinishMs);
         }
 
         // TODO(b/234185326): Distinguish empty responses from other no presentation reasons.
@@ -985,7 +1106,10 @@ public final class PresentationStatsEventLogger {
                 event.mViewFilledSuccessfullyOnRefillCount,
                 event.mViewFailedOnRefillCount,
                 event.mFixExpireResponseDuringAuthCount,
-                event.mNotifyViewEnteredIgnoredDuringAuthCount);
+                event.mNotifyViewEnteredIgnoredDuringAuthCount,
+                event.mFillDialogNotShownReason,
+                event.mFillDialogReadyToShowMs,
+                event.mImeAnimationFinishMs);
         mEventInternal = Optional.empty();
     }
 
@@ -1052,6 +1176,9 @@ public final class PresentationStatsEventLogger {
         // Following are not logged and used only for internal logic
         boolean shouldResetShownCount = false;
         boolean mHasRelayoutLog = false;
+        @FillDialogNotShownReason int mFillDialogNotShownReason = FILL_DIALOG_NOT_SHOWN_REASON_UNKNOWN;
+        int mFillDialogReadyToShowMs = DEFAULT_VALUE_INT;
+        int mImeAnimationFinishMs = DEFAULT_VALUE_INT;
         PresentationStatsEventInternal() {}
     }
 

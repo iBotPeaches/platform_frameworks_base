@@ -15,8 +15,8 @@
   ~ limitations under the License.
   -->
 
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/media_output_dialog"
     android:layout_width="@dimen/large_dialog_width"
     android:layout_height="wrap_content"
@@ -35,24 +35,25 @@
         android:orientation="horizontal">
         <ImageView
             android:id="@+id/header_icon"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
+            android:layout_width="@dimen/media_output_dialog_header_album_icon_size"
+            android:layout_height="@dimen/media_output_dialog_header_album_icon_size"
+            android:layout_marginEnd="@dimen/media_output_dialog_header_icon_padding"
             android:importantForAccessibility="no"/>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
             android:orientation="vertical">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
+                android:gravity="top"
                 android:orientation="horizontal">
                 <ImageView
                     android:id="@+id/app_source_icon"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
+                    android:layout_marginBottom="7dp"
                     android:gravity="center_vertical"
                     android:importantForAccessibility="no"/>
 
@@ -96,6 +97,23 @@
         </LinearLayout>
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/quick_access_shelf"
+        android:paddingHorizontal="@dimen/media_output_dialog_margin_horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/connect_device"
+            app:icon="@drawable/ic_add"
+            style="@style/MediaOutput.Dialog.QuickAccessButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/media_output_dialog_button_connect_device"
+            android:layout_marginBottom="8dp"/>
+    </LinearLayout>
+
     <ViewStub
         android:id="@+id/broadcast_qrcode"
         android:layout="@layout/media_output_broadcast_area"
@@ -103,12 +121,11 @@
         android:layout_height="wrap_content" >
     </ViewStub>
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/device_list"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list_result"
@@ -116,47 +133,22 @@
             android:paddingTop="8dp"
             android:clipToPadding="false"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-    </LinearLayout>
+            android:layout_height="wrap_content"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintHeight_max="@dimen/media_output_dialog_list_max_height"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <LinearLayout
-        android:id="@+id/cast_app_section"
+        android:id="@+id/dialog_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:layout_marginStart="@dimen/dialog_side_padding"
-        android:layout_marginEnd="@dimen/dialog_side_padding"
-        android:layout_marginBottom="@dimen/dialog_bottom_padding"
-        android:orientation="vertical"
-        android:visibility="gone">
-        <TextView
-            android:id="@+id/launch_app_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical|start"
-            android:ellipsize="end"
-            android:textColor="?android:attr/textColorPrimary"
-            android:text="@string/media_output_dialog_launch_app_text"
-            android:maxLines="1"
-            android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
-            android:textSize="16sp"/>
-
-        <Button
-            android:id="@+id/launch_app_button"
-            style="@style/Widget.Dialog.Button.BorderButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:drawablePadding="5dp"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:layout_marginStart="@dimen/dialog_side_padding"
-        android:layout_marginEnd="@dimen/dialog_side_padding"
-        android:layout_marginBottom="@dimen/dialog_bottom_padding"
-        android:orientation="horizontal">
+        android:paddingTop="4dp"
+        android:paddingStart="@dimen/dialog_side_padding"
+        android:paddingEnd="@dimen/dialog_side_padding"
+        android:paddingBottom="@dimen/dialog_bottom_padding"
+        android:orientation="horizontal"
+        android:gravity="end">
 
         <Button
             android:id="@+id/stop"
@@ -167,6 +159,7 @@
             android:visibility="gone"/>
 
         <Space
+            android:id="@+id/footer_spacer"
             android:layout_weight="1"
             android:layout_width="0dp"
             android:layout_height="match_parent"/>

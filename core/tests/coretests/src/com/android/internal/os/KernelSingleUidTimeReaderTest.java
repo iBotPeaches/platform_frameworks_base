@@ -23,7 +23,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.annotation.SuppressLint;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.SparseArray;
 
@@ -46,7 +47,7 @@ import java.util.Collection;
 
 @SmallTest
 @RunWith(Parameterized.class)
-@IgnoreUnderRavenwood(reason = "Needs kernel support")
+@DisabledOnRavenwood(reason = "Needs kernel support")
 public class KernelSingleUidTimeReaderTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();
@@ -287,6 +288,7 @@ public class KernelSingleUidTimeReaderTest {
                 0, lastUidCpuTimes.size());
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void testAddDeltaFromBpf() {
         LongArrayMultiStateCounter counter = new LongArrayMultiStateCounter(2, 5);

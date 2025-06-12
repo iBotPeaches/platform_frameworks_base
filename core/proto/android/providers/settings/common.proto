@@ -37,6 +37,9 @@ message SettingProto {
 
     // Whether the default is set by the system
     optional bool default_from_system = 6;
+
+    // Whether the value is ignored when restoring from backup
+    optional bool preserved_in_restore = 7;
 }
 
 message SettingsOperationProto {

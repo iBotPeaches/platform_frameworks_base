@@ -20,7 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static java.util.stream.Collectors.toList;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Pair;
 
@@ -37,7 +37,7 @@ import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = VintfObject.class)
+@DisabledOnRavenwood(blockedBy = VintfObject.class)
 public class VintfObjectTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

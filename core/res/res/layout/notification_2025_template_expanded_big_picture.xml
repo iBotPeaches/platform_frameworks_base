@@ -25,28 +25,28 @@
 
     <include layout="@layout/notification_2025_template_header" />
 
-    <include layout="@layout/notification_template_right_icon" />
+    <include layout="@layout/notification_2025_right_icon" />
 
     <LinearLayout
-        android:id="@+id/notification_action_list_margin_target"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="top"
-        android:layout_marginTop="@dimen/notification_content_margin_top"
         android:clipToPadding="false"
         android:orientation="vertical"
         >
 
+        <!-- Note: the top margin is being set in code based on the estimated space needed for
+        the header text. -->
         <LinearLayout
             android:id="@+id/notification_main_column"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/notification_2025_content_margin_start"
-            android:layout_marginEnd="@dimen/notification_content_margin_end"
+            android:layout_marginEnd="@dimen/notification_2025_margin"
             android:orientation="vertical"
             >
 
-            <include layout="@layout/notification_template_part_line1" />
+            <include layout="@layout/notification_2025_title" />
 
             <include
                 layout="@layout/notification_template_progress"
@@ -66,15 +66,15 @@
             android:layout_weight="1"
             android:layout_marginTop="13dp"
             android:layout_marginStart="@dimen/notification_2025_content_margin_start"
-            android:layout_marginEnd="@dimen/notification_content_margin_end"
+            android:layout_marginEnd="@dimen/notification_2025_margin"
             android:background="@drawable/notification_big_picture_outline"
             android:clipToOutline="true"
             android:scaleType="centerCrop"
             />
 
         <ViewStub
-            android:layout="@layout/notification_material_reply_text"
-            android:id="@+id/notification_2025_reply_container"
+            android:layout="@layout/notification_2025_reply_history_container"
+            android:id="@+id/notification_material_reply_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             />
@@ -84,10 +84,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/notification_2025_content_margin_start"
-            android:layout_marginEnd="@dimen/notification_content_margin_end"
-            android:layout_marginTop="@dimen/notification_content_margin"
+            android:layout_marginEnd="@dimen/notification_2025_margin"
+            android:layout_marginTop="@dimen/notification_2025_smart_reply_container_margin"
             />
 
-        <include layout="@layout/notification_material_action_list" />
+        <include layout="@layout/notification_2025_action_list" />
     </LinearLayout>
 </FrameLayout>

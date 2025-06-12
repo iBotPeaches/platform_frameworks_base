@@ -635,6 +635,15 @@ public class OomAdjusterModernImpl extends OomAdjuster {
          * Returns true if this connection can propagate capabilities.
          */
         boolean canAffectCapabilities();
+
+        /**
+         * Returns whether this connection transmits PROCESS_CAPABILITY_CPU_TIME to the host, if the
+         * client possesses it.
+         */
+        default boolean transmitsCpuTime() {
+            // Always lend this capability by default.
+            return true;
+        }
     }
 
     /**

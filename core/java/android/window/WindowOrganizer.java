@@ -130,27 +130,6 @@ public class WindowOrganizer {
     }
 
     /**
-     * Start a legacy transition.
-     * @param type The type of the transition. This is ignored if a transitionToken is provided.
-     * @param adapter An existing transition to start. If null, a new transition is created.
-     * @param t The set of window operations that are part of this transition.
-     * @return true on success, false if a transition was already running.
-     * @hide
-     */
-    @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
-    @NonNull
-    public int startLegacyTransition(int type, @NonNull RemoteAnimationAdapter adapter,
-            @NonNull WindowContainerTransactionCallback syncCallback,
-            @NonNull WindowContainerTransaction t) {
-        try {
-            return getWindowOrganizerController().startLegacyTransition(
-                    type, adapter, syncCallback.mInterface, t);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
-    }
-
-    /**
      * Register an ITransitionPlayer to handle transition animations.
      * @hide
      */

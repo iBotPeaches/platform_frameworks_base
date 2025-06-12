@@ -37,6 +37,7 @@ import android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID
 import android.telephony.SubscriptionManager.PROFILE_CLASS_UNSET
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyCallback.ActiveDataSubscriptionIdListener
+import android.telephony.TelephonyCallback.EmergencyCallbackModeListener
 import android.telephony.TelephonyManager
 import android.testing.TestableLooper
 import androidx.test.filters.SmallTest
@@ -58,6 +59,8 @@ import com.android.systemui.statusbar.pipeline.mobile.data.MobileInputLogger
 import com.android.systemui.statusbar.pipeline.mobile.data.model.SubscriptionModel
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.CarrierConfigRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionRepository
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepository
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.carrierConfigRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.prod.FullMobileConnectionRepository.Factory.Companion.tableBufferLogName
 import com.android.systemui.statusbar.pipeline.mobile.util.FakeMobileMappingsProxy
 import com.android.systemui.statusbar.pipeline.mobile.util.FakeSubscriptionManagerProxy
@@ -68,7 +71,6 @@ import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiReposito
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.prod.WifiRepositoryImpl
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.repository.fakeUserRepository
-import com.android.systemui.user.data.repository.userRepository
 import com.android.systemui.util.concurrency.FakeExecutor
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.capture
@@ -78,8 +80,8 @@ import com.android.wifitrackerlib.MergedCarrierEntry
 import com.android.wifitrackerlib.WifiEntry
 import com.android.wifitrackerlib.WifiPickerTracker
 import com.google.common.truth.Truth.assertThat
+import java.time.Duration
 import java.util.UUID
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -94,6 +96,7 @@ import org.junit.Test
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mock
+import org.mockito.Mockito.atLeast
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
@@ -101,39 +104,315 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 // This is required because our [SubscriptionManager.OnSubscriptionsChangedListener] uses a looper
 // to run the callback and this makes the looper place nicely with TestScope etc.
 @TestableLooper.RunWithLooper
-class MobileConnectionsRepositoryTest : SysuiTestCase() {
+class MobileConnectionsRepositoryImplTest :
+    MobileConnectionsRepositoryTest<MobileConnectionsRepositoryImpl>() {
+    override fun recreateRepo() =
+        MobileConnectionsRepositoryImpl(
+            connectivityRepository = connectivityRepository,
+            subscriptionManager = subscriptionManager,
+            subscriptionManagerProxy = subscriptionManagerProxy,
+            telephonyManager = telephonyManager,
+            logger = logger,
+            tableLogger = summaryLogger,
+            mobileMappingsProxy = mobileMappings,
+            broadcastDispatcher = fakeBroadcastDispatcher,
+            context = context,
+            bgDispatcher = testDispatcher,
+            scope = testScope.backgroundScope,
+            mainDispatcher = testDispatcher,
+            airplaneModeRepository = airplaneModeRepository,
+            wifiRepository = wifiRepository,
+            fullMobileRepoFactory = fullConnectionFactory,
+            keyguardUpdateMonitor = updateMonitor,
+            dumpManager = mock(),
+        )
+
+    @Test
+    fun activeDataSentBeforeSubscriptionList_subscriptionReusesActiveDataRepo() =
+        testScope.runTest {
+            val activeRepo by collectLastValue(underTest.activeMobileDataRepository)
+            collectLastValue(underTest.subscriptions)
+
+            // GIVEN active repo is updated before the subscription list updates
+            getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
+                .onActiveDataSubscriptionIdChanged(SUB_2_ID)
+
+            assertThat(activeRepo).isNotNull()
+
+            // GIVEN the subscription list is then updated which includes the active data sub id
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_2))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            // WHEN requesting a connection repository for the subscription
+            val newRepo = underTest.getRepoForSubId(SUB_2_ID)
+
+            // THEN the newly request repo has been cached and reused
+            assertThat(activeRepo).isSameInstanceAs(newRepo)
+        }
+
+    @Test
+    fun testConnectionRepository_invalidSubId_doesNotThrow() =
+        testScope.runTest {
+            underTest.getRepoForSubId(SUB_1_ID)
+            // No exception
+        }
+
+    @Test
+    fun testConnectionRepository_carrierMergedAndMobileSubs_usesCorrectRepos() =
+        testScope.runTest {
+            collectLastValue(underTest.subscriptions)
+
+            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
+            setWifiState(isCarrierMerged = true)
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1, SUB_CM))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            val carrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
+            val mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
+            assertThat(carrierMergedRepo.getIsCarrierMerged()).isTrue()
+            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
+        }
+
+    @Test
+    fun testSubscriptions_subNoLongerCarrierMerged_repoUpdates() =
+        testScope.runTest {
+            collectLastValue(underTest.subscriptions)
+
+            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
+            setWifiState(isCarrierMerged = true)
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1, SUB_CM))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            val carrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
+            var mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
+            assertThat(carrierMergedRepo.getIsCarrierMerged()).isTrue()
+            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
+
+            // WHEN the wifi network updates to be not carrier merged
+            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_ACTIVE)
+            setWifiState(isCarrierMerged = false)
+            runCurrent()
+
+            // THEN the repos update
+            val noLongerCarrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
+            mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
+            assertThat(noLongerCarrierMergedRepo.getIsCarrierMerged()).isFalse()
+            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
+        }
+
+    @Test
+    fun testSubscriptions_subBecomesCarrierMerged_repoUpdates() =
+        testScope.runTest {
+            collectLastValue(underTest.subscriptions)
+
+            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_ACTIVE)
+            setWifiState(isCarrierMerged = false)
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1, SUB_CM))
+            getSubscriptionCallback().onSubscriptionsChanged()
+            runCurrent()
+
+            val notYetCarrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
+            var mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
+            assertThat(notYetCarrierMergedRepo.getIsCarrierMerged()).isFalse()
+            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
+
+            // WHEN the wifi network updates to be carrier merged
+            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
+            setWifiState(isCarrierMerged = true)
+            runCurrent()
+
+            // THEN the repos update
+            val carrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
+            mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
+            assertThat(carrierMergedRepo.getIsCarrierMerged()).isTrue()
+            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
+        }
+
+    @Test
+    @Ignore("b/333912012")
+    fun testConnectionCache_clearsInvalidSubscriptions() =
+        testScope.runTest {
+            collectLastValue(underTest.subscriptions)
+
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1, SUB_2))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            // Get repos to trigger caching
+            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
+            val repo2 = underTest.getRepoForSubId(SUB_2_ID)
+
+            assertThat(underTest.getSubIdRepoCache())
+                .containsExactly(SUB_1_ID, repo1, SUB_2_ID, repo2)
+
+            // SUB_2 disappears
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            assertThat(underTest.getSubIdRepoCache()).containsExactly(SUB_1_ID, repo1)
+        }
+
+    @Test
+    @Ignore("b/333912012")
+    fun testConnectionCache_clearsInvalidSubscriptions_includingCarrierMerged() =
+        testScope.runTest {
+            collectLastValue(underTest.subscriptions)
+
+            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
+            setWifiState(isCarrierMerged = true)
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1, SUB_2, SUB_CM))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            // Get repos to trigger caching
+            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
+            val repo2 = underTest.getRepoForSubId(SUB_2_ID)
+            val repoCarrierMerged = underTest.getRepoForSubId(SUB_CM_ID)
+
+            assertThat(underTest.getSubIdRepoCache())
+                .containsExactly(SUB_1_ID, repo1, SUB_2_ID, repo2, SUB_CM_ID, repoCarrierMerged)
+
+            // SUB_2 and SUB_CM disappear
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            assertThat(underTest.getSubIdRepoCache()).containsExactly(SUB_1_ID, repo1)
+        }
+
+    /** Regression test for b/261706421 */
+    @Test
+    @Ignore("b/333912012")
+    fun testConnectionsCache_clearMultipleSubscriptionsAtOnce_doesNotThrow() =
+        testScope.runTest {
+            collectLastValue(underTest.subscriptions)
+
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1, SUB_2))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            // Get repos to trigger caching
+            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
+            val repo2 = underTest.getRepoForSubId(SUB_2_ID)
+
+            assertThat(underTest.getSubIdRepoCache())
+                .containsExactly(SUB_1_ID, repo1, SUB_2_ID, repo2)
+
+            // All subscriptions disappear
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList).thenReturn(listOf())
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            assertThat(underTest.getSubIdRepoCache()).isEmpty()
+        }
+
+    @Test
+    fun getRepoForSubId_activeDataSubIdIsRequestedBeforeSubscriptionsUpdate() =
+        testScope.runTest {
+            var latestActiveRepo: MobileConnectionRepository? = null
+            collectLastValue(
+                underTest.activeMobileDataSubscriptionId.filterNotNull().onEach {
+                    latestActiveRepo = underTest.getRepoForSubId(it)
+                }
+            )
+
+            val latestSubscriptions by collectLastValue(underTest.subscriptions)
+
+            // Active data subscription id is sent, but no subscription change has been posted yet
+            getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
+                .onActiveDataSubscriptionIdChanged(SUB_2_ID)
+
+            // Subscriptions list is empty
+            assertThat(latestSubscriptions).isEmpty()
+            // getRepoForSubId does not throw
+            assertThat(latestActiveRepo).isNotNull()
+        }
+
+    @Test
+    fun testConnectionsCache_keepsReposCached() =
+        testScope.runTest {
+            // Collect subscriptions to start the job
+            collectLastValue(underTest.subscriptions)
+
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            val repo1_1 = underTest.getRepoForSubId(SUB_1_ID)
+
+            // All subscriptions disappear
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList).thenReturn(listOf())
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            // Sub1 comes back
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            val repo1_2 = underTest.getRepoForSubId(SUB_1_ID)
+
+            assertThat(repo1_1).isSameInstanceAs(repo1_2)
+        }
+
+    @Test
+    fun testConnectionsCache_doesNotDropReferencesThatHaveBeenRealized() =
+        testScope.runTest {
+            // Collect subscriptions to start the job
+            collectLastValue(underTest.subscriptions)
+
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_1))
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            // Client grabs a reference to a repository, but doesn't keep it around
+            underTest.getRepoForSubId(SUB_1_ID)
+
+            // All subscriptions disappear
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList).thenReturn(listOf())
+            getSubscriptionCallback().onSubscriptionsChanged()
+
+            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
+
+            assertThat(repo1).isNotNull()
+        }
+}
+
+abstract class MobileConnectionsRepositoryTest<T : MobileConnectionsRepository> : SysuiTestCase() {
     private val kosmos = testKosmos()
 
-    private val flags =
+    protected val flags =
         FakeFeatureFlagsClassic().also { it.set(Flags.ROAMING_INDICATOR_VIA_DISPLAY_INFO, true) }
 
     private lateinit var connectionFactory: MobileConnectionRepositoryImpl.Factory
     private lateinit var carrierMergedFactory: CarrierMergedConnectionRepository.Factory
-    private lateinit var fullConnectionFactory: FullMobileConnectionRepository.Factory
-    private lateinit var connectivityRepository: ConnectivityRepository
-    private lateinit var airplaneModeRepository: FakeAirplaneModeRepository
-    private lateinit var wifiRepository: WifiRepository
+    protected lateinit var fullConnectionFactory: FullMobileConnectionRepository.Factory
+    protected lateinit var connectivityRepository: ConnectivityRepository
+    protected lateinit var airplaneModeRepository: FakeAirplaneModeRepository
+    protected lateinit var wifiRepository: WifiRepository
     private lateinit var carrierConfigRepository: CarrierConfigRepository
 
-    @Mock private lateinit var connectivityManager: ConnectivityManager
-    @Mock private lateinit var subscriptionManager: SubscriptionManager
-    @Mock private lateinit var telephonyManager: TelephonyManager
-    @Mock private lateinit var logger: MobileInputLogger
-    private val summaryLogger = logcatTableLogBuffer(kosmos, "summaryLogger")
-    @Mock private lateinit var logBufferFactory: TableLogBufferFactory
-    @Mock private lateinit var updateMonitor: KeyguardUpdateMonitor
+    @Mock protected lateinit var connectivityManager: ConnectivityManager
+    @Mock protected lateinit var subscriptionManager: SubscriptionManager
+    @Mock protected lateinit var telephonyManager: TelephonyManager
+    @Mock protected lateinit var logger: MobileInputLogger
+    protected val summaryLogger = logcatTableLogBuffer(kosmos, "summaryLogger")
+    @Mock protected lateinit var logBufferFactory: TableLogBufferFactory
+    @Mock protected lateinit var updateMonitor: KeyguardUpdateMonitor
     @Mock private lateinit var wifiManager: WifiManager
     @Mock private lateinit var wifiPickerTrackerFactory: WifiPickerTrackerFactory
     @Mock private lateinit var wifiPickerTracker: WifiPickerTracker
     private val wifiTableLogBuffer = logcatTableLogBuffer(kosmos, "wifiTableLog")
 
-    private val mobileMappings = FakeMobileMappingsProxy()
-    private val subscriptionManagerProxy = FakeSubscriptionManagerProxy()
+    protected val mobileMappings = FakeMobileMappingsProxy()
+    protected val subscriptionManagerProxy = FakeSubscriptionManagerProxy()
     private val mainExecutor = FakeExecutor(FakeSystemClock())
     private val wifiLogBuffer = LogBuffer("wifi", maxSize = 100, logcatEchoTracker = mock())
     private val wifiPickerTrackerCallback =
@@ -141,10 +420,10 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
     private val vcnTransportInfo = VcnTransportInfo.Builder().build()
     private val userRepository = kosmos.fakeUserRepository
 
-    private val testDispatcher = StandardTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
+    protected val testDispatcher = StandardTestDispatcher()
+    protected val testScope = TestScope(testDispatcher)
 
-    private lateinit var underTest: MobileConnectionsRepositoryImpl
+    protected lateinit var underTest: T
 
     @Before
     fun setUp() {
@@ -209,14 +488,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
                 wifiTableLogBuffer,
             )
 
-        carrierConfigRepository =
-            CarrierConfigRepository(
-                fakeBroadcastDispatcher,
-                mock(),
-                mock(),
-                logger,
-                testScope.backgroundScope,
-            )
+        carrierConfigRepository = kosmos.carrierConfigRepository
 
         connectionFactory =
             MobileConnectionRepositoryImpl.Factory(
@@ -246,29 +518,12 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
                 carrierMergedRepoFactory = carrierMergedFactory,
             )
 
-        underTest =
-            MobileConnectionsRepositoryImpl(
-                connectivityRepository,
-                subscriptionManager,
-                subscriptionManagerProxy,
-                telephonyManager,
-                logger,
-                summaryLogger,
-                mobileMappings,
-                fakeBroadcastDispatcher,
-                context,
-                /* bgDispatcher = */ testDispatcher,
-                testScope.backgroundScope,
-                /* mainDispatcher = */ testDispatcher,
-                airplaneModeRepository,
-                wifiRepository,
-                fullConnectionFactory,
-                updateMonitor,
-                mock(),
-            )
+        underTest = recreateRepo()
 
         testScope.runCurrent()
     }
+
+    abstract fun recreateRepo(): T
 
     @Test
     fun testSubscriptions_initiallyEmpty() =
@@ -419,9 +674,17 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
     fun activeRepo_updatesWithActiveDataId() =
         testScope.runTest {
             val latest by collectLastValue(underTest.activeMobileDataRepository)
+            runCurrent()
 
-            getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
-                .onActiveDataSubscriptionIdChanged(SUB_2_ID)
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_2))
+            getSubscriptionCallbacks().forEach { it.onSubscriptionsChanged() }
+            runCurrent()
+
+            getTelephonyCallbacksForType<ActiveDataSubscriptionIdListener>().forEach {
+                it.onActiveDataSubscriptionIdChanged(SUB_2_ID)
+            }
+            runCurrent()
 
             assertThat(latest?.subId).isEqualTo(SUB_2_ID)
         }
@@ -430,6 +693,10 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
     fun activeRepo_nullIfActiveDataSubIdBecomesInvalid() =
         testScope.runTest {
             val latest by collectLastValue(underTest.activeMobileDataRepository)
+
+            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
+                .thenReturn(listOf(SUB_2))
+            getSubscriptionCallbacks().forEach { it.onSubscriptionsChanged() }
 
             getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
                 .onActiveDataSubscriptionIdChanged(SUB_2_ID)
@@ -446,60 +713,15 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
     /** Regression test for b/268146648. */
     fun activeSubIdIsSetBeforeSubscriptionsAreUpdated_doesNotThrow() =
         testScope.runTest {
-            val activeRepo by collectLastValue(underTest.activeMobileDataRepository)
+            val activeRepo = collectLastValue(underTest.activeMobileDataRepository)
             val subscriptions by collectLastValue(underTest.subscriptions)
 
-            getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
-                .onActiveDataSubscriptionIdChanged(SUB_2_ID)
+            getTelephonyCallbacksForType<ActiveDataSubscriptionIdListener>().forEach {
+                it.onActiveDataSubscriptionIdChanged(SUB_2_ID)
+            }
 
             assertThat(subscriptions).isEmpty()
-            assertThat(activeRepo).isNotNull()
-        }
-
-    @Test
-    fun getRepoForSubId_activeDataSubIdIsRequestedBeforeSubscriptionsUpdate() =
-        testScope.runTest {
-            var latestActiveRepo: MobileConnectionRepository? = null
-            collectLastValue(
-                underTest.activeMobileDataSubscriptionId.filterNotNull().onEach {
-                    latestActiveRepo = underTest.getRepoForSubId(it)
-                }
-            )
-
-            val latestSubscriptions by collectLastValue(underTest.subscriptions)
-
-            // Active data subscription id is sent, but no subscription change has been posted yet
-            getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
-                .onActiveDataSubscriptionIdChanged(SUB_2_ID)
-
-            // Subscriptions list is empty
-            assertThat(latestSubscriptions).isEmpty()
-            // getRepoForSubId does not throw
-            assertThat(latestActiveRepo).isNotNull()
-        }
-
-    @Test
-    fun activeDataSentBeforeSubscriptionList_subscriptionReusesActiveDataRepo() =
-        testScope.runTest {
-            val activeRepo by collectLastValue(underTest.activeMobileDataRepository)
-            collectLastValue(underTest.subscriptions)
-
-            // GIVEN active repo is updated before the subscription list updates
-            getTelephonyCallbackForType<ActiveDataSubscriptionIdListener>()
-                .onActiveDataSubscriptionIdChanged(SUB_2_ID)
-
-            assertThat(activeRepo).isNotNull()
-
-            // GIVEN the subscription list is then updated which includes the active data sub id
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_2))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            // WHEN requesting a connection repository for the subscription
-            val newRepo = underTest.getRepoForSubId(SUB_2_ID)
-
-            // THEN the newly request repo has been cached and reused
-            assertThat(activeRepo).isSameInstanceAs(newRepo)
+            activeRepo.invoke() // does not throw
         }
 
     @Test
@@ -510,6 +732,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
             whenever(subscriptionManager.completeActiveSubscriptionInfoList)
                 .thenReturn(listOf(SUB_1))
             getSubscriptionCallback().onSubscriptionsChanged()
+            runCurrent()
 
             val repo1 = underTest.getRepoForSubId(SUB_1_ID)
             val repo2 = underTest.getRepoForSubId(SUB_1_ID)
@@ -532,80 +755,6 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
             val repo2 = underTest.getRepoForSubId(SUB_CM_ID)
 
             assertThat(repo1).isSameInstanceAs(repo2)
-        }
-
-    @Test
-    fun testConnectionRepository_carrierMergedAndMobileSubs_usesCorrectRepos() =
-        testScope.runTest {
-            collectLastValue(underTest.subscriptions)
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
-            setWifiState(isCarrierMerged = true)
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1, SUB_CM))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            val carrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
-            val mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
-            assertThat(carrierMergedRepo.getIsCarrierMerged()).isTrue()
-            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
-        }
-
-    @Test
-    fun testSubscriptions_subNoLongerCarrierMerged_repoUpdates() =
-        testScope.runTest {
-            collectLastValue(underTest.subscriptions)
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
-            setWifiState(isCarrierMerged = true)
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1, SUB_CM))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            val carrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
-            var mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
-            assertThat(carrierMergedRepo.getIsCarrierMerged()).isTrue()
-            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
-
-            // WHEN the wifi network updates to be not carrier merged
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_ACTIVE)
-            setWifiState(isCarrierMerged = false)
-            runCurrent()
-
-            // THEN the repos update
-            val noLongerCarrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
-            mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
-            assertThat(noLongerCarrierMergedRepo.getIsCarrierMerged()).isFalse()
-            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
-        }
-
-    @Test
-    fun testSubscriptions_subBecomesCarrierMerged_repoUpdates() =
-        testScope.runTest {
-            collectLastValue(underTest.subscriptions)
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_ACTIVE)
-            setWifiState(isCarrierMerged = false)
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1, SUB_CM))
-            getSubscriptionCallback().onSubscriptionsChanged()
-            runCurrent()
-
-            val notYetCarrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
-            var mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
-            assertThat(notYetCarrierMergedRepo.getIsCarrierMerged()).isFalse()
-            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
-
-            // WHEN the wifi network updates to be carrier merged
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
-            setWifiState(isCarrierMerged = true)
-            runCurrent()
-
-            // THEN the repos update
-            val carrierMergedRepo = underTest.getRepoForSubId(SUB_CM_ID)
-            mobileRepo = underTest.getRepoForSubId(SUB_1_ID)
-            assertThat(carrierMergedRepo.getIsCarrierMerged()).isTrue()
-            assertThat(mobileRepo.getIsCarrierMerged()).isFalse()
         }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -683,139 +832,6 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
         }
 
     @Test
-    @Ignore("b/333912012")
-    fun testConnectionCache_clearsInvalidSubscriptions() =
-        testScope.runTest {
-            collectLastValue(underTest.subscriptions)
-
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1, SUB_2))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            // Get repos to trigger caching
-            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
-            val repo2 = underTest.getRepoForSubId(SUB_2_ID)
-
-            assertThat(underTest.getSubIdRepoCache())
-                .containsExactly(SUB_1_ID, repo1, SUB_2_ID, repo2)
-
-            // SUB_2 disappears
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            assertThat(underTest.getSubIdRepoCache()).containsExactly(SUB_1_ID, repo1)
-        }
-
-    @Test
-    @Ignore("b/333912012")
-    fun testConnectionCache_clearsInvalidSubscriptions_includingCarrierMerged() =
-        testScope.runTest {
-            collectLastValue(underTest.subscriptions)
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, WIFI_NETWORK_CAPS_CM)
-            setWifiState(isCarrierMerged = true)
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1, SUB_2, SUB_CM))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            // Get repos to trigger caching
-            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
-            val repo2 = underTest.getRepoForSubId(SUB_2_ID)
-            val repoCarrierMerged = underTest.getRepoForSubId(SUB_CM_ID)
-
-            assertThat(underTest.getSubIdRepoCache())
-                .containsExactly(SUB_1_ID, repo1, SUB_2_ID, repo2, SUB_CM_ID, repoCarrierMerged)
-
-            // SUB_2 and SUB_CM disappear
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            assertThat(underTest.getSubIdRepoCache()).containsExactly(SUB_1_ID, repo1)
-        }
-
-    /** Regression test for b/261706421 */
-    @Test
-    @Ignore("b/333912012")
-    fun testConnectionsCache_clearMultipleSubscriptionsAtOnce_doesNotThrow() =
-        testScope.runTest {
-            collectLastValue(underTest.subscriptions)
-
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1, SUB_2))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            // Get repos to trigger caching
-            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
-            val repo2 = underTest.getRepoForSubId(SUB_2_ID)
-
-            assertThat(underTest.getSubIdRepoCache())
-                .containsExactly(SUB_1_ID, repo1, SUB_2_ID, repo2)
-
-            // All subscriptions disappear
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList).thenReturn(listOf())
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            assertThat(underTest.getSubIdRepoCache()).isEmpty()
-        }
-
-    @Test
-    fun testConnectionsCache_keepsReposCached() =
-        testScope.runTest {
-            // Collect subscriptions to start the job
-            collectLastValue(underTest.subscriptions)
-
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            val repo1_1 = underTest.getRepoForSubId(SUB_1_ID)
-
-            // All subscriptions disappear
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList).thenReturn(listOf())
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            // Sub1 comes back
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            val repo1_2 = underTest.getRepoForSubId(SUB_1_ID)
-
-            assertThat(repo1_1).isSameInstanceAs(repo1_2)
-        }
-
-    @Test
-    fun testConnectionsCache_doesNotDropReferencesThatHaveBeenRealized() =
-        testScope.runTest {
-            // Collect subscriptions to start the job
-            collectLastValue(underTest.subscriptions)
-
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList)
-                .thenReturn(listOf(SUB_1))
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            // Client grabs a reference to a repository, but doesn't keep it around
-            underTest.getRepoForSubId(SUB_1_ID)
-
-            // All subscriptions disappear
-            whenever(subscriptionManager.completeActiveSubscriptionInfoList).thenReturn(listOf())
-            getSubscriptionCallback().onSubscriptionsChanged()
-
-            val repo1 = underTest.getRepoForSubId(SUB_1_ID)
-
-            assertThat(repo1).isNotNull()
-        }
-
-    @Test
-    fun testConnectionRepository_invalidSubId_doesNotThrow() =
-        testScope.runTest {
-            underTest.getRepoForSubId(SUB_1_ID)
-            // No exception
-        }
-
-    @Test
     fun connectionRepository_logBufferContainsSubIdInItsName() =
         testScope.runTest {
             collectLastValue(underTest.subscriptions)
@@ -823,6 +839,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
             whenever(subscriptionManager.completeActiveSubscriptionInfoList)
                 .thenReturn(listOf(SUB_1, SUB_2))
             getSubscriptionCallback().onSubscriptionsChanged()
+            runCurrent()
 
             // Get repos to trigger creation
             underTest.getRepoForSubId(SUB_1_ID)
@@ -836,7 +853,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.defaultDataSubId)
 
-            assertThat(latest).isEqualTo(INVALID_SUBSCRIPTION_ID)
+            assertThat(latest).isEqualTo(null)
 
             val intent2 =
                 Intent(TelephonyManager.ACTION_DEFAULT_DATA_SUBSCRIPTION_CHANGED)
@@ -857,15 +874,49 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
     fun defaultDataSubId_fetchesInitialValueOnStart() =
         testScope.runTest {
             subscriptionManagerProxy.defaultDataSubId = 2
+            underTest = recreateRepo()
+
             val latest by collectLastValue(underTest.defaultDataSubId)
 
             assertThat(latest).isEqualTo(2)
         }
 
+    private fun setDefaultDataSubId(subId: Int) {
+        subscriptionManagerProxy.defaultDataSubId = subId
+        fakeBroadcastDispatcher.sendIntentToMatchingReceiversOnly(
+            context,
+            Intent(TelephonyManager.ACTION_DEFAULT_DATA_SUBSCRIPTION_CHANGED).apply {
+                putExtra(PhoneConstants.SUBSCRIPTION_KEY, subId)
+            },
+        )
+    }
+
+    @Test
+    fun defaultDataSubId_filtersOutInvalidSubIds() =
+        testScope.runTest {
+            setDefaultDataSubId(INVALID_SUBSCRIPTION_ID)
+            val latest by collectLastValue(underTest.defaultDataSubId)
+
+            assertThat(latest).isNull()
+        }
+
+    @Test
+    fun defaultDataSubId_filtersOutInvalidSubIds_fromValidToInvalid() =
+        testScope.runTest {
+            setDefaultDataSubId(2)
+            val latest by collectLastValue(underTest.defaultDataSubId)
+
+            assertThat(latest).isEqualTo(2)
+
+            setDefaultDataSubId(INVALID_SUBSCRIPTION_ID)
+
+            assertThat(latest).isNull()
+        }
+
     @Test
     fun defaultDataSubId_fetchesCurrentOnRestart() =
         testScope.runTest {
-            subscriptionManagerProxy.defaultDataSubId = 2
+            setDefaultDataSubId(2)
             var latest: Int? = null
             var job = underTest.defaultDataSubId.onEach { latest = it }.launchIn(this)
             runCurrent()
@@ -878,7 +929,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
 
             latest = null
 
-            subscriptionManagerProxy.defaultDataSubId = 1
+            setDefaultDataSubId(1)
 
             job = underTest.defaultDataSubId.onEach { latest = it }.launchIn(this)
             runCurrent()
@@ -1265,26 +1316,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
 
             // The initial value will be fetched when the repo is created, so we need to override
             // the resources and then re-create the repo.
-            underTest =
-                MobileConnectionsRepositoryImpl(
-                    connectivityRepository,
-                    subscriptionManager,
-                    subscriptionManagerProxy,
-                    telephonyManager,
-                    logger,
-                    summaryLogger,
-                    mobileMappings,
-                    fakeBroadcastDispatcher,
-                    context,
-                    testDispatcher,
-                    testScope.backgroundScope,
-                    testDispatcher,
-                    airplaneModeRepository,
-                    wifiRepository,
-                    fullConnectionFactory,
-                    updateMonitor,
-                    mock(),
-                )
+            underTest = recreateRepo()
 
             val latest by collectLastValue(underTest.defaultDataSubRatConfig)
 
@@ -1412,6 +1444,12 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
             assertThat(underTest.getIsAnySimSecure()).isFalse()
 
             whenever(updateMonitor.isSimPinSecure).thenReturn(true)
+            org.mockito.kotlin
+                .argumentCaptor<KeyguardUpdateMonitorCallback>()
+                .apply { verify(updateMonitor, atLeast(0)).registerCallback(capture()) }
+                .allValues
+                .forEach { it.onSimStateChanged(0, 0, 0) }
+            runCurrent()
 
             assertThat(underTest.getIsAnySimSecure()).isTrue()
         }
@@ -1431,19 +1469,26 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
         testScope.runTest {
             whenever(telephonyManager.emergencyCallbackMode).thenReturn(true)
 
+            getTelephonyCallbacksForType<EmergencyCallbackModeListener>().forEach {
+                it.onCallbackModeStarted(
+                    TelephonyManager.EMERGENCY_CALLBACK_MODE_SMS,
+                    Duration.ZERO,
+                    0,
+                )
+            }
             runCurrent()
 
             assertThat(underTest.isInEcmMode()).isTrue()
         }
 
-    private fun TestScope.getDefaultNetworkCallback(): ConnectivityManager.NetworkCallback {
+    protected fun TestScope.getDefaultNetworkCallback(): ConnectivityManager.NetworkCallback {
         runCurrent()
         val callbackCaptor = argumentCaptor<ConnectivityManager.NetworkCallback>()
         verify(connectivityManager).registerDefaultNetworkCallback(callbackCaptor.capture())
         return callbackCaptor.value!!
     }
 
-    private fun setWifiState(isCarrierMerged: Boolean) {
+    protected fun setWifiState(isCarrierMerged: Boolean) {
         if (isCarrierMerged) {
             val mergedEntry =
                 mock<MergedCarrierEntry>().apply {
@@ -1465,7 +1510,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
         wifiPickerTrackerCallback.value.onWifiEntriesChanged()
     }
 
-    private fun TestScope.getSubscriptionCallback():
+    protected fun TestScope.getSubscriptionCallback():
         SubscriptionManager.OnSubscriptionsChangedListener {
         runCurrent()
         val callbackCaptor = argumentCaptor<SubscriptionManager.OnSubscriptionsChangedListener>()
@@ -1474,25 +1519,39 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
         return callbackCaptor.value!!
     }
 
-    private fun TestScope.getTelephonyCallbacks(): List<TelephonyCallback> {
+    protected fun TestScope.getSubscriptionCallbacks():
+        List<SubscriptionManager.OnSubscriptionsChangedListener> {
         runCurrent()
-        val callbackCaptor = argumentCaptor<TelephonyCallback>()
-        verify(telephonyManager).registerTelephonyCallback(any(), callbackCaptor.capture())
+        val callbackCaptor = argumentCaptor<SubscriptionManager.OnSubscriptionsChangedListener>()
+        verify(subscriptionManager, atLeast(0))
+            .addOnSubscriptionsChangedListener(any(), callbackCaptor.capture())
         return callbackCaptor.allValues
     }
 
-    private inline fun <reified T> TestScope.getTelephonyCallbackForType(): T {
-        val cbs = this.getTelephonyCallbacks().filterIsInstance<T>()
+    fun TestScope.getTelephonyCallbacks(): List<TelephonyCallback> {
+        runCurrent()
+        val callbackCaptor = argumentCaptor<TelephonyCallback>()
+        verify(telephonyManager, atLeast(0))
+            .registerTelephonyCallback(any(), callbackCaptor.capture())
+        return callbackCaptor.allValues
+    }
+
+    inline fun <reified T> TestScope.getTelephonyCallbackForType(): T {
+        val cbs = getTelephonyCallbacksForType<T>()
         assertThat(cbs.size).isEqualTo(1)
         return cbs[0]
     }
 
+    inline fun <reified T> TestScope.getTelephonyCallbacksForType(): List<T> {
+        return getTelephonyCallbacks().filterIsInstance<T>()
+    }
+
     companion object {
         // Subscription 1
-        private const val SUB_1_ID = 1
+        const val SUB_1_ID = 1
         private const val SUB_1_NAME = "Carrier $SUB_1_ID"
         private val GROUP_1 = ParcelUuid(UUID.randomUUID())
-        private val SUB_1 =
+        val SUB_1 =
             mock<SubscriptionInfo>().also {
                 whenever(it.subscriptionId).thenReturn(SUB_1_ID)
                 whenever(it.groupUuid).thenReturn(GROUP_1)
@@ -1508,10 +1567,10 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
             )
 
         // Subscription 2
-        private const val SUB_2_ID = 2
+        const val SUB_2_ID = 2
         private const val SUB_2_NAME = "Carrier $SUB_2_ID"
         private val GROUP_2 = ParcelUuid(UUID.randomUUID())
-        private val SUB_2 =
+        val SUB_2 =
             mock<SubscriptionInfo>().also {
                 whenever(it.subscriptionId).thenReturn(SUB_2_ID)
                 whenever(it.groupUuid).thenReturn(GROUP_2)
@@ -1536,6 +1595,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
                 whenever(it.subscriptionId).thenReturn(SUB_3_ID_GROUPED)
                 whenever(it.groupUuid).thenReturn(GROUP_ID_3_4)
                 whenever(it.profileClass).thenReturn(PROFILE_CLASS_UNSET)
+                whenever(it.carrierName).thenReturn("")
             }
 
         // Subscription 4
@@ -1545,17 +1605,18 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
                 whenever(it.subscriptionId).thenReturn(SUB_4_ID_GROUPED)
                 whenever(it.groupUuid).thenReturn(GROUP_ID_3_4)
                 whenever(it.profileClass).thenReturn(PROFILE_CLASS_UNSET)
+                whenever(it.carrierName).thenReturn("")
             }
 
         // Subs 3 and 4 are considered to be in the same group ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
         private const val NET_ID = 123
-        private val NETWORK = mock<Network>().apply { whenever(getNetId()).thenReturn(NET_ID) }
+        val NETWORK = mock<Network>().apply { whenever(getNetId()).thenReturn(NET_ID) }
 
         // Carrier merged subscription
-        private const val SUB_CM_ID = 5
+        const val SUB_CM_ID = 5
         private const val SUB_CM_NAME = "Carrier $SUB_CM_ID"
-        private val SUB_CM =
+        val SUB_CM =
             mock<SubscriptionInfo>().also {
                 whenever(it.subscriptionId).thenReturn(SUB_CM_ID)
                 whenever(it.carrierName).thenReturn(SUB_CM_NAME)
@@ -1574,7 +1635,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
                 whenever(this.isCarrierMerged).thenReturn(true)
                 whenever(this.subscriptionId).thenReturn(SUB_CM_ID)
             }
-        private val WIFI_NETWORK_CAPS_CM =
+        val WIFI_NETWORK_CAPS_CM =
             mock<NetworkCapabilities>().also {
                 whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
                 whenever(it.transportInfo).thenReturn(WIFI_INFO_CM)
@@ -1586,7 +1647,7 @@ class MobileConnectionsRepositoryTest : SysuiTestCase() {
                 whenever(this.isPrimary).thenReturn(true)
                 whenever(this.isCarrierMerged).thenReturn(false)
             }
-        private val WIFI_NETWORK_CAPS_ACTIVE =
+        val WIFI_NETWORK_CAPS_ACTIVE =
             mock<NetworkCapabilities>().also {
                 whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
                 whenever(it.transportInfo).thenReturn(WIFI_INFO_ACTIVE)

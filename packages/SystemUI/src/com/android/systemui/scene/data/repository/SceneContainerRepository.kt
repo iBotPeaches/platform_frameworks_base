@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.scene.data.repository
 
 import com.android.compose.animation.scene.ContentKey
@@ -29,7 +27,6 @@ import com.android.systemui.scene.shared.model.SceneContainerConfig
 import com.android.systemui.scene.shared.model.SceneDataSource
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -90,22 +87,15 @@ constructor(
                 initialValue = defaultTransitionState,
             )
 
-    fun changeScene(
-        toScene: SceneKey,
-        transitionKey: TransitionKey? = null,
-    ) {
-        dataSource.changeScene(
-            toScene = toScene,
-            transitionKey = transitionKey,
-        )
+    /** Number of currently active transition animations. */
+    val activeTransitionAnimationCount = MutableStateFlow(0)
+
+    fun changeScene(toScene: SceneKey, transitionKey: TransitionKey? = null) {
+        dataSource.changeScene(toScene = toScene, transitionKey = transitionKey)
     }
 
-    fun snapToScene(
-        toScene: SceneKey,
-    ) {
-        dataSource.snapToScene(
-            toScene = toScene,
-        )
+    fun snapToScene(toScene: SceneKey) {
+        dataSource.snapToScene(toScene = toScene)
     }
 
     /**
@@ -116,10 +106,7 @@ constructor(
      * [overlay] is already shown.
      */
     fun showOverlay(overlay: OverlayKey, transitionKey: TransitionKey? = null) {
-        dataSource.showOverlay(
-            overlay = overlay,
-            transitionKey = transitionKey,
-        )
+        dataSource.showOverlay(overlay = overlay, transitionKey = transitionKey)
     }
 
     /**
@@ -130,10 +117,7 @@ constructor(
      * if [overlay] is already hidden.
      */
     fun hideOverlay(overlay: OverlayKey, transitionKey: TransitionKey? = null) {
-        dataSource.hideOverlay(
-            overlay = overlay,
-            transitionKey = transitionKey,
-        )
+        dataSource.hideOverlay(overlay = overlay, transitionKey = transitionKey)
     }
 
     /**
@@ -143,11 +127,27 @@ constructor(
      * This throws if [from] is not currently shown or if [to] is already shown.
      */
     fun replaceOverlay(from: OverlayKey, to: OverlayKey, transitionKey: TransitionKey? = null) {
-        dataSource.replaceOverlay(
-            from = from,
-            to = to,
-            transitionKey = transitionKey,
-        )
+        dataSource.replaceOverlay(from = from, to = to, transitionKey = transitionKey)
+    }
+
+    /**
+     * Instantly shows [overlay].
+     *
+     * The change is instantaneous and not animated; it will be observable in the next frame and
+     * there will be no transition animation.
+     */
+    fun instantlyShowOverlay(overlay: OverlayKey) {
+        dataSource.instantlyShowOverlay(overlay)
+    }
+
+    /**
+     * Instantly hides [overlay].
+     *
+     * The change is instantaneous and not animated; it will be observable in the next frame and
+     * there will be no transition animation.
+     */
+    fun instantlyHideOverlay(overlay: OverlayKey) {
+        dataSource.instantlyHideOverlay(overlay)
     }
 
     /** Sets whether the container is visible. */
@@ -162,5 +162,13 @@ constructor(
      */
     fun setTransitionState(transitionState: Flow<ObservableTransitionState>?) {
         _transitionState.value = transitionState
+    }
+
+    /**
+     * If currently in a transition between contents, cancel that transition and go back to the
+     * pre-transition state.
+     */
+    fun freezeAndAnimateToCurrentState() {
+        dataSource.freezeAndAnimateToCurrentState()
     }
 }

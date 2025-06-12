@@ -19,6 +19,7 @@ package com.android.server.appop;
 import static android.app.ActivityManager.PROCESS_STATE_BOUND_FOREGROUND_SERVICE;
 import static android.app.ActivityManager.PROCESS_STATE_BOUND_TOP;
 import static android.app.ActivityManager.PROCESS_STATE_FOREGROUND_SERVICE;
+import static android.app.ActivityManager.PROCESS_STATE_NONEXISTENT;
 import static android.app.ActivityManager.PROCESS_STATE_PERSISTENT_UI;
 import static android.app.ActivityManager.PROCESS_STATE_RECEIVER;
 import static android.app.ActivityManager.PROCESS_STATE_TOP;
@@ -27,8 +28,10 @@ import static android.app.AppOpsManager.UID_STATE_BACKGROUND;
 import static android.app.AppOpsManager.UID_STATE_CACHED;
 import static android.app.AppOpsManager.UID_STATE_FOREGROUND;
 import static android.app.AppOpsManager.UID_STATE_FOREGROUND_SERVICE;
+import static android.app.AppOpsManager.UID_STATE_NONEXISTENT;
 import static android.app.AppOpsManager.UID_STATE_PERSISTENT;
 import static android.app.AppOpsManager.UID_STATE_TOP;
+import static android.permission.flags.Flags.finishRunningOpsForKilledPackages;
 
 import android.annotation.CallbackExecutor;
 import android.util.SparseArray;
@@ -66,6 +69,14 @@ interface AppOpsUidStateTracker {
 
         if (procState <= PROCESS_STATE_RECEIVER) {
             return UID_STATE_BACKGROUND;
+        }
+
+        if (finishRunningOpsForKilledPackages()) {
+            if (procState < PROCESS_STATE_NONEXISTENT) {
+                return UID_STATE_CACHED;
+            }
+
+            return UID_STATE_NONEXISTENT;
         }
 
         // UID_STATE_NONEXISTENT is deliberately excluded here
@@ -119,6 +130,8 @@ interface AppOpsUidStateTracker {
          *                               evaluated result may have changed.
          */
         void onUidStateChanged(int uid, int uidState, boolean foregroundModeMayChange);
+
+        void onUidProcessDeath(int uid);
     }
 
     void dumpUidState(PrintWriter pw, int uid, long nowElapsed);

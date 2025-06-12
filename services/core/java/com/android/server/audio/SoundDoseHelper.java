@@ -724,7 +724,7 @@ public class SoundDoseHelper {
                 int device = mAudioService.getDeviceForStream(AudioSystem.STREAM_MUSIC);
                 if (safeDevicesContains(device) && isStreamActive) {
                     scheduleMusicActiveCheck();
-                    int index = mAudioService.getVssVolumeForDevice(AudioSystem.STREAM_MUSIC,
+                    int index = mAudioService.getVolumeForDeviceIgnoreMute(AudioSystem.STREAM_MUSIC,
                             device);
                     if (index > safeMediaVolumeIndex(device)) {
                         // Approximate cumulative active music time

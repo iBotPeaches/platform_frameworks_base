@@ -236,9 +236,17 @@ public class ClientTransaction implements Parcelable {
      * 2. The transaction message is scheduled.
      * 3. The client calls {@link TransactionExecutor#execute(ClientTransaction)}, which executes
      *    all callbacks and necessary lifecycle transitions.
+     *
+     * @return {@link RemoteException} if the transaction failed.
      */
-    public void schedule() throws RemoteException {
-        mClient.scheduleTransaction(this);
+    @Nullable
+    public RemoteException schedule() {
+        try {
+            mClient.scheduleTransaction(this);
+            return null;
+        } catch (RemoteException e) {
+            return e;
+        }
     }
 
     // Parcelable implementation

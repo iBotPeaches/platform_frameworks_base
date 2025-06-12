@@ -21,6 +21,7 @@ package android.graphics;
  * specified by the app.
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class Compatibility {
     private Compatibility() {}
 

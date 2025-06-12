@@ -23,6 +23,8 @@ import com.android.systemui.statusbar.notification.collection.SortBySectionTimeF
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifSectioner
 import com.android.systemui.statusbar.notification.collection.provider.SectionStyleProvider
+import com.android.systemui.statusbar.notification.promoted.AutomaticPromotionCoordinator
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.notification.shared.NotificationMinimalism
 import com.android.systemui.statusbar.notification.shared.NotificationsLiveDataStoreRefactor
 import com.android.systemui.statusbar.notification.shared.PriorityPeopleSection
@@ -69,6 +71,7 @@ constructor(
     dismissibilityCoordinator: DismissibilityCoordinator,
     statsLoggerCoordinator: NotificationStatsLoggerCoordinator,
     bundleCoordinator: BundleCoordinator,
+    automaticPromotionCoordinator: AutomaticPromotionCoordinator,
 ) : NotifCoordinators {
 
     private val mCoreCoordinators: MutableList<CoreCoordinator> = ArrayList()
@@ -110,11 +113,13 @@ constructor(
         mCoordinators.add(preparationCoordinator)
         mCoordinators.add(remoteInputCoordinator)
         mCoordinators.add(dismissibilityCoordinator)
-
+        mCoordinators.add(automaticPromotionCoordinator)
+        if (NotificationBundleUi.isEnabled) {
+            mCoordinators.add(bundleCoordinator)
+        }
         if (NotificationsLiveDataStoreRefactor.isEnabled) {
             mCoordinators.add(statsLoggerCoordinator)
         }
-
         // Manually add Ordered Sections
         if (NotificationMinimalism.isEnabled) {
             mOrderedSections.add(lockScreenMinimalismCoordinator.topOngoingSectioner) // Top Ongoing
@@ -132,7 +137,7 @@ constructor(
             mOrderedSections.add(conversationCoordinator.peopleSilentSectioner) // People Silent
         }
         mOrderedSections.add(rankingCoordinator.alertingSectioner) // Alerting
-        if (NotificationClassificationFlag.isEnabled) {
+        if (NotificationClassificationFlag.isEnabled && !NotificationBundleUi.isEnabled) {
             mOrderedSections.add(bundleCoordinator.newsSectioner)
             mOrderedSections.add(bundleCoordinator.socialSectioner)
             mOrderedSections.add(bundleCoordinator.recsSectioner)

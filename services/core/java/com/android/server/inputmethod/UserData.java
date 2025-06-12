@@ -140,9 +140,9 @@ final class UserData {
     InputMethodManagerService.SessionState mEnabledSession;
 
     @GuardedBy("ImfLock.class")
-    @Nullable
-    SparseArray<InputMethodManagerService.AccessibilitySessionState>
-            mEnabledAccessibilitySessions = new SparseArray<>();
+    @NonNull
+    SparseArray<InputMethodManagerService.AccessibilitySessionState> mEnabledAccessibilitySessions =
+            new SparseArray<>();
 
     /**
      * A per-user cache of {@link InputMethodSettings#getEnabledInputMethodsStr()}.

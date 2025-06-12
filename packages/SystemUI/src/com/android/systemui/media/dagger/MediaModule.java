@@ -49,6 +49,7 @@ public interface MediaModule {
     String KEYGUARD = "media_keyguard";
     String DREAM = "dream";
     String COMMUNAL_HUB = "communal_Hub";
+    String POPUP = "popup";
 
     /** */
     @Provides
@@ -102,7 +103,26 @@ public interface MediaModule {
     @Provides
     @SysUISingleton
     @Named(COMMUNAL_HUB)
-    static MediaHost providesCommunalMediaHost(MediaHost.MediaHostStateHolder stateHolder,
+    static MediaHost providesCommunalMediaHost(
+            MediaHost.MediaHostStateHolder stateHolder,
+            MediaHierarchyManager hierarchyManager,
+            MediaDataManager dataManager,
+            MediaHostStatesManager statesManager,
+            MediaCarouselController carouselController,
+            MediaCarouselControllerLogger logger) {
+        return new MediaHost(
+                stateHolder,
+                hierarchyManager,
+                dataManager,
+                statesManager,
+                carouselController,
+                logger);
+    }
+
+    @Provides
+    @SysUISingleton
+    @Named(POPUP)
+    static MediaHost providesPopupMediaHost(MediaHost.MediaHostStateHolder stateHolder,
             MediaHierarchyManager hierarchyManager, MediaDataManager dataManager,
             MediaHostStatesManager statesManager, MediaCarouselController carouselController,
             MediaCarouselControllerLogger logger) {

@@ -596,7 +596,10 @@ public class ExternalStorageProvider extends FileSystemProvider {
     }
 
     @Override
-    protected void onDocIdDeleted(String docId) {
+    protected void onDocIdDeleted(String docId, boolean shouldRevokeUriPermission) {
+        if (!shouldRevokeUriPermission) {
+            return;
+        }
         Uri uri = DocumentsContract.buildDocumentUri(AUTHORITY, docId);
         getContext().revokeUriPermission(uri, ~0);
     }

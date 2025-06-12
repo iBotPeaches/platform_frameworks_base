@@ -24,15 +24,20 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
+import android.hardware.usb.IUsbManagerInternal;
 import android.hardware.usb.IUsbOperationInternal;
 import android.hardware.usb.flags.Flags;
 import android.hardware.usb.UsbPort;
@@ -70,7 +75,9 @@ public class UsbServiceTest {
     @Mock
     private IUsbOperationInternal mCallback;
 
-    private static final String TEST_PORT_ID = "123";
+    private static final String TEST_PORT_ID = "1";
+
+    private static final String TEST_PORT_ID_2 = "2";
 
     private static final int TEST_TRANSACTION_ID = 1;
 
@@ -84,7 +91,7 @@ public class UsbServiceTest {
 
     private UsbService mUsbService;
 
-    private UsbManagerInternal mUsbManagerInternal;
+    private IUsbManagerInternal mIUsbManagerInternal;
 
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
@@ -101,9 +108,9 @@ public class UsbServiceTest {
 
         mUsbService = new UsbService(mContext, mUsbPortManager, mUsbAlsaManager,
                 mUserManager, mUsbSettingsManager);
-        mUsbManagerInternal = LocalServices.getService(UsbManagerInternal.class);
-        assertWithMessage("LocalServices.getService(UsbManagerInternal.class)")
-            .that(mUsbManagerInternal).isNotNull();
+        mIUsbManagerInternal = LocalServices.getService(IUsbManagerInternal.class);
+        assertWithMessage("LocalServices.getService(IUsbManagerInternal.class)")
+            .that(mIUsbManagerInternal).isNotNull();
     }
 
     private void assertToggleUsbSuccessfully(int requester, boolean enable,
@@ -113,7 +120,7 @@ public class UsbServiceTest {
 
         verify(mUsbPortManager).enableUsbData(TEST_PORT_ID,
                 enable, TEST_TRANSACTION_ID, mCallback, null);
-        verifyZeroInteractions(mCallback);
+        verifyNoMoreInteractions(mCallback);
 
         clearInvocations(mUsbPortManager);
         clearInvocations(mCallback);
@@ -124,7 +131,7 @@ public class UsbServiceTest {
         assertFalse(mUsbService.enableUsbDataInternal(TEST_PORT_ID, enable,
                 TEST_TRANSACTION_ID, mCallback, requester, isInternalRequest));
 
-        verifyZeroInteractions(mUsbPortManager);
+        verifyNoMoreInteractions(mUsbPortManager);
         verify(mCallback).onOperationComplete(USB_OPERATION_ERROR_INTERNAL);
 
         clearInvocations(mUsbPortManager);
@@ -181,7 +188,7 @@ public class UsbServiceTest {
         mUsbService.enableUsbDataWhileDockedInternal(TEST_PORT_ID, TEST_TRANSACTION_ID,
                 mCallback, TEST_SECOND_CALLER_ID, false);
 
-        verifyZeroInteractions(mUsbPortManager);
+        verifyNoMoreInteractions(mUsbPortManager);
         verify(mCallback).onOperationComplete(USB_OPERATION_ERROR_INTERNAL);
     }
 
@@ -196,7 +203,7 @@ public class UsbServiceTest {
 
         verify(mUsbPortManager).enableUsbDataWhileDocked(TEST_PORT_ID, TEST_TRANSACTION_ID,
                         mCallback, null);
-        verifyZeroInteractions(mCallback);
+        verifyNoMoreInteractions(mCallback);
     }
 
     /**
@@ -255,30 +262,42 @@ public class UsbServiceTest {
         assertToggleUsbSuccessfully(TEST_INTERNAL_REQUESTER_REASON_1, true, false);
     }
 
-    /**
-     * Verify USB Manager internal calls mPortManager to get UsbPorts
-     */
     @Test
-    public void usbManagerInternal_getPorts_callsPortManager() {
-        when(mUsbPortManager.getPorts()).thenReturn(new UsbPort[] {});
-
-        UsbPort[] ports = mUsbManagerInternal.getPorts();
-
-        verify(mUsbPortManager).getPorts();
-        assertEquals(ports.length, 0);
+    public void usbManagerInternal_enableUsbDataSignal_successfullyEnabled() {
+        assertTrue(runInternalUsbDataSignalTest(true, true, true));
     }
 
     @Test
-    public void usbManagerInternal_enableUsbData_successfullyEnable() {
-        boolean desiredEnableState = true;
+    public void usbManagerInternal_enableUsbDataSignal_successfullyDisabled() {
+        assertTrue(runInternalUsbDataSignalTest(false, true, true));
+    }
 
-        assertTrue(mUsbManagerInternal.enableUsbData(TEST_PORT_ID, desiredEnableState,
-        TEST_TRANSACTION_ID, mCallback, TEST_INTERNAL_REQUESTER_REASON_1));
+    @Test
+    public void usbManagerInternal_enableUsbDataSignal_returnsFalseIfOnePortFails() {
+        assertFalse(runInternalUsbDataSignalTest(true, true, false));
+    }
 
-        verify(mUsbPortManager).enableUsbData(TEST_PORT_ID,
-                desiredEnableState, TEST_TRANSACTION_ID, mCallback, null);
-        verifyZeroInteractions(mCallback);
-        clearInvocations(mUsbPortManager);
-        clearInvocations(mCallback);
+    private boolean runInternalUsbDataSignalTest(boolean desiredEnableState, boolean portOneSuccess,
+        boolean portTwoSuccess) {
+        UsbPort port = mock(UsbPort.class);
+        UsbPort port2 = mock(UsbPort.class);
+        when(port.getId()).thenReturn(TEST_PORT_ID);
+        when(port2.getId()).thenReturn(TEST_PORT_ID_2);
+        when(mUsbPortManager.getPorts()).thenReturn(new UsbPort[] { port, port2 });
+        when(mUsbPortManager.enableUsbData(eq(TEST_PORT_ID),
+                eq(desiredEnableState), anyInt(), any(IUsbOperationInternal.class), isNull()))
+            .thenReturn(portOneSuccess);
+        when(mUsbPortManager.enableUsbData(eq(TEST_PORT_ID_2),
+                eq(desiredEnableState), anyInt(), any(IUsbOperationInternal.class), isNull()))
+            .thenReturn(portTwoSuccess);
+        try {
+            boolean result = mIUsbManagerInternal.enableUsbDataSignal(desiredEnableState,
+                        TEST_INTERNAL_REQUESTER_REASON_1);
+            clearInvocations(mUsbPortManager);
+            return result;
+        } catch(RemoteException e) {
+            fail("RemoteException thrown when calling enableUsbDataSignal");
+            return false;
+        }
     }
 }

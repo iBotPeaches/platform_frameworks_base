@@ -28,6 +28,7 @@ import android.text.TextUtils;
 /**
  * Used to change the background of lines where the span is attached to.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public interface LineBackgroundSpan extends ParagraphStyle
 {
     /**

@@ -119,7 +119,7 @@ public abstract class FileSystemProvider extends DocumentsProvider {
      * Callback indicating that the given document has been deleted or moved. This gives
      * the provider a hook to revoke the uri permissions.
      */
-    protected void onDocIdDeleted(String docId) {
+    protected void onDocIdDeleted(String docId, boolean shouldRevokeUriPermission) {
         // Default is no-op
     }
 
@@ -292,7 +292,6 @@ public abstract class FileSystemProvider extends DocumentsProvider {
 
         final String afterDocId = getDocIdForFile(after);
         onDocIdChanged(docId);
-        onDocIdDeleted(docId);
         onDocIdChanged(afterDocId);
 
         final File afterVisibleFile = getFileForDocId(afterDocId, true);
@@ -301,6 +300,10 @@ public abstract class FileSystemProvider extends DocumentsProvider {
         updateMediaStore(getContext(), afterVisibleFile);
 
         if (!TextUtils.equals(docId, afterDocId)) {
+            // DocumentsProvider handles the revoking / granting uri permission for the docId and
+            // the afterDocId in the renameDocument case. Don't need to call revokeUriPermission
+            // for the docId here.
+            onDocIdDeleted(docId, /* shouldRevokeUriPermission */ false);
             return afterDocId;
         } else {
             return null;
@@ -324,7 +327,7 @@ public abstract class FileSystemProvider extends DocumentsProvider {
 
         final String docId = getDocIdForFile(after);
         onDocIdChanged(sourceDocumentId);
-        onDocIdDeleted(sourceDocumentId);
+        onDocIdDeleted(sourceDocumentId, /* shouldRevokeUriPermission */ true);
         onDocIdChanged(docId);
         // update the database
         updateMediaStore(getContext(), visibleFileBefore);
@@ -362,7 +365,7 @@ public abstract class FileSystemProvider extends DocumentsProvider {
         }
 
         onDocIdChanged(docId);
-        onDocIdDeleted(docId);
+        onDocIdDeleted(docId, /* shouldRevokeUriPermission */ true);
         updateMediaStore(getContext(), visibleFile);
     }
 

@@ -22,6 +22,7 @@ import android.annotation.Nullable;
  * This class stores an RFC 822-like name, address, and comment,
  * and provides methods to convert them to quoted strings.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Rfc822Token {
     @Nullable
     private String mName, mAddress, mComment;

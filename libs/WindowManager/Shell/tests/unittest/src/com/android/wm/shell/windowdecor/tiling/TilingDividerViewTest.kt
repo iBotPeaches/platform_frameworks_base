@@ -60,7 +60,7 @@ class TilingDividerViewTest : ShellTestCase() {
         tilingDividerView =
             LayoutInflater.from(mContext).inflate(R.layout.tiling_split_divider, /* root= */ null)
                 as TilingDividerView
-        tilingDividerView.setup(dividerMoveCallbackMock, DIVIDER_BOUNDS, HANDLE_SIZE)
+        tilingDividerView.setup(dividerMoveCallbackMock, DIVIDER_BOUNDS, HANDLE_SIZE, true)
         tilingDividerView.handleY = 0..1500
     }
 

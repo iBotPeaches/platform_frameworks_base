@@ -19,6 +19,10 @@ package com.android.systemui.statusbar.notification.row.icon
 import android.os.userManager
 import com.android.systemui.dump.dumpManager
 import com.android.systemui.kosmos.Kosmos
+import org.mockito.kotlin.mock
+
+val Kosmos.mockNotificationIconStyleProvider by
+    Kosmos.Fixture { mock<NotificationIconStyleProvider>() }
 
 val Kosmos.notificationIconStyleProvider by
     Kosmos.Fixture { NotificationIconStyleProviderImpl(userManager, dumpManager) }

@@ -55,6 +55,27 @@
                     android:layout_gravity="center"
                     android:scaleType="centerInside"/>
 
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/progress_indicator"
+                    style="@style/Widget.Material3.CircularProgressIndicator"
+                    android:layout_width="@dimen/settingslib_expressive_space_medium4"
+                    android:layout_height="@dimen/settingslib_expressive_space_medium4"
+                    android:layout_gravity="center"
+                    android:scaleType="centerInside"
+                    android:indeterminate="false"
+                    android:max="100"
+                    android:progress="0"
+                    android:visibility="gone" />
+
+                <com.google.android.material.loadingindicator.LoadingIndicator
+                    android:id="@+id/loading_indicator"
+                    style="@style/Widget.Material3.LoadingIndicator"
+                    android:layout_width="@dimen/settingslib_expressive_space_medium4"
+                    android:layout_height="@dimen/settingslib_expressive_space_medium4"
+                    android:layout_gravity="center"
+                    android:scaleType="centerInside"
+                    android:visibility="gone" />
+
             </FrameLayout>
 
             <LinearLayout
@@ -72,7 +93,7 @@
                     android:layout_height="wrap_content"
                     android:hyphenationFrequency="normalFast"
                     android:lineBreakWordStyle="phrase"
-                    android:textAppearance="@style/SettingsLibTextAppearance.Emphasized.Title.Large"/>
+                    android:textAppearance="@style/TextAppearance.SettingsLib.TitleLarge.Emphasized"/>
 
                 <TextView
                     android:id="@android:id/summary"
@@ -81,7 +102,7 @@
                     android:hyphenationFrequency="normalFast"
                     android:lineBreakWordStyle="phrase"
                     android:maxLines="3"
-                    android:textAppearance="@style/SettingsLibTextAppearance.Primary.Body.Medium"/>
+                    android:textAppearance="@style/TextAppearance.SettingsLib.BodyMedium"/>
             </LinearLayout>
         </LinearLayout>
 

@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Activo (só o esquerdo)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Activo (só o dereito)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Activos (o esquerdo e o dereito)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Non se puido actualizar o ambiente"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Activo (só contido multimedia). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Activo (só contido multimedia). Esquerdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> de batería. Dereito: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Dispositivo convidado. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Dispositivo convidado. Esquerdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> de batería. Dereito: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Dispositivo convidado (só contido multimedia). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Dispositivo convidado (só contido multimedia). Esquerdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> de batería. Dereito: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Conectado (compatible con audio compartido). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Conectado (compatible con audio compartido). Esquerdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> de batería. Dereito: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Conectado (compatible con audio compartido). Esquerdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Conectado (compatible con audio compartido). Dereito: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Conectado (compatible con audio compartido)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Dispositivo convidado (compatible con audio compartido). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Dispositivo convidado (compatible con audio compartido). Esquerdo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> de batería. Dereito: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> de batería."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Dispositivo convidado (compatible con audio compartido)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Activo (só contido multimedia)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Dispositivo convidado"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Dispositivo convidado (só contido multimedia)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Compatible con audio compartido"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Dispositivo convidado. Compatible con audio compartido"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Activo (só contido multimedia), só esquerdo"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Activo (só contido multimedia), só dereito"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Activo (só contido multimedia), esquerdo e dereito"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Procesamento acelerado mediante hardware"</string>
     <string name="media_category" msgid="8122076702526144053">"Multimedia"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Supervisión"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Xestión de ventás"</string>
     <string name="strict_mode" msgid="889864762140862437">"Modo estrito activado"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"A pantalla ilumínase se as aplicacións tardan moito no proceso principal"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Localización do punteiro"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Escala animación-transición"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Escala duración animador"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simular pantallas secundarias"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Posición do panel despregable na pantalla"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplicacións"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Non manter actividades"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Destrúe as actividades cando o usuario non as usa"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Implementación de WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Definir implementación de WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Esta opción xa non é válida. Téntao de novo."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"DevTools de WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Non se atopou o paquete de WebView."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Non se puido activar DevTools."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Modo de cor da imaxe"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Utiliza sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Desactivado"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Carga rápida"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Opción controlada polo administrador"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Baixo o control de opcións restrinxidas"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Non dispoñible durante as chamadas"</string>
     <string name="disabled" msgid="8017887509554714950">"Desactivada"</string>
+    <string name="enabled" msgid="3997122818554810678">"Opción activada"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Permiso concedido"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Permiso non concedido"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instalar aplicacións descoñecidas"</string>
@@ -533,11 +551,11 @@
   </string-array>
     <string name="charge_length_format" msgid="6941645744588690932">"Hai <xliff:g id="ID_1">%1$s</xliff:g>"</string>
     <string name="remaining_length_format" msgid="4310625772926171089">"Queda: <xliff:g id="ID_1">%1$s</xliff:g>"</string>
-    <string name="screen_zoom_summary_small" msgid="6050633151263074260">"Pequeno"</string>
+    <string name="screen_zoom_summary_small" msgid="6050633151263074260">"Tamaño pequeno"</string>
     <string name="screen_zoom_summary_default" msgid="1888865694033865408">"Predeterminado"</string>
-    <string name="screen_zoom_summary_large" msgid="4706951482598978984">"Grande"</string>
-    <string name="screen_zoom_summary_very_large" msgid="7317423942896999029">"Máis grande"</string>
-    <string name="screen_zoom_summary_extremely_large" msgid="1438045624562358554">"O máis grande"</string>
+    <string name="screen_zoom_summary_large" msgid="4706951482598978984">"Tamaño grande"</string>
+    <string name="screen_zoom_summary_very_large" msgid="7317423942896999029">"Tamaño máis grande"</string>
+    <string name="screen_zoom_summary_extremely_large" msgid="1438045624562358554">"Tamaño máximo"</string>
     <string name="screen_zoom_summary_custom" msgid="3468154096832912210">"Personalizado (<xliff:g id="DENSITYDPI">%d</xliff:g>)"</string>
     <string name="content_description_menu_button" msgid="6254844309171779931">"Menú"</string>
     <string name="retail_demo_reset_message" msgid="5392824901108195463">"Insire contrasinal para restablec. en demostración"</string>
@@ -591,9 +609,9 @@
     <string name="media_transfer_external_device_name" msgid="2588672258721846418">"Dispositivo externo"</string>
     <string name="media_transfer_default_device_name" msgid="4315604017399871828">"Dispositivo conectado"</string>
     <string name="media_transfer_this_phone" msgid="7194341457812151531">"Este teléfono"</string>
-    <string name="media_transfer_digital_line_name" msgid="312091711951124301">"S/PDIF"</string>
-    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Analóxica"</string>
-    <string name="media_transfer_aux_line_name" msgid="894135835967856689">"AUX"</string>
+    <string name="media_transfer_digital_line_name" msgid="312091711951124301">"Conexión S/PDIF"</string>
+    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Conexión analóxica"</string>
+    <string name="media_transfer_aux_line_name" msgid="894135835967856689">"Conexión AUX"</string>
     <string name="media_output_status_unknown_error" msgid="5098565887497902222">"Non se pode reproducir contido neste dispositivo"</string>
     <string name="media_output_status_require_premium" msgid="8411255800047014822">"Cambia a conta a un plan superior para facer a modificación"</string>
     <string name="media_output_status_not_support_downloads" msgid="4523828729240373315">"Non se poden reproducir as descargas neste dispositivo"</string>
@@ -607,8 +625,9 @@
     <string name="tv_media_transfer_arc_subtitle" msgid="1040017851325069082">"Conectado mediante ARC"</string>
     <string name="tv_media_transfer_earc_subtitle" msgid="645191413103303077">"Conectado mediante eARC"</string>
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Altofalante integrado"</string>
-    <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Audio da televisión"</string>
+    <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Saída de audio da televisión"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Produciuse un problema coa conexión. Apaga e acende o dispositivo."</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Non se puido establecer a conexión"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Dispositivo de audio con cable"</string>
     <string name="help_label" msgid="3528360748637781274">"Axuda e comentarios"</string>
     <string name="storage_category" msgid="2287342585424631813">"Almacenamento"</string>

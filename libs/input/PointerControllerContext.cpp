@@ -15,6 +15,7 @@
  */
 
 #include "PointerControllerContext.h"
+
 #include "PointerController.h"
 
 namespace {
@@ -184,7 +185,7 @@ void PointerControllerContext::PointerAnimator::handleVsyncEvents() {
     DisplayEventReceiver::Event buf[EVENT_BUFFER_SIZE];
     while ((n = mDisplayEventReceiver.getEvents(buf, EVENT_BUFFER_SIZE)) > 0) {
         for (size_t i = 0; i < static_cast<size_t>(n); ++i) {
-            if (buf[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
+            if (buf[i].header.type == DisplayEventType::DISPLAY_EVENT_VSYNC) {
                 timestamp = buf[i].header.timestamp;
                 gotVsync = true;
             }

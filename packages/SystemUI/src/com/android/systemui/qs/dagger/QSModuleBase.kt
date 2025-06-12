@@ -24,7 +24,7 @@ import com.android.systemui.qs.external.QSExternalModule
 import com.android.systemui.qs.panels.dagger.PanelsModule
 import com.android.systemui.qs.pipeline.dagger.QSPipelineModule
 import com.android.systemui.qs.tileimpl.QSTileImpl
-import com.android.systemui.qs.tiles.di.QSTilesModule
+import com.android.systemui.qs.tiles.base.ui.model.QSTilesModule
 import com.android.systemui.qs.ui.adapter.QSSceneAdapter
 import com.android.systemui.qs.ui.adapter.QSSceneAdapterImpl
 import dagger.Binds

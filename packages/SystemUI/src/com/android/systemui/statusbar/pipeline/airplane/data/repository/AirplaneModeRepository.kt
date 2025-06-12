@@ -19,9 +19,8 @@ package com.android.systemui.statusbar.pipeline.airplane.data.repository
 import android.net.ConnectivityManager
 import android.os.Handler
 import android.provider.Settings.Global
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.log.table.logDiffsForTable
@@ -65,7 +64,7 @@ constructor(
     @Background private val backgroundContext: CoroutineContext,
     private val globalSettings: GlobalSettings,
     @AirplaneTableLog logger: TableLogBuffer,
-    @Application scope: CoroutineScope,
+    @Background scope: CoroutineScope,
 ) : AirplaneModeRepository {
     // TODO(b/254848912): Replace this with a generic SettingObserver coroutine once we have it.
     override val isAirplaneMode: StateFlow<Boolean> =
@@ -82,12 +81,7 @@ constructor(
                 awaitClose { observer.isListening = false }
             }
             .distinctUntilChanged()
-            .logDiffsForTable(
-                logger,
-                columnPrefix = "",
-                columnName = "isAirplaneMode",
-                initialValue = false
-            )
+            .logDiffsForTable(logger, columnName = "isAirplaneMode", initialValue = false)
             .stateIn(
                 scope,
                 started = SharingStarted.WhileSubscribed(),

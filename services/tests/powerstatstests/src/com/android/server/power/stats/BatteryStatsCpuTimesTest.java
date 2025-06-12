@@ -40,7 +40,6 @@ import android.os.BatteryStats;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.SparseArray;
 import android.util.SparseLongArray;
 import android.view.Display;
@@ -57,7 +56,6 @@ import com.android.internal.os.KernelCpuUidTimeReader.KernelCpuUidUserSysTimeRea
 import com.android.internal.util.ArrayUtils;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -88,11 +86,6 @@ import java.util.Arrays;
 @RunWith(AndroidJUnit4.class)
 @SuppressWarnings("SynchronizeOnNonFinalField")
 public class BatteryStatsCpuTimesTest {
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     @Mock
     KernelCpuUidUserSysTimeReader mCpuUidUserSysTimeReader;
     @Mock

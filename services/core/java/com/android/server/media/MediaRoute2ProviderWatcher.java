@@ -32,6 +32,7 @@ import android.content.pm.ServiceInfo;
 import android.media.MediaRoute2ProviderService;
 import android.os.Handler;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 
@@ -140,8 +141,7 @@ final class MediaRoute2ProviderWatcher {
                         isSelfScanOnlyProvider |=
                                 MediaRoute2ProviderService.CATEGORY_SELF_SCAN_ONLY.equals(category);
                         supportsSystemMediaRouting |=
-                                MediaRoute2ProviderService.SERVICE_INTERFACE_SYSTEM_MEDIA.equals(
-                                        category);
+                                MediaRoute2ProviderService.CATEGORY_SYSTEM_MEDIA.equals(category);
                     }
                 }
                 int sourceIndex = findProvider(serviceInfo.packageName, serviceInfo.name);
@@ -162,8 +162,14 @@ final class MediaRoute2ProviderWatcher {
                                     mUserId);
                     Slog.i(
                             TAG,
-                            "Enabling proxy for MediaRoute2ProviderService: "
-                                    + proxy.mComponentName);
+                            TextUtils.formatSimple(
+                                    "Enabling proxy for MediaRoute2ProviderService: %s"
+                                        + " (isSelfScan=%b, supportsSystemMediaRouting=%b,"
+                                        + " userId=%d)",
+                                    proxy.mComponentName,
+                                    isSelfScanOnlyProvider,
+                                    supportsSystemMediaRouting,
+                                    mUserId));
                     proxy.start(/* rebindIfDisconnected= */ false);
                     mProxies.add(targetIndex++, proxy);
                     mCallback.onAddProviderService(proxy);

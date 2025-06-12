@@ -34,7 +34,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.attention.AttentionManagerInternal.AttentionCallbackInternal;
 import android.attention.AttentionManagerInternal.ProximityUpdateCallbackInternal;
@@ -196,7 +195,7 @@ public class AttentionManagerServiceTest {
     @Test
     public void testUnregisterProximityUpdates_noCrashWhenNoCallbackIsRegistered() {
         mSpyAttentionManager.onStopProximityUpdates(mMockProximityUpdateCallbackInternal);
-        verifyZeroInteractions(mMockProximityUpdateCallbackInternal);
+        verifyNoMoreInteractions(mMockProximityUpdateCallbackInternal);
     }
 
     @Test

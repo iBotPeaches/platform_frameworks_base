@@ -20,6 +20,8 @@ import static android.media.codec.Flags.FLAG_CODEC_AVAILABILITY;
 import static android.media.codec.Flags.FLAG_NULL_OUTPUT_SURFACE;
 import static android.media.codec.Flags.FLAG_REGION_OF_INTEREST;
 import static android.media.codec.Flags.FLAG_SUBSESSION_METRICS;
+import static android.media.tv.flags.Flags.applyPictureProfiles;
+import static android.media.tv.flags.Flags.mediaQualityFw;
 
 import static com.android.media.codec.flags.Flags.FLAG_LARGE_AUDIO_FRAME;
 
@@ -37,6 +39,8 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.HardwareBuffer;
 import android.media.MediaCodecInfo.CodecCapabilities;
+import android.media.quality.PictureProfile;
+import android.media.quality.PictureProfileHandle;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -46,6 +50,7 @@ import android.os.Message;
 import android.os.PersistableBundle;
 import android.os.Trace;
 import android.view.Surface;
+import android.util.Log;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
@@ -1652,6 +1657,7 @@ import java.util.function.Supplier;
  </table>
  */
 final public class MediaCodec {
+    private static final String TAG = "MediaCodec";
 
     /**
      * Per buffer metadata includes an offset and size specifying
@@ -2492,6 +2498,49 @@ final public class MediaCodec {
                     }
                     keys[i] = "audio-hw-sync";
                     values[i] = AudioSystem.getAudioHwSyncForSession(sessionId);
+                } else if (applyPictureProfiles() && mediaQualityFw()
+                        && entry.getKey().equals(MediaFormat.KEY_PICTURE_PROFILE_INSTANCE)) {
+                    PictureProfile pictureProfile = null;
+                    try {
+                        pictureProfile = (PictureProfile) entry.getValue();
+                    } catch (ClassCastException e) {
+                        throw new IllegalArgumentException(
+                                "Cannot cast the instance parameter to PictureProfile!");
+                    } catch (Exception e) {
+                        Log.e(TAG, Log.getStackTraceString(e));
+                        throw new IllegalArgumentException("Unexpected exception when casting the "
+                                + "instance parameter to PictureProfile!");
+                    }
+                    if (pictureProfile == null) {
+                        throw new IllegalArgumentException(
+                                "Picture profile instance parameter is null!");
+                    }
+                    PictureProfileHandle handle = pictureProfile.getHandle();
+                    if (handle != PictureProfileHandle.NONE) {
+                        keys[i] = PARAMETER_KEY_PICTURE_PROFILE_HANDLE;
+                        values[i] = Long.valueOf(handle.getId());
+                    }
+                } else if (applyPictureProfiles() && mediaQualityFw()
+                        && entry.getKey().equals(MediaFormat.KEY_PICTURE_PROFILE_ID)) {
+                    String pictureProfileId = null;
+                    try {
+                        pictureProfileId = (String) entry.getValue();
+                    } catch (ClassCastException e) {
+                        throw new IllegalArgumentException(
+                                "Cannot cast the KEY_PICTURE_PROFILE_ID parameter to String!");
+                    } catch (Exception e) {
+                        Log.e(TAG, Log.getStackTraceString(e));
+                        throw new IllegalArgumentException("Unexpected exception when casting the "
+                                + "KEY_PICTURE_PROFILE_ID parameter!");
+                    }
+                    if (pictureProfileId == null) {
+                        throw new IllegalArgumentException(
+                                "KEY_PICTURE_PROFILE_ID parameter is null!");
+                    }
+                    if (!pictureProfileId.isEmpty()) {
+                        keys[i] = MediaFormat.KEY_PICTURE_PROFILE_ID;
+                        values[i] = pictureProfileId;
+                    }
                 } else {
                     keys[i] = entry.getKey();
                     values[i] = entry.getValue();
@@ -3884,7 +3933,9 @@ final public class MediaCodec {
 
         /**
          * Set a hardware graphic buffer to this queue request. Exactly one buffer must
-         * be set for a queue request before calling {@link #queue}.
+         * be set for a queue request before calling {@link #queue}. Ownership of the
+         * hardware buffer is not transferred to this queue request, nor will it be transferred
+         * to the codec once {@link #queue} is called.
          * <p>
          * Note: buffers should have format {@link HardwareBuffer#YCBCR_420_888},
          * a single layer, and an appropriate usage ({@link HardwareBuffer#USAGE_CPU_READ_OFTEN}
@@ -5387,6 +5438,9 @@ final public class MediaCodec {
      * @param params The bundle of parameters to set.
      * @throws IllegalStateException if in the Released state.
      */
+
+    private static final String PARAMETER_KEY_PICTURE_PROFILE_HANDLE = "picture-profile-handle";
+
     public final void setParameters(@Nullable Bundle params) {
         if (params == null) {
             return;
@@ -5400,19 +5454,61 @@ final public class MediaCodec {
             if (key.equals(MediaFormat.KEY_AUDIO_SESSION_ID)) {
                 int sessionId = 0;
                 try {
-                    sessionId = (Integer)params.get(key);
+                    sessionId = (Integer) params.get(key);
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Wrong Session ID Parameter!");
                 }
                 keys[i] = "audio-hw-sync";
                 values[i] = AudioSystem.getAudioHwSyncForSession(sessionId);
+            } else if (applyPictureProfiles() && mediaQualityFw()
+                    && key.equals(MediaFormat.KEY_PICTURE_PROFILE_INSTANCE)) {
+                PictureProfile pictureProfile = null;
+                try {
+                    pictureProfile = (PictureProfile) params.get(key);
+                } catch (ClassCastException e) {
+                    throw new IllegalArgumentException(
+                            "Cannot cast the instance parameter to PictureProfile!");
+                } catch (Exception e) {
+                    Log.e(TAG, Log.getStackTraceString(e));
+                    throw new IllegalArgumentException("Unexpected exception when casting the "
+                                                       + "instance parameter to PictureProfile!");
+                }
+                if (pictureProfile == null) {
+                    throw new IllegalArgumentException(
+                            "Picture profile instance parameter is null!");
+                }
+                PictureProfileHandle handle = pictureProfile.getHandle();
+                if (handle != PictureProfileHandle.NONE) {
+                    keys[i] = PARAMETER_KEY_PICTURE_PROFILE_HANDLE;
+                    values[i] = Long.valueOf(handle.getId());
+                }
+            } else if (applyPictureProfiles() && mediaQualityFw()
+                    && key.equals(MediaFormat.KEY_PICTURE_PROFILE_ID)) {
+                String pictureProfileId = null;
+                try {
+                    pictureProfileId = (String) params.get(key);
+                } catch (ClassCastException e) {
+                    throw new IllegalArgumentException(
+                            "Cannot cast the KEY_PICTURE_PROFILE_ID parameter to String!");
+                } catch (Exception e) {
+                    Log.e(TAG, Log.getStackTraceString(e));
+                    throw new IllegalArgumentException("Unexpected exception when casting the "
+                            + "KEY_PICTURE_PROFILE_ID parameter!");
+                }
+                if (pictureProfileId == null) {
+                    throw new IllegalArgumentException("KEY_PICTURE_PROFILE_ID parameter is null!");
+                }
+                if (!pictureProfileId.isEmpty()) {
+                    keys[i] = MediaFormat.KEY_PICTURE_PROFILE_ID;
+                    values[i] = pictureProfileId;
+                }
             } else {
                 keys[i] = key;
                 Object value = params.get(key);
 
                 // Bundle's byte array is a byte[], JNI layer only takes ByteBuffer
                 if (value instanceof byte[]) {
-                    values[i] = ByteBuffer.wrap((byte[])value);
+                    values[i] = ByteBuffer.wrap((byte[]) value);
                 } else {
                     values[i] = value;
                 }
@@ -5424,10 +5520,9 @@ final public class MediaCodec {
     }
 
     private void logAndRun(String message, Runnable r) {
-        final String TAG = "MediaCodec";
-        android.util.Log.d(TAG, "enter: " + message);
+        Log.d(TAG, "enter: " + message);
         r.run();
-        android.util.Log.d(TAG, "exit : " + message);
+        Log.d(TAG, "exit : " + message);
     }
 
     /**

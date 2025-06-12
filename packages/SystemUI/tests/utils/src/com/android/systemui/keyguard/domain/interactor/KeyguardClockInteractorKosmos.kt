@@ -20,20 +20,24 @@ import com.android.systemui.keyguard.data.repository.keyguardClockRepository
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.media.controls.domain.pipeline.interactor.mediaCarouselInteractor
-import com.android.systemui.shade.domain.interactor.shadeInteractor
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.activeNotificationsInteractor
+import com.android.systemui.statusbar.notification.promoted.domain.interactor.aodPromotedNotificationInteractor
 import com.android.systemui.statusbar.notification.stack.domain.interactor.headsUpNotificationInteractor
+import com.android.systemui.wallpapers.domain.interactor.wallpaperFocalAreaInteractor
 
 val Kosmos.keyguardClockInteractor by
     Kosmos.Fixture {
         KeyguardClockInteractor(
             mediaCarouselInteractor = mediaCarouselInteractor,
             activeNotificationsInteractor = activeNotificationsInteractor,
-            shadeInteractor = shadeInteractor,
+            aodPromotedNotificationInteractor = aodPromotedNotificationInteractor,
+            shadeModeInteractor = shadeModeInteractor,
             keyguardInteractor = keyguardInteractor,
             keyguardTransitionInteractor = keyguardTransitionInteractor,
             headsUpNotificationInteractor = headsUpNotificationInteractor,
             applicationScope = applicationCoroutineScope,
             keyguardClockRepository = keyguardClockRepository,
+            wallpaperFocalAreaInteractor = wallpaperFocalAreaInteractor,
         )
     }

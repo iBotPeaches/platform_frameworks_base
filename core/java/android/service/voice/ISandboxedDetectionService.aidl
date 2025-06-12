@@ -65,11 +65,15 @@ oneway interface ISandboxedDetectionService {
     void updateRecognitionServiceManager(
         in IRecognitionServiceManager recognitionServiceManager);
 
+    interface IPingMe {
+        void onPing();
+    }
+
     /**
      * Simply requests the service to trigger the callback, so that the system can check its
      * identity.
      */
-    void ping(in IRemoteCallback callback);
+    void ping(in IPingMe callback);
 
     void stopDetection();
 

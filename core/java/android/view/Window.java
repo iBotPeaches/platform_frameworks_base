@@ -1840,6 +1840,16 @@ public abstract class Window {
     @NonNull
     public abstract LayoutInflater getLayoutInflater();
 
+    /**
+     * Sets a user-facing title for the window.
+     * <p>
+     * This title may be shown to the user in the window's title or action bar
+     * if the {@link #requestFeature requested features} provide such a bar.
+     * It is also exposed through {@link
+     * android.view.accessibility.AccessibilityWindowInfo#getTitle}.
+     *
+     * @see WindowManager.LayoutParams#setTitle
+     */
     public abstract void setTitle(CharSequence title);
 
     @Deprecated

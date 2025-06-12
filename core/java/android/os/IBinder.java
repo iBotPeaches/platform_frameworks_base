@@ -451,7 +451,7 @@ public interface IBinder {
      * @param executor The executor on which to run the callback.
      * @param callback The callback used to deliver state change notifications.
      *
-     * <p>@throws {@link UnsupportedOperationException} if the kernel binder driver does not support
+     * @throws {@link UnsupportedOperationException} if the kernel binder driver does not support
      * this feature.
      */
     @FlaggedApi(Flags.FLAG_BINDER_FROZEN_STATE_CHANGE_CALLBACK)

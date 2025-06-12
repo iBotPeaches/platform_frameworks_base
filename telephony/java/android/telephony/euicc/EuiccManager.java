@@ -1737,13 +1737,8 @@ public class EuiccManager {
     private int getCardIdForDefaultEuicc() {
         int cardId = TelephonyManager.UNINITIALIZED_CARD_ID;
 
-        if (Flags.enforceTelephonyFeatureMappingForPublicApis()) {
-            PackageManager pm = mContext.getPackageManager();
-            if (pm != null && pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)) {
-                TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
-                cardId = tm.getCardIdForDefaultEuicc();
-            }
-        } else {
+        PackageManager pm = mContext.getPackageManager();
+        if (pm != null && pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)) {
             TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
             cardId = tm.getCardIdForDefaultEuicc();
         }

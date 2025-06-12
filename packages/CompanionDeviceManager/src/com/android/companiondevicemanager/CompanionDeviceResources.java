@@ -21,7 +21,9 @@ import static android.companion.AssociationRequest.DEVICE_PROFILE_AUTOMOTIVE_PRO
 import static android.companion.AssociationRequest.DEVICE_PROFILE_COMPUTER;
 import static android.companion.AssociationRequest.DEVICE_PROFILE_GLASSES;
 import static android.companion.AssociationRequest.DEVICE_PROFILE_NEARBY_DEVICE_STREAMING;
+import static android.companion.AssociationRequest.DEVICE_PROFILE_VIRTUAL_DEVICE;
 import static android.companion.AssociationRequest.DEVICE_PROFILE_WATCH;
+import static android.companion.AssociationRequest.DEVICE_PROFILE_WEARABLE_SENSING;
 import static android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
 
 import static java.util.Collections.unmodifiableMap;
@@ -116,6 +118,7 @@ final class CompanionDeviceResources {
         map.put(DEVICE_PROFILE_AUTOMOTIVE_PROJECTION, R.string.title_automotive_projection);
         map.put(DEVICE_PROFILE_COMPUTER, R.string.title_computer);
         map.put(DEVICE_PROFILE_NEARBY_DEVICE_STREAMING, R.string.title_nearby_device_streaming);
+        map.put(DEVICE_PROFILE_VIRTUAL_DEVICE, R.string.title_virtual_device);
         map.put(DEVICE_PROFILE_WATCH, R.string.confirmation_title);
         map.put(DEVICE_PROFILE_GLASSES, R.string.confirmation_title_glasses);
         map.put(null, R.string.confirmation_title);
@@ -130,6 +133,7 @@ final class CompanionDeviceResources {
         map.put(DEVICE_PROFILE_GLASSES, R.string.summary_glasses);
         map.put(DEVICE_PROFILE_APP_STREAMING, R.string.summary_app_streaming);
         map.put(DEVICE_PROFILE_NEARBY_DEVICE_STREAMING, R.string.summary_nearby_device_streaming);
+        map.put(DEVICE_PROFILE_VIRTUAL_DEVICE, R.string.summary_virtual_device);
         map.put(null, R.string.summary_generic);
 
         PROFILE_SUMMARIES = unmodifiableMap(map);
@@ -172,6 +176,7 @@ final class CompanionDeviceResources {
         final Map<String, Integer> map = new ArrayMap<>();
         map.put(DEVICE_PROFILE_WATCH, R.string.profile_name_watch);
         map.put(DEVICE_PROFILE_GLASSES, R.string.profile_name_glasses);
+        map.put(DEVICE_PROFILE_VIRTUAL_DEVICE, R.string.profile_name_generic);
         map.put(null, R.string.profile_name_generic);
 
         PROFILE_NAMES = unmodifiableMap(map);
@@ -182,6 +187,7 @@ final class CompanionDeviceResources {
         final Map<String, Integer> map = new ArrayMap<>();
         map.put(DEVICE_PROFILE_WATCH, R.drawable.ic_watch);
         map.put(DEVICE_PROFILE_GLASSES, R.drawable.ic_glasses);
+        map.put(DEVICE_PROFILE_VIRTUAL_DEVICE, R.drawable.ic_device_other);
         map.put(null, R.drawable.ic_device_other);
 
         PROFILE_ICONS = unmodifiableMap(map);
@@ -192,6 +198,7 @@ final class CompanionDeviceResources {
         final Set<String> set = new ArraySet<>();
         set.add(DEVICE_PROFILE_WATCH);
         set.add(DEVICE_PROFILE_GLASSES);
+        set.add(DEVICE_PROFILE_VIRTUAL_DEVICE);
         set.add(null);
 
         SUPPORTED_PROFILES = unmodifiableSet(set);
@@ -204,6 +211,7 @@ final class CompanionDeviceResources {
         set.add(DEVICE_PROFILE_COMPUTER);
         set.add(DEVICE_PROFILE_AUTOMOTIVE_PROJECTION);
         set.add(DEVICE_PROFILE_NEARBY_DEVICE_STREAMING);
+        set.add(DEVICE_PROFILE_WEARABLE_SENSING);
         set.add(null);
 
         SUPPORTED_SELF_MANAGED_PROFILES = unmodifiableSet(set);

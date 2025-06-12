@@ -28,16 +28,17 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.animation.dialogTransitionAnimator
 import com.android.systemui.concurrency.fakeExecutor
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testCase
 import com.android.systemui.qs.pipeline.domain.interactor.PanelInteractor
 import com.android.systemui.settings.UserContextProvider
 import com.android.systemui.settings.userFileManager
 import com.android.systemui.settings.userTracker
+import com.android.systemui.testKosmos
 import com.android.systemui.util.settings.fakeGlobalSettings
 import com.android.traceur.TraceConfig
 import com.google.common.truth.Truth
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyInt
@@ -51,7 +52,7 @@ import org.mockito.kotlin.verify
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 class IssueRecordingServiceSessionTest : SysuiTestCase() {
 
-    private val kosmos = Kosmos().also { it.testCase = this }
+    private val kosmos = testKosmos().also { it.testCase = this }
     private val bgExecutor = kosmos.fakeExecutor
     private val userContextProvider: UserContextProvider = kosmos.userTracker
     private val dialogTransitionAnimator: DialogTransitionAnimator = kosmos.dialogTransitionAnimator
@@ -126,6 +127,7 @@ class IssueRecordingServiceSessionTest : SysuiTestCase() {
         verify(iActivityManager).requestBugReportWithExtraAttachments(any())
     }
 
+    @Ignore("b/392753499")
     @Test
     fun sharesTracesDirectly_afterReceivingShareCommand_withTakeBugreportFalse() {
         underTest.takeBugReport = false

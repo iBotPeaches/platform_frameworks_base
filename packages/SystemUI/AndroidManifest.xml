@@ -86,6 +86,7 @@
     <uses-permission android:name="android.permission.LOCATION_HARDWARE" />
     <uses-permission android:name="android.permission.NETWORK_FACTORY" />
     <uses-permission android:name="android.permission.SATELLITE_COMMUNICATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Physical hardware -->
     <uses-permission android:name="android.permission.MANAGE_USB" />
     <uses-permission android:name="android.permission.CONTROL_DISPLAY_BRIGHTNESS" />
@@ -311,6 +312,9 @@
     <!-- Permission necessary to change car audio volume through CarAudioManager -->
     <uses-permission android:name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME" />
 
+    <!-- To detect when projecting to Android Auto -->
+    <uses-permission android:name="android.permission.READ_PROJECTION_STATE" />
+
     <!-- Permission to control Android Debug Bridge (ADB) -->
     <uses-permission android:name="android.permission.MANAGE_DEBUGGING" />
 
@@ -321,6 +325,9 @@
 
     <!-- Query all packages on device on R+ -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <!-- Query advanced protection state -->
+    <uses-permission android:name="android.permission.QUERY_ADVANCED_PROTECTION_MODE" />
 
     <queries>
         <intent>
@@ -388,6 +395,9 @@
     <!-- To be able to decipher default applications for certain roles in shortcut helper -->
     <uses-permission android:name="android.permission.MANAGE_DEFAULT_APPLICATIONS" />
 
+    <!-- To be able to set unrestricted system gesture exclusion rects -->
+    <uses-permission android:name="android.permission.SET_UNRESTRICTED_GESTURE_EXCLUSION"/>
+
     <protected-broadcast android:name="com.android.settingslib.action.REGISTER_SLICE_RECEIVER" />
     <protected-broadcast android:name="com.android.settingslib.action.UNREGISTER_SLICE_RECEIVER" />
     <protected-broadcast android:name="com.android.settings.flashlight.action.FLASHLIGHT_CHANGED" />
@@ -402,14 +412,15 @@
         android:killAfterRestore="false"
         android:hardwareAccelerated="true"
         android:label="@string/app_label"
-        android:icon="@drawable/android15_patch_adaptive"
+        android:icon="@drawable/android16_patch_adaptive"
         android:process="com.android.systemui"
         android:supportsRtl="true"
         android:theme="@style/Theme.SystemUI"
         android:defaultToDeviceProtectedStorage="true"
         android:directBootAware="true"
         tools:replace="android:appComponentFactory"
-        android:appComponentFactory=".PhoneSystemUIAppComponentFactory">
+        android:appComponentFactory=".PhoneSystemUIAppComponentFactory"
+        android:enableOnBackInvokedCallback="true">
         <!-- Keep theme in sync with SystemUIApplication.onCreate().
              Setting the theme on the application does not affect views inflated by services.
              The application theme is set again from onCreate to take effect for those views. -->
@@ -541,6 +552,15 @@
                 android:singleUser="true"
                 android:permission="android.permission.BIND_WALLPAPER"
                 android:exported="true" />
+
+        <service android:name=".wallpapers.GradientColorWallpaper"
+            android:singleUser="true"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:exported="true">
+            <meta-data android:name="android.service.wallpaper"
+                android:resource="@xml/gradient_color_wallpaper">
+            </meta-data>
+        </service>
 
         <activity android:name=".tuner.TunerActivity"
                   android:enabled="false"
@@ -1154,5 +1174,16 @@
             android:exported="false"
             />
 
+	<service
+            android:name="com.google.android.systemui.lowlightclock.LowLightClockDreamService"
+            android:enabled="false"
+            android:exported="false"
+            android:directBootAware="true"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

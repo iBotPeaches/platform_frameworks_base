@@ -27,7 +27,6 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.keyguard.domain.interactor.KeyguardBlueprintInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
 import com.android.systemui.keyguard.shared.model.ClockSize
@@ -73,33 +72,31 @@ object KeyguardClockViewBinder {
                     // When changing to new clock, we need to remove old views from burnInLayer
                     var lastClock: ClockController? = null
                     launch {
-                            if (!MigrateClocksToBlueprint.isEnabled) return@launch
-                            viewModel.currentClock.collect { currentClock ->
-                                if (lastClock != currentClock) {
-                                    cleanupClockViews(
-                                        lastClock,
-                                        keyguardRootView,
-                                        viewModel.burnInLayer,
-                                    )
-                                    lastClock = currentClock
-                                }
-
-                                addClockViews(currentClock, keyguardRootView)
-                                updateBurnInLayer(
+                        viewModel.currentClock.collect { currentClock ->
+                            if (lastClock != currentClock) {
+                                cleanupClockViews(
+                                    lastClock,
                                     keyguardRootView,
-                                    viewModel,
-                                    viewModel.clockSize.value,
+                                    viewModel.burnInLayer,
                                 )
-                                applyConstraints(clockSection, keyguardRootView, true)
+                                lastClock = currentClock
                             }
+
+                            addClockViews(currentClock, keyguardRootView)
+                            updateBurnInLayer(
+                                keyguardRootView,
+                                viewModel,
+                                viewModel.clockSize.value,
+                            )
+                            applyConstraints(clockSection, keyguardRootView, true)
                         }
+                    }
                         .invokeOnCompletion {
                             cleanupClockViews(lastClock, keyguardRootView, viewModel.burnInLayer)
                             lastClock = null
                         }
 
                     launch {
-                        if (!MigrateClocksToBlueprint.isEnabled) return@launch
                         viewModel.clockSize.collect { clockSize ->
                             updateBurnInLayer(keyguardRootView, viewModel, clockSize)
                             blueprintInteractor.refreshBlueprint(Type.ClockSize)
@@ -107,15 +104,9 @@ object KeyguardClockViewBinder {
                     }
 
                     launch {
-                        if (!MigrateClocksToBlueprint.isEnabled) return@launch
                         viewModel.clockShouldBeCentered.collect {
                             viewModel.currentClock.value?.let {
-                                // TODO(b/301502635): remove "!it.config.useCustomClockScene" when
-                                // migrate clocks to blueprint is fully rolled out
-                                if (
-                                    it.largeClock.config.hasCustomPositionUpdatedAnimation &&
-                                        !it.config.useCustomClockScene
-                                ) {
+                                if (it.largeClock.config.hasCustomPositionUpdatedAnimation) {
                                     blueprintInteractor.refreshBlueprint(Type.DefaultClockStepping)
                                 } else {
                                     blueprintInteractor.refreshBlueprint(Type.DefaultTransition)
@@ -125,13 +116,12 @@ object KeyguardClockViewBinder {
                     }
 
                     launch {
-                        if (!MigrateClocksToBlueprint.isEnabled) return@launch
                         combine(
-                                viewModel.hasAodIcons,
-                                rootViewModel.isNotifIconContainerVisible.map { it.value },
-                            ) { hasIcon, isVisible ->
-                                hasIcon && isVisible
-                            }
+                            viewModel.hasAodIcons,
+                            rootViewModel.isNotifIconContainerVisible.map { it.value },
+                        ) { hasIcon, isVisible ->
+                            hasIcon && isVisible
+                        }
                             .distinctUntilChanged()
                             .collect { _ ->
                                 viewModel.currentClock.value?.let {
@@ -143,7 +133,6 @@ object KeyguardClockViewBinder {
                     }
 
                     launch {
-                        if (!MigrateClocksToBlueprint.isEnabled) return@launch
                         aodBurnInViewModel.movement.collect { burnInModel ->
                             viewModel.currentClock.value
                                 ?.largeClock
@@ -159,7 +148,6 @@ object KeyguardClockViewBinder {
                     }
 
                     launch {
-                        if (!MigrateClocksToBlueprint.isEnabled) return@launch
                         viewModel.largeClockTextSize.collect { fontSizePx ->
                             viewModel.currentClock.value
                                 ?.largeClock

@@ -17,8 +17,8 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:background="@drawable/volume_dialog_floating_slider_background"
-    android:paddingHorizontal="@dimen/volume_dialog_floating_sliders_horizontal_padding"
-    android:paddingVertical="@dimen/volume_dialog_floating_sliders_vertical_padding">
+    android:paddingHorizontal="@dimen/volume_dialog_floating_sliders_padding"
+    android:paddingVertical="@dimen/volume_dialog_floating_sliders_padding">
 
     <include layout="@layout/volume_dialog_slider" />
 </FrameLayout>

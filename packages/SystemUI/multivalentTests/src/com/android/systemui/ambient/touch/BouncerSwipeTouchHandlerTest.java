@@ -16,6 +16,10 @@
 
 package com.android.systemui.ambient.touch;
 
+import static android.platform.test.flag.junit.FlagsParameterization.allCombinationsOf;
+
+import static com.android.systemui.Flags.FLAG_GLANCEABLE_HUB_V2;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static kotlinx.coroutines.flow.StateFlowKt.MutableStateFlow;
@@ -34,6 +38,8 @@ import static org.mockito.Mockito.when;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.pm.UserInfo;
+import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.graphics.Rect;
 import android.graphics.Region;
 import android.platform.test.annotations.DisableFlags;
@@ -63,6 +69,7 @@ import com.android.systemui.shade.ShadeExpansionChangeEvent;
 import com.android.systemui.shared.system.InputChannelCompat;
 import com.android.systemui.statusbar.NotificationShadeWindowController;
 import com.android.systemui.statusbar.phone.CentralSurfaces;
+import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.wm.shell.animation.FlingAnimationUtils;
 
 import org.junit.Before;
@@ -74,11 +81,11 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import java.util.List;
-import java.util.Optional;
-
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4;
 import platform.test.runner.parameterized.Parameters;
+
+import java.util.List;
+import java.util.Optional;
 
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4.class)
@@ -132,11 +139,15 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
     @Mock
     WindowRootView mWindowRootView;
 
+    Resources mResources;
+
     @Mock
     CommunalViewModel mCommunalViewModel;
 
     @Mock
     KeyguardInteractor mKeyguardInteractor;
+
+    private KeyguardStateController mKeyguardStateController;
 
     @Captor
     ArgumentCaptor<Rect> mRectCaptor;
@@ -147,6 +158,7 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
     private static final int SCREEN_WIDTH_PX = 1024;
     private static final int SCREEN_HEIGHT_PX = 100;
     private static final float MIN_BOUNCER_HEIGHT = .05f;
+    private final Configuration mConfiguration = new Configuration();
 
     private static final Rect SCREEN_BOUNDS = new Rect(0, 0, 1024, 100);
     private static final UserInfo CURRENT_USER_INFO = new UserInfo(
@@ -157,7 +169,8 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
 
     @Parameters(name = "{0}")
     public static List<FlagsParameterization> getParams() {
-        return SceneContainerFlagParameterizationKt.parameterizeSceneContainerFlag();
+        return SceneContainerFlagParameterizationKt
+                .andSceneContainer(allCombinationsOf(Flags.FLAG_GLANCEABLE_HUB_V2));
     }
 
     public BouncerSwipeTouchHandlerTest(FlagsParameterization flags) {
@@ -168,7 +181,13 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
     @Before
     public void setup() {
         mKosmos = new KosmosJavaAdapter(this);
+        mContext.ensureTestableResources();
+        mResources = mContext.getResources();
+        overrideConfiguration(mConfiguration);
+        mConfiguration.orientation = Configuration.ORIENTATION_PORTRAIT;
+
         mSceneInteractor = spy(mKosmos.getSceneInteractor());
+        mKeyguardStateController = mKosmos.getKeyguardStateController();
 
         MockitoAnnotations.initMocks(this);
         mTouchHandler = new BouncerSwipeTouchHandler(
@@ -187,7 +206,10 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
                 mActivityStarter,
                 mKeyguardInteractor,
                 mSceneInteractor,
-                Optional.of(() -> mWindowRootView)
+                mKosmos.getShadeRepository(),
+                Optional.of(() -> mWindowRootView),
+                mKeyguardStateController,
+                mKosmos.getCommunalSettingsInteractor()
         );
 
         when(mScrimManager.getCurrentController()).thenReturn(mScrimController);
@@ -196,6 +218,9 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
         when(mFlingAnimationUtils.getMinVelocityPxPerSecond()).thenReturn(Float.MAX_VALUE);
         when(mTouchSession.getBounds()).thenReturn(SCREEN_BOUNDS);
         when(mKeyguardInteractor.isKeyguardDismissible()).thenReturn(MutableStateFlow(false));
+        when(mKeyguardStateController.isKeyguardScreenRotationAllowed()).thenReturn(true);
+        when(mWindowRootView.getResources()).thenReturn(mResources);
+        setCommunalV2ConfigEnabled(true);
     }
 
     /**
@@ -585,6 +610,43 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
         verify(mUiEventLogger).log(BouncerSwipeTouchHandler.DreamEvent.DREAM_BOUNCER_FULLY_VISIBLE);
     }
 
+    @Test
+    @DisableFlags(Flags.FLAG_SCENE_CONTAINER)
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    public void swipeUpAboveThresholdInLandscape_keyguardRotationNotAllowed_showsBouncer() {
+        when(mKeyguardStateController.isKeyguardScreenRotationAllowed()).thenReturn(false);
+        mConfiguration.orientation = Configuration.ORIENTATION_LANDSCAPE;
+
+        final float swipeUpPercentage = .1f;
+        // The upward velocity is ignored.
+        final float velocityY = -1;
+        swipeToPosition(swipeUpPercentage, velocityY);
+
+        // Ensure show bouncer scrimmed
+        verify(mScrimController).show(true);
+        verify(mValueAnimatorCreator, never()).create(anyFloat(), anyFloat());
+        verify(mValueAnimator, never()).start();
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_SCENE_CONTAINER)
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    public void swipeUpBelowThreshold_inLandscapeKeyguardRotationNotAllowed_noBouncer() {
+        mConfiguration.orientation = Configuration.ORIENTATION_LANDSCAPE;
+
+        final float swipeUpPercentage = .02f;
+        // The upward velocity is ignored.
+        final float velocityY = -1;
+        swipeToPosition(swipeUpPercentage, velocityY);
+
+        // no bouncer shown scrimmed
+        verify(mScrimController, never()).show(true);
+        // on touch end, bouncer hidden
+        verify(mValueAnimatorCreator).create(eq(1 - swipeUpPercentage),
+                eq(KeyguardBouncerConstants.EXPANSION_HIDDEN));
+        verify(mValueAnimator, never()).addListener(any());
+    }
+
     /**
      * Tests that swiping up with a speed above the set threshold will continue the expansion.
      */
@@ -627,6 +689,22 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
         onRemovedCallbackCaptor.getValue().onRemoved();
     }
 
+    @Test
+    public void testTouchSessionStart_notifiesShadeOfUserInteraction() {
+        mTouchHandler.onSessionStart(mTouchSession);
+
+        mKosmos.getTestScope().getTestScheduler().runCurrent();
+        assertThat(mKosmos.getShadeRepository().getLegacyShadeTracking().getValue()).isTrue();
+
+        ArgumentCaptor<TouchHandler.TouchSession.Callback> onRemovedCallbackCaptor =
+                ArgumentCaptor.forClass(TouchHandler.TouchSession.Callback.class);
+        verify(mTouchSession).registerCallback(onRemovedCallbackCaptor.capture());
+        onRemovedCallbackCaptor.getValue().onRemoved();
+
+        mKosmos.getTestScope().getTestScheduler().runCurrent();
+        assertThat(mKosmos.getShadeRepository().getLegacyShadeTracking().getValue()).isFalse();
+    }
+
     private void swipeToPosition(float percent, float velocityY) {
         Mockito.clearInvocations(mTouchSession);
         mTouchHandler.onSessionStart(mTouchSession);
@@ -654,5 +732,16 @@ public class BouncerSwipeTouchHandlerTest extends SysuiTestCase {
                 0, 0, 0);
 
         inputEventListenerCaptor.getValue().onInputEvent(upEvent);
+    }
+
+    private void setCommunalV2ConfigEnabled(boolean enabled) {
+        mContext.getOrCreateTestableResources().addOverride(
+                com.android.internal.R.bool.config_glanceableHubEnabled,
+                enabled);
+    }
+
+    private void overrideConfiguration(Configuration configuration) {
+        mContext.getOrCreateTestableResources().overrideConfiguration(
+                configuration);
     }
 }

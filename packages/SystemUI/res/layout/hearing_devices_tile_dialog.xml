@@ -86,12 +86,57 @@
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/tools_layout"
+        android:id="@+id/input_routing_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/preset_layout"
+        android:layout_marginTop="@dimen/hearing_devices_layout_margin"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/input_routing_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/bluetooth_dialog_layout_margin"
+            android:layout_marginEnd="@dimen/bluetooth_dialog_layout_margin"
+            android:paddingStart="@dimen/hearing_devices_small_title_padding_horizontal"
+            android:text="@string/hearing_devices_input_routing_label"
+            android:textAppearance="@style/TextAppearance.Dialog.Title"
+            android:textSize="14sp"
+            android:gravity="center_vertical"
+            android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
+            android:textDirection="locale"/>
+        <Spinner
+            android:id="@+id/input_routing_spinner"
+            style="@style/BluetoothTileDialog.Device"
+            android:layout_height="@dimen/bluetooth_dialog_device_height"
+            android:layout_marginTop="4dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:background="@drawable/hearing_devices_spinner_background"
+            android:popupBackground="@drawable/hearing_devices_spinner_popup_background"
+            android:dropDownWidth="match_parent"
+            android:longClickable="false"/>
+    </LinearLayout>
+
+    <com.android.systemui.accessibility.hearingaid.AmbientVolumeLayout
+        android:id="@+id/ambient_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/input_routing_layout"
+        android:layout_marginTop="@dimen/hearing_devices_layout_margin" />
+
+    <LinearLayout
+        android:id="@+id/tools_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ambient_layout"
         android:layout_marginTop="@dimen/hearing_devices_layout_margin"
         android:orientation="vertical">
         <TextView

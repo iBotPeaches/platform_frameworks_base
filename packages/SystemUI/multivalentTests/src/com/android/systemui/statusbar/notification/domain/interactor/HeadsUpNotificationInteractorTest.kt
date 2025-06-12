@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.domain.interactor
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -28,15 +26,16 @@ import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFaceAuthRepo
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.shade.data.repository.fakeShadeRepository
 import com.android.systemui.shade.shadeTestUtil
 import com.android.systemui.statusbar.notification.data.repository.FakeHeadsUpRowRepository
 import com.android.systemui.statusbar.notification.data.repository.notificationsKeyguardViewStateRepository
+import com.android.systemui.statusbar.notification.domain.model.TopPinnedState
 import com.android.systemui.statusbar.notification.headsup.PinnedStatus
 import com.android.systemui.statusbar.notification.stack.data.repository.headsUpNotificationRepository
 import com.android.systemui.statusbar.notification.stack.domain.interactor.headsUpNotificationInteractor
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -409,76 +408,114 @@ class HeadsUpNotificationInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    fun showHeadsUpStatusBar_true() =
+    fun statusBarHeadsUpState_pinnedBySystem() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
-            // WHEN a row is pinned
-            headsUpRepository.setNotifications(fakeHeadsUpRowRepository("key 0", isPinned = true))
+            headsUpRepository.setNotifications(
+                FakeHeadsUpRowRepository(key = "key 0", pinnedStatus = PinnedStatus.PinnedBySystem)
+            )
+            runCurrent()
 
-            assertThat(showHeadsUpStatusBar).isTrue()
+            assertThat(state).isEqualTo(TopPinnedState.Pinned("key 0", PinnedStatus.PinnedBySystem))
+            assertThat(status).isEqualTo(PinnedStatus.PinnedBySystem)
         }
 
     @Test
-    fun showHeadsUpStatusBar_withoutPinnedNotifications_false() =
+    fun statusBarHeadsUpState_pinnedByUser() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
-            // WHEN no row is pinned
-            headsUpRepository.setNotifications(fakeHeadsUpRowRepository("key 0", isPinned = false))
+            headsUpRepository.setNotifications(
+                FakeHeadsUpRowRepository(key = "key 0", pinnedStatus = PinnedStatus.PinnedByUser)
+            )
+            runCurrent()
 
-            assertThat(showHeadsUpStatusBar).isFalse()
+            assertThat(state).isEqualTo(TopPinnedState.Pinned("key 0", PinnedStatus.PinnedByUser))
+            assertThat(status).isEqualTo(PinnedStatus.PinnedByUser)
         }
 
     @Test
-    fun showHeadsUpStatusBar_whenShadeExpanded_false() =
+    fun statusBarHeadsUpState_withoutPinnedNotifications_notPinned() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
+
+            headsUpRepository.setNotifications(
+                FakeHeadsUpRowRepository(key = "key 0", PinnedStatus.NotPinned)
+            )
+            runCurrent()
+
+            assertThat(state).isEqualTo(TopPinnedState.NothingPinned)
+            assertThat(status).isEqualTo(PinnedStatus.NotPinned)
+        }
+
+    @Test
+    fun statusBarHeadsUpState_whenShadeExpanded_false() =
+        testScope.runTest {
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
             // WHEN a row is pinned
             headsUpRepository.setNotifications(fakeHeadsUpRowRepository("key 0", isPinned = true))
+            runCurrent()
             // AND the shade is expanded
             shadeTestUtil.setShadeExpansion(1.0f)
+            // Needed if SceneContainer flag is off: `ShadeTestUtil.setShadeExpansion(1f)`
+            // incorrectly causes `ShadeInteractor.isShadeFullyCollapsed` to emit `true`, when it
+            // should emit `false`.
+            kosmos.fakeShadeRepository.setLegacyShadeExpansion(1.0f)
 
-            assertThat(showHeadsUpStatusBar).isFalse()
+            assertThat(state).isEqualTo(TopPinnedState.NothingPinned)
+            assertThat(status!!.isPinned).isFalse()
         }
 
     @Test
-    fun showHeadsUpStatusBar_notificationsAreHidden_false() =
+    fun statusBarHeadsUpState_notificationsAreHidden_false() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
             // WHEN a row is pinned
             headsUpRepository.setNotifications(fakeHeadsUpRowRepository("key 0", isPinned = true))
+            runCurrent()
             // AND the notifications are hidden
             keyguardViewStateRepository.areNotificationsFullyHidden.value = true
 
-            assertThat(showHeadsUpStatusBar).isFalse()
+            assertThat(state).isEqualTo(TopPinnedState.NothingPinned)
+            assertThat(status!!.isPinned).isFalse()
         }
 
     @Test
-    fun showHeadsUpStatusBar_onLockScreen_false() =
+    fun statusBarHeadsUpState_onLockScreen_false() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
             // WHEN a row is pinned
             headsUpRepository.setNotifications(fakeHeadsUpRowRepository("key 0", isPinned = true))
+            runCurrent()
             // AND the lock screen is shown
             keyguardTransitionRepository.emitInitialStepsFromOff(
                 to = KeyguardState.LOCKSCREEN,
                 testSetup = true,
             )
 
-            assertThat(showHeadsUpStatusBar).isFalse()
+            assertThat(state).isEqualTo(TopPinnedState.NothingPinned)
+            assertThat(status!!.isPinned).isFalse()
         }
 
     @Test
-    fun showHeadsUpStatusBar_onByPassLockScreen_true() =
+    fun statusBarHeadsUpState_onByPassLockScreen_true() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
             // WHEN a row is pinned
             headsUpRepository.setNotifications(fakeHeadsUpRowRepository("key 0", isPinned = true))
+            runCurrent()
             // AND the lock screen is shown
             keyguardTransitionRepository.emitInitialStepsFromOff(
                 to = KeyguardState.LOCKSCREEN,
@@ -487,13 +524,15 @@ class HeadsUpNotificationInteractorTest : SysuiTestCase() {
             // AND bypass is enabled
             faceAuthRepository.isBypassEnabled.value = true
 
-            assertThat(showHeadsUpStatusBar).isTrue()
+            assertThat(state).isInstanceOf(TopPinnedState.Pinned::class.java)
+            assertThat(status!!.isPinned).isTrue()
         }
 
     @Test
-    fun showHeadsUpStatusBar_onByPassLockScreen_withoutNotifications_false() =
+    fun statusBarHeadsUpState_onByPassLockScreen_withoutNotifications_false() =
         testScope.runTest {
-            val showHeadsUpStatusBar by collectLastValue(underTest.showHeadsUpStatusBar)
+            val state by collectLastValue(underTest.statusBarHeadsUpState)
+            val status by collectLastValue(underTest.statusBarHeadsUpStatus)
 
             // WHEN no pinned rows
             // AND the lock screen is shown
@@ -504,7 +543,8 @@ class HeadsUpNotificationInteractorTest : SysuiTestCase() {
             // AND bypass is enabled
             faceAuthRepository.isBypassEnabled.value = true
 
-            assertThat(showHeadsUpStatusBar).isFalse()
+            assertThat(state).isEqualTo(TopPinnedState.NothingPinned)
+            assertThat(status!!.isPinned).isFalse()
         }
 
     private fun fakeHeadsUpRowRepository(key: String, isPinned: Boolean = false) =

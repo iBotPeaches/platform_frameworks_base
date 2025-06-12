@@ -74,7 +74,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.Manifest;
 import android.app.ActivityManager;
@@ -584,7 +583,7 @@ public class ActivityManagerServiceTest {
             if (app.uid == uidRec.getUid() && expectedBlockState == NETWORK_STATE_BLOCK) {
                 verify(app.getThread()).setNetworkBlockSeq(uidRec.curProcStateSeq);
             } else {
-                verifyZeroInteractions(app.getThread());
+                verifyNoMoreInteractions(app.getThread());
             }
             Mockito.reset(app.getThread());
         }
@@ -1452,6 +1451,18 @@ public class ActivityManagerServiceTest {
                         TEST_CREATOR_PACKAGE, testIntent.cloneForCreatorToken());
 
         assertThat(tokenForFullIntent.getKeyFields()).isEqualTo(tokenForCloneIntent.getKeyFields());
+    }
+
+    @Test
+    public void testCanLaunchClipDataIntent() {
+        ClipData clipData = ClipData.newIntent("test", new Intent("test"));
+        clipData.prepareToLeaveProcess(true);
+        // skip mimicking sending clipData to another app because it will just be parceled and
+        // un-parceled.
+        Intent intent = clipData.getItemAt(0).getIntent();
+        // default intent redirect protection won't block an intent nested in a top level ClipData.
+        assertThat(intent.getExtendedFlags()
+                & Intent.EXTENDED_FLAG_MISSING_CREATOR_OR_INVALID_TOKEN).isEqualTo(0);
     }
 
     private void verifyWaitingForNetworkStateUpdate(long curProcStateSeq,

@@ -27,6 +27,7 @@ import com.android.internal.widget.remotecompose.core.PaintContext;
 import com.android.internal.widget.remotecompose.core.PaintOperation;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
@@ -66,6 +67,11 @@ public class TextMeasure extends PaintOperation {
         return "FloatConstant[" + mId + "] = " + mTextId + " " + mType;
     }
 
+    /**
+     * The name of the class
+     *
+     * @return the name
+     */
     public static @NonNull String name() {
         return CLASS_NAME;
     }
@@ -154,6 +160,35 @@ public class TextMeasure extends PaintOperation {
                 context.getContext().loadFloat(mId, mBounds[3]);
 
                 break;
+        }
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("id", mId)
+                .add("textId", mTextId)
+                .add("measureType", typeToString());
+    }
+
+    private String typeToString() {
+        int val = mType & 255;
+        switch (val) {
+            case MEASURE_WIDTH:
+                return "MEASURE_WIDTH";
+            case MEASURE_HEIGHT:
+                return "MEASURE_HEIGHT";
+            case MEASURE_LEFT:
+                return "MEASURE_LEFT";
+            case MEASURE_TOP:
+                return "MEASURE_TOP";
+            case MEASURE_RIGHT:
+                return "MEASURE_RIGHT";
+            case MEASURE_BOTTOM:
+                return "MEASURE_BOTTOM";
+            default:
+                return "INVALID_TYPE";
         }
     }
 }

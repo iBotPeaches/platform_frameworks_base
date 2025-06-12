@@ -17,7 +17,6 @@
 package com.android.server.backup.internal;
 
 import static com.android.server.backup.BackupManagerService.DEBUG;
-import static com.android.server.backup.BackupManagerService.MORE_DEBUG;
 import static com.android.server.backup.BackupManagerService.TAG;
 
 import android.app.backup.BackupAnnotations.BackupDestination;
@@ -35,6 +34,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.EventLogTags;
 import com.android.server.backup.BackupAgentTimeoutParameters;
 import com.android.server.backup.BackupRestoreTask;
+import com.android.server.backup.BackupRestoreTask.CancellationReason;
 import com.android.server.backup.DataChangedJournal;
 import com.android.server.backup.OperationStorage;
 import com.android.server.backup.TransportManager;
@@ -136,8 +136,8 @@ public class BackupHandler extends Handler {
 
     public void handleMessage(Message msg) {
         if (msg.what == MSG_STOP) {
-            Slog.v(TAG, "Stopping backup handler");
-            backupManagerService.getWakelock().quit();
+            Slog.d(TAG, "Stopping backup handler");
+            backupManagerService.getWakeLock().quit();
             mBackupThread.quitSafely();
         }
 
@@ -163,7 +163,7 @@ public class BackupHandler extends Handler {
                         transportManager
                                 .disposeOfTransportClient(transportConnection, callerLogString);
                     }
-                    Slog.v(TAG, "Backup requested but no transport available");
+                    Slog.d(TAG, "Backup requested but no transport available");
                     break;
                 }
 
@@ -177,14 +177,12 @@ public class BackupHandler extends Handler {
                         return;
                     }
 
-                    if (DEBUG) {
-                        Slog.v(TAG, "Running a backup pass");
-                    }
+                    Slog.d(TAG, "Running a backup pass");
 
                     // Acquire the wakelock and pass it to the backup thread. It will be released
                     // once backup concludes.
                     backupManagerService.setBackupRunning(true);
-                    backupManagerService.getWakelock().acquire();
+                    backupManagerService.getWakeLock().acquire();
 
                     // Do we have any work to do?  Construct the work queue
                     // then release the synchronization lock to actually run
@@ -193,9 +191,7 @@ public class BackupHandler extends Handler {
                         for (BackupRequest b : backupManagerService.getPendingBackups().values()) {
                             queue.add(b.packageName);
                         }
-                        if (DEBUG) {
-                            Slog.v(TAG, "clearing pending backups");
-                        }
+                        Slog.d(TAG, "clearing pending backups");
                         backupManagerService.getPendingBackups().clear();
 
                         // Start a new backup-queue journal file too
@@ -249,7 +245,7 @@ public class BackupHandler extends Handler {
                         staged = false;
                     }
                 } else {
-                    Slog.v(TAG, "Backup requested but nothing pending");
+                    Slog.d(TAG, "Backup requested but nothing pending");
                     staged = false;
                 }
 
@@ -259,7 +255,7 @@ public class BackupHandler extends Handler {
                     synchronized (backupManagerService.getQueueLock()) {
                         backupManagerService.setBackupRunning(false);
                     }
-                    backupManagerService.getWakelock().release();
+                    backupManagerService.getWakeLock().release();
                 }
                 break;
             }
@@ -267,7 +263,7 @@ public class BackupHandler extends Handler {
             case MSG_BACKUP_RESTORE_STEP: {
                 try {
                     BackupRestoreTask task = (BackupRestoreTask) msg.obj;
-                    if (MORE_DEBUG) {
+                    if (DEBUG) {
                         Slog.v(TAG, "Got next step for " + task + ", executing");
                     }
                     task.execute();
@@ -324,16 +320,12 @@ public class BackupHandler extends Handler {
 
                 synchronized (backupManagerService.getPendingRestores()) {
                     if (backupManagerService.isRestoreInProgress()) {
-                        if (DEBUG) {
-                            Slog.d(TAG, "Restore in progress, queueing.");
-                        }
+                        Slog.d(TAG, "Restore in progress, queueing.");
                         backupManagerService.getPendingRestores().add(task);
                         // This task will be picked up and executed when the the currently running
                         // restore task finishes.
                     } else {
-                        if (DEBUG) {
-                            Slog.d(TAG, "Starting restore.");
-                        }
+                        Slog.d(TAG, "Starting restore.");
                         backupManagerService.setRestoreInProgress(true);
                         Message restoreMsg = obtainMessage(MSG_BACKUP_RESTORE_STEP, task);
                         sendMessage(restoreMsg);
@@ -419,8 +411,8 @@ public class BackupHandler extends Handler {
 
             case MSG_BACKUP_OPERATION_TIMEOUT:
             case MSG_RESTORE_OPERATION_TIMEOUT: {
-                Slog.d(TAG, "Timeout message received for token=" + Integer.toHexString(msg.arg1));
-                backupManagerService.handleCancel(msg.arg1, false);
+                Slog.d(TAG, "Timeout for token=" + Integer.toHexString(msg.arg1));
+                backupManagerService.handleCancel(msg.arg1, CancellationReason.TIMEOUT);
                 break;
             }
 
@@ -471,11 +463,11 @@ public class BackupHandler extends Handler {
 
             case MSG_REQUEST_BACKUP: {
                 BackupParams params = (BackupParams) msg.obj;
-                if (MORE_DEBUG) {
+                if (DEBUG) {
                     Slog.d(TAG, "MSG_REQUEST_BACKUP observer=" + params.observer);
                 }
                 backupManagerService.setBackupRunning(true);
-                backupManagerService.getWakelock().acquire();
+                backupManagerService.getWakeLock().acquire();
 
                 KeyValueBackupTask.start(
                         backupManagerService,
@@ -496,7 +488,7 @@ public class BackupHandler extends Handler {
 
             case MSG_SCHEDULE_BACKUP_PACKAGE: {
                 String pkgName = (String) msg.obj;
-                if (MORE_DEBUG) {
+                if (DEBUG) {
                     Slog.d(TAG, "MSG_SCHEDULE_BACKUP_PACKAGE " + pkgName);
                 }
                 backupManagerService.dataChangedImpl(pkgName);

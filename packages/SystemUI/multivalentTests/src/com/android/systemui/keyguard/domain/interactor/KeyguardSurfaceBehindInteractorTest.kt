@@ -24,9 +24,11 @@ import com.android.systemui.coroutines.collectValues
 import com.android.systemui.flags.DisableSceneContainer
 import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.keyguard.data.repository.FakeKeyguardTransitionRepository
+import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFingerprintAuthRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.KeyguardSurfaceBehindModel
+import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticationStatus
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
 import com.android.systemui.keyguard.util.mockTopActivityClassName
@@ -34,6 +36,7 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.data.repository.Idle
 import com.android.systemui.scene.data.repository.Transition
 import com.android.systemui.scene.data.repository.setSceneTransition
+import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shared.system.ActivityManagerWrapper
 import com.android.systemui.shared.system.activityManagerWrapper
@@ -50,7 +53,6 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@kotlinx.coroutines.ExperimentalCoroutinesApi
 class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
     private val kosmos = testKosmos()
     private lateinit var testScope: TestScope
@@ -85,7 +87,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
             assertThat(values)
                 .containsExactly(
                     // We're initialized in LOCKSCREEN.
-                    KeyguardSurfaceBehindModel(alpha = 0f),
+                    KeyguardSurfaceBehindModel(alpha = 0f)
                 )
 
             transitionRepository.sendTransitionStep(
@@ -106,7 +108,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
                         it.alpha == 1f &&
                         it.animateFromTranslationY != 0f &&
                         it.translationY == 0f
-                }
+                },
             )
 
             transitionRepository.sendTransitionStep(
@@ -126,7 +128,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
                         it.alpha == 1f &&
                         it.animateFromTranslationY != 0f &&
                         it.translationY == 0f
-                }
+                },
             )
 
             transitionRepository.sendTransitionStep(
@@ -147,7 +149,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
                         it.translationY == 0f
                 },
                 // Once the current state is GONE, we should default to alpha = 1f.
-                { it == KeyguardSurfaceBehindModel(alpha = 1f) }
+                { it == KeyguardSurfaceBehindModel(alpha = 1f) },
             )
         }
 
@@ -162,7 +164,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
             assertThat(values)
                 .containsExactly(
                     // We're initialized in LOCKSCREEN.
-                    KeyguardSurfaceBehindModel(alpha = 0f),
+                    KeyguardSurfaceBehindModel(alpha = 0f)
                 )
                 .inOrder()
 
@@ -243,8 +245,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
 
             values.assertValuesMatch(
                 // We should be at alpha = 0f during the animation.
-                { it == KeyguardSurfaceBehindModel(alpha = 0f) },
-            )
+                { it == KeyguardSurfaceBehindModel(alpha = 0f) })
         }
 
     @Test
@@ -252,14 +253,19 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
     fun testSurfaceBehindModel_toAppSurface_scene_container() =
         testScope.runTest {
             val values by collectValues(underTest.viewParams)
+            kosmos.sceneInteractor.snapToScene(Scenes.Lockscreen, "")
+            kosmos.fakeDeviceEntryFingerprintAuthRepository.setAuthenticationStatus(
+                SuccessFingerprintAuthenticationStatus(0, true)
+            )
             runCurrent()
 
             assertThat(values)
                 .containsExactly(
                     // We're initialized in LOCKSCREEN.
-                    KeyguardSurfaceBehindModel(alpha = 0f),
+                    KeyguardSurfaceBehindModel(alpha = 0f)
                 )
 
+            kosmos.sceneInteractor.changeScene(Scenes.Gone, "")
             kosmos.setSceneTransition(Transition(Scenes.Lockscreen, Scenes.Gone))
 
             values.assertValuesMatch(
@@ -271,7 +277,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
                         it.alpha == 1f &&
                         it.animateFromTranslationY != 0f &&
                         it.translationY == 0f
-                }
+                },
             )
 
             kosmos.setSceneTransition(Idle(Scenes.Gone))
@@ -285,7 +291,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
                         it.translationY == 0f
                 },
                 // Once the current state is GONE, we should default to alpha = 1f.
-                { it == KeyguardSurfaceBehindModel(alpha = 1f) }
+                { it == KeyguardSurfaceBehindModel(alpha = 1f) },
             )
         }
 
@@ -295,15 +301,20 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
         testScope.runTest {
             val values by collectValues(underTest.viewParams)
             activityManagerWrapper.mockTopActivityClassName(LAUNCHER_ACTIVITY_NAME)
+            kosmos.sceneInteractor.snapToScene(Scenes.Lockscreen, "")
+            kosmos.fakeDeviceEntryFingerprintAuthRepository.setAuthenticationStatus(
+                SuccessFingerprintAuthenticationStatus(0, true)
+            )
             runCurrent()
 
             assertThat(values)
                 .containsExactly(
                     // We're initialized in LOCKSCREEN.
-                    KeyguardSurfaceBehindModel(alpha = 0f),
+                    KeyguardSurfaceBehindModel(alpha = 0f)
                 )
                 .inOrder()
 
+            kosmos.sceneInteractor.changeScene(Scenes.Gone, "")
             kosmos.setSceneTransition(Transition(Scenes.Lockscreen, Scenes.Gone))
 
             assertThat(values)
@@ -341,8 +352,7 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
 
             values.assertValuesMatch(
                 // We should be at alpha = 0f during the animation.
-                { it == KeyguardSurfaceBehindModel(alpha = 0f) },
-            )
+                { it == KeyguardSurfaceBehindModel(alpha = 0f) })
         }
 
     @Test
@@ -436,6 +446,13 @@ class KeyguardSurfaceBehindInteractorTest : SysuiTestCase() {
         testScope.runTest {
             val isAnimatingSurface by collectLastValue(underTest.isAnimatingSurface)
 
+            kosmos.sceneInteractor.snapToScene(Scenes.Lockscreen, "")
+            kosmos.fakeDeviceEntryFingerprintAuthRepository.setAuthenticationStatus(
+                SuccessFingerprintAuthenticationStatus(0, true)
+            )
+            runCurrent()
+
+            kosmos.sceneInteractor.changeScene(Scenes.Gone, "")
             kosmos.setSceneTransition(Idle(Scenes.Gone))
             kosmos.notificationLaunchAnimationInteractor.setIsLaunchAnimationRunning(true)
             runCurrent()

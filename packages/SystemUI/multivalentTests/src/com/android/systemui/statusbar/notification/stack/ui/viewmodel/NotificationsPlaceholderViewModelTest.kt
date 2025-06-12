@@ -16,11 +16,11 @@
 
 package com.android.systemui.statusbar.notification.stack.ui.viewmodel
 
-import android.testing.TestableLooper.RunWithLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
+import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.statusbar.notification.stack.domain.interactor.notificationStackAppearanceInteractor
 import com.android.systemui.statusbar.notification.stack.shared.model.ShadeScrimBounds
@@ -32,18 +32,20 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@RunWithLooper
+@EnableSceneContainer
 class NotificationsPlaceholderViewModelTest : SysuiTestCase() {
     private val kosmos = testKosmos()
     private val underTest by lazy { kosmos.notificationsPlaceholderViewModel }
 
     @Test
-    fun onBoundsChanged() =
+    fun onScrimBoundsChanged() =
         kosmos.testScope.runTest {
             val bounds = ShadeScrimBounds(left = 5f, top = 15f, right = 25f, bottom = 35f)
             underTest.onScrimBoundsChanged(bounds)
             val stackBounds by
-                collectLastValue(kosmos.notificationStackAppearanceInteractor.shadeScrimBounds)
+                collectLastValue(
+                    kosmos.notificationStackAppearanceInteractor.notificationShadeScrimBounds
+                )
             assertThat(stackBounds).isEqualTo(bounds)
         }
 }

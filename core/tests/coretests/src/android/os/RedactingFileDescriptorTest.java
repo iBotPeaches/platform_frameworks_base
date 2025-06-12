@@ -24,7 +24,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 import android.content.Context;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.system.Os;
 
@@ -44,7 +44,7 @@ import java.io.FileOutputStream;
 import java.util.Arrays;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = RedactingFileDescriptor.class)
+@DisabledOnRavenwood(blockedBy = RedactingFileDescriptor.class)
 public class RedactingFileDescriptorTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

@@ -17,7 +17,10 @@
 
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/entity_header"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     style="@style/SettingsLibEntityHeader">
 
     <LinearLayout
@@ -26,7 +29,6 @@
 
         <ImageView
             android:id="@android:id/icon"
-            android:src="@drawable/settingslib_arrow_drop_down"
             style="@style/SettingsLibEntityHeaderIcon"/>
 
         <TextView
@@ -37,7 +39,9 @@
             android:id="@+id/collapsable_summary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"/>
+            android:gravity="center"
+            android:minLines="1"
+            app:isCollapsable="true"/>
 
     </LinearLayout>
 

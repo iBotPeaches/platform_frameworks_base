@@ -17,14 +17,8 @@
 package com.android.input.screenshot
 
 import android.content.Context
-import android.hardware.input.KeyboardLayout
-import android.os.LocaleList
-import android.platform.test.flag.junit.SetFlagsRule
-import com.android.hardware.input.Flags
-import java.util.Locale
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
@@ -39,21 +33,16 @@ class KeyboardLayoutPreviewIsoScreenshotTest(emulationSpec: DeviceEmulationSpec)
         fun getTestSpecs() = DeviceEmulationSpec.PhoneAndTabletMinimal
     }
 
-    val setFlagsRule = SetFlagsRule()
+    @get:Rule
     val screenshotRule = InputScreenshotTestRule(
             emulationSpec,
             "frameworks/base/tests/InputScreenshotTest/assets"
     )
 
-    @get:Rule
-    val ruleChain = RuleChain.outerRule(screenshotRule).around(setFlagsRule)
-
     @Test
     fun test() {
-        setFlagsRule.enableFlags(Flags.FLAG_KEYBOARD_LAYOUT_PREVIEW_FLAG)
         screenshotRule.screenshotTest("layout-preview") {
             context: Context -> LayoutPreview.createLayoutPreview(context, null)
         }
     }
-
 }

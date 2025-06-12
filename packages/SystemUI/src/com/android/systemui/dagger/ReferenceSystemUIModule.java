@@ -30,11 +30,14 @@ import com.android.systemui.accessibility.SystemActionsModule;
 import com.android.systemui.accessibility.data.repository.AccessibilityRepositoryModule;
 import com.android.systemui.battery.BatterySaverModule;
 import com.android.systemui.clipboardoverlay.dagger.ClipboardOverlayOverrideModule;
+import com.android.systemui.communal.posturing.dagger.NoopPosturingModule;
 import com.android.systemui.display.ui.viewmodel.ConnectingDisplayViewModel;
 import com.android.systemui.dock.DockManager;
 import com.android.systemui.dock.DockManagerImpl;
 import com.android.systemui.doze.DozeHost;
 import com.android.systemui.education.dagger.ContextualEducationModule;
+import com.android.systemui.topwindoweffects.dagger.SqueezeEffectRepositoryModule;
+import com.android.systemui.topwindoweffects.dagger.TopLevelWindowEffectsModule;
 import com.android.systemui.emergency.EmergencyGestureModule;
 import com.android.systemui.inputdevice.tutorial.KeyboardTouchpadTutorialModule;
 import com.android.systemui.keyboard.shortcut.ShortcutHelperModule;
@@ -55,12 +58,14 @@ import com.android.systemui.reardisplay.RearDisplayModule;
 import com.android.systemui.recents.Recents;
 import com.android.systemui.recents.RecentsImplementation;
 import com.android.systemui.recents.RecentsModule;
+import com.android.systemui.rotationlock.DeviceStateAutoRotateModule;
 import com.android.systemui.rotationlock.RotationLockModule;
 import com.android.systemui.rotationlock.RotationLockNewModule;
 import com.android.systemui.scene.SceneContainerFrameworkModule;
 import com.android.systemui.screenshot.ReferenceScreenshotModule;
 import com.android.systemui.settings.MultiUserUtilsModule;
 import com.android.systemui.settings.UserTracker;
+import com.android.systemui.settings.brightness.dagger.BrightnessSliderModule;
 import com.android.systemui.shade.NotificationShadeWindowControllerImpl;
 import com.android.systemui.shade.ShadeModule;
 import com.android.systemui.startable.Dependencies;
@@ -73,9 +78,9 @@ import com.android.systemui.statusbar.SysuiStatusBarStateController;
 import com.android.systemui.statusbar.dagger.CentralSurfacesModule;
 import com.android.systemui.statusbar.dagger.StartCentralSurfacesModule;
 import com.android.systemui.statusbar.notification.dagger.ReferenceNotificationsModule;
+import com.android.systemui.statusbar.notification.headsup.HeadsUpModule;
 import com.android.systemui.statusbar.phone.CentralSurfaces;
 import com.android.systemui.statusbar.phone.DozeServiceHost;
-import com.android.systemui.statusbar.notification.headsup.HeadsUpModule;
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager;
 import com.android.systemui.statusbar.phone.dagger.StatusBarPhoneModule;
 import com.android.systemui.statusbar.phone.fragment.CollapsedStatusBarFragmentStartableModule;
@@ -124,11 +129,13 @@ import javax.inject.Named;
         AccessibilityRepositoryModule.class,
         AospPolicyModule.class,
         BatterySaverModule.class,
+        BrightnessSliderModule.class,
         CentralSurfacesModule.class,
         ClipboardOverlayOverrideModule.class,
         CollapsedStatusBarFragmentStartableModule.class,
         ConnectingDisplayViewModel.StartableModule.class,
         DefaultBlueprintModule.class,
+        DeviceStateAutoRotateModule.class,
         EmergencyGestureModule.class,
         GestureModule.class,
         HeadsUpModule.class,
@@ -147,6 +154,7 @@ import javax.inject.Named;
         RearDisplayModule.class,
         RecentsModule.class,
         ReferenceNotificationsModule.class,
+        NoopPosturingModule.class,
         ReferenceScreenshotModule.class,
         RotationLockModule.class,
         RotationLockNewModule.class,
@@ -154,12 +162,14 @@ import javax.inject.Named;
         StatusBarPhoneModule.class,
         SystemActionsModule.class,
         ShadeModule.class,
+        SqueezeEffectRepositoryModule.class,
         StartCentralSurfacesModule.class,
         SceneContainerFrameworkModule.class,
         SysUICoroutinesModule.class,
         SysUIUnfoldStartableModule.class,
         UnfoldTransitionModule.Startables.class,
         ToastModule.class,
+        TopLevelWindowEffectsModule.class,
         TouchpadTutorialModule.class,
         VolumeModule.class,
         WallpaperModule.class,

@@ -31,6 +31,10 @@
     <!-- height for the keyguard pin input field -->
     <dimen name="keyguard_pin_field_height">56dp</dimen>
 
+    <dimen name="keyguard_pattern_dot_size">16dp</dimen>
+    <dimen name="keyguard_pattern_activated_dot_size">24dp</dimen>
+    <dimen name="keyguard_pattern_stroke_width">32dp</dimen>
+
     <!-- height for the keyguard password input field -->
     <dimen name="keyguard_password_field_height">56dp</dimen>
 
@@ -111,6 +115,7 @@
     <dimen name="below_clock_padding_end">16dp</dimen>
     <dimen name="below_clock_padding_start_icons">28dp</dimen>
     <dimen name="smartspace_padding_horizontal">16dp</dimen>
+    <dimen name="smartspace_padding_vertical">12dp</dimen>
 
     <!-- Proportion of the screen height to use to set the maximum height of the bouncer to when
          the device is in the DEVICE_POSTURE_HALF_OPENED posture, for the PIN/pattern entry. 0 will

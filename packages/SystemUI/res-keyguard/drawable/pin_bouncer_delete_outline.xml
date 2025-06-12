@@ -1,0 +1,31 @@
+<!--
+  ~ Copyright (C) 2025 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportHeight="40"
+    android:viewportWidth="40">
+    <group>
+        <clip-path android:pathData="M5,7h29.89v25h-29.89z" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M30.96,32H15.59C14.21,32 12.89,31.34 12.06,30.24L5.78,21.86C4.74,20.47 4.74,18.54 5.78,17.15L12.06,8.77C12.89,7.67 14.21,7 15.59,7H30.96C33.13,7 34.89,8.76 34.89,10.93V28.08C34.89,30.25 33.13,32.01 30.96,32.01V32ZM14.46,28.44C14.73,28.79 15.15,29 15.59,29H30.96C31.47,29 31.89,28.58 31.89,28.07V10.93C31.89,10.42 31.47,10 30.96,10H15.59C15.15,10 14.73,10.21 14.46,10.56L8.18,18.94C7.93,19.27 7.93,19.72 8.18,20.05L14.46,28.43V28.44Z" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M22.46,21.27L25.36,24.17C25.6,24.43 25.89,24.56 26.25,24.56C26.61,24.56 26.9,24.43 27.14,24.17C27.4,23.93 27.53,23.64 27.53,23.28C27.53,22.92 27.4,22.63 27.14,22.39L24.24,19.49L27.14,16.59C27.38,16.35 27.49,16.06 27.49,15.7C27.49,15.34 27.37,15.05 27.14,14.81C26.91,14.57 26.61,14.46 26.25,14.46C25.89,14.46 25.59,14.58 25.33,14.81L22.46,17.71L19.56,14.81C19.32,14.55 19.03,14.42 18.67,14.42C18.31,14.42 18.02,14.55 17.78,14.81C17.52,15.05 17.39,15.34 17.39,15.7C17.39,16.06 17.52,16.35 17.78,16.59L20.68,19.49L17.78,22.39C17.52,22.63 17.39,22.92 17.39,23.28C17.39,23.64 17.52,23.93 17.78,24.17C18.02,24.41 18.31,24.52 18.67,24.52C19.03,24.52 19.32,24.4 19.56,24.17L22.46,21.27Z" />
+    </group>
+</vector>

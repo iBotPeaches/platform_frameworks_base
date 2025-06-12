@@ -87,7 +87,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
                 contentResolver,
                 selectedUserInteractor,
                 lazyKeyguardUpdateMonitor,
-                dumpManager
+                dumpManager,
             )
     }
 
@@ -116,9 +116,9 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
             )
         )
         assertFalse(
-                activeUnlockConfig.shouldAllowActiveUnlockFromOrigin(
-                        ActiveUnlockConfig.ActiveUnlockRequestOrigin.UNLOCK_INTENT_LEGACY
-                )
+            activeUnlockConfig.shouldAllowActiveUnlockFromOrigin(
+                ActiveUnlockConfig.ActiveUnlockRequestOrigin.UNLOCK_INTENT_LEGACY
+            )
         )
         assertTrue(
             activeUnlockConfig.shouldAllowActiveUnlockFromOrigin(
@@ -212,7 +212,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
         secureSettings.putStringForUser(
             ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED,
             "",
-            currentUser
+            currentUser,
         )
         updateSetting(
             secureSettings.getUriFor(ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED)
@@ -285,7 +285,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
             ACTIVE_UNLOCK_ON_FACE_ACQUIRE_INFO,
             "${BiometricFaceConstants.FACE_ACQUIRED_MOUTH_COVERING_DETECTED}" +
                 "|${BiometricFaceConstants.FACE_ACQUIRED_DARK_GLASSES_DETECTED}",
-            currentUser
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_ON_FACE_ACQUIRE_INFO))
 
@@ -328,7 +328,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
         secureSettings.putStringForUser(
             ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED,
             "${ActiveUnlockConfig.BiometricType.NONE.intValue}",
-            currentUser
+            currentUser,
         )
         updateSetting(
             secureSettings.getUriFor(ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED)
@@ -358,7 +358,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
             ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED,
             "${ActiveUnlockConfig.BiometricType.ANY_FACE.intValue}" +
                 "|${ActiveUnlockConfig.BiometricType.ANY_FINGERPRINT.intValue}",
-            currentUser
+            currentUser,
         )
         updateSetting(
             secureSettings.getUriFor(ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED)
@@ -397,10 +397,10 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
     @Test
     fun isWakeupConsideredUnlockIntent_singleValue() {
         // GIVEN lift is considered an unlock intent
-        secureSettings.putIntForUser(
+        secureSettings.putStringForUser(
             ACTIVE_UNLOCK_WAKEUPS_CONSIDERED_UNLOCK_INTENTS,
-            PowerManager.WAKE_REASON_LIFT,
-            currentUser
+            PowerManager.WAKE_REASON_LIFT.toString(),
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_WAKEUPS_CONSIDERED_UNLOCK_INTENTS))
 
@@ -422,7 +422,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
             PowerManager.WAKE_REASON_LIFT.toString() +
                 "|" +
                 PowerManager.WAKE_REASON_TAP.toString(),
-            currentUser
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_WAKEUPS_CONSIDERED_UNLOCK_INTENTS))
 
@@ -452,7 +452,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
         secureSettings.putStringForUser(
             ACTIVE_UNLOCK_WAKEUPS_CONSIDERED_UNLOCK_INTENTS,
             " ",
-            currentUser
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_WAKEUPS_CONSIDERED_UNLOCK_INTENTS))
 
@@ -479,7 +479,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
         secureSettings.putStringForUser(
             ACTIVE_UNLOCK_WAKEUPS_TO_FORCE_DISMISS_KEYGUARD,
             PowerManager.WAKE_REASON_LIFT.toString(),
-            currentUser
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_WAKEUPS_TO_FORCE_DISMISS_KEYGUARD))
 
@@ -501,7 +501,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
         secureSettings.putStringForUser(
             ACTIVE_UNLOCK_WAKEUPS_TO_FORCE_DISMISS_KEYGUARD,
             " ",
-            currentUser
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_WAKEUPS_TO_FORCE_DISMISS_KEYGUARD))
 
@@ -521,7 +521,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
             PowerManager.WAKE_REASON_LIFT.toString() +
                 "|" +
                 PowerManager.WAKE_REASON_TAP.toString(),
-            currentUser
+            currentUser,
         )
         updateSetting(secureSettings.getUriFor(ACTIVE_UNLOCK_WAKEUPS_TO_FORCE_DISMISS_KEYGUARD))
 
@@ -544,7 +544,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
         secureSettings.putStringForUser(
             ACTIVE_UNLOCK_ON_UNLOCK_INTENT_WHEN_BIOMETRIC_ENROLLED,
             "-1",
-            currentUser
+            currentUser,
         )
 
         // WHEN the setting updates
@@ -581,7 +581,7 @@ class ActiveUnlockConfigTest : SysuiTestCase() {
                 eq(uri),
                 eq(false),
                 capture(settingsObserverCaptor),
-                eq(UserHandle.USER_ALL)
+                eq(UserHandle.USER_ALL),
             )
     }
 }

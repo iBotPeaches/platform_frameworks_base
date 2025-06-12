@@ -16,7 +16,6 @@
 
 package com.android.systemui.statusbar.notification.stack;
 
-import static android.view.View.GONE;
 import static android.view.WindowInsets.Type.ime;
 
 import static com.android.systemui.flags.SceneContainerFlagParameterizationKt.parameterizeSceneContainerFlag;
@@ -28,17 +27,14 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 
 import static org.junit.Assert.assertFalse;
-import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -64,7 +60,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsAnimation;
-import android.widget.TextView;
 
 import androidx.test.filters.SmallTest;
 
@@ -87,14 +82,18 @@ import com.android.systemui.shade.transition.LargeScreenShadeInterpolator;
 import com.android.systemui.statusbar.NotificationShelf;
 import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.SysuiStatusBarStateController;
+import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.render.GroupExpansionManager;
 import com.android.systemui.statusbar.notification.collection.render.GroupMembershipManager;
+import com.android.systemui.statusbar.notification.data.repository.HeadsUpRepository;
 import com.android.systemui.statusbar.notification.emptyshade.shared.ModesEmptyShadeFix;
 import com.android.systemui.statusbar.notification.emptyshade.ui.view.EmptyShadeView;
-import com.android.systemui.statusbar.notification.footer.shared.FooterViewRefactor;
-import com.android.systemui.statusbar.notification.footer.shared.NotifRedesignFooter;
 import com.android.systemui.statusbar.notification.footer.ui.view.FooterView;
+import com.android.systemui.statusbar.notification.headsup.AvalancheController;
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
+import com.android.systemui.statusbar.notification.headsup.NotificationsHunSharedAnimationValues;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.ExpandableView;
 import com.android.systemui.statusbar.notification.shared.NotificationThrottleHun;
@@ -103,7 +102,6 @@ import com.android.systemui.statusbar.notification.stack.shared.model.ShadeScrim
 import com.android.systemui.statusbar.phone.KeyguardBypassController;
 import com.android.systemui.statusbar.phone.ScreenOffAnimationController;
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager;
-import com.android.systemui.statusbar.notification.headsup.AvalancheController;
 import com.android.systemui.statusbar.policy.ResourcesSplitShadeStateController;
 import com.android.systemui.wallpapers.domain.interactor.WallpaperInteractor;
 
@@ -164,6 +162,7 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
     @Mock private StatusBarKeyguardViewManager mStatusBarKeyguardViewManager;
     @Mock private LargeScreenShadeInterpolator mLargeScreenShadeInterpolator;
     @Mock private AvalancheController mAvalancheController;
+    @Mock private HeadsUpRepository mHeadsUpRepository;
 
     public NotificationStackScrollLayoutTest(FlagsParameterization flags) {
         super();
@@ -183,6 +182,7 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
                 mBypassController,
                 mStatusBarKeyguardViewManager,
                 mLargeScreenShadeInterpolator,
+                mHeadsUpRepository,
                 mAvalancheController
         ));
 
@@ -352,6 +352,31 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         // THEN stackHeight is measured from the stack top
         verify(mAmbientState).setStackEndHeight(stackEndHeight);
         verify(mAmbientState).setInterpolatedStackHeight(stackEndHeight);
+    }
+
+    @Test
+    @EnableSceneContainer
+    public void updateStackCutoff_updatesStackEndHeight() {
+        // GIVEN shade is fully open
+        final float stackTop = 200f;
+        final float stackCutoff = 1000f;
+        final float stackHeight = stackCutoff - stackTop;
+        mAmbientState.setStackTop(stackTop);
+        mAmbientState.setStackCutoff(stackCutoff);
+        mAmbientState.setStatusBarState(StatusBarState.SHADE);
+        mStackScroller.setMaxDisplayedNotifications(-1); // no limit on the shade
+        mStackScroller.setExpandFraction(1f); // shade is fully expanded
+        assertThat(mAmbientState.getStackEndHeight()).isEqualTo(stackHeight);
+        assertThat(mAmbientState.getInterpolatedStackHeight()).isEqualTo(stackHeight);
+
+        // WHEN stackCutoff changes
+        final float newStackCutoff = 800;
+        mStackScroller.setStackCutoff(newStackCutoff);
+
+        // THEN stackEndHeight is updated
+        final float newStackHeight = newStackCutoff - stackTop;
+        assertThat(mAmbientState.getStackEndHeight()).isEqualTo(newStackHeight);
+        assertThat(mAmbientState.getInterpolatedStackHeight()).isEqualTo(newStackHeight);
     }
 
     @Test
@@ -578,158 +603,6 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
     }
 
     @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void manageNotifications_visible() {
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        when(view.willBeGone()).thenReturn(true);
-
-        mStackScroller.updateFooterView(true, false, true);
-
-        verify(view).setVisible(eq(true), anyBoolean());
-        verify(view).setClearAllButtonVisible(eq(false), anyBoolean());
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void clearAll_visible() {
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        when(view.willBeGone()).thenReturn(true);
-
-        mStackScroller.updateFooterView(true, true, true);
-
-        verify(view).setVisible(eq(true), anyBoolean());
-        verify(view).setClearAllButtonVisible(eq(true), anyBoolean());
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void testInflateFooterView() {
-        mStackScroller.inflateFooterView();
-        ArgumentCaptor<FooterView> captor = ArgumentCaptor.forClass(FooterView.class);
-        verify(mStackScroller).setFooterView(captor.capture());
-
-        assertNotNull(captor.getValue().findViewById(R.id.manage_text));
-        assertNotNull(captor.getValue().findViewById(R.id.dismiss_text));
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void testUpdateFooter_noNotifications() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(true);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(false, false, true);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    @DisableSceneContainer
-    public void testUpdateFooter_remoteInput() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(true);
-
-        mStackScroller.setIsRemoteInputActive(true);
-        when(mStackScrollLayoutController.getVisibleNotificationCount()).thenReturn(1);
-        when(mStackScrollLayoutController.hasActiveClearableNotifications(eq(ROWS_ALL)))
-                .thenReturn(true);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(false, true, true);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void testUpdateFooter_withoutNotifications() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(true);
-
-        when(mStackScrollLayoutController.getVisibleNotificationCount()).thenReturn(0);
-        when(mStackScrollLayoutController.hasActiveClearableNotifications(eq(ROWS_ALL)))
-                .thenReturn(false);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(false, false, true);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    @DisableSceneContainer
-    public void testUpdateFooter_oneClearableNotification() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(true);
-
-        when(mStackScrollLayoutController.getVisibleNotificationCount()).thenReturn(1);
-        when(mStackScrollLayoutController.hasActiveClearableNotifications(eq(ROWS_ALL)))
-                .thenReturn(true);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(true, true, true);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    @DisableSceneContainer
-    public void testUpdateFooter_withoutHistory() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(true);
-
-        when(mStackScrollLayoutController.isHistoryEnabled()).thenReturn(false);
-        when(mStackScrollLayoutController.getVisibleNotificationCount()).thenReturn(1);
-        when(mStackScrollLayoutController.hasActiveClearableNotifications(eq(ROWS_ALL)))
-                .thenReturn(true);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(true, true, false);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void testUpdateFooter_oneClearableNotification_beforeUserSetup() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(false);
-
-        when(mStackScrollLayoutController.getVisibleNotificationCount()).thenReturn(1);
-        when(mStackScrollLayoutController.hasActiveClearableNotifications(eq(ROWS_ALL)))
-                .thenReturn(true);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(false, true, true);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    @DisableSceneContainer
-    public void testUpdateFooter_oneNonClearableNotification() {
-        setBarStateForTest(StatusBarState.SHADE);
-        mStackScroller.setCurrentUserSetup(true);
-
-        when(mStackScrollLayoutController.getVisibleNotificationCount()).thenReturn(1);
-        when(mStackScrollLayoutController.hasActiveClearableNotifications(eq(ROWS_ALL)))
-                .thenReturn(false);
-        when(mEmptyShadeView.getVisibility()).thenReturn(GONE);
-
-        FooterView view = mock(FooterView.class);
-        mStackScroller.setFooterView(view);
-        mStackScroller.updateFooter();
-        verify(mStackScroller, atLeastOnce()).updateFooterView(true, false, true);
-    }
-
-    @Test
     public void testFooterPosition_atEnd() {
         // add footer
         FooterView view = mock(FooterView.class);
@@ -747,19 +620,6 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
     }
 
     @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME,
-        ModesEmptyShadeFix.FLAG_NAME,
-        NotifRedesignFooter.FLAG_NAME})
-    public void testReInflatesFooterViews() {
-        when(mEmptyShadeView.getTextResource()).thenReturn(R.string.empty_shade_text);
-        clearInvocations(mStackScroller);
-        mStackScroller.reinflateViews();
-        verify(mStackScroller).setFooterView(any());
-        verify(mStackScroller).setEmptyShadeView(any());
-    }
-
-    @Test
-    @EnableFlags(FooterViewRefactor.FLAG_NAME)
     @DisableFlags(ModesEmptyShadeFix.FLAG_NAME)
     public void testReInflatesEmptyShadeView() {
         when(mEmptyShadeView.getTextResource()).thenReturn(R.string.empty_shade_text);
@@ -822,7 +682,7 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
     @Test
     public void testClearNotifications_clearAllInProgress() {
         ExpandableNotificationRow row = createClearableRow();
-        when(row.getEntry().hasFinishedInitialization()).thenReturn(true);
+        when(row.hasFinishedInitialization()).thenReturn(true);
         doReturn(true).when(mStackScroller).isVisible(row);
         mStackScroller.addContainerView(row);
 
@@ -874,7 +734,11 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
         NotificationEntry entry = mock(NotificationEntry.class);
         when(row.getEntry()).thenReturn(entry);
+        when(row.getEntryLegacy()).thenReturn(entry);
         when(entry.isAmbient()).thenReturn(false);
+        EntryAdapter entryAdapter = mock(EntryAdapter.class);
+        when(entryAdapter.isAmbient()).thenReturn(false);
+        when(row.getEntryAdapter()).thenReturn(entryAdapter);
         mStackScroller.addContainerView(row);
 
         // speed bump = 1
@@ -890,7 +754,11 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
         NotificationEntry entry = mock(NotificationEntry.class);
         when(row.getEntry()).thenReturn(entry);
+        when(row.getEntryLegacy()).thenReturn(entry);
         when(entry.isAmbient()).thenReturn(true);
+        EntryAdapter entryAdapter = mock(EntryAdapter.class);
+        when(entryAdapter.isAmbient()).thenReturn(true);
+        when(row.getEntryAdapter()).thenReturn(entryAdapter);
         mStackScroller.addContainerView(row);
 
         // speed bump is set to 0
@@ -906,7 +774,11 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
         NotificationEntry entry = mock(NotificationEntry.class);
         when(row.getEntry()).thenReturn(entry);
+        when(row.getEntryLegacy()).thenReturn(entry);
         when(entry.isAmbient()).thenReturn(false);
+        EntryAdapter entryAdapter = mock(EntryAdapter.class);
+        when(entryAdapter.isAmbient()).thenReturn(false);
+        when(row.getEntryAdapter()).thenReturn(entryAdapter);
         mStackScroller.addContainerView(row);
 
         // speed bump is 1
@@ -1028,7 +900,7 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
     @EnableSceneContainer
     public void testIsInsideScrollableRegion_noOffset() {
         mStackScroller.setLeftTopRightBottom(0, 0, 1000, 2000);
-        mStackScroller.setScrimClippingShape(createScrimShape(100, 500, 900, 2000));
+        mStackScroller.setClippingShape(createScrimShape(100, 500, 900, 2000));
 
         MotionEvent event1 = transformEventForView(createMotionEvent(500f, 400f), mStackScroller);
         assertThat(mStackScroller.isInScrollableRegion(event1)).isFalse();
@@ -1047,7 +919,7 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
     @EnableSceneContainer
     public void testIsInsideScrollableRegion_offset() {
         mStackScroller.setLeftTopRightBottom(1000, 0, 2000, 2000);
-        mStackScroller.setScrimClippingShape(createScrimShape(100, 500, 900, 2000));
+        mStackScroller.setClippingShape(createScrimShape(100, 500, 900, 2000));
 
         MotionEvent event1 = transformEventForView(createMotionEvent(1500f, 400f), mStackScroller);
         assertThat(mStackScroller.isInScrollableRegion(event1)).isFalse();
@@ -1203,31 +1075,6 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         // NotificationPanelViewController and not in NotificationStackScrollLayout. Therefore
         // mAmbientState must have stackY set to 0
         assertEquals(0f, mAmbientState.getStackY());
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, NotifRedesignFooter.FLAG_NAME})
-    public void hasFilteredOutSeenNotifs_updateFooter() {
-        mStackScroller.setCurrentUserSetup(true);
-
-        // add footer
-        mStackScroller.inflateFooterView();
-        TextView footerLabel =
-                mStackScroller.mFooterView.requireViewById(R.id.unlock_prompt_footer);
-
-        mStackScroller.setHasFilteredOutSeenNotifications(true);
-        mStackScroller.updateFooter();
-
-        assertThat(footerLabel.getVisibility()).isEqualTo(View.VISIBLE);
-    }
-
-    @Test
-    @DisableFlags({FooterViewRefactor.FLAG_NAME, ModesEmptyShadeFix.FLAG_NAME})
-    public void hasFilteredOutSeenNotifs_updateEmptyShadeView() {
-        mStackScroller.setHasFilteredOutSeenNotifications(true);
-        mStackScroller.updateEmptyShadeView(true, false);
-
-        verify(mEmptyShadeView).setFooterText(not(eq(0)));
     }
 
     @Test
@@ -1418,11 +1265,57 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
 
         // WHEN we generate a disappear event
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ false);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false, /* hasStatusBarChip= */ false);
 
         // THEN headsUpAnimatingAway is true
         verify(headsUpAnimatingAwayListener).accept(true);
         assertTrue(mStackScroller.mHeadsUpAnimatingAway);
+    }
+
+    @Test
+    @EnableSceneContainer
+    @DisableFlags(StatusBarNotifChips.FLAG_NAME)
+    public void testGenerateHeadsUpDisappearEvent_notifChipsFlagOff_statusBarChipNotSet() {
+        // GIVEN NSSL is ready for HUN animations
+        Consumer<Boolean> headsUpAnimatingAwayListener = mock(BooleanConsumer.class);
+        ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
+        prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
+
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false, /* hasStatusBarChip= */ true);
+
+        verify(row, never()).setHasStatusBarChipDuringHeadsUpAnimation(anyBoolean());
+    }
+
+    @Test
+    @EnableSceneContainer
+    @EnableFlags(StatusBarNotifChips.FLAG_NAME)
+    public void testGenerateHeadsUpDisappearEvent_notifChipsFlagOn_statusBarChipSetToFalse() {
+        // GIVEN NSSL is ready for HUN animations
+        Consumer<Boolean> headsUpAnimatingAwayListener = mock(BooleanConsumer.class);
+        ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
+        prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
+
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false, /* hasStatusBarChip= */ false);
+
+        verify(row).setHasStatusBarChipDuringHeadsUpAnimation(false);
+    }
+
+    @Test
+    @EnableSceneContainer
+    @EnableFlags(StatusBarNotifChips.FLAG_NAME)
+    public void testGenerateHeadsUpDisappearEvent_notifChipsFlagOn_statusBarChipSetToTrue() {
+        // GIVEN NSSL is ready for HUN animations
+        Consumer<Boolean> headsUpAnimatingAwayListener = mock(BooleanConsumer.class);
+        ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
+        prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
+
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false, /* hasStatusBarChip= */ true);
+
+        verify(row).setHasStatusBarChipDuringHeadsUpAnimation(true);
     }
 
     @Test
@@ -1437,7 +1330,8 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         mStackScroller.setHeadsUpGoingAwayAnimationsAllowed(true);
 
         // WHEN we generate a disappear event
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ false);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false, /* hasStatusBarChip= */ false);
 
         // THEN nothing happens
         verify(headsUpAnimatingAwayListener, never()).accept(anyBoolean());
@@ -1452,10 +1346,12 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
         prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
         // BUT there is a pending appear event
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ true);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ true, /* hasStatusBarChip= */ false);
 
         // WHEN we generate a disappear event
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ false);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false, /* hasStatusBarChip= */ false);
 
         // THEN nothing happens
         verify(headsUpAnimatingAwayListener, never()).accept(anyBoolean());
@@ -1471,7 +1367,8 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
 
         // WHEN we generate a disappear event
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ true);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ true, /* hasStatusBarChip= */ false);
 
         // THEN headsUpAnimatingWay is not set
         verify(headsUpAnimatingAwayListener, never()).accept(anyBoolean());
@@ -1490,10 +1387,12 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         NotificationEntry entry = mock(NotificationEntry.class);
         when(entry.isSeenInShade()).thenReturn(true);
         ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
+        when(row.getEntryLegacy()).thenReturn(entry);
         when(row.getEntry()).thenReturn(entry);
 
         // WHEN we generate an add event
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ true);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ true, /* hasStatusBarChip= */ false);
 
         // THEN nothing happens
         assertThat(mStackScroller.isAddOrRemoveAnimationPending()).isFalse();
@@ -1508,7 +1407,8 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         prepareStackScrollerForHunAnimations(headsUpAnimatingAwayListener);
 
         // AND there is a HUN animating away
-        mStackScroller.generateHeadsUpAnimation(row, /* isHeadsUp = */ false);
+        mStackScroller.generateHeadsUpAnimation(
+                row, /* isHeadsUp = */ false,  /* hasStatusBarChip= */ false);
         assertTrue("a HUN should be animating away", mStackScroller.mHeadsUpAnimatingAway);
 
         // WHEN the child animations are finished
@@ -1517,14 +1417,6 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         // THEN headsUpAnimatingAway is false
         verify(headsUpAnimatingAwayListener).accept(false);
         assertFalse(mStackScroller.mHeadsUpAnimatingAway);
-    }
-
-    @Test
-    @EnableSceneContainer
-    public void finishExpanding_sceneContainerEnabled() {
-        mStackScroller.startOverscrollAfterExpanding();
-        verify(mStackScroller.getExpandHelper()).finishExpanding();
-        assertTrue(mStackScroller.getIsBeingDragged());
     }
 
     private MotionEvent captureTouchSentToSceneFramework() {
@@ -1552,7 +1444,11 @@ public class NotificationStackScrollLayoutTest extends SysuiTestCase {
         NotificationEntry entry = mock(NotificationEntry.class);
         when(row.canViewBeCleared()).thenReturn(true);
         when(row.getEntry()).thenReturn(entry);
+        when(row.getEntryLegacy()).thenReturn(entry);
         when(entry.isClearable()).thenReturn(true);
+        EntryAdapter entryAdapter = mock(EntryAdapter.class);
+        when(entryAdapter.isClearable()).thenReturn(true);
+        when(row.getEntryAdapter()).thenReturn(entryAdapter);
 
         return row;
     }

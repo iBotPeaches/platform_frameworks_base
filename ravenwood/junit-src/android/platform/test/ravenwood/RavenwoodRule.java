@@ -100,38 +100,6 @@ public final class RavenwoodRule implements TestRule {
         }
 
         /**
-         * @deprecated no longer used. We always use an app UID.
-         */
-        @Deprecated
-        public Builder setProcessSystem() {
-            return this;
-        }
-
-        /**
-         * @deprecated no longer used. We always use an app UID.
-         */
-        @Deprecated
-        public Builder setProcessApp() {
-            return this;
-        }
-
-        /**
-         * @deprecated no longer used.
-         */
-        @Deprecated
-        public Builder setPackageName(@NonNull String packageName) {
-            return this;
-        }
-
-        /**
-         * @deprecated no longer used. Main thread is always available.
-         */
-        @Deprecated
-        public Builder setProvideMainThread(boolean provideMainThread) {
-            return this;
-        }
-
-        /**
          * Configure the given system property as immutable for the duration of the test.
          * Read access to the key is allowed, and write access will fail. When {@code value} is
          * {@code null}, the value is left as undefined.
@@ -163,25 +131,9 @@ public final class RavenwoodRule implements TestRule {
             return this;
         }
 
-        /**
-         * @deprecated no longer used. All supported services are available.
-         */
-        @Deprecated
-        public Builder setServicesRequired(@NonNull Class<?>... services) {
-            return this;
-        }
-
         public RavenwoodRule build() {
             return mRule;
         }
-    }
-
-    /**
-     * @deprecated replaced by {@link #isOnRavenwood()}
-     */
-    @Deprecated
-    public static boolean isUnderRavenwood() {
-        return IS_ON_RAVENWOOD;
     }
 
     /**
@@ -195,26 +147,6 @@ public final class RavenwoodRule implements TestRule {
         if (!IS_ON_RAVENWOOD) {
             throw new RuntimeException(featureName + " is only supported on Ravenwood.");
         }
-    }
-
-    /**
-     * @deprecated Use
-     * {@code androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().getContext()}
-     * instead.
-     */
-    @Deprecated
-    public Context getContext() {
-        return InstrumentationRegistry.getInstrumentation().getContext();
-    }
-
-    /**
-     * @deprecated Use
-     * {@code androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()}
-     * instead.
-     */
-    @Deprecated
-    public Instrumentation getInstrumentation() {
-        return InstrumentationRegistry.getInstrumentation();
     }
 
     @Override

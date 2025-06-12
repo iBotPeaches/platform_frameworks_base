@@ -22,6 +22,7 @@ import android.telephony.CellSignalStrength
 import android.telephony.TelephonyManager.NETWORK_TYPE_UNKNOWN
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.internal.telephony.flags.Flags
 import com.android.settingslib.mobile.MobileIconCarrierIdOverrides
 import com.android.settingslib.mobile.MobileIconCarrierIdOverridesImpl
 import com.android.settingslib.mobile.TelephonyIcons
@@ -45,7 +46,6 @@ import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.TestScope
@@ -57,24 +57,42 @@ import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.anyString
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-class MobileIconInteractorTest : SysuiTestCase() {
-    private val kosmos = testKosmos()
+class MobileIconInteractorTest : MobileIconInteractorTestBase() {
+    override fun createInteractor(overrides: MobileIconCarrierIdOverrides) =
+        MobileIconInteractorImpl(
+            testScope.backgroundScope,
+            mobileIconsInteractor.activeDataConnectionHasDataEnabled,
+            mobileIconsInteractor.alwaysShowDataRatIcon,
+            mobileIconsInteractor.alwaysUseCdmaLevel,
+            mobileIconsInteractor.isSingleCarrier,
+            mobileIconsInteractor.mobileIsDefault,
+            mobileIconsInteractor.defaultMobileIconMapping,
+            mobileIconsInteractor.defaultMobileIconGroup,
+            mobileIconsInteractor.isDefaultConnectionFailed,
+            mobileIconsInteractor.isForceHidden,
+            connectionRepository,
+            context,
+            overrides,
+        )
+}
 
-    private lateinit var underTest: MobileIconInteractor
-    private val mobileMappingsProxy = FakeMobileMappingsProxy()
-    private val mobileIconsInteractor = FakeMobileIconsInteractor(mobileMappingsProxy, mock())
+abstract class MobileIconInteractorTestBase : SysuiTestCase() {
+    protected val kosmos = testKosmos()
 
-    private val connectionRepository =
+    protected lateinit var underTest: MobileIconInteractor
+    protected val mobileMappingsProxy = FakeMobileMappingsProxy()
+    protected val mobileIconsInteractor = FakeMobileIconsInteractor(mobileMappingsProxy, mock())
+
+    protected val connectionRepository =
         FakeMobileConnectionRepository(
             SUB_1_ID,
             logcatTableLogBuffer(kosmos, "MobileIconInteractorTest"),
         )
 
-    private val testDispatcher = UnconfinedTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
+    protected val testDispatcher = UnconfinedTestDispatcher()
+    protected val testScope = TestScope(testDispatcher)
 
     @Before
     fun setUp() {
@@ -721,7 +739,6 @@ class MobileIconInteractorTest : SysuiTestCase() {
             job.cancel()
         }
 
-    @EnableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     @Test
     fun satBasedIcon_isUsedWhenNonTerrestrial() =
         testScope.runTest {
@@ -735,7 +752,6 @@ class MobileIconInteractorTest : SysuiTestCase() {
             assertThat(latest).isInstanceOf(SignalIconModel.Satellite::class.java)
         }
 
-    @EnableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     @DisableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @Test
     // See b/346904529 for more context
@@ -758,10 +774,7 @@ class MobileIconInteractorTest : SysuiTestCase() {
             assertThat(latest!!.level).isEqualTo(4)
         }
 
-    @EnableFlags(
-        com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG,
-        com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN,
-    )
+    @EnableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @Test
     // See b/346904529 for more context
     fun satBasedIcon_doesNotInflateSignalStrength_flagOn() =
@@ -783,7 +796,6 @@ class MobileIconInteractorTest : SysuiTestCase() {
             assertThat(latest!!.level).isEqualTo(4)
         }
 
-    @EnableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     @DisableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @Test
     fun satBasedIcon_usesPrimaryLevel_flagOff() =
@@ -801,10 +813,7 @@ class MobileIconInteractorTest : SysuiTestCase() {
             assertThat(latest!!.level).isEqualTo(4)
         }
 
-    @EnableFlags(
-        com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG,
-        com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN,
-    )
+    @EnableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @Test
     fun satBasedIcon_usesSatelliteLevel_flagOn() =
         testScope.runTest {
@@ -825,7 +834,6 @@ class MobileIconInteractorTest : SysuiTestCase() {
      * Context (b/377518113), this test will not be needed after FLAG_CARRIER_ROAMING_NB_IOT_NTN is
      * rolled out. The new API should report 0 automatically if not in service.
      */
-    @EnableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     @DisableFlags(com.android.internal.telephony.flags.Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @Test
     fun satBasedIcon_reportsLevelZeroWhenOutOfService() =
@@ -847,24 +855,9 @@ class MobileIconInteractorTest : SysuiTestCase() {
             assertThat(latest!!.level).isEqualTo(0)
         }
 
-    private fun createInteractor(
+    abstract fun createInteractor(
         overrides: MobileIconCarrierIdOverrides = MobileIconCarrierIdOverridesImpl()
-    ) =
-        MobileIconInteractorImpl(
-            testScope.backgroundScope,
-            mobileIconsInteractor.activeDataConnectionHasDataEnabled,
-            mobileIconsInteractor.alwaysShowDataRatIcon,
-            mobileIconsInteractor.alwaysUseCdmaLevel,
-            mobileIconsInteractor.isSingleCarrier,
-            mobileIconsInteractor.mobileIsDefault,
-            mobileIconsInteractor.defaultMobileIconMapping,
-            mobileIconsInteractor.defaultMobileIconGroup,
-            mobileIconsInteractor.isDefaultConnectionFailed,
-            mobileIconsInteractor.isForceHidden,
-            connectionRepository,
-            context,
-            overrides,
-        )
+    ): MobileIconInteractor
 
     companion object {
         private const val GSM_LEVEL = 1

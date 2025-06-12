@@ -45,6 +45,7 @@ android_test {
         "androidx.test.rules",
         "androidx.test.ext.junit",
         "androidx.datastore_datastore",
+        "androidx.core_core-animation-testing",
         "kotlinx_coroutines_test",
         "androidx.dynamicanimation_dynamicanimation",
         "dagger2",
@@ -64,6 +65,7 @@ android_test {
         "platform-test-annotations",
         "flag-junit",
         "platform-parametric-runner-lib",
+        "platform-compat-test-rules",
     ],
 
     libs: [

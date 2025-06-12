@@ -87,9 +87,15 @@ constructor(private val userManager: UserManager, dumpManager: DumpManager) :
                 // It's not a system app at all.
                 return false
             } else {
-                // If there's no launch intent, it's probably a headless app.
-                val pm = context.packageManager
-                return (pm.getLaunchIntentForPackage(info.packageName) == null)
+                // If there's no launch intent, it's probably a headless app. Check for both
+                // direct-aware and -unaware intents; otherwise this will almost certainly fail
+                // for notifications posted before unlocking.
+                val packageLaunchIntent =
+                    context.packageManager.getLaunchIntentForPackage(
+                        info.packageName,
+                        /* includeDirectBootUnaware= */ true,
+                    )
+                return packageLaunchIntent == null
             }
         } else {
             // If for some reason we don't have the app info, we don't know; best assume it's

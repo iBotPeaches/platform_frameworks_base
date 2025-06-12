@@ -129,6 +129,14 @@ flag {
 }
 
 flag {
+    name: "deprecate_surface_view_z_order_apis"
+    namespace: "window_surfaces"
+    description: "Deprecate SurfaceView z order control APIs."
+    bug: "341021569"
+    is_fixed_read_only: true
+}
+
+flag {
     name: "use_refactored_round_scrollbar"
     namespace: "wear_frameworks"
     description: "Use refactored round scrollbar."
@@ -150,4 +158,12 @@ flag {
     description: "Enables DateTimeView to use additional display configurations for relative time"
     bug: "364653005"
     is_fixed_read_only: true
+}
+
+flag {
+    name: "root_view_changed_listener"
+    namespace: "windowing_sdk"
+    description: "Implement listener pattern for WindowInspector#getGlobalWindowViews."
+    bug: "394397033"
+    is_fixed_read_only: false
 }

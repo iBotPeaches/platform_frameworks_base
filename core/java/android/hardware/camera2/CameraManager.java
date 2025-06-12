@@ -67,6 +67,7 @@ import android.os.Handler;
 import android.os.HandlerExecutor;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
@@ -78,6 +79,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.Size;
 import android.view.Display;
+import android.window.DesktopModeFlags;
 
 import com.android.internal.camera.flags.Flags;
 import com.android.internal.util.ArrayUtils;
@@ -591,8 +593,7 @@ public final class CameraManager {
 
     /** @hide */
     public int getDevicePolicyFromContext(@NonNull Context context) {
-        if (context.getDeviceId() == DEVICE_ID_DEFAULT
-                || !android.companion.virtual.flags.Flags.virtualCamera()) {
+        if (context.getDeviceId() == DEVICE_ID_DEFAULT) {
             return DEVICE_POLICY_DEFAULT;
         }
 
@@ -1375,6 +1376,9 @@ public final class CameraManager {
      * @throws SecurityException if the application does not have permission to
      *                           access the camera
      *
+     * @throws UnsupportedOperationException if {@link #isCameraDeviceSharingSupported} returns
+     *                                       false for the given {@code cameraId}.
+     *
      * @see #getCameraIdList
      * @see android.app.admin.DevicePolicyManager#setCameraDisabled
      *
@@ -1392,6 +1396,10 @@ public final class CameraManager {
             throws CameraAccessException {
         if (executor == null) {
             throw new IllegalArgumentException("executor was null");
+        }
+        if (!isCameraDeviceSharingSupported(cameraId)) {
+            throw new UnsupportedOperationException(
+                    "CameraDevice sharing is not supported for Camera ID: " + cameraId);
         }
         openCameraImpl(cameraId, callback, executor, /*oomScoreOffset*/0,
                 getRotationOverride(mContext), /*sharedMode*/true);
@@ -1678,7 +1686,10 @@ public final class CameraManager {
      */
     public static int getRotationOverride(@Nullable Context context,
             @Nullable PackageManager packageManager, @Nullable String packageName) {
-        if (com.android.window.flags.Flags.enableCameraCompatForDesktopWindowing()) {
+        // Isolated process does not have access to the ContentProvider which
+        // `DesktopModeFlags` uses. `DesktopModeFlags` combines developer options and Aconfig flags.
+        if (!Process.isIsolated() && DesktopModeFlags
+                .ENABLE_CAMERA_COMPAT_SIMULATE_REQUESTED_ORIENTATION.isTrue()) {
             return getRotationOverrideInternal(context, packageManager, packageName);
         } else {
             return shouldOverrideToPortrait(packageManager, packageName)
@@ -1698,14 +1709,16 @@ public final class CameraManager {
             return ICameraService.ROTATION_OVERRIDE_NONE;
         }
 
-        if (context != null) {
+        // Isolated process does not have access to ActivityTaskManager service, which is used
+        // indirectly in `ActivityManager.getAppTasks()`.
+        if (context != null && !Process.isIsolated()) {
             final ActivityManager activityManager = context.getSystemService(ActivityManager.class);
             if (activityManager != null) {
                 for (ActivityManager.AppTask appTask : activityManager.getAppTasks()) {
                     final TaskInfo taskInfo = appTask.getTaskInfo();
                     final int freeformCameraCompatMode = taskInfo.appCompatTaskInfo
                             .cameraCompatTaskInfo.freeformCameraCompatMode;
-                    if (freeformCameraCompatMode != 0
+                    if (isInCameraCompatMode(freeformCameraCompatMode)
                             && taskInfo.topActivity != null
                             && taskInfo.topActivity.getPackageName().equals(packageName)) {
                         // WindowManager has requested rotation override.
@@ -1730,6 +1743,12 @@ public final class CameraManager {
         return CompatChanges.isChangeEnabled(OVERRIDE_CAMERA_LANDSCAPE_TO_PORTRAIT)
                 ? ICameraService.ROTATION_OVERRIDE_OVERRIDE_TO_PORTRAIT
                 : ICameraService.ROTATION_OVERRIDE_NONE;
+    }
+
+    private static boolean isInCameraCompatMode(@CameraCompatTaskInfo.FreeformCameraCompatMode int
+            freeformCameraCompatMode) {
+        return (freeformCameraCompatMode != CameraCompatTaskInfo.CAMERA_COMPAT_FREEFORM_UNSPECIFIED)
+                && (freeformCameraCompatMode != CameraCompatTaskInfo.CAMERA_COMPAT_FREEFORM_NONE);
     }
 
     private static int getRotationOverrideForCompatFreeform(
@@ -2569,11 +2588,6 @@ public final class CameraManager {
 
         private boolean shouldHideCamera(int currentDeviceId, int devicePolicy,
                 DeviceCameraInfo info) {
-            if (!android.companion.virtualdevice.flags.Flags.cameraDeviceAwareness()) {
-                // Don't hide any cameras if the device-awareness feature flag is disabled.
-                return false;
-            }
-
             if (devicePolicy == DEVICE_POLICY_DEFAULT && info.mDeviceId == DEVICE_ID_DEFAULT) {
                 // Don't hide default-device cameras for a default-policy virtual device.
                 return false;

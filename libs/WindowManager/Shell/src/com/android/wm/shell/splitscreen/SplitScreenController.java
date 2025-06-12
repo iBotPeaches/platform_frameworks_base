@@ -54,6 +54,7 @@ import android.content.pm.ShortcutInfo;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.ArrayMap;
@@ -82,6 +83,7 @@ import com.android.launcher3.icons.IconProvider;
 import com.android.wm.shell.R;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
+import com.android.wm.shell.common.ComponentUtils;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.DisplayImeController;
 import com.android.wm.shell.common.DisplayInsetsController;
@@ -299,7 +301,7 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
                 mTaskOrganizer, mDisplayController, mDisplayImeController,
                 mDisplayInsetsController, mTransitions, mTransactionPool, mIconProvider,
                 mMainExecutor, mMainHandler, mRecentTasksOptional, mLaunchAdjacentController,
-                mWindowDecorViewModel, mSplitState);
+                mWindowDecorViewModel, mSplitState, mDesktopTasksController, mRootTDAOrganizer);
     }
 
     @Override
@@ -317,6 +319,10 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
     }
 
     public StageCoordinator getTransitionHandler() {
+        return mStageCoordinator;
+    }
+
+    public SplitMultiDisplayProvider getMultiDisplayProvider() {
         return mStageCoordinator;
     }
 
@@ -440,7 +446,7 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
      */
     public void prepareExitSplitScreen(WindowContainerTransaction wct,
             @StageType int stageToTop, @ExitReason int reason) {
-        mStageCoordinator.prepareExitSplitScreen(stageToTop, wct);
+        mStageCoordinator.prepareExitSplitScreen(stageToTop, wct, reason);
         mStageCoordinator.clearSplitPairedInRecents(reason);
     }
 
@@ -575,10 +581,13 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
      * @param wct transaction to apply if this is a valid request
      * @param splitPosition the split position this task should move to
      * @param taskBounds current freeform bounds of the task entering split
+     *
+     * @return the token of the transition that started as a result of entering split select.
      */
-    public void requestEnterSplitSelect(ActivityManager.RunningTaskInfo taskInfo,
+    @Nullable
+    public IBinder requestEnterSplitSelect(ActivityManager.RunningTaskInfo taskInfo,
             WindowContainerTransaction wct, int splitPosition, Rect taskBounds) {
-        mStageCoordinator.requestEnterSplitSelect(taskInfo, wct, splitPosition, taskBounds);
+        return mStageCoordinator.requestEnterSplitSelect(taskInfo, wct, splitPosition, taskBounds);
     }
 
     /**
@@ -633,6 +642,14 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
     }
 
     /**
+     * Starts an existing task via StageCoordinator.
+     */
+    public void startTask(int taskId, @SplitPosition int position, @Nullable Bundle options,
+            @Nullable WindowContainerToken hideTaskToken, @SplitIndex int index) {
+        mStageCoordinator.startTask(taskId, position, options, hideTaskToken, index);
+    }
+
+    /**
      * See {@link #startShortcut(String, String, int, Bundle, UserHandle)}
      * @param instanceId to be used by {@link SplitscreenEventLogger}
      */
@@ -648,11 +665,12 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
             @Nullable Bundle options, UserHandle user) {
         if (options == null) options = new Bundle();
         final ActivityOptions activityOptions = ActivityOptions.fromBundle(options);
+        final int userId = user.getIdentifier();
 
         if (samePackage(packageName, getPackageName(reverseSplitPosition(position), null),
-                user.getIdentifier(), getUserId(reverseSplitPosition(position), null))) {
+                userId, getUserId(reverseSplitPosition(position), null))) {
             if (mMultiInstanceHelpher.supportsMultiInstanceSplit(
-                    getShortcutComponent(packageName, shortcutId, user, mLauncherApps))) {
+                    getShortcutComponent(packageName, shortcutId, user, mLauncherApps), userId)) {
                 activityOptions.setApplyMultipleTaskFlagForShortcut(true);
                 ProtoLog.v(ShellProtoLogGroup.WM_SHELL_SPLIT_SCREEN, "Adding MULTIPLE_TASK");
             } else if (isSplitScreenVisible()) {
@@ -682,11 +700,12 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
         final String packageName1 = shortcutInfo.getPackage();
         // NOTE: This doesn't correctly pull out packageName2 if taskId is referring to a task in
         //       recents that hasn't launched and is not being organized
-        final String packageName2 = SplitScreenUtils.getPackageName(taskId, mTaskOrganizer);
+        final String packageName2 = ComponentUtils.getPackageName(taskId, mTaskOrganizer);
         final int userId1 = shortcutInfo.getUserId();
         final int userId2 = SplitScreenUtils.getUserId(taskId, mTaskOrganizer);
         if (samePackage(packageName1, packageName2, userId1, userId2)) {
-            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(shortcutInfo.getActivity())) {
+            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(shortcutInfo.getActivity(),
+                    userId1)) {
                 activityOptions.setApplyMultipleTaskFlagForShortcut(true);
                 ProtoLog.v(ShellProtoLogGroup.WM_SHELL_SPLIT_SCREEN, "Adding MULTIPLE_TASK");
             } else {
@@ -727,14 +746,15 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
             @SplitPosition int splitPosition, @PersistentSnapPosition int snapPosition,
             @Nullable RemoteTransition remoteTransition, InstanceId instanceId) {
         Intent fillInIntent = null;
-        final String packageName1 = SplitScreenUtils.getPackageName(pendingIntent);
+        final String packageName1 = ComponentUtils.getPackageName(pendingIntent);
         // NOTE: This doesn't correctly pull out packageName2 if taskId is referring to a task in
         //       recents that hasn't launched and is not being organized
-        final String packageName2 = SplitScreenUtils.getPackageName(taskId, mTaskOrganizer);
+        final String packageName2 = ComponentUtils.getPackageName(taskId, mTaskOrganizer);
         final int userId2 = SplitScreenUtils.getUserId(taskId, mTaskOrganizer);
         boolean setSecondIntentMultipleTask = false;
         if (samePackage(packageName1, packageName2, userId1, userId2)) {
-            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(getComponent(pendingIntent))) {
+            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(getComponent(pendingIntent),
+                    userId1)) {
                 setSecondIntentMultipleTask = true;
                 ProtoLog.v(ShellProtoLogGroup.WM_SHELL_SPLIT_SCREEN, "Adding MULTIPLE_TASK");
             } else {
@@ -766,15 +786,16 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
             InstanceId instanceId) {
         Intent fillInIntent1 = null;
         Intent fillInIntent2 = null;
-        final String packageName1 = SplitScreenUtils.getPackageName(pendingIntent1);
-        final String packageName2 = SplitScreenUtils.getPackageName(pendingIntent2);
+        final String packageName1 = ComponentUtils.getPackageName(pendingIntent1);
+        final String packageName2 = ComponentUtils.getPackageName(pendingIntent2);
         final ActivityOptions activityOptions1 = options1 != null
                 ? ActivityOptions.fromBundle(options1) : ActivityOptions.makeBasic();
         final ActivityOptions activityOptions2 = options2 != null
                 ? ActivityOptions.fromBundle(options2) : ActivityOptions.makeBasic();
         boolean setSecondIntentMultipleTask = false;
         if (samePackage(packageName1, packageName2, userId1, userId2)) {
-            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(getComponent(pendingIntent1))) {
+            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(getComponent(pendingIntent1),
+                    userId1)) {
                 fillInIntent1 = new Intent();
                 fillInIntent1.addFlags(FLAG_ACTIVITY_MULTIPLE_TASK);
                 setSecondIntentMultipleTask = true;
@@ -835,7 +856,7 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
         if (fillInIntent == null) fillInIntent = new Intent();
         fillInIntent.addFlags(FLAG_ACTIVITY_NO_USER_ACTION);
 
-        final String packageName1 = SplitScreenUtils.getPackageName(intent);
+        final String packageName1 = ComponentUtils.getPackageName(intent);
         final String packageName2 = getPackageName(reverseSplitPosition(position), hideTaskToken);
         final int userId2 = getUserId(reverseSplitPosition(position), hideTaskToken);
         final ComponentName component = intent.getIntent().getComponent();
@@ -857,7 +878,7 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
             return;
         }
         if (samePackage(packageName1, packageName2, userId1, userId2)) {
-            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(getComponent(intent))) {
+            if (mMultiInstanceHelpher.supportsMultiInstanceSplit(getComponent(intent), userId1)) {
                 // Flag with MULTIPLE_TASK if this is launching the same activity into both sides of
                 // the split and there is no reusable background task.
                 fillInIntent.addFlags(FLAG_ACTIVITY_MULTIPLE_TASK);
@@ -900,7 +921,7 @@ public class SplitScreenController implements SplitDragPolicy.Starter,
             }
         }
 
-        return taskInfo != null ? SplitScreenUtils.getPackageName(taskInfo.baseIntent) : null;
+        return taskInfo != null ? ComponentUtils.getPackageName(taskInfo.baseIntent) : null;
     }
 
     /**

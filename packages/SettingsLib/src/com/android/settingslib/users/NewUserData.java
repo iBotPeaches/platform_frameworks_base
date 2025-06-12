@@ -18,6 +18,8 @@ package com.android.settingslib.users;
 
 import android.graphics.drawable.Drawable;
 
+import androidx.annotation.Nullable;
+
 /**
  * Defines a callback when a new user data is filled out.
  */
@@ -27,8 +29,10 @@ public interface NewUserData {
      * Consumes data relevant to new user that needs to be created.
      * @param userName New user name.
      * @param userImage New user icon.
+     * @param iconPath New user icon path.
      * @param isNewUserAdmin A boolean that indicated whether new user has admin status.
      */
-    void onSuccess(String userName, Drawable userImage, Boolean isNewUserAdmin);
+    void onSuccess(@Nullable String userName, @Nullable Drawable userImage,
+            @Nullable String iconPath, @Nullable Boolean isNewUserAdmin);
 
 }

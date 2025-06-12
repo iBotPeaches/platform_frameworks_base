@@ -16,12 +16,15 @@
 
 package android.companion.virtual.sensor;
 
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.companion.virtual.IVirtualDevice;
+import android.companion.virtualdevice.flags.Flags;
 import android.hardware.Sensor;
+import android.hardware.SensorAdditionalInfo;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -37,20 +40,33 @@ import android.os.RemoteException;
  */
 @SystemApi
 public final class VirtualSensor implements Parcelable {
+
     private final int mHandle;
     private final int mType;
     private final String mName;
+    private final int mFlags;
     private final IVirtualDevice mVirtualDevice;
     private final IBinder mToken;
+    // Only one additional info frame set at a time.
+    private final Object mAdditionalInfoLock = new Object();
 
     /**
      * @hide
      */
     public VirtualSensor(int handle, int type, String name, IVirtualDevice virtualDevice,
             IBinder token) {
+        this(handle, type, name, /*flags=*/0, virtualDevice, token);
+    }
+
+    /**
+     * @hide
+     */
+    public VirtualSensor(int handle, int type, String name, int flags, IVirtualDevice virtualDevice,
+            IBinder token) {
         mHandle = handle;
         mType = type;
         mName = name;
+        mFlags = flags;
         mVirtualDevice = virtualDevice;
         mToken = token;
     }
@@ -61,13 +77,14 @@ public final class VirtualSensor implements Parcelable {
     @SuppressLint("UnflaggedApi") // @TestApi without associated feature.
     @TestApi
     public VirtualSensor(int handle, int type, @NonNull String name) {
-        this(handle, type, name, /*virtualDevice=*/null, /*token=*/null);
+        this(handle, type, name, /*flags=*/0, /*virtualDevice=*/null, /*token=*/null);
     }
 
     private VirtualSensor(Parcel parcel) {
         mHandle = parcel.readInt();
         mType = parcel.readInt();
         mName = parcel.readString8();
+        mFlags = parcel.readInt();
         mVirtualDevice = IVirtualDevice.Stub.asInterface(parcel.readStrongBinder());
         mToken = parcel.readStrongBinder();
     }
@@ -123,6 +140,7 @@ public final class VirtualSensor implements Parcelable {
         parcel.writeInt(mHandle);
         parcel.writeInt(mType);
         parcel.writeString8(mName);
+        parcel.writeInt(mFlags);
         parcel.writeStrongBinder(mVirtualDevice.asBinder());
         parcel.writeStrongBinder(mToken);
     }
@@ -138,6 +156,33 @@ public final class VirtualSensor implements Parcelable {
     public void sendEvent(@NonNull VirtualSensorEvent event) {
         try {
             mVirtualDevice.sendSensorEvent(mToken, event);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * Send additional information about the sensor to the system.
+     *
+     * @param info the additional sensor information to send.
+     * @throws UnsupportedOperationException if the sensor does not support sending additional info.
+     * @see Sensor#isAdditionalInfoSupported()
+     * @see VirtualSensorConfig.Builder#setAdditionalInfoSupported(boolean)
+     * @see SensorAdditionalInfo
+     * @see VirtualSensorAdditionalInfo
+     */
+    @FlaggedApi(Flags.FLAG_VIRTUAL_SENSOR_ADDITIONAL_INFO)
+    public void sendAdditionalInfo(@NonNull VirtualSensorAdditionalInfo info) {
+        if (!Flags.virtualSensorAdditionalInfo()) {
+            throw new UnsupportedOperationException("Sensor additional info not supported.");
+        }
+        if ((mFlags & VirtualSensorConfig.ADDITIONAL_INFO_MASK) == 0) {
+            throw new UnsupportedOperationException("Sensor additional info not supported.");
+        }
+        try {
+            synchronized (mAdditionalInfoLock) {
+                mVirtualDevice.sendSensorAdditionalInfo(mToken, info);
+            }
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }

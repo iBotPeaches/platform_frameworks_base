@@ -175,7 +175,8 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
 
         // Draw background.
         mBackground.ensureBackground(mClosingTarget.windowConfiguration.getBounds(),
-                BACKGROUNDCOLOR, mTransaction, mStatusbarHeight);
+                BACKGROUNDCOLOR, mTransaction, mStatusbarHeight,
+                mClosingTarget.taskInfo.getDisplayId());
         mInterWindowMargin = mContext.getResources()
                 .getDimension(R.dimen.cross_task_back_inter_window_margin);
         mVerticalMargin = mContext.getResources()

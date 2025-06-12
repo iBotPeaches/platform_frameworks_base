@@ -87,7 +87,7 @@ public class PipAnimationControllerTest extends ShellTestCase {
                 .getAnimator(mTaskInfo, mLeash, new Rect(), 0f, 1f);
 
         assertEquals("Expect ANIM_TYPE_ALPHA animation",
-                animator.getAnimationType(), PipAnimationController.ANIM_TYPE_ALPHA);
+                animator.getAnimationType(), PipTransitionController.ANIM_TYPE_ALPHA);
     }
 
     @Test
@@ -101,7 +101,7 @@ public class PipAnimationControllerTest extends ShellTestCase {
                         false /* alwaysAnimateTaskBounds */);
 
         assertEquals("Expect ANIM_TYPE_BOUNDS animation",
-                animator.getAnimationType(), PipAnimationController.ANIM_TYPE_BOUNDS);
+                animator.getAnimationType(), PipTransitionController.ANIM_TYPE_BOUNDS);
     }
 
     @Test
@@ -189,7 +189,7 @@ public class PipAnimationControllerTest extends ShellTestCase {
         // Apply fraction 1 to compute the end value.
         animator.applySurfaceControlTransaction(mLeash, tx, 1);
 
-        assertEquals("Expect use main window frame", mTaskInfo.topActivityMainWindowFrame,
+        assertEquals("Expect main window frame", mTaskInfo.topActivityMainWindowFrame,
                 animator.mCurrentValue);
 
         // PiP to fullscreen.
@@ -200,9 +200,11 @@ public class PipAnimationControllerTest extends ShellTestCase {
                 endBounds, null, TRANSITION_DIRECTION_TO_PIP, 0, ROTATION_270,
                 false /* alwaysAnimateTaskBounds */);
         animator.applySurfaceControlTransaction(mLeash, tx, 1);
+        final Rect rotatedEndBounds = new Rect(endBounds);
+        rotateBounds(rotatedEndBounds, startBounds, ROTATION_270);
 
-        assertEquals("Expect use main window frame", mTaskInfo.topActivityMainWindowFrame,
-                animator.mCurrentValue);
+        assertEquals("Expect rotated bounds. We only use main window frame for "
+                + "leave-pip animation", rotatedEndBounds, animator.mCurrentValue);
     }
 
     @Test

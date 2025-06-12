@@ -35,15 +35,12 @@ import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.systemui.Flags.FLAG_COMMUNAL_HUB
 import com.android.systemui.Flags.FLAG_COMMUNAL_RESPONSIVE_GRID
 import com.android.systemui.Flags.FLAG_COMMUNAL_WIDGET_RESIZING
+import com.android.systemui.Flags.FLAG_GLANCEABLE_HUB_V2
+import com.android.systemui.Flags.glanceableHubV2
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.broadcast.broadcastDispatcher
 import com.android.systemui.communal.data.model.CommunalSmartspaceTimer
-import com.android.systemui.communal.data.repository.FakeCommunalMediaRepository
-import com.android.systemui.communal.data.repository.FakeCommunalPrefsRepository
-import com.android.systemui.communal.data.repository.FakeCommunalSceneRepository
-import com.android.systemui.communal.data.repository.FakeCommunalSmartspaceRepository
-import com.android.systemui.communal.data.repository.FakeCommunalTutorialRepository
-import com.android.systemui.communal.data.repository.FakeCommunalWidgetRepository
+import com.android.systemui.communal.data.model.SuppressionReason
 import com.android.systemui.communal.data.repository.fakeCommunalMediaRepository
 import com.android.systemui.communal.data.repository.fakeCommunalPrefsRepository
 import com.android.systemui.communal.data.repository.fakeCommunalSceneRepository
@@ -55,83 +52,54 @@ import com.android.systemui.communal.domain.model.CommunalTransitionProgressMode
 import com.android.systemui.communal.shared.model.CommunalContentSize
 import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.communal.shared.model.EditModeState
-import com.android.systemui.communal.widgets.EditWidgetsActivityStarter
-import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.flags.Flags
 import com.android.systemui.flags.fakeFeatureFlagsClassic
-import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.shared.model.KeyguardState
+import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.plugins.ActivityStarter
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.plugins.activityStarter
-import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.settings.FakeUserTracker
 import com.android.systemui.settings.fakeUserTracker
 import com.android.systemui.statusbar.phone.fakeManagedProfileController
 import com.android.systemui.testKosmos
-import com.android.systemui.user.data.repository.FakeUserRepository
 import com.android.systemui.user.data.repository.fakeUserRepository
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.capture
 import com.android.systemui.util.mockito.nullable
 import com.android.systemui.util.mockito.whenever
-import com.android.systemui.utils.leaks.FakeManagedProfileController
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.eq
-import org.mockito.Mock
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
-import org.mockito.MockitoAnnotations
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
-/**
- * This class of test cases assume that communal is enabled. For disabled cases, see
- * [CommunalInteractorCommunalDisabledTest].
- */
 @SmallTest
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(ParameterizedAndroidJunit4::class)
+@EnableFlags(FLAG_COMMUNAL_HUB)
 class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
-    @Mock private lateinit var mainUser: UserInfo
-    @Mock private lateinit var secondaryUser: UserInfo
+    private val mainUser =
+        UserInfo(/* id= */ 0, /* name= */ "primary user", /* flags= */ UserInfo.FLAG_MAIN)
+    private val secondaryUser = UserInfo(/* id= */ 1, /* name= */ "secondary user", /* flags= */ 0)
 
-    private val kosmos = testKosmos()
-    private val testScope = kosmos.testScope
+    private val kosmos = testKosmos().useUnconfinedTestDispatcher()
 
-    private lateinit var tutorialRepository: FakeCommunalTutorialRepository
-    private lateinit var communalRepository: FakeCommunalSceneRepository
-    private lateinit var mediaRepository: FakeCommunalMediaRepository
-    private lateinit var widgetRepository: FakeCommunalWidgetRepository
-    private lateinit var smartspaceRepository: FakeCommunalSmartspaceRepository
-    private lateinit var userRepository: FakeUserRepository
-    private lateinit var keyguardRepository: FakeKeyguardRepository
-    private lateinit var communalPrefsRepository: FakeCommunalPrefsRepository
-    private lateinit var editWidgetsActivityStarter: EditWidgetsActivityStarter
-    private lateinit var sceneInteractor: SceneInteractor
-    private lateinit var communalSceneInteractor: CommunalSceneInteractor
-    private lateinit var userTracker: FakeUserTracker
-    private lateinit var activityStarter: ActivityStarter
-    private lateinit var userManager: UserManager
-    private lateinit var managedProfileController: FakeManagedProfileController
-
-    private lateinit var underTest: CommunalInteractor
+    private val Kosmos.underTest by Kosmos.Fixture { communalInteractor }
 
     init {
         mSetFlagsRule.setFlagsParameterization(flags)
@@ -139,128 +107,70 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Before
     fun setUp() {
-        MockitoAnnotations.initMocks(this)
-
-        tutorialRepository = kosmos.fakeCommunalTutorialRepository
-        communalRepository = kosmos.fakeCommunalSceneRepository
-        mediaRepository = kosmos.fakeCommunalMediaRepository
-        widgetRepository = kosmos.fakeCommunalWidgetRepository
-        smartspaceRepository = kosmos.fakeCommunalSmartspaceRepository
-        userRepository = kosmos.fakeUserRepository
-        keyguardRepository = kosmos.fakeKeyguardRepository
-        editWidgetsActivityStarter = kosmos.editWidgetsActivityStarter
-        communalPrefsRepository = kosmos.fakeCommunalPrefsRepository
-        sceneInteractor = kosmos.sceneInteractor
-        communalSceneInteractor = kosmos.communalSceneInteractor
-        userTracker = kosmos.fakeUserTracker
-        activityStarter = kosmos.activityStarter
-        userManager = kosmos.userManager
-        managedProfileController = kosmos.fakeManagedProfileController
-
-        whenever(mainUser.isMain).thenReturn(true)
-        whenever(secondaryUser.isMain).thenReturn(false)
-        whenever(userManager.isQuietModeEnabled(any<UserHandle>())).thenReturn(false)
-        whenever(userManager.isManagedProfile(anyInt())).thenReturn(false)
-        userRepository.setUserInfos(listOf(mainUser, secondaryUser))
+        whenever(kosmos.userManager.isQuietModeEnabled(any<UserHandle>())).thenReturn(false)
+        whenever(kosmos.userManager.isManagedProfile(anyInt())).thenReturn(false)
+        kosmos.fakeUserRepository.setUserInfos(listOf(mainUser, secondaryUser))
 
         kosmos.fakeFeatureFlagsClassic.set(Flags.COMMUNAL_SERVICE_ENABLED, true)
-        mSetFlagsRule.enableFlags(FLAG_COMMUNAL_HUB)
-
-        underTest = kosmos.communalInteractor
+        if (glanceableHubV2()) {
+            kosmos.setCommunalV2ConfigEnabled(true)
+        }
     }
 
     @Test
     fun communalEnabled_true() =
-        testScope.runTest {
-            userRepository.setSelectedUserInfo(mainUser)
-            runCurrent()
+        kosmos.runTest {
+            communalSettingsInteractor.setSuppressionReasons(emptyList())
             assertThat(underTest.isCommunalEnabled.value).isTrue()
         }
 
+    /** Test not applicable when [FLAG_GLANCEABLE_HUB_V2] enabled */
     @Test
-    fun isCommunalAvailable_storageUnlockedAndMainUser_true() =
-        testScope.runTest {
-            val isAvailable by collectLastValue(underTest.isCommunalAvailable)
-            assertThat(isAvailable).isFalse()
-
-            keyguardRepository.setIsEncryptedOrLockdown(false)
-            userRepository.setSelectedUserInfo(mainUser)
-            keyguardRepository.setKeyguardShowing(true)
-
-            assertThat(isAvailable).isTrue()
-        }
-
-    @Test
-    fun isCommunalAvailable_storageLockedAndMainUser_false() =
-        testScope.runTest {
-            val isAvailable by collectLastValue(underTest.isCommunalAvailable)
-            assertThat(isAvailable).isFalse()
-
-            keyguardRepository.setIsEncryptedOrLockdown(true)
-            userRepository.setSelectedUserInfo(mainUser)
-            keyguardRepository.setKeyguardShowing(true)
-
-            assertThat(isAvailable).isFalse()
-        }
-
-    @Test
-    fun isCommunalAvailable_storageUnlockedAndSecondaryUser_false() =
-        testScope.runTest {
-            val isAvailable by collectLastValue(underTest.isCommunalAvailable)
-            assertThat(isAvailable).isFalse()
-
-            keyguardRepository.setIsEncryptedOrLockdown(false)
-            userRepository.setSelectedUserInfo(secondaryUser)
-            keyguardRepository.setKeyguardShowing(true)
-
-            assertThat(isAvailable).isFalse()
-        }
-
-    @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     fun isCommunalAvailable_whenKeyguardShowing_true() =
-        testScope.runTest {
+        kosmos.runTest {
+            communalSettingsInteractor.setSuppressionReasons(emptyList())
+            fakeKeyguardRepository.setKeyguardShowing(false)
+
             val isAvailable by collectLastValue(underTest.isCommunalAvailable)
             assertThat(isAvailable).isFalse()
 
-            keyguardRepository.setIsEncryptedOrLockdown(false)
-            userRepository.setSelectedUserInfo(mainUser)
-            keyguardRepository.setKeyguardShowing(true)
-
+            fakeKeyguardRepository.setKeyguardShowing(true)
             assertThat(isAvailable).isTrue()
         }
 
     @Test
-    fun isCommunalAvailable_communalDisabled_false() =
-        testScope.runTest {
-            mSetFlagsRule.disableFlags(FLAG_COMMUNAL_HUB)
+    fun isCommunalAvailable_suppressed() =
+        kosmos.runTest {
+            communalSettingsInteractor.setSuppressionReasons(emptyList())
+            fakeKeyguardRepository.setKeyguardShowing(true)
 
             val isAvailable by collectLastValue(underTest.isCommunalAvailable)
-            assertThat(isAvailable).isFalse()
+            assertThat(isAvailable).isTrue()
 
-            keyguardRepository.setIsEncryptedOrLockdown(false)
-            userRepository.setSelectedUserInfo(mainUser)
-            keyguardRepository.setKeyguardShowing(true)
+            communalSettingsInteractor.setSuppressionReasons(
+                listOf(SuppressionReason.ReasonUnknown())
+            )
 
             assertThat(isAvailable).isFalse()
         }
 
     @Test
     fun widget_tutorialCompletedAndWidgetsAvailable_showWidgetContent() =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             // Widgets available.
-            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
-            widgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
-            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
 
@@ -355,18 +265,18 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
         totalTargets: Int,
         expectedSizes: List<CommunalContentSize>,
     ) =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             val targets = mutableListOf<CommunalSmartspaceTimer>()
             for (index in 0 until totalTargets) {
                 targets.add(smartspaceTimer(index.toString()))
             }
 
-            smartspaceRepository.setTimers(targets)
+            fakeCommunalSmartspaceRepository.setTimers(targets)
 
             val smartspaceContent by collectLastValue(underTest.ongoingContent(false))
             assertThat(smartspaceContent?.size).isEqualTo(totalTargets)
@@ -377,12 +287,12 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun umo_mediaPlaying_showsUmo() =
-        testScope.runTest {
+        kosmos.runTest {
             // Tutorial completed.
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             // Media is playing.
-            mediaRepository.mediaActive()
+            fakeCommunalMediaRepository.mediaActive()
 
             val umoContent by collectLastValue(underTest.ongoingContent(true))
 
@@ -393,12 +303,12 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun umo_mediaPlaying_mediaHostNotVisible_hidesUmo() =
-        testScope.runTest {
+        kosmos.runTest {
             // Tutorial completed.
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             // Media is playing.
-            mediaRepository.mediaActive()
+            fakeCommunalMediaRepository.mediaActive()
 
             val umoContent by collectLastValue(underTest.ongoingContent(false))
             assertThat(umoContent?.size).isEqualTo(0)
@@ -408,26 +318,26 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Test
     @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun ongoing_shouldOrderAndSizeByTimestamp() =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             // Timer1 started
             val timer1 = smartspaceTimer("timer1", timestamp = 1L)
-            smartspaceRepository.setTimers(listOf(timer1))
+            fakeCommunalSmartspaceRepository.setTimers(listOf(timer1))
 
             // Umo started
-            mediaRepository.mediaActive(timestamp = 2L)
+            fakeCommunalMediaRepository.mediaActive(timestamp = 2L)
 
             // Timer2 started
             val timer2 = smartspaceTimer("timer2", timestamp = 3L)
-            smartspaceRepository.setTimers(listOf(timer1, timer2))
+            fakeCommunalSmartspaceRepository.setTimers(listOf(timer1, timer2))
 
             // Timer3 started
             val timer3 = smartspaceTimer("timer3", timestamp = 4L)
-            smartspaceRepository.setTimers(listOf(timer1, timer2, timer3))
+            fakeCommunalSmartspaceRepository.setTimers(listOf(timer1, timer2, timer3))
 
             val ongoingContent by collectLastValue(underTest.ongoingContent(true))
             assertThat(ongoingContent?.size).isEqualTo(4)
@@ -445,9 +355,10 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
         }
 
     @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     fun ctaTile_showsByDefault() =
-        testScope.runTest {
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+        kosmos.runTest {
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             val ctaTileContent by collectLastValue(underTest.ctaTileContent)
 
@@ -459,15 +370,15 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
         }
 
     @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     fun ctaTile_afterDismiss_doesNotShow() =
-        testScope.runTest {
+        kosmos.runTest {
             // Set to main user, so we can dismiss the tile for the main user.
-            val user = userRepository.asMainUser()
-            userTracker.set(userInfos = listOf(user), selectedUserIndex = 0)
-            runCurrent()
+            val user = fakeUserRepository.asMainUser()
+            fakeUserTracker.set(userInfos = listOf(user), selectedUserIndex = 0)
 
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
-            communalPrefsRepository.setCtaDismissed(user)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeCommunalPrefsRepository.setCtaDismissed(user)
 
             val ctaTileContent by collectLastValue(underTest.ctaTileContent)
 
@@ -476,36 +387,30 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun listensToSceneChange() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
-            runCurrent()
 
-            var desiredScene = collectLastValue(underTest.desiredScene)
-            runCurrent()
-            assertThat(desiredScene()).isEqualTo(CommunalScenes.Blank)
+            val desiredScene by collectLastValue(underTest.desiredScene)
+            assertThat(desiredScene).isEqualTo(CommunalScenes.Blank)
 
             val targetScene = CommunalScenes.Communal
-            communalRepository.changeScene(targetScene)
-            desiredScene = collectLastValue(underTest.desiredScene)
-            runCurrent()
-            assertThat(desiredScene()).isEqualTo(targetScene)
+            fakeCommunalSceneRepository.changeScene(targetScene)
+            assertThat(desiredScene).isEqualTo(targetScene)
         }
 
     @Test
     fun updatesScene() =
-        testScope.runTest {
+        kosmos.runTest {
             val targetScene = CommunalScenes.Communal
-
             underTest.changeScene(targetScene, "test")
 
-            val desiredScene = collectLastValue(communalRepository.currentScene)
-            runCurrent()
-            assertThat(desiredScene()).isEqualTo(targetScene)
+            val desiredScene by collectLastValue(fakeCommunalSceneRepository.currentScene)
+            assertThat(desiredScene).isEqualTo(targetScene)
         }
 
     @Test
     fun transitionProgress_onTargetScene_fullProgress() =
-        testScope.runTest {
+        kosmos.runTest {
             val targetScene = CommunalScenes.Blank
             val transitionProgressFlow = underTest.transitionProgressToScene(targetScene)
             val transitionProgress by collectLastValue(transitionProgressFlow)
@@ -523,7 +428,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun transitionProgress_notOnTargetScene_noProgress() =
-        testScope.runTest {
+        kosmos.runTest {
             val targetScene = CommunalScenes.Blank
             val currentScene = CommunalScenes.Communal
             val transitionProgressFlow = underTest.transitionProgressToScene(targetScene)
@@ -542,7 +447,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun transitionProgress_transitioningToTrackedScene() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene = CommunalScenes.Communal
             val targetScene = CommunalScenes.Blank
             val transitionProgressFlow = underTest.transitionProgressToScene(targetScene)
@@ -590,7 +495,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun transitionProgress_transitioningAwayFromTrackedScene() =
-        testScope.runTest {
+        kosmos.runTest {
             val currentScene = CommunalScenes.Blank
             val targetScene = CommunalScenes.Communal
             val transitionProgressFlow = underTest.transitionProgressToScene(currentScene)
@@ -641,52 +546,42 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun isCommunalShowing() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
-            runCurrent()
 
-            var isCommunalShowing = collectLastValue(underTest.isCommunalShowing)
-            runCurrent()
-            assertThat(isCommunalShowing()).isEqualTo(false)
+            val isCommunalShowing by collectLastValue(underTest.isCommunalShowing)
+            assertThat(isCommunalShowing).isEqualTo(false)
 
             underTest.changeScene(CommunalScenes.Communal, "test")
-
-            isCommunalShowing = collectLastValue(underTest.isCommunalShowing)
-            runCurrent()
-            assertThat(isCommunalShowing()).isEqualTo(true)
+            assertThat(isCommunalShowing).isEqualTo(true)
         }
 
     @Test
     fun isCommunalShowing_whenSceneContainerDisabled() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
-            runCurrent()
 
             // Verify default is false
             val isCommunalShowing by collectLastValue(underTest.isCommunalShowing)
-            runCurrent()
             assertThat(isCommunalShowing).isFalse()
 
             // Verify scene changes with the flag doesn't have any impact
             sceneInteractor.changeScene(Scenes.Communal, loggingReason = "")
-            runCurrent()
             assertThat(isCommunalShowing).isFalse()
 
             // Verify scene changes (without the flag) to communal sets the value to true
             underTest.changeScene(CommunalScenes.Communal, "test")
-            runCurrent()
             assertThat(isCommunalShowing).isTrue()
 
             // Verify scene changes (without the flag) to blank sets the value back to false
             underTest.changeScene(CommunalScenes.Blank, "test")
-            runCurrent()
             assertThat(isCommunalShowing).isFalse()
         }
 
     @Test
     @EnableSceneContainer
     fun isCommunalShowing_whenSceneContainerEnabled() =
-        testScope.runTest {
+        kosmos.runTest {
             // Verify default is false
             val isCommunalShowing by collectLastValue(underTest.isCommunalShowing)
             assertThat(isCommunalShowing).isFalse()
@@ -703,7 +598,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Test
     @EnableSceneContainer
     fun isCommunalShowing_whenSceneContainerEnabledAndChangeToLegacyScene() =
-        testScope.runTest {
+        kosmos.runTest {
             // Verify default is false
             val isCommunalShowing by collectLastValue(underTest.isCommunalShowing)
             assertThat(isCommunalShowing).isFalse()
@@ -719,21 +614,19 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun isIdleOnCommunal() =
-        testScope.runTest {
+        kosmos.runTest {
             val transitionState =
                 MutableStateFlow<ObservableTransitionState>(
                     ObservableTransitionState.Idle(CommunalScenes.Blank)
                 )
-            communalRepository.setTransitionState(transitionState)
+            fakeCommunalSceneRepository.setTransitionState(transitionState)
 
             // isIdleOnCommunal is false when not on communal.
             val isIdleOnCommunal by collectLastValue(underTest.isIdleOnCommunal)
-            runCurrent()
             assertThat(isIdleOnCommunal).isEqualTo(false)
 
             // Transition to communal.
             transitionState.value = ObservableTransitionState.Idle(CommunalScenes.Communal)
-            runCurrent()
 
             // isIdleOnCommunal is now true since we're on communal.
             assertThat(isIdleOnCommunal).isEqualTo(true)
@@ -748,7 +641,6 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
                     isInitiatedByUserInput = false,
                     isUserInputOngoing = flowOf(false),
                 )
-            runCurrent()
 
             // isIdleOnCommunal turns false as soon as transition away starts.
             assertThat(isIdleOnCommunal).isEqualTo(false)
@@ -756,12 +648,12 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun isCommunalVisible() =
-        testScope.runTest {
+        kosmos.runTest {
             val transitionState =
                 MutableStateFlow<ObservableTransitionState>(
                     ObservableTransitionState.Idle(CommunalScenes.Blank)
                 )
-            communalRepository.setTransitionState(transitionState)
+            fakeCommunalSceneRepository.setTransitionState(transitionState)
 
             // isCommunalVisible is false when not on communal.
             val isCommunalVisible by collectLastValue(underTest.isCommunalVisible)
@@ -804,7 +696,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testShowWidgetEditorStartsActivity() =
-        testScope.runTest {
+        kosmos.runTest {
             val editModeState by collectLastValue(communalSceneInteractor.editModeState)
 
             underTest.showWidgetEditor()
@@ -815,14 +707,14 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun showWidgetEditor_openWidgetPickerOnStart_startsActivity() =
-        testScope.runTest {
+        kosmos.runTest {
             underTest.showWidgetEditor(shouldOpenWidgetPickerOnStart = true)
             verify(editWidgetsActivityStarter).startActivity(shouldOpenWidgetPickerOnStart = true)
         }
 
     @Test
     fun navigateToCommunalWidgetSettings_startsActivity() =
-        testScope.runTest {
+        kosmos.runTest {
             underTest.navigateToCommunalWidgetSettings()
             val intentCaptor = argumentCaptor<Intent>()
             verify(activityStarter)
@@ -832,23 +724,22 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun filterWidgets_whenUserProfileRemoved() =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             // Only main user exists.
             val userInfos = listOf(MAIN_USER_INFO)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
             // Given three widgets, and one of them is associated with pre-existing work profile.
-            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
-            widgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
-            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             // One widget is filtered out and the remaining two link to main user id.
             assertThat(checkNotNull(widgetContent).size).isEqualTo(2)
@@ -866,17 +757,16 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun widgetContent_inQuietMode() =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             // Work profile is set up.
             val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             // When work profile is paused.
             whenever(userManager.isQuietModeEnabled(eq(UserHandle.of(USER_INFO_WORK.id))))
@@ -884,9 +774,9 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
             whenever(userManager.isManagedProfile(eq(USER_INFO_WORK.id))).thenReturn(true)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
-            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
-            widgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
-            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             // The work profile widget is in quiet mode, while other widgets are not.
             assertThat(widgetContent).hasSize(3)
@@ -910,23 +800,25 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun filterWidgets_whenDisallowedByDevicePolicyForWorkProfile() =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            userRepository.setSelectedUserInfo(MAIN_USER_INFO)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            fakeUserRepository.setSelectedUserInfo(MAIN_USER_INFO)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
             // One available work widget, one pending work widget, and one regular available widget.
-            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
-            widgetRepository.addPendingWidget(appWidgetId = 2, userId = USER_INFO_WORK.id)
-            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            fakeCommunalWidgetRepository.addPendingWidget(
+                appWidgetId = 2,
+                userId = USER_INFO_WORK.id,
+            )
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             setKeyguardFeaturesDisabled(
                 USER_INFO_WORK,
@@ -940,23 +832,25 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun filterWidgets_whenAllowedByDevicePolicyForWorkProfile() =
-        testScope.runTest {
+        kosmos.runTest {
             // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+            fakeKeyguardRepository.setKeyguardShowing(true)
+            fakeKeyguardRepository.setKeyguardOccluded(false)
+            fakeCommunalTutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
             val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            userRepository.setSelectedUserInfo(MAIN_USER_INFO)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            fakeUserRepository.setSelectedUserInfo(MAIN_USER_INFO)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
             // Given three widgets, and one of them is associated with work profile.
-            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
-            widgetRepository.addPendingWidget(appWidgetId = 2, userId = USER_INFO_WORK.id)
-            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            fakeCommunalWidgetRepository.addPendingWidget(
+                appWidgetId = 2,
+                userId = USER_INFO_WORK.id,
+            )
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             setKeyguardFeaturesDisabled(
                 USER_INFO_WORK,
@@ -972,7 +866,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun showCommunalFromOccluded_enteredOccludedFromHub() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
             val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
             assertThat(showCommunalFromOccluded).isFalse()
@@ -988,7 +882,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun showCommunalFromOccluded_enteredOccludedFromLockscreen() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
             val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
             assertThat(showCommunalFromOccluded).isFalse()
@@ -1004,7 +898,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun showCommunalFromOccluded_communalBecomesUnavailableWhileOccluded() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
             val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
             assertThat(showCommunalFromOccluded).isFalse()
@@ -1014,7 +908,6 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 to = KeyguardState.OCCLUDED,
                 testScope,
             )
-            runCurrent()
             kosmos.setCommunalAvailable(false)
 
             assertThat(showCommunalFromOccluded).isFalse()
@@ -1022,7 +915,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun showCommunalFromOccluded_showBouncerWhileOccluded() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
             val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
             assertThat(showCommunalFromOccluded).isFalse()
@@ -1032,7 +925,6 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 to = KeyguardState.OCCLUDED,
                 testScope,
             )
-            runCurrent()
             kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
                 from = KeyguardState.OCCLUDED,
                 to = KeyguardState.PRIMARY_BOUNCER,
@@ -1044,7 +936,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun showCommunalFromOccluded_enteredOccludedFromDreaming() =
-        testScope.runTest {
+        kosmos.runTest {
             kosmos.setCommunalAvailable(true)
             val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
             assertThat(showCommunalFromOccluded).isFalse()
@@ -1068,7 +960,7 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun dismissDisclaimerSetsDismissedFlag() =
-        testScope.runTest {
+        kosmos.runTest {
             val disclaimerDismissed by collectLastValue(underTest.isDisclaimerDismissed)
             assertThat(disclaimerDismissed).isFalse()
             underTest.setDisclaimerDismissed()
@@ -1077,17 +969,17 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun dismissDisclaimerTimeoutResetsDismissedFlag() =
-        testScope.runTest {
+        kosmos.runTest {
             val disclaimerDismissed by collectLastValue(underTest.isDisclaimerDismissed)
             underTest.setDisclaimerDismissed()
             assertThat(disclaimerDismissed).isTrue()
-            advanceTimeBy(CommunalInteractor.DISCLAIMER_RESET_MILLIS)
+            testScope.advanceTimeBy(CommunalInteractor.DISCLAIMER_RESET_MILLIS)
             assertThat(disclaimerDismissed).isFalse()
         }
 
     @Test
     fun settingSelectedKey_flowUpdated() {
-        testScope.runTest {
+        kosmos.runTest {
             val key = "test"
             val selectedKey by collectLastValue(underTest.selectedKey)
             underTest.setSelectedKey(key)
@@ -1097,36 +989,35 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun unpauseWorkProfileEnablesWorkMode() =
-        testScope.runTest {
+        kosmos.runTest {
             underTest.unpauseWorkProfile()
 
-            assertThat(managedProfileController.isWorkModeEnabled()).isTrue()
+            assertThat(fakeManagedProfileController.isWorkModeEnabled()).isTrue()
         }
 
     @Test
     @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING)
     @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun resizeWidget_withoutUpdatingOrder() =
-        testScope.runTest {
+        kosmos.runTest {
             val userInfos = listOf(MAIN_USER_INFO)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             // Widgets available.
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 1,
                 userId = MAIN_USER_INFO.id,
                 rank = 0,
                 spanY = CommunalContentSize.FixedSize.HALF.span,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 2,
                 userId = MAIN_USER_INFO.id,
                 rank = 1,
                 spanY = CommunalContentSize.FixedSize.HALF.span,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 3,
                 userId = MAIN_USER_INFO.id,
                 rank = 2,
@@ -1158,26 +1049,25 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Test
     @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING, FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun resizeWidget_withoutUpdatingOrder_responsive() =
-        testScope.runTest {
+        kosmos.runTest {
             val userInfos = listOf(MAIN_USER_INFO)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             // Widgets available.
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 1,
                 userId = MAIN_USER_INFO.id,
                 rank = 0,
                 spanY = 1,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 2,
                 userId = MAIN_USER_INFO.id,
                 rank = 1,
                 spanY = 1,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 3,
                 userId = MAIN_USER_INFO.id,
                 rank = 2,
@@ -1210,26 +1100,25 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING)
     @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun resizeWidget_andUpdateOrder() =
-        testScope.runTest {
+        kosmos.runTest {
             val userInfos = listOf(MAIN_USER_INFO)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             // Widgets available.
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 1,
                 userId = MAIN_USER_INFO.id,
                 rank = 0,
                 spanY = CommunalContentSize.FixedSize.HALF.span,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 2,
                 userId = MAIN_USER_INFO.id,
                 rank = 1,
                 spanY = CommunalContentSize.FixedSize.HALF.span,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 3,
                 userId = MAIN_USER_INFO.id,
                 rank = 2,
@@ -1265,26 +1154,25 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Test
     @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING, FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun resizeWidget_andUpdateOrder_responsive() =
-        testScope.runTest {
+        kosmos.runTest {
             val userInfos = listOf(MAIN_USER_INFO)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
-            runCurrent()
+            fakeUserRepository.setUserInfos(userInfos)
+            fakeUserTracker.set(userInfos = userInfos, selectedUserIndex = 0)
 
             // Widgets available.
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 1,
                 userId = MAIN_USER_INFO.id,
                 rank = 0,
                 spanY = 1,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 2,
                 userId = MAIN_USER_INFO.id,
                 rank = 1,
                 spanY = 1,
             )
-            widgetRepository.addWidget(
+            fakeCommunalWidgetRepository.addWidget(
                 appWidgetId = 3,
                 userId = MAIN_USER_INFO.id,
                 rank = 2,
@@ -1330,7 +1218,10 @@ class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
         @JvmStatic
         @Parameters(name = "{0}")
         fun getParams(): List<FlagsParameterization> {
-            return FlagsParameterization.allCombinationsOf(FLAG_COMMUNAL_RESPONSIVE_GRID)
+            return FlagsParameterization.allCombinationsOf(
+                FLAG_COMMUNAL_RESPONSIVE_GRID,
+                FLAG_GLANCEABLE_HUB_V2,
+            )
         }
 
         private val MAIN_USER_INFO = UserInfo(0, "primary", UserInfo.FLAG_MAIN)

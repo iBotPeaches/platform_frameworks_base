@@ -92,7 +92,7 @@ private fun createInputDevice(
 private fun <T, U> memberMatcher(
     member: String,
     memberProvider: (T) -> U,
-    match: Matcher<U>
+    match: Matcher<U>,
 ): TypeSafeMatcher<T> =
     object : TypeSafeMatcher<T>() {
 
@@ -115,12 +115,13 @@ private fun matchesState(
     isPresent: Boolean = true,
     status: Int? = null,
     capacity: Float? = null,
-    eventTime: Long? = null
+    eventTime: Long? = null,
 ): Matcher<IInputDeviceBatteryState> {
-    val batteryStateMatchers = mutableListOf<Matcher<IInputDeviceBatteryState>>(
-        memberMatcher("deviceId", { it.deviceId }, equalTo(deviceId)),
-        memberMatcher("isPresent", { it.isPresent }, equalTo(isPresent))
-    )
+    val batteryStateMatchers =
+        mutableListOf<Matcher<IInputDeviceBatteryState>>(
+            memberMatcher("deviceId", { it.deviceId }, equalTo(deviceId)),
+            memberMatcher("isPresent", { it.isPresent }, equalTo(isPresent)),
+        )
     if (eventTime != null) {
         batteryStateMatchers.add(memberMatcher("updateTime", { it.updateTime }, equalTo(eventTime)))
     }
@@ -143,14 +144,14 @@ private fun IInputDeviceBatteryListener.verifyNotified(
     isPresent: Boolean = true,
     status: Int? = null,
     capacity: Float? = null,
-    eventTime: Long? = null
+    eventTime: Long? = null,
 ) {
     verifyNotified(matchesState(deviceId, isPresent, status, capacity, eventTime), mode)
 }
 
 private fun IInputDeviceBatteryListener.verifyNotified(
     matcher: Matcher<IInputDeviceBatteryState>,
-    mode: VerificationMode = times(1)
+    mode: VerificationMode = times(1),
 ) {
     verify(this, mode).onBatteryStateChanged(MockitoHamcrest.argThat(matcher))
 }
@@ -165,8 +166,7 @@ private fun createMockListener(): IInputDeviceBatteryListener {
 /**
  * Tests for {@link InputDeviceBatteryController}.
  *
- * Build/Install/Run:
- * atest InputTests:InputDeviceBatteryControllerTests
+ * Build/Install/Run: atest InputTests:InputDeviceBatteryControllerTests
  */
 @Presubmit
 class BatteryControllerTests {
@@ -181,20 +181,15 @@ class BatteryControllerTests {
         const val TIMESTAMP = 123456789L
     }
 
-    @get:Rule
-    val rule = MockitoJUnit.rule()!!
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val rule = MockitoJUnit.rule()!!
+    @get:Rule val context = TestableContext(ApplicationProvider.getApplicationContext())
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
-    @Mock
-    private lateinit var native: NativeInputManagerService
-    @Mock
-    private lateinit var uEventManager: UEventManager
-    @Mock
-    private lateinit var bluetoothBatteryManager: BluetoothBatteryManager
+    @Mock private lateinit var native: NativeInputManagerService
+    @Mock private lateinit var uEventManager: UEventManager
+    @Mock private lateinit var bluetoothBatteryManager: BluetoothBatteryManager
 
     private lateinit var batteryController: BatteryController
-    private lateinit var context: TestableContext
     private lateinit var testLooper: TestLooper
     private lateinit var devicesChangedListener: IInputDevicesChangedListener
     private lateinit var inputManagerGlobalSession: InputManagerGlobal.TestSession
@@ -202,18 +197,21 @@ class BatteryControllerTests {
 
     @Before
     fun setup() {
-        context = TestableContext(ApplicationProvider.getApplicationContext())
         testLooper = TestLooper()
         val inputManager = InputManager(context)
         context.addMockSystemService(InputManager::class.java, inputManager)
-        `when`(inputManagerRule.mock.inputDeviceIds).then {
-            deviceGenerationMap.keys.toIntArray()
-        }
+        `when`(inputManagerRule.mock.inputDeviceIds).then { deviceGenerationMap.keys.toIntArray() }
         addInputDevice(DEVICE_ID)
         addInputDevice(SECOND_DEVICE_ID)
 
-        batteryController = BatteryController(context, native, testLooper.looper, uEventManager,
-            bluetoothBatteryManager)
+        batteryController =
+            BatteryController(
+                context,
+                native,
+                testLooper.looper,
+                uEventManager,
+                bluetoothBatteryManager,
+            )
         batteryController.systemRunning()
         val listenerCaptor = ArgumentCaptor.forClass(IInputDevicesChangedListener::class.java)
         verify(inputManagerRule.mock).registerInputDevicesChangedListener(listenerCaptor.capture())
@@ -222,12 +220,13 @@ class BatteryControllerTests {
     }
 
     private fun notifyDeviceChanged(
-            deviceId: Int,
+        deviceId: Int,
         hasBattery: Boolean = true,
-        supportsUsi: Boolean = false
+        supportsUsi: Boolean = false,
     ) {
-        val generation = deviceGenerationMap[deviceId]?.plus(1)
-            ?: throw IllegalArgumentException("Device $deviceId was never added!")
+        val generation =
+            deviceGenerationMap[deviceId]?.plus(1)
+                ?: throw IllegalArgumentException("Device $deviceId was never added!")
         deviceGenerationMap[deviceId] = generation
 
         `when`(inputManagerRule.mock.getInputDevice(deviceId))
@@ -239,7 +238,7 @@ class BatteryControllerTests {
     }
 
     private fun addInputDevice(
-            deviceId: Int,
+        deviceId: Int,
         hasBattery: Boolean = true,
         supportsUsi: Boolean = false,
     ) {
@@ -248,8 +247,10 @@ class BatteryControllerTests {
     }
 
     private fun createBluetoothDevice(address: String): BluetoothDevice {
-        return context.getSystemService(BluetoothManager::class.java)!!
-            .adapter.getRemoteDevice(address)
+        return context
+            .getSystemService(BluetoothManager::class.java)!!
+            .adapter
+            .getRemoteDevice(address)
     }
 
     @Test
@@ -279,8 +280,7 @@ class BatteryControllerTests {
         try {
             batteryController.registerBatteryListener(DEVICE_ID, listener2, PID)
             fail("Expected security exception when registering more than one listener per process")
-        } catch (ignored: SecurityException) {
-        }
+        } catch (ignored: SecurityException) {}
     }
 
     @Test
@@ -323,15 +323,18 @@ class BatteryControllerTests {
         batteryController.registerBatteryListener(DEVICE_ID, listener, PID)
         // The device paths for UEvent notifications do not include the "/sys" prefix, so verify
         // that the added listener is configured to match the path without that prefix.
-        verify(uEventManager)
-            .addListener(uEventListener.capture(), eq("DEVPATH=/dev/test/device1"))
+        verify(uEventManager).addListener(uEventListener.capture(), eq("DEVPATH=/dev/test/device1"))
         listener.verifyNotified(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.78f)
 
         // If the battery state has changed when an UEvent is sent, the listeners are notified.
         `when`(native.getBatteryCapacity(DEVICE_ID)).thenReturn(80)
         uEventListener.value!!.onBatteryUEvent(TIMESTAMP)
-        listener.verifyNotified(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.80f,
-            eventTime = TIMESTAMP)
+        listener.verifyNotified(
+            DEVICE_ID,
+            status = STATUS_CHARGING,
+            capacity = 0.80f,
+            eventTime = TIMESTAMP,
+        )
 
         // If the battery state has not changed when an UEvent is sent, the listeners are not
         // notified.
@@ -341,8 +344,11 @@ class BatteryControllerTests {
 
         batteryController.unregisterBatteryListener(DEVICE_ID, listener, PID)
         verify(uEventManager).removeListener(uEventListener.capture())
-        assertEquals("The same observer must be registered and unregistered",
-            uEventListener.allValues[0], uEventListener.allValues[1])
+        assertEquals(
+            "The same observer must be registered and unregistered",
+            uEventListener.allValues[0],
+            uEventListener.allValues[1],
+        )
     }
 
     @Test
@@ -366,8 +372,12 @@ class BatteryControllerTests {
         // If the battery becomes present again, the listener is notified.
         notifyDeviceChanged(DEVICE_ID, hasBattery = true)
         testLooper.dispatchNext()
-        listener.verifyNotified(DEVICE_ID, mode = times(2), status = STATUS_CHARGING,
-            capacity = 0.78f)
+        listener.verifyNotified(
+            DEVICE_ID,
+            mode = times(2),
+            status = STATUS_CHARGING,
+            capacity = 0.78f,
+        )
         // Ensure that a new UEventListener was added.
         verify(uEventManager, times(2))
             .addListener(uEventListener.capture(), eq("DEVPATH=/test/device1"))
@@ -437,8 +447,11 @@ class BatteryControllerTests {
         `when`(native.getBatteryStatus(DEVICE_ID)).thenReturn(STATUS_CHARGING)
         `when`(native.getBatteryCapacity(DEVICE_ID)).thenReturn(78)
         val batteryState = batteryController.getBatteryState(DEVICE_ID)
-        assertThat("battery state matches", batteryState,
-            matchesState(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.78f))
+        assertThat(
+            "battery state matches",
+            batteryState,
+            matchesState(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.78f),
+        )
     }
 
     @Test
@@ -453,8 +466,11 @@ class BatteryControllerTests {
         // change in the battery state, the listener is also notified.
         `when`(native.getBatteryCapacity(DEVICE_ID)).thenReturn(80)
         val batteryState = batteryController.getBatteryState(DEVICE_ID)
-        assertThat("battery matches state", batteryState,
-            matchesState(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.80f))
+        assertThat(
+            "battery matches state",
+            batteryState,
+            matchesState(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.80f),
+        )
         listener.verifyNotified(DEVICE_ID, status = STATUS_CHARGING, capacity = 0.80f)
     }
 
@@ -466,8 +482,7 @@ class BatteryControllerTests {
 
         // Even though there is no listener added for this device, it is being monitored.
         val uEventListener = ArgumentCaptor.forClass(UEventBatteryListener::class.java)
-        verify(uEventManager)
-            .addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
+        verify(uEventManager).addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
 
         // Add and remove a listener for the device.
         val listener = createMockListener()
@@ -507,8 +522,7 @@ class BatteryControllerTests {
         addInputDevice(USI_DEVICE_ID, supportsUsi = true)
         testLooper.dispatchNext()
         val uEventListener = ArgumentCaptor.forClass(UEventBatteryListener::class.java)
-        verify(uEventManager)
-            .addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
+        verify(uEventManager).addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
 
         // A USI device's battery state is not valid until the first UEvent notification.
         // Add a listener, and ensure it is notified that the battery state is not present.
@@ -517,34 +531,49 @@ class BatteryControllerTests {
         listener.verifyNotified(isInvalidBatteryState(USI_DEVICE_ID))
 
         // Ensure that querying for battery state also returns the same invalid result.
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            isInvalidBatteryState(USI_DEVICE_ID))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            isInvalidBatteryState(USI_DEVICE_ID),
+        )
 
         // There is a UEvent signaling a battery change. The battery state is now valid.
         uEventListener.value!!.onBatteryUEvent(TIMESTAMP)
         listener.verifyNotified(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f)
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f),
+        )
 
         // There is another UEvent notification. The battery state is now updated.
         `when`(native.getBatteryCapacity(USI_DEVICE_ID)).thenReturn(64)
         uEventListener.value!!.onBatteryUEvent(TIMESTAMP + 1)
         listener.verifyNotified(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.64f)
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.64f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.64f),
+        )
 
         // The battery state is still valid after a millisecond.
         testLooper.moveTimeForward(1)
         testLooper.dispatchAll()
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.64f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.64f),
+        )
 
         // The battery is no longer present after the timeout expires.
         testLooper.moveTimeForward(USI_BATTERY_VALIDITY_DURATION_MILLIS - 1)
         testLooper.dispatchNext()
         listener.verifyNotified(isInvalidBatteryState(USI_DEVICE_ID), times(2))
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            isInvalidBatteryState(USI_DEVICE_ID))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            isInvalidBatteryState(USI_DEVICE_ID),
+        )
     }
 
     @Test
@@ -556,16 +585,18 @@ class BatteryControllerTests {
         addInputDevice(USI_DEVICE_ID, supportsUsi = true)
         testLooper.dispatchNext()
         val uEventListener = ArgumentCaptor.forClass(UEventBatteryListener::class.java)
-        verify(uEventManager)
-            .addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
+        verify(uEventManager).addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
 
         // There is a UEvent signaling a battery change. The battery state is now valid.
         uEventListener.value!!.onBatteryUEvent(TIMESTAMP)
         val listener = createMockListener()
         batteryController.registerBatteryListener(USI_DEVICE_ID, listener, PID)
         listener.verifyNotified(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f)
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f),
+        )
 
         // Stylus presence is detected before the validity timeout expires.
         testLooper.moveTimeForward(100)
@@ -575,15 +606,21 @@ class BatteryControllerTests {
         // Ensure that timeout was extended, and the battery state is now valid for longer.
         testLooper.moveTimeForward(USI_BATTERY_VALIDITY_DURATION_MILLIS - 100)
         testLooper.dispatchAll()
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f),
+        )
 
         // Ensure the validity period expires after the expected amount of time.
         testLooper.moveTimeForward(100)
         testLooper.dispatchNext()
         listener.verifyNotified(isInvalidBatteryState(USI_DEVICE_ID))
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            isInvalidBatteryState(USI_DEVICE_ID))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            isInvalidBatteryState(USI_DEVICE_ID),
+        )
     }
 
     @Test
@@ -595,22 +632,27 @@ class BatteryControllerTests {
         addInputDevice(USI_DEVICE_ID, supportsUsi = true)
         testLooper.dispatchNext()
         val uEventListener = ArgumentCaptor.forClass(UEventBatteryListener::class.java)
-        verify(uEventManager)
-            .addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
+        verify(uEventManager).addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
 
         // The USI battery state is initially invalid.
         val listener = createMockListener()
         batteryController.registerBatteryListener(USI_DEVICE_ID, listener, PID)
         listener.verifyNotified(isInvalidBatteryState(USI_DEVICE_ID))
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            isInvalidBatteryState(USI_DEVICE_ID))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            isInvalidBatteryState(USI_DEVICE_ID),
+        )
 
         // A stylus presence is detected. This validates the battery state.
         batteryController.notifyStylusGestureStarted(USI_DEVICE_ID, TIMESTAMP)
 
         listener.verifyNotified(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f)
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_DISCHARGING, capacity = 0.78f),
+        )
     }
 
     @Test
@@ -623,27 +665,35 @@ class BatteryControllerTests {
         addInputDevice(USI_DEVICE_ID, supportsUsi = true)
         testLooper.dispatchNext()
         val uEventListener = ArgumentCaptor.forClass(UEventBatteryListener::class.java)
-        verify(uEventManager)
-            .addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
+        verify(uEventManager).addListener(uEventListener.capture(), eq("DEVPATH=/dev/usi_device"))
 
         // The USI battery state is initially invalid.
         val listener = createMockListener()
         batteryController.registerBatteryListener(USI_DEVICE_ID, listener, PID)
         listener.verifyNotified(isInvalidBatteryState(USI_DEVICE_ID))
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            isInvalidBatteryState(USI_DEVICE_ID))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            isInvalidBatteryState(USI_DEVICE_ID),
+        )
 
         // Since the capacity reported is 0, stylus presence does not validate the battery state.
         batteryController.notifyStylusGestureStarted(USI_DEVICE_ID, TIMESTAMP)
 
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            isInvalidBatteryState(USI_DEVICE_ID))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            isInvalidBatteryState(USI_DEVICE_ID),
+        )
 
         // However, if a UEvent reports a battery capacity of 0, the battery state is now valid.
         uEventListener.value!!.onBatteryUEvent(TIMESTAMP)
         listener.verifyNotified(USI_DEVICE_ID, status = STATUS_UNKNOWN, capacity = 0f)
-        assertThat("battery state matches", batteryController.getBatteryState(USI_DEVICE_ID),
-            matchesState(USI_DEVICE_ID, status = STATUS_UNKNOWN, capacity = 0f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(USI_DEVICE_ID),
+            matchesState(USI_DEVICE_ID, status = STATUS_UNKNOWN, capacity = 0f),
+        )
     }
 
     @Test
@@ -722,15 +772,21 @@ class BatteryControllerTests {
         verify(bluetoothBatteryManager).addBatteryListener(bluetoothListener.capture())
         verify(uEventManager).addListener(uEventListener.capture(), any())
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.21f)
-        assertThat("battery state matches", batteryController.getBatteryState(BT_DEVICE_ID),
-            matchesState(BT_DEVICE_ID, capacity = 0.21f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(BT_DEVICE_ID),
+            matchesState(BT_DEVICE_ID, capacity = 0.21f),
+        )
 
         // If only the native battery state changes the listener is not notified.
         `when`(native.getBatteryCapacity(BT_DEVICE_ID)).thenReturn(97)
         uEventListener.value!!.onBatteryUEvent(TIMESTAMP)
         listener.verifyNotified(BT_DEVICE_ID, mode = times(1), capacity = 0.21f)
-        assertThat("battery state matches", batteryController.getBatteryState(BT_DEVICE_ID),
-            matchesState(BT_DEVICE_ID, capacity = 0.21f))
+        assertThat(
+            "battery state matches",
+            batteryController.getBatteryState(BT_DEVICE_ID),
+            matchesState(BT_DEVICE_ID, capacity = 0.21f),
+        )
     }
 
     @Test
@@ -751,8 +807,11 @@ class BatteryControllerTests {
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.21f)
 
         // Fall back to the native state when BT is off.
-        bluetoothListener.value!!.onBluetoothBatteryChanged(TIMESTAMP, "AA:BB:CC:DD:EE:FF",
-            BluetoothDevice.BATTERY_LEVEL_BLUETOOTH_OFF)
+        bluetoothListener.value!!.onBluetoothBatteryChanged(
+            TIMESTAMP,
+            "AA:BB:CC:DD:EE:FF",
+            BluetoothDevice.BATTERY_LEVEL_BLUETOOTH_OFF,
+        )
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.98f)
 
         bluetoothListener.value!!.onBluetoothBatteryChanged(TIMESTAMP, "AA:BB:CC:DD:EE:FF", 22)
@@ -760,8 +819,11 @@ class BatteryControllerTests {
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.22f)
 
         // Fall back to the native state when BT battery is unknown.
-        bluetoothListener.value!!.onBluetoothBatteryChanged(TIMESTAMP, "AA:BB:CC:DD:EE:FF",
-            BluetoothDevice.BATTERY_LEVEL_UNKNOWN)
+        bluetoothListener.value!!.onBluetoothBatteryChanged(
+            TIMESTAMP,
+            "AA:BB:CC:DD:EE:FF",
+            BluetoothDevice.BATTERY_LEVEL_UNKNOWN,
+        )
         listener.verifyNotified(BT_DEVICE_ID, mode = times(2), capacity = 0.98f)
     }
 
@@ -782,10 +844,10 @@ class BatteryControllerTests {
         batteryController.registerBatteryListener(DEVICE_ID, listener, PID)
         verify(bluetoothBatteryManager, never()).addMetadataListener(any(), any())
 
-        val metadataListener1 = ArgumentCaptor.forClass(
-            BluetoothAdapter.OnMetadataChangedListener::class.java)
-        val metadataListener2 = ArgumentCaptor.forClass(
-            BluetoothAdapter.OnMetadataChangedListener::class.java)
+        val metadataListener1 =
+            ArgumentCaptor.forClass(BluetoothAdapter.OnMetadataChangedListener::class.java)
+        val metadataListener2 =
+            ArgumentCaptor.forClass(BluetoothAdapter.OnMetadataChangedListener::class.java)
 
         // The metadata listener is added when the first BT input device is monitored.
         batteryController.registerBatteryListener(BT_DEVICE_ID, listener, PID)
@@ -814,12 +876,16 @@ class BatteryControllerTests {
     fun testNotifiesBluetoothMetadataBatteryChanges() {
         `when`(inputManagerRule.mock.getInputDeviceBluetoothAddress(BT_DEVICE_ID))
             .thenReturn("AA:BB:CC:DD:EE:FF")
-        `when`(bluetoothBatteryManager.getMetadata("AA:BB:CC:DD:EE:FF",
-                BluetoothDevice.METADATA_MAIN_BATTERY))
+        `when`(
+                bluetoothBatteryManager.getMetadata(
+                    "AA:BB:CC:DD:EE:FF",
+                    BluetoothDevice.METADATA_MAIN_BATTERY,
+                )
+            )
             .thenReturn("21".toByteArray())
         addInputDevice(BT_DEVICE_ID)
-        val metadataListener = ArgumentCaptor.forClass(
-            BluetoothAdapter.OnMetadataChangedListener::class.java)
+        val metadataListener =
+            ArgumentCaptor.forClass(BluetoothAdapter.OnMetadataChangedListener::class.java)
         val listener = createMockListener()
         val bluetoothDevice = createBluetoothDevice("AA:BB:CC:DD:EE:FF")
         batteryController.registerBatteryListener(BT_DEVICE_ID, listener, PID)
@@ -829,25 +895,44 @@ class BatteryControllerTests {
 
         // When the state has not changed, the listener is not notified again.
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_BATTERY, "21".toByteArray())
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_BATTERY,
+            "21".toByteArray(),
+        )
         listener.verifyNotified(BT_DEVICE_ID, mode = times(1), capacity = 0.21f)
 
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_BATTERY, "25".toByteArray())
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_BATTERY,
+            "25".toByteArray(),
+        )
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.25f, status = STATUS_UNKNOWN)
 
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_CHARGING, "true".toByteArray())
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_CHARGING,
+            "true".toByteArray(),
+        )
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.25f, status = STATUS_CHARGING)
 
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_CHARGING, "false".toByteArray())
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_CHARGING,
+            "false".toByteArray(),
+        )
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.25f, status = STATUS_DISCHARGING)
 
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_CHARGING, null)
-        listener.verifyNotified(BT_DEVICE_ID, mode = times(2), capacity = 0.25f,
-            status = STATUS_UNKNOWN)
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_CHARGING,
+            null,
+        )
+        listener.verifyNotified(
+            BT_DEVICE_ID,
+            mode = times(2),
+            capacity = 0.25f,
+            status = STATUS_UNKNOWN,
+        )
     }
 
     @Test
@@ -855,13 +940,17 @@ class BatteryControllerTests {
         `when`(inputManagerRule.mock.getInputDeviceBluetoothAddress(BT_DEVICE_ID))
             .thenReturn("AA:BB:CC:DD:EE:FF")
         `when`(bluetoothBatteryManager.getBatteryLevel(eq("AA:BB:CC:DD:EE:FF"))).thenReturn(21)
-        `when`(bluetoothBatteryManager.getMetadata("AA:BB:CC:DD:EE:FF",
-                BluetoothDevice.METADATA_MAIN_BATTERY))
+        `when`(
+                bluetoothBatteryManager.getMetadata(
+                    "AA:BB:CC:DD:EE:FF",
+                    BluetoothDevice.METADATA_MAIN_BATTERY,
+                )
+            )
             .thenReturn("22".toByteArray())
         addInputDevice(BT_DEVICE_ID)
         val bluetoothListener = ArgumentCaptor.forClass(BluetoothBatteryListener::class.java)
-        val metadataListener = ArgumentCaptor.forClass(
-            BluetoothAdapter.OnMetadataChangedListener::class.java)
+        val metadataListener =
+            ArgumentCaptor.forClass(BluetoothAdapter.OnMetadataChangedListener::class.java)
         val listener = createMockListener()
         val bluetoothDevice = createBluetoothDevice("AA:BB:CC:DD:EE:FF")
         batteryController.registerBatteryListener(BT_DEVICE_ID, listener, PID)
@@ -877,13 +966,19 @@ class BatteryControllerTests {
         listener.verifyNotified(BT_DEVICE_ID, mode = never(), capacity = 0.23f)
 
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_BATTERY, "24".toByteArray())
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_BATTERY,
+            "24".toByteArray(),
+        )
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.24f)
 
         // When the battery level from the metadata is no longer valid, we fall back to using the
         // Bluetooth battery level.
         metadataListener.value!!.onMetadataChanged(
-            bluetoothDevice, BluetoothDevice.METADATA_MAIN_BATTERY, null)
+            bluetoothDevice,
+            BluetoothDevice.METADATA_MAIN_BATTERY,
+            null,
+        )
         listener.verifyNotified(BT_DEVICE_ID, capacity = 0.23f)
     }
 }

@@ -28,6 +28,14 @@ import android.tools.device.apphelpers.IStandardAppHelper
 import android.tools.helpers.SYSTEMUI_PACKAGE
 import android.tools.traces.parsers.WindowManagerStateHelper
 import android.tools.traces.wm.WindowingMode
+import android.view.KeyEvent.KEYCODE_DPAD_DOWN
+import android.view.KeyEvent.KEYCODE_DPAD_UP
+import android.view.KeyEvent.KEYCODE_EQUALS
+import android.view.KeyEvent.KEYCODE_LEFT_BRACKET
+import android.view.KeyEvent.KEYCODE_MINUS
+import android.view.KeyEvent.KEYCODE_RIGHT_BRACKET
+import android.view.KeyEvent.META_CTRL_ON
+import android.view.KeyEvent.META_META_ON
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.window.DesktopModeFlags
@@ -82,14 +90,18 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
         wmHelper: WindowManagerStateHelper,
         device: UiDevice,
         motionEventHelper: MotionEventHelper = MotionEventHelper(getInstrumentation(), TOUCH),
+        shouldUseDragToDesktop: Boolean = false,
     ) {
         innerHelper.launchViaIntent(wmHelper)
-        if (!isInDesktopWindowingMode(wmHelper)) {
+        if (isInDesktopWindowingMode(wmHelper)) return
+        if (shouldUseDragToDesktop) {
             enterDesktopModeWithDrag(
                 wmHelper = wmHelper,
                 device = device,
                 motionEventHelper = motionEventHelper
             )
+        } else {
+            enterDesktopModeFromAppHandleMenu(wmHelper, device)
         }
     }
 
@@ -142,11 +154,43 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
             ?: error("Unable to find resource $MAXIMIZE_BUTTON_VIEW\n")
     }
 
-    /** Click maximise button on the app header for the given app. */
-    fun maximiseDesktopApp(wmHelper: WindowManagerStateHelper, device: UiDevice) {
-        val caption = getCaptionForTheApp(wmHelper, device)
+    /** Maximize a given app to fill the stable bounds. */
+    fun maximiseDesktopApp(
+        wmHelper: WindowManagerStateHelper,
+        device: UiDevice,
+        trigger: MaximizeDesktopAppTrigger = MaximizeDesktopAppTrigger.MAXIMIZE_MENU,
+    ) {
+        val caption = getCaptionForTheApp(wmHelper, device)!!
         val maximizeButton = getMaximizeButtonForTheApp(caption)
-        maximizeButton.click()
+
+        when (trigger) {
+            MaximizeDesktopAppTrigger.MAXIMIZE_MENU -> maximizeButton.click()
+            MaximizeDesktopAppTrigger.DOUBLE_TAP_APP_HEADER -> {
+                caption.click()
+                Thread.sleep(50)
+                caption.click()
+            }
+
+            MaximizeDesktopAppTrigger.KEYBOARD_SHORTCUT -> {
+                val keyEventHelper = KeyEventHelper(getInstrumentation())
+                keyEventHelper.press(KEYCODE_EQUALS, META_META_ON)
+            }
+
+            MaximizeDesktopAppTrigger.MAXIMIZE_BUTTON_IN_MENU -> {
+                maximizeButton.longClick()
+                wmHelper.StateSyncBuilder().withAppTransitionIdle().waitForAndVerify()
+                val buttonResId = MAXIMIZE_BUTTON_IN_MENU
+                val maximizeMenu = getDesktopAppViewByRes(MAXIMIZE_MENU)
+                val maximizeButtonInMenu =
+                    maximizeMenu
+                        ?.wait(
+                            Until.findObject(By.res(SYSTEMUI_PACKAGE, buttonResId)),
+                            TIMEOUT.toMillis()
+                        )
+                        ?: error("Unable to find object with resource id $buttonResId")
+                maximizeButtonInMenu.click()
+            }
+        }
         wmHelper.StateSyncBuilder().withAppTransitionIdle().waitForAndVerify()
     }
 
@@ -157,10 +201,21 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
             ?: error("Unable to find resource $MINIMIZE_BUTTON_VIEW\n")
     }
 
-    fun minimizeDesktopApp(wmHelper: WindowManagerStateHelper, device: UiDevice, isPip: Boolean = false) {
-        val caption = getCaptionForTheApp(wmHelper, device)
-        val minimizeButton = getMinimizeButtonForTheApp(caption)
-        minimizeButton.click()
+    fun minimizeDesktopApp(
+        wmHelper: WindowManagerStateHelper,
+        device: UiDevice,
+        isPip: Boolean = false,
+        usingKeyboard: Boolean = false,
+    ) {
+        if (usingKeyboard) {
+            val keyEventHelper = KeyEventHelper(getInstrumentation())
+            keyEventHelper.press(KEYCODE_MINUS, META_META_ON)
+        } else {
+            val caption = getCaptionForTheApp(wmHelper, device)
+            val minimizeButton = getMinimizeButtonForTheApp(caption)
+            minimizeButton.click()
+        }
+
         wmHelper
             .StateSyncBuilder()
             .withAppTransitionIdle()
@@ -213,6 +268,25 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
                 ?: error("Unable to find object with resource id $buttonResId")
         snapResizeButton.click()
 
+        waitAndVerifySnapResize(wmHelper, context, toLeft)
+    }
+
+    fun snapResizeWithKeyboard(
+        wmHelper: WindowManagerStateHelper,
+        context: Context,
+        keyEventHelper: KeyEventHelper,
+        toLeft: Boolean,
+    ) {
+        val bracketKey = if (toLeft) KEYCODE_LEFT_BRACKET else KEYCODE_RIGHT_BRACKET
+        keyEventHelper.press(bracketKey, META_META_ON)
+        waitAndVerifySnapResize(wmHelper, context, toLeft)
+    }
+
+    private fun waitAndVerifySnapResize(
+        wmHelper: WindowManagerStateHelper,
+        context: Context,
+        toLeft: Boolean
+    ) {
         val displayRect = getDisplayRect(wmHelper)
         val insets = getWindowInsets(
             context, WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
@@ -236,11 +310,20 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
             .waitForAndVerify()
     }
 
-    /** Click close button on the app header for the given app. */
-    fun closeDesktopApp(wmHelper: WindowManagerStateHelper, device: UiDevice) {
-        val caption = getCaptionForTheApp(wmHelper, device)
-        val closeButton = caption?.children?.find { it.resourceName.endsWith(CLOSE_BUTTON) }
-        closeButton?.click()
+    /** Close a desktop app by clicking the close button on the app header for the given app or by
+     *  pressing back. */
+    fun closeDesktopApp(
+        wmHelper: WindowManagerStateHelper,
+        device: UiDevice,
+        usingBackNavigation: Boolean = false
+    ) {
+        if (usingBackNavigation) {
+            device.pressBack()
+        } else {
+            val caption = getCaptionForTheApp(wmHelper, device)
+            val closeButton = caption?.children?.find { it.resourceName.endsWith(CLOSE_BUTTON) }
+            closeButton?.click()
+        }
         wmHelper
             .StateSyncBuilder()
             .withAppTransitionIdle()
@@ -415,6 +498,22 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
         device.drag(startX, startY, endX, endY, 100)
     }
 
+    fun enterDesktopModeViaKeyboard(
+        wmHelper: WindowManagerStateHelper,
+    ) {
+        val keyEventHelper = KeyEventHelper(getInstrumentation())
+        keyEventHelper.press(KEYCODE_DPAD_DOWN, META_META_ON or META_CTRL_ON)
+        wmHelper.StateSyncBuilder().withAppTransitionIdle().waitForAndVerify()
+    }
+
+    fun exitDesktopModeToFullScreenViaKeyboard(
+        wmHelper: WindowManagerStateHelper,
+    ) {
+        val keyEventHelper = KeyEventHelper(getInstrumentation())
+        keyEventHelper.press(KEYCODE_DPAD_UP, META_META_ON or META_CTRL_ON)
+        wmHelper.StateSyncBuilder().withAppTransitionIdle().waitForAndVerify()
+    }
+
     fun enterDesktopModeFromAppHandleMenu(
         wmHelper: WindowManagerStateHelper,
         device: UiDevice
@@ -493,6 +592,13 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
                 rightSideMatching
     }
 
+    enum class MaximizeDesktopAppTrigger {
+        MAXIMIZE_MENU,
+        DOUBLE_TAP_APP_HEADER,
+        KEYBOARD_SHORTCUT,
+        MAXIMIZE_BUTTON_IN_MENU
+    }
+
     private companion object {
         val TIMEOUT: Duration = Duration.ofSeconds(3)
         const val SNAP_RESIZE_DRAG_INSET: Int = 5 // inset to avoid dragging to display edge
@@ -504,6 +610,7 @@ open class DesktopModeAppHelper(private val innerHelper: IStandardAppHelper) :
         const val DESKTOP_MODE_BUTTON: String = "desktop_button"
         const val SNAP_LEFT_BUTTON: String = "maximize_menu_snap_left_button"
         const val SNAP_RIGHT_BUTTON: String = "maximize_menu_snap_right_button"
+        const val MAXIMIZE_BUTTON_IN_MENU: String = "maximize_menu_size_toggle_button"
         const val MINIMIZE_BUTTON_VIEW: String = "minimize_window"
         const val HEADER_EMPTY_VIEW: String = "caption_handle"
         val caption: BySelector

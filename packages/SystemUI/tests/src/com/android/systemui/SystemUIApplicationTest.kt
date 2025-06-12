@@ -25,7 +25,6 @@ import com.android.systemui.dagger.GlobalRootComponent
 import com.android.systemui.dagger.SysUIComponent
 import com.android.systemui.dump.dumpManager
 import com.android.systemui.flags.systemPropertiesHelper
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.process.processWrapper
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
@@ -48,7 +47,7 @@ class SystemUIApplicationTest : SysuiTestCase() {
 
     @get:Rule val setFlagsRule = SetFlagsRule(SetFlagsRule.DefaultInitValueType.DEVICE_DEFAULT)
 
-    val kosmos = Kosmos()
+    val kosmos = testKosmos()
     @Mock private lateinit var initializer: SystemUIInitializer
     @Mock private lateinit var rootComponent: GlobalRootComponent
     @Mock private lateinit var sysuiComponent: SysUIComponent
@@ -56,9 +55,13 @@ class SystemUIApplicationTest : SysuiTestCase() {
     @Mock private lateinit var initController: InitController
 
     class StartableA : TestableStartable()
+
     class StartableB : TestableStartable()
+
     class StartableC : TestableStartable()
+
     class StartableD : TestableStartable()
+
     class StartableE : TestableStartable()
 
     val dependencyMap: Map<Class<*>, Set<Class<out CoreStartable>>> =
@@ -114,7 +117,7 @@ class SystemUIApplicationTest : SysuiTestCase() {
             .thenReturn(
                 mutableMapOf(
                     StartableA::class.java to Provider { startableA },
-                    StartableB::class.java to Provider { startableB }
+                    StartableB::class.java to Provider { startableB },
                 )
             )
         app.onCreate()
@@ -130,7 +133,7 @@ class SystemUIApplicationTest : SysuiTestCase() {
                 mutableMapOf(
                     StartableC::class.java to Provider { startableC },
                     StartableA::class.java to Provider { startableA },
-                    StartableB::class.java to Provider { startableB }
+                    StartableB::class.java to Provider { startableB },
                 )
             )
         app.onCreate()
@@ -150,7 +153,7 @@ class SystemUIApplicationTest : SysuiTestCase() {
                     StartableC::class.java to Provider { startableC },
                     StartableD::class.java to Provider { startableD },
                     StartableA::class.java to Provider { startableA },
-                    StartableB::class.java to Provider { startableB }
+                    StartableB::class.java to Provider { startableB },
                 )
             )
         app.onCreate()

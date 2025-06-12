@@ -19,6 +19,7 @@ package android.view;
 import static android.Manifest.permission.CONFIGURE_DISPLAY_COLOR_MODE;
 import static android.Manifest.permission.CONTROL_DISPLAY_BRIGHTNESS;
 import static android.hardware.flags.Flags.FLAG_OVERLAYPROPERTIES_CLASS_API;
+import static android.util.TypedValue.COMPLEX_UNIT_DIP;
 
 import static com.android.server.display.feature.flags.Flags.FLAG_ENABLE_GET_SUPPORTED_REFRESH_RATES;
 import static com.android.server.display.feature.flags.Flags.FLAG_HIGHEST_HDR_SDR_RATIO_API;
@@ -58,6 +59,7 @@ import android.os.SystemClock;
 import android.util.ArraySet;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.TypedValue;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -106,6 +108,7 @@ public final class Display {
     private final String mOwnerPackageName;
     private final Resources mResources;
     private DisplayAdjustments mDisplayAdjustments;
+    private boolean mRefreshRateChangesRegistered;
 
     @UnsupportedAppUsage
     private DisplayInfo mDisplayInfo; // never null
@@ -283,7 +286,7 @@ public final class Display {
     /**
      * Display flag: Indicates that the display should show system decorations.
      * <p>
-     * This flag identifies secondary displays that should show system decorations, such as
+     * This flag identifies secondary displays that should always show system decorations, such as
      * navigation bar, home activity or wallpaper.
      * </p>
      * <p>Note that this flag doesn't work without {@link #FLAG_TRUSTED}</p>
@@ -396,6 +399,18 @@ public final class Display {
      * @hide
      */
     public static final int FLAG_ROTATES_WITH_CONTENT = 1 << 14;
+
+    /**
+     * Display flag: Indicates that the display is allowed to switch the content mode between
+     * projected/extended and mirroring. This allows the display to dynamically add or remove the
+     * home and system decorations.
+     *
+     * Note that this flag shouldn't be enabled with {@link #FLAG_PRIVATE} or
+     * {@link #FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS} at the same time; otherwise it will be ignored.
+     *
+     * @hide
+     */
+    public static final int FLAG_ALLOWS_CONTENT_MODE_SWITCH = 1 << 15;
 
     /**
      * Display flag: Indicates that the contents of the display should not be scaled
@@ -1048,6 +1063,19 @@ public final class Display {
     }
 
     /**
+     * Returns the smallest size of the display in dp
+     * @hide
+     */
+    public float getMinSizeDimensionDp() {
+        synchronized (mLock) {
+            updateDisplayInfoLocked();
+            mDisplayInfo.getAppMetrics(mTempMetrics);
+            return TypedValue.deriveDimension(COMPLEX_UNIT_DIP,
+                    Math.min(mDisplayInfo.logicalWidth, mDisplayInfo.logicalHeight), mTempMetrics);
+        }
+    }
+
+    /**
      * @deprecated Use {@link WindowMetrics#getBounds#width()} instead.
      */
     @Deprecated
@@ -1202,6 +1230,10 @@ public final class Display {
      */
     public float getRefreshRate() {
         synchronized (mLock) {
+            if (!mRefreshRateChangesRegistered) {
+                DisplayManagerGlobal.getInstance().registerForRefreshRateChanges();
+                mRefreshRateChangesRegistered = true;
+            }
             updateDisplayInfoLocked();
             return mDisplayInfo.getRefreshRate();
         }
@@ -1582,10 +1614,11 @@ public final class Display {
             // Although we only care about the HDR/SDR ratio changing, that can also come in the
             // form of the larger DISPLAY_CHANGED event
             mGlobal.registerDisplayListener(toRegister, executor,
-                    DisplayManagerGlobal.INTERNAL_EVENT_FLAG_DISPLAY_CHANGED
+                    DisplayManagerGlobal
+                                    .INTERNAL_EVENT_FLAG_DISPLAY_BASIC_CHANGED
                             | DisplayManagerGlobal
                                     .INTERNAL_EVENT_FLAG_DISPLAY_HDR_SDR_RATIO_CHANGED,
-                    ActivityThread.currentPackageName());
+                    ActivityThread.currentPackageName(), /* isEventFilterImplicit */ true);
         }
 
     }
@@ -2037,6 +2070,22 @@ public final class Display {
         synchronized (mLock) {
             updateDisplayInfoLocked();
             return mIsValid ? mDisplayInfo.committedState : STATE_UNKNOWN;
+        }
+    }
+
+    /**
+     * Returns whether the display is eligible for hosting tasks.
+     *
+     * For example, if the display is used for mirroring, this will return {@code false}.
+     *
+     * TODO (b/383666349): Rename this later once there is a better option.
+     *
+     * @hide
+     */
+    public boolean canHostTasks() {
+        synchronized (mLock) {
+            updateDisplayInfoLocked();
+            return mIsValid && mDisplayInfo.canHostTasks;
         }
     }
 

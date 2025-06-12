@@ -16,7 +16,6 @@
 
 package com.android.wm.shell.compatui;
 
-import static android.platform.test.flag.junit.SetFlagsRule.DefaultInitValueType.DEVICE_DEFAULT;
 import static android.view.WindowInsets.Type.navigationBars;
 import static android.view.WindowManager.LARGE_SCREEN_SMALLEST_SCREEN_WIDTH_DP;
 
@@ -39,10 +38,8 @@ import android.app.ActivityManager;
 import android.app.TaskInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
-import android.platform.test.flag.junit.SetFlagsRule;
 import android.testing.AndroidTestingRunner;
 import android.util.Pair;
 import android.view.DisplayInfo;
@@ -65,7 +62,6 @@ import com.android.wm.shell.compatui.api.CompatUIEvent;
 import junit.framework.Assert;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -83,12 +79,6 @@ import java.util.function.Consumer;
 @RunWith(AndroidTestingRunner.class)
 @SmallTest
 public class CompatUIWindowManagerTest extends ShellTestCase {
-    @Rule
-    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule(DEVICE_DEFAULT);
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule =
-            DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private static final int TASK_ID = 1;
     private static final int TASK_WIDTH = 2000;
@@ -406,8 +396,8 @@ public class CompatUIWindowManagerTest extends ShellTestCase {
 
     @Test
     @RequiresFlagsDisabled(FLAG_APP_COMPAT_UI_FRAMEWORK)
+    @EnableFlags(Flags.FLAG_ALLOW_HIDE_SCM_BUTTON)
     public void testShouldShowSizeCompatRestartButton() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ALLOW_HIDE_SCM_BUTTON);
         doReturn(85).when(mCompatUIConfiguration).getHideSizeCompatRestartButtonTolerance();
         mWindowManager = new CompatUIWindowManager(mContext, mTaskInfo, mSyncTransactionQueue,
                 mCallback, mTaskListener, mDisplayLayout, new CompatUIHintsState(),

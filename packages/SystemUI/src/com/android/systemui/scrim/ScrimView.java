@@ -27,9 +27,13 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuff.Mode;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.Looper;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -44,14 +48,15 @@ import com.android.systemui.util.LargeScreenUtils;
 
 import java.util.concurrent.Executor;
 
-import static com.android.systemui.Flags.notificationShadeBlur;
-
 /**
  * A view which can draw a scrim.  This view maybe be used in multiple windows running on different
  * threads, but is controlled by {@link com.android.systemui.statusbar.phone.ScrimController} so we
  * need to be careful to synchronize when necessary.
  */
 public class ScrimView extends View {
+    private static final String TAG = "ScrimView";
+    private static final boolean isDebugLoggable = Build.isDebuggable() || Log.isLoggable(TAG,
+            Log.DEBUG);
 
     private final Object mColorLock = new Object();
 
@@ -252,10 +257,6 @@ public class ScrimView extends View {
             if (mBlendWithMainColor) {
                 mainTinted = ColorUtils.blendARGB(mColors.getMainColor(), mTintColor, tintAmount);
             }
-            if (notificationShadeBlur()) {
-                // TODO(b/370555223): Fix color and transparency to match visual spec exactly
-                mainTinted = ColorUtils.blendARGB(mColors.getMainColor(), Color.GRAY, 0.5f);
-            }
             drawable.setColor(mainTinted, animated);
         } else {
             boolean hasAlpha = Color.alpha(mTintColor) != 0;
@@ -377,6 +378,29 @@ public class ScrimView extends View {
     public void setCornerRadius(int radius) {
         if (mDrawable instanceof ScrimDrawable) {
             ((ScrimDrawable) mDrawable).setRoundedCorners(radius);
+        }
+    }
+
+    /**
+     * Blur the view with the specific blur radius or clear any blurs if the radius is 0
+     */
+    public void setBlurRadius(float blurRadius) {
+        if (blurRadius > 0) {
+            debugLog("Apply blur RenderEffect to ScrimView " + mScrimName + " for radius "
+                    + blurRadius);
+            setRenderEffect(RenderEffect.createBlurEffect(
+                    blurRadius,
+                    blurRadius,
+                    Shader.TileMode.CLAMP));
+        } else {
+            debugLog("Resetting blur RenderEffect to ScrimView " + mScrimName);
+            setRenderEffect(null);
+        }
+    }
+
+    private void debugLog(String logMsg) {
+        if (isDebugLoggable) {
+            Log.d(TAG, logMsg);
         }
     }
 }

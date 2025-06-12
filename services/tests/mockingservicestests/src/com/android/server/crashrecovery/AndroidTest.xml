@@ -31,4 +31,9 @@
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
         <option name="hidden-api-checks" value="false"/>
     </test>
+
+    <!-- Only run this Tests if the Crashrecovery Mainline module is installed. -->
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
+        <option name="mainline-module-package-name" value="com.google.android.crashrecovery" />
+    </object>
 </configuration>

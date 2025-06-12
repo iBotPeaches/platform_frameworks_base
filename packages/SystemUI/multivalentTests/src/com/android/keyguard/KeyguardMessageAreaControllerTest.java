@@ -18,9 +18,7 @@ package com.android.keyguard;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,8 +26,6 @@ import static org.mockito.Mockito.when;
 
 import android.hardware.biometrics.BiometricSourceType;
 import android.testing.TestableLooper;
-import android.text.Editable;
-import android.text.TextWatcher;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -96,19 +92,6 @@ public class KeyguardMessageAreaControllerTest extends SysuiTestCase {
     public void testClearsTextField() {
         mMessageAreaController.setMessage("");
         verify(mKeyguardMessageArea).setMessage("", /* animate= */ true);
-    }
-
-    @Test
-    public void textChanged_AnnounceForAccessibility() {
-        ArgumentCaptor<TextWatcher> textWatcherArgumentCaptor = ArgumentCaptor.forClass(
-                TextWatcher.class);
-        mMessageAreaController.onViewAttached();
-        verify(mKeyguardMessageArea).addTextChangedListener(textWatcherArgumentCaptor.capture());
-
-        textWatcherArgumentCaptor.getValue().afterTextChanged(
-                Editable.Factory.getInstance().newEditable("abc"));
-        verify(mKeyguardMessageArea).removeCallbacks(any(Runnable.class));
-        verify(mKeyguardMessageArea).postDelayed(any(Runnable.class), anyLong());
     }
 
     @Test

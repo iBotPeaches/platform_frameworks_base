@@ -22,7 +22,6 @@ import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.ObservableTransitionState.Idle
 import com.android.systemui.Flags.FLAG_COMMUNAL_HUB
-import com.android.systemui.Flags.FLAG_COMMUNAL_SCENE_KTF_REFACTOR
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.communal.data.repository.communalSceneRepository
 import com.android.systemui.communal.shared.model.CommunalScenes
@@ -51,7 +50,6 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -63,10 +61,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@EnableFlags(FLAG_COMMUNAL_HUB, FLAG_COMMUNAL_SCENE_KTF_REFACTOR)
+@EnableFlags(FLAG_COMMUNAL_HUB)
 @DisableSceneContainer
 class CommunalSceneTransitionInteractorTest : SysuiTestCase() {
 

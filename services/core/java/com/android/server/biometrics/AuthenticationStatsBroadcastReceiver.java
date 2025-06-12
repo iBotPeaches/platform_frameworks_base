@@ -27,6 +27,7 @@ import android.util.Slog;
 
 import com.android.server.biometrics.sensors.BiometricNotificationImpl;
 
+import java.time.Clock;
 import java.util.function.Consumer;
 
 /**
@@ -62,7 +63,7 @@ public class AuthenticationStatsBroadcastReceiver extends BroadcastReceiver {
 
             mCollectorConsumer.accept(
                     new AuthenticationStatsCollector(context, mModality,
-                            new BiometricNotificationImpl()));
+                            new BiometricNotificationImpl(), Clock.systemUTC()));
 
             context.unregisterReceiver(this);
         }

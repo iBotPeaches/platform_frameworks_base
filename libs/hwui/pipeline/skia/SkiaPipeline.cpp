@@ -175,6 +175,8 @@ bool SkiaPipeline::setupMultiFrameCapture() {
     if (stream->isValid()) {
         mOpenMultiPicStream = std::move(stream);
         mSerialContext.reset(new SkSharingSerialContext());
+        // passing the GrDirectContext to the SerialContext allows us to raster/serialize GPU images
+        mSerialContext->setDirectContext(mRenderThread.getGrContext());
         SkSerialProcs procs;
         procs.fImageProc = SkSharingSerialContext::serializeImage;
         procs.fImageCtx = mSerialContext.get();

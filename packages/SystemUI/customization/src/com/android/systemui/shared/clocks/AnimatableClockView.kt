@@ -34,12 +34,14 @@ import com.android.app.animation.Interpolators
 import com.android.internal.annotations.VisibleForTesting
 import com.android.systemui.animation.GlyphCallback
 import com.android.systemui.animation.TextAnimator
+import com.android.systemui.animation.TextAnimatorListener
 import com.android.systemui.animation.TypefaceVariantCacheImpl
 import com.android.systemui.customization.R
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.log.core.LogcatOnlyMessageBuffer
-import com.android.systemui.log.core.Logger
 import com.android.systemui.log.core.MessageBuffer
+import com.android.systemui.plugins.clocks.ClockLogger
+import com.android.systemui.plugins.clocks.ClockLogger.Companion.escapeTime
 import java.io.PrintWriter
 import java.util.Calendar
 import java.util.Locale
@@ -67,11 +69,10 @@ constructor(
     var messageBuffer: MessageBuffer
         get() = logger.buffer
         set(value) {
-            logger = Logger(value, TAG)
+            logger = ClockLogger(this, value, TAG)
         }
 
     var hasCustomPositionUpdatedAnimation: Boolean = false
-    var migratedClocks: Boolean = false
 
     private val time = Calendar.getInstance()
 
@@ -100,7 +101,13 @@ constructor(
     @VisibleForTesting
     var textAnimatorFactory: (Layout, () -> Unit) -> TextAnimator = { layout, invalidateCb ->
         val cache = TypefaceVariantCacheImpl(layout.paint.typeface, NUM_CLOCK_FONT_ANIMATION_STEPS)
-        TextAnimator(layout, cache, invalidateCb)
+        TextAnimator(
+            layout,
+            cache,
+            object : TextAnimatorListener {
+                override fun onInvalidate() = invalidateCb()
+            },
+        )
     }
 
     // Used by screenshot tests to provide stability
@@ -186,7 +193,9 @@ constructor(
         time.timeInMillis = timeOverrideInMillis ?: System.currentTimeMillis()
         contentDescription = DateFormat.format(descFormat, time)
         val formattedText = DateFormat.format(format, time)
-        logger.d({ "refreshTime: new formattedText=$str1" }) { str1 = formattedText?.toString() }
+        logger.d({ "refreshTime: new formattedText=${escapeTime(str1)}" }) {
+            str1 = formattedText?.toString()
+        }
 
         // Setting text actually triggers a layout pass in TextView (because the text view is set to
         // wrap_content width and TextView always relayouts for this). This avoids needless relayout
@@ -196,7 +205,7 @@ constructor(
         }
 
         text = formattedText
-        logger.d({ "refreshTime: done setting new time text to: $str1" }) {
+        logger.d({ "refreshTime: done setting new time text to: ${escapeTime(str1)}" }) {
             str1 = formattedText?.toString()
         }
 
@@ -226,13 +235,9 @@ constructor(
 
     @SuppressLint("DrawAllocation")
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        logger.d("onMeasure")
+        logger.onMeasure(widthMeasureSpec, heightMeasureSpec)
 
-        if (
-            migratedClocks &&
-                !isSingleLineInternal &&
-                MeasureSpec.getMode(heightMeasureSpec) == EXACTLY
-        ) {
+        if (!isSingleLineInternal && MeasureSpec.getMode(heightMeasureSpec) == EXACTLY) {
             // Call straight into TextView.setTextSize to avoid setting lastUnconstrainedTextSize
             val size = min(lastUnconstrainedTextSize, MeasureSpec.getSize(heightMeasureSpec) / 2F)
             super.setTextSize(COMPLEX_UNIT_PX, size)
@@ -248,7 +253,7 @@ constructor(
                     }
             }
 
-        if (migratedClocks && hasCustomPositionUpdatedAnimation) {
+        if (hasCustomPositionUpdatedAnimation) {
             // Expand width to avoid clock being clipped during stepping animation
             val targetWidth = measuredWidth + MeasureSpec.getSize(widthMeasureSpec) / 2
 
@@ -268,14 +273,14 @@ constructor(
             canvas.translate(parentWidth / 4f, 0f)
         }
 
-        logger.d({ "onDraw($str1)" }) { str1 = text.toString() }
+        logger.onDraw("$text")
         // intentionally doesn't call super.onDraw here or else the text will be rendered twice
         textAnimator?.draw(canvas)
         canvas.restore()
     }
 
     override fun invalidate() {
-        logger.d("invalidate")
+        logger.invalidate()
         super.invalidate()
     }
 
@@ -285,7 +290,7 @@ constructor(
         lengthBefore: Int,
         lengthAfter: Int,
     ) {
-        logger.d({ "onTextChanged($str1)" }) { str1 = text.toString() }
+        logger.d({ "onTextChanged(${escapeTime(str1)})" }) { str1 = "$text" }
         super.onTextChanged(text, start, lengthBefore, lengthAfter)
     }
 
@@ -371,11 +376,11 @@ constructor(
 
     fun animateCharge(isDozing: () -> Boolean) {
         // Skip charge animation if dozing animation is already playing.
-        if (textAnimator == null || textAnimator!!.isRunning()) {
+        if (textAnimator == null || textAnimator!!.isRunning) {
             return
         }
 
-        logger.d("animateCharge")
+        logger.animateCharge()
         val startAnimPhase2 = Runnable {
             setTextStyle(
                 weight = if (isDozing()) dozingWeight else lockScreenWeight,
@@ -399,7 +404,7 @@ constructor(
     }
 
     fun animateDoze(isDozing: Boolean, animate: Boolean) {
-        logger.d("animateDoze")
+        logger.animateDoze(isDozing, animate)
         setTextStyle(
             weight = if (isDozing) dozingWeight else lockScreenWeight,
             color = if (isDozing) dozingColor else lockScreenColor,
@@ -449,15 +454,19 @@ constructor(
         delay: Long,
         onAnimationEnd: Runnable?,
     ) {
-        textAnimator?.let {
-            it.setTextStyle(
-                weight = weight,
-                color = color,
+        val style = TextAnimator.Style(color = color)
+        val animation =
+            TextAnimator.Animation(
                 animate = animate && isAnimationEnabled,
                 duration = duration,
-                interpolator = interpolator,
-                delay = delay,
+                interpolator = interpolator ?: Interpolators.LINEAR,
+                startDelay = delay,
                 onAnimationEnd = onAnimationEnd,
+            )
+        textAnimator?.let {
+            it.setTextStyle(
+                style.withUpdatedFVar(it.fontVariationUtils, weight = weight),
+                animation,
             )
             it.glyphFilter = glyphFilter
         }
@@ -465,13 +474,8 @@ constructor(
                 // when the text animator is set, update its start values
                 onTextAnimatorInitialized = { textAnimator ->
                     textAnimator.setTextStyle(
-                        weight = weight,
-                        color = color,
-                        animate = false,
-                        duration = duration,
-                        interpolator = interpolator,
-                        delay = delay,
-                        onAnimationEnd = onAnimationEnd,
+                        style.withUpdatedFVar(textAnimator.fontVariationUtils, weight = weight),
+                        animation.copy(animate = false),
                     )
                     textAnimator.glyphFilter = glyphFilter
                 }
@@ -490,7 +494,7 @@ constructor(
                 isSingleLineInternal && !use24HourFormat -> Patterns.sClockView12
                 else -> DOUBLE_LINE_FORMAT_12_HOUR
             }
-        logger.d({ "refreshFormat($str1)" }) { str1 = format?.toString() }
+        logger.d({ "refreshFormat(${escapeTime(str1)})" }) { str1 = format?.toString() }
 
         descFormat = if (use24HourFormat) Patterns.sClockView24 else Patterns.sClockView12
         refreshTime()
@@ -582,12 +586,10 @@ constructor(
     }
 
     override fun onRtlPropertiesChanged(layoutDirection: Int) {
-        if (migratedClocks) {
-            if (layoutDirection == LAYOUT_DIRECTION_RTL) {
-                textAlignment = TEXT_ALIGNMENT_TEXT_END
-            } else {
-                textAlignment = TEXT_ALIGNMENT_TEXT_START
-            }
+        if (layoutDirection == LAYOUT_DIRECTION_RTL) {
+            textAlignment = TEXT_ALIGNMENT_TEXT_END
+        } else {
+            textAlignment = TEXT_ALIGNMENT_TEXT_START
         }
         super.onRtlPropertiesChanged(layoutDirection)
     }
@@ -642,7 +644,7 @@ constructor(
 
     companion object {
         private val TAG = AnimatableClockView::class.simpleName!!
-        private val DEFAULT_LOGGER = Logger(LogcatOnlyMessageBuffer(LogLevel.WARNING), TAG)
+        private val DEFAULT_LOGGER = ClockLogger(null, LogcatOnlyMessageBuffer(LogLevel.DEBUG), TAG)
 
         const val ANIMATION_DURATION_FOLD_TO_AOD: Int = 600
         private const val DOUBLE_LINE_FORMAT_12_HOUR = "hh\nmm"

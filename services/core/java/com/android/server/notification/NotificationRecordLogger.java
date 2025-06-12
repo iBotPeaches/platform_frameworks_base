@@ -32,8 +32,6 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.NotificationStats;
 import android.util.Log;
 
-import com.android.internal.config.sysui.SystemUiSystemPropertiesFlags;
-import com.android.internal.config.sysui.SystemUiSystemPropertiesFlags.NotificationFlags;
 import com.android.internal.logging.InstanceId;
 import com.android.internal.logging.UiEvent;
 import com.android.internal.logging.UiEventLogger;
@@ -368,6 +366,19 @@ interface NotificationRecordLogger {
         }
     }
 
+    enum NotificationPullStatsEvent implements UiEventLogger.UiEventEnum {
+        @UiEvent(doc = "Notification Bundle Preferences pulled.")
+        NOTIFICATION_BUNDLE_PREFERENCES_PULLED(2072);
+
+        private final int mId;
+        NotificationPullStatsEvent(int id) {
+            mId = id;
+        }
+        @Override public int getId() {
+            return mId;
+        }
+    }
+
     /**
      * A helper for extracting logging information from one or two NotificationRecords.
      */
@@ -503,11 +514,14 @@ interface NotificationRecordLogger {
         final int fsi_state;
         final boolean is_locked;
         final int age_in_minutes;
+        final boolean is_promoted_ongoing;
+        final boolean has_promotable_characteristics;
         @DurationMillisLong long post_duration_millis; // Not final; calculated at the end.
 
         NotificationReported(NotificationRecordPair p,
                 NotificationReportedEvent eventType, int position, int buzzBeepBlink,
                 InstanceId groupId) {
+            final Notification notification = p.r.getSbn().getNotification();
             this.event_id = eventType.getId();
             this.uid = p.r.getUid();
             this.package_name = p.r.getSbn().getPackageName();
@@ -516,8 +530,8 @@ interface NotificationRecordLogger {
             this.channel_id_hash = p.getChannelIdHash();
             this.group_id_hash = p.getGroupIdHash();
             this.group_instance_id = (groupId == null) ? 0 : groupId.getId();
-            this.is_group_summary = p.r.getSbn().getNotification().isGroupSummary();
-            this.category = p.r.getSbn().getNotification().category;
+            this.is_group_summary = notification.isGroupSummary();
+            this.category = notification.category;
             this.style = p.getStyle();
             this.num_people = p.getNumPeople();
             this.position = position;
@@ -531,22 +545,18 @@ interface NotificationRecordLogger {
             this.assistant_ranking_score = p.r.getRankingScore();
             this.is_ongoing = p.r.getSbn().isOngoing();
             this.is_foreground_service = NotificationRecordLogger.isForegroundService(p.r);
-            this.timeout_millis = p.r.getSbn().getNotification().getTimeoutAfter();
+            this.timeout_millis = notification.getTimeoutAfter();
             this.is_non_dismissible = NotificationRecordLogger.isNonDismissible(p.r);
-
-            final boolean hasFullScreenIntent =
-                    p.r.getSbn().getNotification().fullScreenIntent != null;
-
-            final boolean hasFsiRequestedButDeniedFlag =  (p.r.getSbn().getNotification().flags
-                    & Notification.FLAG_FSI_REQUESTED_BUT_DENIED) != 0;
-
+            final boolean hasFullScreenIntent = notification.fullScreenIntent != null;
+            final boolean hasFsiRequestedButDeniedFlag =
+                (notification.flags & Notification.FLAG_FSI_REQUESTED_BUT_DENIED) != 0;
             this.fsi_state = NotificationRecordLogger.getFsiState(
                     hasFullScreenIntent, hasFsiRequestedButDeniedFlag, eventType);
-
             this.is_locked = p.r.isLocked();
-
             this.age_in_minutes = NotificationRecordLogger.getAgeInMinutes(
-                    p.r.getSbn().getPostTime(), p.r.getSbn().getNotification().getWhen());
+                    p.r.getSbn().getPostTime(), notification.getWhen());
+            this.is_promoted_ongoing = notification.isPromotedOngoing();
+            this.has_promotable_characteristics = notification.hasPromotableCharacteristics();
         }
     }
 

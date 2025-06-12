@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.deviceentry.domain.interactor
 
 import com.android.keyguard.logging.biometricUnlockLogger
@@ -23,12 +21,11 @@ import com.android.systemui.biometrics.data.repository.fingerprintPropertyReposi
 import com.android.systemui.dump.dumpManager
 import com.android.systemui.keyevent.domain.interactor.keyEventInteractor
 import com.android.systemui.keyguard.data.repository.biometricSettingsRepository
+import com.android.systemui.keyguard.domain.interactor.keyguardInteractor
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.util.time.systemClock
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-@OptIn(ExperimentalCoroutinesApi::class)
 val Kosmos.deviceEntryHapticsInteractor by
     Kosmos.Fixture {
         DeviceEntryHapticsInteractor(
@@ -40,6 +37,7 @@ val Kosmos.deviceEntryHapticsInteractor by
             keyEventInteractor = keyEventInteractor,
             logger = biometricUnlockLogger,
             powerInteractor = powerInteractor,
+            keyguardInteractor = keyguardInteractor,
             systemClock = systemClock,
             dumpManager = dumpManager,
         )

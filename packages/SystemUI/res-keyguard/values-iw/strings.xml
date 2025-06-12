@@ -23,7 +23,7 @@
     <string name="keyguard_enter_your_pin" msgid="5429932527814874032">"מה קוד האימות שלך?"</string>
     <string name="keyguard_enter_pin" msgid="8114529922480276834">"צריך להזין קוד אימות"</string>
     <string name="keyguard_enter_your_pattern" msgid="351503370332324745">"יש להזין קו ביטול נעילה"</string>
-    <string name="keyguard_enter_pattern" msgid="7616595160901084119">"צריך לצייר קו ביטול נעילה"</string>
+    <string name="keyguard_enter_pattern" msgid="7616595160901084119">"צריך לצייר את קו פתיחת הנעילה"</string>
     <string name="keyguard_enter_your_password" msgid="7225626204122735501">"יש להזין סיסמה"</string>
     <string name="keyguard_enter_password" msgid="6483623792371009758">"צריך להזין סיסמה"</string>
     <string name="keyguard_sim_error_message_short" msgid="633630844240494070">"כרטיס לא חוקי."</string>

@@ -1224,8 +1224,14 @@ public final class MediaCodecInfo {
         private static final String TAG = "CodecCapabilities";
 
         // NEW-STYLE CAPABILITIES
+        // Capabilities for an audio codec.
+        @Nullable
         private AudioCapabilities mAudioCaps;
+        // Capabilities for a video codec.
+        @Nullable
         private VideoCapabilities mVideoCaps;
+        // Capabilities specific to an encoder (vs. a decoder).
+        @Nullable
         private EncoderCapabilities mEncoderCaps;
         private MediaFormat mDefaultFormat;
 
@@ -1263,6 +1269,7 @@ public final class MediaCodecInfo {
         /**
          * Returns the audio capabilities or {@code null} if this is not an audio codec.
          */
+        @Nullable
         public AudioCapabilities getAudioCapabilities() {
             return mAudioCaps;
         }
@@ -1274,6 +1281,7 @@ public final class MediaCodecInfo {
         /**
          * Returns the encoding capabilities or {@code null} if this is not an encoder.
          */
+        @Nullable
         public EncoderCapabilities getEncoderCapabilities() {
             return mEncoderCaps;
         }
@@ -1285,6 +1293,7 @@ public final class MediaCodecInfo {
         /**
          * Returns the video capabilities or {@code null} if this is not a video codec.
          */
+        @Nullable
         public VideoCapabilities getVideoCapabilities() {
             return mVideoCaps;
         }

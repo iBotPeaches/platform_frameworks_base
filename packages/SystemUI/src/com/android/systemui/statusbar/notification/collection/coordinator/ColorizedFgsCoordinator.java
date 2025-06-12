@@ -23,37 +23,59 @@ import android.app.Notification;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.dagger.qualifiers.Application;
 import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope;
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifComparator;
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifPromoter;
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifSectioner;
 import com.android.systemui.statusbar.notification.promoted.PromotedNotificationUi;
+import com.android.systemui.statusbar.notification.promoted.domain.interactor.PromotedNotificationsInteractor;
 import com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt;
+import com.android.systemui.util.kotlin.JavaAdapterKt;
 
-import com.google.common.primitives.Booleans;
+import kotlinx.coroutines.CoroutineScope;
+
+import java.util.Collections;
+import java.util.List;
 
 import javax.inject.Inject;
 
 /**
  * Handles sectioning for foreground service notifications.
- *  Puts non-min colorized foreground service notifications into the FGS section. See
- *  {@link NotifCoordinators} for section ordering priority.
+ * Puts non-min colorized foreground service notifications into the FGS section. See
+ * {@link NotifCoordinators} for section ordering priority.
  */
 @CoordinatorScope
 public class ColorizedFgsCoordinator implements Coordinator {
     private static final String TAG = "ColorizedCoordinator";
+    private final PromotedNotificationsInteractor mPromotedNotificationsInteractor;
+    private final CoroutineScope mMainScope;
+
+    private List<String> mOrderedPromotedNotifKeys = Collections.emptyList();
 
     @Inject
-    public ColorizedFgsCoordinator() {
+    public ColorizedFgsCoordinator(
+            @Application CoroutineScope mainScope,
+            PromotedNotificationsInteractor promotedNotificationsInteractor
+    ) {
+        mPromotedNotificationsInteractor = promotedNotificationsInteractor;
+        mMainScope = mainScope;
     }
 
     @Override
-    public void attach(NotifPipeline pipeline) {
+    public void attach(@NonNull NotifPipeline pipeline) {
         if (PromotedNotificationUi.isEnabled()) {
             pipeline.addPromoter(mPromotedOngoingPromoter);
+
+            JavaAdapterKt.collectFlow(mMainScope,
+                    mPromotedNotificationsInteractor.getOrderedChipNotificationKeys(),
+                    (List<String> keys) -> {
+                        mOrderedPromotedNotifKeys = keys;
+                        mNotifSectioner.invalidateList("updated mOrderedPromotedNotifKeys");
+                    });
         }
     }
 
@@ -74,20 +96,35 @@ public class ColorizedFgsCoordinator implements Coordinator {
     private final NotifSectioner mNotifSectioner = new NotifSectioner("ColorizedSectioner",
             NotificationPriorityBucketKt.BUCKET_FOREGROUND_SERVICE) {
         @Override
-        public boolean isInSection(ListEntry entry) {
-            NotificationEntry notificationEntry = entry.getRepresentativeEntry();
-            if (notificationEntry != null) {
-                return isRichOngoing(notificationEntry);
+        public boolean isInSection(PipelineEntry entry) {
+            NotificationEntry notifEntry = entry.getRepresentativeEntry();
+            if (notifEntry == null) {
+                return false;
             }
-            return false;
+            if (BundleUtil.Companion.isClassified(notifEntry)) {
+                return false;
+            }
+            return isRichOngoing(notifEntry) || isPromotedNotifChip(notifEntry);
         }
 
-        private NotifComparator mPreferPromoted = new NotifComparator("PreferPromoted") {
+        /** get the sort key for any entry in the ongoing section */
+        private int getSortKey(@Nullable NotificationEntry entry) {
+            if (entry == null) return Integer.MAX_VALUE;
+            // Order all promoted notif keys first, using their order in the list
+            final int index = mOrderedPromotedNotifKeys.indexOf(entry.getKey());
+            if (index >= 0) return index;
+            // Next, prioritize promoted ongoing over other notifications
+            return isPromotedOngoing(entry) ? Integer.MAX_VALUE - 1 : Integer.MAX_VALUE;
+        }
+
+        private final NotifComparator mOngoingComparator = new NotifComparator(
+                "OngoingComparator") {
             @Override
-            public int compare(@NonNull ListEntry o1, @NonNull ListEntry o2) {
-                return -1 * Booleans.compare(
-                        isPromotedOngoing(o1.getRepresentativeEntry()),
-                        isPromotedOngoing(o2.getRepresentativeEntry()));
+            public int compare(@NonNull PipelineEntry o1, @NonNull PipelineEntry o2) {
+                return Integer.compare(
+                        getSortKey(o1.getRepresentativeEntry()),
+                        getSortKey(o2.getRepresentativeEntry())
+                );
             }
         };
 
@@ -95,7 +132,7 @@ public class ColorizedFgsCoordinator implements Coordinator {
         @Override
         public NotifComparator getComparator() {
             if (PromotedNotificationUi.isEnabled()) {
-                return mPreferPromoted;
+                return mOngoingComparator;
             } else {
                 return null;
             }
@@ -123,5 +160,11 @@ public class ColorizedFgsCoordinator implements Coordinator {
         Notification notification = entry.getSbn().getNotification();
         return entry.getImportance() > IMPORTANCE_MIN
                 && notification.isStyle(Notification.CallStyle.class);
+    }
+
+    private boolean isPromotedNotifChip(NotificationEntry entry) {
+        return PromotedNotificationUi.isEnabled()
+                && entry.getImportance() > IMPORTANCE_MIN
+                && mOrderedPromotedNotifKeys.contains(entry.getKey());
     }
 }

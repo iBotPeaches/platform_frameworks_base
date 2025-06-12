@@ -28,11 +28,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
+import android.graphics.PointF;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.testing.TestableLooper;
 import android.view.MotionEvent;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityManager;
 
 import androidx.dynamicanimation.animation.DynamicAnimation;
 import androidx.recyclerview.widget.RecyclerView;
@@ -40,6 +42,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.internal.accessibility.dialog.AccessibilityTarget;
+import com.android.settingslib.bluetooth.HearingAidDeviceManager;
 import com.android.systemui.Flags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.accessibility.MotionEventHelper;
@@ -52,6 +55,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
@@ -78,11 +82,17 @@ public class MenuListViewTouchHandlerTest extends SysuiTestCase {
     @Rule
     public MockitoRule mockito = MockitoJUnit.rule();
 
+    @Mock
+    private AccessibilityManager mAccessibilityManager;
+    @Mock
+    private HearingAidDeviceManager mHearingAidDeviceManager;
+
     @Before
     public void setUp() throws Exception {
         final WindowManager windowManager = mContext.getSystemService(WindowManager.class);
-        final SecureSettings secureSettings = TestUtils.mockSecureSettings();
-        final MenuViewModel stubMenuViewModel = new MenuViewModel(mContext, secureSettings);
+        final SecureSettings secureSettings = TestUtils.mockSecureSettings(mContext);
+        final MenuViewModel stubMenuViewModel = new MenuViewModel(mContext, mAccessibilityManager,
+                secureSettings, mHearingAidDeviceManager);
         final MenuViewAppearance stubMenuViewAppearance = new MenuViewAppearance(mContext,
                 windowManager);
         mStubMenuView = new MenuView(mContext, stubMenuViewModel, stubMenuViewAppearance,
@@ -91,7 +101,7 @@ public class MenuListViewTouchHandlerTest extends SysuiTestCase {
         mStubMenuView.setTranslationY(0);
         mMenuAnimationController = spy(new MenuAnimationController(
                 mStubMenuView, stubMenuViewAppearance));
-        mInteractView = spy(new DragToInteractView(mContext));
+        mInteractView = spy(new DragToInteractView(mContext, windowManager));
         mDismissView = spy(new DismissView(mContext));
 
         if (Flags.floatingMenuDragToEdit()) {
@@ -104,7 +114,8 @@ public class MenuListViewTouchHandlerTest extends SysuiTestCase {
 
         mTouchHandler = new MenuListViewTouchHandler(mMenuAnimationController,
                 mDragToInteractAnimationController);
-        final AccessibilityTargetAdapter stubAdapter = new AccessibilityTargetAdapter(mStubTargets);
+        final AccessibilityTargetAdapter stubAdapter = new AccessibilityTargetAdapter(
+                mStubTargets);
         mStubListView = (RecyclerView) mStubMenuView.getChildAt(0);
         mStubListView.setAdapter(stubAdapter);
     }
@@ -200,7 +211,7 @@ public class MenuListViewTouchHandlerTest extends SysuiTestCase {
         mTouchHandler.onInterceptTouchEvent(mStubListView, stubMoveEvent);
         mTouchHandler.onInterceptTouchEvent(mStubListView, stubUpEvent);
 
-        verify(mMenuAnimationController).flingMenuThenSpringToEdge(anyFloat(), anyFloat(),
+        verify(mMenuAnimationController).flingMenuThenSpringToEdge(any(PointF.class), anyFloat(),
                 anyFloat());
     }
 

@@ -52,7 +52,7 @@
         android:gravity="center_vertical"
         android:textSize="14sp" />
 
-    <TextView
+    <com.android.systemui.util.DelayableMarqueeTextView
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:id="@+id/bluetooth_device_summary"
@@ -60,7 +60,9 @@
         android:paddingEnd="10dp"
         android:paddingBottom="15dp"
         android:maxLines="1"
-        android:ellipsize="end"
+        android:ellipsize="marquee"
+        android:marqueeRepeatLimit="1"
+        android:singleLine="true"
         app:layout_constraintTop_toBottomOf="@+id/bluetooth_device_name"
         app:layout_constraintStart_toEndOf="@+id/bluetooth_device_icon"
         app:layout_constraintEnd_toStartOf="@+id/guideline"

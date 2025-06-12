@@ -33,6 +33,8 @@ import java.util.Objects;
  *
  * <p> Antenna info parameters are measured for each specific device model by the device
  * manufacturers and provided to the Android framework.
+ *
+ * <p> {@link GnssAntennaInfo} is returned per frequency band at the center frequency of the band.
  */
 public final class GnssAntennaInfo implements Parcelable {
     private final double mCarrierFrequencyMHz;
@@ -479,6 +481,7 @@ public final class GnssAntennaInfo implements Parcelable {
         }
     }
 
+    /** Returns the center frequency of the corresponding carrier frequency band. */
     @FloatRange(from = 0.0f)
     public double getCarrierFrequencyMHz() {
         return mCarrierFrequencyMHz;

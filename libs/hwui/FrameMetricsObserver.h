@@ -18,12 +18,14 @@
 
 #include <utils/RefBase.h>
 
+#include "FrameInfo.h"
+
 namespace android {
 namespace uirenderer {
 
 class FrameMetricsObserver : public VirtualLightRefBase {
 public:
-    virtual void notify(const int64_t* buffer) = 0;
+    virtual void notify(const FrameInfoBuffer& buffer) = 0;
     bool waitForPresentTime() const { return mWaitForPresentTime; };
 
     void reportMetricsFrom(uint64_t frameNumber, int32_t surfaceControlId) {

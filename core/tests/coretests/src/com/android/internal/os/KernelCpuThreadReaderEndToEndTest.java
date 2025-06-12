@@ -22,7 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.os.Process;
 import android.os.SystemClock;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  */
 @RunWith(AndroidJUnit4.class)
 @LargeTest
-@IgnoreUnderRavenwood(reason = "Needs kernel support")
+@DisabledOnRavenwood(reason = "Needs kernel support")
 public class KernelCpuThreadReaderEndToEndTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

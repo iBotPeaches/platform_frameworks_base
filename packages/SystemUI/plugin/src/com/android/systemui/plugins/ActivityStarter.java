@@ -16,6 +16,7 @@ package com.android.systemui.plugins;
 
 import android.annotation.Nullable;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.UserHandle;
@@ -23,6 +24,8 @@ import android.view.View;
 
 import com.android.systemui.animation.ActivityTransitionAnimator;
 import com.android.systemui.plugins.annotations.ProvidesInterface;
+
+import kotlinx.coroutines.CoroutineScope;
 
 /**
  * An interface to start activities. This is used as a callback from the views to
@@ -32,6 +35,23 @@ import com.android.systemui.plugins.annotations.ProvidesInterface;
 @ProvidesInterface(version = ActivityStarter.VERSION)
 public interface ActivityStarter {
     int VERSION = 2;
+
+    /**
+     * Registers the given {@link ActivityTransitionAnimator.ControllerFactory} for launching and
+     * closing transitions matching the {@link ActivityTransitionAnimator.TransitionCookie} and the
+     * {@link ComponentName} that it contains, within the given {@link CoroutineScope}.
+     */
+    void registerTransition(
+            ActivityTransitionAnimator.TransitionCookie cookie,
+            ActivityTransitionAnimator.ControllerFactory controllerFactory,
+            CoroutineScope scope);
+
+    /**
+     * Unregisters the {@link ActivityTransitionAnimator.ControllerFactory} previously registered
+     * containing the given {@link ActivityTransitionAnimator.TransitionCookie}. If no such
+     * registration exists, this is a no-op.
+     */
+    void unregisterTransition(ActivityTransitionAnimator.TransitionCookie cookie);
 
     void startPendingIntentDismissingKeyguard(PendingIntent intent);
 
@@ -123,6 +143,11 @@ public interface ActivityStarter {
     void postStartActivityDismissingKeyguard(Intent intent, int delay,
             @Nullable ActivityTransitionAnimator.Controller animationController,
             @Nullable String customMessage);
+    /** Posts a start activity intent that dismisses keyguard. */
+    void postStartActivityDismissingKeyguard(Intent intent, int delay,
+            @Nullable ActivityTransitionAnimator.Controller animationController,
+            @Nullable String customMessage,
+            @Nullable UserHandle userHandle);
     void postStartActivityDismissingKeyguard(PendingIntent intent);
 
     /**

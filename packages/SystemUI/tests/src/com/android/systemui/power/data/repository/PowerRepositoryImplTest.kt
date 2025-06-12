@@ -21,10 +21,14 @@ import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.PowerManager
+import android.os.powerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.broadcast.BroadcastDispatcher
+import com.android.systemui.concurrency.fakeExecutor
+import com.android.systemui.keyguard.userActivityNotifier
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.capture
@@ -50,10 +54,10 @@ import org.mockito.MockitoAnnotations
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class PowerRepositoryImplTest : SysuiTestCase() {
-
+    private val kosmos = testKosmos()
     private val systemClock = FakeSystemClock()
 
-    @Mock private lateinit var manager: PowerManager
+    val manager: PowerManager = kosmos.powerManager
     @Mock private lateinit var dispatcher: BroadcastDispatcher
     @Captor private lateinit var receiverCaptor: ArgumentCaptor<BroadcastReceiver>
     @Captor private lateinit var filterCaptor: ArgumentCaptor<IntentFilter>
@@ -74,6 +78,7 @@ class PowerRepositoryImplTest : SysuiTestCase() {
                 context.applicationContext,
                 systemClock,
                 dispatcher,
+                kosmos.userActivityNotifier,
             )
     }
 
@@ -198,13 +203,14 @@ class PowerRepositoryImplTest : SysuiTestCase() {
         systemClock.setUptimeMillis(345000)
 
         underTest.userTouch()
+        kosmos.fakeExecutor.runAllReady()
 
         val flagsCaptor = argumentCaptor<Int>()
         verify(manager)
             .userActivity(
                 eq(345000L),
                 eq(PowerManager.USER_ACTIVITY_EVENT_TOUCH),
-                capture(flagsCaptor)
+                capture(flagsCaptor),
             )
         assertThat(flagsCaptor.value).isNotEqualTo(PowerManager.USER_ACTIVITY_FLAG_NO_CHANGE_LIGHTS)
         assertThat(flagsCaptor.value).isNotEqualTo(PowerManager.USER_ACTIVITY_FLAG_INDIRECT)
@@ -215,13 +221,14 @@ class PowerRepositoryImplTest : SysuiTestCase() {
         systemClock.setUptimeMillis(345000)
 
         underTest.userTouch(noChangeLights = true)
+        kosmos.fakeExecutor.runAllReady()
 
         val flagsCaptor = argumentCaptor<Int>()
         verify(manager)
             .userActivity(
                 eq(345000L),
                 eq(PowerManager.USER_ACTIVITY_EVENT_TOUCH),
-                capture(flagsCaptor)
+                capture(flagsCaptor),
             )
         assertThat(flagsCaptor.value).isEqualTo(PowerManager.USER_ACTIVITY_FLAG_NO_CHANGE_LIGHTS)
     }

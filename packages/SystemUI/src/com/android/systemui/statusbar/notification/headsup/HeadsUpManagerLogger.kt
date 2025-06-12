@@ -44,8 +44,16 @@ constructor(@NotificationHeadsUpLog private val buffer: LogBuffer) {
         buffer.log(TAG, INFO, {}, { "release all immediately" })
     }
 
-    fun logShowNotificationRequest(entry: NotificationEntry) {
-        buffer.log(TAG, INFO, { str1 = entry.logKey }, { "request: show notification $str1" })
+    fun logShowNotificationRequest(entry: NotificationEntry, isPinnedByUser: Boolean) {
+        buffer.log(
+            TAG,
+            INFO,
+            {
+                str1 = entry.logKey
+                bool1 = isPinnedByUser
+            },
+            { "request: show notification $str1. isPinnedByUser=$bool1" },
+        )
     }
 
     fun logAvalancheUpdate(
@@ -63,7 +71,7 @@ constructor(@NotificationHeadsUpLog private val buffer: LogBuffer) {
                 str3 = outcome
                 bool1 = isEnabled
             },
-            { "$str1\n\t=> AC[isEnabled:$bool1] update: $str2\n\t=> $str3" },
+            { "$str1\n=> AC[enabled:$bool1] update: $str2\n=> $str3" },
         )
     }
 
@@ -82,12 +90,56 @@ constructor(@NotificationHeadsUpLog private val buffer: LogBuffer) {
                 str3 = outcome
                 bool1 = isEnabled
             },
-            { "$str1\n\t=> AC[isEnabled:$bool1] delete: $str2\n\t=> $str3" },
+            { "$str1\n=> AC[enabled:$bool1] delete: $str2\n=> $str3" },
         )
     }
 
-    fun logShowNotification(entry: NotificationEntry) {
-        buffer.log(TAG, INFO, { str1 = entry.logKey }, { "show notification $str1" })
+    fun logAvalancheStage(stage: String, key: String) {
+        buffer.log(
+            TAG,
+            INFO,
+            {
+                str1 = stage
+                str2 = key
+            },
+            { "[AC] $str1 $str2" },
+        )
+    }
+
+    fun logAvalancheDuration(
+        thisKey: String,
+        duration: RemainingDuration,
+        reason: String,
+        nextKey: String,
+    ) {
+        val durationMs =
+            when (duration) {
+                is RemainingDuration.UpdatedDuration -> duration.duration
+                is RemainingDuration.HideImmediately -> 0
+            }
+        buffer.log(
+            TAG,
+            INFO,
+            {
+                str1 = thisKey
+                int1 = durationMs
+                str2 = reason
+                str3 = nextKey
+            },
+            { "[AC] $str1 | $int1 ms | $str2 $str3" },
+        )
+    }
+
+    fun logShowNotification(entry: NotificationEntry, isPinnedByUser: Boolean) {
+        buffer.log(
+            TAG,
+            INFO,
+            {
+                str1 = entry.logKey
+                bool1 = isPinnedByUser
+            },
+            { "show notification $str1. isPinnedByUser=$bool1" },
+        )
     }
 
     fun logAutoRemoveScheduled(entry: NotificationEntry, delayMillis: Long, reason: String) {
@@ -140,12 +192,12 @@ constructor(@NotificationHeadsUpLog private val buffer: LogBuffer) {
         )
     }
 
-    fun logAutoRemoveCanceled(entry: NotificationEntry, reason: String?) {
+    fun logAutoRemoveCanceled(entry: NotificationEntry?, reason: String?) {
         buffer.log(
             TAG,
             INFO,
             {
-                str1 = entry.logKey
+                str1 = entry?.logKey
                 str2 = reason ?: "unknown"
             },
             { "cancel auto remove of $str1 reason: $str2" },
@@ -224,29 +276,33 @@ constructor(@NotificationHeadsUpLog private val buffer: LogBuffer) {
         buffer.log(TAG, INFO, { str1 = entry.logKey }, { "notification removed $str1 " })
     }
 
-    fun logUpdateNotificationRequest(key: String, alert: Boolean, hasEntry: Boolean) {
+    fun logUpdateNotificationRequest(
+        key: String,
+        requestedPinnedStatus: PinnedStatus,
+        hasEntry: Boolean,
+    ) {
         buffer.log(
             TAG,
             INFO,
             {
                 str1 = logKey(key)
-                bool1 = alert
-                bool2 = hasEntry
+                bool1 = hasEntry
+                str2 = requestedPinnedStatus.name
             },
-            { "request: update notification $str1 alert: $bool1 hasEntry: $bool2" },
+            { "request: update notification $str1. hasEntry: $bool1. requestedPinnedStatus: $str2" },
         )
     }
 
-    fun logUpdateNotification(key: String, alert: Boolean, hasEntry: Boolean) {
+    fun logUpdateNotification(key: String, requestedPinnedStatus: PinnedStatus, hasEntry: Boolean) {
         buffer.log(
             TAG,
             INFO,
             {
                 str1 = logKey(key)
-                bool1 = alert
-                bool2 = hasEntry
+                bool1 = hasEntry
+                str2 = requestedPinnedStatus.name
             },
-            { "update notification $str1 alert: $bool1 hasEntry: $bool2" },
+            { "update notification $str1. hasEntry: $bool2. requestedPinnedStatus: $str2" },
         )
     }
 
@@ -285,17 +341,27 @@ constructor(@NotificationHeadsUpLog private val buffer: LogBuffer) {
         )
     }
 
-    fun logUpdatePinnedMode(hasPinnedNotification: Boolean) {
+    fun logUpdatePinnedMode(
+        hasPinnedNotification: Boolean,
+        pinnedNotificationStatus: PinnedStatus,
+    ) {
         buffer.log(
             TAG,
             INFO,
-            { bool1 = hasPinnedNotification },
-            { "has pinned notification changed to $bool1" },
+            {
+                bool1 = hasPinnedNotification
+                str1 = pinnedNotificationStatus.name
+            },
+            { "has pinned notification changed to $bool1, status=$str1" },
         )
     }
 
     fun logRemoveEntryAfterExpand(entry: NotificationEntry) {
         buffer.log(TAG, VERBOSE, { str1 = entry.logKey }, { "remove entry after expand: $str1" })
+    }
+
+    fun logDroppedHuns(entryList: String) {
+        buffer.log(TAG, VERBOSE, { str1 = entryList }, { "[AC] dropped:\n $str1" })
     }
 }
 

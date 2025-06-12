@@ -59,12 +59,6 @@ interface ShadeSurface :
     fun setTouchAndAnimationDisabled(disabled: Boolean)
 
     /**
-     * Notify us that {@link NotificationWakeUpCoordinator} is going to play the doze wakeup
-     * animation after a delay. If so, we'll keep the clock centered until that animation starts.
-     */
-    fun setWillPlayDelayedDozeAmountAnimation(willPlay: Boolean)
-
-    /**
      * Sets the dozing state.
      *
      * @param dozing `true` when dozing.
@@ -80,9 +74,6 @@ interface ShadeSurface :
 
     /** Sets the view's alpha to max. */
     fun resetAlpha()
-
-    /** @see com.android.systemui.keyguard.ScreenLifecycle.Observer.onScreenTurningOn */
-    fun onScreenTurningOn()
 
     /**
      * Called when the device's theme changes.

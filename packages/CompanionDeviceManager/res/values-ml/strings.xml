@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"കമ്പാനിയൻ ഉപകരണ മാനേജർ"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ആക്‌സസ് ചെയ്യാൻ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; എന്ന ആപ്പിനെ അനുവദിക്കണോ?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"ഈ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> എന്നതിൽ <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> ഓണാക്കിയിട്ടുണ്ടെന്ന് ഉറപ്പുവരുത്തുക, നിങ്ങളുടെ <xliff:g id="PROFILE_NAME">%3$s</xliff:g> സമീപം വയ്ക്കുക."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"ഉപകരണങ്ങളൊന്നും കണ്ടെത്തിയില്ല. പിന്നീട് വീണ്ടും ശ്രമിക്കുക."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"വൈഫൈ"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth-ഉം വൈഫൈയും"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"വാച്ച്"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ഉപയോഗിച്ച് മാനേജ് ചെയ്യുന്നതിന് ഒരു ഉപകരണം തിരഞ്ഞെടുക്കുക"</string>
     <string name="chooser_title" msgid="2235819929238267637">"സജ്ജീകരിക്കാൻ <xliff:g id="PROFILE_NAME">%1$s</xliff:g> തിരഞ്ഞെടുക്കുക"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"<xliff:g id="PROFILE_NAME">%1$s</xliff:g> തിരയുകയാണ്"</string>
     <string name="summary_watch" msgid="8134580124808507407">"വിളിക്കുന്നയാളുടെ പേര് പോലുള്ള വിവരങ്ങൾ സമന്വയിപ്പിക്കാനും നിങ്ങളുടെ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> എന്നതിൽ ഈ അനുമതികൾ ആക്സസ് ചെയ്യാനും ഈ ആപ്പിനെ അനുവദിക്കും"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;? മാനേജ് ചെയ്യാൻ, &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; എന്നതിനെ അനുവദിക്കുക"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"ഉപകരണം"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"നിങ്ങളുടെ <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> എന്നതിന്റെ ആപ്പുകൾ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; എന്നതിലേക്ക് സ്ട്രീം ചെയ്യാൻ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; എന്നതിനെ അനുവദിക്കണോ?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"ഓഡിയോ, ഫോട്ടോകൾ, പേയ്മെന്റ് വിവരങ്ങൾ, പാസ്‌വേഡുകൾ, സന്ദേശങ്ങൾ എന്നിവ ഉൾപ്പെടെ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> എന്നതിൽ ദൃശ്യമാകുന്നതോ പ്ലേ ചെയ്യുന്നതോ എല്ലാ എല്ലാത്തിലേക്കും <xliff:g id="APP_NAME_0">%1$s</xliff:g> എന്നതിന് ആക്സസ് ഉണ്ടായിരിക്കും.&lt;br/&gt;&lt;br/&gt;നിങ്ങൾ ഈ അനുമതിയിലേക്കുള്ള ആക്സസ് നീക്കം ചെയ്യുന്നത് വരെ <xliff:g id="APP_NAME_2">%1$s</xliff:g> എന്നതിന് <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> എന്നതിലേക്ക് ആപ്പുകൾ സ്ട്രീം ചെയ്യാനാകും."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"നിങ്ങളുടെ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> എന്നതിൽ നിന്ന് ആപ്പുകൾ സ്ട്രീം ചെയ്യാൻ <xliff:g id="DEVICE_NAME">%2$s</xliff:g> എന്നതിന്റെ പേരിൽ <xliff:g id="APP_NAME">%1$s</xliff:g> അനുമതി അഭ്യർത്ഥിക്കുന്നു"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"നിങ്ങളുടെ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>, &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; എന്നിവയ്ക്കിടയിൽ ഓഡിയോയും സിസ്റ്റം ഫീച്ചറുകളും സ്ട്രീം ചെയ്യാൻ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ആപ്പിനെ അനുവദിക്കണോ?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> എന്നതിൽ പ്ലേ ചെയ്യുന്ന എല്ലാത്തിലേക്കും <xliff:g id="APP_NAME_0">%2$s</xliff:g> ആപ്പിന് ആക്സസ് ഉണ്ടായിരിക്കും.&lt;br/&gt;&lt;br/&gt;നിങ്ങൾ ഈ അനുമതിക്കുള്ള ആക്സസ് നീക്കം ചെയ്യുന്നത് വരെ <xliff:g id="APP_NAME_2">%2$s</xliff:g> ആപ്പിന് <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> എന്നതിലേക്ക് ഓഡിയോ സ്ട്രീം ചെയ്യാനാകും."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"ഉപകരണം"</string>
     <string name="summary_generic" msgid="1761976003668044801">"വിളിക്കുന്നയാളുടെ പേര് പോലുള്ള വിവരങ്ങൾ നിങ്ങളുടെ ഫോണിനും തിരഞ്ഞെടുത്ത ഉപകരണത്തിനും ഇടയിൽ സമന്വയിപ്പിക്കുന്നതിന് ഈ ആപ്പിന് കഴിയും"</string>
     <string name="consent_yes" msgid="8344487259618762872">"അനുവദിക്കുക"</string>
     <string name="consent_no" msgid="2640796915611404382">"അനുവദിക്കരുത്"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"റദ്ദാക്കുക"</string>
     <string name="consent_back" msgid="2560683030046918882">"മടങ്ങുക"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"ലിസ്റ്റ് താഴേക്ക് സ്ക്രോൾ ചെയ്യൂ"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"താഴേക്കുള്ള അമ്പടയാളം"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> വികസിപ്പിക്കുക"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> ചുരുക്കുക"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"&lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; എന്നതിലെ അതേ അനുമതികൾ &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; എന്നതിലെ ആപ്പുകൾക്ക് നൽകണോ?"</string>

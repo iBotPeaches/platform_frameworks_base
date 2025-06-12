@@ -19,7 +19,6 @@ package com.android.server.notification;
 import static android.provider.Settings.Global.ZEN_MODE_OFF;
 import static android.service.notification.ZenPolicy.CONVERSATION_SENDERS_ANYONE;
 
-import android.app.Flags;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.ComponentName;
@@ -146,16 +145,12 @@ public class ZenModeFiltering {
 
     // Returns whether the record is permitted to bypass DND when the zen mode is
     // ZEN_MODE_IMPORTANT_INTERRUPTIONS. This depends on whether the record's package priority is
-    // marked as PRIORITY_MAX (an indication of it belonging to a priority channel), and, if
-    // the modes_api flag is on, whether the given policy permits priority channels to bypass.
-    // TODO: b/310620812 - simplify when modes_api is inlined.
+    // marked as PRIORITY_MAX (an indication of it belonging to a priority channel), and whether the
+    // given policy permits priority channels to bypass.
     private boolean canRecordBypassDnd(NotificationRecord record,
             NotificationManager.Policy policy) {
         boolean inPriorityChannel = record.getPackagePriority() == Notification.PRIORITY_MAX;
-        if (Flags.modesApi()) {
-            return inPriorityChannel && policy.allowPriorityChannels();
-        }
-        return inPriorityChannel;
+        return inPriorityChannel && policy.allowPriorityChannels();
     }
 
     /**

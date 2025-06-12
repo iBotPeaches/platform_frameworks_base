@@ -10,7 +10,7 @@ package {
 android_ravenwood_test {
     name: "RavenwoodResApkTest",
 
-    resource_apk: "RavenwoodResApkTest-apk",
+    resource_apk: "RavenwoodResApkTest-res",
 
     libs: [
         // Normally, tests shouldn't directly access it, but we need to access RavenwoodCommonUtils
@@ -24,6 +24,7 @@ android_ravenwood_test {
     ],
     srcs: [
         "test/**/*.java",
+        ":RavenwoodResApkTest-res{.aapt.srcjar}",
     ],
     sdk_version: "test_current",
     auto_gen_config: true,

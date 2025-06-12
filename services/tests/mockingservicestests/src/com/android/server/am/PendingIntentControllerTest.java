@@ -16,6 +16,9 @@
 
 package com.android.server.am;
 
+import static android.os.PowerWhitelistManager.REASON_NOTIFICATION_SERVICE;
+import static android.os.PowerWhitelistManager.TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED;
+import static android.os.PowerWhitelistManager.TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED;
 import static android.os.Process.INVALID_UID;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
@@ -27,25 +30,36 @@ import static com.android.server.am.PendingIntentRecord.CANCEL_REASON_OWNER_CANC
 import static com.android.server.am.PendingIntentRecord.CANCEL_REASON_OWNER_FORCE_STOPPED;
 import static com.android.server.am.PendingIntentRecord.CANCEL_REASON_SUPERSEDED;
 import static com.android.server.am.PendingIntentRecord.CANCEL_REASON_USER_STOPPED;
+import static com.android.server.am.PendingIntentRecord.FLAG_ACTIVITY_SENDER;
 import static com.android.server.am.PendingIntentRecord.cancelReasonToString;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.ActivityManagerInternal;
+import android.app.ActivityOptions;
 import android.app.AppGlobals;
+import android.app.BackgroundStartPrivileges;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.IPackageManager;
+import android.os.Binder;
+import android.os.Bundle;
 import android.os.Looper;
 import android.os.UserHandle;
 
-import androidx.test.runner.AndroidJUnit4;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.server.AlarmManagerInternal;
 import com.android.server.LocalServices;
@@ -101,7 +115,8 @@ public class PendingIntentControllerTest {
         mPendingIntentController.onActivityManagerInternalAdded();
     }
 
-    private PendingIntentRecord createPendingIntentRecord(int flags) {
+    @NonNull
+    private PendingIntentRecord createPendingIntentRecord(@PendingIntent.Flags int flags) {
         return mPendingIntentController.getIntentSender(ActivityManager.INTENT_SENDER_BROADCAST,
                 TEST_PACKAGE_NAME, TEST_FEATURE_ID, TEST_CALLING_UID, TEST_USER_ID, null, null, 0,
                 TEST_INTENTS, null, flags, null);
@@ -176,6 +191,91 @@ public class PendingIntentControllerTest {
                     TEST_USER_ID, INVALID_UID, true,
                     CANCEL_REASON_USER_STOPPED);
             assertCancelReason(CANCEL_REASON_USER_STOPPED, pir.cancelReason);
+        }
+    }
+
+    @Test
+    public void testClearAllowBgActivityStartsClearsToken() {
+        final PendingIntentRecord pir = createPendingIntentRecord(0);
+        Binder token = new Binder();
+        pir.setAllowBgActivityStarts(token, FLAG_ACTIVITY_SENDER);
+        assertEquals(BackgroundStartPrivileges.allowBackgroundActivityStarts(token),
+                pir.getBackgroundStartPrivilegesForActivitySender(token));
+        pir.clearAllowBgActivityStarts(token);
+        assertEquals(BackgroundStartPrivileges.NONE,
+                pir.getBackgroundStartPrivilegesForActivitySender(token));
+    }
+
+    @Test
+    public void testClearAllowBgActivityStartsClearsDuration() {
+        final PendingIntentRecord pir = createPendingIntentRecord(0);
+        Binder token = new Binder();
+        pir.setAllowlistDurationLocked(token, 1000,
+                TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED, REASON_NOTIFICATION_SERVICE,
+                "NotificationManagerService");
+        PendingIntentRecord.TempAllowListDuration allowlistDurationLocked =
+                pir.getAllowlistDurationLocked(token);
+        assertEquals(1000, allowlistDurationLocked.duration);
+        assertEquals(TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED,
+                allowlistDurationLocked.type);
+        pir.clearAllowBgActivityStarts(token);
+        PendingIntentRecord.TempAllowListDuration allowlistDurationLockedAfterClear =
+                pir.getAllowlistDurationLocked(token);
+        assertNotNull(allowlistDurationLockedAfterClear);
+        assertEquals(1000, allowlistDurationLockedAfterClear.duration);
+        assertEquals(TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED,
+                allowlistDurationLocked.type);
+    }
+
+    @Test
+    public void testSendWithBundleExtras() {
+        final PendingIntentRecord pir = createPendingIntentRecord(0);
+        final ActivityOptions activityOptions = ActivityOptions.makeBasic();
+        activityOptions.setLaunchDisplayId(2);
+        activityOptions.setLaunchTaskId(123);
+        final Bundle options = activityOptions.toBundle();
+        options.putString("testKey", "testValue");
+
+        pir.send(0, null, null, null, null, null, options);
+
+        final ArgumentCaptor<Bundle> resultExtrasCaptor = ArgumentCaptor.forClass(Bundle.class);
+        verify(mActivityManagerInternal).broadcastIntentInPackage(
+                eq(TEST_PACKAGE_NAME),
+                eq(TEST_FEATURE_ID),
+                eq(TEST_CALLING_UID),
+                eq(TEST_CALLING_UID), // realCallingUid
+                anyInt(), // realCallingPid
+                any(), // intent
+                any(), // resolvedType
+                any(), // resultToThread
+                any(), // resultTo
+                anyInt(), // resultCode
+                any(), // resultData
+                resultExtrasCaptor.capture(), // resultExtras
+                any(), // requiredPermission
+                eq(options), // bOptions
+                anyBoolean(), // serialized
+                anyBoolean(), // sticky
+                anyInt(), // userId
+                any(),  // backgroundStartPrivileges
+                any() // broadcastAllowList
+        );
+        final Bundle result = resultExtrasCaptor.getValue();
+        if (com.android.window.flags.Flags.supportWidgetIntentsOnConnectedDisplay()) {
+            // Check that only launchDisplayId in ActivityOptions is passed via resultExtras.
+            final ActivityOptions expected = ActivityOptions.makeBasic().setLaunchDisplayId(2);
+            assertBundleEquals(expected.toBundle(), result);
+            // Check that launchTaskId is dropped in resultExtras.
+            assertNotEquals(123, ActivityOptions.fromBundle(result).getLaunchTaskId());
+        } else {
+            assertNull(result);
+        }
+    }
+
+    private void assertBundleEquals(@NonNull Bundle expected, @NonNull Bundle observed) {
+        assertEquals(expected.size(), observed.size());
+        for (String key : expected.keySet()) {
+            assertEquals(expected.get(key), observed.get(key));
         }
     }
 

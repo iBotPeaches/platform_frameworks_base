@@ -16,12 +16,15 @@
 
 package com.android.systemui.statusbar.notification.row;
 
+import static com.android.systemui.statusbar.NotificationLockscreenUserManager.RedactionType;
+
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 
 import androidx.annotation.VisibleForTesting;
 
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 
 import java.lang.annotation.Retention;
@@ -141,20 +144,20 @@ public interface NotificationRowContentBinder {
      */
     class BindParams {
 
+        public BindParams(boolean minimized, int redaction) {
+            isMinimized = minimized;
+            redactionType = redaction;
+        }
+
         /**
          * Bind a minimized version of the content views.
          */
-        public boolean isMinimized;
+        public final boolean isMinimized;
 
         /**
-         * Use increased height when binding contracted view.
+         * Controls the type of public view to show, if a public view is requested
          */
-        public boolean usesIncreasedHeight;
-
-        /**
-         * Use increased height when binding heads up views.
-         */
-        public boolean usesIncreasedHeadsUpHeight;
+        public final @RedactionType int redactionType;
     }
 
     /**
@@ -168,13 +171,29 @@ public interface NotificationRowContentBinder {
          * @param entry notification which failed to inflate content
          * @param e exception
          */
-        void handleInflationException(NotificationEntry entry, Exception e);
+        default void handleInflationException(NotificationEntry entry, Exception e) {
+            handleInflationException(e);
+        }
+
+        /**
+         * Callback for when there is an inflation exception
+         *
+         * @param e exception
+         */
+        void handleInflationException(Exception e);
 
         /**
          * Callback for after the content views finish inflating.
          *
          * @param entry the entry with the content views set
          */
-        void onAsyncInflationFinished(NotificationEntry entry);
+        default void onAsyncInflationFinished(NotificationEntry entry) {
+            onAsyncInflationFinished();
+        }
+
+        /**
+         * Callback for after the content views finish inflating.
+         */
+        void onAsyncInflationFinished();
     }
 }

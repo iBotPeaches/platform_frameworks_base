@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.chips.ui.binder
 
+import android.annotation.ElapsedRealtimeLong
 import com.android.systemui.statusbar.chips.ui.view.ChipChronometer
 
 object ChipChronometerBinder {
@@ -25,9 +26,11 @@ object ChipChronometerBinder {
      * @param startTimeMs the time this event started, relative to
      *   [com.android.systemui.util.time.SystemClock.elapsedRealtime]. See
      *   [android.widget.Chronometer.setBase].
+     * @param isCountDown see [android.widget.Chronometer.setCountDown].
      */
-    fun bind(startTimeMs: Long, view: ChipChronometer) {
+    fun bind(@ElapsedRealtimeLong startTimeMs: Long, isCountDown: Boolean, view: ChipChronometer) {
         view.base = startTimeMs
+        view.isCountDown = isCountDown
         view.start()
     }
 }

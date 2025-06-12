@@ -42,6 +42,9 @@ android_library {
         "//frameworks/libs/systemui:tracinglib-platform",
     ],
 
-    kotlincflags: ["-Xjvm-default=all"],
+    kotlincflags: [
+        "-Xjvm-default=all",
+        "-P plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
+    ],
     use_resource_processor: true,
 }

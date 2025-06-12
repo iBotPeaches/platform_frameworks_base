@@ -204,13 +204,20 @@ static jlong nativeOpen(JNIEnv* env, jclass clazz, jstring pathStr, jint openFla
     return reinterpret_cast<jlong>(connection);
 }
 
-static void nativeClose(JNIEnv* env, jclass clazz, jlong connectionPtr) {
+static void nativeClose(JNIEnv* env, jclass clazz, jlong connectionPtr, jboolean fast) {
     SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
 
     if (connection) {
         ALOGV("Closing connection %p", connection->db);
         if (connection->tableQuery != nullptr) {
             sqlite3_finalize(connection->tableQuery);
+        }
+        if (fast) {
+            // The caller requested a fast close, so do not checkpoint even if this is the last
+            // connection to the database.  Note that the change is only to this connection.
+            // Any other connections to the same database are unaffected.
+            int _unused = 0;
+            sqlite3_db_config(connection->db, SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, &_unused);
         }
         int err = sqlite3_close(connection->db);
         if (err != SQLITE_OK) {
@@ -959,8 +966,8 @@ static const JNINativeMethod sMethods[] =
     /* name, signature, funcPtr */
     { "nativeOpen", "(Ljava/lang/String;ILjava/lang/String;ZZII)J",
             (void*)nativeOpen },
-    { "nativeClose", "(J)V",
-            (void*)nativeClose },
+    { "nativeClose", "(JZ)V",
+      (void*) static_cast<void(*)(JNIEnv*,jclass,jlong,jboolean)>(nativeClose) },
     { "nativeRegisterCustomScalarFunction", "(JLjava/lang/String;Ljava/util/function/UnaryOperator;)V",
             (void*)nativeRegisterCustomScalarFunction },
     { "nativeRegisterCustomAggregateFunction", "(JLjava/lang/String;Ljava/util/function/BinaryOperator;)V",

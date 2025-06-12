@@ -16,7 +16,9 @@
 package com.android.server.pm;
 
 import static android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_DENIED;
-import static android.provider.DeviceConfig.NAMESPACE_SYSTEMUI;
+
+import static com.android.server.pm.ShortcutUser.DIRECTORY_LAUNCHERS;
+import static com.android.server.pm.ShortcutUser.DIRECTORY_PACKAGES;
 
 import android.Manifest.permission;
 import android.annotation.IntDef;
@@ -94,7 +96,6 @@ import android.os.ShellCommand;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
-import android.provider.DeviceConfig;
 import android.text.TextUtils;
 import android.text.format.TimeMigrationUtils;
 import android.util.ArraySet;
@@ -112,8 +113,6 @@ import android.view.IWindowManager;
 import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.config.sysui.SystemUiDeviceConfigFlags;
-import com.android.internal.infra.AndroidFuture;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.util.CollectionUtils;
 import com.android.internal.util.DumpUtils;
@@ -156,7 +155,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * TODO:
@@ -172,7 +170,7 @@ public class ShortcutService extends IShortcutService.Stub {
     static final boolean DEBUG = false; // STOPSHIP if true
     static final boolean DEBUG_LOAD = false; // STOPSHIP if true
     static final boolean DEBUG_PROCSTATE = false; // STOPSHIP if true
-    static final boolean DEBUG_REBOOT = Build.IS_DEBUGGABLE;
+    static final boolean DEBUG_REBOOT = false; // STOPSHIP if true
 
     @VisibleForTesting
     static final long DEFAULT_RESET_INTERVAL_SEC = 24 * 60 * 60; // 1 day
@@ -293,7 +291,8 @@ public class ShortcutService extends IShortcutService.Stub {
 
     final Context mContext;
 
-    private final Object mServiceLock = new Object();
+    @VisibleForTesting
+    final Object mServiceLock = new Object();
     private final Object mNonPersistentUsersLock = new Object();
     private final Object mWtfLock = new Object();
 
@@ -475,8 +474,6 @@ public class ShortcutService extends IShortcutService.Stub {
     @GuardedBy("mServiceLock")
     private final MetricsLogger mMetricsLogger = new MetricsLogger();
 
-    private final boolean mIsAppSearchEnabled;
-
     private ComponentName mChooserActivity;
 
     static class InvalidFileFormatException extends Exception {
@@ -519,9 +516,6 @@ public class ShortcutService extends IShortcutService.Stub {
 
         mShortcutRequestPinProcessor = new ShortcutRequestPinProcessor(this, mServiceLock);
         mShortcutDumpFiles = new ShortcutDumpFiles(this);
-        mIsAppSearchEnabled = DeviceConfig.getBoolean(NAMESPACE_SYSTEMUI,
-                SystemUiDeviceConfigFlags.SHORTCUT_APPSEARCH_INTEGRATION, false)
-                && !injectIsLowRamDevice();
 
         if (onlyForPackageManagerApis) {
             return; // Don't do anything further.  For unit tests only.
@@ -557,10 +551,6 @@ public class ShortcutService extends IShortcutService.Stub {
                 | ActivityManager.UID_OBSERVER_GONE);
 
         injectRegisterRoleHoldersListener(mOnRoleHoldersChangedListener);
-    }
-
-    boolean isAppSearchEnabled() {
-        return mIsAppSearchEnabled;
     }
 
     long getStatStartTime() {
@@ -757,8 +747,6 @@ public class ShortcutService extends IShortcutService.Stub {
         if (DEBUG || DEBUG_REBOOT) {
             Slog.d(TAG, "unloadUserLocked: userId=" + userId);
         }
-        // Cancel any ongoing background tasks.
-        getUserShortcutsLocked(userId).cancelAllInFlightTasks();
 
         // Save all dirty information.
         saveDirtyInfo();
@@ -994,7 +982,7 @@ public class ShortcutService extends IShortcutService.Stub {
     }
 
     @VisibleForTesting
-    void saveBaseState() {
+    void injectSaveBaseState() {
         try (ResilientAtomicFile file = getBaseStateFile()) {
             if (DEBUG || DEBUG_REBOOT) {
                 Slog.d(TAG, "Saving to " + file.getBaseFile());
@@ -1006,21 +994,10 @@ public class ShortcutService extends IShortcutService.Stub {
                     outs = file.startWrite();
                 }
 
-                // Write to XML
-                TypedXmlSerializer out = Xml.resolveSerializer(outs);
-                out.startDocument(null, true);
-                out.startTag(null, TAG_ROOT);
-
-                // Body.
-                // No locking required. Ok to add lock later if we save more data.
-                writeTagValue(out, TAG_LAST_RESET_TIME, mRawLastResetTime.get());
-
-                // Epilogue.
-                out.endTag(null, TAG_ROOT);
-                out.endDocument();
+                saveBaseStateAsXml(outs);
 
                 // Close.
-                file.finishWrite(outs);
+                injectFinishWrite(file, outs);
             } catch (IOException e) {
                 Slog.w(TAG, "Failed to write to file " + file.getBaseFile(), e);
                 file.failWrite(outs);
@@ -1028,10 +1005,32 @@ public class ShortcutService extends IShortcutService.Stub {
         }
     }
 
+    @VisibleForTesting
+    protected void saveBaseStateAsXml(OutputStream outs) throws IOException {
+        // Write to XML
+        TypedXmlSerializer out = Xml.resolveSerializer(outs);
+        out.startDocument(null, true);
+        out.startTag(null, TAG_ROOT);
+
+        // Body.
+        // No locking required. Ok to add lock later if we save more data.
+        writeTagValue(out, TAG_LAST_RESET_TIME, mRawLastResetTime.get());
+
+        // Epilogue.
+        out.endTag(null, TAG_ROOT);
+        out.endDocument();
+    }
+
     @GuardedBy("mServiceLock")
     private void loadBaseStateLocked() {
         mRawLastResetTime.set(0);
+        injectLoadBaseState();
+        // Adjust the last reset time.
+        getLastResetTimeLocked();
+    }
 
+    @VisibleForTesting
+    protected void injectLoadBaseState() {
         try (ResilientAtomicFile file = getBaseStateFile()) {
             if (DEBUG || DEBUG_REBOOT) {
                 Slog.d(TAG, "Loading from " + file.getBaseFile());
@@ -1042,34 +1041,7 @@ public class ShortcutService extends IShortcutService.Stub {
                 if (in == null) {
                     throw new FileNotFoundException(file.getBaseFile().getAbsolutePath());
                 }
-
-                TypedXmlPullParser parser = Xml.resolvePullParser(in);
-
-                int type;
-                while ((type = parser.next()) != XmlPullParser.END_DOCUMENT) {
-                    if (type != XmlPullParser.START_TAG) {
-                        continue;
-                    }
-                    final int depth = parser.getDepth();
-                    // Check the root tag
-                    final String tag = parser.getName();
-                    if (depth == 1) {
-                        if (!TAG_ROOT.equals(tag)) {
-                            Slog.v(TAG, "Invalid root tag: " + tag);
-                            return;
-                        }
-                        continue;
-                    }
-                    // Assume depth == 2
-                    switch (tag) {
-                        case TAG_LAST_RESET_TIME:
-                            mRawLastResetTime.set(parseLongAttribute(parser, ATTR_VALUE));
-                            break;
-                        default:
-                            Slog.v(TAG, "Invalid tag: " + tag);
-                            break;
-                    }
-                }
+                loadBaseStateAsXml(in);
             } catch (FileNotFoundException e) {
                 // Use the default
             } catch (IOException | XmlPullParserException e) {
@@ -1079,8 +1051,38 @@ public class ShortcutService extends IShortcutService.Stub {
                 return;
             }
         }
-        // Adjust the last reset time.
-        getLastResetTimeLocked();
+    }
+
+    @VisibleForTesting
+    protected void loadBaseStateAsXml(InputStream in)
+            throws IOException, XmlPullParserException {
+        TypedXmlPullParser parser = Xml.resolvePullParser(in);
+
+        int type;
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT) {
+            if (type != XmlPullParser.START_TAG) {
+                continue;
+            }
+            final int depth = parser.getDepth();
+            // Check the root tag
+            final String tag = parser.getName();
+            if (depth == 1) {
+                if (!TAG_ROOT.equals(tag)) {
+                    Slog.v(TAG, "Invalid root tag: " + tag);
+                    return;
+                }
+                continue;
+            }
+            // Assume depth == 2
+            switch (tag) {
+                case TAG_LAST_RESET_TIME:
+                    mRawLastResetTime.set(parseLongAttribute(parser, ATTR_VALUE));
+                    break;
+                default:
+                    Slog.v(TAG, "Invalid tag: " + tag);
+                    break;
+            }
+        }
     }
 
     @VisibleForTesting
@@ -1095,7 +1097,8 @@ public class ShortcutService extends IShortcutService.Stub {
                 "user shortcut", null);
     }
 
-    private void saveUser(@UserIdInt int userId) {
+    @VisibleForTesting
+    protected void injectSaveUser(@UserIdInt int userId) {
         try (ResilientAtomicFile file = getUserFile(userId)) {
             FileOutputStream os = null;
             try {
@@ -1104,11 +1107,17 @@ public class ShortcutService extends IShortcutService.Stub {
                 }
 
                 synchronized (mServiceLock) {
+                    // Since we are not handling package deletion yet, or any single package
+                    // changes, just clean the directory and rewrite all the ShortcutPackageItems.
+                    final File root = injectUserDataPath(userId);
+                    FileUtils.deleteContents(new File(root, DIRECTORY_PACKAGES));
+                    FileUtils.deleteContents(new File(root, DIRECTORY_LAUNCHERS));
                     os = file.startWrite();
                     saveUserInternalLocked(userId, os, /* forBackup= */ false);
+                    getUserShortcutsLocked(userId).scheduleSaveAllLaunchersAndPackages();
                 }
 
-                file.finishWrite(os);
+                injectFinishWrite(file, os);
 
                 // Remove all dangling bitmap files.
                 cleanupDanglingBitmapDirectoriesLocked(userId);
@@ -1121,8 +1130,9 @@ public class ShortcutService extends IShortcutService.Stub {
         getUserShortcutsLocked(userId).logSharingShortcutStats(mMetricsLogger);
     }
 
+    @VisibleForTesting
     @GuardedBy("mServiceLock")
-    private void saveUserInternalLocked(@UserIdInt int userId, OutputStream os,
+    protected void saveUserInternalLocked(@UserIdInt int userId, OutputStream os,
             boolean forBackup) throws IOException, XmlPullParserException {
 
         // Write to XML
@@ -1150,8 +1160,9 @@ public class ShortcutService extends IShortcutService.Stub {
         Slog.w(TAG, String.format("Invalid tag '%s' found at depth %d", tag, depth));
     }
 
+    @VisibleForTesting
     @Nullable
-    private ShortcutUser loadUserLocked(@UserIdInt int userId) {
+    protected ShortcutUser injectLoadUserLocked(@UserIdInt int userId) {
         try (ResilientAtomicFile file = getUserFile(userId)) {
             FileInputStream in = null;
             try {
@@ -1169,12 +1180,13 @@ public class ShortcutService extends IShortcutService.Stub {
             } catch (Exception e) {
                 // Remove corrupted file and retry.
                 file.failRead(in, e);
-                return loadUserLocked(userId);
+                return injectLoadUserLocked(userId);
             }
         }
     }
 
-    private ShortcutUser loadUserInternal(@UserIdInt int userId, InputStream is,
+    @VisibleForTesting
+    protected ShortcutUser loadUserInternal(@UserIdInt int userId, InputStream is,
             boolean fromBackup) throws XmlPullParserException, IOException,
             InvalidFileFormatException {
 
@@ -1252,9 +1264,9 @@ public class ShortcutService extends IShortcutService.Stub {
             for (int i = dirtyUserIds.size() - 1; i >= 0; i--) {
                 final int userId = dirtyUserIds.get(i);
                 if (userId == UserHandle.USER_NULL) { // USER_NULL for base state.
-                    saveBaseState();
+                    injectSaveBaseState();
                 } else {
-                    saveUser(userId);
+                    injectSaveUser(userId);
                 }
             }
         } catch (Exception e) {
@@ -1361,7 +1373,7 @@ public class ShortcutService extends IShortcutService.Stub {
 
         ShortcutUser userPackages = mUsers.get(userId);
         if (userPackages == null) {
-            userPackages = loadUserLocked(userId);
+            userPackages = injectLoadUserLocked(userId);
             if (userPackages == null) {
                 userPackages = new ShortcutUser(this, userId);
             }
@@ -1442,8 +1454,9 @@ public class ShortcutService extends IShortcutService.Stub {
      * {@link ShortcutBitmapSaver#waitForAllSavesLocked()} to make sure there's no pending bitmap
      * saves are going on.
      */
+    @VisibleForTesting
     @GuardedBy("mServiceLock")
-    private void cleanupDanglingBitmapDirectoriesLocked(@UserIdInt int userId) {
+    void cleanupDanglingBitmapDirectoriesLocked(@UserIdInt int userId) {
         if (DEBUG) {
             Slog.d(TAG, "cleanupDanglingBitmaps: userId=" + userId);
         }
@@ -1779,7 +1792,7 @@ public class ShortcutService extends IShortcutService.Stub {
     void injectPostToHandlerDebounced(@NonNull final Object token, @NonNull final Runnable r) {
         Objects.requireNonNull(token);
         Objects.requireNonNull(r);
-        synchronized (mServiceLock) {
+        synchronized (mHandler) {
             mHandler.removeCallbacksAndMessages(token);
             mHandler.postDelayed(r, token, CALLBACK_DELAY);
         }
@@ -2298,20 +2311,20 @@ public class ShortcutService extends IShortcutService.Stub {
     }
 
     @Override
-    public void requestPinShortcut(String packageName, ShortcutInfo shortcut,
-            IntentSender resultIntent, int userId, AndroidFuture<String> ret) {
+    public boolean requestPinShortcut(String packageName, ShortcutInfo shortcut,
+            IntentSender resultIntent, int userId) {
         Objects.requireNonNull(shortcut);
         Preconditions.checkArgument(shortcut.isEnabled(), "Shortcut must be enabled");
         Preconditions.checkArgument(
                 !shortcut.isExcludedFromSurfaces(ShortcutInfo.SURFACE_LAUNCHER),
                 "Shortcut excluded from launcher cannot be pinned");
-        ret.complete(String.valueOf(requestPinItem(
-                packageName, userId, shortcut, null, null, resultIntent)));
+        return requestPinItem(
+                packageName, userId, shortcut, null, null, resultIntent);
     }
 
     @Override
-    public void createShortcutResultIntent(String packageName, ShortcutInfo shortcut, int userId,
-            AndroidFuture<Intent> ret) throws RemoteException {
+    public Intent createShortcutResultIntent(String packageName,
+            ShortcutInfo shortcut, int userId) throws RemoteException {
         Objects.requireNonNull(shortcut);
         Preconditions.checkArgument(shortcut.isEnabled(), "Shortcut must be enabled");
         verifyCaller(packageName, userId);
@@ -2323,7 +2336,7 @@ public class ShortcutService extends IShortcutService.Stub {
             intent = mShortcutRequestPinProcessor.createShortcutResultIntent(shortcut, userId);
         }
         verifyStates();
-        ret.complete(intent);
+        return intent;
     }
 
     /**
@@ -2471,8 +2484,7 @@ public class ShortcutService extends IShortcutService.Stub {
                 if (!ps.isShortcutExistsAndVisibleToPublisher(id)) {
                     continue;
                 }
-                ShortcutInfo removed = ps.deleteDynamicWithId(id, /*ignoreInvisible=*/ true,
-                        /*wasPushedOut*/ false);
+                ShortcutInfo removed = ps.deleteDynamicWithId(id, /*ignoreInvisible=*/ true);
                 if (removed == null) {
                     if (changedShortcuts == null) {
                         changedShortcuts = new ArrayList<>(1);
@@ -2768,7 +2780,7 @@ public class ShortcutService extends IShortcutService.Stub {
             getPackageShortcutsLocked(packageName, userId)
                     .resetRateLimitingForCommandLineNoSaving();
         }
-        saveUser(userId);
+        injectSaveUser(userId);
     }
 
     // We override this method in unit tests to do a simpler check.
@@ -3096,51 +3108,6 @@ public class ShortcutService extends IShortcutService.Stub {
         }
 
         @Override
-        public void getShortcutsAsync(int launcherUserId,
-                @NonNull String callingPackage, long changedSince,
-                @Nullable String packageName, @Nullable List<String> shortcutIds,
-                @Nullable List<LocusId> locusIds, @Nullable ComponentName componentName,
-                int queryFlags, int userId, int callingPid, int callingUid,
-                @NonNull AndroidFuture<List<ShortcutInfo>> cb) {
-            final List<ShortcutInfo> ret = getShortcuts(launcherUserId, callingPackage,
-                    changedSince, packageName, shortcutIds, locusIds, componentName, queryFlags,
-                    userId, callingPid, callingUid);
-            if (shortcutIds == null || packageName == null || ret.size() >= shortcutIds.size()) {
-                // skip persistence layer if not querying by id in a specific package or all
-                // shortcuts have already been found.
-                cb.complete(ret);
-                return;
-            }
-            final ShortcutPackage p;
-            synchronized (mServiceLock) {
-                p = getUserShortcutsLocked(userId).getPackageShortcutsIfExists(packageName);
-            }
-            if (p == null) {
-                cb.complete(ret);
-                return; // Bail-out directly if package doesn't exist.
-            }
-            // fetch remaining shortcuts from persistence layer
-            final ArraySet<String> ids = new ArraySet<>(shortcutIds);
-            // remove the ids that are already fetched
-            ret.stream().map(ShortcutInfo::getId).collect(Collectors.toList()).forEach(ids::remove);
-
-            int flags = ShortcutInfo.CLONE_REMOVE_FOR_LAUNCHER;
-            if ((queryFlags & ShortcutQuery.FLAG_GET_KEY_FIELDS_ONLY) != 0) {
-                flags = ShortcutInfo.CLONE_REMOVE_NON_KEY_INFO;
-            } else if ((queryFlags & ShortcutQuery.FLAG_GET_PERSONS_DATA) != 0) {
-                flags &= ~ShortcutInfo.CLONE_REMOVE_PERSON;
-            }
-            final int cloneFlag = flags;
-
-            p.getShortcutByIdsAsync(ids, shortcuts -> {
-                if (shortcuts != null) {
-                    shortcuts.stream().map(si -> si.clone(cloneFlag)).forEach(ret::add);
-                }
-                cb.complete(ret);
-            });
-        }
-
-        @Override
         public boolean isPinnedByCaller(int launcherUserId, @NonNull String callingPackage,
                 @NonNull String packageName, @NonNull String shortcutId, int userId) {
             Preconditions.checkStringNotEmpty(packageName, "packageName");
@@ -3181,27 +3148,6 @@ public class ShortcutService extends IShortcutService.Stub {
             p.findAll(list, (ShortcutInfo si) -> shortcutId.equals(si.getId()),
                     /* clone flags=*/ 0, callingPackage, launcherUserId, getPinnedByAnyLauncher);
             return list.size() == 0 ? null : list.get(0);
-        }
-
-        private void getShortcutInfoAsync(
-                int launcherUserId, @NonNull String packageName, @NonNull String shortcutId,
-                int userId, @NonNull Consumer<ShortcutInfo> cb) {
-            Preconditions.checkStringNotEmpty(packageName, "packageName");
-            Preconditions.checkStringNotEmpty(shortcutId, "shortcutId");
-
-            throwIfUserLockedL(userId);
-            throwIfUserLockedL(launcherUserId);
-
-            final ShortcutPackage p;
-            synchronized (mServiceLock) {
-                p = getUserShortcutsLocked(userId).getPackageShortcutsIfExists(packageName);
-            }
-            if (p == null) {
-                cb.accept(null);
-                return;
-            }
-            p.getShortcutByIdsAsync(Collections.singleton(shortcutId), shortcuts ->
-                    cb.accept(shortcuts == null || shortcuts.isEmpty() ? null : shortcuts.get(0)));
         }
 
         @Override
@@ -3388,48 +3334,6 @@ public class ShortcutService extends IShortcutService.Stub {
         }
 
         @Override
-        public void createShortcutIntentsAsync(int launcherUserId,
-                @NonNull String callingPackage, @NonNull String packageName,
-                @NonNull String shortcutId, int userId, int callingPid,
-                int callingUid, @NonNull AndroidFuture<Intent[]> cb) {
-            // Calling permission must be checked by LauncherAppsImpl.
-            Preconditions.checkStringNotEmpty(packageName, "packageName can't be empty");
-            Preconditions.checkStringNotEmpty(shortcutId, "shortcutId can't be empty");
-
-            // Check in memory shortcut first
-            synchronized (mServiceLock) {
-                throwIfUserLockedL(userId);
-                throwIfUserLockedL(launcherUserId);
-
-                getLauncherShortcutsLocked(callingPackage, userId, launcherUserId)
-                        .attemptToRestoreIfNeededAndSave();
-
-                final boolean getPinnedByAnyLauncher =
-                        canSeeAnyPinnedShortcut(callingPackage, launcherUserId,
-                                callingPid, callingUid);
-
-                // Make sure the shortcut is actually visible to the launcher.
-                final ShortcutInfo si = getShortcutInfoLocked(
-                        launcherUserId, callingPackage, packageName, shortcutId, userId,
-                        getPinnedByAnyLauncher);
-                if (si != null) {
-                    if (!si.isEnabled() || !(si.isAlive() || getPinnedByAnyLauncher)) {
-                        Log.e(TAG, "Shortcut " + shortcutId + " does not exist or disabled");
-                        cb.complete(null);
-                        return;
-                    }
-                    cb.complete(si.getIntents());
-                    return;
-                }
-            }
-
-            // Otherwise check persisted shortcuts
-            getShortcutInfoAsync(launcherUserId, packageName, shortcutId, userId, si -> {
-                cb.complete(si == null ? null : si.getIntents());
-            });
-        }
-
-        @Override
         public void addListener(@NonNull ShortcutChangeListener listener) {
             synchronized (mServiceLock) {
                 mListeners.add(Objects.requireNonNull(listener));
@@ -3534,41 +3438,6 @@ public class ShortcutService extends IShortcutService.Stub {
             }
         }
 
-        @Override
-        public void getShortcutIconFdAsync(int launcherUserId, @NonNull String callingPackage,
-                @NonNull String packageName, @NonNull String shortcutId, int userId,
-                @NonNull AndroidFuture<ParcelFileDescriptor> cb) {
-            Objects.requireNonNull(callingPackage, "callingPackage");
-            Objects.requireNonNull(packageName, "packageName");
-            Objects.requireNonNull(shortcutId, "shortcutId");
-
-            // Checks shortcuts in memory first
-            final ShortcutPackage p;
-            synchronized (mServiceLock) {
-                throwIfUserLockedL(userId);
-                throwIfUserLockedL(launcherUserId);
-
-                getLauncherShortcutsLocked(callingPackage, userId, launcherUserId)
-                        .attemptToRestoreIfNeededAndSave();
-
-                p = getUserShortcutsLocked(userId).getPackageShortcutsIfExists(packageName);
-                if (p == null) {
-                    cb.complete(null);
-                    return;
-                }
-
-                final ShortcutInfo shortcutInfo = p.findShortcutById(shortcutId);
-                if (shortcutInfo != null) {
-                    cb.complete(getShortcutIconParcelFileDescriptor(p, shortcutInfo));
-                    return;
-                }
-            }
-
-            // Otherwise check persisted shortcuts
-            getShortcutInfoAsync(launcherUserId, packageName, shortcutId, userId, si ->
-                    cb.complete(getShortcutIconParcelFileDescriptor(p, si)));
-        }
-
         @Nullable
         private ParcelFileDescriptor getShortcutIconParcelFileDescriptor(
                 @Nullable final ShortcutPackage p, @Nullable final ShortcutInfo shortcutInfo) {
@@ -3617,44 +3486,6 @@ public class ShortcutService extends IShortcutService.Stub {
                 return getShortcutIconUriInternal(launcherUserId, launcherPackage,
                         packageName, shortcutInfo, userId);
             }
-        }
-
-        @Override
-        public void getShortcutIconUriAsync(int launcherUserId, @NonNull String launcherPackage,
-                @NonNull String packageName, @NonNull String shortcutId, int userId,
-                @NonNull AndroidFuture<String> cb) {
-            Objects.requireNonNull(launcherPackage, "launcherPackage");
-            Objects.requireNonNull(packageName, "packageName");
-            Objects.requireNonNull(shortcutId, "shortcutId");
-
-            // Checks shortcuts in memory first
-            synchronized (mServiceLock) {
-                throwIfUserLockedL(userId);
-                throwIfUserLockedL(launcherUserId);
-
-                getLauncherShortcutsLocked(launcherPackage, userId, launcherUserId)
-                        .attemptToRestoreIfNeededAndSave();
-
-                final ShortcutPackage p = getUserShortcutsLocked(userId)
-                        .getPackageShortcutsIfExists(packageName);
-                if (p == null) {
-                    cb.complete(null);
-                    return;
-                }
-
-                final ShortcutInfo shortcutInfo = p.findShortcutById(shortcutId);
-                if (shortcutInfo != null) {
-                    cb.complete(getShortcutIconUriInternal(launcherUserId, launcherPackage,
-                            packageName, shortcutInfo, userId));
-                    return;
-                }
-            }
-
-            // Otherwise check persisted shortcuts
-            getShortcutInfoAsync(launcherUserId, packageName, shortcutId, userId, si -> {
-                cb.complete(si == null ? null : getShortcutIconUriInternal(launcherUserId,
-                        launcherPackage, packageName, si, userId));
-            });
         }
 
         private String getShortcutIconUriInternal(int launcherUserId,
@@ -3865,7 +3696,6 @@ public class ShortcutService extends IShortcutService.Stub {
             synchronized (mServiceLock) {
                 if (mHandler.hasCallbacks(mSaveDirtyInfoRunner)) {
                     mHandler.removeCallbacks(mSaveDirtyInfoRunner);
-                    forEachLoadedUserLocked(ShortcutUser::cancelAllInFlightTasks);
                     saveDirtyInfo();
                 }
                 mShutdown.set(true);
@@ -4602,7 +4432,7 @@ public class ShortcutService extends IShortcutService.Stub {
                 pw.println();
             });
         }
-        saveUser(userId);
+        injectSaveUser(userId);
     }
 
     // === Dump ===
@@ -5260,6 +5090,12 @@ public class ShortcutService extends IShortcutService.Stub {
     // Injection point.
     String injectBuildFingerprint() {
         return Build.FINGERPRINT;
+    }
+
+    // Injection point.
+    void injectFinishWrite(@NonNull final ResilientAtomicFile file,
+            @NonNull final FileOutputStream os) throws IOException {
+        file.finishWrite(os);
     }
 
     final void wtf(String message) {

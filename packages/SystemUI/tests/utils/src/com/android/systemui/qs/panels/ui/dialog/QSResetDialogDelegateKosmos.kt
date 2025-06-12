@@ -18,7 +18,14 @@ package com.android.systemui.qs.panels.ui.dialog
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.qs.panels.domain.interactor.sizedTilesResetInteractor
+import com.android.systemui.shade.data.repository.shadeDialogContextInteractor
 import com.android.systemui.statusbar.phone.systemUIDialogFactory
 
 val Kosmos.qsResetDialogDelegateKosmos by
-    Kosmos.Fixture { QSResetDialogDelegate(systemUIDialogFactory, sizedTilesResetInteractor) }
+    Kosmos.Fixture {
+        QSResetDialogDelegate(
+            systemUIDialogFactory,
+            shadeDialogContextInteractor,
+            sizedTilesResetInteractor,
+        )
+    }

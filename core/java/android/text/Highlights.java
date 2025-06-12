@@ -30,6 +30,7 @@ import java.util.Objects;
 /**
  * A class that represents of the highlight of the text.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Highlights {
     private final List<Pair<Paint, int[]>> mHighlights;
 

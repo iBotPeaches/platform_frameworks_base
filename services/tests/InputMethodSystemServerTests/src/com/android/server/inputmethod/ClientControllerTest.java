@@ -28,6 +28,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.annotation.NonNull;
 import android.content.pm.PackageManagerInternal;
 import android.os.Handler;
 import android.os.IBinder;
@@ -55,8 +56,7 @@ public final class ClientControllerTest {
     private static final String SOME_PACKAGE_NAME = "some.package";
 
     @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true).build();
+    public final RavenwoodRule mRavenwood = new RavenwoodRule();
 
     @Mock
     private PackageManagerInternal mMockPackageManagerInternal;
@@ -65,7 +65,7 @@ public final class ClientControllerTest {
     private IInputMethodClient mClient;
 
     @Mock
-    private IRemoteInputConnection mConnection;
+    private IRemoteInputConnection mFallbackConnection;
 
     private Handler mHandler;
 
@@ -81,23 +81,25 @@ public final class ClientControllerTest {
     }
 
     // TODO(b/322895594): No need to directly invoke create$ravenwood once b/322895594 is fixed.
-    private IInputMethodClientInvoker createInvoker(IInputMethodClient client, Handler handler) {
+    @NonNull
+    private IInputMethodClientInvoker createInvoker(@NonNull IInputMethodClient client,
+            @NonNull Handler handler) {
         return RavenwoodRule.isOnRavenwood()
-                ? IInputMethodClientInvoker.create$ravenwood(client, handler) :
-                IInputMethodClientInvoker.create(client, handler);
+                ? IInputMethodClientInvoker.create$ravenwood(client, handler)
+                : IInputMethodClientInvoker.create(client, handler);
     }
 
     @Test
     public void testAddClient_cannotAddTheSameClientTwice() {
         final var invoker = createInvoker(mClient, mHandler);
         synchronized (ImfLock.class) {
-            mController.addClient(invoker, mConnection, ANY_DISPLAY_ID, ANY_CALLER_UID,
+            mController.addClient(invoker, mFallbackConnection, ANY_DISPLAY_ID, ANY_CALLER_UID,
                     ANY_CALLER_PID);
 
             SecurityException thrown = assertThrows(SecurityException.class,
                     () -> {
                         synchronized (ImfLock.class) {
-                            mController.addClient(invoker, mConnection, ANY_DISPLAY_ID,
+                            mController.addClient(invoker, mFallbackConnection, ANY_DISPLAY_ID,
                                     ANY_CALLER_UID, ANY_CALLER_PID);
                         }
                     });
@@ -111,9 +113,8 @@ public final class ClientControllerTest {
     public void testAddClient() throws Exception {
         final var invoker = createInvoker(mClient, mHandler);
         synchronized (ImfLock.class) {
-            final var added = mController.addClient(invoker, mConnection, ANY_DISPLAY_ID,
-                    ANY_CALLER_UID,
-                    ANY_CALLER_PID);
+            final var added = mController.addClient(invoker, mFallbackConnection, ANY_DISPLAY_ID,
+                    ANY_CALLER_UID, ANY_CALLER_PID);
 
             verify(invoker.asBinder()).linkToDeath(any(IBinder.DeathRecipient.class), eq(0));
             assertThat(mController.getClient(invoker.asBinder())).isSameInstanceAs(added);
@@ -127,8 +128,8 @@ public final class ClientControllerTest {
         ClientState added;
         synchronized (ImfLock.class) {
             mController.addClientControllerCallback(callback);
-            added = mController.addClient(invoker, mConnection, ANY_DISPLAY_ID, ANY_CALLER_UID,
-                    ANY_CALLER_PID);
+            added = mController.addClient(invoker, mFallbackConnection, ANY_DISPLAY_ID,
+                    ANY_CALLER_UID, ANY_CALLER_PID);
             assertThat(mController.getClient(invoker.asBinder())).isSameInstanceAs(added);
             assertThat(mController.removeClient(mClient)).isTrue();
         }
@@ -141,14 +142,14 @@ public final class ClientControllerTest {
     @Test
     public void testVerifyClientAndPackageMatch() {
         final var invoker = createInvoker(mClient, mHandler);
-        when(mMockPackageManagerInternal.isSameApp(eq(SOME_PACKAGE_NAME),  /* flags= */
-                anyLong(), eq(ANY_CALLER_UID), /* userId= */ anyInt())).thenReturn(true);
+        when(mMockPackageManagerInternal.isSameApp(eq(SOME_PACKAGE_NAME), anyLong() /* flags */,
+                eq(ANY_CALLER_UID), anyInt() /* userId */)).thenReturn(true);
 
         synchronized (ImfLock.class) {
-            mController.addClient(invoker, mConnection, ANY_DISPLAY_ID, ANY_CALLER_UID,
+            mController.addClient(invoker, mFallbackConnection, ANY_DISPLAY_ID, ANY_CALLER_UID,
                     ANY_CALLER_PID);
-            assertThat(
-                    mController.verifyClientAndPackageMatch(mClient, SOME_PACKAGE_NAME)).isTrue();
+            assertThat(mController.verifyClientAndPackageMatch(mClient, SOME_PACKAGE_NAME))
+                    .isTrue();
         }
     }
 
@@ -171,7 +172,7 @@ public final class ClientControllerTest {
         private ClientState mRemoved;
 
         @Override
-        public void onClientRemoved(ClientState removed) {
+        public void onClientRemoved(@NonNull ClientState removed) {
             mRemoved = removed;
             mLatch.countDown();
         }

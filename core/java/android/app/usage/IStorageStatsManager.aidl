@@ -30,6 +30,7 @@ interface IStorageStatsManager {
     long getCacheBytes(String volumeUuid, String callingPackage);
     long getCacheQuotaBytes(String volumeUuid, int uid, String callingPackage);
     StorageStats queryStatsForPackage(String volumeUuid, String packageName, int userId, String callingPackage);
+    StorageStats queryArtManagedStats(String packageName, int userId, int uid);
     StorageStats queryStatsForUid(String volumeUuid, int uid, String callingPackage);
     StorageStats queryStatsForUser(String volumeUuid, int userId, String callingPackage);
     ExternalStorageStats queryExternalStatsForUser(String volumeUuid, int userId, String callingPackage);

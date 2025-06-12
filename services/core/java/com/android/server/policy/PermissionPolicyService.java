@@ -82,12 +82,10 @@ import android.util.LongSparseLongArray;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
 
-import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IAppOpsCallback;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.infra.AndroidFuture;
-import com.android.internal.policy.AttributeCache;
 import com.android.internal.util.IntPair;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.FgThread;
@@ -167,6 +165,7 @@ public final class PermissionPolicyService extends SystemService {
     private Context mContext;
     private PackageManagerInternal mPackageManagerInternal;
     private PermissionManagerServiceInternal mPermissionManagerInternal;
+    private ActivityTaskManagerInternal mActivityTaskManagerInternal;
     private NotificationManagerInternal mNotificationManager;
     private TelephonyManager mTelephonyManager;
     private final KeyguardManager mKeyguardManager;
@@ -189,6 +188,7 @@ public final class PermissionPolicyService extends SystemService {
                 PackageManagerInternal.class);
         mPermissionManagerInternal = LocalServices.getService(
                 PermissionManagerServiceInternal.class);
+        mActivityTaskManagerInternal = LocalServices.getService(ActivityTaskManagerInternal.class);
         final IAppOpsService appOpsService = IAppOpsService.Stub.asInterface(
                 ServiceManager.getService(Context.APP_OPS_SERVICE));
 
@@ -235,15 +235,12 @@ public final class PermissionPolicyService extends SystemService {
                 this::synchronizeUidPermissionsAndAppOpsAsync);
 
         mAppOpsCallback = new IAppOpsCallback.Stub() {
-            public void opChanged(int op, int uid, @Nullable String packageName,
-                    String persistentDeviceId) {
+            public void opChanged(int op, int uid, String packageName, String persistentDeviceId) {
                 if (!Objects.equals(persistentDeviceId,
-                        VirtualDeviceManager.PERSISTENT_DEVICE_ID_DEFAULT)) {
+                        VirtualDeviceManager.PERSISTENT_DEVICE_ID_DEFAULT) || uid < 0) {
                     return;
                 }
-                if (packageName != null) {
-                    synchronizeUidPermissionsAndAppOpsAsync(uid);
-                }
+                synchronizeUidPermissionsAndAppOpsAsync(uid);
                 resetAppOpPermissionsIfNotRequestedForUidAsync(uid);
             }
         };
@@ -356,7 +353,7 @@ public final class PermissionPolicyService extends SystemService {
                     try {
                         manager = new PermissionControllerManager(
                                 getUserContext(getContext(), user), PermissionThread.getHandler());
-                    } catch (IllegalArgumentException exception) {
+                    } catch (IllegalStateException exception) {
                         // There's a possible race condition when a user is being removed
                         Log.e(LOG_TAG, "Could not create PermissionControllerManager for user"
                                         + user, exception);
@@ -1154,7 +1151,7 @@ public final class PermissionPolicyService extends SystemService {
                                 activityInfo.packageName, info.getCallingPackage(),
                                 info.getIntent(), info.getCheckedOptions(), activityInfo.name,
                                 true)
-                                || isNoDisplayActivity(activityInfo)) {
+                                || isNoDisplayActivity(activityInfo, info.getUserId())) {
                             return;
                         }
                         UserHandle user = UserHandle.of(taskInfo.userId);
@@ -1170,9 +1167,7 @@ public final class PermissionPolicyService extends SystemService {
                 };
 
         private void onActivityManagerReady() {
-            ActivityTaskManagerInternal atm =
-                    LocalServices.getService(ActivityTaskManagerInternal.class);
-            atm.registerActivityStartInterceptor(
+            mActivityTaskManagerInternal.registerActivityStartInterceptor(
                     ActivityInterceptorCallback.PERMISSION_POLICY_ORDERED_ID,
                     mActivityInterceptorCallback);
         }
@@ -1227,20 +1222,14 @@ public final class PermissionPolicyService extends SystemService {
                     null, activityName, false);
         }
 
-        private boolean isNoDisplayActivity(@NonNull ActivityInfo aInfo) {
+        private boolean isNoDisplayActivity(@NonNull ActivityInfo aInfo, int userId) {
             final int themeResource = aInfo.getThemeResource();
             if (themeResource == Resources.ID_NULL) {
                 return false;
             }
 
-            boolean noDisplay = false;
-            final AttributeCache.Entry ent = AttributeCache.instance()
-                    .get(aInfo.packageName, themeResource, R.styleable.Window, 0);
-            if (ent != null) {
-                noDisplay = ent.array.getBoolean(R.styleable.Window_windowNoDisplay, false);
-            }
-
-            return noDisplay;
+            return mActivityTaskManagerInternal.isNoDisplay(aInfo.packageName, themeResource,
+                    userId);
         }
 
         /**

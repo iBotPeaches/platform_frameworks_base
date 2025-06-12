@@ -16,11 +16,8 @@
 
 package android.telephony.satellite;
 
-import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
-
-import com.android.internal.telephony.flags.Flags;
 
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -31,7 +28,6 @@ import java.util.function.Consumer;
  * @hide
  */
 @SystemApi
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public class EnableRequestAttributes {
     /** {@code true} to enable satellite and {@code false} to disable satellite */
     private boolean mIsEnabled;
@@ -61,7 +57,6 @@ public class EnableRequestAttributes {
     /**
      * @return Whether satellite is to be enabled
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public boolean isEnabled() {
         return mIsEnabled;
     }
@@ -69,7 +64,6 @@ public class EnableRequestAttributes {
     /**
      * @return Whether demo mode is to be enabled
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public boolean isDemoMode() {
         return mIsDemoMode;
     }
@@ -77,7 +71,6 @@ public class EnableRequestAttributes {
     /**
      * @return Whether satellite is to be enabled for emergency mode
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public boolean isEmergencyMode() {
         return mIsEmergencyMode;
     }
@@ -85,13 +78,11 @@ public class EnableRequestAttributes {
     /**
      * The builder class of {@link EnableRequestAttributes}
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final class Builder {
         private boolean mIsEnabled;
         private boolean mIsDemoMode = false;
         private boolean mIsEmergencyMode = false;
 
-        @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
         public Builder(boolean isEnabled) {
             mIsEnabled = isEnabled;
         }
@@ -104,7 +95,6 @@ public class EnableRequestAttributes {
          *                   {@code false} by Telephony.
          * @return The builder object
          */
-        @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
         @NonNull
         public Builder setDemoMode(boolean isDemoMode) {
             if (mIsEnabled) {
@@ -122,7 +112,6 @@ public class EnableRequestAttributes {
          *                        Telephony.
          * @return The builder object
          */
-        @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
         @NonNull
         public Builder setEmergencyMode(boolean isEmergencyMode) {
             if (mIsEnabled) {
@@ -136,7 +125,6 @@ public class EnableRequestAttributes {
          *
          * @return The {@link EnableRequestAttributes} instance.
          */
-        @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
         @NonNull
         public EnableRequestAttributes build() {
             return new EnableRequestAttributes(this);

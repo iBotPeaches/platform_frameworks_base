@@ -37,8 +37,6 @@ import android.media.IAudioService;
 import android.media.IVolumeController;
 import android.media.MediaRouter2Manager;
 import android.media.VolumePolicy;
-import android.media.session.MediaController.PlaybackInfo;
-import android.media.session.MediaSession.Token;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerExecutor;
@@ -61,6 +59,7 @@ import androidx.lifecycle.Observer;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.settingslib.volume.MediaSessions;
+import com.android.settingslib.volume.MediaSessions.SessionId;
 import com.android.systemui.Dumpable;
 import com.android.systemui.Flags;
 import com.android.systemui.broadcast.BroadcastDispatcher;
@@ -1402,12 +1401,13 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
     }
 
     protected final class MediaSessionsCallbacks implements MediaSessions.Callbacks {
-        private final HashMap<Token, Integer> mRemoteStreams = new HashMap<>();
+        private final HashMap<SessionId, Integer> mRemoteStreams = new HashMap<>();
 
         private int mNextStream = DYNAMIC_STREAM_REMOTE_START_INDEX;
 
         @Override
-        public void onRemoteUpdate(Token token, String name, PlaybackInfo pi) {
+        public void onRemoteUpdate(
+                    SessionId token, String name, MediaSessions.VolumeInfo volumeInfo) {
                 addStream(token, "onRemoteUpdate");
 
                 int stream = 0;
@@ -1415,14 +1415,15 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
                     stream = mRemoteStreams.get(token);
                 }
                 Slog.d(TAG,
-                        "onRemoteUpdate: stream: " + stream + " volume: " + pi.getCurrentVolume());
+                        "onRemoteUpdate: stream: "
+                                + stream + " volume: " + volumeInfo.getCurrentVolume());
                 boolean changed = mState.states.indexOfKey(stream) < 0;
                 final StreamState ss = streamStateW(stream);
                 ss.dynamic = true;
                 ss.levelMin = 0;
-                ss.levelMax = pi.getMaxVolume();
-                if (ss.level != pi.getCurrentVolume()) {
-                    ss.level = pi.getCurrentVolume();
+                ss.levelMax = volumeInfo.getMaxVolume();
+                if (ss.level != volumeInfo.getCurrentVolume()) {
+                    ss.level = volumeInfo.getCurrentVolume();
                     changed = true;
                 }
                 if (!Objects.equals(ss.remoteLabel, name)) {
@@ -1437,11 +1438,11 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
         }
 
         @Override
-        public void onRemoteVolumeChanged(Token token, int flags) {
-                addStream(token, "onRemoteVolumeChanged");
+        public void onRemoteVolumeChanged(SessionId sessionId, int flags) {
+                addStream(sessionId, "onRemoteVolumeChanged");
                 int stream = 0;
                 synchronized (mRemoteStreams) {
-                    stream = mRemoteStreams.get(token);
+                    stream = mRemoteStreams.get(sessionId);
                 }
                 final boolean showUI = shouldShowUI(flags);
                 Slog.d(TAG, "onRemoteVolumeChanged: stream: " + stream + " showui? " + showUI);
@@ -1459,7 +1460,7 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
         }
 
         @Override
-        public void onRemoteRemoved(Token token) {
+        public void onRemoteRemoved(SessionId token) {
             int stream;
             synchronized (mRemoteStreams) {
                 if (!mRemoteStreams.containsKey(token)) {
@@ -1480,7 +1481,7 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
         }
 
         public void setStreamVolume(int stream, int level) {
-            final Token token = findToken(stream);
+            final SessionId token = findToken(stream);
             if (token == null) {
                 Log.w(TAG, "setStreamVolume: No token found for stream: " + stream);
                 return;
@@ -1488,9 +1489,9 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
             mMediaSessions.setVolume(token, level);
         }
 
-        private Token findToken(int stream) {
+        private SessionId findToken(int stream) {
             synchronized (mRemoteStreams) {
-                for (Map.Entry<Token, Integer> entry : mRemoteStreams.entrySet()) {
+                for (Map.Entry<SessionId, Integer> entry : mRemoteStreams.entrySet()) {
                     if (entry.getValue().equals(stream)) {
                         return entry.getKey();
                     }
@@ -1499,7 +1500,7 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
             return null;
         }
 
-        private void addStream(Token token, String triggeringMethod) {
+        private void addStream(SessionId token, String triggeringMethod) {
             synchronized (mRemoteStreams) {
                 if (!mRemoteStreams.containsKey(token)) {
                     mRemoteStreams.put(token, mNextStream);

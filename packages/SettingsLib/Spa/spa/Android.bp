@@ -24,7 +24,9 @@ android_library {
     srcs: ["src/**/*.kt"],
     use_resource_processor: true,
     static_libs: [
+        "MPAndroidChart",
         "SettingsLibColor",
+        "aconfig_settingstheme_exported_flags_java_lib",
         "androidx.compose.animation_animation",
         "androidx.compose.material3_material3",
         "androidx.compose.material_material-icons-extended",
@@ -36,7 +38,6 @@ android_library {
         "androidx.navigation_navigation-compose",
         "com.google.android.material_material",
         "lottie_compose",
-        "MPAndroidChart",
     ],
     kotlincflags: [
         "-Xjvm-default=all",

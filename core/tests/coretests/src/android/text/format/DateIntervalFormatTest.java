@@ -40,6 +40,7 @@ import static org.junit.Assert.assertTrue;
 import android.icu.util.Calendar;
 import android.icu.util.TimeZone;
 import android.icu.util.ULocale;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -686,6 +687,7 @@ public class DateIntervalFormatTest {
     }
 
     @Test
+    @DisabledOnRavenwood(bug = 391381043)
     public void testIsLibcoreVFlagEnabled() {
         // This flag has been fully ramped. It should never be false.
         assertTrue(DateIntervalFormat.isLibcoreVFlagEnabled());

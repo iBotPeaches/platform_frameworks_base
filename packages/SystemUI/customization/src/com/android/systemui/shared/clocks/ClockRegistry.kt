@@ -103,6 +103,7 @@ open class ClockRegistry(
         fun onAvailableClocksChanged() {}
     }
 
+    private val replacementMap = ConcurrentHashMap<ClockId, ClockId>()
     private val availableClocks = ConcurrentHashMap<ClockId, ClockInfo>()
     private val clockChangeListeners = mutableListOf<ClockChangeListener>()
     private val settingObserver =
@@ -145,7 +146,6 @@ open class ClockRegistry(
                 var isCurrentClock = false
                 var isClockListChanged = false
                 for (metadata in knownClocks) {
-                    isCurrentClock = isCurrentClock || currentClockId == metadata.clockId
                     val id = metadata.clockId
                     val info =
                         availableClocks.concurrentGetOrPut(id, ClockInfo(metadata, null, manager)) {
@@ -156,15 +156,17 @@ open class ClockRegistry(
                     if (manager != info.manager) {
                         logger.e({
                             "Clock Id conflict on attach: " +
-                                "$str1 is double registered by $str2 and $str3"
+                                "$str1 is double registered by $str2 and $str3. " +
+                                "Using $str2 since it was attached first."
                         }) {
                             str1 = id
-                            str2 = info.manager.toString()
+                            str2 = info.manager?.toString() ?: info.provider?.toString()
                             str3 = manager.toString()
                         }
                         continue
                     }
 
+                    isCurrentClock = isCurrentClock || currentClockId == metadata.clockId
                     info.provider = null
                 }
 
@@ -197,16 +199,18 @@ open class ClockRegistry(
                     if (manager != info.manager) {
                         logger.e({
                             "Clock Id conflict on load: " +
-                                "$str1 is double registered by $str2 and $str3"
+                                "$str1 is double registered by $str2 and $str3. " +
+                                "Using $str2 since it was attached first."
                         }) {
                             str1 = id
-                            str2 = info.manager.toString()
+                            str2 = info.manager?.toString() ?: info.provider?.toString()
                             str3 = manager.toString()
                         }
                         manager.unloadPlugin()
                         continue
                     }
 
+                    clock.replacementTarget?.let { replacementMap[id] = it }
                     info.provider = plugin
                     onLoaded(info)
                 }
@@ -227,10 +231,11 @@ open class ClockRegistry(
                     if (info?.manager != manager) {
                         logger.e({
                             "Clock Id conflict on unload: " +
-                                "$str1 is double registered by $str2 and $str3"
+                                "$str1 is double registered by $str2 and $str3. " +
+                                "Using $str2 since it was attached first."
                         }) {
                             str1 = id
-                            str2 = info?.manager.toString()
+                            str2 = info?.manager?.toString() ?: info?.provider?.toString()
                             str3 = manager.toString()
                         }
                         continue
@@ -299,8 +304,7 @@ open class ClockRegistry(
                             Settings.Secure.LOCK_SCREEN_CUSTOM_CLOCK_FACE,
                         )
                     }
-
-                ClockSettings.fromJson(JSONObject(json))
+                json?.let { ClockSettings.fromJson(JSONObject(it)) }
             } catch (ex: Exception) {
                 logger.e("Failed to parse clock settings", ex)
                 null
@@ -391,10 +395,11 @@ open class ClockRegistry(
     // TODO: Merge w/ CurrentClockId when we convert to a flow. We shouldn't need both behaviors.
     val activeClockId: String
         get() {
-            if (!availableClocks.containsKey(currentClockId)) {
+            var id = currentClockId
+            if (!availableClocks.containsKey(id)) {
                 return DEFAULT_CLOCK_ID
             }
-            return currentClockId
+            return replacementMap[id] ?: id
         }
 
     init {
@@ -402,6 +407,7 @@ open class ClockRegistry(
         defaultClockProvider.initialize(clockBuffers)
         for (clock in defaultClockProvider.getClocks()) {
             availableClocks[clock.clockId] = ClockInfo(clock, defaultClockProvider, null)
+            clock.replacementTarget?.let { replacementMap[clock.clockId] = it }
         }
 
         // Something has gone terribly wrong if the default clock isn't present
@@ -560,9 +566,12 @@ open class ClockRegistry(
         }
     }
 
-    fun getClocks(): List<ClockMetadata> {
-        if (!isEnabled) return listOf(availableClocks[DEFAULT_CLOCK_ID]!!.metadata)
-        return availableClocks.map { (_, clock) -> clock.metadata }
+    fun getClocks(includeDeprecated: Boolean = false): List<ClockMetadata> {
+        return when {
+            !isEnabled -> listOf(availableClocks[DEFAULT_CLOCK_ID]!!.metadata)
+            includeDeprecated -> availableClocks.map { (_, clock) -> clock.metadata }
+            else -> availableClocks.map { (_, clock) -> clock.metadata }.filter { !it.isDeprecated }
+        }
     }
 
     fun getClockPickerConfig(clockId: ClockId): ClockPickerConfig? {

@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.notification.row.icon
 
+import android.app.Flags.notificationsRedesignThemedAppIcons
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
@@ -25,6 +26,7 @@ import com.android.internal.widget.NotificationRowIconView.NotificationIconProvi
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.NotifRemoteViewsFactory
 import com.android.systemui.statusbar.notification.row.NotificationRowContentBinder
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import javax.inject.Inject
 
 /**
@@ -59,7 +61,18 @@ constructor(
         row: ExpandableNotificationRow,
         context: Context,
     ): NotificationIconProvider {
-        val sbn = row.entry.sbn
+        val sbn = if (NotificationBundleUi.isEnabled) row.entryAdapter?.sbn else row.entryLegacy.sbn
+        if (sbn == null) {
+            return object : NotificationIconProvider {
+                override fun shouldShowAppIcon(): Boolean {
+                    return false
+                }
+
+                override fun getAppIcon(): Drawable? {
+                    return null
+                }
+            }
+        }
         return object : NotificationIconProvider {
             override fun shouldShowAppIcon(): Boolean {
                 val shouldShowAppIcon = iconStyleProvider.shouldShowAppIcon(sbn, context)
@@ -67,13 +80,14 @@ constructor(
                 return shouldShowAppIcon
             }
 
-            override fun getAppIcon(): Drawable {
+            override fun getAppIcon(): Drawable? {
                 val withWorkProfileBadge =
                     iconStyleProvider.shouldShowWorkProfileBadge(sbn, context)
                 return appIconProvider.getOrFetchAppIcon(
                     sbn.packageName,
                     context,
                     withWorkProfileBadge,
+                    themed = notificationsRedesignThemedAppIcons(),
                 )
             }
         }

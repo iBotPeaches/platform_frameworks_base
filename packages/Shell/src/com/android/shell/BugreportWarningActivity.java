@@ -16,9 +16,6 @@
 
 package com.android.shell;
 
-import static com.android.shell.BugreportPrefs.STATE_HIDE;
-import static com.android.shell.BugreportPrefs.STATE_SHOW;
-import static com.android.shell.BugreportPrefs.STATE_UNKNOWN;
 import static com.android.shell.BugreportPrefs.getWarningState;
 import static com.android.shell.BugreportPrefs.setWarningState;
 import static com.android.shell.BugreportProgressService.sendShareIntent;
@@ -69,12 +66,19 @@ public class BugreportWarningActivity extends AlertActivity
 
         mConfirmRepeat = (CheckBox) ap.mView.findViewById(android.R.id.checkbox);
 
-        final int state = getWarningState(this, STATE_UNKNOWN);
+        int bugreportStateUnknown = getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_unknown);
+        int bugreportStateHide = getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_hide);
+        int bugreportStateShow = getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_show);
+
+        final int state = getWarningState(this, bugreportStateUnknown);
         final boolean checked;
         if (Build.IS_USER) {
-            checked = state == STATE_HIDE; // Only checks if specifically set to.
+            checked = state == bugreportStateHide; // Only checks if specifically set to.
         } else {
-            checked = state != STATE_SHOW; // Checks by default.
+            checked = state != bugreportStateShow; // Checks by default.
         }
         mConfirmRepeat.setChecked(checked);
 
@@ -83,9 +87,14 @@ public class BugreportWarningActivity extends AlertActivity
 
     @Override
     public void onClick(DialogInterface dialog, int which) {
+        int bugreportStateHide = getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_hide);
+        int bugreportStateShow = getResources().getInteger(
+                com.android.internal.R.integer.bugreport_state_show);
         if (which == AlertDialog.BUTTON_POSITIVE) {
             // Remember confirm state, and launch target
-            setWarningState(this, mConfirmRepeat.isChecked() ? STATE_HIDE : STATE_SHOW);
+            setWarningState(this, mConfirmRepeat.isChecked() ? bugreportStateHide
+                    : bugreportStateShow);
             if (mSendIntent != null) {
                 sendShareIntent(this, mSendIntent);
             }

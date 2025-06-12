@@ -23,12 +23,12 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.defaultDeviceState
 import com.android.systemui.deviceStateManager
 import com.android.systemui.flags.FeatureFlags
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.shared.system.smartspace.ILauncherUnlockAnimationController
 import com.android.systemui.statusbar.NotificationShadeWindowController
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.phone.BiometricUnlockController
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argThat
 import java.util.function.Predicate
@@ -68,7 +68,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
     @Mock private lateinit var notificationShadeWindowController: NotificationShadeWindowController
     @Mock private lateinit var powerManager: PowerManager
     @Mock private lateinit var wallpaperManager: WallpaperManager
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val deviceStateManager = kosmos.deviceStateManager
 
     @Mock
@@ -92,7 +92,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             surfaceControl1,
             Rect(),
             mock(ActivityManager.RunningTaskInfo::class.java),
-            false
+            false,
         )
 
     private var surfaceControl2 = mock(SurfaceControl::class.java)
@@ -113,7 +113,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             surfaceControl2,
             Rect(),
             mock(ActivityManager.RunningTaskInfo::class.java),
-            false
+            false,
         )
     private lateinit var remoteAnimationTargets: Array<RemoteAnimationTarget>
 
@@ -135,7 +135,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             surfaceControlWp,
             Rect(),
             mock(ActivityManager.RunningTaskInfo::class.java),
-            false
+            false,
         )
     private lateinit var wallpaperTargets: Array<RemoteAnimationTarget>
 
@@ -157,7 +157,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             surfaceControlLockWp,
             Rect(),
             mock(ActivityManager.RunningTaskInfo::class.java),
-            false
+            false,
         )
     private lateinit var lockWallpaperTargets: Array<RemoteAnimationTarget>
     private var shouldPerformSmartspaceTransition = false
@@ -179,14 +179,14 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
                     notificationShadeWindowController,
                     powerManager,
                     wallpaperManager,
-                    deviceStateManager
+                    deviceStateManager,
                 ) {
                 override fun shouldPerformSmartspaceTransition(): Boolean =
                     shouldPerformSmartspaceTransition
             }
         keyguardUnlockAnimationController.setLauncherUnlockController(
             "",
-            launcherUnlockAnimationController
+            launcherUnlockAnimationController,
         )
 
         whenever(keyguardViewController.viewRootImpl).thenReturn(mock(ViewRootImpl::class.java))
@@ -227,7 +227,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             arrayOf(),
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         val captorSb = ArgThatCaptor<SyncRtSurfaceTransactionApplier.SurfaceParams>()
@@ -259,7 +259,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         // Since the animation is running, we should not have finished the remote animation.
@@ -282,7 +282,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         verify(listener).onUnlockAnimationStarted(any(), eq(true), any(), any())
@@ -303,7 +303,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         verify(listener).onUnlockAnimationStarted(any(), eq(false), any(), any())
@@ -327,7 +327,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            true /* requestedShowSurfaceBehindKeyguard */
+            true, /* requestedShowSurfaceBehindKeyguard */
         )
 
         assertTrue(keyguardUnlockAnimationController.surfaceBehindAlphaAnimator.isRunning)
@@ -351,7 +351,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            true /* requestedShowSurfaceBehindKeyguard */
+            true, /* requestedShowSurfaceBehindKeyguard */
         )
 
         assertTrue(keyguardUnlockAnimationController.isPlayingCannedUnlockAnimation())
@@ -373,7 +373,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         assertTrue(keyguardUnlockAnimationController.isPlayingCannedUnlockAnimation())
@@ -389,7 +389,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            true /* requestedShowSurfaceBehindKeyguard */
+            true, /* requestedShowSurfaceBehindKeyguard */
         )
 
         assertFalse(keyguardUnlockAnimationController.canPerformInWindowLauncherAnimations())
@@ -406,7 +406,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         assertTrue(keyguardUnlockAnimationController.isPlayingCannedUnlockAnimation())
@@ -427,7 +427,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             lockWallpaperTargets,
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         for (i in 0..10) {
@@ -471,7 +471,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         // Cancel the animator so we can verify only the setSurfaceBehind call below.
@@ -492,7 +492,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
         val captorWp = ArgThatCaptor<SyncRtSurfaceTransactionApplier.SurfaceParams>()
         verify(
                 surfaceTransactionApplier,
-                times(1).description("WallpaperSurface was expected to receive scheduleApply once")
+                times(1).description("WallpaperSurface was expected to receive scheduleApply once"),
             )
             .scheduleApply(captorWp.capture { sp -> sp.surface == surfaceControlWp })
 
@@ -523,7 +523,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         // Cancel the animator so we can verify only the setSurfaceBehind call below.
@@ -539,7 +539,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
         val captorWp = ArgThatCaptor<SyncRtSurfaceTransactionApplier.SurfaceParams>()
         verify(
                 surfaceTransactionApplier,
-                atLeastOnce().description("Wallpaper surface has  not " + "received scheduleApply")
+                atLeastOnce().description("Wallpaper surface has  not " + "received scheduleApply"),
             )
             .scheduleApply(captorWp.capture { sp -> sp.surface == surfaceControlWp })
 
@@ -562,7 +562,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
             wallpaperTargets,
             arrayOf(),
             0 /* startTime */,
-            false /* requestedShowSurfaceBehindKeyguard */
+            false, /* requestedShowSurfaceBehindKeyguard */
         )
 
         // Stop the animator - we just want to test whether the override is not applied.
@@ -578,7 +578,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
         val captorWp = ArgThatCaptor<SyncRtSurfaceTransactionApplier.SurfaceParams>()
         verify(
                 surfaceTransactionApplier,
-                atLeastOnce().description("Wallpaper surface has  not " + "received scheduleApply")
+                atLeastOnce().description("Wallpaper surface has  not " + "received scheduleApply"),
             )
             .scheduleApply(captorWp.capture { sp -> sp.surface == surfaceControlWp })
 
@@ -588,7 +588,7 @@ class KeyguardUnlockAnimationControllerTest : SysuiTestCase() {
         assertEquals(
             "Wallpaper surface was expected to have opacity 1",
             1f,
-            captorWp.getLastValue().alpha
+            captorWp.getLastValue().alpha,
         )
 
         verifyNoMoreInteractions(surfaceTransactionApplier)

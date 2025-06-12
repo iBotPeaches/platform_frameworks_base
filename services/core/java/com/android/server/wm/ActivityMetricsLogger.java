@@ -57,6 +57,7 @@ import static com.android.internal.logging.nano.MetricsProto.MetricsEvent.TYPE_T
 import static com.android.internal.logging.nano.MetricsProto.MetricsEvent.TYPE_TRANSITION_REPORTED_DRAWN_NO_BUNDLE;
 import static com.android.internal.logging.nano.MetricsProto.MetricsEvent.TYPE_TRANSITION_REPORTED_DRAWN_WITH_BUNDLE;
 import static com.android.internal.logging.nano.MetricsProto.MetricsEvent.TYPE_TRANSITION_WARM_LAUNCH;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS;
 import static com.android.internal.util.FrameworkStatsLog.APP_COMPAT_STATE_CHANGED__LETTERBOX_POSITION__NOT_LETTERBOXED_POSITION;
 import static com.android.internal.util.FrameworkStatsLog.APP_COMPAT_STATE_CHANGED__STATE__LETTERBOXED_FOR_ASPECT_RATIO;
 import static com.android.internal.util.FrameworkStatsLog.APP_COMPAT_STATE_CHANGED__STATE__LETTERBOXED_FOR_FIXED_ORIENTATION;
@@ -103,6 +104,7 @@ import android.util.TimeUtils;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.logging.MetricsLogger;
+import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.LatencyTracker;
 import com.android.internal.util.function.pooled.PooledLambda;
@@ -388,6 +390,14 @@ class ActivityMetricsLogger {
                 return;
             }
             if (mLastLaunchedActivity != null) {
+                if (mLastLaunchedActivity.mLaunchCookie != null) {
+                    ProtoLog.v(WM_DEBUG_WINDOW_TRANSITIONS,
+                            "Transferring launch cookie=%s from=%s(%d) to=%s(%d)",
+                            mLastLaunchedActivity.mLaunchCookie,
+                            mLastLaunchedActivity.packageName,
+                            System.identityHashCode(mLastLaunchedActivity), r.packageName,
+                            System.identityHashCode(r));
+                }
                 // Transfer the launch cookie and launch root task because it is a consecutive
                 // launch event.
                 r.mLaunchCookie = mLastLaunchedActivity.mLaunchCookie;
@@ -758,6 +768,11 @@ class ActivityMetricsLogger {
             // As abort for no process switch.
             launchObserverNotifyIntentFailed(newInfo.mLaunchingState.mStartUptimeNs);
         }
+        if (Intent.ACTION_PROCESS_TEXT.equals(newInfo.mLastLaunchedActivity.intent.getAction())) {
+            mLoggerHandler.post(PooledLambda.obtainRunnable(FrameworkStatsLog::write,
+                    FrameworkStatsLog.PROCESS_TEXT_ACTION_LAUNCHED_REPORTED,
+                    launchedActivity.launchedFromUid, launchedActivity.getUid()));
+        }
         scheduleCheckActivityToBeDrawnIfSleeping(launchedActivity);
 
         // If the previous transitions are no longer visible, abort them to avoid counting the
@@ -778,11 +793,12 @@ class ActivityMetricsLogger {
      */
     private void updateSplitPairLaunches(@NonNull TransitionInfo info) {
         final Task launchedActivityTask = info.mLastLaunchedActivity.getTask();
-        final Task adjacentToLaunchedTask = launchedActivityTask.getAdjacentTask();
-        if (adjacentToLaunchedTask == null) {
+        final Task launchedSplitRootTask = launchedActivityTask.getTaskWithAdjacent();
+        if (launchedSplitRootTask == null) {
             // Not a part of a split pair
             return;
         }
+
         for (int i = mTransitionInfoList.size() - 1; i >= 0; i--) {
             final TransitionInfo otherInfo = mTransitionInfoList.get(i);
             if (otherInfo == info) {
@@ -790,7 +806,9 @@ class ActivityMetricsLogger {
             }
             final Task otherTask = otherInfo.mLastLaunchedActivity.getTask();
             // The adjacent task is the split root in which activities are started
-            if (otherTask.isDescendantOf(adjacentToLaunchedTask)) {
+            final boolean isDescendantOfAdjacent = launchedSplitRootTask.forOtherAdjacentTasks(
+                    otherTask::isDescendantOf);
+            if (isDescendantOfAdjacent) {
                 if (DEBUG_METRICS) {
                     Slog.i(TAG, "Found adjacent tasks t1=" + launchedActivityTask.mTaskId
                             + " t2=" + otherTask.mTaskId);
@@ -832,8 +850,7 @@ class ActivityMetricsLogger {
         info.mWindowsDrawnDelayMs = info.calculateDelay(timestampNs);
         info.mIsDrawn = true;
         final TransitionInfoSnapshot infoSnapshot = new TransitionInfoSnapshot(info);
-        if (info.mLoggedTransitionStarting || (!r.mDisplayContent.mOpeningApps.contains(r)
-                && !r.mTransitionController.isCollecting(r))) {
+        if (info.mLoggedTransitionStarting || !r.mTransitionController.isCollecting(r)) {
             done(false /* abort */, info, "notifyWindowsDrawn", timestampNs);
         }
 
@@ -1611,7 +1628,7 @@ class ActivityMetricsLogger {
 
         int positionToLog = APP_COMPAT_STATE_CHANGED__LETTERBOX_POSITION__NOT_LETTERBOXED_POSITION;
         if (isAppCompateStateChangedToLetterboxed(state)) {
-            positionToLog = activity.mAppCompatController.getAppCompatReachabilityOverrides()
+            positionToLog = activity.mAppCompatController.getReachabilityOverrides()
                     .getLetterboxPositionForLogging();
         }
         FrameworkStatsLog.write(FrameworkStatsLog.APP_COMPAT_STATE_CHANGED,

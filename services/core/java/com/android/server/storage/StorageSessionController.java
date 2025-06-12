@@ -45,6 +45,7 @@ import android.util.Slog;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.server.storage.ImmutableVolumeInfo;
 
 import java.util.Objects;
 
@@ -79,18 +80,18 @@ public final class StorageSessionController {
      * @param vol for which the storage session has to be started
      * @return userId for connection for this volume
      */
-    public int getConnectionUserIdForVolume(VolumeInfo vol) {
+    public int getConnectionUserIdForVolume(ImmutableVolumeInfo vol) {
         final Context volumeUserContext = mContext.createContextAsUser(
-                UserHandle.of(vol.mountUserId), 0);
+                UserHandle.of(vol.getMountUserId()), 0);
         boolean isMediaSharedWithParent = volumeUserContext.getSystemService(
                 UserManager.class).isMediaSharedWithParent();
 
-        UserInfo userInfo = mUserManager.getUserInfo(vol.mountUserId);
+        UserInfo userInfo = mUserManager.getUserInfo(vol.getMountUserId());
         if (userInfo != null && isMediaSharedWithParent) {
             // Clones use the same connection as their parent
             return userInfo.profileGroupId;
         } else {
-            return vol.mountUserId;
+            return vol.getMountUserId();
         }
     }
 
@@ -108,7 +109,7 @@ public final class StorageSessionController {
      * @throws ExternalStorageServiceException if the session fails to start
      * @throws IllegalStateException if a session has already been created for {@code vol}
      */
-    public void onVolumeMount(ParcelFileDescriptor deviceFd, VolumeInfo vol)
+    public void onVolumeMount(ParcelFileDescriptor deviceFd, ImmutableVolumeInfo vol)
             throws ExternalStorageServiceException {
         if (!shouldHandle(vol)) {
             return;
@@ -144,7 +145,8 @@ public final class StorageSessionController {
      *
      * @throws ExternalStorageServiceException if it fails to connect to ExternalStorageService
      */
-    public void notifyVolumeStateChanged(VolumeInfo vol) throws ExternalStorageServiceException {
+    public void notifyVolumeStateChanged(ImmutableVolumeInfo vol)
+            throws ExternalStorageServiceException {
         if (!shouldHandle(vol)) {
             return;
         }
@@ -154,14 +156,15 @@ public final class StorageSessionController {
         StorageUserConnection connection = null;
         synchronized (mLock) {
             connection = mConnections.get(connectionUserId);
-            if (connection != null) {
-                Slog.i(TAG, "Notifying volume state changed for session with id: " + sessionId);
-                connection.notifyVolumeStateChanged(sessionId,
-                        vol.buildStorageVolume(mContext, vol.getMountUserId(), false));
-            } else {
-                Slog.w(TAG, "No available storage user connection for userId : "
-                        + connectionUserId);
-            }
+        }
+
+        if (connection != null) {
+            Slog.i(TAG, "Notifying volume state changed for session with id: " + sessionId);
+            connection.notifyVolumeStateChanged(sessionId,
+                    vol.buildStorageVolume(mContext, vol.getMountUserId(), false));
+        } else {
+            Slog.w(TAG, "No available storage user connection for userId : "
+                    + connectionUserId);
         }
     }
 
@@ -214,7 +217,7 @@ public final class StorageSessionController {
      * @return the connection that was removed or {@code null} if nothing was removed
      */
     @Nullable
-    public StorageUserConnection onVolumeRemove(VolumeInfo vol) {
+    public StorageUserConnection onVolumeRemove(ImmutableVolumeInfo vol) {
         if (!shouldHandle(vol)) {
             return null;
         }
@@ -223,16 +226,18 @@ public final class StorageSessionController {
         String sessionId = vol.getId();
         int userId = getConnectionUserIdForVolume(vol);
 
+        StorageUserConnection connection = null;
         synchronized (mLock) {
-            StorageUserConnection connection = mConnections.get(userId);
-            if (connection != null) {
-                Slog.i(TAG, "Removed session for vol with id: " + sessionId);
-                connection.removeSession(sessionId);
-                return connection;
-            } else {
-                Slog.w(TAG, "Session already removed for vol with id: " + sessionId);
-                return null;
-            }
+            connection = mConnections.get(userId);
+        }
+
+        if (connection != null) {
+            Slog.i(TAG, "Removed session for vol with id: " + sessionId);
+            connection.removeSession(sessionId);
+            return connection;
+        } else {
+            Slog.w(TAG, "Session already removed for vol with id: " + sessionId);
+            return null;
         }
     }
 
@@ -246,7 +251,7 @@ public final class StorageSessionController {
      *
      * Call {@link #onVolumeRemove} to remove the connection without waiting for exit
      */
-    public void onVolumeUnmount(VolumeInfo vol) {
+    public void onVolumeUnmount(ImmutableVolumeInfo vol) {
         String sessionId = vol.getId();
         final long token = Binder.clearCallingIdentity();
         try {
@@ -457,9 +462,9 @@ public final class StorageSessionController {
      * Returns {@code true} if {@code vol} is an emulated or visible public volume,
      * {@code false} otherwise
      **/
-    public static boolean isEmulatedOrPublic(VolumeInfo vol) {
-        return vol.type == VolumeInfo.TYPE_EMULATED
-                || (vol.type == VolumeInfo.TYPE_PUBLIC && vol.isVisible());
+    public static boolean isEmulatedOrPublic(ImmutableVolumeInfo vol) {
+        return vol.getType() == VolumeInfo.TYPE_EMULATED
+                || (vol.getType() == VolumeInfo.TYPE_PUBLIC && vol.isVisible());
     }
 
     /** Exception thrown when communication with the {@link ExternalStorageService} fails. */
@@ -477,11 +482,11 @@ public final class StorageSessionController {
         }
     }
 
-    private static boolean isSupportedVolume(VolumeInfo vol) {
-        return isEmulatedOrPublic(vol) || vol.type == VolumeInfo.TYPE_STUB;
+    private static boolean isSupportedVolume(ImmutableVolumeInfo vol) {
+        return isEmulatedOrPublic(vol) || vol.getType() == VolumeInfo.TYPE_STUB;
     }
 
-    private boolean shouldHandle(@Nullable VolumeInfo vol) {
+    private boolean shouldHandle(@Nullable ImmutableVolumeInfo vol) {
         return !mIsResetting && (vol == null || isSupportedVolume(vol));
     }
 

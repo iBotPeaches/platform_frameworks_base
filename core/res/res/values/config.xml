@@ -60,6 +60,7 @@
         <item><xliff:g id="id">@string/status_bar_oem_satellite</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_wifi</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_hotspot</xliff:g></item>
+        <item><xliff:g id="id">@string/status_bar_stacked_mobile</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_mobile</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_airplane</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_battery</xliff:g></item>
@@ -94,6 +95,7 @@
     <string translatable="false" name="status_bar_secure">secure</string>
     <string translatable="false" name="status_bar_clock">clock</string>
     <string translatable="false" name="status_bar_mobile">mobile</string>
+    <string translatable="false" name="status_bar_stacked_mobile">stacked_mobile</string>
     <string translatable="false" name="status_bar_vpn">vpn</string>
     <string translatable="false" name="status_bar_ethernet">ethernet</string>
     <string translatable="false" name="status_bar_microphone">microphone</string>
@@ -1214,6 +1216,11 @@
             3 - Really go to sleep and go home (don't doze)
             4 - Go to home
             5 - Dismiss IME if shown. Otherwise go to home
+            6 - Lock if keyguard enabled or go to sleep (doze)
+            7 - Dream if possible or go to sleep (doze)
+            8 - Go to glanceable hub or dream if possible, or sleep if neither is available (doze)
+            9 - Go to dream if device is not dreaming, stop dream if device is dreaming, or sleep if
+                neither is available (doze)
     -->
     <integer name="config_shortPressOnPowerBehavior">1</integer>
 
@@ -1606,6 +1613,10 @@
          STATE_ON. Setting this to true will skip the brightness ramp to the last stored active
          brightness value and will repeat for the following ramp if autobrightness is enabled. -->
     <bool name="config_skipScreenOnBrightnessRamp">false</bool>
+
+    <!-- Whether or not to skip a color fade transition to black when the display transitions to
+         STATE_OFF. Setting this to true will skip the color fade transition. -->
+    <bool name="config_skipScreenOffTransition">false</bool>
 
     <!-- Allow automatic adjusting of the screen brightness while dozing in low power state. -->
     <bool name="config_allowAutoBrightnessWhileDozing">false</bool>
@@ -2005,6 +2016,10 @@
     <!-- Component name of the built in wallpaper used to display bitmap wallpapers. This must not be null. -->
     <string name="image_wallpaper_component" translatable="false">com.android.systemui/com.android.systemui.wallpapers.ImageWallpaper</string>
 
+    <!-- Component name of the built in wallpaper that is used when the user-selected wallpaper is
+         incompatible with the display's resolution or aspect ratio. -->
+    <string name="fallback_wallpaper_component" translatable="false">com.android.systemui/com.android.systemui.wallpapers.GradientColorWallpaper</string>
+
     <!-- True if WallpaperService is enabled -->
     <bool name="config_enableWallpaperService">true</bool>
 
@@ -2079,6 +2094,18 @@
          See com.android.server.timezonedetector.TimeZoneDetectorStrategy for more information. -->
     <bool name="config_supportTelephonyTimeZoneFallback" translatable="false">true</bool>
 
+    <!-- Whether the time notifications feature is enabled. Settings this to false means the feature
+         cannot be used. Setting this to true means the feature can be enabled on the device. -->
+    <bool name="config_enableTimeZoneNotificationsSupported" translatable="false">true</bool>
+
+    <!-- Whether the time zone notifications tracking feature is enabled. Settings this to false
+         means the feature cannot be used. -->
+    <bool name="config_enableTimeZoneNotificationsTrackingSupported" translatable="false">true</bool>
+
+    <!-- Whether the time zone manual change tracking feature is enabled. Settings this to false
+         means the feature cannot be used. -->
+    <bool name="config_enableTimeZoneManualChangeTrackingSupported" translatable="false">true</bool>
+
     <!-- Whether to enable network location overlay which allows network location provider to be
          replaced by an app at run-time. When disabled, only the
          config_networkLocationProviderPackageName package will be searched for network location
@@ -2098,14 +2125,27 @@
     <!-- Package name providing fused location support. Used only when
          config_enableFusedLocationOverlay is false. -->
     <string name="config_fusedLocationProviderPackageName" translatable="false">com.android.location.fused</string>
+    <!-- If true, will fallback to use a different app if the chosen overlay app is determined to
+         be unstable. Used only when config_enableFusedLocationOverlay is true. -->
+    <bool name="config_fusedLocationOverlayUnstableFallback" translatable="false">false</bool>
 
     <!-- If true will use the GNSS hardware implementation to service the GPS_PROVIDER. If false
          will allow the GPS_PROVIDER to be replaced by an app at run-time (restricted to the package
          specified by config_gnssLocationProviderPackageName). -->
     <bool name="config_useGnssHardwareProvider" translatable="false">true</bool>
+    <!-- Whether to enable gnss location provider overlay which allows gnss location provider to
+         be replaced by an app at run-time. When disabled, only the
+         config_gnssLocationProviderPackageName package will be searched for gnss location
+         provider, otherwise any system package is eligible. Anyone who wants to disable the overlay
+         mechanism can set it to false. Used only when config_useGnssHardwareProvider is false -->
+    <bool name="config_enableGnssLocationOverlay" translatable="false">true</bool>
     <!-- Package name providing GNSS location support. Used only when
          config_useGnssHardwareProvider is false. -->
     <string name="config_gnssLocationProviderPackageName" translatable="false">@null</string>
+    <!-- If true, will fallback to use a different app if the chosen overlay app is determined to
+         be unstable. Used only when config_useGnssHardwareProvider is false and
+         config_enableGnssLocationOverlay is true. -->
+    <bool name="config_gnssLocationOverlayUnstableFallback" translatable="false">false</bool>
 
     <!-- Default value for the ADAS GNSS Location Enabled setting if this setting has never been
          set before. -->
@@ -2160,6 +2200,17 @@
     <!-- Package name providing geofence API support. Used only when
          config_enableGeofenceOverlay is false. -->
     <string name="config_geofenceProviderPackageName" translatable="false">@null</string>
+
+    <!-- Whether to enable GNSS assistance overlay which allows GnssAssistanceProvider to be
+     replaced by an app at run-time. When disabled, only the
+     config_gnssAssistanceProviderPackageName package will be searched for
+     GnssAssistanceProvider, otherwise any system package is eligible. Anyone who wants to
+     disable the overlay mechanism can set it to false.
+     -->
+    <bool name="config_enableGnssAssistanceOverlay" translatable="false">true</bool>
+    <!-- Package name providing GNSS assistance API support. Used only when
+         config_enableGnssAssistanceOverlay is false. -->
+    <string name="config_gnssAssistanceProviderPackageName" translatable="false">@null</string>
 
     <!-- Whether to enable Hardware Activity-Recognition overlay which allows Hardware
          Activity-Recognition to be replaced by an app at run-time. When disabled, only the
@@ -2466,9 +2517,6 @@
     <string name="config_systemCallStreaming" translatable="false"></string>
     <!-- The name of the package that will hold the default retail demo role. -->
     <string name="config_defaultRetailDemo" translatable="false"></string>
-    <!-- The name of the package that will hold the default reserved for testing profile group
-         exclusivity role. -->
-    <string name="config_defaultReservedForTestingProfileGroupExclusivity" translatable="false">android.app.rolemultiuser.cts.app</string>
 
     <!-- The component name of the wear service class that will be started by the system server. -->
     <string name="config_wearServiceComponent" translatable="false"></string>
@@ -2610,6 +2658,15 @@
     <!-- MMS user agent prolfile url -->
     <string name="config_mms_user_agent_profile_url" translatable="false"></string>
 
+    <!-- The default list of possible CMF Names|Style|ColorSource. This array can be
+         overridden device-specific resources. A wildcard (fallback) must be supplied.
+         Name   - Read from `ro.boot.hardware.color` sysprop. Fallback (*) required.
+         Styles - frameworks/libs/systemui/monet/src/com/android/systemui/monet/Style.java
+         Color  - `home_wallpaper` (for color extraction) or a hexadecimal int (#FFcc99) -->
+    <string-array name="theming_defaults">
+        <item>*|TONAL_SPOT|home_wallpaper</item>
+    </string-array>
+
     <!-- National Language Identifier codes for the following two config items.
          (from 3GPP TS 23.038 V9.1.1 Table 6.2.1.2.4.1):
           0  - reserved
@@ -2742,6 +2799,9 @@
     <bool name="config_dreamsActivatedOnDockByDefault">true</bool>
     <!-- If supported and enabled, are dreams activated when asleep and charging? (by default) -->
     <bool name="config_dreamsActivatedOnSleepByDefault">false</bool>
+    <!-- If supported and enabled, are dreams enabled while device is stationary and upright?
+         (by default) -->
+    <bool name="config_dreamsActivatedOnPosturedByDefault">false</bool>
     <!-- ComponentName of the default dream (Settings.Secure.DEFAULT_SCREENSAVER_COMPONENT) -->
     <string name="config_dreamsDefaultComponent" translatable="false">com.android.deskclock/com.android.deskclock.Screensaver</string>
     <!-- ComponentNames of the dreams that we should hide -->
@@ -2785,6 +2845,10 @@
     <bool name="config_dreamsOnlyEnabledForDockUser">false</bool>
     <!-- Whether dreams are disabled when ambient mode is suppressed. -->
     <bool name="config_dreamsDisabledByAmbientModeSuppressionConfig">false</bool>
+
+    <!-- The default for the setting that controls when to auto-start hub mode.
+          0 means "never" -->
+    <integer name="config_whenToStartHubModeDefault">0</integer>
 
     <!-- The duration in milliseconds of the dream opening animation.  -->
     <integer name="config_dreamOpenAnimationDuration">250</integer>
@@ -2876,7 +2940,7 @@
     <bool name="config_dozeAlwaysOnEnabled">true</bool>
 
     <!-- If AOD can show an ambient version of the wallpaper -->
-    <bool name="config_dozeSupportsAodWallpaper">true</bool>
+    <bool name="config_dozeSupportsAodWallpaper">false</bool>
 
     <!-- Whether the display blanks itself when transitioning from a doze to a non-doze state -->
     <bool name="config_displayBlanksAfterDoze">false</bool>
@@ -3041,6 +3105,43 @@
          {@link MotionEvent#ACTION_SCROLL} event. -->
     <dimen name="config_scrollFactor">64dp</dimen>
 
+    <!-- Duration in milliseconds of the pressed state in child components. -->
+    <integer name="config_pressedStateDurationMillis">64</integer>
+
+    <!-- Duration in milliseconds we will wait to see if a touch event is a tap or a scroll.
+         If the user does not move within this interval, it is considered to be a tap. -->
+    <integer name="config_tapTimeoutMillis">100</integer>
+
+    <!-- Duration in milliseconds we will wait to see if a touch event is a jump tap.
+         If the user does not move within this interval, it is considered to be a tap. -->
+    <integer name="config_jumpTapTimeoutMillis">500</integer>
+
+    <!-- Duration in milliseconds between the first tap's up event and the second tap's down
+         event for an interaction to be considered a double-tap. -->
+    <integer name="config_doubleTapTimeoutMillis">300</integer>
+
+    <!-- Minimum duration in milliseconds between the first tap's up event and the second tap's
+         down event for an interaction to be considered a double-tap. -->
+    <integer name="config_doubleTapMinTimeMillis">40</integer>
+
+    <!-- Maximum duration in milliseconds between a touch pad touch and release for a given touch
+         to be considered a tap (click) as opposed to a hover movement gesture. -->
+    <integer name="config_hoverTapTimeoutMillis">150</integer>
+
+    <!-- The amount of time in milliseconds that the zoom controls should be displayed on the
+         screen. -->
+    <integer name="config_zoomControlsTimeoutMillis">3000</integer>
+
+    <!-- Default duration in milliseconds for {@link ActionMode#hide(long)}. -->
+    <integer name="config_defaultActionModeHideDurationMillis">2000</integer>
+
+    <!-- Maximum distance in pixels that a touch pad touch can move before being released
+         for it to be considered a tap (click) as opposed to a hover movement gesture. -->
+    <dimen name="config_hoverTapSlop">20px</dimen>
+
+    <!-- The amount of friction applied to scrolls and flings. -->
+    <item name="config_scrollFriction" format="float" type="dimen">0.015</item>
+
     <!-- Maximum number of grid columns permitted in the ResolverActivity
          used for picking activities to handle an intent. -->
     <integer name="config_maxResolverActivityColumns">3</integer>
@@ -3121,6 +3222,10 @@
          Note that HSUM devices without this enabled will not automatically have a main user. -->
     <bool name="config_isMainUserPermanentAdmin">true</bool>
 
+    <!-- Whether all secondary users (and the system user) are eligible to have profiles.
+         If false, only the MainUser is eligible to have profiles. -->
+    <bool name="config_supportProfilesOnNonMainUser">false</bool>
+
     <!-- Whether switch to headless system user is allowed. If allowed,
     headless system user can run in the foreground even though it is not a full user. -->
     <bool name="config_canSwitchToHeadlessSystemUser">false</bool>
@@ -3134,14 +3239,19 @@
          1 : boot to the first switchable full user for initial boot (unprovisioned device), else to the headless system user, i.e. user 0. -->
     <integer name="config_hsumBootStrategy">0</integer>
 
-    <!-- Whether to boot system with the headless system user, i.e. user 0. If set to true,
-         system will be booted with the headless system user, or user 0. It has no effect if device
-         is not in Headless System User Mode (HSUM). -->
-    <bool name="config_bootToHeadlessSystemUser">false</bool>
-
     <!-- Whether multiple admins are allowed on the device. If set to true, new users can be created
          with admin privileges and admin privileges can be granted/revoked from existing users. -->
     <bool name="config_enableMultipleAdmins">false</bool>
+
+    <!-- Whether to start stopped users before their scheduled alarms. If set to true, users will be
+         started in background before the alarm time so that it can go off. If false, alarms of
+         stopped users will not go off and users will remain stopped. -->
+    <bool name="config_allowAlarmsOnStoppedUsers">true</bool>
+
+    <!-- Whether notification is shown to foreground user when alarm/timer goes off on background
+         user. If set to true, foreground user will receive a notification with ability to mute
+         sound or switch user. If false, system notification will not be shown. -->
+    <bool name="config_showNotificationForBackgroundUserAlarms">true</bool>
 
     <!-- Whether there is a communal profile which should always be running.
          Only relevant for Headless System User Mode (HSUM) devices. -->
@@ -3726,6 +3836,7 @@
          "lockdown" = Lock down device until the user authenticates
          "logout" =  Logout the current user
          "system_update" = Launch System Update screen
+         "standby" = Bring the device to standby
          -->
     <string-array translatable="false" name="config_globalActionsList">
         <item>emergency</item>
@@ -4102,6 +4213,11 @@
     <!-- Whether device supports double tap to wake -->
     <bool name="config_supportDoubleTapWake">false</bool>
 
+    <!-- Whether device supports double tap to sleep. This will allow the user to enable/disable
+         double tap gestures in non-action areas in the lock screen and launcher workspace to go to
+         sleep. -->
+    <bool name="config_supportDoubleTapSleep">false</bool>
+
     <!-- The RadioAccessFamilies supported by the device.
          Empty is viewed as "all".  Only used on devices which
          don't support RIL_REQUEST_GET_RADIO_CAPABILITY
@@ -4259,12 +4375,19 @@
          is non-interactive. -->
     <bool name="config_cameraDoubleTapPowerGestureEnabled">true</bool>
 
-    <!-- Allow the gesture to double tap the power button to trigger a target action. -->
-    <bool name="config_doubleTapPowerGestureEnabled">true</bool>
-    <!-- Default target action for double tap of the power button gesture.
+    <!-- Controls the double tap power button gesture to trigger a target action.
+         0: Gesture is disabled
+         1: Launch camera mode, allowing the user to disable/enable the double tap power gesture
+            from launching the camera application.
+         2: Multi target mode, allowing the user to select one of the targets defined in
+            config_doubleTapPowerGestureMultiTargetDefaultAction and to disable/enable the double
+            tap power gesture from triggering the selected target action.
+    -->
+    <integer name="config_doubleTapPowerGestureMode">2</integer>
+    <!-- Default target action for double tap of the power button gesture in multi target mode.
          0: Launch camera
          1: Launch wallet -->
-    <integer name="config_defaultDoubleTapPowerGestureAction">0</integer>
+    <integer name="config_doubleTapPowerGestureMultiTargetDefaultAction">0</integer>
 
     <!-- Allow the gesture to quick tap the power button multiple times to start the emergency sos
          experience while the device is non-interactive. -->
@@ -4383,6 +4506,10 @@
     <!-- List of comma separated package names for which we the system will not show crash, ANR,
          etc. dialogs. -->
     <string translatable="false" name="config_appsNotReportingCrashes"></string>
+
+    <!-- Specifies the delay in milliseconds for JobScheduler to postpone the running
+         of regular jobs when coming out of doze -->
+    <integer name="config_jobSchedulerBackgroundJobsDelay">3000</integer>
 
     <!-- Inactivity threshold (in milliseconds) used in JobScheduler. JobScheduler will consider
          the device to be "idle" after being inactive for this long. -->
@@ -5937,6 +6064,9 @@
         <!-- <item>com.google</item> -->
     </string-array>
 
+    <!-- Whether to restrict the accounts that raw contacts can be created in. -->
+    <bool name = "config_rawContactsAccountRestrictionEnabled">true</bool>
+
     <!-- Whether or not to use assistant stream volume separately from music volume -->
     <bool name="config_useAssistantVolume">false</bool>
 
@@ -6006,6 +6136,9 @@
 
     <!-- Whether to default to an expanded list of users on the lock screen user switcher. -->
     <bool name="config_expandLockScreenUserSwitcher">false</bool>
+
+    <!-- Help URI, action disabled by advanced protection [DO NOT TRANSLATE] -->
+    <string name="config_help_url_action_disabled_by_advanced_protection" translatable="false"></string>
 
     <!-- Toasts posted from these packages will be shown to the current user, regardless of the user
          the process belongs to. This is useful for packages that run under a single user but serve
@@ -7221,8 +7354,14 @@
     <!-- Wear devices: An intent action that is used for remote intent. -->
     <string name="config_wearRemoteIntentAction" translatable="false" />
 
+    <!-- Whether the current device's internal display can host desktop sessions.  -->
+    <bool name="config_canInternalDisplayHostDesktops">false</bool>
+
     <!-- Whether desktop mode is supported on the current device  -->
     <bool name="config_isDesktopModeSupported">false</bool>
+
+    <!-- Whether the developer option for desktop mode is supported on the current device  -->
+    <bool name="config_isDesktopModeDevOptionSupported">false</bool>
 
     <!-- Maximum number of active tasks on a given Desktop Windowing session. Set to 0 for unlimited. -->
     <integer name="config_maxDesktopWindowingActiveTasks">0</integer>
@@ -7234,10 +7373,6 @@
     <!-- Whether a desktop window should be maximized when it's dragged to the top edge of the
          screen. -->
     <bool name="config_dragToMaximizeInDesktopMode">false</bool>
-
-    <!-- Whether showing the app handle is supported on this device.
-         If config_isDesktopModeSupported, then this has no effect -->
-    <bool name="config_enableAppHandle">false</bool>
 
     <!-- Frame rate compatibility value for Wallpaper
          FRAME_RATE_COMPATIBILITY_MIN (102) is used by default for lower power consumption -->
@@ -7286,6 +7421,10 @@
     <!-- Whether to enable fp unlock when screen turns off on udfps devices -->
     <bool name="config_screen_off_udfps_enabled">false</bool>
 
+    <!-- Default value for fp screen off unlock toggle, it only works for the devices that support
+         fp screen off unlock-->
+    <bool name="config_screen_off_udfps_default_on">false</bool>
+
     <!-- The name of the system package that will hold the dependency installer role. -->
     <string name="config_systemDependencyInstaller" translatable="false" />
 
@@ -7303,4 +7442,34 @@
          features. Examples include the search functionality or the app
          predictor. -->
     <string name="config_systemVendorIntelligence" translatable="false"></string>
+
+    <!-- Whether the device supports Wi-Fi USD feature. -->
+    <bool name="config_deviceSupportsWifiUsd">false</bool>
+
+    <!-- Array containing the notification assistant service adjustments that are not supported by
+     default on this device-->
+    <string-array translatable="false" name="config_notificationDefaultUnsupportedAdjustments" />
+
+    <!-- Preference name of bugreport-->
+    <string name="prefs_bugreport" translatable="false">bugreports</string>
+
+    <!-- key value of warning state stored in bugreport preference-->
+    <string name="key_warning_state" translatable="false">warning-state</string>
+
+    <!-- Bugreport warning dialog state unknown-->
+    <integer name="bugreport_state_unknown">0</integer>
+
+    <!-- Bugreport warning dialog state shows the warning dialog-->
+    <integer name="bugreport_state_show">1</integer>
+
+    <!-- Bugreport warning dialog state skips the warning dialog-->
+    <integer name="bugreport_state_hide">2</integer>
+
+    <!-- By default ActivityOptions#makeScaleUpAnimation is only used between activities. This
+         config enables OEMs to support its usage across tasks.-->
+    <bool name="config_enableCrossTaskScaleUpAnimation">false</bool>
+
+    <!-- Biometrics fingerprint frr notification target activity component name, it shall be customized by OEMs -->
+    <string translatable="false" name="config_fingerprintFrrTargetComponent"></string>
+
 </resources>

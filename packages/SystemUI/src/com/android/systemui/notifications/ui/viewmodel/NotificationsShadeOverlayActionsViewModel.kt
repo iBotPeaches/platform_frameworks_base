@@ -23,7 +23,7 @@ import com.android.compose.animation.scene.UserActionResult
 import com.android.compose.animation.scene.UserActionResult.HideOverlay
 import com.android.compose.animation.scene.UserActionResult.ReplaceByOverlay
 import com.android.systemui.scene.shared.model.Overlays
-import com.android.systemui.scene.ui.viewmodel.SceneContainerEdge
+import com.android.systemui.scene.ui.viewmodel.SceneContainerArea
 import com.android.systemui.scene.ui.viewmodel.UserActionsViewModel
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -37,7 +37,7 @@ class NotificationsShadeOverlayActionsViewModel @AssistedInject constructor() :
             mapOf(
                 Swipe.Up to HideOverlay(Overlays.NotificationsShade),
                 Back to HideOverlay(Overlays.NotificationsShade),
-                Swipe.Down(fromSource = SceneContainerEdge.TopRight) to
+                Swipe.Down(fromSource = SceneContainerArea.TopEdgeEndHalf) to
                     ReplaceByOverlay(Overlays.QuickSettingsShade),
             )
         )

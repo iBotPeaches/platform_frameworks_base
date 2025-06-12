@@ -33,6 +33,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothActivityEnergyInfo;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.UidTraffic;
@@ -68,18 +69,13 @@ import java.util.function.Supplier;
 
 public class BluetoothPowerStatsProcessorTest {
 
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
     private static final int APP_UID1 = Process.FIRST_APPLICATION_UID + 42;
     private static final int APP_UID2 = Process.FIRST_APPLICATION_UID + 101;
     private static final int BLUETOOTH_ENERGY_CONSUMER_ID = 1;
     private static final int VOLTAGE_MV = 3500;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_BLUETOOTH_CONTROLLER_RX, 50.0)
             .setAveragePower(PowerProfile.POWER_BLUETOOTH_CONTROLLER_TX, 100.0)
@@ -161,6 +157,7 @@ public class BluetoothPowerStatsProcessorTest {
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)).thenReturn(true);
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void powerProfileModel_mostlyDataTransfer() {
         // No power monitoring hardware
@@ -170,7 +167,7 @@ public class BluetoothPowerStatsProcessorTest {
         PowerComponentAggregatedPowerStats aggregatedStats = createAggregatedPowerStats(
                 () -> new BluetoothPowerStatsProcessor(mStatsRule.getPowerProfile()));
 
-        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector);
+        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector, null);
         collector.setEnabled(true);
         mBluetoothActivityEnergyInfo = mockBluetoothActivityEnergyInfo(1000, 600, 100, 200,
                 mockUidTraffic(APP_UID1, 100, 200),
@@ -262,6 +259,7 @@ public class BluetoothPowerStatsProcessorTest {
                 .isWithin(PRECISION).of(expectedPower2 * 0.75);
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void powerProfileModel_mostlyScan() {
         // No power monitoring hardware
@@ -271,7 +269,7 @@ public class BluetoothPowerStatsProcessorTest {
         PowerComponentAggregatedPowerStats aggregatedStats = createAggregatedPowerStats(
                 () -> new BluetoothPowerStatsProcessor(mStatsRule.getPowerProfile()));
 
-        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector);
+        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector, null);
         collector.setEnabled(true);
         mBluetoothActivityEnergyInfo = mockBluetoothActivityEnergyInfo(1000, 600, 100, 200,
                 mockUidTraffic(APP_UID1, 100, 200),
@@ -361,6 +359,7 @@ public class BluetoothPowerStatsProcessorTest {
                 .isWithin(PRECISION).of(expectedPower2 * 0.75);
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void consumedEnergyModel() {
         when(mConsumedEnergyRetriever.getVoltageMv()).thenReturn(VOLTAGE_MV);
@@ -371,7 +370,7 @@ public class BluetoothPowerStatsProcessorTest {
         PowerComponentAggregatedPowerStats aggregatedStats = createAggregatedPowerStats(
                 () -> new BluetoothPowerStatsProcessor(mStatsRule.getPowerProfile()));
 
-        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector);
+        BluetoothPowerStatsCollector collector = new BluetoothPowerStatsCollector(mInjector, null);
         collector.setEnabled(true);
         mBluetoothActivityEnergyInfo = mockBluetoothActivityEnergyInfo(1000, 600, 100, 200,
                 mockUidTraffic(APP_UID1, 100, 200),

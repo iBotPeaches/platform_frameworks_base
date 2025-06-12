@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -31,10 +30,9 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntRect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.animation.scene.SceneScope
+import androidx.compose.ui.unit.dp
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.modifiers.padding
-import com.android.compose.modifiers.thenIf
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.keyguard.ui.composable.LockscreenLongPress
 import com.android.systemui.keyguard.ui.composable.section.AmbientIndicationSection
@@ -45,6 +43,8 @@ import com.android.systemui.keyguard.ui.composable.section.SettingsMenuSection
 import com.android.systemui.keyguard.ui.composable.section.StatusBarSection
 import com.android.systemui.keyguard.ui.composable.section.TopAreaSection
 import com.android.systemui.keyguard.ui.viewmodel.LockscreenContentViewModel
+import com.android.systemui.keyguard.ui.viewmodel.LockscreenContentViewModel.NotificationsPlacement.BelowClock
+import com.android.systemui.keyguard.ui.viewmodel.LockscreenContentViewModel.NotificationsPlacement.BesideClock
 import com.android.systemui.res.R
 import java.util.Optional
 import javax.inject.Inject
@@ -69,13 +69,10 @@ constructor(
     override val id: String = "default"
 
     @Composable
-    override fun SceneScope.Content(viewModel: LockscreenContentViewModel, modifier: Modifier) {
+    override fun ContentScope.Content(viewModel: LockscreenContentViewModel, modifier: Modifier) {
         val isUdfpsVisible = viewModel.isUdfpsVisible
-        val isShadeLayoutWide by viewModel.isShadeLayoutWide.collectAsStateWithLifecycle()
-        val unfoldTranslations by viewModel.unfoldTranslations.collectAsStateWithLifecycle()
-        val areNotificationsVisible by
-            viewModel.areNotificationsVisible().collectAsStateWithLifecycle(initialValue = false)
-        val isBypassEnabled by viewModel.isBypassEnabled.collectAsStateWithLifecycle()
+        val isBypassEnabled = viewModel.isBypassEnabled
+        val notificationsPlacement = viewModel.notificationsPlacement
 
         if (isBypassEnabled) {
             with(notificationSection) { HeadsUpNotifications() }
@@ -92,61 +89,89 @@ constructor(
                                 modifier =
                                     Modifier.fillMaxWidth()
                                         .padding(
-                                            horizontal = { unfoldTranslations.start.roundToInt() }
+                                            horizontal = {
+                                                viewModel.unfoldTranslations.start.roundToInt()
+                                            }
                                         )
                             )
                         }
 
-                        Box {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             with(topAreaSection) {
                                 DefaultClockLayout(
                                     smartSpacePaddingTop = viewModel::getSmartSpacePaddingTop,
-                                    isShadeLayoutWide = isShadeLayoutWide,
                                     modifier =
-                                        Modifier.thenIf(isShadeLayoutWide) {
-                                                Modifier.fillMaxWidth(0.5f)
-                                            }
-                                            .graphicsLayer {
-                                                translationX = unfoldTranslations.start
-                                            },
+                                        Modifier.fillMaxWidth().graphicsLayer {
+                                            translationX = viewModel.unfoldTranslations.start
+                                        },
                                 )
                             }
-                            if (isShadeLayoutWide && !isBypassEnabled) {
+                            if (notificationsPlacement is BesideClock && !isBypassEnabled) {
                                 with(notificationSection) {
-                                    Notifications(
-                                        areNotificationsVisible = areNotificationsVisible,
-                                        isShadeLayoutWide = true,
-                                        burnInParams = null,
-                                        modifier =
-                                            Modifier.fillMaxWidth(0.5f)
-                                                .fillMaxHeight()
-                                                .align(alignment = Alignment.TopEnd),
-                                    )
+                                    Box(modifier = Modifier.fillMaxHeight()) {
+                                        AodPromotedNotificationArea(
+                                            modifier =
+                                                Modifier.fillMaxWidth(0.5f)
+                                                    .align(notificationsPlacement.alignment)
+                                        )
+                                        Notifications(
+                                            areNotificationsVisible =
+                                                viewModel.areNotificationsVisible,
+                                            burnInParams = null,
+                                            modifier =
+                                                Modifier.fillMaxWidth(0.5f)
+                                                    .fillMaxHeight()
+                                                    .align(notificationsPlacement.alignment)
+                                                    .padding(top = 12.dp),
+                                        )
+                                    }
                                 }
                             }
                         }
 
+                        // Not a mistake; reusing below_clock_padding_start_icons as AOD RON top
+                        // padding for now.
+                        val aodPromotedNotifTopPadding: Dp =
+                            dimensionResource(R.dimen.below_clock_padding_start_icons)
                         val aodIconPadding: Dp =
                             dimensionResource(R.dimen.below_clock_padding_start_icons)
 
                         with(notificationSection) {
-                            if (!isShadeLayoutWide && !isBypassEnabled) {
+                            if (notificationsPlacement is BelowClock && !isBypassEnabled) {
                                 Box(modifier = Modifier.weight(weight = 1f)) {
-                                    AodNotificationIcons(
-                                        modifier =
-                                            Modifier.align(alignment = Alignment.TopStart)
-                                                .padding(start = aodIconPadding)
-                                    )
+                                    Column(Modifier.align(alignment = Alignment.TopStart)) {
+                                        AodPromotedNotificationArea(
+                                            modifier =
+                                                Modifier.padding(top = aodPromotedNotifTopPadding)
+                                        )
+                                        AodNotificationIcons(
+                                            modifier = Modifier.padding(start = aodIconPadding)
+                                        )
+                                    }
                                     Notifications(
-                                        areNotificationsVisible = areNotificationsVisible,
-                                        isShadeLayoutWide = false,
+                                        areNotificationsVisible = viewModel.areNotificationsVisible,
                                         burnInParams = null,
                                     )
                                 }
                             } else {
-                                AodNotificationIcons(
-                                    modifier = Modifier.padding(start = aodIconPadding)
-                                )
+                                Column {
+                                    if (viewModel.notificationsPlacement is BelowClock) {
+                                        AodPromotedNotificationArea(
+                                            modifier =
+                                                Modifier.padding(top = aodPromotedNotifTopPadding)
+                                        )
+                                    }
+                                    AodNotificationIcons(
+                                        modifier =
+                                            Modifier.padding(
+                                                top =
+                                                    dimensionResource(
+                                                        R.dimen.keyguard_status_view_bottom_margin
+                                                    ),
+                                                start = aodIconPadding,
+                                            )
+                                    )
+                                }
                             }
                         }
                         if (!isUdfpsVisible && ambientIndicationSectionOptional.isPresent) {
@@ -159,6 +184,7 @@ constructor(
                     with(lockSection) { LockIcon() }
 
                     // Aligned to bottom and constrained to below the lock icon.
+                    // TODO("b/383588832") change this away from "keyguard_bottom_area"
                     Column(modifier = Modifier.fillMaxWidth().sysuiResTag("keyguard_bottom_area")) {
                         if (isUdfpsVisible && ambientIndicationSectionOptional.isPresent) {
                             with(ambientIndicationSectionOptional.get()) {
@@ -177,13 +203,17 @@ constructor(
                             isStart = true,
                             applyPadding = true,
                             modifier =
-                                Modifier.graphicsLayer { translationX = unfoldTranslations.start },
+                                Modifier.graphicsLayer {
+                                    translationX = viewModel.unfoldTranslations.start
+                                },
                         )
                         Shortcut(
                             isStart = false,
                             applyPadding = true,
                             modifier =
-                                Modifier.graphicsLayer { translationX = unfoldTranslations.end },
+                                Modifier.graphicsLayer {
+                                    translationX = viewModel.unfoldTranslations.end
+                                },
                         )
                     }
                     with(settingsMenuSection) { SettingsMenu(onSettingsMenuPlaced) }

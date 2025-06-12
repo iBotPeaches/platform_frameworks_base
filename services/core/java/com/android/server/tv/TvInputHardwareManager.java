@@ -596,6 +596,26 @@ class TvInputHardwareManager implements TvInputHal.Callback {
         }
     }
 
+    public boolean setPictureProfile(String inputId, long profileHandle) {
+        synchronized (mLock) {
+            int deviceId = findDeviceIdForInputIdLocked(inputId);
+            if (deviceId < 0) {
+                Slog.e(TAG, "Invalid inputId : " + inputId);
+                return false;
+            }
+
+            Connection connection = mConnections.get(deviceId);
+            boolean success = true;
+            for (TvStreamConfig config : connection.getConfigsLocked()) {
+                success = success
+                        && mHal.setPictureProfile(deviceId, config, profileHandle)
+                        == TvInputHal.SUCCESS;
+            }
+
+            return success;
+        }
+    }
+
     /**
      * Take a snapshot of the given TV input into the provided Surface.
      */
@@ -844,7 +864,6 @@ class TvInputHardwareManager implements TvInputHal.Callback {
             return mCallback;
         }
 
-        @GuardedBy("mLock")
         public TvStreamConfig[] getConfigsLocked() {
             return mConfigs;
         }

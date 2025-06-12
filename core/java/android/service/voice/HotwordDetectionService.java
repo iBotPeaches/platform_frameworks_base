@@ -230,8 +230,8 @@ public abstract class HotwordDetectionService extends Service
         }
 
         @Override
-        public void ping(IRemoteCallback callback) throws RemoteException {
-            callback.sendResult(null);
+        public void ping(IPingMe callback) throws RemoteException {
+            callback.onPing();
         }
 
         @Override

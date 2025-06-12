@@ -27,11 +27,11 @@ import static android.content.pm.PackageInstaller.UNARCHIVAL_OK;
 import static android.content.pm.PackageInstaller.UNARCHIVAL_STATUS_UNSET;
 import static android.content.pm.PackageItemInfo.MAX_SAFE_LABEL_LENGTH;
 import static android.content.pm.PackageManager.INSTALL_FAILED_ABORTED;
-import static android.content.pm.PackageManager.INSTALL_FAILED_BAD_SIGNATURE;
 import static android.content.pm.PackageManager.INSTALL_FAILED_INSUFFICIENT_STORAGE;
 import static android.content.pm.PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
 import static android.content.pm.PackageManager.INSTALL_FAILED_INVALID_APK;
 import static android.content.pm.PackageManager.INSTALL_FAILED_MEDIA_UNAVAILABLE;
+import static android.content.pm.PackageManager.INSTALL_FAILED_MISSING_SHARED_LIBRARY;
 import static android.content.pm.PackageManager.INSTALL_FAILED_MISSING_SPLIT;
 import static android.content.pm.PackageManager.INSTALL_FAILED_PRE_APPROVAL_NOT_AVAILABLE;
 import static android.content.pm.PackageManager.INSTALL_FAILED_SESSION_INVALID;
@@ -110,6 +110,7 @@ import android.content.pm.PackageInstaller.UserActionReason;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.PackageInfoFlags;
 import android.content.pm.PackageManagerInternal;
+import android.content.pm.SharedLibraryInfo;
 import android.content.pm.SigningDetails;
 import android.content.pm.dex.DexMetadataHelper;
 import android.content.pm.parsing.ApkLite;
@@ -189,6 +190,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
+import com.android.server.IoThread;
 import com.android.server.LocalServices;
 import com.android.server.art.ArtManagedInstallFileHelper;
 import com.android.server.pm.Installer.InstallerException;
@@ -235,6 +237,8 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     private static final int MSG_ON_PACKAGE_INSTALLED = 4;
     private static final int MSG_SESSION_VALIDATION_FAILURE = 5;
     private static final int MSG_PRE_APPROVAL_REQUEST = 6;
+
+    private static final int MSG_ON_NATIVE_LIBS_EXTRACTED = 7;
 
     /** XML constants used for persisting a session */
     static final String TAG_SESSION = "session";
@@ -541,6 +545,9 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     @GuardedBy("mLock")
     private DomainSet mPreVerifiedDomains;
 
+    private AtomicBoolean mDependencyInstallerEnabled = new AtomicBoolean();
+    private AtomicInteger mMissingSharedLibraryCount = new AtomicInteger();
+
     static class FileEntry {
         private final int mIndex;
         private final InstallationFile mFile;
@@ -820,8 +827,6 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
 
     @GuardedBy("mLock")
     private File mInheritedFilesBase;
-    @GuardedBy("mLock")
-    private boolean mVerityFoundForApks;
 
     /**
      * Both flags should be guarded with mLock whenever changes need to be in lockstep.
@@ -860,7 +865,6 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
             } else {
                 if (DexMetadataHelper.isDexMetadataFile(file)) return false;
             }
-            if (VerityUtils.isFsveritySignatureFile(file)) return false;
             if (ApkChecksums.isDigestOrDigestSignatureFile(file)) return false;
             return true;
         }
@@ -942,6 +946,9 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
                     break;
                 case MSG_PRE_APPROVAL_REQUEST:
                     handlePreapprovalRequest();
+                    break;
+                case MSG_ON_NATIVE_LIBS_EXTRACTED:
+                    handleOnNativeLibsExtracted();
                     break;
             }
 
@@ -2908,15 +2915,13 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     }
 
     private void verify() {
+        // Extract native libraries on the IO thread before proceeding to the verification
+        runExtractNativeLibraries();
+    }
+
+    @WorkerThread
+    private void handleOnNativeLibsExtracted() {
         try {
-            List<PackageInstallerSession> children = getChildSessions();
-            if (isMultiPackage()) {
-                for (PackageInstallerSession child : children) {
-                    child.extractNativeLibraries();
-                }
-            } else {
-                extractNativeLibraries();
-            }
             verifyNonStaged();
         } catch (PackageManagerException e) {
             final String completeMsg = ExceptionUtils.getCompleteMessage(e);
@@ -2924,6 +2929,27 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
             setSessionFailed(e.error, errorMsg);
             onSessionVerificationFailure(e.error, errorMsg);
         }
+    }
+
+    private void runExtractNativeLibraries() {
+        IoThread.getHandler().post(() -> {
+            try {
+                List<PackageInstallerSession> children = getChildSessions();
+                if (isMultiPackage()) {
+                    for (PackageInstallerSession child : children) {
+                        child.extractNativeLibraries();
+                    }
+                } else {
+                    extractNativeLibraries();
+                }
+                mHandler.obtainMessage(MSG_ON_NATIVE_LIBS_EXTRACTED).sendToTarget();
+            } catch (PackageManagerException e) {
+                final String completeMsg = ExceptionUtils.getCompleteMessage(e);
+                final String errorMsg = PackageManager.installStatusToString(e.error, completeMsg);
+                setSessionFailed(e.error, errorMsg);
+                onSessionVerificationFailure(e.error, errorMsg);
+            }
+        });
     }
 
     private IntentSender getRemoteStatusReceiver() {
@@ -3072,6 +3098,7 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
         }
     }
 
+    @WorkerThread
     private void extractNativeLibraries() throws PackageManagerException {
         synchronized (mLock) {
             if (mPackageLite != null) {
@@ -3080,8 +3107,17 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
                         mInternalProgress = 0.5f;
                         computeProgressLocked(true);
                     }
+                    final File libDir = new File(stageDir, NativeLibraryHelper.LIB_DIR_NAME);
+                    if (!mayInheritNativeLibs()) {
+                        // Start from a clean slate
+                        NativeLibraryHelper.removeNativeBinariesFromDirLI(libDir, true);
+                    }
+                    // Skip native libraries processing for archival installation.
+                    if (isArchivedInstallation()) {
+                        return;
+                    }
                     extractNativeLibraries(
-                            mPackageLite, stageDir, params.abiOverride, mayInheritNativeLibs());
+                            mPackageLite, libDir, params.abiOverride);
                 }
             }
         }
@@ -3233,6 +3269,7 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
         if (Flags.sdkDependencyInstaller()
                 && params.isAutoInstallDependenciesEnabled
                 && !isMultiPackage()) {
+            mDependencyInstallerEnabled.set(true);
             resolveLibraryDependenciesIfNeeded();
         } else {
             install();
@@ -3242,8 +3279,20 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
 
     private void resolveLibraryDependenciesIfNeeded() {
         synchronized (mLock) {
-            mInstallDependencyHelper.resolveLibraryDependenciesIfNeeded(mPackageLite,
-                    mPm.snapshotComputer(), userId, mHandler,
+            List<SharedLibraryInfo> missingLibraries = new ArrayList<>();
+            try {
+                missingLibraries = mInstallDependencyHelper.getMissingSharedLibraries(mPackageLite);
+            } catch (PackageManagerException e) {
+                handleDependencyResolutionFailure(e);
+            } catch (Exception e) {
+                handleDependencyResolutionFailure(
+                        new PackageManagerException(
+                                INSTALL_FAILED_MISSING_SHARED_LIBRARY, e.getMessage()));
+            }
+
+            mMissingSharedLibraryCount.set(missingLibraries.size());
+            mInstallDependencyHelper.resolveLibraryDependenciesIfNeeded(missingLibraries,
+                    mPackageLite, mPm.snapshotComputer(), userId, mHandler,
                     new OutcomeReceiver<>() {
 
                         @Override
@@ -3253,12 +3302,19 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
 
                         @Override
                         public void onError(@NonNull PackageManagerException e) {
-                            final String completeMsg = ExceptionUtils.getCompleteMessage(e);
-                            setSessionFailed(e.error, completeMsg);
-                            onSessionDependencyResolveFailure(e.error, completeMsg);
+                            handleDependencyResolutionFailure(e);
                         }
                     });
         }
+    }
+
+    private void handleDependencyResolutionFailure(@NonNull PackageManagerException e) {
+        final String completeMsg = ExceptionUtils.getCompleteMessage(e);
+        setSessionFailed(e.error, completeMsg);
+        onSessionDependencyResolveFailure(e.error, completeMsg);
+        PackageMetrics.onDependencyInstallationFailure(
+                sessionId, getPackageName(), e.error, mInstallerUid, params,
+                mMissingSharedLibraryCount.get());
     }
 
     /**
@@ -3328,7 +3384,8 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
         synchronized (mLock) {
             return new InstallingSession(sessionId, stageDir, localObserver, params, mInstallSource,
                     user, mSigningDetails, mInstallerUid, mPackageLite, mPreVerifiedDomains, mPm,
-                    mHasAppMetadataFile);
+                    mHasAppMetadataFile, mDependencyInstallerEnabled.get(),
+                    mMissingSharedLibraryCount.get());
         }
     }
 
@@ -3540,13 +3597,6 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
                     "Missing existing base package");
         }
 
-        // Default to require only if existing base apk has fs-verity signature.
-        mVerityFoundForApks = PackageManagerServiceUtils.isApkVerityEnabled()
-                && params.mode == SessionParams.MODE_INHERIT_EXISTING
-                && VerityUtils.hasFsverity(pkgInfo.applicationInfo.getBaseCodePath())
-                && (new File(VerityUtils.getFsveritySignatureFilePath(
-                        pkgInfo.applicationInfo.getBaseCodePath()))).exists();
-
         final List<File> removedFiles = getRemovedFilesLocked();
         final List<String> removeSplitList = new ArrayList<>();
         if (!removedFiles.isEmpty()) {
@@ -3560,10 +3610,8 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
 
         // Needs to happen before the first v4 signature verification, which happens in
         // getAddedApkLitesLocked.
-        if (android.security.Flags.extendVbChainToUpdatedApk()) {
-            if (!isIncrementalInstallation()) {
-                enableFsVerityToAddedApksWithIdsig();
-            }
+        if (!isIncrementalInstallation()) {
+            enableFsVerityToAddedApksWithIdsig();
         }
 
         final List<ApkLite> addedFiles = getAddedApkLitesLocked();
@@ -3951,24 +3999,6 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     }
 
     @GuardedBy("mLock")
-    private void maybeStageFsveritySignatureLocked(File origFile, File targetFile,
-            boolean fsVerityRequired) throws PackageManagerException {
-        if (android.security.Flags.deprecateFsvSig()) {
-            return;
-        }
-        final File originalSignature = new File(
-                VerityUtils.getFsveritySignatureFilePath(origFile.getPath()));
-        if (originalSignature.exists()) {
-            final File stagedSignature = new File(
-                    VerityUtils.getFsveritySignatureFilePath(targetFile.getPath()));
-            stageFileLocked(originalSignature, stagedSignature);
-        } else if (fsVerityRequired) {
-            throw new PackageManagerException(INSTALL_FAILED_BAD_SIGNATURE,
-                    "Missing corresponding fs-verity signature to " + origFile);
-        }
-    }
-
-    @GuardedBy("mLock")
     private void maybeStageV4SignatureLocked(File origFile, File targetFile)
             throws PackageManagerException {
         final File originalSignature = new File(origFile.getPath() + V4Signature.EXT);
@@ -3994,11 +4024,6 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
                 DexMetadataHelper.buildDexMetadataPathForApk(targetFile.getName()));
 
         stageFileLocked(dexMetadataFile, targetDexMetadataFile);
-
-        // Also stage .dm.fsv_sig. .dm may be required to install with fs-verity signature on
-        // supported on older devices.
-        maybeStageFsveritySignatureLocked(dexMetadataFile, targetDexMetadataFile,
-                DexMetadataHelper.isFsVerityRequired());
     }
 
     @FlaggedApi(com.android.art.flags.Flags.FLAG_ART_SERVICE_V3)
@@ -4092,47 +4117,12 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     }
 
     @GuardedBy("mLock")
-    private boolean isFsVerityRequiredForApk(File origFile, File targetFile)
-            throws PackageManagerException {
-        if (mVerityFoundForApks) {
-            return true;
-        }
-
-        // We haven't seen .fsv_sig for any APKs. Treat it as not required until we see one.
-        final File originalSignature = new File(
-                VerityUtils.getFsveritySignatureFilePath(origFile.getPath()));
-        if (!originalSignature.exists()) {
-            return false;
-        }
-        mVerityFoundForApks = true;
-
-        // When a signature is found, also check any previous staged APKs since they also need to
-        // have fs-verity signature consistently.
-        for (File file : mResolvedStagedFiles) {
-            if (!file.getName().endsWith(".apk")) {
-                continue;
-            }
-            // Ignore the current targeting file.
-            if (targetFile.getName().equals(file.getName())) {
-                continue;
-            }
-            throw new PackageManagerException(INSTALL_FAILED_BAD_SIGNATURE,
-                    "Previously staged apk is missing fs-verity signature");
-        }
-        return true;
-    }
-
-    @GuardedBy("mLock")
     private void resolveAndStageFileLocked(File origFile, File targetFile, String splitName,
             List<String> artManagedFilePaths) throws PackageManagerException {
         stageFileLocked(origFile, targetFile);
 
-        // Stage APK's fs-verity signature if present.
-        maybeStageFsveritySignatureLocked(origFile, targetFile,
-                isFsVerityRequiredForApk(origFile, targetFile));
         // Stage APK's v4 signature if present, and fs-verity is supported.
-        if (android.security.Flags.extendVbChainToUpdatedApk()
-                && VerityUtils.isFsVeritySupported()) {
+        if (VerityUtils.isFsVeritySupported()) {
             maybeStageV4SignatureLocked(origFile, targetFile);
         }
         // Stage ART managed install files (e.g., dex metadata (.dm)) and corresponding fs-verity
@@ -4144,16 +4134,6 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
         }
         // Stage checksums (.digests) if present.
         maybeStageDigestsLocked(origFile, targetFile, splitName);
-    }
-
-    @GuardedBy("mLock")
-    private void maybeInheritFsveritySignatureLocked(File origFile) {
-        // Inherit the fsverity signature file if present.
-        final File fsveritySignatureFile = new File(
-                VerityUtils.getFsveritySignatureFilePath(origFile.getPath()));
-        if (fsveritySignatureFile.exists()) {
-            mResolvedInheritedFiles.add(fsveritySignatureFile);
-        }
     }
 
     @GuardedBy("mLock")
@@ -4169,10 +4149,7 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     private void inheritFileLocked(File origFile, List<String> artManagedFilePaths) {
         mResolvedInheritedFiles.add(origFile);
 
-        maybeInheritFsveritySignatureLocked(origFile);
-        if (android.security.Flags.extendVbChainToUpdatedApk()) {
-            maybeInheritV4SignatureLocked(origFile);
-        }
+        maybeInheritV4SignatureLocked(origFile);
 
         // Inherit ART managed install files (e.g., dex metadata (.dm)) if present.
         if (com.android.art.flags.Flags.artServiceV3()) {
@@ -4180,13 +4157,11 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
                          artManagedFilePaths, origFile.getPath())) {
                 File artManagedFile = new File(path);
                 mResolvedInheritedFiles.add(artManagedFile);
-                maybeInheritFsveritySignatureLocked(artManagedFile);
             }
         } else {
             final File dexMetadataFile = DexMetadataHelper.findDexMetadataForFile(origFile);
             if (dexMetadataFile != null) {
                 mResolvedInheritedFiles.add(dexMetadataFile);
-                maybeInheritFsveritySignatureLocked(dexMetadataFile);
             }
         }
         // Inherit the digests if present.
@@ -4534,21 +4509,10 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
         Slog.d(TAG, "Copied " + fromFiles.size() + " files into " + toDir);
     }
 
-    private void extractNativeLibraries(PackageLite packageLite, File packageDir,
-            String abiOverride, boolean inherit)
+    private void extractNativeLibraries(PackageLite packageLite, File libDir,
+            String abiOverride)
             throws PackageManagerException {
         Objects.requireNonNull(packageLite);
-        final File libDir = new File(packageDir, NativeLibraryHelper.LIB_DIR_NAME);
-        if (!inherit) {
-            // Start from a clean slate
-            NativeLibraryHelper.removeNativeBinariesFromDirLI(libDir, true);
-        }
-
-        // Skip native libraries processing for archival installation.
-        if (isArchivedInstallation()) {
-            return;
-        }
-
         NativeLibraryHelper.Handle handle = null;
         try {
             handle = NativeLibraryHelper.Handle.create(packageLite);

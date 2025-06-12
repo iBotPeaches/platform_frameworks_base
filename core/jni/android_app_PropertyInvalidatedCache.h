@@ -27,8 +27,12 @@ namespace android::app::PropertyInvalidatedCache {
  * location.  Fields with a variable location are found via offsets.  The offsets make this
  * object position-independent, which is required because it is in shared memory and would be
  * mapped into different virtual addresses for different processes.
+ *
+ * This structure is shared between 64-bit and 32-bit processes.  Therefore it is imperative
+ * that the structure not use any datatypes that are architecture-dependent (like size_t).
+ * Additionally, care must be taken to avoid unexpected padding in the structure.
  */
-class NonceStore {
+class alignas(8) NonceStore {
   protected:
     // A convenient typedef.  The jbyteArray element type is jbyte, which the compiler treats as
     // signed char.
@@ -43,23 +47,27 @@ class NonceStore {
     // The value of an unset field.
     static constexpr int UNSET = 0;
 
-    // The size of the nonce array.
+    // The size of the nonce array.  This and the following sizes are int32_t to
+    // be ABI independent.
     const int32_t kMaxNonce;
 
     // The size of the byte array.
-    const size_t kMaxByte;
+    const int32_t kMaxByte;
 
     // The offset to the nonce array.
-    const size_t mNonceOffset;
+    const int32_t mNonceOffset;
 
     // The offset to the byte array.
-    const size_t mByteOffset;
+    const int32_t mByteOffset;
 
     // The byte block hash.  This is fixed and at a known offset, so leave it in the base class.
     volatile std::atomic<int32_t> mByteHash;
 
+    // A 4-byte padd that makes the size of this structure a multiple of 8 bytes.
+    const int32_t _pad = 0;
+
     // The constructor is protected!  It only makes sense when called from a subclass.
-    NonceStore(int kMaxNonce, size_t kMaxByte, volatile nonce_t* nonce, volatile block_t* block) :
+    NonceStore(int kMaxNonce, int kMaxByte, volatile nonce_t* nonce, volatile block_t* block) :
             kMaxNonce(kMaxNonce),
             kMaxByte(kMaxByte),
             mNonceOffset(offset(this, const_cast<nonce_t*>(nonce))),
@@ -70,7 +78,7 @@ class NonceStore {
 
     // These provide run-time access to the sizing parameters.
     int getMaxNonce() const;
-    size_t getMaxByte() const;
+    int getMaxByte() const;
 
     // Fetch a nonce, returning UNSET if the index is out of range.  This method specifically
     // does not throw or generate an error if the index is out of range; this allows the method
@@ -86,10 +94,10 @@ class NonceStore {
     int32_t getHash() const;
 
     // Copy the byte block to the target and return the current hash.
-    int32_t getByteBlock(block_t* block, size_t len) const;
+    int32_t getByteBlock(block_t* block, int32_t len) const;
 
     // Set the byte block and the hash.
-    void setByteBlock(int hash, const block_t* block, size_t len);
+    void setByteBlock(int hash, const block_t* block, int32_t len);
 
   private:
 
@@ -113,6 +121,12 @@ class NonceStore {
     }
 };
 
+// Assert that the size of the object is fixed, independent of the CPU architecture.  There are
+// four int32_t fields and one atomic<int32_t>, which sums to 20 bytes total.  This assertion
+// uses a constant instead of computing the size of the objects in the compiler, to avoid
+// different answers on different architectures.
+static_assert(sizeof(NonceStore) == 24);
+
 /**
  * A cache nonce block contains an array of std::atomic<int64_t> and an array of bytes.  The
  * byte array has an associated hash.  This class provides methods to read and write the fields
@@ -126,20 +140,22 @@ class NonceStore {
  * The template is parameterized by the number of nonces it supports and the number of bytes in
  * the string block.
  */
-template<int maxNonce, size_t maxByte> class CacheNonce : public NonceStore {
+template<int MAX_NONCE, int MAX_BYTE> class CacheNonce : public NonceStore {
 
     // The array of nonces
-    volatile nonce_t mNonce[maxNonce];
+    volatile nonce_t mNonce[MAX_NONCE];
 
     // The byte array.  This is not atomic but it is guarded by the mByteHash.
-    volatile block_t mByteBlock[maxByte];
+    volatile block_t mByteBlock[MAX_BYTE];
 
   public:
+    // Export the parameters for use in compiler assertions.
+    static constexpr int kMaxNonceCount = MAX_NONCE;
+    static constexpr int kMaxByteCount = MAX_BYTE;
+
     // Construct and initialize the memory.
-    CacheNonce() :
-            NonceStore(maxNonce, maxByte, &mNonce[0], &mByteBlock[0])
-    {
-        for (int i = 0; i < maxNonce; i++) {
+    CacheNonce() : NonceStore(MAX_NONCE, MAX_BYTE, &mNonce[0], &mByteBlock[0]) {
+        for (int i = 0; i < MAX_NONCE; i++) {
             mNonce[i] = UNSET;
         }
         mByteHash = UNSET;
@@ -147,10 +163,18 @@ template<int maxNonce, size_t maxByte> class CacheNonce : public NonceStore {
     }
 };
 
-// The CacheNonce for system server holds 64 nonces with a string block of 8192 bytes.  This is
-// more than enough for system_server PropertyInvalidatedCache support.  The configuration
-// values are not defined as visible constants.  Clients should use the accessors on the
-// SystemCacheNonce instance if they need the sizing parameters.
-typedef CacheNonce</* max nonce */ 64, /* byte block size */ 8192> SystemCacheNonce;
+// The CacheNonce for system server.  The configuration values are not defined as visible
+// constants.  Clients should use the accessors on the SystemCacheNonce instance if they need
+// the sizing parameters.
+
+// LINT.IfChange(system_nonce_config)
+typedef CacheNonce</* max nonce */ 128, /* byte block size */ 8192> SystemCacheNonce;
+// LINT.ThenChange(/core/tests/coretests/src/android/app/PropertyInvalidatedCacheTests.java:system_nonce_config)
+
+// Verify that there is no padding in the final class.
+static_assert(sizeof(SystemCacheNonce) ==
+              sizeof(NonceStore)
+              + SystemCacheNonce::kMaxNonceCount*8
+              + SystemCacheNonce::kMaxByteCount);
 
 } // namespace android.app.PropertyInvalidatedCache

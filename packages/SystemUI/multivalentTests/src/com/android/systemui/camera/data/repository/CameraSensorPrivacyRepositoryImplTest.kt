@@ -22,11 +22,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.mock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -35,12 +34,11 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @android.platform.test.annotations.EnabledOnRavenwood
 class CameraSensorPrivacyRepositoryImplTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val testUser = UserHandle.of(1)
     private val privacyManager = mock<SensorPrivacyManager>()
@@ -48,7 +46,7 @@ class CameraSensorPrivacyRepositoryImplTest : SysuiTestCase() {
         CameraSensorPrivacyRepositoryImpl(
             testScope.testScheduler,
             testScope.backgroundScope,
-            privacyManager
+            privacyManager,
         )
 
     @Test
@@ -89,7 +87,7 @@ class CameraSensorPrivacyRepositoryImplTest : SysuiTestCase() {
                 .addSensorPrivacyListener(
                     ArgumentMatchers.eq(SensorPrivacyManager.Sensors.CAMERA),
                     ArgumentMatchers.eq(testUser.identifier),
-                    captor.capture()
+                    captor.capture(),
                 )
             val sensorPrivacyCallback = captor.value!!
 

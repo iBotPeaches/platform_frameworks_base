@@ -13,89 +13,86 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.systemui.log
 
 import android.util.Log
 import android.util.Log.TerribleFailureHandler
-import junit.framework.Assert
+import com.google.common.truth.Truth.assertWithMessage
 
-/** Asserts that the given block does not make a call to Log.wtf */
-fun assertDoesNotLogWtf(
+/** Asserts that [notLoggingBlock] does not make a call to [Log.wtf] */
+fun <T> assertDoesNotLogWtf(
     message: String = "Expected Log.wtf not to be called",
-    notLoggingBlock: () -> Unit,
-) {
+    notLoggingBlock: () -> T,
+): T {
     var caught: TerribleFailureLog? = null
     val newHandler = TerribleFailureHandler { tag, failure, system ->
         caught = TerribleFailureLog(tag, failure, system)
     }
     val oldHandler = Log.setWtfHandler(newHandler)
-    try {
-        notLoggingBlock()
-    } finally {
-        Log.setWtfHandler(oldHandler)
-    }
+    val result =
+        try {
+            notLoggingBlock()
+        } finally {
+            Log.setWtfHandler(oldHandler)
+        }
     caught?.let { throw AssertionError("$message: $it", it.failure) }
+    return result
 }
 
-fun assertDoesNotLogWtf(
-    message: String = "Expected Log.wtf not to be called",
-    notLoggingRunnable: Runnable,
-) = assertDoesNotLogWtf(message = message) { notLoggingRunnable.run() }
-
-/**
- * Assert that the given block makes a call to Log.wtf
- *
- * @return the details of the log
- */
-fun assertLogsWtf(
+/** Assert that [loggingBlock] makes a call to [Log.wtf] */
+@JvmOverloads
+fun <T> assertLogsWtf(
     message: String = "Expected Log.wtf to be called",
     allowMultiple: Boolean = false,
-    loggingBlock: () -> Unit,
-): TerribleFailureLog {
-    var caught: TerribleFailureLog? = null
-    var count = 0
+    loggingBlock: () -> T,
+): WtfBlockResult<T> {
+    val caught = mutableListOf<TerribleFailureLog>()
     val newHandler = TerribleFailureHandler { tag, failure, system ->
-        if (caught == null) {
-            caught = TerribleFailureLog(tag, failure, system)
-        }
-        count++
+        caught.add(TerribleFailureLog(tag, failure, system))
     }
     val oldHandler = Log.setWtfHandler(newHandler)
-    try {
-        loggingBlock()
-    } finally {
-        Log.setWtfHandler(oldHandler)
+    val result =
+        try {
+            loggingBlock()
+        } finally {
+            Log.setWtfHandler(oldHandler)
+        }
+    assertWithMessage(message).that(caught).isNotEmpty()
+    if (!allowMultiple) {
+        assertWithMessage("Unexpectedly caught Log.Wtf multiple times").that(caught).hasSize(1)
     }
-    Assert.assertNotNull(message, caught)
-    if (!allowMultiple && count != 1) {
-        Assert.fail("Unexpectedly caught Log.Wtf $count times; expected only 1.  First: $caught")
-    }
-    return caught!!
+    return WtfBlockResult(caught, result)
 }
 
+/** Assert that [loggingBlock] makes at least one call to [Log.wtf] */
 @JvmOverloads
-fun assertLogsWtf(
-    message: String = "Expected Log.wtf to be called",
-    allowMultiple: Boolean = false,
-    loggingRunnable: Runnable,
-): TerribleFailureLog =
-    assertLogsWtf(message = message, allowMultiple = allowMultiple) { loggingRunnable.run() }
-
-fun assertLogsWtfs(
+fun <T> assertLogsWtfs(
     message: String = "Expected Log.wtf to be called once or more",
-    loggingBlock: () -> Unit,
-): TerribleFailureLog = assertLogsWtf(message, allowMultiple = true, loggingBlock)
-
-@JvmOverloads
-fun assertLogsWtfs(
-    message: String = "Expected Log.wtf to be called once or more",
-    loggingRunnable: Runnable,
-): TerribleFailureLog = assertLogsWtfs(message) { loggingRunnable.run() }
+    loggingBlock: () -> T,
+): WtfBlockResult<T> = assertLogsWtf(message, allowMultiple = true, loggingBlock)
 
 /** The data passed to [TerribleFailureHandler.onTerribleFailure] */
 data class TerribleFailureLog(
     val tag: String,
     val failure: Log.TerribleFailure,
-    val system: Boolean
+    val system: Boolean,
 )
+
+/** The [Log.wtf] logs and return value of the block */
+data class WtfBlockResult<T>(val logs: List<TerribleFailureLog>, val result: T)
+
+/** Assert that [loggingRunnable] makes a call to [Log.wtf] */
+@JvmOverloads
+fun assertRunnableLogsWtf(
+    message: String = "Expected Log.wtf to be called",
+    allowMultiple: Boolean = false,
+    loggingRunnable: Runnable,
+): WtfBlockResult<Unit> =
+    assertLogsWtf(message = message, allowMultiple = allowMultiple) { loggingRunnable.run() }
+
+/** Assert that [loggingRunnable] makes at least one call to [Log.wtf] */
+@JvmOverloads
+fun assertRunnableLogsWtfs(
+    message: String = "Expected Log.wtf to be called once or more",
+    loggingRunnable: Runnable,
+): WtfBlockResult<Unit> = assertRunnableLogsWtf(message, allowMultiple = true, loggingRunnable)

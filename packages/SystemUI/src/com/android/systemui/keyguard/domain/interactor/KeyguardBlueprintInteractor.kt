@@ -15,8 +15,6 @@
  *
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.keyguard.domain.interactor
 
 import com.android.app.tracing.coroutines.launchTraced as launch
@@ -34,10 +32,9 @@ import com.android.systemui.keyguard.ui.view.layout.blueprints.transitions.Intra
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
-import com.android.systemui.shade.domain.interactor.ShadeInteractor
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -48,7 +45,7 @@ class KeyguardBlueprintInteractor
 constructor(
     private val keyguardBlueprintRepository: KeyguardBlueprintRepository,
     @Application private val applicationScope: CoroutineScope,
-    shadeInteractor: ShadeInteractor,
+    shadeModeInteractor: ShadeModeInteractor,
     @ShadeDisplayAware private val configurationInteractor: ConfigurationInteractor,
     private val fingerprintPropertyInteractor: FingerprintPropertyInteractor,
     private val smartspaceSection: SmartspaceSection,
@@ -64,7 +61,7 @@ constructor(
 
     /** Current BlueprintId */
     val blueprintId =
-        shadeInteractor.isShadeLayoutWide.map { isShadeLayoutWide ->
+        shadeModeInteractor.isShadeLayoutWide.map { isShadeLayoutWide ->
             val useSplitShade = isShadeLayoutWide && !SceneContainerFlag.isEnabled
             when {
                 useSplitShade -> SplitShadeKeyguardBlueprint.ID

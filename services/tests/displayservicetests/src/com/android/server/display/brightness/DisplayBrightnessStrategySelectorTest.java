@@ -240,7 +240,6 @@ public final class DisplayBrightnessStrategySelectorTest {
 
     @Test
     public void selectStrategyDoesNotSelectDozeStrategyWhenOffloadSessionAutoBrightnessIsEnabled() {
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(true);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
@@ -378,7 +377,6 @@ public final class DisplayBrightnessStrategySelectorTest {
     @Test
     public void selectStrategy_selectsAutomaticStrategyWhenValid() {
         when(mDisplayManagerFlags.isRefactorDisplayPowerControllerEnabled()).thenReturn(true);
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(true);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
@@ -409,7 +407,6 @@ public final class DisplayBrightnessStrategySelectorTest {
     @Test
     public void selectStrategy_doesNotSelectAutomaticStrategyWhenStylusInUse() {
         when(mDisplayManagerFlags.isRefactorDisplayPowerControllerEnabled()).thenReturn(true);
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(true);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
@@ -536,7 +533,6 @@ public final class DisplayBrightnessStrategySelectorTest {
 
     @Test
     public void setAllowAutoBrightnessWhileDozing_enabledWhenConfigAndOffloadSessionAreEnabled() {
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(true);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
@@ -550,7 +546,6 @@ public final class DisplayBrightnessStrategySelectorTest {
 
     @Test
     public void setAllowAutoBrightnessWhileDozing_disabledWhenOffloadSessionFlagIsDisabled() {
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(false);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
@@ -564,7 +559,6 @@ public final class DisplayBrightnessStrategySelectorTest {
 
     @Test
     public void setAllowAutoBrightnessWhileDozing_disabledWhenABWhileDozingConfigIsDisabled() {
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(true);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
@@ -588,7 +582,6 @@ public final class DisplayBrightnessStrategySelectorTest {
 
     @Test
     public void setAllowAutoBrightnessWhileDozing_EnabledWhenFlagsAreDisabled() {
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mResources.getBoolean(R.bool.config_allowAutoBrightnessWhileDozing)).thenReturn(
                 true);
         mDisplayBrightnessStrategySelector = new DisplayBrightnessStrategySelector(mContext,
@@ -597,12 +590,6 @@ public final class DisplayBrightnessStrategySelectorTest {
         // Same as the config_allowAutoBrightnessWhileDozing when either of the concerned flags
         // are disabled
         when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(false);
-        mDisplayBrightnessStrategySelector
-                .setAllowAutoBrightnessWhileDozing(mDisplayOffloadSession);
-        assertTrue(mDisplayBrightnessStrategySelector.isAllowAutoBrightnessWhileDozing());
-
-        when(mDisplayManagerFlags.isDisplayOffloadEnabled()).thenReturn(true);
-        when(mDisplayManagerFlags.offloadControlsDozeAutoBrightness()).thenReturn(false);
         mDisplayBrightnessStrategySelector
                 .setAllowAutoBrightnessWhileDozing(mDisplayOffloadSession);
         assertTrue(mDisplayBrightnessStrategySelector.isAllowAutoBrightnessWhileDozing());

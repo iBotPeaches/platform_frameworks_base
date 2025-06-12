@@ -21,18 +21,12 @@ import static com.google.common.truth.Truth.assertThat;
 import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.Looper;
-import android.platform.test.ravenwood.RavenwoodRule;
 
-import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.concurrent.Executor;
 
 public class BackgroundThreadTest {
-
-    @Rule
-    public final RavenwoodRule mRavenwood =
-            new RavenwoodRule.Builder().setProvideMainThread(true).build();
 
     @Test
     public void test_get() {

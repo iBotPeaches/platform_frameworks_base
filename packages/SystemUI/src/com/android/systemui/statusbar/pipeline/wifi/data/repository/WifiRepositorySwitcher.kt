@@ -18,18 +18,17 @@ package com.android.systemui.statusbar.pipeline.wifi.data.repository
 
 import android.os.Bundle
 import androidx.annotation.VisibleForTesting
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.demomode.DemoMode
 import com.android.systemui.demomode.DemoModeController
 import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityModel
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.demo.DemoWifiRepository
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiScanEntry
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -54,7 +53,6 @@ import kotlinx.coroutines.flow.stateIn
  * that flow.
  */
 @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class WifiRepositorySwitcher
 @Inject
@@ -62,7 +60,7 @@ constructor(
     private val realImpl: RealWifiRepository,
     private val demoImpl: DemoWifiRepository,
     private val demoModeController: DemoModeController,
-    @Application scope: CoroutineScope,
+    @Background scope: CoroutineScope,
 ) : WifiRepository {
     private val isDemoMode =
         conflatedCallbackFlow {

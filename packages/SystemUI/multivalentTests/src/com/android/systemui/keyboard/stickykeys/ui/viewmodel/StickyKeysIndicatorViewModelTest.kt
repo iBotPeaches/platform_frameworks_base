@@ -33,7 +33,6 @@ import com.android.systemui.keyboard.stickykeys.shared.model.ModifierKey.ALT_GR
 import com.android.systemui.keyboard.stickykeys.shared.model.ModifierKey.CTRL
 import com.android.systemui.keyboard.stickykeys.shared.model.ModifierKey.META
 import com.android.systemui.keyboard.stickykeys.shared.model.ModifierKey.SHIFT
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.testKosmos
@@ -43,7 +42,6 @@ import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.settings.data.repository.userAwareSecureSettingsRepository
 import com.android.systemui.util.settings.fakeSettings
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -54,7 +52,6 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class StickyKeysIndicatorViewModelTest : SysuiTestCase() {
@@ -66,7 +63,7 @@ class StickyKeysIndicatorViewModelTest : SysuiTestCase() {
     private val inputManager = mock<InputManager>()
     private val keyboardRepository = FakeKeyboardRepository()
     private val secureSettings = kosmos.fakeSettings
-    private val userRepository = Kosmos().fakeUserRepository
+    private val userRepository = testKosmos().fakeUserRepository
     private val captor =
         ArgumentCaptor.forClass(InputManager.StickyModifierStateListener::class.java)
 
@@ -119,9 +116,9 @@ class StickyKeysIndicatorViewModelTest : SysuiTestCase() {
     }
 
     private fun setStickyKeySetting(enabled: Boolean) {
-        val newValue = if (enabled) "1" else "0"
+        val newValue = if (enabled) 1 else 0
         val defaultUser = userRepository.getSelectedUserInfo().id
-        secureSettings.putStringForUser(ACCESSIBILITY_STICKY_KEYS, newValue, defaultUser)
+        secureSettings.putIntForUser(ACCESSIBILITY_STICKY_KEYS, newValue, defaultUser)
     }
 
     @Test

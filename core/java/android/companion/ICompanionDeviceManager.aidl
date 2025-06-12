@@ -113,7 +113,7 @@ interface ICompanionDeviceManager {
         in ISystemDataTransferCallback callback);
 
     @EnforcePermission("DELIVER_COMPANION_MESSAGES")
-    void attachSystemDataTransport(String packageName, int userId, int associationId, in ParcelFileDescriptor fd);
+    void attachSystemDataTransport(String packageName, int userId, int associationId, in ParcelFileDescriptor fd, int flags);
 
     @EnforcePermission("DELIVER_COMPANION_MESSAGES")
     void detachSystemDataTransport(String packageName, int userId, int associationId);

@@ -31,6 +31,7 @@ import android.util.Printer;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.os.BackgroundThread;
 
 import dalvik.annotation.optimization.NeverCompile;
 import dalvik.system.CloseGuard;
@@ -187,7 +188,8 @@ public final class SQLiteConnectionPool implements Closeable {
         // In case of MAX_VALUE - idle connections are never closed
         if (mConfiguration.idleConnectionTimeoutMs != Long.MAX_VALUE) {
             setupIdleConnectionHandler(
-                    Looper.getMainLooper(), mConfiguration.idleConnectionTimeoutMs, null);
+                BackgroundThread.getHandler().getLooper(),
+                mConfiguration.idleConnectionTimeoutMs, null);
         }
     }
 

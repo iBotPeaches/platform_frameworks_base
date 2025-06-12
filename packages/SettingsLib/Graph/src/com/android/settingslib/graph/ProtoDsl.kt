@@ -19,6 +19,7 @@ package com.android.settingslib.graph
 import com.android.settingslib.graph.proto.BundleProto
 import com.android.settingslib.graph.proto.BundleProto.BundleValue
 import com.android.settingslib.graph.proto.IntentProto
+import com.android.settingslib.graph.proto.ParameterizedPreferenceScreenProto
 import com.android.settingslib.graph.proto.PreferenceGroupProto
 import com.android.settingslib.graph.proto.PreferenceOrGroupProto
 import com.android.settingslib.graph.proto.PreferenceProto
@@ -35,8 +36,15 @@ val PreferenceScreenProto.rootOrNull
 
 /** Kotlin DSL-style builder for [PreferenceScreenProto]. */
 @JvmSynthetic
-inline fun preferenceScreenProto(init: PreferenceScreenProto.Builder.() -> Unit) =
-    PreferenceScreenProto.newBuilder().also(init).build()
+inline fun preferenceScreenProto(
+    init: PreferenceScreenProto.Builder.() -> Unit
+): PreferenceScreenProto = PreferenceScreenProto.newBuilder().also(init).build()
+
+/** Kotlin DSL-style builder for [PreferenceScreenProto]. */
+inline fun parameterizedPreferenceScreenProto(
+    init: ParameterizedPreferenceScreenProto.Builder.() -> Unit
+): ParameterizedPreferenceScreenProto =
+    ParameterizedPreferenceScreenProto.newBuilder().also(init).build()
 
 /** Returns preference or null. */
 val PreferenceOrGroupProto.preferenceOrNull
@@ -48,8 +56,9 @@ val PreferenceOrGroupProto.groupOrNull
 
 /** Kotlin DSL-style builder for [PreferenceOrGroupProto]. */
 @JvmSynthetic
-inline fun preferenceOrGroupProto(init: PreferenceOrGroupProto.Builder.() -> Unit) =
-    PreferenceOrGroupProto.newBuilder().also(init).build()
+inline fun preferenceOrGroupProto(
+    init: PreferenceOrGroupProto.Builder.() -> Unit
+): PreferenceOrGroupProto = PreferenceOrGroupProto.newBuilder().also(init).build()
 
 /** Returns preference or null. */
 val PreferenceGroupProto.preferenceOrNull
@@ -57,8 +66,9 @@ val PreferenceGroupProto.preferenceOrNull
 
 /** Kotlin DSL-style builder for [PreferenceGroupProto]. */
 @JvmSynthetic
-inline fun preferenceGroupProto(init: PreferenceGroupProto.Builder.() -> Unit) =
-    PreferenceGroupProto.newBuilder().also(init).build()
+inline fun preferenceGroupProto(
+    init: PreferenceGroupProto.Builder.() -> Unit
+): PreferenceGroupProto = PreferenceGroupProto.newBuilder().also(init).build()
 
 /** Returns title or null. */
 val PreferenceProto.titleOrNull
@@ -74,7 +84,7 @@ val PreferenceProto.actionTargetOrNull
 
 /** Kotlin DSL-style builder for [PreferenceProto]. */
 @JvmSynthetic
-inline fun preferenceProto(init: PreferenceProto.Builder.() -> Unit) =
+inline fun preferenceProto(init: PreferenceProto.Builder.() -> Unit): PreferenceProto =
     PreferenceProto.newBuilder().also(init).build()
 
 /** Returns intent or null. */
@@ -83,39 +93,42 @@ val ActionTarget.intentOrNull
 
 /** Kotlin DSL-style builder for [ActionTarget]. */
 @JvmSynthetic
-inline fun actionTargetProto(init: ActionTarget.Builder.() -> Unit) =
+inline fun actionTargetProto(init: ActionTarget.Builder.() -> Unit): ActionTarget =
     ActionTarget.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [PreferenceValueProto]. */
 @JvmSynthetic
-inline fun preferenceValueProto(init: PreferenceValueProto.Builder.() -> Unit) =
-    PreferenceValueProto.newBuilder().also(init).build()
+inline fun preferenceValueProto(
+    init: PreferenceValueProto.Builder.() -> Unit
+): PreferenceValueProto = PreferenceValueProto.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [PreferenceValueDescriptorProto]. */
 @JvmSynthetic
-inline fun preferenceValueDescriptorProto(init: PreferenceValueDescriptorProto.Builder.() -> Unit) =
-    PreferenceValueDescriptorProto.newBuilder().also(init).build()
+inline fun preferenceValueDescriptorProto(
+    init: PreferenceValueDescriptorProto.Builder.() -> Unit
+): PreferenceValueDescriptorProto = PreferenceValueDescriptorProto.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [RangeValueProto]. */
 @JvmSynthetic
-inline fun rangeValueProto(init: RangeValueProto.Builder.() -> Unit) =
+inline fun rangeValueProto(init: RangeValueProto.Builder.() -> Unit): RangeValueProto =
     RangeValueProto.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [TextProto]. */
 @JvmSynthetic
-inline fun textProto(init: TextProto.Builder.() -> Unit) = TextProto.newBuilder().also(init).build()
+inline fun textProto(init: TextProto.Builder.() -> Unit): TextProto =
+    TextProto.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [IntentProto]. */
 @JvmSynthetic
-inline fun intentProto(init: IntentProto.Builder.() -> Unit) =
+inline fun intentProto(init: IntentProto.Builder.() -> Unit): IntentProto =
     IntentProto.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [BundleProto]. */
 @JvmSynthetic
-inline fun bundleProto(init: BundleProto.Builder.() -> Unit) =
+inline fun bundleProto(init: BundleProto.Builder.() -> Unit): BundleProto =
     BundleProto.newBuilder().also(init).build()
 
 /** Kotlin DSL-style builder for [BundleValue]. */
 @JvmSynthetic
-inline fun bundleValueProto(init: BundleValue.Builder.() -> Unit) =
+inline fun bundleValueProto(init: BundleValue.Builder.() -> Unit): BundleValue =
     BundleValue.newBuilder().also(init).build()

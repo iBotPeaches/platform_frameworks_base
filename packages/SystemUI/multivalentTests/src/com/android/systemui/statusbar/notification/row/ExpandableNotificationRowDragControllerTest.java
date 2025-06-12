@@ -40,9 +40,12 @@ import androidx.test.filters.SmallTest;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.plugins.statusbar.NotificationMenuRowPlugin;
 import com.android.systemui.shade.ShadeController;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
+import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.headsup.PinnedStatus;
 import com.android.systemui.statusbar.notification.logging.NotificationPanelLogger;
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -79,6 +82,7 @@ public class ExpandableNotificationRowDragControllerTest extends SysuiTestCase {
         mRow = spy(mNotificationTestHelper.createRow());
         Notification notification = mRow.getEntry().getSbn().getNotification();
         notification.contentIntent = mock(PendingIntent.class);
+        when(notification.contentIntent.isActivity()).thenReturn(true);
         doReturn(true).when(mRow).startDragAndDrop(any(), any(), any(), anyInt());
         mGroupRow = mNotificationTestHelper.createGroup(4);
         when(mMenuRow.getLongpressMenuItem(any(Context.class))).thenReturn(mMenuItem);
@@ -98,7 +102,13 @@ public class ExpandableNotificationRowDragControllerTest extends SysuiTestCase {
         mRow.doDragCallback(0, 0);
         verify(controller).startDragAndDrop(mRow);
         verify(mHeadsUpManager, times(1)).releaseAllImmediately();
-        verify(mNotificationPanelLogger, times(1)).logNotificationDrag(any());
+        if (NotificationBundleUi.isEnabled()) {
+            verify(mNotificationPanelLogger, times(1))
+                    .logNotificationDrag(any(EntryAdapter.class));
+        } else {
+            verify(mNotificationPanelLogger, times(1))
+                    .logNotificationDrag(any(NotificationEntry.class));
+        }
     }
 
     @Test
@@ -110,7 +120,13 @@ public class ExpandableNotificationRowDragControllerTest extends SysuiTestCase {
         verify(controller).startDragAndDrop(mRow);
         verify(mShadeController).animateCollapseShade(eq(0), eq(true),
                 eq(false), anyFloat());
-        verify(mNotificationPanelLogger, times(1)).logNotificationDrag(any());
+        if (NotificationBundleUi.isEnabled()) {
+            verify(mNotificationPanelLogger, times(1))
+                    .logNotificationDrag(any(EntryAdapter.class));
+        } else {
+            verify(mNotificationPanelLogger, times(1))
+                    .logNotificationDrag(any(NotificationEntry.class));
+        }
     }
 
     @Test
@@ -128,8 +144,13 @@ public class ExpandableNotificationRowDragControllerTest extends SysuiTestCase {
 
         // Verify that we never start the actual drag since there is no content
         verify(mRow, never()).startDragAndDrop(any(), any(), any(), anyInt());
-        verify(mNotificationPanelLogger, never()).logNotificationDrag(any());
-    }
+        if (NotificationBundleUi.isEnabled()) {
+            verify(mNotificationPanelLogger, never())
+                    .logNotificationDrag(any(EntryAdapter.class));
+        } else {
+            verify(mNotificationPanelLogger, never())
+                    .logNotificationDrag(any(NotificationEntry.class));
+        }    }
 
     private ExpandableNotificationRowDragController createSpyController() {
         return spy(mController);

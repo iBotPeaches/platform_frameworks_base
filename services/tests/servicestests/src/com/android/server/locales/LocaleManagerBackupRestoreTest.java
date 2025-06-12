@@ -95,8 +95,8 @@ public class LocaleManagerBackupRestoreTest {
     private static final String TEST_LOCALES_XML_TAG = "locales";
     private static final int DEFAULT_USER_ID = 0;
     private static final int WORK_PROFILE_USER_ID = 10;
-    private static final int DEFAULT_UID = Binder.getCallingUid() + 100;
-    private static final int WORK_PROFILE_UID = Binder.getCallingUid() + 1000100;
+    private static final int DEFAULT_UID = 100;
+    private static final int WORK_PROFILE_UID = 1000100;
     private static final long DEFAULT_CREATION_TIME_MILLIS = 1000;
     private static final Duration RETENTION_PERIOD = Duration.ofDays(3);
     private static final LocaleList DEFAULT_LOCALES =

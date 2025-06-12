@@ -97,16 +97,6 @@ flag {
 }
 
 flag {
-  name: "check_remote_views_uri_permission"
-  namespace: "app_widgets"
-  description: "Check that the widget provider has permissions to access any URIs within its RemoteViews"
-  bug: "369137473"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "engagement_metrics"
   namespace: "app_widgets"
   description: "Enable collection of widget engagement metrics"

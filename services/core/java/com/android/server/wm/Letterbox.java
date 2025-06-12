@@ -22,6 +22,7 @@ import static android.window.TaskConstants.TASK_CHILD_LAYER_LETTERBOX_BACKGROUND
 import static android.window.TaskConstants.TASK_CHILD_LAYER_TASK_OVERLAY;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -53,7 +54,6 @@ public class Letterbox {
 
     private final Supplier<SurfaceControl.Builder> mSurfaceControlFactory;
     private final Supplier<SurfaceControl.Transaction> mTransactionFactory;
-    private final Supplier<SurfaceControl> mParentSurfaceSupplier;
 
     private final Rect mOuter = new Rect();
     private final Rect mInner = new Rect();
@@ -82,13 +82,11 @@ public class Letterbox {
     public Letterbox(Supplier<SurfaceControl.Builder> surfaceControlFactory,
             Supplier<SurfaceControl.Transaction> transactionFactory,
             @NonNull AppCompatReachabilityPolicy appCompatReachabilityPolicy,
-            @NonNull AppCompatLetterboxOverrides appCompatLetterboxOverrides,
-            Supplier<SurfaceControl> parentSurface) {
+            @NonNull AppCompatLetterboxOverrides appCompatLetterboxOverrides) {
         mSurfaceControlFactory = surfaceControlFactory;
         mTransactionFactory = transactionFactory;
         mAppCompatReachabilityPolicy = appCompatReachabilityPolicy;
         mAppCompatLetterboxOverrides = appCompatLetterboxOverrides;
-        mParentSurfaceSupplier = parentSurface;
     }
 
     /**
@@ -174,11 +172,12 @@ public class Letterbox {
     public void destroy() {
         mOuter.setEmpty();
         mInner.setEmpty();
-
+        final SurfaceControl.Transaction tx = mTransactionFactory.get();
         for (LetterboxSurface surface : mSurfaces) {
-            surface.remove();
+            surface.remove(tx);
         }
-        mFullWindowSurface.remove();
+        mFullWindowSurface.remove(tx);
+        tx.apply();
     }
 
     /** Returns whether a call to {@link #applySurfaceChanges} would change the surface. */
@@ -196,29 +195,18 @@ public class Letterbox {
 
     /** Applies surface changes such as colour, window crop, position and input info. */
     public void applySurfaceChanges(@NonNull SurfaceControl.Transaction t,
-            @NonNull SurfaceControl.Transaction inputT) {
+            @NonNull SurfaceControl.Transaction inputT, @NonNull WindowState windowState) {
         if (useFullWindowSurface()) {
+            for (LetterboxSurface surface : mSurfaces) {
+                surface.remove(t);
+            }
+            mFullWindowSurface.attachInput(windowState);
             mFullWindowSurface.applySurfaceChanges(t, inputT);
-
-            for (LetterboxSurface surface : mSurfaces) {
-                surface.remove();
-            }
         } else {
+            mFullWindowSurface.remove(t);
             for (LetterboxSurface surface : mSurfaces) {
+                surface.attachInput(windowState);
                 surface.applySurfaceChanges(t, inputT);
-            }
-
-            mFullWindowSurface.remove();
-        }
-    }
-
-    /** Enables touches to slide into other neighboring surfaces. */
-    void attachInput(WindowState win) {
-        if (useFullWindowSurface()) {
-            mFullWindowSurface.attachInput(win);
-        } else {
-            for (LetterboxSurface surface : mSurfaces) {
-                surface.attachInput(win);
             }
         }
     }
@@ -352,15 +340,15 @@ public class Letterbox {
         private SurfaceControl mInputSurface;
         private Color mColor;
         private boolean mHasWallpaperBackground;
-        private SurfaceControl mParentSurface;
 
         private final Rect mSurfaceFrameRelative = new Rect();
         private final Rect mLayoutFrameGlobal = new Rect();
         private final Rect mLayoutFrameRelative = new Rect();
 
+        @Nullable
         private InputInterceptor mInputInterceptor;
 
-        public LetterboxSurface(String type) {
+        LetterboxSurface(@NonNull String type) {
             mType = type;
         }
 
@@ -394,28 +382,28 @@ public class Letterbox {
             t.setLayer(mInputSurface, TASK_CHILD_LAYER_TASK_OVERLAY);
         }
 
-        void attachInput(WindowState win) {
-            if (mInputInterceptor != null) {
-                mInputInterceptor.dispose();
+        void attachInput(@NonNull WindowState windowState) {
+            if (mInputInterceptor != null || windowState.mDisplayContent == null) {
+                return;
             }
             // TODO(b/371179559): only detect double tap on LB surfaces not used for cutout area.
             // Potentially, the input interceptor may still be needed for slippery feature.
-            mInputInterceptor = new InputInterceptor("Letterbox_" + mType + "_", win);
+            mInputInterceptor = new InputInterceptor("Letterbox_" + mType + "_", windowState);
         }
 
-        public void remove() {
-            if (mSurface != null) {
-                mTransactionFactory.get().remove(mSurface).apply();
-                mSurface = null;
-            }
-            if (mInputSurface != null) {
-                mTransactionFactory.get().remove(mInputSurface).apply();
-                mInputSurface = null;
-            }
+        void remove(@NonNull SurfaceControl.Transaction t) {
             if (mInputInterceptor != null) {
                 mInputInterceptor.dispose();
                 mInputInterceptor = null;
             }
+            if (mSurface != null) {
+                t.remove(mSurface);
+            }
+            if (mInputSurface != null) {
+                t.remove(mInputSurface);
+            }
+            mInputSurface = null;
+            mSurface = null;
         }
 
         public int getWidth() {
@@ -445,9 +433,8 @@ public class Letterbox {
                 }
 
                 mColor = mAppCompatLetterboxOverrides.getLetterboxBackgroundColor();
-                mParentSurface = mParentSurfaceSupplier.get();
                 t.setColor(mSurface, getRgbColorArray());
-                setPositionAndReparent(t, mSurface);
+                setPositionAndCrop(t, mSurface);
 
                 mHasWallpaperBackground = mAppCompatLetterboxOverrides
                         .hasWallpaperBackgroundForLetterbox();
@@ -456,7 +443,7 @@ public class Letterbox {
                 t.show(mSurface);
 
                 if (mInputSurface != null) {
-                    setPositionAndReparent(inputT, mInputSurface);
+                    setPositionAndCrop(inputT, mInputSurface);
                     inputT.setTrustedOverlay(mInputSurface, true);
                     inputT.show(mInputSurface);
                 }
@@ -478,12 +465,11 @@ public class Letterbox {
             }
         }
 
-        private void setPositionAndReparent(@NonNull SurfaceControl.Transaction t,
+        private void setPositionAndCrop(@NonNull SurfaceControl.Transaction t,
                 @NonNull SurfaceControl surface) {
             t.setPosition(surface, mSurfaceFrameRelative.left, mSurfaceFrameRelative.top);
             t.setWindowCrop(surface, mSurfaceFrameRelative.width(),
                     mSurfaceFrameRelative.height());
-            t.reparent(surface, mParentSurface);
         }
 
         private void updateAlphaAndBlur(SurfaceControl.Transaction t) {
@@ -519,14 +505,13 @@ public class Letterbox {
 
         public boolean needsApplySurfaceChanges() {
             return !mSurfaceFrameRelative.equals(mLayoutFrameRelative)
-                    // If mSurfaceFrameRelative is empty then mHasWallpaperBackground, mColor,
-                    // and mParentSurface may never be updated in applySurfaceChanges but this
-                    // doesn't mean that update is needed.
+                    // If mSurfaceFrameRelative is empty, then mHasWallpaperBackground and mColor
+                    // may never be updated in applySurfaceChanges but this doesn't mean that
+                    // update is needed.
                     || !mSurfaceFrameRelative.isEmpty()
                     && (mAppCompatLetterboxOverrides.hasWallpaperBackgroundForLetterbox()
                         != mHasWallpaperBackground
-                    || !mAppCompatLetterboxOverrides.getLetterboxBackgroundColor().equals(mColor)
-                    || mParentSurfaceSupplier.get() != mParentSurface);
+                    || !mAppCompatLetterboxOverrides.getLetterboxBackgroundColor().equals(mColor));
         }
     }
 }

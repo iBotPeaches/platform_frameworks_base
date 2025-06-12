@@ -50,8 +50,11 @@ message CompiledFile {
   // Any symbols this file auto-generates/exports (eg. @+id/foo in an XML file).
   repeated Symbol exported_symbol = 5;
 
-  // The status of the flag the file is behind if any
+  // The status of the read only flag the file is behind if any
   uint32 flag_status = 6;
   bool flag_negated = 7;
   string flag_name = 8;
+
+  // Whether the file uses read/write feature flags
+  bool uses_readwrite_feature_flags = 9;
 }

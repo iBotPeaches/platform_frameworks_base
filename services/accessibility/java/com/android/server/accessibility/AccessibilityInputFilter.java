@@ -27,12 +27,11 @@ import android.annotation.NonNull;
 import android.content.Context;
 import android.graphics.Region;
 import android.hardware.input.InputManager;
-import android.hardware.input.KeyGestureEvent;
-import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.util.Log;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
@@ -46,16 +45,14 @@ import android.view.MotionEvent.PointerCoords;
 import android.view.MotionEvent.PointerProperties;
 import android.view.accessibility.AccessibilityEvent;
 
-import androidx.annotation.Nullable;
-
 import com.android.server.LocalServices;
+import com.android.server.accessibility.autoclick.AutoclickController;
 import com.android.server.accessibility.gestures.TouchExplorer;
 import com.android.server.accessibility.magnification.FullScreenMagnificationController;
 import com.android.server.accessibility.magnification.FullScreenMagnificationGestureHandler;
 import com.android.server.accessibility.magnification.FullScreenMagnificationVibrationHelper;
-import com.android.server.accessibility.magnification.MagnificationController;
 import com.android.server.accessibility.magnification.MagnificationGestureHandler;
-import com.android.server.accessibility.magnification.MouseEventHandler;
+import com.android.server.accessibility.magnification.MagnificationKeyHandler;
 import com.android.server.accessibility.magnification.WindowMagnificationGestureHandler;
 import com.android.server.accessibility.magnification.WindowMagnificationPromptController;
 import com.android.server.policy.WindowManagerPolicy;
@@ -74,9 +71,9 @@ import java.util.StringJoiner;
  */
 class AccessibilityInputFilter extends InputFilter implements EventStreamTransformation {
 
-    private static final String TAG = AccessibilityInputFilter.class.getSimpleName();
+    private static final String TAG = "A11yInputFilter";
 
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     /**
      * Flag for enabling the screen magnification feature.
@@ -136,7 +133,7 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
      */
     static final int FLAG_SERVICE_HANDLES_DOUBLE_TAP = 0x00000080;
 
-/**
+    /**
      * Flag for enabling multi-finger gestures.
      *
      * @see #setUserAndEnabledFeatures(int, int)
@@ -192,8 +189,6 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
 
     private final AccessibilityManagerService mAms;
 
-    private final InputManager mInputManager;
-
     private final SparseArray<EventStreamTransformation> mEventHandler;
 
     private final SparseArray<TouchExplorer> mTouchExplorer = new SparseArray<>(0);
@@ -208,6 +203,8 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
     private KeyboardInterceptor mKeyboardInterceptor;
 
     private MouseKeysInterceptor mMouseKeysInterceptor;
+
+    private MagnificationKeyHandler mMagnificationKeyHandler;
 
     private boolean mInstalled;
 
@@ -234,47 +231,6 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
      * if a new device becomes active.
      */
     private MotionEvent mLastActiveDeviceMotionEvent = null;
-
-    private boolean mKeyGestureEventHandlerInstalled = false;
-    private InputManager.KeyGestureEventHandler mKeyGestureEventHandler =
-            new InputManager.KeyGestureEventHandler() {
-                @Override
-                public boolean handleKeyGestureEvent(
-                        @NonNull KeyGestureEvent event,
-                        @Nullable IBinder focusedToken) {
-                    final boolean complete =
-                            event.getAction() == KeyGestureEvent.ACTION_GESTURE_COMPLETE
-                                    && !event.isCancelled();
-                    final int gestureType = event.getKeyGestureType();
-                    final int displayId = isDisplayIdValid(event.getDisplayId())
-                            ? event.getDisplayId() : Display.DEFAULT_DISPLAY;
-
-                    switch (gestureType) {
-                        case KeyGestureEvent.KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN:
-                            if (complete) {
-                                mAms.getMagnificationController().scaleMagnificationByStep(
-                                        displayId, MagnificationController.ZOOM_DIRECTION_IN);
-                            }
-                            return true;
-                        case KeyGestureEvent.KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT:
-                            if (complete) {
-                                mAms.getMagnificationController().scaleMagnificationByStep(
-                                        displayId, MagnificationController.ZOOM_DIRECTION_OUT);
-                            }
-                            return true;
-                    }
-                    return false;
-                }
-
-                @Override
-                public boolean isKeyGestureSupported(int gestureType) {
-                    return switch (gestureType) {
-                        case KeyGestureEvent.KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_IN,
-                             KeyGestureEvent.KEY_GESTURE_TYPE_MAGNIFIER_ZOOM_OUT -> true;
-                        default -> false;
-                    };
-                }
-            };
 
     private static MotionEvent cancelMotion(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_CANCEL
@@ -335,7 +291,6 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
         mContext = context;
         mAms = service;
         mPm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        mInputManager = context.getSystemService(InputManager.class);
         mEventHandler = eventHandler;
     }
 
@@ -760,20 +715,11 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
                     });
         }
 
-        if ((mEnabledFeatures & FLAG_FEATURE_CONTROL_SCREEN_MAGNIFIER) != 0
-                || ((mEnabledFeatures & FLAG_FEATURE_MAGNIFICATION_SINGLE_FINGER_TRIPLE_TAP) != 0)
-                || ((mEnabledFeatures & FLAG_FEATURE_MAGNIFICATION_TWO_FINGER_TRIPLE_TAP) != 0)
-                || ((mEnabledFeatures & FLAG_FEATURE_TRIGGERED_SCREEN_MAGNIFIER) != 0)) {
+        if (isAnyMagnificationEnabled()) {
             final MagnificationGestureHandler magnificationGestureHandler =
                     createMagnificationGestureHandler(displayId, displayContext);
             addFirstEventHandler(displayId, magnificationGestureHandler);
             mMagnificationGestureHandler.put(displayId, magnificationGestureHandler);
-
-            if (com.android.hardware.input.Flags.enableTalkbackAndMagnifierKeyGestures()
-                    && !mKeyGestureEventHandlerInstalled) {
-                mInputManager.registerKeyGestureEventHandler(mKeyGestureEventHandler);
-                mKeyGestureEventHandlerInstalled = true;
-            }
         }
 
         if ((mEnabledFeatures & FLAG_FEATURE_INJECT_MOTION_EVENTS) != 0) {
@@ -790,6 +736,8 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
         }
 
         if ((mEnabledFeatures & FLAG_FEATURE_FILTER_KEY_EVENTS) != 0) {
+            // mKeyboardInterceptor does not forward KeyEvents to other EventStreamTransformations,
+            // so it must be the last EventStreamTransformation for key events in the list.
             mKeyboardInterceptor = new KeyboardInterceptor(mAms,
                     LocalServices.getService(WindowManagerPolicy.class));
             // Since the display id of KeyEvent always would be -1 and it would be dispatched to
@@ -805,6 +753,19 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
                     Display.DEFAULT_DISPLAY);
             addFirstEventHandler(Display.DEFAULT_DISPLAY, mMouseKeysInterceptor);
         }
+
+        if (Flags.enableMagnificationKeyboardControl() && isAnyMagnificationEnabled()) {
+            mMagnificationKeyHandler = new MagnificationKeyHandler(
+                    mAms.getMagnificationController());
+            addFirstEventHandler(Display.DEFAULT_DISPLAY, mMagnificationKeyHandler);
+        }
+    }
+
+    private boolean isAnyMagnificationEnabled() {
+        return (mEnabledFeatures & FLAG_FEATURE_CONTROL_SCREEN_MAGNIFIER) != 0
+                || ((mEnabledFeatures & FLAG_FEATURE_MAGNIFICATION_SINGLE_FINGER_TRIPLE_TAP) != 0)
+                || ((mEnabledFeatures & FLAG_FEATURE_MAGNIFICATION_TWO_FINGER_TRIPLE_TAP) != 0)
+                || ((mEnabledFeatures & FLAG_FEATURE_TRIGGERED_SCREEN_MAGNIFIER) != 0);
     }
 
     /**
@@ -894,9 +855,9 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
             mMouseKeysInterceptor = null;
         }
 
-        if (mKeyGestureEventHandlerInstalled) {
-            mInputManager.unregisterKeyGestureEventHandler(mKeyGestureEventHandler);
-            mKeyGestureEventHandlerInstalled = false;
+        if (mMagnificationKeyHandler != null) {
+            mMagnificationKeyHandler.onDestroy();
+            mMagnificationKeyHandler = null;
         }
     }
 
@@ -937,8 +898,7 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
                             triggerable,
                             new WindowMagnificationPromptController(displayContext, mUserId),
                             displayId,
-                            fullScreenMagnificationVibrationHelper,
-                            new MouseEventHandler(controller));
+                            fullScreenMagnificationVibrationHelper);
         }
         return magnificationGestureHandler;
     }
@@ -1338,6 +1298,8 @@ class AccessibilityInputFilter extends InputFilter implements EventStreamTransfo
                         joiner.add("AutoclickController");
                     } else if (next instanceof MotionEventInjector) {
                         joiner.add("MotionEventInjector");
+                    } else if (next instanceof MagnificationKeyHandler) {
+                        joiner.add("MagnificationKeyHandler");
                     }
                     next = next.getNext();
                 }

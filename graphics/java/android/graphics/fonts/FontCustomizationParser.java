@@ -43,6 +43,7 @@ import java.util.Map;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class FontCustomizationParser {
     private static final String TAG = "FontCustomizationParser";
 

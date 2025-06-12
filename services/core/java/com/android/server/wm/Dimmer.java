@@ -211,14 +211,22 @@ class Dimmer {
      * child should call setAppearance again to request the Dim to continue.
      * If multiple containers call this method, only the changes relative to the topmost will be
      * applied.
+     * The creation of the dim layer is delayed if the requested dim and blur are 0.
      * @param dimmingContainer  Container requesting the dim
      * @param alpha      Dim amount
      * @param blurRadius Blur amount
      */
     protected void adjustAppearance(@NonNull WindowState dimmingContainer,
                                     float alpha, int blurRadius) {
-        final DimState d = obtainDimState(dimmingContainer);
-        d.prepareLookChange(alpha, blurRadius);
+        if (!mHost.isVisibleRequested()) {
+            // If the host is already going away, there is no point in keeping dimming
+            return;
+        }
+
+        if (mDimState != null || (alpha != 0 || blurRadius != 0)) {
+            final DimState d = obtainDimState(dimmingContainer);
+            d.prepareLookChange(alpha, blurRadius);
+        }
     }
 
     /**

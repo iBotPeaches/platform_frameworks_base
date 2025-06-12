@@ -26,16 +26,16 @@ import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.animation.Expandable
 import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
 import com.android.systemui.keyguard.domain.interactor.keyguardInteractor
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.mediaprojection.MediaProjectionMetricsLogger
 import com.android.systemui.plugins.ActivityStarter.OnDismissAction
 import com.android.systemui.qs.pipeline.domain.interactor.PanelInteractor
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.screenrecord.RecordingController
 import com.android.systemui.screenrecord.data.model.ScreenRecordModel
 import com.android.systemui.screenrecord.data.repository.ScreenRecordRepositoryImpl
 import com.android.systemui.statusbar.phone.KeyguardDismissUtil
+import com.android.systemui.testKosmos
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,7 +49,7 @@ import org.mockito.kotlin.mock
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class ScreenRecordTileUserActionInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val keyguardInteractor = kosmos.keyguardInteractor
     private val dialogTransitionAnimator = mock<DialogTransitionAnimator>()

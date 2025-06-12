@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.policy
 
 import android.app.ActivityOptions
+import android.app.Flags.notificationsRedesignTemplates
 import android.app.Notification
 import android.app.Notification.Action.SEMANTIC_ACTION_MARK_CONVERSATION_AS_PRIORITY
 import android.app.PendingIntent
@@ -33,6 +34,10 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.text.Annotation
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
@@ -41,6 +46,7 @@ import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import android.widget.Button
+import com.android.systemui.Flags
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.res.R
 import com.android.systemui.shared.system.ActivityManagerWrapper
@@ -394,9 +400,22 @@ constructor(
         action: Notification.Action,
         delayOnClickListener: Boolean,
         packageContext: Context,
-    ): Button =
-        (LayoutInflater.from(parent.context).inflate(R.layout.smart_action_button, parent, false)
-                as Button)
+    ): Button {
+        val isAnimatedAction =
+            Flags.notificationAnimatedActionsTreatment() &&
+                smartActions.fromAssistant &&
+                action.extras.getBoolean(Notification.Action.EXTRA_IS_ANIMATED, false)
+        val layoutRes =
+            if (isAnimatedAction) {
+                R.layout.animated_action_button
+            } else {
+                if (notificationsRedesignTemplates()) {
+                    R.layout.notification_2025_smart_action_button
+                } else {
+                    R.layout.smart_action_button
+                }
+            }
+        return (LayoutInflater.from(parent.context).inflate(layoutRes, parent, false) as Button)
             .apply {
                 text = action.title
 
@@ -425,6 +444,7 @@ constructor(
                 // Mark this as an Action button
                 (layoutParams as SmartReplyView.LayoutParams).mButtonType = SmartButtonType.ACTION
             }
+    }
 
     private fun onSmartActionClick(
         entry: NotificationEntry,
@@ -487,14 +507,41 @@ constructor(
         replyIndex: Int,
         choice: CharSequence,
         delayOnClickListener: Boolean,
-    ): Button =
-        (LayoutInflater.from(parent.context).inflate(R.layout.smart_reply_button, parent, false)
-                as Button)
+    ): Button {
+        val enableAnimatedReply = Flags.notificationAnimatedActionsTreatment() &&
+                smartReplies.fromAssistant && isAnimatedReply(choice)
+        val layoutRes = if (enableAnimatedReply) {
+            R.layout.animated_action_button
+        } else {
+            if (notificationsRedesignTemplates()) R.layout.notification_2025_smart_reply_button
+            else R.layout.smart_reply_button
+        }
+
+        return (LayoutInflater.from(parent.context).inflate(layoutRes, parent, false) as Button)
             .apply {
-                text = choice
+                // choiceToDeliver does not contain Annotation with extra data
+                val choiceToDeliver: CharSequence
+                if (enableAnimatedReply) {
+                    choiceToDeliver = choice.toString()
+                    // If the choice is animated reply, format the text by concatenating
+                    // attributionText with different color to choice text
+                    val fullTextWithAttribution = formatChoiceWithAttribution(choice)
+                    text = fullTextWithAttribution
+                } else {
+                    choiceToDeliver = choice
+                    text = choice
+                }
+
                 val onClickListener =
                     View.OnClickListener {
-                        onSmartReplyClick(entry, smartReplies, replyIndex, parent, this, choice)
+                        onSmartReplyClick(
+                            entry,
+                            smartReplies,
+                            replyIndex,
+                            parent,
+                            this,
+                            choiceToDeliver
+                        )
                     }
                 setOnClickListener(
                     if (delayOnClickListener)
@@ -519,6 +566,7 @@ constructor(
                 // Mark this as a Reply button
                 (layoutParams as SmartReplyView.LayoutParams).mButtonType = SmartButtonType.REPLY
             }
+    }
 
     private fun onSmartReplyClick(
         entry: NotificationEntry,
@@ -580,6 +628,47 @@ constructor(
         RemoteInput.addResultsToIntent(arrayOf(smartReplies.remoteInput), intent, results)
         RemoteInput.setResultsSource(intent, RemoteInput.SOURCE_CHOICE)
         return intent
+    }
+
+    // Check if the choice is animated reply
+    private fun isAnimatedReply(choice: CharSequence): Boolean {
+        if (choice is Spanned) {
+            val annotations = choice.getSpans(0, choice.length, Annotation::class.java)
+            for (annotation in annotations) {
+                if (annotation.key == "isAnimatedReply" && annotation.value == "1") {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    // Format the text by concatenating attributionText with attribution text color to choice text
+    private fun formatChoiceWithAttribution(choice: CharSequence): CharSequence {
+        val colorInt = context.getColor(R.color.animated_action_button_attribution_color)
+        if (choice is Spanned) {
+            val annotations = choice.getSpans(0, choice.length, Annotation::class.java)
+            for (annotation in annotations) {
+                if (annotation.key == "attributionText") {
+                    // Extract the attribution text
+                    val extraText = annotation.value
+                    // Concatenate choice text and attribution text
+                    val spannableWithColor = SpannableStringBuilder(choice)
+                    spannableWithColor.append(" $extraText")
+                    // Apply color to attribution text
+                    spannableWithColor.setSpan(
+                        ForegroundColorSpan(colorInt),
+                        choice.length,
+                        spannableWithColor.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    return spannableWithColor
+                }
+            }
+        }
+
+        // Return the original if no attributionText found
+        return choice.toString()
     }
 }
 

@@ -20,6 +20,9 @@ import android.animation.ValueAnimator
 import android.util.Log
 import com.android.app.animation.Interpolators
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor
+import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
+import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
@@ -36,6 +39,7 @@ import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 
 @SysUISingleton
@@ -53,6 +57,8 @@ constructor(
     keyguardOcclusionInteractor: KeyguardOcclusionInteractor,
     val deviceEntryRepository: DeviceEntryRepository,
     private val wakeToGoneInteractor: KeyguardWakeDirectlyToGoneInteractor,
+    private val communalSettingsInteractor: CommunalSettingsInteractor,
+    private val communalSceneInteractor: CommunalSceneInteractor,
 ) :
     TransitionInteractor(
         fromState = KeyguardState.AOD,
@@ -80,27 +86,29 @@ constructor(
     /**
      * Listen for the signal that we're waking up and figure what state we need to transition to.
      */
+    @OptIn(FlowPreview::class)
     private fun listenForAodToAwake() {
         // Use PowerInteractor's wakefulness, which is the earliest wake signal available. We
         // have all of the information we need at this time to make a decision about where to
         // transition.
         scope.launch("$TAG#listenForAodToAwake") {
             powerInteractor.detailedWakefulness
-                .filterRelevantKeyguardStateAnd { wakefulness -> wakefulness.isAwake() }
                 .debounce(50L)
+                .filterRelevantKeyguardStateAnd { wakefulness -> wakefulness.isAwake() }
                 .sample(
                     transitionInteractor.startedKeyguardTransitionStep,
                     wakeToGoneInteractor.canWakeDirectlyToGone,
                 )
                 .collect {
                     (
-                        _,
+                        detailedWakefulness,
                         startedStep,
                         canWakeDirectlyToGone,
                     ) ->
                     val isKeyguardOccludedLegacy = keyguardInteractor.isKeyguardOccluded.value
                     val biometricUnlockMode = keyguardInteractor.biometricUnlockState.value.mode
                     val primaryBouncerShowing = keyguardInteractor.primaryBouncerShowing.value
+                    val autoOpenCommunal = communalSettingsInteractor.autoOpenEnabled.value
 
                     if (!maybeHandleInsecurePowerGesture()) {
                         val shouldTransitionToLockscreen =
@@ -127,11 +135,26 @@ constructor(
                             (!KeyguardWmStateRefactor.isEnabled && canDismissLockscreen()) ||
                                 (KeyguardWmStateRefactor.isEnabled && canWakeDirectlyToGone)
 
+                        // Avoid transitioning to communal automatically if the device is waking
+                        // up due to motion.
+                        val shouldTransitionToCommunal =
+                            communalSettingsInteractor.isV2FlagEnabled() &&
+                                autoOpenCommunal &&
+                                !detailedWakefulness.isAwakeFromMotionOrLift() &&
+                                !isKeyguardOccludedLegacy
+
                         if (shouldTransitionToGone) {
                             // TODO(b/360368320): Adapt for scene framework
                             if (SceneContainerFlag.isEnabled) return@collect
                             startTransitionTo(
                                 toState = KeyguardState.GONE,
+                                modeOnCanceled = TransitionModeOnCanceled.REVERSE,
+                                ownerReason = "canWakeDirectlyToGone = true",
+                            )
+                        } else if (shouldTransitionToCommunal) {
+                            communalSceneInteractor.changeScene(
+                                CommunalScenes.Communal,
+                                "listen for aod to communal",
                             )
                         } else if (shouldTransitionToLockscreen) {
                             val modeOnCanceled =
@@ -146,7 +169,7 @@ constructor(
                             startTransitionTo(
                                 toState = KeyguardState.LOCKSCREEN,
                                 modeOnCanceled = modeOnCanceled,
-                                ownerReason = "listen for aod to awake"
+                                ownerReason = "listen for aod to awake",
                             )
                         } else if (shouldTransitionToOccluded) {
                             startTransitionTo(
@@ -189,7 +212,10 @@ constructor(
         if (SceneContainerFlag.isEnabled) return
         scope.launch("$TAG#listenForAodToPrimaryBouncer") {
             keyguardInteractor.primaryBouncerShowing
-                .filterRelevantKeyguardStateAnd { primaryBouncerShowing -> primaryBouncerShowing }
+                .filterRelevantKeyguardStateAnd { primaryBouncerShowing ->
+                    !isWakeAndUnlock(keyguardInteractor.biometricUnlockState.value.mode) &&
+                        primaryBouncerShowing
+                }
                 .collect { startTransitionTo(KeyguardState.PRIMARY_BOUNCER) }
         }
     }

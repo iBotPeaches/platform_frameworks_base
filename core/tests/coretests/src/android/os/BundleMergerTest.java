@@ -18,6 +18,7 @@ package android.os;
 
 import static android.os.BundleMerger.STRATEGY_ARRAY_APPEND;
 import static android.os.BundleMerger.STRATEGY_ARRAY_LIST_APPEND;
+import static android.os.BundleMerger.STRATEGY_ARRAY_UNION;
 import static android.os.BundleMerger.STRATEGY_BOOLEAN_AND;
 import static android.os.BundleMerger.STRATEGY_BOOLEAN_OR;
 import static android.os.BundleMerger.STRATEGY_COMPARABLE_MAX;
@@ -28,6 +29,7 @@ import static android.os.BundleMerger.STRATEGY_NUMBER_ADD;
 import static android.os.BundleMerger.STRATEGY_NUMBER_INCREMENT_FIRST;
 import static android.os.BundleMerger.STRATEGY_NUMBER_INCREMENT_FIRST_AND_ADD;
 import static android.os.BundleMerger.STRATEGY_REJECT;
+import static android.os.BundleMerger.STRATEGY_STRING_APPEND;
 import static android.os.BundleMerger.merge;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -204,6 +206,33 @@ public class BundleMergerTest {
     }
 
     @Test
+    public void testStrategyArrayUnion() throws Exception {
+        assertArrayEquals(new int[] {},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {}, new int[] {}));
+        assertArrayEquals(new int[] {10},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {10}, new int[] {}));
+        assertArrayEquals(new int[] {20},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {}, new int[] {20}));
+        assertArrayEquals(new int[] {10, 20},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {10}, new int[] {20}));
+        assertArrayEquals(new int[] {10, 20, 30, 40},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {10, 30}, new int[] {20, 40}));
+        assertArrayEquals(new int[] {10, 20, 30},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {10, 30}, new int[] {10, 20}));
+        assertArrayEquals(new int[] {10, 20},
+                (int[]) merge(STRATEGY_ARRAY_UNION, new int[] {10, 20}, new int[] {20}));
+        assertArrayEquals(new String[] {"a", "b"},
+                (String[]) merge(STRATEGY_ARRAY_UNION, new String[] {"a"}, new String[] {"b"}));
+        assertArrayEquals(new String[] {"a", "b", "c"},
+                (String[]) merge(STRATEGY_ARRAY_UNION, new String[] {"a", "b"},
+                        new String[] {"b", "c"}));
+
+        assertThrows(Exception.class, () -> {
+            merge(STRATEGY_ARRAY_UNION, 10, 20);
+        });
+    }
+
+    @Test
     public void testStrategyArrayListAppend() throws Exception {
         assertEquals(arrayListOf(),
                 merge(STRATEGY_ARRAY_LIST_APPEND, arrayListOf(), arrayListOf()));
@@ -220,6 +249,18 @@ public class BundleMergerTest {
 
         assertThrows(Exception.class, () -> {
             merge(STRATEGY_ARRAY_LIST_APPEND, 10, 20);
+        });
+    }
+
+    @Test
+    public void testStrategyStringAppend() throws Exception {
+        assertEquals("ab", merge(STRATEGY_STRING_APPEND, "a", "b"));
+        assertEquals("abc", merge(STRATEGY_STRING_APPEND, "a", "bc"));
+        assertEquals("abc", merge(STRATEGY_STRING_APPEND, "ab", "c"));
+        assertEquals("a,b,c,", merge(STRATEGY_STRING_APPEND, "a,", "b,c,"));
+
+        assertThrows(Exception.class, () -> {
+            merge(STRATEGY_STRING_APPEND, 10, 20);
         });
     }
 

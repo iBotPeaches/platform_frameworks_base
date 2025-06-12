@@ -17,6 +17,7 @@
 package com.android.settingslib.preference
 
 import android.content.Context
+import androidx.annotation.CallSuper
 import androidx.preference.DialogPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -24,10 +25,16 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SeekBarPreference
 import com.android.settingslib.metadata.DiscreteIntValue
 import com.android.settingslib.metadata.DiscreteValue
+import com.android.settingslib.metadata.EXTRA_BINDING_SCREEN_ARGS
+import com.android.settingslib.metadata.EXTRA_BINDING_SCREEN_KEY
+import com.android.settingslib.metadata.IntRangeValuePreference
 import com.android.settingslib.metadata.PreferenceAvailabilityProvider
 import com.android.settingslib.metadata.PreferenceMetadata
 import com.android.settingslib.metadata.PreferenceScreenMetadata
-import com.android.settingslib.metadata.RangeValue
+import com.android.settingslib.metadata.getPreferenceIcon
+import com.android.settingslib.metadata.getPreferenceScreenTitle
+import com.android.settingslib.metadata.getPreferenceSummary
+import com.android.settingslib.metadata.getPreferenceTitle
 
 /** Binding of preference widget and preference metadata. */
 interface PreferenceBinding {
@@ -59,6 +66,7 @@ interface PreferenceBinding {
      * @param preference preference widget created by [createWidget]
      * @param metadata metadata to apply
      */
+    @CallSuper
     fun bind(preference: Preference, metadata: PreferenceMetadata) {
         metadata.apply {
             preference.key = key
@@ -70,9 +78,22 @@ interface PreferenceBinding {
                 preference.icon = null
             }
             val isPreferenceScreen = preference is PreferenceScreen
+            val screenMetadata = this as? PreferenceScreenMetadata
+            // extras
             preference.peekExtras()?.clear()
             extras(context)?.let { preference.extras.putAll(it) }
-            preference.title = getPreferenceTitle(context)
+            if (!isPreferenceScreen && screenMetadata != null) {
+                val extras = preference.extras
+                // Pass the preference key to fragment, so that the fragment could find associated
+                // preference screen registered in PreferenceScreenRegistry
+                extras.putString(EXTRA_BINDING_SCREEN_KEY, preference.key)
+                screenMetadata.arguments?.let { extras.putBundle(EXTRA_BINDING_SCREEN_ARGS, it) }
+            }
+            preference.title =
+                when {
+                    isPreferenceScreen -> screenMetadata?.getPreferenceScreenTitle(context)
+                    else -> getPreferenceTitle(context)
+                }
             if (!isPreferenceScreen) {
                 preference.summary = getPreferenceSummary(context)
             }
@@ -80,12 +101,12 @@ interface PreferenceBinding {
             preference.isVisible =
                 (this as? PreferenceAvailabilityProvider)?.isAvailable(context) != false
             preference.isPersistent = isPersistent(context)
-            // PreferenceRegistry will notify dependency change, so we do not need to set
+            // PreferenceScreenBindingHelper will notify dependency change, so we do not need to set
             // dependency here. This simplifies dependency management and avoid the
             // IllegalStateException when call Preference.setDependency
             preference.dependency = null
             if (!isPreferenceScreen) { // avoid recursive loop when build graph
-                preference.fragment = (this as? PreferenceScreenCreator)?.fragmentClass()?.name
+                preference.fragment = screenMetadata?.fragmentClass()?.name
                 preference.intent = intent(context)
             }
             if (preference is DialogPreference) {
@@ -99,7 +120,7 @@ interface PreferenceBinding {
                 } else {
                     preference.setEntryValues(values)
                 }
-            } else if (preference is SeekBarPreference && this is RangeValue) {
+            } else if (preference is SeekBarPreference && this is IntRangeValuePreference) {
                 preference.min = getMinValue(context)
                 preference.max = getMaxValue(context)
                 preference.seekBarIncrement = getIncrementStep(context)

@@ -55,10 +55,15 @@ class FakeMobileIconsInteractor(
 
     override val filteredSubscriptions = MutableStateFlow<List<SubscriptionModel>>(listOf())
 
+    override val defaultDataSubId: MutableStateFlow<Int?> = MutableStateFlow(DEFAULT_DATA_SUB_ID)
+
+    override val activeMobileDataSubscriptionId: MutableStateFlow<Int?> = MutableStateFlow(null)
+
     private val _activeDataConnectionHasDataEnabled = MutableStateFlow(false)
     override val activeDataConnectionHasDataEnabled = _activeDataConnectionHasDataEnabled
 
-    override val activeDataIconInteractor = MutableStateFlow(null)
+    override val activeDataIconInteractor: MutableStateFlow<MobileIconInteractor?> =
+        MutableStateFlow(null)
 
     override val alwaysShowDataRatIcon = MutableStateFlow(false)
 
@@ -69,6 +74,8 @@ class FakeMobileIconsInteractor(
     override val isSingleCarrier = MutableStateFlow(true)
 
     override val icons: MutableStateFlow<List<MobileIconInteractor>> = MutableStateFlow(emptyList())
+
+    override val isStackable: MutableStateFlow<Boolean> = MutableStateFlow(false)
 
     private val _defaultMobileIconMapping = MutableStateFlow(TEST_MAPPING)
     override val defaultMobileIconMapping = _defaultMobileIconMapping
@@ -83,13 +90,14 @@ class FakeMobileIconsInteractor(
 
     override val isDeviceInEmergencyCallsOnlyMode = MutableStateFlow(false)
 
-    /** Always returns a new fake interactor */
     override fun getMobileConnectionInteractorForSubId(subId: Int): FakeMobileIconInteractor {
-        return FakeMobileIconInteractor(tableLogBuffer).also {
-            interactorCache[subId] = it
-            // Also update the icons
-            icons.value = interactorCache.values.toList()
-        }
+        return interactorCache
+            .getOrElse(subId) { FakeMobileIconInteractor(tableLogBuffer) }
+            .also {
+                interactorCache[subId] = it
+                // Also update the icons
+                icons.value = interactorCache.values.toList()
+            }
     }
 
     /**

@@ -35,6 +35,7 @@ import androidx.test.filters.SmallTest;
 import com.android.internal.statusbar.StatusBarIcon;
 import com.android.systemui.demomode.DemoModeController;
 import com.android.systemui.dump.DumpManager;
+import com.android.systemui.kairos.KairosNetwork;
 import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.StatusBarIconView;
@@ -45,11 +46,14 @@ import com.android.systemui.statusbar.phone.StatusBarLocation;
 import com.android.systemui.statusbar.pipeline.StatusBarPipelineFlags;
 import com.android.systemui.statusbar.pipeline.icons.shared.BindableIconsRegistry;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter;
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel;
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.tuner.TunerService;
 import com.android.systemui.utils.leaks.LeakCheckedTest;
+
+import kotlinx.coroutines.CoroutineScope;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -76,7 +80,9 @@ public class StatusBarIconControllerTest extends LeakCheckedTest {
     public void testSetCalledOnAdd_IconManager() {
         LinearLayout layout = new LinearLayout(mContext);
         TestIconManager manager =
-                new TestIconManager(layout, mMobileUiAdapter, mMobileContextProvider);
+                new TestIconManager(layout, mMobileUiAdapter, mMobileContextProvider,
+                        mock(MobileUiAdapterKairos.class), mock(
+                        KairosNetwork.class), mock(CoroutineScope.class));
         testCallOnAdd_forManager(manager);
     }
 
@@ -89,7 +95,9 @@ public class StatusBarIconControllerTest extends LeakCheckedTest {
                 mock(WifiUiAdapter.class),
                 mMobileUiAdapter,
                 mMobileContextProvider,
-                mock(DarkIconDispatcher.class));
+                mock(DarkIconDispatcher.class),
+                mock(MobileUiAdapterKairos.class), mock(KairosNetwork.class),
+                mock(CoroutineScope.class));
         testCallOnAdd_forManager(manager);
     }
 
@@ -139,12 +147,18 @@ public class StatusBarIconControllerTest extends LeakCheckedTest {
                 WifiUiAdapter wifiUiAdapter,
                 MobileUiAdapter mobileUiAdapter,
                 MobileContextProvider contextProvider,
-                DarkIconDispatcher darkIconDispatcher) {
+                DarkIconDispatcher darkIconDispatcher,
+                MobileUiAdapterKairos mobileUiAdapterKairos,
+                KairosNetwork kairosNetwork,
+                CoroutineScope appScope) {
             super(group,
                     location,
                     wifiUiAdapter,
                     mobileUiAdapter,
+                    () -> mobileUiAdapterKairos,
                     contextProvider,
+                    kairosNetwork,
+                    appScope,
                     darkIconDispatcher);
         }
 
@@ -167,13 +181,19 @@ public class StatusBarIconControllerTest extends LeakCheckedTest {
         TestIconManager(
                 ViewGroup group,
                 MobileUiAdapter adapter,
-                MobileContextProvider contextProvider
+                MobileContextProvider contextProvider,
+                MobileUiAdapterKairos adapterKairos,
+                KairosNetwork kairosNetwork,
+                CoroutineScope appScope
         ) {
             super(group,
                     StatusBarLocation.HOME,
                     mock(WifiUiAdapter.class),
                     adapter,
-                    contextProvider);
+                    () -> adapterKairos,
+                    contextProvider,
+                    kairosNetwork,
+                    appScope);
         }
 
         @Override

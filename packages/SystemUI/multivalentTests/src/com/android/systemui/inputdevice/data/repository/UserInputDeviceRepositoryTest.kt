@@ -23,9 +23,9 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectValues
 import com.android.systemui.inputdevice.data.model.UserDeviceConnectionStatus
 import com.android.systemui.keyboard.data.repository.keyboardRepository
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.android.systemui.touchpad.data.repository.touchpadRepository
 import com.android.systemui.user.data.repository.fakeUserRepository
 import com.android.systemui.user.data.repository.userRepository
@@ -38,11 +38,10 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UserInputDeviceRepositoryTest : SysuiTestCase() {
 
     private lateinit var underTest: UserInputDeviceRepository
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val keyboardRepository = kosmos.keyboardRepository
     private val touchpadRepository = kosmos.touchpadRepository
@@ -55,7 +54,7 @@ class UserInputDeviceRepositoryTest : SysuiTestCase() {
                 kosmos.testDispatcher,
                 keyboardRepository,
                 touchpadRepository,
-                kosmos.userRepository
+                kosmos.userRepository,
             )
         userRepository.setUserInfos(USER_INFOS)
     }
@@ -73,7 +72,7 @@ class UserInputDeviceRepositoryTest : SysuiTestCase() {
             assertThat(isAnyKeyboardConnected)
                 .containsExactly(
                     UserDeviceConnectionStatus(isConnected = true, USER_INFOS[0].id),
-                    UserDeviceConnectionStatus(isConnected = true, USER_INFOS[1].id)
+                    UserDeviceConnectionStatus(isConnected = true, USER_INFOS[1].id),
                 )
                 .inOrder()
         }
@@ -91,16 +90,13 @@ class UserInputDeviceRepositoryTest : SysuiTestCase() {
             assertThat(isAnyTouchpadConnected)
                 .containsExactly(
                     UserDeviceConnectionStatus(isConnected = true, USER_INFOS[0].id),
-                    UserDeviceConnectionStatus(isConnected = true, USER_INFOS[1].id)
+                    UserDeviceConnectionStatus(isConnected = true, USER_INFOS[1].id),
                 )
                 .inOrder()
         }
 
     companion object {
         private val USER_INFOS =
-            listOf(
-                UserInfo(100, "First User", 0),
-                UserInfo(101, "Second User", 0),
-            )
+            listOf(UserInfo(100, "First User", 0), UserInfo(101, "Second User", 0))
     }
 }

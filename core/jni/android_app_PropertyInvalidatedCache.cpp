@@ -35,7 +35,7 @@ int NonceStore::getMaxNonce() const {
     return kMaxNonce;
 }
 
-size_t NonceStore::getMaxByte() const {
+int32_t NonceStore::getMaxByte() const {
     return kMaxByte;
 }
 
@@ -68,13 +68,13 @@ int32_t NonceStore::getHash() const {
 }
 
 // Copy the byte block to the target and return the current hash.
-int32_t NonceStore::getByteBlock(block_t* block, size_t len) const {
+int32_t NonceStore::getByteBlock(block_t* block, int32_t len) const {
     memcpy(block, (void*) byteBlock(), std::min(kMaxByte, len));
     return mByteHash;
 }
 
 // Set the byte block and the hash.
-void NonceStore::setByteBlock(int hash, const block_t* block, size_t len) {
+void NonceStore::setByteBlock(int hash, const block_t* block, int32_t len) {
     memcpy((void*) byteBlock(), block, len = std::min(kMaxByte, len));
     mByteHash = hash;
 }

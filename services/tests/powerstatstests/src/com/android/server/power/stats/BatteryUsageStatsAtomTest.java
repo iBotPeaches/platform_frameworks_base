@@ -458,9 +458,9 @@ public class BatteryUsageStatsAtomTest {
                         /* includeScreenStateData */ false,
                         /* includePowerStateData */ false,
                         /* minConsumedPowerThreshold */ 0)
-                        .setDischargePercentage(20)
-                        .setDischargedPowerRange(1000, 2000)
-                        .setDischargeDurationMs(1234)
+                        .addDischargePercentage(20)
+                        .addDischargedPowerRange(1000, 2000)
+                        .addDischargeDurationMs(1234)
                         .setStatsStartTimestamp(1000)
                         .setStatsEndTimestamp(20000)
                         .setStatsDuration(10000);

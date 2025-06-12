@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.notification.icon.ui.viewbinder
 
+import android.util.Log
 import com.android.systemui.display.domain.interactor.DisplayWindowPropertiesInteractor
 import com.android.systemui.lifecycle.Activatable
 import com.android.systemui.statusbar.StatusBarIconView
@@ -61,9 +62,18 @@ constructor(
         }
 
     override fun iconView(key: String): StatusBarIconView? {
-        val entry = notifCollection.getEntry(key) ?: return null
+        val entry = notifCollection.getEntry(key)
+        if (entry == null) {
+            Log.w(TAG, "No notification entry found for key: $key")
+            return null
+        }
+        val displayWindowProperties = displayWindowPropertiesInteractor.getForStatusBar(displayId)
+        if (displayWindowProperties == null) {
+            Log.w(TAG, "No display properties found for display id: $displayId")
+            return null
+        }
         return cachedIcons.computeIfAbsent(key) {
-            val context = displayWindowPropertiesInteractor.getForStatusBar(displayId).context
+            val context = displayWindowProperties.context
             iconManager.createSbIconView(context, entry)
         }
     }
@@ -90,5 +100,9 @@ constructor(
     @AssistedFactory
     interface Factory {
         fun create(displayId: Int): ConnectedDisplaysStatusBarNotificationIconViewStore
+    }
+
+    companion object {
+        private const val TAG = "ConnectedDisplaysNotifIconViewStore"
     }
 }

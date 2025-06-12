@@ -33,3 +33,6 @@ inline fun NotificationEntry.modifyEntry(
 fun getAttachState(entry: ListEntry): ListAttachState {
     return entry.attachState
 }
+
+fun buildEntry(block: NotificationEntryBuilder.() -> Unit) =
+    NotificationEntryBuilder().apply(block).build()

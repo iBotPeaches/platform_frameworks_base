@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.spy;
 
 import android.os.SystemClock;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.annotation.NonNull;
@@ -281,7 +281,7 @@ public class AtomicFileTest {
     }
 
     @Test
-    @IgnoreUnderRavenwood(blockedBy = SystemConfigFileCommitEventLogger.class)
+    @DisabledOnRavenwood(blockedBy = SystemConfigFileCommitEventLogger.class)
     public void testTimeLogging() throws Exception {
         var logger = spy(new SystemConfigFileCommitEventLogger("name"));
         var file = new AtomicFile(mBaseFile, logger);

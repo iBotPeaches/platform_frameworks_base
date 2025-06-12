@@ -16,6 +16,9 @@
 
 package android.view;
 
+import static android.view.flags.Flags.FLAG_ENABLE_DISPATCH_ON_SCROLL_CHANGED;
+
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.compat.annotation.UnsupportedAppUsage;
@@ -1258,8 +1261,9 @@ public final class ViewTreeObserver {
     /**
      * Notifies registered listeners that something has scrolled.
      */
+    @FlaggedApi(FLAG_ENABLE_DISPATCH_ON_SCROLL_CHANGED)
     @UnsupportedAppUsage
-    final void dispatchOnScrollChanged() {
+    public final void dispatchOnScrollChanged() {
         // NOTE: because of the use of CopyOnWriteArrayList, we *must* use an iterator to
         // perform the dispatching. The iterator is a safe guard against listeners that
         // could mutate the list by calling the various add/remove methods. This prevents

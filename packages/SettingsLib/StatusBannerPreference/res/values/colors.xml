@@ -22,4 +22,5 @@
     <color name="settingslib_expressive_color_status_level_medium">#FCBD00</color>
     <!-- static palette red50 -->
     <color name="settingslib_expressive_color_status_level_high">#DB372D</color>
+    <color name="settingslib_expressive_color_status_level_off">#D1C2CB</color>
 </resources>

@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.accessibilityservice.FingerprintGestureController;
@@ -86,7 +86,7 @@ public class FingerprintGestureControllerTest {
                 mMockFingerprintGestureCallback);
         mFingerprintGestureController.onGestureDetectionActiveChanged(true);
         mFingerprintGestureController.onGestureDetectionActiveChanged(false);
-        verifyZeroInteractions(mMockFingerprintGestureCallback);
+        verifyNoMoreInteractions(mMockFingerprintGestureCallback);
     }
 
     @Test
@@ -118,7 +118,7 @@ public class FingerprintGestureControllerTest {
         mFingerprintGestureController.onGestureDetectionActiveChanged(true);
         mFingerprintGestureController.onGestureDetectionActiveChanged(false);
         assertFalse(messageCapturingHandler.hasMessages());
-        verifyZeroInteractions(mMockFingerprintGestureCallback);
+        verifyNoMoreInteractions(mMockFingerprintGestureCallback);
 
         messageCapturingHandler.removeAllMessages();
     }
@@ -135,7 +135,7 @@ public class FingerprintGestureControllerTest {
         mFingerprintGestureController.unregisterFingerprintGestureCallback(
                 mMockFingerprintGestureCallback);
         mFingerprintGestureController.onGesture(FINGERPRINT_GESTURE_SWIPE_DOWN);
-        verifyZeroInteractions(mMockFingerprintGestureCallback);
+        verifyNoMoreInteractions(mMockFingerprintGestureCallback);
     }
 
     @Test
@@ -159,7 +159,7 @@ public class FingerprintGestureControllerTest {
                 mMockFingerprintGestureCallback);
         mFingerprintGestureController.onGesture(FINGERPRINT_GESTURE_SWIPE_DOWN);
         assertFalse(messageCapturingHandler.hasMessages());
-        verifyZeroInteractions(mMockFingerprintGestureCallback);
+        verifyNoMoreInteractions(mMockFingerprintGestureCallback);
 
         messageCapturingHandler.removeAllMessages();
     }

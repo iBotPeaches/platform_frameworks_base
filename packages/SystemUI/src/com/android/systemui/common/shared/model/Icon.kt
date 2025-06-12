@@ -18,18 +18,53 @@ package com.android.systemui.common.shared.model
 
 import android.annotation.DrawableRes
 import android.graphics.drawable.Drawable
+import androidx.compose.runtime.Stable
+import com.android.systemui.common.shared.model.Icon.Loaded
 
 /**
  * Models an icon, that can either be already [loaded][Icon.Loaded] or be a [reference]
- * [Icon.Resource] to a resource.
+ * [Icon.Resource] to a resource. In case of [Loaded], the resource ID [res] is optional.
  */
+@Stable
 sealed class Icon {
     abstract val contentDescription: ContentDescription?
 
-    data class Loaded(
+    data class Loaded
+    @JvmOverloads
+    constructor(
         val drawable: Drawable,
         override val contentDescription: ContentDescription?,
-    ) : Icon()
+        /**
+         * Serves as an id to compare two instances. When provided this is used alongside
+         * [contentDescription] to determine equality. This is useful when comparing icons
+         * representing the same UI, but with different [drawable] instances.
+         */
+        @DrawableRes val res: Int? = null,
+    ) : Icon() {
+
+        override fun equals(other: Any?): Boolean {
+            val that = other as? Loaded ?: return false
+
+            if (this.res != null && that.res != null) {
+                return this.res == that.res && this.contentDescription == that.contentDescription
+            }
+
+            return this.res == that.res &&
+                this.drawable == that.drawable &&
+                this.contentDescription == that.contentDescription
+        }
+
+        override fun hashCode(): Int {
+            var result = contentDescription?.hashCode() ?: 0
+            result =
+                if (res != null) {
+                    31 * result + res.hashCode()
+                } else {
+                    31 * result + drawable.hashCode()
+                }
+            return result
+        }
+    }
 
     data class Resource(
         @DrawableRes val res: Int,
@@ -37,6 +72,11 @@ sealed class Icon {
     ) : Icon()
 }
 
-/** Creates [Icon.Loaded] for a given drawable with an optional [contentDescription]. */
-fun Drawable.asIcon(contentDescription: ContentDescription? = null): Icon.Loaded =
-    Icon.Loaded(this, contentDescription)
+/**
+ * Creates [Icon.Loaded] for a given drawable with an optional [contentDescription] and an optional
+ * [res].
+ */
+fun Drawable.asIcon(
+    contentDescription: ContentDescription? = null,
+    @DrawableRes res: Int? = null,
+): Loaded = Loaded(this, contentDescription, res)

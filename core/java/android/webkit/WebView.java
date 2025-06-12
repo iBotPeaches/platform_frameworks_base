@@ -2287,26 +2287,53 @@ public class WebView extends AbsoluteLayout
     public @interface RendererPriority {}
 
     /**
-     * The renderer associated with this WebView is bound with
-     * {@link Context#BIND_WAIVE_PRIORITY}. At this priority level
-     * {@link WebView} renderers will be strong targets for out of memory
-     * killing.
+     * This is the lowest binding priority for the WebView renderer process. This is equivalent to
+     * {@link Context#BIND_WAIVE_PRIORITY}. At this priority level {@link WebView} renderers will be
+     * frequent targets for being killed when the system is running low on memory.
      *
-     * Use with {@link #setRendererPriorityPolicy}.
+     * <p>If using this priority, we recommend handling the {@link
+     * WebViewClient#onRenderProcessGone} callback to recover from low memory kills as well as other
+     * types of renderer crashes.
+     *
+     * @see #setRendererPriorityPolicy
+     * @see #getRendererPriorityPolicy
+     * @see RenderProcessGoneDetail#rendererPriorityAtExit
      */
     public static final int RENDERER_PRIORITY_WAIVED = 0;
+
     /**
-     * The renderer associated with this WebView is bound with
-     * the default priority for services.
+     * This is the medium binding priority for the WebView renderer process. This is equivalent to
+     * the standard priority used by the system for calls to {@link
+     * Context#bindService(Intent,android.content.ServiceConnection,int)} when no flags are
+     * provided. At this priority level {@link WebView} renderers will be slightly more likely
+     * targets for being killed when the system is running low on memory.
      *
-     * Use with {@link #setRendererPriorityPolicy}.
+     * <p>If using this priority, we recommend handling the {@link
+     * WebViewClient#onRenderProcessGone} callback to recover from low memory kills as well as other
+     * types of renderer crashes.
+     *
+     * @see #setRendererPriorityPolicy
+     * @see #getRendererPriorityPolicy
+     * @see RenderProcessGoneDetail#rendererPriorityAtExit
      */
     public static final int RENDERER_PRIORITY_BOUND = 1;
+
     /**
-     * The renderer associated with this WebView is bound with
-     * {@link Context#BIND_IMPORTANT}.
+     * This is the highest binding priority for the WebView renderer process, and the default value
+     * WebView uses to bind to the renderer process. This is equivalent to {@link
+     * Context#BIND_IMPORTANT}. At this priority level {@link WebView} renderers are less likely to
+     * be killed when the system is running low on memory and will have the same priority as your
+     * app's main process.
      *
-     * Use with {@link #setRendererPriorityPolicy}.
+     * <p>It's still possible for the renderer process to be killed when the system is running low
+     * on memory, however specifying this priority makes this situation less likely. It's also still
+     * possible for the renderer process to crash for other reasons. You may optionally still choose
+     * to handle {@link WebViewClient#onRenderProcessGone} in order to recover from a killed or
+     * crashed renderer process.
+     *
+     * @see #setRendererPriorityPolicy
+     * @see #getRendererPriorityPolicy
+     * @see RenderProcessGoneDetail#rendererPriorityAtExit
      */
     public static final int RENDERER_PRIORITY_IMPORTANT = 2;
 
@@ -2316,7 +2343,7 @@ public class WebView extends AbsoluteLayout
      * process renderer should be considered to be a target for OOM
      * killing.
      *
-     * Because a renderer can be associated with more than one
+     * <p>Because a renderer can be associated with more than one
      * WebView, the final priority it is computed as the maximum of
      * any attached WebViews. When a WebView is destroyed it will
      * cease to be considerered when calculating the renderer
@@ -2324,7 +2351,7 @@ public class WebView extends AbsoluteLayout
      * the priority of the renderer will be reduced to
      * {@link #RENDERER_PRIORITY_WAIVED}.
      *
-     * The default policy is to set the priority to
+     * <p>The default policy is to set the priority to
      * {@link #RENDERER_PRIORITY_IMPORTANT} regardless of visibility,
      * and this should not be changed unless the caller also handles
      * renderer crashes with
@@ -2338,6 +2365,8 @@ public class WebView extends AbsoluteLayout
      *        when this WebView is not visible, it will be treated as
      *        if it had requested a priority of
      *        {@link #RENDERER_PRIORITY_WAIVED}.
+     * @see #getRendererPriorityPolicy
+     * @see RenderProcessGoneDetail#rendererPriorityAtExit
      */
     public void setRendererPriorityPolicy(
             @RendererPriority int rendererRequestedPriority,
@@ -2349,6 +2378,8 @@ public class WebView extends AbsoluteLayout
      * Get the requested renderer priority for this WebView.
      *
      * @return the requested renderer priority policy.
+     * @see #setRendererPriorityPolicy
+     * @see RenderProcessGoneDetail#rendererPriorityAtExit
      */
     @InspectableProperty(hasAttributeId = false, enumMapping = {
             @InspectableProperty.EnumEntry(name = "waived", value = RENDERER_PRIORITY_WAIVED),

@@ -14,40 +14,48 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.keyguard.ui.viewmodel
 
-import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
+import androidx.compose.ui.Alignment
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.biometrics.authController
 import com.android.systemui.common.ui.data.repository.fakeConfigurationRepository
-import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.DisableSceneContainer
-import com.android.systemui.flags.Flags
+import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.flags.andSceneContainer
-import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.keyguard.data.repository.fakeKeyguardClockRepository
+import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.data.repository.keyguardOcclusionRepository
+import com.android.systemui.keyguard.domain.interactor.keyguardClockInteractor
 import com.android.systemui.keyguard.shared.model.ClockSize
+import com.android.systemui.keyguard.shared.model.KeyguardState
+import com.android.systemui.keyguard.shared.transition.fakeKeyguardTransitionAnimationCallback
+import com.android.systemui.keyguard.shared.transition.keyguardTransitionAnimationCallbackDelegator
+import com.android.systemui.keyguard.ui.viewmodel.LockscreenContentViewModel.NotificationsPlacement.BelowClock
+import com.android.systemui.keyguard.ui.viewmodel.LockscreenContentViewModel.NotificationsPlacement.BesideClock
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runCurrent
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.data.repository.shadeRepository
-import com.android.systemui.shade.shared.flag.DualShade
+import com.android.systemui.shade.domain.interactor.enableDualShade
+import com.android.systemui.shade.domain.interactor.enableSingleShade
+import com.android.systemui.shade.domain.interactor.enableSplitShade
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
+import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.testKosmos
 import com.android.systemui.unfold.fakeUnfoldTransitionProgressProvider
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
 import java.util.Locale
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.Job
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,7 +68,8 @@ class LockscreenContentViewModelTest(flags: FlagsParameterization) : SysuiTestCa
 
     private val kosmos: Kosmos = testKosmos()
 
-    lateinit var underTest: LockscreenContentViewModel
+    private lateinit var underTest: LockscreenContentViewModel
+    private val activationJob = Job()
 
     companion object {
         @JvmStatic
@@ -77,190 +86,238 @@ class LockscreenContentViewModelTest(flags: FlagsParameterization) : SysuiTestCa
     @Before
     fun setup() {
         with(kosmos) {
-            fakeFeatureFlagsClassic.set(Flags.LOCK_SCREEN_LONG_PRESS_ENABLED, true)
             shadeRepository.setShadeLayoutWide(false)
-            underTest = lockscreenContentViewModel
-            underTest.activateIn(testScope)
+            underTest =
+                lockscreenContentViewModelFactory.create(fakeKeyguardTransitionAnimationCallback)
+            underTest.activateIn(testScope, activationJob)
         }
     }
 
     @Test
     fun isUdfpsVisible_withUdfps_true() =
-        with(kosmos) {
-            testScope.runTest {
-                whenever(authController.isUdfpsSupported).thenReturn(true)
-                assertThat(underTest.isUdfpsVisible).isTrue()
-            }
+        kosmos.runTest {
+            whenever(authController.isUdfpsSupported).thenReturn(true)
+            assertThat(underTest.isUdfpsVisible).isTrue()
         }
 
     @Test
     fun isUdfpsVisible_withoutUdfps_false() =
-        with(kosmos) {
-            testScope.runTest {
-                whenever(authController.isUdfpsSupported).thenReturn(false)
-                assertThat(underTest.isUdfpsVisible).isFalse()
-            }
+        kosmos.runTest {
+            whenever(authController.isUdfpsSupported).thenReturn(false)
+            assertThat(underTest.isUdfpsVisible).isFalse()
         }
 
     @Test
-    @DisableSceneContainer
-    fun clockSize_withLargeClock_true() =
-        with(kosmos) {
-            testScope.runTest {
-                val clockSize by collectLastValue(underTest.clockSize)
-                fakeKeyguardClockRepository.setClockSize(ClockSize.LARGE)
-                assertThat(clockSize).isEqualTo(ClockSize.LARGE)
-            }
+    fun notificationsPlacement_splitShade_topEnd() =
+        kosmos.runTest {
+            setupState(shadeMode = ShadeMode.Split, clockSize = ClockSize.SMALL)
+
+            assertThat(underTest.notificationsPlacement)
+                .isEqualTo(BesideClock(alignment = Alignment.TopEnd))
         }
 
     @Test
-    @DisableSceneContainer
-    fun clockSize_withSmallClock_false() =
-        with(kosmos) {
-            testScope.runTest {
-                val clockSize by collectLastValue(underTest.clockSize)
-                fakeKeyguardClockRepository.setClockSize(ClockSize.SMALL)
-                assertThat(clockSize).isEqualTo(ClockSize.SMALL)
-            }
+    fun notificationsPlacement_singleShade_below() =
+        kosmos.runTest {
+            setupState(shadeMode = ShadeMode.Single, clockSize = ClockSize.SMALL)
+
+            assertThat(underTest.notificationsPlacement).isEqualTo(BelowClock)
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun notificationsPlacement_dualShadeSmallClock_below() =
+        kosmos.runTest {
+            setupState(
+                shadeMode = ShadeMode.Dual,
+                clockSize = ClockSize.SMALL,
+                shadeLayoutWide = true,
+            )
+
+            assertThat(underTest.notificationsPlacement).isEqualTo(BelowClock)
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun notificationsPlacement_dualShadeLargeClock_topStart() =
+        kosmos.runTest {
+            setupState(
+                shadeMode = ShadeMode.Dual,
+                clockSize = ClockSize.LARGE,
+                shadeLayoutWide = true,
+            )
+
+            assertThat(underTest.notificationsPlacement)
+                .isEqualTo(BesideClock(alignment = Alignment.TopStart))
         }
 
     @Test
     fun areNotificationsVisible_splitShadeTrue_true() =
-        with(kosmos) {
-            testScope.runTest {
-                val areNotificationsVisible by collectLastValue(underTest.areNotificationsVisible())
-                shadeRepository.setShadeLayoutWide(true)
-                fakeKeyguardClockRepository.setClockSize(ClockSize.LARGE)
+        kosmos.runTest {
+            setupState(shadeMode = ShadeMode.Split, clockSize = ClockSize.LARGE)
 
-                assertThat(areNotificationsVisible).isTrue()
-            }
+            assertThat(underTest.areNotificationsVisible).isTrue()
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
+    @EnableSceneContainer
     fun areNotificationsVisible_dualShadeWideOnLockscreen_true() =
-        with(kosmos) {
-            testScope.runTest {
-                val areNotificationsVisible by collectLastValue(underTest.areNotificationsVisible())
-                shadeRepository.setShadeLayoutWide(true)
-                fakeKeyguardClockRepository.setClockSize(ClockSize.LARGE)
+        kosmos.runTest {
+            setupState(
+                shadeMode = ShadeMode.Dual,
+                clockSize = ClockSize.LARGE,
+                shadeLayoutWide = true,
+            )
 
-                assertThat(areNotificationsVisible).isTrue()
-            }
+            assertThat(underTest.areNotificationsVisible).isTrue()
         }
 
     @Test
     @DisableSceneContainer
     fun areNotificationsVisible_withSmallClock_true() =
-        with(kosmos) {
-            testScope.runTest {
-                val areNotificationsVisible by collectLastValue(underTest.areNotificationsVisible())
-                fakeKeyguardClockRepository.setClockSize(ClockSize.SMALL)
-                assertThat(areNotificationsVisible).isTrue()
-            }
+        kosmos.runTest {
+            setupState(shadeMode = ShadeMode.Single, clockSize = ClockSize.SMALL)
+
+            assertThat(underTest.areNotificationsVisible).isTrue()
         }
 
     @Test
     @DisableSceneContainer
     fun areNotificationsVisible_withLargeClock_false() =
-        with(kosmos) {
-            testScope.runTest {
-                val areNotificationsVisible by collectLastValue(underTest.areNotificationsVisible())
-                fakeKeyguardClockRepository.setClockSize(ClockSize.LARGE)
-                assertThat(areNotificationsVisible).isFalse()
-            }
-        }
+        kosmos.runTest {
+            setupState(shadeMode = ShadeMode.Single, clockSize = ClockSize.LARGE)
 
-    @Test
-    fun isShadeLayoutWide_withConfigTrue_true() =
-        with(kosmos) {
-            testScope.runTest {
-                val isShadeLayoutWide by collectLastValue(underTest.isShadeLayoutWide)
-                shadeRepository.setShadeLayoutWide(true)
-
-                assertThat(isShadeLayoutWide).isTrue()
-            }
-        }
-
-    @Test
-    fun isShadeLayoutWide_withConfigFalse_false() =
-        with(kosmos) {
-            testScope.runTest {
-                val isShadeLayoutWide by collectLastValue(underTest.isShadeLayoutWide)
-                shadeRepository.setShadeLayoutWide(false)
-
-                assertThat(isShadeLayoutWide).isFalse()
-            }
+            assertThat(underTest.areNotificationsVisible).isFalse()
         }
 
     @Test
     fun unfoldTranslations() =
-        with(kosmos) {
-            testScope.runTest {
-                val maxTranslation = prepareConfiguration()
-                val translations by collectLastValue(underTest.unfoldTranslations)
+        kosmos.runTest {
+            val maxTranslation = prepareConfiguration()
 
-                val unfoldProvider = fakeUnfoldTransitionProgressProvider
-                unfoldProvider.onTransitionStarted()
-                assertThat(translations?.start).isEqualTo(0f)
-                assertThat(translations?.end).isEqualTo(-0f)
+            val unfoldProvider = fakeUnfoldTransitionProgressProvider
+            unfoldProvider.onTransitionStarted()
+            runCurrent()
+            assertThat(underTest.unfoldTranslations.start).isZero()
+            assertThat(underTest.unfoldTranslations.end).isZero()
 
-                repeat(10) { repetition ->
-                    val transitionProgress = 0.1f * (repetition + 1)
-                    unfoldProvider.onTransitionProgress(transitionProgress)
-                    assertThat(translations?.start)
-                        .isEqualTo((1 - transitionProgress) * maxTranslation)
-                    assertThat(translations?.end)
-                        .isEqualTo(-(1 - transitionProgress) * maxTranslation)
-                }
-
-                unfoldProvider.onTransitionFinishing()
-                assertThat(translations?.start).isEqualTo(0f)
-                assertThat(translations?.end).isEqualTo(-0f)
-
-                unfoldProvider.onTransitionFinished()
-                assertThat(translations?.start).isEqualTo(0f)
-                assertThat(translations?.end).isEqualTo(-0f)
+            repeat(10) { repetition ->
+                val transitionProgress = 0.1f * (repetition + 1)
+                unfoldProvider.onTransitionProgress(transitionProgress)
+                runCurrent()
+                assertThat(underTest.unfoldTranslations.start)
+                    .isEqualTo((1 - transitionProgress) * maxTranslation)
+                assertThat(underTest.unfoldTranslations.end)
+                    .isEqualTo(-(1 - transitionProgress) * maxTranslation)
             }
+
+            unfoldProvider.onTransitionFinishing()
+            runCurrent()
+            assertThat(underTest.unfoldTranslations.start).isZero()
+            assertThat(underTest.unfoldTranslations.end).isZero()
+
+            unfoldProvider.onTransitionFinished()
+            runCurrent()
+            assertThat(underTest.unfoldTranslations.start).isZero()
+            assertThat(underTest.unfoldTranslations.end).isZero()
         }
 
     @Test
     fun isContentVisible_whenNotOccluded_visible() =
-        with(kosmos) {
-            testScope.runTest {
-                val isContentVisible by collectLastValue(underTest.isContentVisible)
-
-                keyguardOcclusionRepository.setShowWhenLockedActivityInfo(false, null)
-                runCurrent()
-                assertThat(isContentVisible).isTrue()
-            }
+        kosmos.runTest {
+            keyguardOcclusionRepository.setShowWhenLockedActivityInfo(false, null)
+            runCurrent()
+            assertThat(underTest.isContentVisible).isTrue()
         }
 
     @Test
     fun isContentVisible_whenOccluded_notVisible() =
-        with(kosmos) {
-            testScope.runTest {
-                val isContentVisible by collectLastValue(underTest.isContentVisible)
-
-                keyguardOcclusionRepository.setShowWhenLockedActivityInfo(true, null)
-                runCurrent()
-                assertThat(isContentVisible).isFalse()
-            }
+        kosmos.runTest {
+            keyguardOcclusionRepository.setShowWhenLockedActivityInfo(true, null)
+            fakeKeyguardTransitionRepository.transitionTo(
+                KeyguardState.LOCKSCREEN,
+                KeyguardState.OCCLUDED,
+            )
+            runCurrent()
+            assertThat(underTest.isContentVisible).isFalse()
         }
 
     @Test
     fun isContentVisible_whenOccluded_notVisible_evenIfShadeShown() =
-        with(kosmos) {
-            testScope.runTest {
-                val isContentVisible by collectLastValue(underTest.isContentVisible)
-                keyguardOcclusionRepository.setShowWhenLockedActivityInfo(true, null)
-                runCurrent()
+        kosmos.runTest {
+            keyguardOcclusionRepository.setShowWhenLockedActivityInfo(true, null)
+            fakeKeyguardTransitionRepository.transitionTo(
+                KeyguardState.LOCKSCREEN,
+                KeyguardState.OCCLUDED,
+            )
+            runCurrent()
 
-                sceneInteractor.snapToScene(Scenes.Shade, "")
-                runCurrent()
-                assertThat(isContentVisible).isFalse()
-            }
+            sceneInteractor.snapToScene(Scenes.Shade, "")
+            runCurrent()
+            assertThat(underTest.isContentVisible).isFalse()
         }
+
+    @Test
+    fun activate_setsDelegate_onKeyguardTransitionAnimationCallbackDelegator() =
+        kosmos.runTest {
+            runCurrent()
+            assertThat(keyguardTransitionAnimationCallbackDelegator.delegate)
+                .isSameInstanceAs(fakeKeyguardTransitionAnimationCallback)
+        }
+
+    @Test
+    fun deactivate_clearsDelegate_onKeyguardTransitionAnimationCallbackDelegator() =
+        kosmos.runTest {
+            activationJob.cancel()
+            runCurrent()
+            assertThat(keyguardTransitionAnimationCallbackDelegator.delegate).isNull()
+        }
+
+    @Test
+    fun isContentVisible_whenOccluded_notVisibleInOccluded_visibleInAod() =
+        kosmos.runTest {
+            keyguardOcclusionRepository.setShowWhenLockedActivityInfo(true, null)
+            fakeKeyguardTransitionRepository.transitionTo(
+                from = KeyguardState.LOCKSCREEN,
+                to = KeyguardState.OCCLUDED,
+            )
+            runCurrent()
+
+            sceneInteractor.snapToScene(Scenes.Shade, "")
+            runCurrent()
+            assertThat(underTest.isContentVisible).isFalse()
+
+            fakeKeyguardTransitionRepository.transitionTo(KeyguardState.OCCLUDED, KeyguardState.AOD)
+            runCurrent()
+
+            sceneInteractor.snapToScene(Scenes.Lockscreen, "")
+            runCurrent()
+
+            assertThat(underTest.isContentVisible).isTrue()
+        }
+
+    private fun Kosmos.setupState(
+        shadeMode: ShadeMode,
+        clockSize: ClockSize,
+        shadeLayoutWide: Boolean? = null,
+    ) {
+        val isShadeLayoutWide by collectLastValue(kosmos.shadeRepository.isShadeLayoutWide)
+        val collectedClockSize by collectLastValue(kosmos.keyguardClockInteractor.clockSize)
+        val collectedShadeMode by collectLastValue(kosmos.shadeModeInteractor.shadeMode)
+        when (shadeMode) {
+            ShadeMode.Dual -> kosmos.enableDualShade(wideLayout = shadeLayoutWide)
+            ShadeMode.Single -> kosmos.enableSingleShade()
+            ShadeMode.Split -> kosmos.enableSplitShade()
+        }
+        fakeKeyguardClockRepository.setShouldForceSmallClock(clockSize == ClockSize.SMALL)
+        fakeKeyguardClockRepository.setClockSize(clockSize)
+        runCurrent()
+        if (shadeLayoutWide != null) {
+            assertThat(isShadeLayoutWide).isEqualTo(shadeLayoutWide)
+        }
+        assertThat(collectedShadeMode).isEqualTo(shadeMode)
+        assertThat(collectedClockSize).isEqualTo(clockSize)
+    }
 
     private fun prepareConfiguration(): Int {
         val configuration = context.resources.configuration

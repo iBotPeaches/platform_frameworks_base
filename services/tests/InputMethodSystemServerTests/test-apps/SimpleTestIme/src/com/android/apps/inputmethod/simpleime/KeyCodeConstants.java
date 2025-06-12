@@ -18,51 +18,58 @@ package com.android.apps.inputmethod.simpleime;
 
 import android.view.KeyEvent;
 
-import java.util.HashMap;
+import androidx.annotation.NonNull;
 
 /** Holder of key codes and their name. */
-public final class KeyCodeConstants {
-    private KeyCodeConstants() {}
+final class KeyCodeConstants {
 
-    static final HashMap<String, Integer> KEY_NAME_TO_CODE_MAP = new HashMap<>();
-
-    static {
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_A", KeyEvent.KEYCODE_A);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_B", KeyEvent.KEYCODE_B);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_C", KeyEvent.KEYCODE_C);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_D", KeyEvent.KEYCODE_D);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_E", KeyEvent.KEYCODE_E);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_F", KeyEvent.KEYCODE_F);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_G", KeyEvent.KEYCODE_G);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_H", KeyEvent.KEYCODE_H);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_I", KeyEvent.KEYCODE_I);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_J", KeyEvent.KEYCODE_J);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_K", KeyEvent.KEYCODE_K);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_L", KeyEvent.KEYCODE_L);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_M", KeyEvent.KEYCODE_M);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_N", KeyEvent.KEYCODE_N);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_O", KeyEvent.KEYCODE_O);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_P", KeyEvent.KEYCODE_P);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_Q", KeyEvent.KEYCODE_Q);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_R", KeyEvent.KEYCODE_R);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_S", KeyEvent.KEYCODE_S);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_T", KeyEvent.KEYCODE_T);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_U", KeyEvent.KEYCODE_U);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_V", KeyEvent.KEYCODE_V);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_W", KeyEvent.KEYCODE_W);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_X", KeyEvent.KEYCODE_X);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_Y", KeyEvent.KEYCODE_Y);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_Z", KeyEvent.KEYCODE_Z);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_SHIFT", KeyEvent.KEYCODE_SHIFT_LEFT);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_DEL", KeyEvent.KEYCODE_DEL);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_SPACE", KeyEvent.KEYCODE_SPACE);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_ENTER", KeyEvent.KEYCODE_ENTER);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_COMMA", KeyEvent.KEYCODE_COMMA);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_PERIOD", KeyEvent.KEYCODE_PERIOD);
-        KEY_NAME_TO_CODE_MAP.put("KEYCODE_TAB", KeyEvent.KEYCODE_TAB);
+    private KeyCodeConstants() {
     }
 
-    public static boolean isAlphaKeyCode(int keyCode) {
+    /**
+     * Returns the keyCode value corresponding to the given keyCode name.
+     *
+     * @param keyCodeName the keyCode name.
+     */
+    static int getKeyCode(@NonNull String keyCodeName) {
+        return switch (keyCodeName) {
+            case "KEYCODE_A" -> KeyEvent.KEYCODE_A;
+            case "KEYCODE_B" -> KeyEvent.KEYCODE_B;
+            case "KEYCODE_C" -> KeyEvent.KEYCODE_C;
+            case "KEYCODE_D" -> KeyEvent.KEYCODE_D;
+            case "KEYCODE_E" -> KeyEvent.KEYCODE_E;
+            case "KEYCODE_F" -> KeyEvent.KEYCODE_F;
+            case "KEYCODE_G" -> KeyEvent.KEYCODE_G;
+            case "KEYCODE_H" -> KeyEvent.KEYCODE_H;
+            case "KEYCODE_I" -> KeyEvent.KEYCODE_I;
+            case "KEYCODE_J" -> KeyEvent.KEYCODE_J;
+            case "KEYCODE_K" -> KeyEvent.KEYCODE_K;
+            case "KEYCODE_L" -> KeyEvent.KEYCODE_L;
+            case "KEYCODE_M" -> KeyEvent.KEYCODE_M;
+            case "KEYCODE_N" -> KeyEvent.KEYCODE_N;
+            case "KEYCODE_O" -> KeyEvent.KEYCODE_O;
+            case "KEYCODE_P" -> KeyEvent.KEYCODE_P;
+            case "KEYCODE_Q" -> KeyEvent.KEYCODE_Q;
+            case "KEYCODE_R" -> KeyEvent.KEYCODE_R;
+            case "KEYCODE_S" -> KeyEvent.KEYCODE_S;
+            case "KEYCODE_T" -> KeyEvent.KEYCODE_T;
+            case "KEYCODE_U" -> KeyEvent.KEYCODE_U;
+            case "KEYCODE_V" -> KeyEvent.KEYCODE_V;
+            case "KEYCODE_W" -> KeyEvent.KEYCODE_W;
+            case "KEYCODE_X" -> KeyEvent.KEYCODE_X;
+            case "KEYCODE_Y" -> KeyEvent.KEYCODE_Y;
+            case "KEYCODE_Z" -> KeyEvent.KEYCODE_Z;
+            case "KEYCODE_SHIFT" -> KeyEvent.KEYCODE_SHIFT_LEFT;
+            case "KEYCODE_DEL" -> KeyEvent.KEYCODE_DEL;
+            case "KEYCODE_SPACE" -> KeyEvent.KEYCODE_SPACE;
+            case "KEYCODE_ENTER" -> KeyEvent.KEYCODE_ENTER;
+            case "KEYCODE_COMMA" -> KeyEvent.KEYCODE_COMMA;
+            case "KEYCODE_PERIOD" -> KeyEvent.KEYCODE_PERIOD;
+            default -> KeyEvent.KEYCODE_UNKNOWN;
+        };
+    }
+
+    static boolean isAlphaKeyCode(int keyCode) {
         return keyCode >= KeyEvent.KEYCODE_A && keyCode <= KeyEvent.KEYCODE_Z;
     }
 }

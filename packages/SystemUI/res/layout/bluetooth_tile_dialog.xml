@@ -121,8 +121,8 @@
                 android:contentDescription="@string/turn_on_bluetooth"
                 android:switchMinWidth="@dimen/settingslib_switch_track_width"
                 android:theme="@style/MainSwitch.Settingslib"
-                android:thumb="@drawable/settingslib_thumb_selector"
-                android:track="@drawable/settingslib_track_selector"
+                android:thumb="@drawable/settingslib_switch_thumb"
+                android:track="@drawable/settingslib_switch_track"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/bluetooth_toggle_title"
                 app:layout_constraintTop_toTopOf="parent" />
@@ -163,8 +163,8 @@
                 android:contentDescription="@string/turn_on_bluetooth_auto_tomorrow"
                 android:switchMinWidth="@dimen/settingslib_switch_track_width"
                 android:theme="@style/MainSwitch.Settingslib"
-                android:thumb="@drawable/settingslib_thumb_selector"
-                android:track="@drawable/settingslib_track_selector"
+                android:thumb="@drawable/settingslib_switch_thumb"
+                android:track="@drawable/settingslib_switch_track"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/bluetooth_auto_on_toggle_title"
                 app:layout_constraintTop_toBottomOf="@+id/bluetooth_toggle" />

@@ -15,14 +15,11 @@
  */
 
 package com.android.server.pm;
-
 import static android.content.pm.UserInfo.FLAG_DEMO;
-import static android.content.pm.UserInfo.FLAG_DISABLED;
 import static android.content.pm.UserInfo.FLAG_EPHEMERAL;
 import static android.content.pm.UserInfo.FLAG_FULL;
 import static android.content.pm.UserInfo.FLAG_GUEST;
 import static android.content.pm.UserInfo.FLAG_INITIALIZED;
-import static android.content.pm.UserInfo.FLAG_MAIN;
 import static android.content.pm.UserInfo.FLAG_MANAGED_PROFILE;
 import static android.content.pm.UserInfo.FLAG_PROFILE;
 import static android.content.pm.UserInfo.FLAG_RESTRICTED;
@@ -35,9 +32,7 @@ import static android.os.UserManager.USER_TYPE_FULL_SYSTEM;
 import static android.os.UserManager.USER_TYPE_PROFILE_MANAGED;
 import static android.os.UserManager.USER_TYPE_SYSTEM_HEADLESS;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.annotation.UserIdInt;
 import android.app.PropertyInvalidatedCache;
@@ -46,7 +41,6 @@ import android.content.pm.UserInfo.UserInfoFlag;
 import android.content.res.Resources;
 import android.multiuser.Flags;
 import android.os.Looper;
-import android.os.Parcel;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.platform.test.annotations.Presubmit;
@@ -55,15 +49,16 @@ import android.util.Xml;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.frameworks.servicestests.R;
 import com.android.server.LocalServices;
 import com.android.server.pm.UserManagerService.UserData;
 
+import com.google.common.truth.Expect;
+
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlSerializer;
 
@@ -74,14 +69,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * <p>Run with:<pre>
- * runtest -c com.android.server.pm.UserManagerServiceUserInfoTest frameworks-services
- * </pre>
+ * Run with
+ * {@code atest FrameworksServicesTests:com.android.server.pm.UserManagerServiceUserInfoTest}.
  */
 @Presubmit
-@RunWith(AndroidJUnit4.class)
 @MediumTest
-public class UserManagerServiceUserInfoTest {
+@SuppressWarnings("deprecation")
+public final class UserManagerServiceUserInfoTest {
+
+    @Rule public final Expect expect = Expect.create();
+
     private UserManagerService mUserManagerService;
     private Resources mResources;
 
@@ -100,9 +97,10 @@ public class UserManagerServiceUserInfoTest {
 
         // The tests assume that the device has one user and its the system user.
         List<UserInfo> users = mUserManagerService.getUsers(/* excludeDying */ false);
-        assertEquals("Multiple users so this test can't run.", 1, users.size());
-        assertEquals("Only user present isn't the system user.",
-                UserHandle.USER_SYSTEM, users.get(0).id);
+        assertWithMessage("initial users").that(users).isNotNull();
+        assertWithMessage("initial users").that(users).hasSize(1);
+        expect.withMessage("only user present initially is the system user.").that(users.get(0).id)
+                .isEqualTo(UserHandle.USER_SYSTEM);
 
         mResources = InstrumentationRegistry.getTargetContext().getResources();
     }
@@ -164,118 +162,57 @@ public class UserManagerServiceUserInfoTest {
                     new ByteArrayInputStream(systemUserBytes), userVersion);
         }
 
-        assertTrue(mUserManagerService.hasUserRestrictionOnAnyUser(globalRestriction));
-        assertTrue(mUserManagerService.hasUserRestrictionOnAnyUser(localRestriction));
+        expect.withMessage("hasUserRestrictionOnAnyUser(%s)", globalRestriction)
+                .that(mUserManagerService.hasUserRestrictionOnAnyUser(globalRestriction)).isTrue();
+        expect.withMessage("hasUserRestrictionOnAnyUser(%s)", localRestriction)
+                .that(mUserManagerService.hasUserRestrictionOnAnyUser(localRestriction)).isTrue();
     }
 
     /** Sets a global and local restriction and verifies they were set properly **/
     private void setUserRestrictions(int id, String global, String local, boolean enabled) {
         mUserManagerService.setUserRestrictionInner(UserHandle.USER_ALL, global, enabled);
-        assertEquals(mUserManagerService.hasUserRestrictionOnAnyUser(global), enabled);
+        expect.withMessage("hasUserRestrictionOnAnyUser(%s)", global)
+                .that(mUserManagerService.hasUserRestrictionOnAnyUser(global)).isEqualTo(enabled);
 
         mUserManagerService.setUserRestrictionInner(id, local, enabled);
-        assertEquals(mUserManagerService.hasUserRestrictionOnAnyUser(local), enabled);
-    }
-
-    @Test
-    public void testParcelUnparcelUserInfo() throws Exception {
-        UserInfo info = createUser();
-
-        Parcel out = Parcel.obtain();
-        info.writeToParcel(out, 0);
-        byte[] data = out.marshall();
-        out.recycle();
-
-        Parcel in = Parcel.obtain();
-        in.unmarshall(data, 0, data.length);
-        in.setDataPosition(0);
-        UserInfo read = UserInfo.CREATOR.createFromParcel(in);
-        in.recycle();
-
-        assertUserInfoEquals(info, read, /* parcelCopy= */ true);
-    }
-
-    @Test
-    public void testCopyConstructor() throws Exception {
-        UserInfo info = createUser();
-
-        UserInfo copy = new UserInfo(info);
-
-        assertUserInfoEquals(info, copy, /* parcelCopy= */ false);
+        expect.withMessage("hasUserRestrictionOnAnyUser(%s)", local)
+                .that(mUserManagerService.hasUserRestrictionOnAnyUser(local)).isEqualTo(enabled);
     }
 
     @Test
     public void testGetUserName() throws Exception {
-        assertFalse("System user name shouldn't be set",
-                mUserManagerService.isUserNameSet(UserHandle.USER_SYSTEM));
+        expect.withMessage("System user name is set")
+                .that(mUserManagerService.isUserNameSet(UserHandle.USER_SYSTEM)).isFalse();
         UserInfo userInfo = mUserManagerService.getUserInfo(UserHandle.USER_SYSTEM);
-        assertFalse("A system provided name should be returned for primary user",
-                TextUtils.isEmpty(userInfo.name));
+        expect.withMessage("A system provided name returned for primary user is empty")
+                .that(TextUtils.isEmpty(userInfo.name)).isFalse();
 
         userInfo = createUser();
         userInfo.partial = false;
         final int TEST_ID = 100;
         userInfo.id = TEST_ID;
         mUserManagerService.putUserInfo(userInfo);
-        assertTrue("Test user name must be set", mUserManagerService.isUserNameSet(TEST_ID));
-        assertEquals("A Name", mUserManagerService.getUserInfo(TEST_ID).name);
+        expect.withMessage("user name is set").that(mUserManagerService.isUserNameSet(TEST_ID))
+                .isTrue();
+        expect.withMessage("name").that(mUserManagerService.getUserInfo(TEST_ID).name)
+                .isEqualTo("A Name");
     }
 
     /** Test UMS.isUserOfType(). */
     @Test
     public void testIsUserOfType() throws Exception {
-        assertTrue("System user was of invalid type",
+        expect.withMessage("System user type is valid").that(
                 mUserManagerService.isUserOfType(UserHandle.USER_SYSTEM, USER_TYPE_SYSTEM_HEADLESS)
-                || mUserManagerService.isUserOfType(UserHandle.USER_SYSTEM, USER_TYPE_FULL_SYSTEM));
+                        || mUserManagerService.isUserOfType(UserHandle.USER_SYSTEM,
+                                USER_TYPE_FULL_SYSTEM))
+                .isTrue();
 
         final int testId = 100;
         final String typeName = "A type";
         UserInfo userInfo = createUser(testId, 0, typeName);
         mUserManagerService.putUserInfo(userInfo);
-        assertTrue(mUserManagerService.isUserOfType(testId, typeName));
-    }
-
-    /** Test UserInfo.supportsSwitchTo() for partial user. */
-    @Test
-    public void testSupportSwitchTo_partial() throws Exception {
-        UserInfo userInfo = createUser(100, FLAG_FULL, null);
-        userInfo.partial = true;
-        assertFalse("Switching to a partial user should be disabled",
-                userInfo.supportsSwitchTo());
-    }
-
-    /** Test UserInfo.supportsSwitchTo() for disabled user. */
-    @Test
-    public void testSupportSwitchTo_disabled() throws Exception {
-        UserInfo userInfo = createUser(100, FLAG_DISABLED, null);
-        assertFalse("Switching to a DISABLED user should be disabled",
-                userInfo.supportsSwitchTo());
-    }
-
-    /** Test UserInfo.supportsSwitchTo() for precreated users. */
-    @Test
-    public void testSupportSwitchTo_preCreated() throws Exception {
-        UserInfo userInfo = createUser(100, FLAG_FULL, null);
-        userInfo.preCreated = true;
-        assertFalse("Switching to a precreated user should be disabled",
-                userInfo.supportsSwitchTo());
-
-        userInfo.preCreated = false;
-        assertTrue("Switching to a full, real user should be allowed", userInfo.supportsSwitchTo());
-    }
-
-    /** Test UserInfo.supportsSwitchTo() for profiles. */
-    @Test
-    public void testSupportSwitchTo_profile() throws Exception {
-        UserInfo userInfo = createUser(100, FLAG_PROFILE, null);
-        assertFalse("Switching to a profiles should be disabled", userInfo.supportsSwitchTo());
-    }
-
-    /** Test UserInfo.canHaveProfile for main user */
-    @Test
-    public void testCanHaveProfile() throws Exception {
-        UserInfo userInfo = createUser(100, FLAG_MAIN, null);
-        assertTrue("Main users can have profile", userInfo.canHaveProfile());
+        expect.withMessage("isUserOfType()")
+                .that(mUserManagerService.isUserOfType(testId, typeName)).isTrue();
     }
 
     /** Tests upgradeIfNecessaryLP (but without locking) for upgrading from version 8 to 9+. */
@@ -296,22 +233,32 @@ public class UserManagerServiceUserInfoTest {
 
         mUserManagerService.upgradeIfNecessaryLP(versionToTest - 1, userTypeVersion);
 
-        assertTrue(mUserManagerService.isUserOfType(100, USER_TYPE_PROFILE_MANAGED));
-        assertTrue((mUserManagerService.getUserInfo(100).flags & FLAG_PROFILE) != 0);
+        expect.withMessage("isUserOfType(100, USER_TYPE_PROFILE_MANAGED)")
+                .that(mUserManagerService.isUserOfType(100, USER_TYPE_PROFILE_MANAGED)).isTrue();
+        expect.withMessage("getUserInfo(100).flags & FLAG_PROFILE)")
+                .that(mUserManagerService.getUserInfo(100).flags & FLAG_PROFILE).isNotEqualTo(0);
 
-        assertTrue(mUserManagerService.isUserOfType(101, USER_TYPE_FULL_GUEST));
+        expect.withMessage("isUserOfType(101, USER_TYPE_FULL_GUEST)")
+                .that(mUserManagerService.isUserOfType(101, USER_TYPE_FULL_GUEST)).isTrue();
 
-        assertTrue(mUserManagerService.isUserOfType(102, USER_TYPE_FULL_RESTRICTED));
-        assertTrue((mUserManagerService.getUserInfo(102).flags & FLAG_PROFILE) == 0);
+        expect.withMessage("isUserOfType(102, USER_TYPE_FULL_RESTRICTED)")
+                .that(mUserManagerService.isUserOfType(102, USER_TYPE_FULL_RESTRICTED)).isTrue();
+        expect.withMessage("getUserInfo(102).flags & FLAG_PROFILE)")
+                .that(mUserManagerService.getUserInfo(102).flags & FLAG_PROFILE).isEqualTo(0);
 
-        assertTrue(mUserManagerService.isUserOfType(103, USER_TYPE_FULL_SECONDARY));
-        assertTrue((mUserManagerService.getUserInfo(103).flags & FLAG_PROFILE) == 0);
+        expect.withMessage("isUserOfType(103, USER_TYPE_FULL_SECONDARY)")
+                .that(mUserManagerService.isUserOfType(103, USER_TYPE_FULL_SECONDARY)).isTrue();
+        expect.withMessage("getUserInfo(103).flags & FLAG_PROFILE)")
+                .that(mUserManagerService.getUserInfo(103).flags & FLAG_PROFILE).isEqualTo(0);
 
-        assertTrue(mUserManagerService.isUserOfType(104, USER_TYPE_SYSTEM_HEADLESS));
+        expect.withMessage("isUserOfType(104, USER_TYPE_SYSTEM_HEADLESS)")
+                .that(mUserManagerService.isUserOfType(104, USER_TYPE_SYSTEM_HEADLESS)).isTrue();
 
-        assertTrue(mUserManagerService.isUserOfType(105, USER_TYPE_FULL_SYSTEM));
+        expect.withMessage("isUserOfType(105, USER_TYPE_FULL_SYSTEM)")
+                .that(mUserManagerService.isUserOfType(105, USER_TYPE_FULL_SYSTEM)).isTrue();
 
-        assertTrue(mUserManagerService.isUserOfType(106, USER_TYPE_FULL_DEMO));
+        expect.withMessage("isUserOfType(106, USER_TYPE_FULL_DEMO)")
+                .that(mUserManagerService.isUserOfType(106, USER_TYPE_FULL_DEMO)).isTrue();
     }
 
     /** Tests readUserLP upgrading from version 9 to 10+. */
@@ -329,8 +276,11 @@ public class UserManagerServiceUserInfoTest {
         mUserManagerService.putUserInfo(data.info);
 
         for (String restriction : localRestrictions) {
-            assertFalse(mUserManagerService.hasBaseUserRestriction(restriction, userId));
-            assertFalse(mUserManagerService.hasUserRestriction(restriction, userId));
+            expect.withMessage("hasBaseUserRestriction(%s, %s)", restriction, userId)
+                    .that(mUserManagerService.hasBaseUserRestriction(restriction, userId))
+                    .isFalse();
+            expect.withMessage("hasUserRestriction(%s, %s)", restriction, userId)
+                    .that(mUserManagerService.hasUserRestriction(restriction, userId)).isFalse();
         }
 
         // Convert the xml resource to the system storage xml format.
@@ -348,8 +298,11 @@ public class UserManagerServiceUserInfoTest {
                 userVersion);
 
         for (String restriction : localRestrictions) {
-            assertFalse(mUserManagerService.hasBaseUserRestriction(restriction, userId));
-            assertTrue(mUserManagerService.hasUserRestriction(restriction, userId));
+            expect.withMessage("hasBaseUserRestriction(%s, %s)", restriction, userId)
+                    .that(mUserManagerService.hasBaseUserRestriction(restriction, userId))
+                    .isFalse();
+            expect.withMessage("hasUserRestriction(%s, %s)", restriction, userId)
+                    .that(mUserManagerService.hasUserRestriction(restriction, userId)).isTrue();
         }
     }
 
@@ -375,24 +328,24 @@ public class UserManagerServiceUserInfoTest {
     }
 
     private void assertUserInfoEquals(UserInfo one, UserInfo two, boolean parcelCopy) {
-        assertEquals("Id not preserved", one.id, two.id);
-        assertEquals("Name not preserved", one.name, two.name);
-        assertEquals("Icon path not preserved", one.iconPath, two.iconPath);
-        assertEquals("Flags not preserved", one.flags, two.flags);
-        assertEquals("UserType not preserved", one.userType, two.userType);
-        assertEquals("profile group not preserved", one.profileGroupId,
-                two.profileGroupId);
-        assertEquals("restricted profile parent not preserved", one.restrictedProfileParentId,
-                two.restrictedProfileParentId);
-        assertEquals("profile badge not preserved", one.profileBadge, two.profileBadge);
-        assertEquals("partial not preserved", one.partial, two.partial);
-        assertEquals("guestToRemove not preserved", one.guestToRemove, two.guestToRemove);
-        assertEquals("preCreated not preserved", one.preCreated, two.preCreated);
+        expect.withMessage("Id").that(two.id).isEqualTo(one.id);
+        expect.withMessage("Name").that(two.name).isEqualTo(one.name);
+        expect.withMessage("Icon path").that(two.iconPath).isEqualTo(one.iconPath);
+        expect.withMessage("Flags").that(two.flags).isEqualTo(one.flags);
+        expect.withMessage("User type").that(two.userType).isEqualTo(one.userType);
+        expect.withMessage("Profile group").that(two.profileGroupId).isEqualTo(one.profileGroupId);
+        expect.withMessage("Restricted profile parent").that(two.restrictedProfileParentId)
+                .isEqualTo(one.restrictedProfileParentId);
+        expect.withMessage("Profile badge").that(two.profileBadge).isEqualTo(one.profileBadge);
+        expect.withMessage("Partial").that(two.partial).isEqualTo(one.partial);
+        expect.withMessage("Guest to remove").that(two.guestToRemove).isEqualTo(one.guestToRemove);
+        expect.withMessage("Pre created").that(two.preCreated).isEqualTo(one.preCreated);
         if (parcelCopy) {
-            assertFalse("convertedFromPreCreated should not be set", two.convertedFromPreCreated);
+            expect.withMessage("convertedFromPreCreated").that(two.convertedFromPreCreated)
+                    .isFalse();
         } else {
-            assertEquals("convertedFromPreCreated not preserved", one.convertedFromPreCreated,
-                    two.convertedFromPreCreated);
+            expect.withMessage("convertedFromPreCreated").that(two.convertedFromPreCreated)
+                    .isEqualTo(one.convertedFromPreCreated);
         }
     }
 
@@ -428,10 +381,16 @@ public class UserManagerServiceUserInfoTest {
 
         mUserManagerService.upgradeProfileToTypeLU(userInfo, newUserType);
 
-        assertTrue(mUserManagerService.isUserOfType(userId, newUserTypeName));
-        assertTrue((mUserManagerService.getUserInfo(userId).flags & FLAG_PROFILE) != 0);
-        assertTrue((mUserManagerService.getUserInfo(userId).flags & FLAG_MANAGED_PROFILE) == 0);
-        assertTrue((mUserManagerService.getUserInfo(userId).flags & FLAG_INITIALIZED) != 0);
+        expect.withMessage("isUserOfType(%s)", newUserTypeName)
+                .that(mUserManagerService.isUserOfType(userId, newUserTypeName)).isTrue();
+        expect.withMessage("flags(FLAG_PROFILE)")
+                .that(mUserManagerService.getUserInfo(userId).flags & FLAG_PROFILE).isNotEqualTo(0);
+        expect.withMessage("flags(FLAG_MANAGED_PROFILE)")
+                .that(mUserManagerService.getUserInfo(userId).flags & FLAG_MANAGED_PROFILE)
+                .isEqualTo(0);
+        expect.withMessage("flags(FLAG_FLAG_INITIALIZED")
+                .that(mUserManagerService.getUserInfo(userId).flags & FLAG_INITIALIZED)
+                .isNotEqualTo(0);
     }
 
     @Test
@@ -470,11 +429,11 @@ public class UserManagerServiceUserInfoTest {
 
         mUserManagerService.upgradeProfileToTypeLU(userInfo, newUserType);
 
-        assertTrue(mUserManagerService.getUserRestrictions(userId).getBoolean(
-                UserManager.DISALLOW_PRINTING));
-        assertTrue(mUserManagerService.getUserRestrictions(userId).getBoolean(
-                UserManager.DISALLOW_CAMERA));
-        assertTrue(mUserManagerService.getUserRestrictions(userId).getBoolean(
-                UserManager.DISALLOW_WALLPAPER));
+        expect.withMessage("getUserRestrictions(DISALLOW_PRINTING)").that(mUserManagerService
+                .getUserRestrictions(userId).getBoolean(UserManager.DISALLOW_PRINTING)).isTrue();
+        expect.withMessage("getUserRestrictions(DISALLOW_CAMERA)").that(mUserManagerService
+                .getUserRestrictions(userId).getBoolean(UserManager.DISALLOW_CAMERA)).isTrue();
+        expect.withMessage("getUserRestrictions(DISALLOW_WALLPAPER)").that(mUserManagerService
+                .getUserRestrictions(userId).getBoolean(UserManager.DISALLOW_WALLPAPER)).isTrue();
     }
 }

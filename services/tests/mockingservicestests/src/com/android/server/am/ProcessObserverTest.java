@@ -42,6 +42,8 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.Log;
 
 import androidx.test.filters.MediumTest;
@@ -79,6 +81,8 @@ public class ProcessObserverTest {
     @Rule
     public final ApplicationExitInfoTest.ServiceThreadRule
             mServiceThreadRule = new ApplicationExitInfoTest.ServiceThreadRule();
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     private Context mContext;
     private HandlerThread mHandlerThread;
@@ -239,8 +243,8 @@ public class ProcessObserverTest {
     /**
      * Verify that a process start event is dispatched to process observers.
      */
-    @Ignore("b/323959187")
     @Test
+    @EnableFlags(android.app.Flags.FLAG_ENABLE_PROCESS_OBSERVER_BROADCAST_ON_PROCESS_STARTED)
     public void testNormal() throws Exception {
         ProcessRecord app = startProcess();
         verify(mProcessObserver).onProcessStarted(

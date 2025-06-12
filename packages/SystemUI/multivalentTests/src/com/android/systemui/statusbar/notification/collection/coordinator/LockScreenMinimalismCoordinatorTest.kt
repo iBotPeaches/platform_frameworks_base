@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.collection.coordinator
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationChannel.SYSTEM_RESERVED_IDS
 import android.app.NotificationManager.IMPORTANCE_DEFAULT
 import android.app.NotificationManager.IMPORTANCE_LOW
 import android.platform.test.annotations.EnableFlags
@@ -30,6 +30,7 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.statusbar.statusBarStateController
 import com.android.systemui.shade.shadeTestUtil
 import com.android.systemui.statusbar.SysuiStatusBarStateController
+import com.android.systemui.statusbar.notification.collection.BundleEntry
 import com.android.systemui.statusbar.notification.collection.GroupEntryBuilder
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
@@ -37,6 +38,7 @@ import com.android.systemui.statusbar.notification.collection.NotificationEntryB
 import com.android.systemui.statusbar.notification.collection.listbuilder.OnBeforeTransformGroupsListener
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifPromoter
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifSectioner
+import com.android.systemui.statusbar.notification.collection.makeClassifiedConversation
 import com.android.systemui.statusbar.notification.collection.modifyEntry
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionListener
 import com.android.systemui.statusbar.notification.data.repository.FakeHeadsUpRowRepository
@@ -52,11 +54,11 @@ import com.google.common.truth.StringSubject
 import com.google.common.truth.Truth.assertThat
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.argumentCaptor
@@ -83,7 +85,7 @@ class LockScreenMinimalismCoordinatorTest : SysuiTestCase() {
     private var statusBarState: StatusBarState = StatusBarState.KEYGUARD
 
     @Test
-    fun topUnseenSectioner() {
+    fun testTopUnseenSectioner() {
         val solo = NotificationEntryBuilder().setTag("solo").build()
         val child1 = NotificationEntryBuilder().setTag("child1").build()
         val child2 = NotificationEntryBuilder().setTag("child2").build()
@@ -123,7 +125,7 @@ class LockScreenMinimalismCoordinatorTest : SysuiTestCase() {
     }
 
     @Test
-    fun topOngoingSectioner() {
+    fun testTopOngoingSectioner() {
         val solo = NotificationEntryBuilder().setTag("solo").build()
         val child1 = NotificationEntryBuilder().setTag("child1").build()
         val child2 = NotificationEntryBuilder().setTag("child2").build()
@@ -209,6 +211,32 @@ class LockScreenMinimalismCoordinatorTest : SysuiTestCase() {
     }
 
     @Test
+    fun testTopOngoingSectioner_rejects_classifiedConversation() {
+        runCoordinatorTest {
+            for (id in SYSTEM_RESERVED_IDS) {
+                assertFalse(
+                    topOngoingSectioner.isInSection(
+                        kosmos.makeClassifiedConversation(id)
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun testTopUnseenSectioner_rejects_classifiedConversation() {
+        runCoordinatorTest {
+            for (id in SYSTEM_RESERVED_IDS) {
+                assertFalse(
+                    topUnseenSectioner.isInSection(
+                        kosmos.makeClassifiedConversation(id)
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
     fun topOngoingIdentifier() {
         val solo1 = defaultEntryBuilder().setTag("solo1").setRank(1).build()
         val solo2 = defaultEntryBuilder().setTag("solo2").setRank(2).build()
@@ -283,6 +311,8 @@ class LockScreenMinimalismCoordinatorTest : SysuiTestCase() {
         val group = GroupEntryBuilder().setSummary(parent).addChild(child1).addChild(child2).build()
         val listEntryList = listOf(group, solo1, solo2)
         val notificationEntryList = listOf(solo1, solo2, parent, child1, child2)
+        val bundle = BundleEntry("bundleKey")
+        val bundleList = listOf(bundle)
 
         runCoordinatorTest {
             // All entries are added (and now unseen)
@@ -302,6 +332,11 @@ class LockScreenMinimalismCoordinatorTest : SysuiTestCase() {
             onBeforeTransformGroupsListener.onBeforeTransformGroups(listEntryList)
             assertThatTopOngoingKey().isEqualTo(null)
             assertThatTopUnseenKey().isEqualTo(solo1.key)
+
+            // TEST: bundle is not picked
+            onBeforeTransformGroupsListener.onBeforeTransformGroups(bundleList)
+            assertThatTopOngoingKey().isEqualTo(null)
+            assertThatTopUnseenKey().isEqualTo(null)
 
             // TEST: if top-ranked unseen is colorized, fall back to #2 ranked unseen
             solo1.setColorizedFgs(true)

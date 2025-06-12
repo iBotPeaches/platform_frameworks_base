@@ -17,12 +17,12 @@
 package com.android.systemui.media.controls.ui.util
 
 import androidx.recyclerview.widget.DiffUtil
-import com.android.systemui.media.controls.ui.viewmodel.MediaCommonViewModel
+import com.android.systemui.media.controls.ui.viewmodel.MediaControlViewModel
 
 /** A [DiffUtil.Callback] to calculate difference between old and new media view-model list. */
 class MediaViewModelCallback(
-    private val old: List<MediaCommonViewModel>,
-    private val new: List<MediaCommonViewModel>,
+    private val old: List<MediaControlViewModel>,
+    private val new: List<MediaControlViewModel>,
 ) : DiffUtil.Callback() {
 
     override fun getOldListSize(): Int {
@@ -36,33 +36,12 @@ class MediaViewModelCallback(
     override fun areItemsTheSame(oldIndex: Int, newIndex: Int): Boolean {
         val oldItem = old[oldIndex]
         val newItem = new[newIndex]
-        return if (
-            oldItem is MediaCommonViewModel.MediaControl &&
-                newItem is MediaCommonViewModel.MediaControl
-        ) {
-            oldItem.instanceId == newItem.instanceId
-        } else {
-            oldItem is MediaCommonViewModel.MediaRecommendations &&
-                newItem is MediaCommonViewModel.MediaRecommendations
-        }
+        return oldItem.instanceId == newItem.instanceId
     }
 
     override fun areContentsTheSame(oldIndex: Int, newIndex: Int): Boolean {
         val oldItem = old[oldIndex]
         val newItem = new[newIndex]
-        return if (
-            oldItem is MediaCommonViewModel.MediaControl &&
-                newItem is MediaCommonViewModel.MediaControl
-        ) {
-            oldItem.immediatelyUpdateUi == newItem.immediatelyUpdateUi &&
-                oldItem.updateTime == newItem.updateTime
-        } else if (
-            oldItem is MediaCommonViewModel.MediaRecommendations &&
-                newItem is MediaCommonViewModel.MediaRecommendations
-        ) {
-            oldItem.key == newItem.key && oldItem.loadingEnabled == newItem.loadingEnabled
-        } else {
-            false
-        }
+        return oldItem.updateTime == newItem.updateTime
     }
 }

@@ -36,6 +36,7 @@ class PrettyPrintVisitor : public Visitor {
   ~PrettyPrintVisitor() override = default;
   void visit(const Idmap& idmap) override;
   void visit(const IdmapHeader& header) override;
+  void visit(const IdmapConstraints& constraints) override;
   void visit(const IdmapData& data) override;
   void visit(const IdmapData::Header& header) override;
 

@@ -20,19 +20,20 @@ import androidx.compose.runtime.getValue
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
+import com.android.systemui.media.controls.domain.pipeline.interactor.MediaCarouselInteractor
 import com.android.systemui.scene.domain.interactor.SceneInteractor
-import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.shade.ui.viewmodel.ShadeHeaderViewModel
-import com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsInteractor
+import com.android.systemui.statusbar.disableflags.domain.interactor.DisableFlagsInteractor
 import com.android.systemui.statusbar.notification.stack.ui.viewmodel.NotificationsPlaceholderViewModel
+import com.android.systemui.utils.coroutines.flow.flatMapLatestConflated
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Models UI state used to render the content of the notifications shade overlay.
@@ -47,43 +48,31 @@ constructor(
     val notificationsPlaceholderViewModelFactory: NotificationsPlaceholderViewModel.Factory,
     val sceneInteractor: SceneInteractor,
     private val shadeInteractor: ShadeInteractor,
-    activeNotificationsInteractor: ActiveNotificationsInteractor,
+    disableFlagsInteractor: DisableFlagsInteractor,
+    mediaCarouselInteractor: MediaCarouselInteractor,
 ) : ExclusiveActivatable() {
 
     private val hydrator = Hydrator("NotificationsShadeOverlayContentViewModel.hydrator")
 
-    val showHeader: Boolean by
+    val showMedia: Boolean by
         hydrator.hydratedStateOf(
-            traceName = "showHeader",
+            traceName = "showMedia",
             initialValue =
-                shouldShowHeader(
-                    isShadeLayoutWide = shadeInteractor.isShadeLayoutWide.value,
-                    areAnyNotificationsPresent =
-                        activeNotificationsInteractor.areAnyNotificationsPresentValue,
-                ),
+                disableFlagsInteractor.disableFlags.value.isQuickSettingsEnabled() &&
+                    mediaCarouselInteractor.hasActiveMediaOrRecommendation.value,
             source =
-                combine(
-                    shadeInteractor.isShadeLayoutWide,
-                    activeNotificationsInteractor.areAnyNotificationsPresent,
-                    this::shouldShowHeader,
-                ),
+                disableFlagsInteractor.disableFlags.flatMapLatestConflated {
+                    if (it.isQuickSettingsEnabled()) {
+                        mediaCarouselInteractor.hasActiveMediaOrRecommendation
+                    } else {
+                        flowOf(false)
+                    }
+                },
         )
 
     override suspend fun onActivated(): Nothing {
         coroutineScope {
             launch { hydrator.activate() }
-
-            launch {
-                sceneInteractor.currentScene.collect { currentScene ->
-                    when (currentScene) {
-                        // TODO(b/369513770): The ShadeSession should be preserved in this scenario.
-                        Scenes.Bouncer ->
-                            shadeInteractor.collapseNotificationsShade(
-                                loggingReason = "bouncer shown while shade is open"
-                            )
-                    }
-                }
-            }
 
             launch {
                 shadeInteractor.isShadeTouchable
@@ -101,13 +90,6 @@ constructor(
 
     fun onScrimClicked() {
         shadeInteractor.collapseNotificationsShade(loggingReason = "shade scrim clicked")
-    }
-
-    private fun shouldShowHeader(
-        isShadeLayoutWide: Boolean,
-        areAnyNotificationsPresent: Boolean,
-    ): Boolean {
-        return !isShadeLayoutWide && areAnyNotificationsPresent
     }
 
     @AssistedFactory

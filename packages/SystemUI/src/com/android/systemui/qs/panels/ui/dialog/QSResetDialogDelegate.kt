@@ -28,6 +28,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dialog.ui.composable.AlertDialogContent
 import com.android.systemui.qs.panels.domain.interactor.EditTilesResetInteractor
 import com.android.systemui.res.R
+import com.android.systemui.shade.domain.interactor.ShadeDialogContextInteractor
 import com.android.systemui.statusbar.phone.ComponentSystemUIDialog
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.phone.SystemUIDialogFactory
@@ -40,6 +41,7 @@ class QSResetDialogDelegate
 @Inject
 constructor(
     private val sysuiDialogFactory: SystemUIDialogFactory,
+    private val shadeDialogContextInteractor: ShadeDialogContextInteractor,
     private val resetInteractor: EditTilesResetInteractor,
 ) : SystemUIDialog.Delegate {
     private var currentDialog: ComponentSystemUIDialog? = null
@@ -53,7 +55,9 @@ constructor(
 
         currentDialog =
             sysuiDialogFactory
-                .create { ResetConfirmationDialog(it) }
+                .create(context = shadeDialogContextInteractor.context) {
+                    ResetConfirmationDialog(it)
+                }
                 .also {
                     it.lifecycle.addObserver(
                         object : DefaultLifecycleObserver {

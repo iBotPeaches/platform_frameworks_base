@@ -22,6 +22,7 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.service.dreams.Flags.dismissDreamOnKeyguardDismiss;
 import static android.view.WindowManager.KEYGUARD_VISIBILITY_TRANSIT_FLAGS;
+import static android.view.WindowManager.TRANSIT_FLAG_AOD_APPEARING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_APPEARING;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY;
 import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_LOCKED;
@@ -200,7 +201,8 @@ public class KeyguardTransitionHandler
                     transition, info, startTransaction, finishTransaction, finishCallback);
         }
 
-        if ((info.getFlags() & TRANSIT_FLAG_KEYGUARD_APPEARING) != 0) {
+        if ((info.getFlags() & TRANSIT_FLAG_KEYGUARD_APPEARING) != 0
+                || (info.getFlags() & TRANSIT_FLAG_AOD_APPEARING) != 0) {
             return startAnimation(mAppearTransition, "appearing",
                     transition, info, startTransaction, finishTransaction, finishCallback);
         }
@@ -277,7 +279,8 @@ public class KeyguardTransitionHandler
 
     @Override
     public void mergeAnimation(@NonNull IBinder nextTransition, @NonNull TransitionInfo nextInfo,
-            @NonNull SurfaceControl.Transaction nextT, @NonNull IBinder currentTransition,
+            @NonNull SurfaceControl.Transaction nextT, @NonNull SurfaceControl.Transaction finishT,
+            @NonNull IBinder currentTransition,
             @NonNull TransitionFinishCallback nextFinishCallback) {
         final StartedTransition playing = mStartedTransitions.get(currentTransition);
         if (playing == null) {

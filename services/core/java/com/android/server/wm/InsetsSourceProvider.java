@@ -21,16 +21,16 @@ import static com.android.server.wm.InsetsSourceProviderProto.CAPTURED_LEASH;
 import static com.android.server.wm.InsetsSourceProviderProto.CLIENT_VISIBLE;
 import static com.android.server.wm.InsetsSourceProviderProto.CONTROL;
 import static com.android.server.wm.InsetsSourceProviderProto.CONTROLLABLE;
-import static com.android.server.wm.InsetsSourceProviderProto.CONTROL_TARGET;
+import static com.android.server.wm.InsetsSourceProviderProto.CONTROL_TARGET_IDENTIFIER;
 import static com.android.server.wm.InsetsSourceProviderProto.FAKE_CONTROL;
-import static com.android.server.wm.InsetsSourceProviderProto.FAKE_CONTROL_TARGET;
+import static com.android.server.wm.InsetsSourceProviderProto.FAKE_CONTROL_TARGET_IDENTIFIER;
 import static com.android.server.wm.InsetsSourceProviderProto.FRAME;
 import static com.android.server.wm.InsetsSourceProviderProto.IS_LEASH_READY_FOR_DISPATCHING;
-import static com.android.server.wm.InsetsSourceProviderProto.PENDING_CONTROL_TARGET;
+import static com.android.server.wm.InsetsSourceProviderProto.PENDING_CONTROL_TARGET_IDENTIFIER;
 import static com.android.server.wm.InsetsSourceProviderProto.SEAMLESS_ROTATING;
 import static com.android.server.wm.InsetsSourceProviderProto.SERVER_VISIBLE;
 import static com.android.server.wm.InsetsSourceProviderProto.SOURCE;
-import static com.android.server.wm.InsetsSourceProviderProto.SOURCE_WINDOW_STATE;
+import static com.android.server.wm.InsetsSourceProviderProto.SOURCE_WINDOW_STATE_IDENTIFIER;
 import static com.android.server.wm.SurfaceAnimator.ANIMATION_TYPE_INSETS_CONTROL;
 
 import android.annotation.NonNull;
@@ -173,6 +173,16 @@ class InsetsSourceProvider {
      */
     boolean isControllable() {
         return mControllable;
+    }
+
+    /**
+     * @return Whether the current window container has a visible surface.
+     */
+    protected boolean isSurfaceVisible() {
+        final WindowState windowState = mWindowContainer.asWindowState();
+        return windowState != null
+                ? windowState.wouldBeVisibleIfPolicyIgnored() && windowState.isVisibleByPolicy()
+                : mWindowContainer.isVisibleRequested();
     }
 
     /**
@@ -368,20 +378,9 @@ class InsetsSourceProvider {
         if (mWindowContainer == null) {
             return;
         }
-        WindowState windowState = mWindowContainer.asWindowState();
-        boolean isServerVisible = windowState != null
-                ? windowState.wouldBeVisibleIfPolicyIgnored() && windowState.isVisibleByPolicy()
-                : mWindowContainer.isVisibleRequested();
+        final WindowState windowState = mWindowContainer.asWindowState();
+        final boolean isServerVisible = isSurfaceVisible();
 
-        if (android.view.inputmethod.Flags.refactorInsetsController()) {
-            if (mControl != null && mControl.getType() == WindowInsets.Type.ime() && !mServerVisible
-                    && isServerVisible && windowState != null) {
-                // in case the IME becomes visible, we need to check if it is already drawn and
-                // does not have given insets pending. If it's not yet drawn, we do not set
-                // server visibility
-                isServerVisible = windowState.isDrawn() && !windowState.mGivenInsetsPending;
-            }
-        }
         final boolean serverVisibleChanged = mServerVisible != isServerVisible;
         setServerVisible(isServerVisible);
         if (mControl != null && mControlTarget != null) {
@@ -673,6 +672,10 @@ class InsetsSourceProvider {
                 mServerVisible, mClientVisible);
     }
 
+    void onAnimatingTypesChanged(InsetsControlTarget caller,
+            @Nullable ImeTracker.Token statsToken) {
+    }
+
     protected boolean isLeashReadyForDispatching() {
         return isLeashInitialized();
     }
@@ -803,14 +806,16 @@ class InsetsSourceProvider {
             mControl.dumpDebug(proto, CONTROL);
         }
         if (mControlTarget != null && mControlTarget.getWindow() != null) {
-            mControlTarget.getWindow().dumpDebug(proto, CONTROL_TARGET, logLevel);
+            mControlTarget.getWindow().writeIdentifierToProto(proto, CONTROL_TARGET_IDENTIFIER);
         }
         if (mPendingControlTarget != null && mPendingControlTarget != mControlTarget
                 && mPendingControlTarget.getWindow() != null) {
-            mPendingControlTarget.getWindow().dumpDebug(proto, PENDING_CONTROL_TARGET, logLevel);
+            mPendingControlTarget.getWindow().writeIdentifierToProto(
+                    proto, PENDING_CONTROL_TARGET_IDENTIFIER);
         }
         if (mFakeControlTarget != null && mFakeControlTarget.getWindow() != null) {
-            mFakeControlTarget.getWindow().dumpDebug(proto, FAKE_CONTROL_TARGET, logLevel);
+            mFakeControlTarget.getWindow().writeIdentifierToProto(
+                    proto, FAKE_CONTROL_TARGET_IDENTIFIER);
         }
         if (mAdapter != null && mAdapter.mCapturedLeash != null) {
             mAdapter.mCapturedLeash.dumpDebug(proto, CAPTURED_LEASH);
@@ -821,7 +826,8 @@ class InsetsSourceProvider {
         proto.write(SEAMLESS_ROTATING, mSeamlessRotating);
         proto.write(CONTROLLABLE, mControllable);
         if (mWindowContainer != null && mWindowContainer.asWindowState() != null) {
-            mWindowContainer.asWindowState().dumpDebug(proto, SOURCE_WINDOW_STATE, logLevel);
+            mWindowContainer.asWindowState().writeIdentifierToProto(
+                    proto, SOURCE_WINDOW_STATE_IDENTIFIER);
         }
         proto.end(token);
     }

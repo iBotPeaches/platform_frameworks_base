@@ -20,8 +20,8 @@ import android.os.UserHandle
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.qs.ReduceBrightColorsController
 import com.android.systemui.qs.dagger.QSFlagsModule.RBC_AVAILABLE
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.reducebrightness.domain.model.ReduceBrightColorsTileModel
 import com.android.systemui.util.kotlin.isEnabled
 import javax.inject.Inject

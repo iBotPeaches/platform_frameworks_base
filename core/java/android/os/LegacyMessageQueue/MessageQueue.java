@@ -16,7 +16,6 @@
 
 package android.os;
 
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -754,41 +753,41 @@ public final class MessageQueue {
                 } while (msg != null && !msg.isAsynchronous());
             }
             if (msg != null) {
+                if (peek) {
+                    return msg;
+                }
                 if (now >= msg.when) {
                     // Got a message.
                     mBlocked = false;
-                    if (peek) {
-                        return msg;
-                    }
-                    if (prevMsg != null) {
-                        prevMsg.next = msg.next;
-                        if (prevMsg.next == null) {
-                            mLast = prevMsg;
-                        }
-                    } else {
-                        mMessages = msg.next;
-                        if (msg.next == null) {
-                            mLast = null;
-                        }
-                    }
-                    msg.next = null;
-                    msg.markInUse();
-                    if (msg.isAsynchronous()) {
-                        mAsyncMessageCount--;
-                    }
-                    if (TRACE) {
-                        Trace.setCounter("MQ.Delivered", mMessagesDelivered.incrementAndGet());
-                    }
-                    return msg;
                 }
+                if (prevMsg != null) {
+                    prevMsg.next = msg.next;
+                    if (prevMsg.next == null) {
+                        mLast = prevMsg;
+                    }
+                } else {
+                    mMessages = msg.next;
+                    if (msg.next == null) {
+                        mLast = null;
+                    }
+                }
+                msg.next = null;
+                msg.markInUse();
+                if (msg.isAsynchronous()) {
+                    mAsyncMessageCount--;
+                }
+                if (TRACE) {
+                    Trace.setCounter("MQ.Delivered", mMessagesDelivered.incrementAndGet());
+                }
+                return msg;
             }
         }
         return null;
     }
 
     /**
-     * Get the timestamp of the next executable message in our priority queue.
-     * Returns null if there are no messages ready for delivery.
+     * Get the timestamp of the next message in our priority queue.
+     * Returns null if there are no messages in the queue.
      *
      * Caller must ensure that this doesn't race 'next' from the Looper thread.
      */
@@ -800,8 +799,8 @@ public final class MessageQueue {
     }
 
     /**
-     * Return the next executable message in our priority queue.
-     * Returns null if there are no messages ready for delivery
+     * Return the next message in our priority queue.
+     * Returns null if there are no messages in the queue.
      *
      * Caller must ensure that this doesn't race 'next' from the Looper thread.
      */
@@ -814,36 +813,17 @@ public final class MessageQueue {
 
     /**
      * @return true if we are blocked on a sync barrier
+     *
+     * Calls to this method must not be allowed to race with `next`.
+     * Specifically, the Looper thread must be paused before calling this method,
+     * and may not be resumed until after returning from this method.
      */
     boolean isBlockedOnSyncBarrier() {
         throwIfNotTest();
-        Message msg = mMessages;
-        if (msg != null && msg.target == null) {
-            Message iter = msg;
-            /* Look for a deliverable async node */
-            do {
-                iter = iter.next;
-            } while (iter != null && !iter.isAsynchronous());
-
-            long now = SystemClock.uptimeMillis();
-            if (iter != null && now >= iter.when) {
-                return false;
-            }
-            /*
-                * Look for a deliverable sync node. In this case, if one exists we are blocked
-                * since the barrier prevents delivery of the Message.
-                */
-            iter = msg;
-            do {
-                iter = iter.next;
-            } while (iter != null && (iter.target == null || iter.isAsynchronous()));
-
-            if (iter != null && now >= iter.when) {
-                return true;
-            }
-            return false;
+        synchronized (this) {
+            Message msg = mMessages;
+            return msg != null && msg.target == null;
         }
-        return false;
     }
 
     boolean hasMessages(Handler h, int what, Object object) {

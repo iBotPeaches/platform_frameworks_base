@@ -45,14 +45,10 @@ public class NotificationActivity extends Activity {
             requestPermissions(new String[] { POST_NOTIFICATIONS }, 0);
         }
 
-        WindowManager.LayoutParams p = getWindow().getAttributes();
-        p.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        getWindow().setAttributes(p);
         setContentView(R.layout.notification_button);
 
-        Button button = findViewById(R.id.post_notification);
-        button.setOnClickListener(v -> postNotification());
+        ((Button) findViewById(R.id.post_notification))
+                .setOnClickListener(v -> postNotification());
 
         createNotificationChannel();
     }

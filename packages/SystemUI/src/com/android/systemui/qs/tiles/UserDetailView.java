@@ -146,6 +146,7 @@ public class UserDetailView extends PseudoGridView {
                 v.bind(name, drawable, item.info.id);
             }
             v.setActivated(item.isCurrent);
+            v.setSelected(item.isCurrent);
             v.setDisabledByAdmin(item.isDisabledByAdmin());
             v.setEnabled(item.isSwitchToEnabled);
             UserSwitcherController.setSelectableAlpha(v);

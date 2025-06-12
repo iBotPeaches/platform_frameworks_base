@@ -36,10 +36,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
 import com.android.compose.animation.scene.MovableElementContentPicker
 import com.android.compose.animation.scene.MovableElementKey
-import com.android.compose.animation.scene.SceneScope
 import com.android.compose.animation.scene.SceneTransitionLayoutState
 import com.android.compose.animation.scene.ValueKey
 import com.android.compose.animation.scene.content.state.TransitionState
@@ -98,7 +98,7 @@ object QuickSettings {
     }
 }
 
-private fun SceneScope.stateForQuickSettingsContent(
+private fun ContentScope.stateForQuickSettingsContent(
     isSplitShade: Boolean,
     squishiness: () -> Float = { QuickSettings.SharedValues.SquishinessValues.Default },
 ): QSSceneAdapter.State {
@@ -135,13 +135,14 @@ private fun SceneScope.stateForQuickSettingsContent(
                 }
             }
         is TransitionState.Transition.OverlayTransition ->
-            error("Bad transition for QuickSettings scene: overlays not supported")
+            // Currently, no overlays use this QS impl, so we should make sure it's closed.
+            QSSceneAdapter.State.CLOSED
     }
 }
 
 /**
  * This composable will show QuickSettingsContent in the correct state (as determined by its
- * [SceneScope]).
+ * [ContentScope]).
  *
  * If adding to scenes not in:
  * * QuickSettingsScene
@@ -153,7 +154,7 @@ private fun SceneScope.stateForQuickSettingsContent(
  * * this doc.
  */
 @Composable
-fun SceneScope.QuickSettings(
+fun ContentScope.QuickSettings(
     qsSceneAdapter: QSSceneAdapter,
     heightProvider: () -> Int,
     isSplitShade: Boolean,

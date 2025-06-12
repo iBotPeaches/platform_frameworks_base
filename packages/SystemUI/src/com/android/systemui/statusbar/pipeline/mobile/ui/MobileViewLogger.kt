@@ -20,10 +20,12 @@ import android.view.View
 import com.android.systemui.Dumpable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dump.DumpManager
+import com.android.systemui.kairos.ExperimentalKairosApi
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.statusbar.pipeline.dagger.MobileViewLog
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModel
+import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModelKairos
 import java.io.PrintWriter
 import javax.inject.Inject
 
@@ -31,33 +33,38 @@ import javax.inject.Inject
 @SysUISingleton
 class MobileViewLogger
 @Inject
-constructor(
-    @MobileViewLog private val buffer: LogBuffer,
-    dumpManager: DumpManager,
-) : Dumpable {
+constructor(@MobileViewLog private val buffer: LogBuffer, dumpManager: DumpManager) : Dumpable {
     init {
         dumpManager.registerNormalDumpable(this)
     }
 
     private val collectionStatuses = mutableMapOf<String, Boolean>()
 
-    fun logUiAdapterSubIdsSentToIconController(subs: List<Int>) {
+    fun logUiAdapterSubIdsSentToIconController(subs: List<Int>, isStackable: Boolean) {
         buffer.log(
             TAG,
             LogLevel.INFO,
-            { str1 = subs.toString() },
-            { "Sub IDs in MobileUiAdapter being sent to icon controller: $str1" },
+            {
+                str1 = subs.toString()
+                bool1 = isStackable
+            },
+            {
+                "Sub IDs in MobileUiAdapter being sent to icon controller: $str1, isStackable=$bool1"
+            },
         )
     }
 
-    fun logNewViewBinding(view: View, viewModel: LocationBasedMobileViewModel) {
+    fun logNewViewBinding(view: View, viewModel: LocationBasedMobileViewModel) =
+        logNewViewBinding(view, viewModel, viewModel.location.name)
+
+    fun logNewViewBinding(view: View, viewModel: Any, location: String) {
         buffer.log(
             TAG,
             LogLevel.INFO,
             {
                 str1 = view.getIdForLogging()
                 str2 = viewModel.getIdForLogging()
-                str3 = viewModel.location.name
+                str3 = location
             },
             { "New view binding. viewId=$str1, viewModelId=$str2, viewModelLocation=$str3" },
         )
@@ -78,6 +85,36 @@ constructor(
     }
 
     fun logCollectionStopped(view: View, viewModel: LocationBasedMobileViewModel) {
+        collectionStatuses[view.getIdForLogging()] = false
+        buffer.log(
+            TAG,
+            LogLevel.INFO,
+            {
+                str1 = view.getIdForLogging()
+                str2 = viewModel.getIdForLogging()
+                str3 = viewModel.location.name
+            },
+            { "Collection stopped. viewId=$str1, viewModelId=$str2, viewModelLocation=$str3" },
+        )
+    }
+
+    @OptIn(ExperimentalKairosApi::class)
+    fun logCollectionStarted(view: View, viewModel: LocationBasedMobileViewModelKairos) {
+        collectionStatuses[view.getIdForLogging()] = true
+        buffer.log(
+            TAG,
+            LogLevel.INFO,
+            {
+                str1 = view.getIdForLogging()
+                str2 = viewModel.getIdForLogging()
+                str3 = viewModel.location.name
+            },
+            { "Collection started. viewId=$str1, viewModelId=$str2, viewModelLocation=$str3" },
+        )
+    }
+
+    @OptIn(ExperimentalKairosApi::class)
+    fun logCollectionStopped(view: View, viewModel: LocationBasedMobileViewModelKairos) {
         collectionStatuses[view.getIdForLogging()] = false
         buffer.log(
             TAG,

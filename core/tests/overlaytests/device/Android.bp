@@ -28,8 +28,8 @@ android_test {
     certificate: "platform",
     static_libs: [
         "androidx.test.rules",
-        "testng",
         "compatibility-device-util-axt",
+        "testng",
     ],
     test_suites: ["device-tests"],
     data: [

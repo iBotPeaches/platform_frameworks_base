@@ -66,13 +66,13 @@ class SourceTransformer(
         packagePath: String,
         compilationUnit: CompilationUnit =
             StaticJavaParser.parse(code)
-    ): String {
+    ): Pair<String, Collection<CodeProcessingException>> {
         this.path = path
         this.packagePath = packagePath
         processedCode = code.split('\n').toMutableList()
         offsets = IntArray(processedCode.size)
-        protoLogCallProcessor.process(compilationUnit, protoLogCallVisitor, otherCallVisitor, path)
-        return processedCode.joinToString("\n")
+        val processingErrors = protoLogCallProcessor.process(compilationUnit, protoLogCallVisitor, otherCallVisitor, path)
+        return Pair(processedCode.joinToString("\n"), processingErrors)
     }
 
     private val protoLogImplClassNode =
@@ -91,7 +91,8 @@ class SourceTransformer(
             call: MethodCallExpr,
             messageString: String,
             level: LogLevel,
-            group: LogGroup
+            group: LogGroup,
+            lineNumber: Int,
         ) {
             validateCall(call)
             val processedCallStatement =

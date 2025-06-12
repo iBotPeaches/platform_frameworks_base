@@ -19,16 +19,23 @@ package com.android.systemui.model;
 
 import static android.view.Display.DEFAULT_DISPLAY;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+
+import android.view.Display;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.systemui.SysuiTestCase;
+import com.android.systemui.dump.DumpManager;
 import com.android.systemui.kosmos.KosmosJavaAdapter;
-import com.android.systemui.settings.FakeDisplayTracker;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -46,21 +53,33 @@ public class SysUiStateTest extends SysuiTestCase {
     private KosmosJavaAdapter mKosmos;
     private SysUiState.SysUiStateCallback mCallback;
     private SysUiState mFlagsContainer;
+    private SceneContainerPlugin mSceneContainerPlugin;
+    private DumpManager mDumpManager;
+    private SysUIStateDispatcher mSysUIStateDispatcher;
+
+    private SysUiState createInstance(int displayId) {
+        var sysuiState = new SysUiStateImpl(displayId, mSceneContainerPlugin, mDumpManager,
+                mSysUIStateDispatcher);
+        sysuiState.addCallback(mCallback);
+        return sysuiState;
+    }
 
     @Before
     public void setup() {
-        FakeDisplayTracker displayTracker = new FakeDisplayTracker(mContext);
         mKosmos = new KosmosJavaAdapter(this);
-        mFlagsContainer = new SysUiState(displayTracker, mKosmos.getSceneContainerPlugin());
+        mFlagsContainer = mKosmos.getSysuiState();
+        mSceneContainerPlugin = mKosmos.getSceneContainerPlugin();
         mCallback = mock(SysUiState.SysUiStateCallback.class);
-        mFlagsContainer.addCallback(mCallback);
+        mDumpManager = mock(DumpManager.class);
+        mSysUIStateDispatcher = mKosmos.getSysUIStateDispatcher();
+        mFlagsContainer = createInstance(DEFAULT_DISPLAY);
     }
 
     @Test
     public void addSingle_setFlag() {
         setFlags(FLAG_1);
 
-        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1);
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1, DEFAULT_DISPLAY);
     }
 
     @Test
@@ -68,22 +87,19 @@ public class SysUiStateTest extends SysuiTestCase {
         setFlags(FLAG_1);
         setFlags(FLAG_2);
 
-        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1);
-        verify(mCallback, times(1))
-                .onSystemUiStateChanged(FLAG_1 | FLAG_2);
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1, DEFAULT_DISPLAY);
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1 | FLAG_2, DEFAULT_DISPLAY);
     }
 
     @Test
     public void addMultipleRemoveOne_setFlag() {
         setFlags(FLAG_1);
         setFlags(FLAG_2);
-        mFlagsContainer.setFlag(FLAG_1, false)
-                .commitUpdate(DISPLAY_ID);
+        mFlagsContainer.setFlag(FLAG_1, false).commitUpdate(DISPLAY_ID);
 
-        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1);
-        verify(mCallback, times(1))
-                .onSystemUiStateChanged(FLAG_1 | FLAG_2);
-        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_2);
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1, DEFAULT_DISPLAY);
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1 | FLAG_2, DEFAULT_DISPLAY);
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_2, DEFAULT_DISPLAY);
     }
 
     @Test
@@ -91,19 +107,18 @@ public class SysUiStateTest extends SysuiTestCase {
         setFlags(FLAG_1, FLAG_2, FLAG_3, FLAG_4);
 
         int expected = FLAG_1 | FLAG_2 | FLAG_3 | FLAG_4;
-        verify(mCallback, times(1)).onSystemUiStateChanged(expected);
+        verify(mCallback, times(1)).onSystemUiStateChanged(expected, DEFAULT_DISPLAY);
     }
 
     @Test
     public void addMultipleRemoveOne_setFlags() {
         setFlags(FLAG_1, FLAG_2, FLAG_3, FLAG_4);
-        mFlagsContainer.setFlag(FLAG_2, false)
-                .commitUpdate(DISPLAY_ID);
+        mFlagsContainer.setFlag(FLAG_2, false).commitUpdate(DISPLAY_ID);
 
         int expected1 = FLAG_1 | FLAG_2 | FLAG_3 | FLAG_4;
-        verify(mCallback, times(1)).onSystemUiStateChanged(expected1);
+        verify(mCallback, times(1)).onSystemUiStateChanged(expected1, DEFAULT_DISPLAY);
         int expected2 = FLAG_1 | FLAG_3 | FLAG_4;
-        verify(mCallback, times(1)).onSystemUiStateChanged(expected2);
+        verify(mCallback, times(1)).onSystemUiStateChanged(expected2, DEFAULT_DISPLAY);
     }
 
     @Test
@@ -112,13 +127,39 @@ public class SysUiStateTest extends SysuiTestCase {
         setFlags(FLAG_1, FLAG_2, FLAG_3, FLAG_4);
 
         int expected = FLAG_1 | FLAG_2 | FLAG_3 | FLAG_4;
-        verify(mCallback, times(0)).onSystemUiStateChanged(expected);
+        verify(mCallback, times(0)).onSystemUiStateChanged(expected, DEFAULT_DISPLAY);
+    }
+
+    @Test
+    public void setFlag_receivedForDefaultDisplay() {
+        setFlags(FLAG_1);
+
+        verify(mCallback, times(1)).onSystemUiStateChanged(FLAG_1, DEFAULT_DISPLAY);
+    }
+
+
+    @Test
+    public void init_registersWithDumpManager() {
+        mFlagsContainer.start();
+
+        verify(mDumpManager).registerNormalDumpable(any(), eq(mFlagsContainer));
+    }
+
+    @Test
+    public void destroy_unregistersWithDumpManager() {
+        mFlagsContainer.destroy();
+
+        verify(mDumpManager).unregisterDumpable(anyString());
     }
 
     private void setFlags(int... flags) {
-        for (int i = 0; i < flags.length; i++) {
-            mFlagsContainer.setFlag(flags[i], true);
+        setFlags(mFlagsContainer, flags);
+    }
+
+    private void setFlags(SysUiState instance, int... flags) {
+        for (int flag : flags) {
+            instance.setFlag(flag, true);
         }
-        mFlagsContainer.commitUpdate(DISPLAY_ID);
+        instance.commitUpdate();
     }
 }

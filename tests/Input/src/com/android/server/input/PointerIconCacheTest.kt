@@ -34,19 +34,14 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
-/**
- * Tests for {@link PointerIconCache}.
- */
+/** Tests for {@link PointerIconCache}. */
 @Presubmit
 class PointerIconCacheTest {
 
-    @get:Rule
-    val rule = MockitoJUnit.rule()!!
+    @get:Rule val rule = MockitoJUnit.rule()!!
 
-    @Mock
-    private lateinit var native: NativeInputManagerService
-    @Mock
-    private lateinit var defaultDisplay: Display
+    @Mock private lateinit var native: NativeInputManagerService
+    @Mock private lateinit var defaultDisplay: Display
 
     private lateinit var context: Context
     private lateinit var testLooper: TestLooper
@@ -56,9 +51,10 @@ class PointerIconCacheTest {
     fun setup() {
         whenever(defaultDisplay.displayId).thenReturn(Display.DEFAULT_DISPLAY)
 
-        context = object : ContextWrapper(InstrumentationRegistry.getInstrumentation().context) {
-            override fun getDisplay() = defaultDisplay
-        }
+        context =
+            object : ContextWrapper(InstrumentationRegistry.getInstrumentation().context) {
+                override fun getDisplay() = defaultDisplay
+            }
 
         testLooper = TestLooper()
         cache = PointerIconCache(context, native, Handler(testLooper.looper))

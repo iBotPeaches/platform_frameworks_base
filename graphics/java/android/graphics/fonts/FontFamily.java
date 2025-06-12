@@ -66,6 +66,7 @@ import java.util.Set;
  * </p>
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class FontFamily {
 
     private static final String TAG = "FontFamily";

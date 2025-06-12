@@ -16,7 +16,38 @@
 
 package com.android.systemui.display.data.repository
 
+import android.view.Display
+import com.android.systemui.display.dagger.SystemUIDisplaySubcomponent
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
+import com.android.systemui.kosmos.testScope
+import kotlinx.coroutines.CoroutineScope
 
 val Kosmos.displayRepository by Fixture { FakeDisplayRepository() }
+
+fun Kosmos.createFakeDisplaySubcomponent(
+    coroutineScope: CoroutineScope = testScope.backgroundScope
+): SystemUIDisplaySubcomponent {
+    return object : SystemUIDisplaySubcomponent {
+        override val displayCoroutineScope: CoroutineScope
+            get() = coroutineScope
+    }
+}
+
+val Kosmos.sysuiDefaultDisplaySubcomponent by Fixture {
+    createFakeDisplaySubcomponent(testScope.backgroundScope)
+}
+
+val Kosmos.fakeSysuiDisplayComponentFactory by Fixture {
+    object : SystemUIDisplaySubcomponent.Factory {
+        override fun create(displayId: Int): SystemUIDisplaySubcomponent {
+            return sysuiDefaultDisplaySubcomponent
+        }
+    }
+}
+
+val Kosmos.displaySubcomponentPerDisplayRepository by Fixture {
+    FakePerDisplayRepository<SystemUIDisplaySubcomponent>().apply {
+        add(Display.DEFAULT_DISPLAY, sysuiDefaultDisplaySubcomponent)
+    }
+}

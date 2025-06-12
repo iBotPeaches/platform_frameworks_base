@@ -44,6 +44,8 @@ import androidx.preference.PreferenceViewHolder;
 public class RestrictedPreferenceHelper {
     private static final String TAG = "RestrictedPreferenceHelper";
 
+    private static final String REASON_PHONE_STATE = "phone_state";
+
     private final Context mContext;
     private final Preference mPreference;
     String packageName;
@@ -118,10 +120,10 @@ public class RestrictedPreferenceHelper {
             final TextView summaryView = (TextView) holder.findViewById(android.R.id.summary);
             if (summaryView != null) {
                 final CharSequence disabledText = getDisabledByAdminSummaryString();
-                if (mDisabledByAdmin) {
+                if (mDisabledByAdmin && disabledText != null) {
                     summaryView.setText(disabledText);
                 } else if (mDisabledByEcm) {
-                    summaryView.setText(R.string.disabled_by_app_ops_text);
+                    summaryView.setText(getEcmTextResId());
                 } else if (TextUtils.equals(disabledText, summaryView.getText())) {
                     // It's previously set to disabled text, clear it.
                     summaryView.setText(null);
@@ -130,10 +132,10 @@ public class RestrictedPreferenceHelper {
         }
     }
 
-    private String getDisabledByAdminSummaryString() {
+    private @Nullable String getDisabledByAdminSummaryString() {
         if (isRestrictionEnforcedByAdvancedProtection()) {
-            return mContext.getString(com.android.settingslib.widget.restricted
-                    .R.string.disabled_by_advanced_protection);
+            // Advanced Protection doesn't set the summary string, it keeps the current summary.
+            return null;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             return mContext.getSystemService(DevicePolicyManager.class).getResources().getString(
@@ -147,6 +149,18 @@ public class RestrictedPreferenceHelper {
         return mEnforcedAdmin != null && RestrictedLockUtilsInternal
                 .isPolicyEnforcedByAdvancedProtection(mContext, mEnforcedAdmin.enforcedRestriction,
                         UserHandle.myUserId());
+    }
+
+    /**
+     * Configures the user restriction that this preference will track. This is equivalent to
+     * specifying {@link R.styleable#RestrictedPreference_userRestriction} in XML and allows
+     * configuring user restriction at runtime.
+     */
+    public void setUserRestriction(@Nullable String userRestriction) {
+        mAttrUserRestriction = userRestriction == null ||
+            RestrictedLockUtilsInternal.hasBaseUserRestriction(mContext, userRestriction,
+                UserHandle.myUserId()) ? null : userRestriction;
+        setDisabledByAdmin(checkRestrictionEnforced());
     }
 
     public void useAdminDisabledSummary(boolean useSummary) {
@@ -204,13 +218,30 @@ public class RestrictedPreferenceHelper {
      * package. Marks the preference as disabled if so.
      * @param settingIdentifier The key identifying the setting
      * @param packageName the package to check the settingIdentifier for
+     * @param settingEnabled Whether the setting in question is enabled
      */
     public void checkEcmRestrictionAndSetDisabled(@NonNull String settingIdentifier,
-            @NonNull String packageName) {
+            @NonNull String packageName, boolean settingEnabled) {
         updatePackageDetails(packageName, android.os.Process.INVALID_UID);
+        if (settingEnabled) {
+            setDisabledByEcm(null);
+            return;
+        }
         Intent intent = RestrictedLockUtilsInternal.checkIfRequiresEnhancedConfirmation(
                 mContext, settingIdentifier, packageName);
         setDisabledByEcm(intent);
+    }
+
+    /**
+     * Checks if the given setting is subject to Enhanced Confirmation Mode restrictions for this
+     * package. Marks the preference as disabled if so.
+     * TODO b/390196024: remove this and update all callers to use the "settingEnabled" version
+     * @param settingIdentifier The key identifying the setting
+     * @param packageName the package to check the settingIdentifier for
+     */
+    public void checkEcmRestrictionAndSetDisabled(@NonNull String settingIdentifier,
+            @NonNull String packageName) {
+        checkEcmRestrictionAndSetDisabled(settingIdentifier, packageName, false);
     }
 
     /**
@@ -302,11 +333,23 @@ public class RestrictedPreferenceHelper {
         }
 
         if (android.security.Flags.aapmApi() && !isEnabled && mDisabledByAdmin) {
-            mPreference.setSummary(getDisabledByAdminSummaryString());
+            String summary = getDisabledByAdminSummaryString();
+            if (summary != null) {
+                mPreference.setSummary(summary);
+            }
         }
 
         if (!isEnabled && mDisabledByEcm) {
-            mPreference.setSummary(R.string.disabled_by_app_ops_text);
+            mPreference.setSummary(getEcmTextResId());
+        }
+    }
+
+    private int getEcmTextResId() {
+        if (mDisabledByEcmIntent != null && REASON_PHONE_STATE.equals(
+                mDisabledByEcmIntent.getStringExtra(Intent.EXTRA_REASON))) {
+            return R.string.disabled_in_phone_call_text;
+        } else {
+            return R.string.disabled_by_app_ops_text;
         }
     }
 

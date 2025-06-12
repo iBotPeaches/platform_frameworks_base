@@ -28,6 +28,7 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
@@ -127,6 +128,16 @@ public class DrawTweenPath extends PaintOperation implements VariableSupport {
         return Operations.DRAW_TWEEN_PATH;
     }
 
+    /**
+     * add a draw tween path operation to the buffer
+     *
+     * @param buffer the buffer to add to
+     * @param path1Id the first path
+     * @param path2Id the second path
+     * @param tween the amount of the tween
+     * @param start the start sub range to draw
+     * @param stop the end of the sub range to draw
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int path1Id,
@@ -160,5 +171,16 @@ public class DrawTweenPath extends PaintOperation implements VariableSupport {
     @Override
     public void paint(@NonNull PaintContext context) {
         context.drawTweenPath(mPath1Id, mPath2Id, mOutTween, mOutStart, mOutStop);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("path1Id", mPath1Id)
+                .add("path2Id", mPath2Id)
+                .add("tween", mTween, mOutTween)
+                .add("start", mStart, mOutStart)
+                .add("stop", mStop, mOutStop);
     }
 }

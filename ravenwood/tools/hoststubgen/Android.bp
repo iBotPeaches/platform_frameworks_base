@@ -90,17 +90,16 @@ java_library {
 java_library_host {
     name: "hoststubgen-lib",
     defaults: ["ravenwood-internal-only-visibility-java"],
-    srcs: ["src/**/*.kt"],
+    srcs: ["lib/**/*.kt"],
     static_libs: [
         "hoststubgen-helper-runtime",
-    ],
-    libs: [
         "junit",
         "ow2-asm",
         "ow2-asm-analysis",
         "ow2-asm-commons",
         "ow2-asm-tree",
         "ow2-asm-util",
+        "apache-commons-compress",
     ],
 }
 
@@ -108,15 +107,8 @@ java_library_host {
 java_binary_host {
     name: "hoststubgen",
     main_class: "com.android.hoststubgen.HostStubGenMain",
-    static_libs: [
-        "hoststubgen-lib",
-        "junit",
-        "ow2-asm",
-        "ow2-asm-analysis",
-        "ow2-asm-commons",
-        "ow2-asm-tree",
-        "ow2-asm-util",
-    ],
+    srcs: ["src/**/*.kt"],
+    static_libs: ["hoststubgen-lib"],
     visibility: ["//visibility:public"],
 }
 

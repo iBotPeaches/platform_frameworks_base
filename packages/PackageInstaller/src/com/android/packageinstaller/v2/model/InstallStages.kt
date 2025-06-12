@@ -18,8 +18,8 @@ package com.android.packageinstaller.v2.model
 
 import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 
 sealed class InstallStage(val stageCode: Int) {
@@ -42,7 +42,7 @@ class InstallReady : InstallStage(STAGE_READY)
 
 data class InstallUserActionRequired(
     val actionReason: Int,
-    private val appSnippet: PackageUtil.AppSnippet? = null,
+    val appSnippet: PackageUtil.AppSnippet? = null,
     val isAppUpdating: Boolean = false,
     /**
      * This holds either a package name or the app label of the install source.
@@ -63,7 +63,7 @@ data class InstallUserActionRequired(
     }
 }
 
-data class InstallInstalling(private val appSnippet: PackageUtil.AppSnippet) :
+data class InstallInstalling(val appSnippet: PackageUtil.AppSnippet) :
     InstallStage(STAGE_INSTALLING) {
 
     val appIcon: Drawable?
@@ -74,7 +74,7 @@ data class InstallInstalling(private val appSnippet: PackageUtil.AppSnippet) :
 }
 
 data class InstallSuccess(
-    private val appSnippet: PackageUtil.AppSnippet,
+    val appSnippet: PackageUtil.AppSnippet,
     val shouldReturnResult: Boolean = false,
     /**
      *
@@ -95,7 +95,7 @@ data class InstallSuccess(
 }
 
 data class InstallFailed(
-    private val appSnippet: PackageUtil.AppSnippet? = null,
+    val appSnippet: PackageUtil.AppSnippet? = null,
     val legacyCode: Int,
     val statusCode: Int,
     val message: String? = null,

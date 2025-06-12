@@ -89,6 +89,39 @@ class AppRequestObserverTest {
         assertThat(renderRateVote).isEqualTo(testCase.expectedRenderRateVote)
     }
 
+    @Test
+    fun testAppRequestVote_externalDisplay() {
+        val displayModeDirector = DisplayModeDirector(
+            context, testHandler, mockInjector, mockFlags, mockDisplayDeviceConfigProvider)
+        val modes = arrayOf(
+            Display.Mode(1, 1000, 1000, 60f),
+            Display.Mode(2, 1000, 1000, 90f),
+        )
+
+        displayModeDirector.injectAppSupportedModesByDisplay(
+            SparseArray<Array<Display.Mode>>().apply {
+                append(Display.DEFAULT_DISPLAY, modes)
+            })
+        displayModeDirector.injectDefaultModeByDisplay(SparseArray<Display.Mode>().apply {
+            append(Display.DEFAULT_DISPLAY, modes[0])
+        })
+        displayModeDirector.addExternalDisplayId(Display.DEFAULT_DISPLAY)
+
+        displayModeDirector.appRequestObserver.setAppRequest(Display.DEFAULT_DISPLAY, 1, 0f, 0f, 0f)
+
+        val baseModeVote = displayModeDirector.getVote(Display.DEFAULT_DISPLAY,
+            Vote.PRIORITY_APP_REQUEST_BASE_MODE_REFRESH_RATE)
+        assertThat(baseModeVote).isEqualTo(BaseModeRefreshRateVote(60f))
+
+        val sizeVote = displayModeDirector.getVote(Display.DEFAULT_DISPLAY,
+            Vote.PRIORITY_APP_REQUEST_SIZE)
+        assertThat(sizeVote).isNull()
+
+        val renderRateVote = displayModeDirector.getVote(Display.DEFAULT_DISPLAY,
+            Vote.PRIORITY_APP_REQUEST_RENDER_FRAME_RATE_RANGE)
+        assertThat(renderRateVote).isNull()
+    }
+
     enum class AppRequestTestCase(
         val ignoreRefreshRateRequest: Boolean,
         val modeId: Int,

@@ -116,6 +116,10 @@ public class GameManagerServiceSettingsTests {
         deleteFolder(InstrumentationRegistry.getTargetContext().getFilesDir());
     }
 
+    static {
+        System.loadLibrary("servicestestjni");
+    }
+
     @Test
     public void testReadGameServiceSettings() {
         writeOldFiles();

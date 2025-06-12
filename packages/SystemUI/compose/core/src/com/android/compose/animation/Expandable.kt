@@ -21,7 +21,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroupOverlay
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,15 +30,13 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,9 +60,18 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Density
@@ -76,6 +82,10 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.android.compose.modifiers.animatedBackground
+import com.android.compose.modifiers.thenIf
+import com.android.compose.ui.graphics.FullScreenComposeViewInOverlay
+import com.android.systemui.animation.ComposableControllerFactory
 import com.android.systemui.animation.Expandable
 import com.android.systemui.animation.TransitionAnimator
 import kotlin.math.max
@@ -111,8 +121,14 @@ import kotlin.math.min
  *    }
  * ```
  *
+ * [transitionControllerFactory] must be defined when this [Expandable] is registered for a
+ * long-term launch or return animation, to ensure that animation controllers can be created
+ * correctly.
+ *
  * @sample com.android.systemui.compose.gallery.ActivityLaunchScreen
  * @sample com.android.systemui.compose.gallery.DialogLaunchScreen
+ * @param defaultMinSize true if a default minimum size should be enforced even if this Expandable
+ *   isn't currently clickable and false otherwise.
  */
 @Composable
 fun Expandable(
@@ -123,13 +139,26 @@ fun Expandable(
     borderStroke: BorderStroke? = null,
     onClick: ((Expandable) -> Unit)? = null,
     interactionSource: MutableInteractionSource? = null,
+    // TODO(b/285250939): Default this to true then remove once the Compose QS expandables have
+    // proven that the new implementation is robust.
+    useModifierBasedImplementation: Boolean = false,
+    defaultMinSize: Boolean = true,
+    transitionControllerFactory: ComposableControllerFactory? = null,
     content: @Composable (Expandable) -> Unit,
 ) {
     Expandable(
-        rememberExpandableController(color, shape, contentColor, borderStroke),
+        rememberExpandableController(
+            color,
+            shape,
+            contentColor,
+            borderStroke,
+            transitionControllerFactory,
+        ),
         modifier,
         onClick,
         interactionSource,
+        useModifierBasedImplementation,
+        defaultMinSize,
         content,
     )
 }
@@ -157,17 +186,46 @@ fun Expandable(
  *
  * @sample com.android.systemui.compose.gallery.ActivityLaunchScreen
  * @sample com.android.systemui.compose.gallery.DialogLaunchScreen
+ * @param defaultMinSize true if a default minimum size should be enforced even if this Expandable
+ *   isn't currently clickable and false otherwise.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Expandable(
     controller: ExpandableController,
     modifier: Modifier = Modifier,
     onClick: ((Expandable) -> Unit)? = null,
     interactionSource: MutableInteractionSource? = null,
+    // TODO(b/285250939): Default this to true then remove once the Compose QS expandables have
+    // proven that the new implementation is robust.
+    useModifierBasedImplementation: Boolean = false,
+    defaultMinSize: Boolean = true,
     content: @Composable (Expandable) -> Unit,
 ) {
     val controller = controller as ExpandableControllerImpl
+
+    if (controller.transitionControllerFactory != null) {
+        DisposableEffect(controller.transitionControllerFactory) {
+            // Notify the transition controller factory that the expandable is now available, so it
+            // can move forward with any pending requests.
+            controller.transitionControllerFactory.onCompose(controller.expandable)
+            // Once this composable is gone, the transition controller factory must be notified so
+            // it doesn't accepts requests providing stale content.
+            onDispose { controller.transitionControllerFactory.onDispose() }
+        }
+    }
+
+    if (useModifierBasedImplementation) {
+        Box(modifier.expandable(controller, onClick, interactionSource)) {
+            WrappedContent(
+                controller.expandable,
+                controller.contentColor,
+                defaultMinSize = defaultMinSize,
+                content,
+            )
+        }
+        return
+    }
+
     val color = controller.color
     val contentColor = controller.contentColor
     val shape = controller.shape
@@ -175,21 +233,7 @@ fun Expandable(
     val wrappedContent =
         remember(content) {
             movableContentOf { expandable: Expandable ->
-                CompositionLocalProvider(LocalContentColor provides contentColor) {
-                    // We make sure that the content itself (wrapped by the background) is at least
-                    // 40.dp, which is the same as the M3 buttons. This applies even if onClick is
-                    // null, to make it easier to write expandables that are sometimes clickable and
-                    // sometimes not. There shouldn't be any Expandable smaller than 40dp because if
-                    // the expandable is not clickable directly, then something in its content
-                    // should be (and with a size >= 40dp).
-                    val minSize = 40.dp
-                    Box(
-                        Modifier.defaultMinSize(minWidth = minSize, minHeight = minSize),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        content(expandable)
-                    }
-                }
+                WrappedContent(expandable, contentColor, defaultMinSize = defaultMinSize, content)
             }
         }
 
@@ -209,11 +253,7 @@ fun Expandable(
 
     // Make sure we don't read animatorState directly here to avoid recomposition every time the
     // state changes (i.e. every frame of the animation).
-    val isAnimating by remember {
-        derivedStateOf {
-            controller.animatorState.value != null && controller.overlay.value != null
-        }
-    }
+    val isAnimating = controller.isAnimating
 
     // If this expandable is expanded when it's being directly clicked on, let's ensure that it has
     // the minimum interactive size followed by all M3 components (48.dp).
@@ -237,58 +277,36 @@ fun Expandable(
             // animating.
             AnimatedContentInOverlay(
                 color,
-                controller.boundsInComposeViewRoot.value.size,
-                controller.animatorState,
-                controller.overlay.value
+                controller.boundsInComposeViewRoot.size,
+                controller.overlay
                     ?: error("AnimatedContentInOverlay shouldn't be composed with null overlay."),
                 controller,
                 wrappedContent,
                 controller.composeViewRoot,
-                { controller.currentComposeViewInOverlay.value = it },
+                { controller.currentComposeViewInOverlay = it },
                 controller.density,
             )
         }
-        controller.isDialogShowing.value -> {
+        controller.isDialogShowing -> {
             Box(
                 modifier
                     .updateExpandableSize()
                     .then(minInteractiveSizeModifier)
                     .drawWithContent { /* Don't draw anything when the dialog is shown. */ }
-                    .onGloballyPositioned {
-                        controller.boundsInComposeViewRoot.value = it.boundsInRoot()
-                    }
+                    .onGloballyPositioned { controller.boundsInComposeViewRoot = it.boundsInRoot() }
             ) {
                 wrappedContent(controller.expandable)
             }
         }
         else -> {
-            val clickModifier =
-                if (onClick != null) {
-                    if (interactionSource != null) {
-                        // If the caller provided an interaction source, then that means that they
-                        // will draw the click indication themselves.
-                        Modifier.clickable(interactionSource, indication = null) {
-                            onClick(controller.expandable)
-                        }
-                    } else {
-                        // If no interaction source is provided, we draw the default indication (a
-                        // ripple) and make sure it's clipped by the expandable shape.
-                        Modifier.clip(shape).clickable { onClick(controller.expandable) }
-                    }
-                } else {
-                    Modifier
-                }
-
             Box(
                 modifier
                     .updateExpandableSize()
                     .then(minInteractiveSizeModifier)
-                    .then(clickModifier)
-                    .background(color, shape)
+                    .then(clickModifier(controller, onClick, interactionSource))
+                    .animatedBackground(color, shape = shape)
                     .border(controller)
-                    .onGloballyPositioned {
-                        controller.boundsInComposeViewRoot.value = it.boundsInRoot()
-                    }
+                    .onGloballyPositioned { controller.boundsInComposeViewRoot = it.boundsInRoot() }
             ) {
                 wrappedContent(controller.expandable)
             }
@@ -296,12 +314,187 @@ fun Expandable(
     }
 }
 
+@Composable
+private fun WrappedContent(
+    expandable: Expandable,
+    contentColor: Color,
+    defaultMinSize: Boolean,
+    content: @Composable (Expandable) -> Unit,
+) {
+    val minSizeContent =
+        @Composable {
+            if (defaultMinSize) {
+                // We make sure that the content itself (wrapped by the background) is at
+                // least 40.dp, which is the same as the M3 buttons. This applies even if
+                // onClick is null, to make it easier to write expandables that are
+                // sometimes clickable and sometimes not.
+                val minSize = 40.dp
+                Box(
+                    modifier = Modifier.defaultMinSize(minWidth = minSize, minHeight = minSize),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    content(expandable)
+                }
+            } else {
+                content(expandable)
+            }
+        }
+
+    if (contentColor.isSpecified) {
+        CompositionLocalProvider(LocalContentColor provides contentColor, content = minSizeContent)
+    } else {
+        minSizeContent()
+    }
+}
+
+@Composable
+@Stable
+private fun Modifier.expandable(
+    controller: ExpandableController,
+    onClick: ((Expandable) -> Unit)? = null,
+    interactionSource: MutableInteractionSource? = null,
+): Modifier {
+    val controller = controller as ExpandableControllerImpl
+    val graphicsLayer = rememberGraphicsLayer()
+
+    val isAnimating = controller.isAnimating
+    if (isAnimating) {
+        FullScreenComposeViewInOverlay(controller.overlay) { view ->
+            Modifier.then(DrawExpandableInOverlayElement(view, controller, graphicsLayer))
+        }
+    }
+
+    val drawContent = !isAnimating && !controller.isDialogShowing
+    return this.thenIf(onClick != null) { Modifier.minimumInteractiveComponentSize() }
+        .thenIf(drawContent) {
+            Modifier.border(controller)
+                .then(clickModifier(controller, onClick, interactionSource))
+                .animatedBackground(controller.color, shape = controller.shape)
+        }
+        .onPlaced { controller.boundsInComposeViewRoot = it.boundsInRoot() }
+        .drawWithContent {
+            graphicsLayer.record { this@drawWithContent.drawContent() }
+
+            if (drawContent) {
+                drawLayer(graphicsLayer)
+            }
+        }
+}
+
+private data class DrawExpandableInOverlayElement(
+    private val overlayComposeView: ComposeView,
+    private val controller: ExpandableControllerImpl,
+    private val contentGraphicsLayer: GraphicsLayer,
+) : ModifierNodeElement<DrawExpandableInOverlayNode>() {
+    override fun create(): DrawExpandableInOverlayNode {
+        return DrawExpandableInOverlayNode(overlayComposeView, controller, contentGraphicsLayer)
+    }
+
+    override fun update(node: DrawExpandableInOverlayNode) {
+        node.update(overlayComposeView, controller, contentGraphicsLayer)
+    }
+}
+
+private class DrawExpandableInOverlayNode(
+    composeView: ComposeView,
+    controller: ExpandableControllerImpl,
+    private var contentGraphicsLayer: GraphicsLayer,
+) : Modifier.Node(), DrawModifierNode {
+    private var controller = controller
+        set(value) {
+            resetCurrentNodeInOverlay()
+            field = value
+            setCurrentNodeInOverlay()
+        }
+
+    private var composeViewLocationOnScreen = composeView.locationOnScreen
+
+    fun update(
+        composeView: ComposeView,
+        controller: ExpandableControllerImpl,
+        contentGraphicsLayer: GraphicsLayer,
+    ) {
+        this.controller = controller
+        this.composeViewLocationOnScreen = composeView.locationOnScreen
+        this.contentGraphicsLayer = contentGraphicsLayer
+    }
+
+    override fun onAttach() {
+        setCurrentNodeInOverlay()
+    }
+
+    override fun onDetach() {
+        resetCurrentNodeInOverlay()
+    }
+
+    private fun setCurrentNodeInOverlay() {
+        controller.currentNodeInOverlay = this
+    }
+
+    private fun resetCurrentNodeInOverlay() {
+        if (controller.currentNodeInOverlay == this) {
+            controller.currentNodeInOverlay = null
+        }
+    }
+
+    override fun ContentDrawScope.draw() {
+        val state = controller.animatorState?.takeIf { it.visible } ?: return
+        val topOffset = state.top.toFloat() - composeViewLocationOnScreen[1]
+        val leftOffset = state.left.toFloat() - composeViewLocationOnScreen[0]
+
+        translate(top = topOffset, left = leftOffset) {
+            // Background.
+            this@draw.drawBackground(
+                state,
+                controller.color(),
+                controller.borderStroke,
+                size = Size(state.width.toFloat(), state.height.toFloat()),
+            )
+
+            // Content, scaled & centered w.r.t. the animated state bounds.
+            val contentSize = controller.boundsInComposeViewRoot.size
+            val contentWidth = contentSize.width
+            val contentHeight = contentSize.height
+            val scale = min(state.width / contentWidth, state.height / contentHeight)
+            scale(scale, pivot = Offset(state.width / 2f, state.height / 2f)) {
+                translate(
+                    left = (state.width - contentWidth) / 2f,
+                    top = (state.height - contentHeight) / 2f,
+                ) {
+                    drawLayer(contentGraphicsLayer)
+                }
+            }
+        }
+    }
+}
+
+private fun clickModifier(
+    controller: ExpandableControllerImpl,
+    onClick: ((Expandable) -> Unit)?,
+    interactionSource: MutableInteractionSource?,
+): Modifier {
+    if (onClick == null) {
+        return Modifier
+    }
+
+    if (interactionSource != null) {
+        // If the caller provided an interaction source, then that means that they will draw the
+        // click indication themselves.
+        return Modifier.clickable(interactionSource, indication = null) {
+            onClick(controller.expandable)
+        }
+    }
+
+    // If no interaction source is provided, we draw the default indication (a ripple) and make sure
+    // it's clipped by the expandable shape.
+    return Modifier.clip(controller.shape).clickable { onClick(controller.expandable) }
+}
+
 /** Draw [content] in [overlay] while respecting its screen position given by [animatorState]. */
 @Composable
 private fun AnimatedContentInOverlay(
-    color: Color,
+    color: () -> Color,
     sizeInOriginalLayout: Size,
-    animatorState: State<TransitionAnimator.State?>,
     overlay: ViewGroupOverlay,
     controller: ExpandableControllerImpl,
     content: @Composable (Expandable) -> Unit,
@@ -324,7 +517,7 @@ private fun AnimatedContentInOverlay(
                     // so that its content is laid out exactly the same way.
                     .requiredSize(with(density) { sizeInOriginalLayout.toDpSize() })
                     .drawWithContent {
-                        val animatorState = animatorState.value ?: return@drawWithContent
+                        val animatorState = controller.animatorState ?: return@drawWithContent
 
                         // Scale the content with the background while keeping its aspect ratio.
                         val widthRatio =
@@ -348,12 +541,13 @@ private fun AnimatedContentInOverlay(
                     setContent {
                         Box(
                             Modifier.fillMaxSize().drawWithContent {
-                                val animatorState = animatorState.value ?: return@drawWithContent
+                                val animatorState =
+                                    controller.animatorState ?: return@drawWithContent
                                 if (!animatorState.visible) {
                                     return@drawWithContent
                                 }
 
-                                drawBackground(animatorState, color, controller.borderStroke)
+                                drawBackground(animatorState, color(), controller.borderStroke)
                                 drawContent()
                             },
                             // We center the content in the expanding container.
@@ -385,7 +579,7 @@ private fun AnimatedContentInOverlay(
         overlay.add(composeViewInOverlay)
 
         val startState =
-            animatorState.value
+            controller.animatorState
                 ?: throw IllegalStateException(
                     "AnimatedContentInOverlay shouldn't be composed with null animatorState."
                 )
@@ -444,6 +638,7 @@ private fun ContentDrawScope.drawBackground(
     animatorState: TransitionAnimator.State,
     color: Color,
     border: BorderStroke?,
+    size: Size = this.size,
 ) {
     val topRadius = animatorState.topCornerRadius
     val bottomRadius = animatorState.bottomCornerRadius
@@ -452,7 +647,7 @@ private fun ContentDrawScope.drawBackground(
         val cornerRadius = CornerRadius(topRadius)
 
         // Draw the background.
-        drawRoundRect(color, cornerRadius = cornerRadius)
+        drawRoundRect(color, cornerRadius = cornerRadius, size = size)
 
         // Draw the border.
         if (border != null) {

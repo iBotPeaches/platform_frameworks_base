@@ -49,8 +49,7 @@ import org.mockito.junit.MockitoJUnit
 /**
  * Tests for custom keyboard glyph map configuration.
  *
- * Build/Install/Run:
- * atest InputTests:KeyboardGlyphManagerTests
+ * Build/Install/Run: atest InputTests:KeyboardGlyphManagerTests
  */
 @Presubmit
 class KeyboardGlyphManagerTests {
@@ -66,15 +65,11 @@ class KeyboardGlyphManagerTests {
         const val RECEIVER_NAME = "DummyReceiver"
     }
 
-    @get:Rule
-    val setFlagsRule = SetFlagsRule()
-    @get:Rule
-    val mockitoRule = MockitoJUnit.rule()!!
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val setFlagsRule = SetFlagsRule()
+    @get:Rule val mockitoRule = MockitoJUnit.rule()!!
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
-    @Mock
-    private lateinit var packageManager: PackageManager
+    @Mock private lateinit var packageManager: PackageManager
 
     private lateinit var keyboardGlyphManager: KeyboardGlyphManager
     private lateinit var context: Context
@@ -99,7 +94,8 @@ class KeyboardGlyphManagerTests {
             .thenReturn(inputManager)
 
         keyboardDevice = createKeyboard(DEVICE_ID, VENDOR_ID, PRODUCT_ID, 0, "", "")
-        Mockito.`when`(inputManagerRule.mock.inputDeviceIds).thenReturn(intArrayOf(DEVICE_ID, DEVICE_ID2))
+        Mockito.`when`(inputManagerRule.mock.inputDeviceIds)
+            .thenReturn(intArrayOf(DEVICE_ID, DEVICE_ID2))
         Mockito.`when`(inputManagerRule.mock.getInputDevice(DEVICE_ID)).thenReturn(keyboardDevice)
 
         val keyboardDevice2 = createKeyboard(DEVICE_ID2, VENDOR_ID2, PRODUCT_ID2, 0, "", "")
@@ -110,19 +106,22 @@ class KeyboardGlyphManagerTests {
         Mockito.`when`(context.packageManager).thenReturn(packageManager)
 
         val info = createMockReceiver()
-        Mockito.`when`(packageManager.queryBroadcastReceiversAsUser(Mockito.any(), Mockito.anyInt(),
-            Mockito.anyInt())).thenReturn(listOf(info))
+        Mockito.`when`(
+                packageManager.queryBroadcastReceiversAsUser(
+                    Mockito.any(),
+                    Mockito.anyInt(),
+                    Mockito.anyInt(),
+                )
+            )
+            .thenReturn(listOf(info))
         Mockito.`when`(packageManager.getReceiverInfo(Mockito.any(), Mockito.anyInt()))
             .thenReturn(info.activityInfo)
 
         val resources = context.resources
         Mockito.`when`(
-            packageManager.getResourcesForApplication(
-                Mockito.any(
-                    ApplicationInfo::class.java
-                )
+                packageManager.getResourcesForApplication(Mockito.any(ApplicationInfo::class.java))
             )
-        ).thenReturn(resources)
+            .thenReturn(resources)
     }
 
     private fun createMockReceiver(): ResolveInfo {
@@ -134,7 +133,7 @@ class KeyboardGlyphManagerTests {
         info.activityInfo.metaData = Bundle()
         info.activityInfo.metaData.putInt(
             InputManager.META_DATA_KEYBOARD_GLYPH_MAPS,
-            R.xml.keyboard_glyph_maps
+            R.xml.keyboard_glyph_maps,
         )
         info.serviceInfo = ServiceInfo()
         info.serviceInfo.packageName = PACKAGE_NAME
@@ -147,15 +146,15 @@ class KeyboardGlyphManagerTests {
     fun testGlyphMapsLoaded() {
         assertNotNull(
             "Glyph map for test keyboard(deviceId=$DEVICE_ID) must exist",
-            keyboardGlyphManager.getKeyGlyphMap(DEVICE_ID)
+            keyboardGlyphManager.getKeyGlyphMap(DEVICE_ID),
         )
         assertNotNull(
             "Glyph map for test keyboard(deviceId=$DEVICE_ID2) must exist",
-            keyboardGlyphManager.getKeyGlyphMap(DEVICE_ID2)
+            keyboardGlyphManager.getKeyGlyphMap(DEVICE_ID2),
         )
         assertNull(
             "Glyph map for non-existing keyboard must be null",
-            keyboardGlyphManager.getKeyGlyphMap(-2)
+            keyboardGlyphManager.getKeyGlyphMap(-2),
         )
     }
 
@@ -178,16 +177,15 @@ class KeyboardGlyphManagerTests {
         assertEquals(2, hardwareShortcuts.size)
         assertEquals(
             KeyEvent.KEYCODE_BACK,
-            hardwareShortcuts[KeyCombination(KeyEvent.META_FUNCTION_ON, KeyEvent.KEYCODE_1)]
+            hardwareShortcuts[KeyCombination(KeyEvent.META_FUNCTION_ON, KeyEvent.KEYCODE_1)],
         )
         assertEquals(
             KeyEvent.KEYCODE_HOME,
             hardwareShortcuts[
                 KeyCombination(
                     KeyEvent.META_FUNCTION_ON or KeyEvent.META_META_ON,
-                    KeyEvent.KEYCODE_2
-                )
-            ]
+                    KeyEvent.KEYCODE_2,
+                )],
         )
     }
 }

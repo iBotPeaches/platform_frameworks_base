@@ -39,6 +39,7 @@ import android.os.Trace;
 import android.os.UserHandle;
 import android.util.ArraySet;
 import android.util.IntArray;
+import android.util.Log;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.media.permission.INativePermissionController;
@@ -61,6 +62,8 @@ import java.util.stream.Collectors;
 
 /** Responsible for synchronizing system server permission state to the native audioserver. */
 public class AudioServerPermissionProvider {
+
+    static final String TAG = "AudioServerPermissionProvider";
 
     static final String[] MONITORED_PERMS = new String[PermissionEnum.ENUM_SIZE];
 
@@ -219,10 +222,13 @@ public class AudioServerPermissionProvider {
     public void setIsolatedServiceUid(int uid, int owningUid) {
         synchronized (mLock) {
             if (mHdsUid == uid) return;
-            var packageNameSet = mPackageMap.get(owningUid);
-            if (packageNameSet == null) return;
-            var packageName = packageNameSet.iterator().next();
-            onModifyPackageState(uid, packageName, /* isRemove= */ false);
+            var packageNameSet = mPackageMap.get(UserHandle.getAppId(owningUid));
+            if (packageNameSet != null) {
+                var packageName = packageNameSet.iterator().next();
+                onModifyPackageState(uid, packageName, /* isRemove= */ false);
+            } else {
+                Log.wtf(TAG, "setIsolatedService owning uid not found");
+            }
             // permissions
             mHdsUid = uid;
             if (mDest == null) {
@@ -249,11 +255,19 @@ public class AudioServerPermissionProvider {
 
     public void clearIsolatedServiceUid(int uid) {
         synchronized (mLock) {
-            if (mHdsUid != uid) return;
-            var packageNameSet = mPackageMap.get(uid);
-            if (packageNameSet == null) return;
-            var packageName = packageNameSet.iterator().next();
-            onModifyPackageState(uid, packageName, /* isRemove= */ true);
+            var packageNameSet = mPackageMap.get(UserHandle.getAppId(uid));
+            if (mHdsUid != uid) {
+                Log.wtf(TAG,
+                        "Unexpected isolated service uid cleared: " + uid + packageNameSet
+                                + ", expected " + mHdsUid);
+                return;
+            }
+            if (packageNameSet != null) {
+                var packageName = packageNameSet.iterator().next();
+                onModifyPackageState(uid, packageName, /* isRemove= */ true);
+            } else {
+                Log.wtf(TAG, "clearIsolatedService uid not found");
+            }
             // permissions
             if (mDest == null) {
                 mIsUpdateDeferred = true;

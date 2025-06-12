@@ -30,7 +30,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.runner.AndroidJUnit4;
@@ -52,7 +52,7 @@ import java.util.Queue;
 import java.util.concurrent.Executor;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = PersistentServiceConnection.class)
+@DisabledOnRavenwood(blockedBy = PersistentServiceConnection.class)
 public class PersistentServiceConnectionTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

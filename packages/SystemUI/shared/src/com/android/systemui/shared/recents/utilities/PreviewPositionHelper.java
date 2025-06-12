@@ -208,4 +208,19 @@ public class PreviewPositionHelper {
         }
         mMatrix.postTranslate(translateX, translateY);
     }
+
+    /**
+     * A factory that returns a new instance of the {@link PreviewPositionHelper}.
+     * <p>{@link PreviewPositionHelper} is a stateful helper, and hence when using it in distinct
+     * scenarios, prefer fetching an object using this factory</p>
+     * <p>Additionally, helpful for injecting mocks in tests</p>
+     */
+    public static class PreviewPositionHelperFactory {
+        /**
+         * Returns a new {@link PreviewPositionHelper} for use in a distinct scenario.
+         */
+        public PreviewPositionHelper create() {
+            return new PreviewPositionHelper();
+        }
+    }
 }

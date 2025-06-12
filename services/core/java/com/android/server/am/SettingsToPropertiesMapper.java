@@ -16,12 +16,23 @@
 
 package com.android.server.am;
 
+import static com.android.aconfig_new_storage.Flags.enableAconfigStorageDaemon;
+import static com.android.aconfig_new_storage.Flags.enableAconfigdFromMainline;
+import static com.android.aconfig_new_storage.Flags.supportClearLocalOverridesImmediately;
+import static com.android.aconfig_new_storage.Flags.supportImmediateLocalOverrides;
+
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
+
+import android.aconfigd.Aconfigd.StorageRequestMessage;
+import android.aconfigd.Aconfigd.StorageRequestMessages;
+import android.aconfigd.Aconfigd.StorageReturnMessage;
+import android.aconfigd.Aconfigd.StorageReturnMessages;
 import android.annotation.NonNull;
 import android.content.ContentResolver;
 import android.database.ContentObserver;
-import android.net.Uri;
-import android.net.LocalSocketAddress;
 import android.net.LocalSocket;
+import android.net.LocalSocketAddress;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.SystemProperties;
@@ -35,28 +46,13 @@ import android.util.proto.ProtoOutputStream;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.providers.settings.Flags;
 
-import android.aconfigd.Aconfigd.StorageRequestMessage;
-import android.aconfigd.Aconfigd.StorageRequestMessages;
-import android.aconfigd.Aconfigd.StorageReturnMessage;
-import android.aconfigd.Aconfigd.StorageReturnMessages;
-import static com.android.aconfig_new_storage.Flags.enableAconfigStorageDaemon;
-import static com.android.aconfig_new_storage.Flags.supportImmediateLocalOverrides;
-import static com.android.aconfig_new_storage.Flags.supportClearLocalOverridesImmediately;
-import static com.android.aconfig_new_storage.Flags.enableAconfigdFromMainline;
-
+import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 
 /**
  * Maps system settings to system properties.
@@ -156,9 +152,11 @@ public class SettingsToPropertiesMapper {
         "android_core_networking",
         "android_health_services",
         "android_sdk",
+        "android_kernel",
         "aoc",
         "app_widgets",
         "arc_next",
+        "art_cloud",
         "art_mainline",
         "art_performance",
         "attack_tools",
@@ -188,8 +186,35 @@ public class SettingsToPropertiesMapper {
         "core_libraries",
         "crumpet",
         "dck_framework",
+        "desktop_apps",
+        "desktop_audio",
+        "desktop_better_together",
+        "desktop_bsp",
+        "desktop_camera",
+        "desktop_connectivity",
+        "desktop_dev_experience",
+        "desktop_display",
+        "desktop_commercial",
+        "desktop_firmware",
+        "desktop_graphics",
         "desktop_hwsec",
+        "desktop_input",
+        "desktop_kernel",
+        "desktop_ml",
+        "desktop_networking",
+        "desktop_serviceability",
+        "desktop_oobe",
+        "desktop_peripherals",
+        "desktop_personalization",
+        "desktop_pnp",
+        "desktop_privacy",
+        "desktop_release",
+        "desktop_security",
         "desktop_stats",
+        "desktop_sysui",
+        "desktop_users_and_accounts",
+        "desktop_video",
+        "desktop_wifi",
         "devoptions_settings",
         "game",
         "gpu",
@@ -209,6 +234,7 @@ public class SettingsToPropertiesMapper {
         "media_reliability",
         "media_solutions",
         "media_tv",
+        "microxr",
         "nearby",
         "nfc",
         "pdf_viewer",
@@ -219,15 +245,21 @@ public class SettingsToPropertiesMapper {
         "pixel_connectivity_gps",
         "pixel_continuity",
         "pixel_display",
+        "pixel_fingerprint",
+        "pixel_gsc",
         "pixel_perf",
+        "pixel_sensai",
         "pixel_sensors",
         "pixel_state_server",
         "pixel_system_sw_video",
         "pixel_video_sw",
+        "pixel_vpn",
         "pixel_watch",
+        "pixel_watch_debug_trace",
+        "pixel_watch_watchfaces",
+        "pixel_wifi",
         "platform_compat",
         "platform_security",
-        "pixel_watch_debug_trace",
         "pmw",
         "power",
         "preload_safety",
@@ -270,6 +302,7 @@ public class SettingsToPropertiesMapper {
         "wear_sysui",
         "wear_system_managed_surfaces",
         "wear_watchfaces",
+        "web_apps_on_chromeos_and_android",
         "window_surfaces",
         "windowing_frontend",
         "xr",
@@ -348,11 +381,12 @@ public class SettingsToPropertiesMapper {
             NAMESPACE_REBOOT_STAGING,
             newSingleThreadScheduledExecutor(),
             (DeviceConfig.Properties properties) -> {
+
               // send prop stage request to new storage
               if (enableAconfigStorageDaemon()) {
                   stageFlagsInNewStorage(properties);
+                  return;
               }
-
         });
 
         // add prop sync callback for flag local overrides
@@ -362,6 +396,7 @@ public class SettingsToPropertiesMapper {
             (DeviceConfig.Properties properties) -> {
                 if (enableAconfigStorageDaemon()) {
                     setLocalOverridesInNewStorage(properties);
+                    return;
                 }
         });
     }

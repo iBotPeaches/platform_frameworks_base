@@ -36,6 +36,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.Channel;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
@@ -204,21 +205,30 @@ public class PowerStatsStore {
      */
     public void storeBatteryUsageStatsAsync(long monotonicStartTime,
             BatteryUsageStats batteryUsageStats) {
-        mHandler.post(() -> {
+        if (mHandler.getLooper().isCurrentThread()) {
+            storeBatteryUsageStats(monotonicStartTime, batteryUsageStats);
+        } else {
+            mHandler.post(() -> {
+                storeBatteryUsageStats(monotonicStartTime, batteryUsageStats);
+            });
+        }
+    }
+
+    private void storeBatteryUsageStats(long monotonicStartTime,
+            BatteryUsageStats batteryUsageStats) {
+        try {
+            PowerStatsSpan span = new PowerStatsSpan(monotonicStartTime);
+            span.addTimeFrame(monotonicStartTime, batteryUsageStats.getStatsStartTimestamp(),
+                    batteryUsageStats.getStatsDuration());
+            span.addSection(new BatteryUsageStatsSection(batteryUsageStats));
+            storePowerStatsSpan(span);
+        } finally {
             try {
-                PowerStatsSpan span = new PowerStatsSpan(monotonicStartTime);
-                span.addTimeFrame(monotonicStartTime, batteryUsageStats.getStatsStartTimestamp(),
-                        batteryUsageStats.getStatsDuration());
-                span.addSection(new BatteryUsageStatsSection(batteryUsageStats));
-                storePowerStatsSpan(span);
-            } finally {
-                try {
-                    batteryUsageStats.close();
-                } catch (IOException e) {
-                    Slog.e(TAG, "Cannot close BatteryUsageStats", e);
-                }
+                batteryUsageStats.close();
+            } catch (IOException e) {
+                Slog.e(TAG, "Cannot close BatteryUsageStats", e);
             }
-        });
+        }
     }
 
     /**
@@ -242,8 +252,10 @@ public class PowerStatsStore {
 
         // Lock the directory from access by other JVMs
         try {
-            mLockFile.getParentFile().mkdirs();
-            mLockFile.createNewFile();
+            if (!mLockFile.exists()) {
+                mLockFile.getParentFile().mkdirs();
+                mLockFile.createNewFile();
+            }
             mJvmLock = FileChannel.open(mLockFile.toPath(), StandardOpenOption.WRITE).lock();
         } catch (IOException e) {
             Slog.e(TAG, "Cannot lock snapshot directory", e);
@@ -252,10 +264,13 @@ public class PowerStatsStore {
 
     private void unlockStoreDirectory() {
         try {
-            mJvmLock.close();
+            Channel channel = mJvmLock.acquiredBy();
+            mJvmLock.release();
+            channel.close();
         } catch (IOException e) {
             Slog.e(TAG, "Cannot unlock snapshot directory", e);
         } finally {
+            mJvmLock = null;
             mFileLock.unlock();
         }
     }

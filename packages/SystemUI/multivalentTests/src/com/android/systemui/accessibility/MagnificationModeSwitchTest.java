@@ -73,13 +73,9 @@ import android.widget.ImageView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCapture;
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.graphics.SfVsyncFrameCallbackProvider;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.res.R;
-
-import kotlin.Lazy;
 
 import org.junit.After;
 import org.junit.Before;
@@ -108,8 +104,6 @@ public class MagnificationModeSwitchTest extends SysuiTestCase {
     private SfVsyncFrameCallbackProvider mSfVsyncFrameProvider;
     @Mock
     private MagnificationModeSwitch.ClickListener mClickListener;
-    @Mock
-    private Lazy<ViewCapture> mLazyViewCapture;
     private TestableWindowManager mWindowManager;
     private ViewPropertyAnimator mViewPropertyAnimator;
     private MagnificationModeSwitch mMagnificationModeSwitch;
@@ -123,7 +117,6 @@ public class MagnificationModeSwitchTest extends SysuiTestCase {
         mContext = Mockito.spy(getContext());
         final WindowManager wm = mContext.getSystemService(WindowManager.class);
         mWindowManager = spy(new TestableWindowManager(wm));
-        mContext.addMockSystemService(Context.WINDOW_SERVICE, mWindowManager);
         mContext.addMockSystemService(Context.ACCESSIBILITY_SERVICE, mAccessibilityManager);
         mSpyImageView = Mockito.spy(new ImageView(mContext));
         mViewPropertyAnimator = Mockito.spy(mSpyImageView.animate());
@@ -139,10 +132,8 @@ public class MagnificationModeSwitchTest extends SysuiTestCase {
             return null;
         }).when(mSfVsyncFrameProvider).postFrameCallback(
                 any(Choreographer.FrameCallback.class));
-        ViewCaptureAwareWindowManager vwm = new ViewCaptureAwareWindowManager(mWindowManager,
-                mLazyViewCapture, false);
-        mMagnificationModeSwitch = new MagnificationModeSwitch(mContext, mSpyImageView,
-                mSfVsyncFrameProvider, mClickListener, vwm);
+        mMagnificationModeSwitch = new MagnificationModeSwitch(mContext, mWindowManager,
+                mSpyImageView, mSfVsyncFrameProvider, mClickListener);
         assertNotNull(mTouchListener);
     }
 

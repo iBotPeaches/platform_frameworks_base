@@ -23,13 +23,13 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.communal.ui.view.layout.sections.CommunalTutorialIndicatorSection
 import com.android.systemui.keyguard.shared.model.KeyguardBlueprint
 import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.keyguard.ui.view.KeyguardRootView
 import com.android.systemui.keyguard.ui.view.layout.sections.AccessibilityActionsSection
 import com.android.systemui.keyguard.ui.view.layout.sections.AodBurnInSection
 import com.android.systemui.keyguard.ui.view.layout.sections.AodNotificationIconsSection
+import com.android.systemui.keyguard.ui.view.layout.sections.AodPromotedNotificationSection
 import com.android.systemui.keyguard.ui.view.layout.sections.ClockSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultDeviceEntrySection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultIndicationAreaSection
@@ -37,14 +37,11 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultNotification
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultSettingsPopupMenuSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusBarSection
-import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultUdfpsAccessibilityOverlaySection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
-import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeGuidelines
 import com.android.systemui.util.mockito.whenever
 import java.util.Optional
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,7 +53,6 @@ import org.mockito.MockitoAnnotations
 
 @RunWith(AndroidJUnit4::class)
 @RunWithLooper(setAsMainLooper = true)
-@ExperimentalCoroutinesApi
 @SmallTest
 class DefaultKeyguardBlueprintTest : SysuiTestCase() {
     private lateinit var underTest: DefaultKeyguardBlueprint
@@ -67,18 +63,17 @@ class DefaultKeyguardBlueprintTest : SysuiTestCase() {
     @Mock private lateinit var defaultShortcutsSection: DefaultShortcutsSection
     @Mock private lateinit var defaultAmbientIndicationAreaSection: Optional<KeyguardSection>
     @Mock private lateinit var defaultSettingsPopupMenuSection: DefaultSettingsPopupMenuSection
-    @Mock private lateinit var defaultStatusViewSection: DefaultStatusViewSection
     @Mock private lateinit var defaultStatusBarViewSection: DefaultStatusBarSection
     @Mock private lateinit var defaultNSSLSection: DefaultNotificationStackScrollLayoutSection
-    @Mock private lateinit var splitShadeGuidelines: SplitShadeGuidelines
+    @Mock private lateinit var aodPromotedNotificationSection: AodPromotedNotificationSection
     @Mock private lateinit var aodNotificationIconsSection: AodNotificationIconsSection
     @Mock private lateinit var aodBurnInSection: AodBurnInSection
-    @Mock private lateinit var communalTutorialIndicatorSection: CommunalTutorialIndicatorSection
     @Mock private lateinit var clockSection: ClockSection
     @Mock private lateinit var smartspaceSection: SmartspaceSection
     @Mock private lateinit var keyguardSliceViewSection: KeyguardSliceViewSection
     @Mock
     private lateinit var udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection
+
     @Before
     fun setup() {
         MockitoAnnotations.initMocks(this)
@@ -91,12 +86,11 @@ class DefaultKeyguardBlueprintTest : SysuiTestCase() {
                 defaultShortcutsSection,
                 defaultAmbientIndicationAreaSection,
                 defaultSettingsPopupMenuSection,
-                defaultStatusViewSection,
                 defaultStatusBarViewSection,
                 defaultNSSLSection,
+                aodPromotedNotificationSection,
                 aodNotificationIconsSection,
                 aodBurnInSection,
-                communalTutorialIndicatorSection,
                 clockSection,
                 smartspaceSection,
                 keyguardSliceViewSection,

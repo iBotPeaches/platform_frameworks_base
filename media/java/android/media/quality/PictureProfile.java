@@ -18,6 +18,7 @@ package android.media.quality;
 
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
+import android.annotation.StringDef;
 import android.annotation.SystemApi;
 import android.media.tv.TvInputInfo;
 import android.media.tv.flags.Flags;
@@ -72,6 +73,19 @@ public final class PictureProfile implements Parcelable {
      */
     public static final int TYPE_APPLICATION = 2;
 
+    /**
+     * Default profile name
+     * @hide
+     */
+    public static final String NAME_DEFAULT = "default";
+
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @StringDef(prefix = "NAME_", value = {
+            NAME_DEFAULT
+    })
+    public @interface ProfileName {}
+
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(flag = false, prefix = "ERROR_", value = {
@@ -114,6 +128,32 @@ public final class PictureProfile implements Parcelable {
      */
     public static final int ERROR_NOT_ALLOWLISTED = 4;
 
+    /**
+     * SDR status.
+     * @hide
+     */
+    public static final String STATUS_SDR = "SDR";
+
+    /**
+     * HDR status.
+     * @hide
+     */
+    public static final String STATUS_HDR = "HDR";
+
+    /** @hide */
+    public static final String NAME_STANDARD = "standard";
+    /** @hide */
+    public static final String NAME_VIVID = "vivid";
+    /** @hide */
+    public static final String NAME_SPORTS = "sports";
+    /** @hide */
+    public static final String NAME_GAME = "game";
+    /** @hide */
+    public static final String NAME_MOVIE = "movie";
+    /** @hide */
+    public static final String NAME_ENERGY_SAVING = "energy_saving";
+    /** @hide */
+    public static final String NAME_USER = "user";
 
     private PictureProfile(@NonNull Parcel in) {
         mId = in.readString();
@@ -181,7 +221,7 @@ public final class PictureProfile implements Parcelable {
      * Gets profile ID.
      *
      * <p>A profile ID is a globally unique ID generated and assigned by the system. For profile
-     * objects retrieved from system (e.g {@link MediaQualityManager#getAvailablePictureProfiles()})
+     * objects retrieved from system (e.g {@link MediaQualityManager#getAvailablePictureProfiles})
      * this profile ID is non-null; For profiles built locally with {@link Builder}, it's
      * {@code null}.
      *
@@ -249,6 +289,8 @@ public final class PictureProfile implements Parcelable {
      *
      * <p>The keys of commonly used parameters can be found in
      * {@link MediaQualityContract.PictureQuality}.
+     *
+     * @return The profile parameters. Empty bundle if parameters are not included in a query.
      */
     @NonNull
     public PersistableBundle getParameters() {

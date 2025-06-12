@@ -48,6 +48,7 @@ import java.util.Objects;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class BaseCanvas {
     /**
      * Should only be assigned in constructors (or setBitmap if software canvas),

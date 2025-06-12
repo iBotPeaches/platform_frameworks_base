@@ -171,6 +171,19 @@ public class ViewRootInsetsControllerHost implements InsetsController.Host {
     }
 
     @Override
+    public void updateAnimatingTypes(@WindowInsets.Type.InsetsType int animatingTypes,
+            @Nullable ImeTracker.Token statsToken) {
+        if (mViewRoot != null) {
+            ImeTracker.forLogging().onProgress(statsToken,
+                    ImeTracker.PHASE_CLIENT_UPDATE_ANIMATING_TYPES);
+            mViewRoot.updateAnimatingTypes(animatingTypes, statsToken);
+        } else {
+            ImeTracker.forLogging().onFailed(statsToken,
+                    ImeTracker.PHASE_CLIENT_UPDATE_ANIMATING_TYPES);
+        }
+    }
+
+    @Override
     public boolean hasAnimationCallbacks() {
         if (mViewRoot.mView == null) {
             return false;
@@ -272,13 +285,6 @@ public class ViewRootInsetsControllerHost implements InsetsController.Host {
             return mViewRoot.mTranslator;
         }
         return null;
-    }
-
-    @Override
-    public void notifyAnimationRunningStateChanged(boolean running) {
-        if (mViewRoot != null) {
-            mViewRoot.notifyInsetsAnimationRunningStateChanged(running);
-        }
     }
 
     @Override

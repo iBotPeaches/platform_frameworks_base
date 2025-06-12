@@ -17,6 +17,7 @@
 package com.android.server.display;
 
 import static com.android.server.display.DisplayDeviceInfo.TOUCH_NONE;
+import static com.android.server.display.layout.Layout.Display.POSITION_REAR;
 import static com.android.server.wm.utils.DisplayInfoOverrides.WM_OVERRIDE_FIELDS;
 import static com.android.server.wm.utils.DisplayInfoOverrides.copyDisplayInfoFields;
 
@@ -227,12 +228,17 @@ final class LogicalDisplay {
      */
     private final boolean mIsAnisotropyCorrectionEnabled;
 
+    private final boolean mSyncedResolutionSwitchEnabled;
+
+    private boolean mCanHostTasks;
+
     LogicalDisplay(int displayId, int layerStack, DisplayDevice primaryDisplayDevice) {
-        this(displayId, layerStack, primaryDisplayDevice, false, false);
+        this(displayId, layerStack, primaryDisplayDevice, false, false, false);
     }
 
     LogicalDisplay(int displayId, int layerStack, DisplayDevice primaryDisplayDevice,
-            boolean isAnisotropyCorrectionEnabled, boolean isAlwaysRotateDisplayDeviceEnabled) {
+            boolean isAnisotropyCorrectionEnabled, boolean isAlwaysRotateDisplayDeviceEnabled,
+            boolean isSyncedResolutionSwitchEnabled) {
         mDisplayId = displayId;
         mLayerStack = layerStack;
         mPrimaryDisplayDevice = primaryDisplayDevice;
@@ -245,6 +251,8 @@ final class LogicalDisplay {
         mBaseDisplayInfo.thermalBrightnessThrottlingDataId = mThermalBrightnessThrottlingDataId;
         mIsAnisotropyCorrectionEnabled = isAnisotropyCorrectionEnabled;
         mAlwaysRotateDisplayDeviceEnabled = isAlwaysRotateDisplayDeviceEnabled;
+        mSyncedResolutionSwitchEnabled = isSyncedResolutionSwitchEnabled;
+        mCanHostTasks = (mDisplayId == Display.DEFAULT_DISPLAY);
     }
 
     public void setDevicePositionLocked(int position) {
@@ -481,6 +489,11 @@ final class LogicalDisplay {
             if ((deviceInfo.flags & DisplayDeviceInfo.FLAG_STEAL_TOP_FOCUS_DISABLED) != 0) {
                 mBaseDisplayInfo.flags |= Display.FLAG_STEAL_TOP_FOCUS_DISABLED;
             }
+            // Rear display should not be allowed to use the content mode switch.
+            if ((deviceInfo.flags & DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH) != 0
+                    && mDevicePosition != Layout.Display.POSITION_REAR) {
+                mBaseDisplayInfo.flags |= Display.FLAG_ALLOWS_CONTENT_MODE_SWITCH;
+            }
             Rect maskingInsets = getMaskingInsets(deviceInfo);
             int maskedWidth = deviceInfo.width - maskingInsets.left - maskingInsets.right;
             int maskedHeight = deviceInfo.height - maskingInsets.top - maskingInsets.bottom;
@@ -568,6 +581,7 @@ final class LogicalDisplay {
             mBaseDisplayInfo.layoutLimitedRefreshRate = mLayoutLimitedRefreshRate;
             mBaseDisplayInfo.thermalRefreshRateThrottling = mThermalRefreshRateThrottling;
             mBaseDisplayInfo.thermalBrightnessThrottlingDataId = mThermalBrightnessThrottlingDataId;
+            mBaseDisplayInfo.canHostTasks = mCanHostTasks;
 
             mPrimaryDisplayDeviceInfo = deviceInfo;
             mInfo.set(null);
@@ -786,7 +800,12 @@ final class LogicalDisplay {
         }
 
         mDisplayPosition.set(mTempDisplayRect.left, mTempDisplayRect.top);
+
+        if (mSyncedResolutionSwitchEnabled || displayDeviceInfo.type == Display.TYPE_VIRTUAL) {
+            device.configureDisplaySizeLocked(t);
+        }
         device.setProjectionLocked(t, orientation, mTempLayerStackRect, mTempDisplayRect);
+        device.configureSurfaceLocked(t);
     }
 
     /**
@@ -925,6 +944,61 @@ final class LogicalDisplay {
             handleLogicalDisplayChangedLocked = true;
         }
         return handleLogicalDisplayChangedLocked;
+    }
+
+    boolean canHostTasksLocked() {
+        return mCanHostTasks;
+    }
+
+    /**
+     * Sets whether the display can host tasks.
+     *
+     * @param canHostTasks Whether the display can host tasks according to the user's setting.
+     * @return Whether Display Manager should call sendDisplayEventIfEnabledLocked().
+     */
+    boolean setCanHostTasksLocked(boolean canHostTasks) {
+        canHostTasks = validateCanHostTasksLocked(canHostTasks);
+        if (mBaseDisplayInfo.canHostTasks == canHostTasks) {
+            return false;
+        }
+
+        mCanHostTasks = canHostTasks;
+        mBaseDisplayInfo.canHostTasks = canHostTasks;
+        mInfo.set(null);
+        return true;
+    }
+
+    /**
+     * Checks whether the display's ability to host tasks should be determined independently of the
+     * user's setting value. If so, returns the actual validated value based on the display's
+     * usage; otherwise, returns the user's setting value.
+     *
+     * @param canHostTasks Whether the display can host tasks according to the user's setting.
+     * @return Whether the display can actually host task after configuration.
+     */
+    private boolean validateCanHostTasksLocked(boolean canHostTasks) {
+        // The default display can always host tasks.
+        if (getDisplayIdLocked() == Display.DEFAULT_DISPLAY) {
+            return true;
+        }
+
+        // The display that should only mirror can never host tasks.
+        if (mPrimaryDisplayDevice.shouldOnlyMirror()) {
+            return false;
+        }
+
+        // The display that has its own content can always host tasks.
+        final boolean isRearDisplay = getDevicePositionLocked() == POSITION_REAR;
+        final boolean ownContent =
+                ((mPrimaryDisplayDevice.getDisplayDeviceInfoLocked().flags
+                        & DisplayDeviceInfo.FLAG_OWN_CONTENT_ONLY)
+                        != 0)
+                        || isRearDisplay;
+        if (ownContent) {
+            return true;
+        }
+
+        return canHostTasks;
     }
 
     /**
@@ -1086,6 +1160,7 @@ final class LogicalDisplay {
         pw.println("mRequestedMinimalPostProcessing=" + mRequestedMinimalPostProcessing);
         pw.println("mFrameRateOverrides=" + Arrays.toString(mFrameRateOverrides));
         pw.println("mPendingFrameRateOverrideUids=" + mPendingFrameRateOverrideUids);
+        pw.println("mDisplayGroupId=" + mDisplayGroupId);
         pw.println("mDisplayGroupName=" + mDisplayGroupName);
         pw.println("mThermalBrightnessThrottlingDataId=" + mThermalBrightnessThrottlingDataId);
         pw.println("mLeadDisplayId=" + mLeadDisplayId);

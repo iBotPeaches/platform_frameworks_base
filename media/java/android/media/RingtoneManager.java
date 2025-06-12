@@ -60,6 +60,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * RingtoneManager provides access to ringtones, notification, and other types
@@ -810,9 +811,7 @@ public class RingtoneManager {
         // Don't set the stream type
         Ringtone ringtone = getRingtone(context, ringtoneUri, -1 /* streamType */,
                 volumeShaperConfig, false);
-        if (Flags.enableRingtoneHapticsCustomization()
-                && Utils.isRingtoneVibrationSettingsSupported(context)
-                && Utils.hasVibration(ringtoneUri) && hasHapticChannels(ringtoneUri)) {
+        if (muteHapticChannelForVibration(context, ringtoneUri)) {
             audioAttributes = new AudioAttributes.Builder(
                     audioAttributes).setHapticChannelsMuted(true).build();
         }
@@ -1304,5 +1303,20 @@ public class RingtoneManager {
             case TYPE_ALARM: return MediaStore.Audio.AudioColumns.IS_ALARM;
             default: throw new IllegalArgumentException();
         }
+    }
+
+    private static boolean muteHapticChannelForVibration(Context context, Uri ringtoneUri) {
+        final Uri vibrationUri = Utils.getVibrationUri(ringtoneUri);
+        // No vibration is specified
+        if (vibrationUri == null) {
+            return false;
+        }
+        // The user specified the synchronized pattern
+        if (Objects.equals(vibrationUri.toString(), Utils.SYNCHRONIZED_VIBRATION)) {
+            return false;
+        }
+        return Flags.enableRingtoneHapticsCustomization()
+                && Utils.isRingtoneVibrationSettingsSupported(context)
+                && hasHapticChannels(ringtoneUri);
     }
 }

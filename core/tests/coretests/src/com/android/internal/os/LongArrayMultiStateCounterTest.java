@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 
+import android.annotation.SuppressLint;
 import android.os.BadParcelableException;
 import android.os.Parcel;
 import android.platform.test.ravenwood.RavenwoodRule;
@@ -176,6 +177,7 @@ public class LongArrayMultiStateCounterTest {
         assertCounts(newCounter, 0, new long[]{116, 232, 364, 528});
     }
 
+    @SuppressLint("CheckResult")
     private void assertCounts(LongArrayMultiStateCounter counter, int state, long[] expected) {
         long[] counts = new long[expected.length];
         counter.getCounts(counts, state);

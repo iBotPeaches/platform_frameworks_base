@@ -38,8 +38,7 @@ import org.mockito.junit.MockitoJUnitRunner
 /**
  * Tests for [InputManager].
  *
- * Build/Install/Run:
- * atest InputTests:InputManagerTest
+ * Build/Install/Run: atest InputTests:InputManagerTest
  */
 @Presubmit
 @RunWith(MockitoJUnitRunner::class)
@@ -51,8 +50,7 @@ class InputManagerTest {
         const val THIRD_DEVICE_ID = 99
     }
 
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
     private lateinit var devicesChangedListener: IInputDevicesChangedListener
     private val deviceGenerationMap = mutableMapOf<Int /*deviceId*/, Int /*generation*/>()
@@ -64,9 +62,7 @@ class InputManagerTest {
         context = Mockito.spy(ContextWrapper(ApplicationProvider.getApplicationContext()))
         inputManager = InputManager(context)
         `when`(context.getSystemService(eq(Context.INPUT_SERVICE))).thenReturn(inputManager)
-        `when`(inputManagerRule.mock.inputDeviceIds).then {
-            deviceGenerationMap.keys.toIntArray()
-        }
+        `when`(inputManagerRule.mock.inputDeviceIds).then { deviceGenerationMap.keys.toIntArray() }
     }
 
     private fun notifyDeviceChanged(
@@ -74,8 +70,9 @@ class InputManagerTest {
         associatedDisplayId: Int,
         usiVersion: HostUsiVersion?,
     ) {
-        val generation = deviceGenerationMap[deviceId]?.plus(1)
-            ?: throw IllegalArgumentException("Device $deviceId was never added!")
+        val generation =
+            deviceGenerationMap[deviceId]?.plus(1)
+                ?: throw IllegalArgumentException("Device $deviceId was never added!")
         deviceGenerationMap[deviceId] = generation
 
         `when`(inputManagerRule.mock.getInputDevice(deviceId))

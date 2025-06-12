@@ -42,15 +42,13 @@ import org.mockito.junit.MockitoJUnitRunner
 /**
  * Tests for [InputManager.KeyboardBacklightListener].
  *
- * Build/Install/Run:
- * atest InputTests:KeyboardBacklightListenerTest
+ * Build/Install/Run: atest InputTests:KeyboardBacklightListenerTest
  */
 @Presubmit
 @RunWith(MockitoJUnitRunner::class)
 class KeyboardBacklightListenerTest {
 
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
     private lateinit var testLooper: TestLooper
     private var registeredListener: IKeyboardBacklightListener? = null
@@ -65,43 +63,54 @@ class KeyboardBacklightListenerTest {
         executor = HandlerExecutor(Handler(testLooper.looper))
         registeredListener = null
         inputManager = InputManager(context)
-        `when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE)))
-                .thenReturn(inputManager)
+        `when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE))).thenReturn(inputManager)
 
         // Handle keyboard backlight listener registration.
         doAnswer {
-            val listener = it.getArgument(0) as IKeyboardBacklightListener
-            if (registeredListener != null &&
-                    registeredListener!!.asBinder() != listener.asBinder()) {
-                // There can only be one registered keyboard backlight listener per process.
-                fail("Trying to register a new listener when one already exists")
+                val listener = it.getArgument(0) as IKeyboardBacklightListener
+                if (
+                    registeredListener != null &&
+                        registeredListener!!.asBinder() != listener.asBinder()
+                ) {
+                    // There can only be one registered keyboard backlight listener per process.
+                    fail("Trying to register a new listener when one already exists")
+                }
+                registeredListener = listener
+                null
             }
-            registeredListener = listener
-            null
-        }.`when`(inputManagerRule.mock).registerKeyboardBacklightListener(any())
+            .`when`(inputManagerRule.mock)
+            .registerKeyboardBacklightListener(any())
 
         // Handle keyboard backlight listener being unregistered.
         doAnswer {
-            val listener = it.getArgument(0) as IKeyboardBacklightListener
-            if (registeredListener == null ||
-                    registeredListener!!.asBinder() != listener.asBinder()) {
-                fail("Trying to unregister a listener that is not registered")
+                val listener = it.getArgument(0) as IKeyboardBacklightListener
+                if (
+                    registeredListener == null ||
+                        registeredListener!!.asBinder() != listener.asBinder()
+                ) {
+                    fail("Trying to unregister a listener that is not registered")
+                }
+                registeredListener = null
+                null
             }
-            registeredListener = null
-            null
-        }.`when`(inputManagerRule.mock).unregisterKeyboardBacklightListener(any())
+            .`when`(inputManagerRule.mock)
+            .unregisterKeyboardBacklightListener(any())
     }
 
     private fun notifyKeyboardBacklightChanged(
         deviceId: Int,
         brightnessLevel: Int,
         maxBrightnessLevel: Int = 10,
-        isTriggeredByKeyPress: Boolean = true
+        isTriggeredByKeyPress: Boolean = true,
     ) {
-        registeredListener!!.onBrightnessChanged(deviceId, IKeyboardBacklightState().apply {
-            this.brightnessLevel = brightnessLevel
-            this.maxBrightnessLevel = maxBrightnessLevel
-        }, isTriggeredByKeyPress)
+        registeredListener!!.onBrightnessChanged(
+            deviceId,
+            IKeyboardBacklightState().apply {
+                this.brightnessLevel = brightnessLevel
+                this.maxBrightnessLevel = maxBrightnessLevel
+            },
+            isTriggeredByKeyPress,
+        )
     }
 
     @Test
@@ -110,9 +119,9 @@ class KeyboardBacklightListenerTest {
 
         // Add a keyboard backlight listener
         inputManager.registerKeyboardBacklightListener(executor) {
-                deviceId: Int,
-                keyboardBacklightState: KeyboardBacklightState,
-                isTriggeredByKeyPress: Boolean ->
+            deviceId: Int,
+            keyboardBacklightState: KeyboardBacklightState,
+            isTriggeredByKeyPress: Boolean ->
             callbackCount++
             assertEquals(1, deviceId)
             assertEquals(2, keyboardBacklightState.brightnessLevel)

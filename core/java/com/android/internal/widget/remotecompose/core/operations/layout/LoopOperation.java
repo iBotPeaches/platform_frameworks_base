@@ -27,12 +27,17 @@ import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
 import com.android.internal.widget.remotecompose.core.operations.Utils;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /** Represents a loop of operations */
-public class LoopOperation extends PaintOperation implements VariableSupport {
+public class LoopOperation extends PaintOperation
+        implements Container, VariableSupport, Serializable {
+    private static final String CLASS_NAME = "LoopOperation";
+
     private static final int OP_CODE = Operations.LOOP_START;
 
     @NonNull public ArrayList<Operation> mList = new ArrayList<>();
@@ -68,6 +73,11 @@ public class LoopOperation extends PaintOperation implements VariableSupport {
         mUntilOut = Float.isNaN(mUntil) ? context.getFloat(Utils.idFromNan(mUntil)) : mUntil;
         mFromOut = Float.isNaN(mFrom) ? context.getFloat(Utils.idFromNan(mFrom)) : mFrom;
         mStepOut = Float.isNaN(mStep) ? context.getFloat(Utils.idFromNan(mStep)) : mStep;
+        for (Operation op : mList) {
+            if (op instanceof VariableSupport && op.isDirty()) {
+                ((VariableSupport) op).updateVariables(context);
+            }
+        }
     }
 
     public LoopOperation(int indexId, float from, float step, float until) {
@@ -77,6 +87,7 @@ public class LoopOperation extends PaintOperation implements VariableSupport {
         mIndexVariableId = indexId;
     }
 
+    @Override
     @NonNull
     public ArrayList<Operation> getList() {
         return mList;
@@ -139,6 +150,15 @@ public class LoopOperation extends PaintOperation implements VariableSupport {
         return "Loop";
     }
 
+    /**
+     * Write the operation on the buffer
+     *
+     * @param buffer
+     * @param indexId
+     * @param from
+     * @param step
+     * @param until
+     */
     public static void apply(
             @NonNull WireBuffer buffer, int indexId, float from, float step, float until) {
         buffer.start(OP_CODE);
@@ -186,5 +206,16 @@ public class LoopOperation extends PaintOperation implements VariableSupport {
             return (int) (0.5f + (mUntil - mFrom) / mStep);
         }
         return 10; // this is a generic estmate if the values are variables;
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("indexVariableId", mIndexVariableId)
+                .add("until", mUntil, mUntilOut)
+                .add("from", mFrom, mFromOut)
+                .add("step", mStep, mStepOut)
+                .add("list", mList);
     }
 }

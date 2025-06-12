@@ -17,11 +17,10 @@
 package com.android.systemui.qs.tiles.impl.hearingdevices.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.Flags
 import com.android.systemui.accessibility.hearingaid.HearingDevicesChecker
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.hearingdevices.domain.model.HearingDevicesTileModel
 import com.android.systemui.statusbar.policy.BluetoothController
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
@@ -62,8 +61,7 @@ constructor(
             .flowOn(backgroundContext)
             .distinctUntilChanged()
 
-    override fun availability(user: UserHandle): Flow<Boolean> =
-        flowOf(Flags.hearingAidsQsTileDialog())
+    override fun availability(user: UserHandle): Flow<Boolean> = flowOf(true)
 
     private fun getModel() =
         HearingDevicesTileModel(

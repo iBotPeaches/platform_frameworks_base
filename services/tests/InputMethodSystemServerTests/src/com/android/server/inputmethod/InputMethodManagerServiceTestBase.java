@@ -66,6 +66,7 @@ import com.android.internal.inputmethod.IInputMethodSession;
 import com.android.internal.inputmethod.IRemoteAccessibilityInputConnection;
 import com.android.internal.inputmethod.IRemoteInputConnection;
 import com.android.internal.inputmethod.InputBindResult;
+import com.android.internal.protolog.IProtoLogConfigurationService;
 import com.android.internal.view.IInputMethodManager;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
@@ -115,7 +116,7 @@ public class InputMethodManagerServiceTestBase {
     @Mock protected IInputMethodClient mMockInputMethodClient;
     @Mock protected IInputMethodSession mMockInputMethodSession;
     @Mock protected IBinder mWindowToken;
-    @Mock protected IRemoteInputConnection mMockRemoteInputConnection;
+    @Mock protected IRemoteInputConnection mMockFallbackInputConnection;
     @Mock protected IRemoteAccessibilityInputConnection mMockRemoteAccessibilityInputConnection;
     @Mock protected ImeOnBackInvokedDispatcher mMockImeOnBackInvokedDispatcher;
     @Mock protected IInputMethodManager.Stub mMockIInputMethodManager;
@@ -124,6 +125,7 @@ public class InputMethodManagerServiceTestBase {
     @Mock protected IBinder mMockInputMethodBinder;
     @Mock protected IInputManager mMockIInputManager;
     @Mock protected ImeTargetVisibilityPolicy mMockImeTargetVisibilityPolicy;
+    @Mock protected IProtoLogConfigurationService.Stub mMockProtoLogConfigurationService;
 
     protected Context mContext;
     protected MockitoSession mMockingSession;
@@ -186,6 +188,9 @@ public class InputMethodManagerServiceTestBase {
                 .when(() -> ServiceManager.getServiceOrThrow(Context.INPUT_METHOD_SERVICE));
         doReturn(mMockIPlatformCompat)
                 .when(() -> ServiceManager.getService(Context.PLATFORM_COMPAT_SERVICE));
+        doReturn(mMockProtoLogConfigurationService)
+                .when(() -> ServiceManager.getServiceOrThrow(
+                        Context.PROTOLOG_CONFIGURATION_SERVICE));
 
         // Stubbing out context related methods to avoid the system holding strong references to
         // InputMethodManagerService.
@@ -295,7 +300,8 @@ public class InputMethodManagerServiceTestBase {
         lifecycle.onBootPhase(SystemService.PHASE_ACTIVITY_MANAGER_READY);
 
         // Call InputMethodManagerService#addClient() as a preparation to start interacting with it.
-        mInputMethodManagerService.addClient(mMockInputMethodClient, mMockRemoteInputConnection, 0);
+        mInputMethodManagerService.addClient(mMockInputMethodClient, mMockFallbackInputConnection,
+                0 /* selfReportedDisplayId */);
         createSessionForClient(mMockInputMethodClient);
     }
 

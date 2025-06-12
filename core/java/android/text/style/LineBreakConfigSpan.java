@@ -31,6 +31,7 @@ import java.util.Objects;
  * LineBreakSpan for changing line break style of the specific region of the text.
  */
 @FlaggedApi(FLAG_NO_BREAK_NO_HYPHENATION_SPAN)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class LineBreakConfigSpan implements ParcelableSpan {
     private final LineBreakConfig mLineBreakConfig;
 

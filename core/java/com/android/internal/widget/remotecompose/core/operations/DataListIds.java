@@ -29,11 +29,13 @@ import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
 import com.android.internal.widget.remotecompose.core.operations.utilities.ArrayAccess;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.Arrays;
 import java.util.List;
 
-public class DataListIds extends Operation implements VariableSupport, ArrayAccess {
+public class DataListIds extends Operation implements VariableSupport, ArrayAccess, Serializable {
     private static final int OP_CODE = Operations.ID_LIST;
     private static final String CLASS_NAME = "IdListData";
     private final int mId;
@@ -62,6 +64,13 @@ public class DataListIds extends Operation implements VariableSupport, ArrayAcce
         return "map[" + Utils.idString(mId) + "]  \"" + Arrays.toString(mIds) + "\"";
     }
 
+    /**
+     * Write this operation to the buffer
+     *
+     * @param buffer the buffer to apply the operation to
+     * @param id the id of the array
+     * @param ids the values of the array
+     */
     public static void apply(@NonNull WireBuffer buffer, int id, @NonNull int[] ids) {
         buffer.start(OP_CODE);
         buffer.writeInt(id);
@@ -139,5 +148,11 @@ public class DataListIds extends Operation implements VariableSupport, ArrayAcce
     @Override
     public int getIntValue(int index) {
         return 0;
+    }
+
+    @SuppressWarnings("JdkImmutableCollections")
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("id", mId).add("ids", List.of(mIds));
     }
 }

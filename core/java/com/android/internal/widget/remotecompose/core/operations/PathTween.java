@@ -29,11 +29,13 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Operation to deal with Path data */
-public class PathTween extends PaintOperation implements VariableSupport {
+public class PathTween extends PaintOperation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.PATH_TWEEN;
     private static final String CLASS_NAME = "PathTween";
     public int mOutId;
@@ -154,5 +156,15 @@ public class PathTween extends PaintOperation implements VariableSupport {
     @Override
     public void paint(PaintContext context) {
         context.tweenPath(mOutId, mPathId1, mPathId2, mTweenOut);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("outId", mOutId)
+                .add("pathId1", mPathId1)
+                .add("pathId2", mPathId2)
+                .add("tween", mTween, mTweenOut);
     }
 }

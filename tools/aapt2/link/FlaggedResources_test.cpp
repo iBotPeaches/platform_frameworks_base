@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <regex>
+#include <string>
+
 #include "LoadedApk.h"
 #include "cmd/Dump.h"
 #include "io/StringStream.h"
@@ -56,6 +59,16 @@ void DumpChunksToString(LoadedApk* loaded_apk, std::string* output) {
 
   DumpChunks command(&printer, &noop_diag);
   ASSERT_EQ(command.Dump(loaded_apk), 0);
+  output_stream.Flush();
+}
+
+void DumpXmlTreeToString(LoadedApk* loaded_apk, std::string file, std::string* output) {
+  StringOutputStream output_stream(output);
+  Printer printer(&output_stream);
+
+  auto xml = loaded_apk->LoadXml(file, &noop_diag);
+  ASSERT_NE(xml, nullptr);
+  Debug::DumpXml(*xml, &printer);
   output_stream.Flush();
 }
 
@@ -146,6 +159,78 @@ TEST_F(FlaggedResourcesTest, TwoValuesSameDisabledFlagDifferentFiles) {
 
   ASSERT_FALSE(Link(link_args, compiled_files_dir, &diag));
   ASSERT_TRUE(diag.GetLog().contains("duplicate value for resource 'bool1'"));
+}
+
+TEST_F(FlaggedResourcesTest, EnabledXmlELementAttributeRemoved) {
+  auto apk_path = file::BuildPath({android::base::GetExecutableDirectory(), "resapp.apk"});
+  auto loaded_apk = LoadedApk::LoadApkFromPath(apk_path, &noop_diag);
+
+  std::string output;
+  DumpXmlTreeToString(loaded_apk.get(), "res/layout-v36/layout1.xml", &output);
+  ASSERT_FALSE(output.contains("test.package.trueFlag"));
+  ASSERT_TRUE(output.contains("FIND_ME"));
+  ASSERT_TRUE(output.contains("test.package.readWriteFlag"));
+}
+
+TEST_F(FlaggedResourcesTest, ReadWriteFlagInPathFails) {
+  test::TestDiagnosticsImpl diag;
+  const std::string compiled_files_dir = GetTestPath("compiled");
+  ASSERT_FALSE(CompileFile(GetTestPath("res/values/flag(!test.package.rwFlag)/bools.xml"),
+                           R"(<resources>
+                                <bool name="bool1">false</bool>
+                              </resources>)",
+                           compiled_files_dir, &diag,
+                           {"--feature-flags", "test.package.rwFlag=false"}));
+
+  ASSERT_TRUE(diag.GetLog().contains(
+      "Only read only flags may be used with resources: test.package.rwFlag"));
+}
+
+TEST_F(FlaggedResourcesTest, ReadWriteFlagInXmlGetsFlagged) {
+  auto apk_path = file::BuildPath({android::base::GetExecutableDirectory(), "resapp.apk"});
+  auto loaded_apk = LoadedApk::LoadApkFromPath(apk_path, &noop_diag);
+
+  std::string output;
+  DumpChunksToString(loaded_apk.get(), &output);
+
+  // The actual line looks something like:
+  // [ResTable_entry] id: 0x0000 name: layout1 keyIndex: 14 size: 8 flags: 0x0010
+  //
+  // This regex matches that line and captures the name and the flag value for checking.
+  std::regex regex("[0-9a-zA-Z:_\\]\\[ ]+name: ([0-9a-zA-Z]+)[0-9a-zA-Z: ]+flags: (0x\\d{4})");
+  std::smatch match;
+
+  std::stringstream ss(output);
+  std::string line;
+  bool found = false;
+  int fields_flagged = 0;
+  while (std::getline(ss, line)) {
+    bool first_line = false;
+    if (line.contains("config: v36")) {
+      std::getline(ss, line);
+      first_line = true;
+    }
+    if (!line.contains("flags")) {
+      continue;
+    }
+    if (std::regex_search(line, match, regex) && (match.size() == 3)) {
+      unsigned int hex_value;
+      std::stringstream hex_ss;
+      hex_ss << std::hex << match[2];
+      hex_ss >> hex_value;
+      if (hex_value & android::ResTable_entry::FLAG_USES_FEATURE_FLAGS) {
+        fields_flagged++;
+        if (first_line && match[1] == "layout1") {
+          found = true;
+        }
+      }
+    }
+  }
+
+  ASSERT_TRUE(found) << "No entry for layout1 at v36 with FLAG_USES_FEATURE_FLAGS bit set";
+  // There should only be 2 entry that has the FLAG_USES_FEATURE_FLAGS bit of flags set to 1, the
+  // three versions of the layout file that has flags
+  ASSERT_EQ(fields_flagged, 3);
 }
 
 }  // namespace aapt

@@ -38,6 +38,7 @@ import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SystemWindows;
 import com.android.wm.shell.common.pip.PipBoundsState;
+import com.android.wm.shell.common.pip.PipDisplayLayoutState;
 import com.android.wm.shell.common.pip.PipMediaController;
 import com.android.wm.shell.common.pip.PipMediaController.ActionListener;
 import com.android.wm.shell.common.pip.PipMenuController;
@@ -121,6 +122,9 @@ public class PhonePipMenuController implements PipMenuController,
     @NonNull
     private final PipTransitionState mPipTransitionState;
 
+    @NonNull
+    private final PipDisplayLayoutState mPipDisplayLayoutState;
+
     private SurfaceControl mLeash;
 
     private ActionListener mMediaActionListener = new ActionListener() {
@@ -134,7 +138,8 @@ public class PhonePipMenuController implements PipMenuController,
     public PhonePipMenuController(Context context, PipBoundsState pipBoundsState,
             PipMediaController mediaController, SystemWindows systemWindows,
             PipUiEventLogger pipUiEventLogger, PipTaskListener pipTaskListener,
-            @NonNull PipTransitionState pipTransitionState, ShellExecutor mainExecutor,
+            @NonNull PipTransitionState pipTransitionState,
+            @NonNull PipDisplayLayoutState pipDisplayLayoutState, ShellExecutor mainExecutor,
             Handler mainHandler) {
         mContext = context;
         mPipBoundsState = pipBoundsState;
@@ -142,12 +147,18 @@ public class PhonePipMenuController implements PipMenuController,
         mSystemWindows = systemWindows;
         mPipTaskListener = pipTaskListener;
         mPipTransitionState = pipTransitionState;
+        mPipDisplayLayoutState = pipDisplayLayoutState;
         mMainExecutor = mainExecutor;
         mMainHandler = mainHandler;
         mPipUiEventLogger = pipUiEventLogger;
 
         mPipTransitionState.addPipTransitionStateChangedListener(this);
-
+        // Clear actions after exit PiP. Otherwise, next PiP could accidentally inherit the
+        // actions provided by the previous app in PiP mode.
+        mPipBoundsState.addOnPipComponentChangedListener(((oldPipComponent, newPipComponent) -> {
+            if (mAppActions != null) mAppActions.clear();
+            mCloseAction = null;
+        }));
         mPipTaskListener.addParamsChangedListener(new PipTaskListener.PipParamsChangedCallback() {
             @Override
             public void onActionsChanged(List<RemoteAction> actions, RemoteAction closeAction) {
@@ -218,7 +229,7 @@ public class PhonePipMenuController implements PipMenuController,
 
         mSystemWindows.addView(mPipMenuView,
                 getPipMenuLayoutParams(mContext, MENU_WINDOW_TITLE, 0 /* width */, 0 /* height */),
-                0, SHELL_ROOT_LAYER_PIP);
+                mPipDisplayLayoutState.getDisplayId(), SHELL_ROOT_LAYER_PIP);
         setShellRootAccessibilityWindow();
 
         // Make sure the initial actions are set

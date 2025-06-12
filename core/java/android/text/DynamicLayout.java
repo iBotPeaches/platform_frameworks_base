@@ -53,6 +53,7 @@ import java.lang.ref.WeakReference;
  * {@link android.graphics.Canvas#drawText(java.lang.CharSequence, int, int, float, float, android.graphics.Paint)
  *  Canvas.drawText()} directly.</p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class DynamicLayout extends Layout {
     private static final int PRIORITY = 128;
     private static final int BLOCK_MINIMUM_CHARACTER_LENGTH = 400;

@@ -286,7 +286,8 @@ public class SeekBarWithIconButtonsView extends LinearLayout {
 
         /**
          * Notification that the user interaction with SeekBarWithIconButtonsView is finalized. This
-         * would be triggered after user ends dragging on the slider or clicks icon buttons.
+         * would be triggered after user ends dragging on the slider or clicks icon buttons. This is
+         * not called if the progress change was not initiated by the user.
          *
          * @param seekBar The SeekBar in which the user ends interaction with
          * @param control The last user interacted control unit. It would be
@@ -318,10 +319,14 @@ public class SeekBarWithIconButtonsView extends LinearLayout {
                             seekBar, OnSeekBarWithIconButtonsChangeListener.ControlUnitType.BUTTON);
                 } else {
                     mOnSeekBarChangeListener.onProgressChanged(seekBar, progress, fromUser);
-                    if (!mSeekByTouch) {
+                    if (!mSeekByTouch && fromUser) {
                         // Accessibility users could change the progress of the seekbar without
-                        // touching the seekbar or clicking the buttons. We will consider the
-                        // interaction has finished in this case.
+                        // touching the seekbar or clicking the buttons. In this, {@code fromUser}
+                        // will be true, and we will consider the interaction to be finished.
+                        // The seekbar progress could be changed when {@code fromUser} is false
+                        // when magnification scale is set by pinch-to-zoom, keyboard control, or
+                        // other services. In this case, we don't need to take finalized actions
+                        // for the progress change.
                         mOnSeekBarChangeListener.onUserInteractionFinalized(
                                 seekBar,
                                 OnSeekBarWithIconButtonsChangeListener.ControlUnitType.SLIDER);

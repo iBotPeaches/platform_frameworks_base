@@ -18,7 +18,6 @@ package com.android.server.security.intrusiondetection;
 
 import android.app.admin.ConnectEvent;
 import android.app.admin.DnsEvent;
-import android.content.Context;
 import android.content.pm.PackageManagerInternal;
 import android.net.IIpConnectivityMetrics;
 import android.net.INetdEventCallback;
@@ -44,8 +43,7 @@ public class NetworkLogSource implements DataSource {
     private IIpConnectivityMetrics mIpConnectivityMetrics;
     private long mId;
 
-    public NetworkLogSource(Context context, DataAggregator dataAggregator)
-            throws SecurityException {
+    public NetworkLogSource(DataAggregator dataAggregator) throws SecurityException {
         mDataAggregator = dataAggregator;
         mPm = LocalServices.getService(PackageManagerInternal.class);
         mId = 0;
@@ -85,11 +83,11 @@ public class NetworkLogSource implements DataSource {
         }
         try {
             if (!mIpConnectivityMetrics.removeNetdEventCallback(
-                    INetdEventCallback.CALLBACK_CALLER_NETWORK_WATCHLIST)) {
+                    INetdEventCallback.CALLBACK_CALLER_DEVICE_POLICY)) {
 
                 mIsNetworkLoggingEnabled.set(false);
             } else {
-                Slog.e(TAG, "Failed to enable network logging; invalid callback");
+                Slog.e(TAG, "Failed to disable network logging; invalid callback");
             }
         } catch (RemoteException e) {
             Slog.e(TAG, "Failed to disable network logging; ", e);
@@ -129,7 +127,8 @@ public class NetworkLogSource implements DataSource {
                                     timestamp);
                     dnsEvent.setId(mId);
                     incrementEventID();
-                    mDataAggregator.addSingleData(new IntrusionDetectionEvent(dnsEvent));
+                    mDataAggregator.addSingleData(
+                            IntrusionDetectionEvent.createForDnsEvent(dnsEvent));
                 }
 
                 @Override
@@ -141,7 +140,8 @@ public class NetworkLogSource implements DataSource {
                             new ConnectEvent(ipAddr, port, mPm.getNameForUid(uid), timestamp);
                     connectEvent.setId(mId);
                     incrementEventID();
-                    mDataAggregator.addSingleData(new IntrusionDetectionEvent(connectEvent));
+                    mDataAggregator.addSingleData(
+                            IntrusionDetectionEvent.createForConnectEvent(connectEvent));
                 }
             };
 }

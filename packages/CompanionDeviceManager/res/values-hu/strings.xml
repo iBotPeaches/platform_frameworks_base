@@ -18,10 +18,16 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Társeszközök kezelője"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Engedélyezi a(z) &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; alkalmazás számára, hogy hozzáférjen a következőhöz: &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Győződjön meg arról, hogy a <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> be van kapcsolva a(z) <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>, és hogy a(z) <xliff:g id="PROFILE_NAME">%3$s</xliff:g> a közelben van."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nem található eszköz. Próbálja újra később."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth és Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"óra"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"A(z) &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; alkalmazással kezelni kívánt eszköz kiválasztása"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Válassza ki a beállítani kívánt <xliff:g id="PROFILE_NAME">%1$s</xliff:g> nevet."</string>
-    <string name="summary_watch" msgid="8134580124808507407">"Ez az alkalmazás képes lesz szinkronizálni információkat (például a hívó fél nevét), és hozzáférhet majd ezekhez az engedélyekhez a következőn: <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Válassza ki a beállítani kívánt <xliff:g id="PROFILE_NAME">%1$s</xliff:g> nevét."</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Keresés – <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="summary_watch" msgid="8134580124808507407">"Ez az alkalmazás képes lesz szinkronizálni információkat (például a hívó fél nevét), és hozzáférhet majd ezekhez az engedélyekhez a <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Engedélyezi, hogy a(z) &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; kezelje a következő eszközt: &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"eszköz"</string>
     <string name="summary_glasses" msgid="5469208629679579157">"Az alkalmazás hozzáférhet majd ezekhez az engedélyekhez a következőn: <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Engedélyezi a(z) &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; számára a(z) <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> alkalmazásainak streamelését a következőre: &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"A(z) <xliff:g id="APP_NAME_0">%1$s</xliff:g> hozzáférhet a(z) <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> minden látható vagy lejátszható tartalmához, így az audiotartalmakhoz, fényképekhez, fizetési adatokhoz, jelszavakhoz és üzenetekhez is.&lt;br/&gt;&lt;br/&gt;Amíg Ön el nem távolítja az ehhez az engedélyhez való hozzáférést, a(z) <xliff:g id="APP_NAME_2">%1$s</xliff:g> képes lesz majd az alkalmazások <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> eszközre való streamelésére."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"A(z) <xliff:g id="APP_NAME">%1$s</xliff:g> engedélyt kér a(z) <xliff:g id="DEVICE_NAME">%2$s</xliff:g> nevében az alkalmazások következőről való streameléséhez: <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Engedélyezi a(z) &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; számára a hang- és rendszerfunkciók streamelését a(z) <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> és a(z) &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; között?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"A(z) <xliff:g id="APP_NAME_0">%2$s</xliff:g> hozzáférhet majd mindenhez, ami a(z) <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> eszközön lejátszásra kerül.&lt;br/&gt;&lt;br/&gt;Amíg Ön el nem távolítja az ehhez az engedélyhez való hozzáférést, a(z) <xliff:g id="APP_NAME_2">%2$s</xliff:g> képes lesz majd audiotartalmakat streamelni a(z) <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> eszközre."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"eszköz"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ez az alkalmazás képes lesz szinkronizálni az olyan információkat a telefon és a kiválasztott eszköz között, mint például a hívó fél neve."</string>
     <string name="consent_yes" msgid="8344487259618762872">"Engedélyezés"</string>
     <string name="consent_no" msgid="2640796915611404382">"Tiltás"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Mégse"</string>
     <string name="consent_back" msgid="2560683030046918882">"Vissza"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Görgetés a listában lefelé"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Lefelé mutató nyíl"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> kibontása"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> összecsukása"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Ugyanolyan engedélyeket ad a(z) &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; eszközön található alkalmazásoknak, mint a(z) &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; eszköz esetén?"</string>

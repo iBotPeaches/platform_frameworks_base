@@ -14,21 +14,18 @@
 // limitations under the License.
 //
 
-soong_namespace {
-}
-
 package {
     default_applicable_licenses: ["frameworks_base_packages_SystemUI_license"],
 }
 
 java_library {
-    name: "api",
+    name: "com.android.systemui.dagger-api",
     srcs: [
         "**/*.java",
         "**/*.kt",
     ],
-    libs: [
-        "jsr330",
+    defaults: [
+        "SystemUI_pod_defaults",
     ],
     visibility: ["//frameworks/base/packages/SystemUI:__subpackages__"],
 }

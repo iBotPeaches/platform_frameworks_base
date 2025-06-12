@@ -32,6 +32,7 @@ import android.text.TextUtils;
  * <img src="{@docRoot}reference/android/images/text/style/underlinespan.png" />
  * <figcaption>Underlined text.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class UnderlineSpan extends CharacterStyle
         implements UpdateAppearance, ParcelableSpan {
 

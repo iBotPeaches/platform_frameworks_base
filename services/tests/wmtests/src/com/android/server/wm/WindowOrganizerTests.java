@@ -26,6 +26,7 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+import static android.content.pm.ActivityInfo.CONFIG_UI_MODE;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSET;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
@@ -33,6 +34,8 @@ import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.content.res.Configuration.SCREEN_HEIGHT_DP_UNDEFINED;
 import static android.content.res.Configuration.SCREEN_WIDTH_DP_UNDEFINED;
+import static android.content.res.Configuration.UI_MODE_NIGHT_NO;
+import static android.content.res.Configuration.UI_MODE_NIGHT_YES;
 import static android.view.InsetsSource.FLAG_FORCE_CONSUMING;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 import static android.window.DisplayAreaOrganizer.FEATURE_VENDOR_FIRST;
@@ -58,6 +61,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -777,6 +781,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
     @Test
     public void testSetIgnoreOrientationRequest_taskDisplayArea() {
         removeGlobalMinSizeRestriction();
+        mDisplayContent.setIgnoreOrientationRequest(false);
         final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
         final Task rootTask = taskDisplayArea.createRootTask(
                 WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, false /* onTop */);
@@ -815,6 +820,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
     @Test
     public void testSetIgnoreOrientationRequest_displayContent() {
         removeGlobalMinSizeRestriction();
+        mDisplayContent.setIgnoreOrientationRequest(false);
         final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
         final Task rootTask = taskDisplayArea.createRootTask(
                 WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, false /* onTop */);
@@ -905,10 +911,10 @@ public class WindowOrganizerTests extends WindowTestsBase {
         final RunningTaskInfo info2 = task2.getTaskInfo();
 
         WindowContainerTransaction wct = new WindowContainerTransaction();
-        wct.setAdjacentRoots(info1.token, info2.token);
+        wct.setAdjacentRootSet(info1.token, info2.token);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
-        assertEquals(task1.getAdjacentTaskFragment(), task2);
-        assertEquals(task2.getAdjacentTaskFragment(), task1);
+        assertTrue(task1.isAdjacentTo(task2));
+        assertTrue(task2.isAdjacentTo(task1));
 
         wct = new WindowContainerTransaction();
         wct.setLaunchAdjacentFlagRoot(info1.token);
@@ -919,9 +925,51 @@ public class WindowOrganizerTests extends WindowTestsBase {
         wct.clearAdjacentRoots(info1.token);
         wct.clearLaunchAdjacentFlagRoot(info1.token);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
-        assertEquals(task1.getAdjacentTaskFragment(), null);
-        assertEquals(task2.getAdjacentTaskFragment(), null);
+        assertFalse(task1.hasAdjacentTaskFragment());
+        assertFalse(task2.hasAdjacentTaskFragment());
         assertEquals(dc.getDefaultTaskDisplayArea().mLaunchAdjacentFlagRootTask, null);
+    }
+
+    @Test
+    public void testSetAdjacentLaunchRootSet() {
+        final DisplayContent dc = mWm.mRoot.getDisplayContent(Display.DEFAULT_DISPLAY);
+
+        final Task task1 = mWm.mAtmService.mTaskOrganizerController.createRootTask(
+                dc, WINDOWING_MODE_MULTI_WINDOW, null);
+        final RunningTaskInfo info1 = task1.getTaskInfo();
+        final Task task2 = mWm.mAtmService.mTaskOrganizerController.createRootTask(
+                dc, WINDOWING_MODE_MULTI_WINDOW, null);
+        final RunningTaskInfo info2 = task2.getTaskInfo();
+        final Task task3 = mWm.mAtmService.mTaskOrganizerController.createRootTask(
+                dc, WINDOWING_MODE_MULTI_WINDOW, null);
+        final RunningTaskInfo info3 = task3.getTaskInfo();
+
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+        wct.setAdjacentRootSet(info1.token, info2.token, info3.token);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+        assertTrue(task1.hasAdjacentTaskFragment());
+        assertTrue(task2.hasAdjacentTaskFragment());
+        assertTrue(task3.hasAdjacentTaskFragment());
+        assertTrue(task1.isAdjacentTo(task2));
+        assertTrue(task1.isAdjacentTo(task3));
+        assertTrue(task2.isAdjacentTo(task3));
+
+        wct = new WindowContainerTransaction();
+        wct.clearAdjacentRoots(info1.token);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+        assertFalse(task1.hasAdjacentTaskFragment());
+        assertTrue(task2.hasAdjacentTaskFragment());
+        assertTrue(task3.hasAdjacentTaskFragment());
+        assertFalse(task1.isAdjacentTo(task2));
+        assertFalse(task1.isAdjacentTo(task3));
+        assertTrue(task2.isAdjacentTo(task3));
+
+        wct = new WindowContainerTransaction();
+        wct.clearAdjacentRoots(info2.token);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+        assertFalse(task2.hasAdjacentTaskFragment());
+        assertFalse(task3.hasAdjacentTaskFragment());
+        assertFalse(task2.isAdjacentTo(task3));
     }
 
     @Test
@@ -1521,6 +1569,51 @@ public class WindowOrganizerTests extends WindowTestsBase {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnRootTask() {
+        Task rootTask = mWm.mAtmService.mTaskOrganizerController.createRootTask(
+                mDisplayContent, WINDOWING_MODE_FULLSCREEN, null);
+        final Task task1 = createRootTask();
+        final Task task2 = createTask(rootTask, false /* fakeDraw */);
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+        Rect safeRegionBounds = new Rect(50, 50, 200, 300);
+
+        wct.setSafeRegionBounds(rootTask.mRemoteToken.toWindowContainerToken(), safeRegionBounds);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+
+        assertEquals(rootTask.getSafeRegionBounds(), safeRegionBounds);
+        assertEquals(task2.getSafeRegionBounds(), safeRegionBounds);
+        assertNull(task1.getSafeRegionBounds());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnRootTask_resetSafeRegionBounds() {
+        Task rootTask = mWm.mAtmService.mTaskOrganizerController.createRootTask(
+                mDisplayContent, WINDOWING_MODE_FULLSCREEN, null);
+        final Task task1 = createRootTask();
+        final Task task2 = createTask(rootTask, false /* fakeDraw */);
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+        Rect safeRegionBounds = new Rect(50, 50, 200, 300);
+
+        wct.setSafeRegionBounds(rootTask.mRemoteToken.toWindowContainerToken(), safeRegionBounds);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+
+        assertEquals(rootTask.getSafeRegionBounds(), safeRegionBounds);
+        assertEquals(task2.getSafeRegionBounds(), safeRegionBounds);
+        assertNull(task1.getSafeRegionBounds());
+
+        // Reset safe region bounds on the root task
+        wct.setSafeRegionBounds(rootTask.mRemoteToken.toWindowContainerToken(),
+                /* safeRegionBounds */null);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+
+        assertNull(rootTask.getSafeRegionBounds());
+        assertNull(task2.getSafeRegionBounds());
+        assertNull(task1.getSafeRegionBounds());
+    }
+
+    @Test
     public void testReparentToOrganizedTask() {
         final ITaskOrganizer organizer = registerMockOrganizer();
         Task rootTask = mWm.mAtmService.mTaskOrganizerController.createRootTask(
@@ -1936,6 +2029,30 @@ public class WindowOrganizerTests extends WindowTestsBase {
         final DisplayArea displayArea = mDisplayContent.getDefaultTaskDisplayArea();
         displayArea.setWindowingMode(WINDOWING_MODE_FREEFORM);
         testSetAlwaysOnTop(displayArea);
+    }
+
+    @Test
+    public void testConfigurationsAreEqualForOrganizer() {
+        Configuration config1 = new Configuration();
+        config1.smallestScreenWidthDp = 300;
+        config1.uiMode = UI_MODE_NIGHT_YES;
+
+        Configuration config2 = new Configuration(config1);
+        config2.uiMode = UI_MODE_NIGHT_NO;
+
+        Configuration config3 = new Configuration(config1);
+        config3.smallestScreenWidthDp = 500;
+
+        // Should be equal for non-controllable configuration changes.
+        assertTrue(WindowOrganizerController.configurationsAreEqualForOrganizer(config1, config2));
+
+        // Should be unequal for non-controllable configuration changes if the organizer is
+        // interested in that change.
+        assertFalse(WindowOrganizerController.configurationsAreEqualForOrganizer(
+                config1, config2, CONFIG_UI_MODE));
+
+        // Should be unequal for controllable configuration changes.
+        assertFalse(WindowOrganizerController.configurationsAreEqualForOrganizer(config1, config3));
     }
 
     private void testSetAlwaysOnTop(WindowContainer wc) {

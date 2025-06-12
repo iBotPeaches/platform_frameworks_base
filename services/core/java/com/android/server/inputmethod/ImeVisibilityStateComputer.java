@@ -32,6 +32,7 @@ import static android.view.WindowManager.LayoutParams.SoftInputModeFlags;
 import static com.android.internal.inputmethod.InputMethodDebug.softInputModeToString;
 import static com.android.internal.inputmethod.SoftInputShowHideReason.REMOVE_IME_SCREENSHOT_FROM_IMMS;
 import static com.android.internal.inputmethod.SoftInputShowHideReason.SHOW_IME_SCREENSHOT_FROM_IMMS;
+import static com.android.server.inputmethod.ImeProtoLogGroup.IME_VIS_STATE_COMPUTER_DEBUG;
 import static com.android.server.inputmethod.InputMethodManagerService.computeImeDisplayIdForTarget;
 
 import android.accessibilityservice.AccessibilityService;
@@ -40,6 +41,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Binder;
 import android.os.IBinder;
@@ -57,7 +59,9 @@ import android.view.inputmethod.InputMethodManager;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
+import com.android.internal.protolog.ProtoLog;
 import com.android.server.LocalServices;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.WindowManagerInternal;
 
 import java.io.PrintWriter;
@@ -70,14 +74,13 @@ import java.util.WeakHashMap;
  */
 public final class ImeVisibilityStateComputer {
 
-    private static final String TAG = "ImeVisibilityStateComputer";
-
-    private static final boolean DEBUG = InputMethodManagerService.DEBUG;
+    static final String TAG = "ImeVisibilityStateComputer";
 
     @UserIdInt
     private final int mUserId;
 
     private final InputMethodManagerService mService;
+    private final UserManagerInternal mUserManagerInternal;
     private final WindowManagerInternal mWindowManagerInternal;
 
     final InputMethodManagerService.ImeDisplayValidator mImeDisplayValidator;
@@ -188,6 +191,7 @@ public final class ImeVisibilityStateComputer {
     public ImeVisibilityStateComputer(@NonNull InputMethodManagerService service,
             @UserIdInt int userId) {
         this(service,
+                LocalServices.getService(UserManagerInternal.class),
                 LocalServices.getService(WindowManagerInternal.class),
                 LocalServices.getService(WindowManagerInternal.class)::getDisplayImePolicy,
                 new ImeVisibilityPolicy(), userId);
@@ -196,11 +200,14 @@ public final class ImeVisibilityStateComputer {
     @VisibleForTesting
     public ImeVisibilityStateComputer(@NonNull InputMethodManagerService service,
             @NonNull Injector injector) {
-        this(service, injector.getWmService(), injector.getImeValidator(),
-                new ImeVisibilityPolicy(), injector.getUserId());
+        this(service, injector.getUserManagerService(), injector.getWmService(),
+                injector.getImeValidator(), new ImeVisibilityPolicy(), injector.getUserId());
     }
 
     interface Injector {
+        @NonNull
+        UserManagerInternal getUserManagerService();
+
         @NonNull
         WindowManagerInternal getWmService();
 
@@ -212,11 +219,13 @@ public final class ImeVisibilityStateComputer {
     }
 
     private ImeVisibilityStateComputer(InputMethodManagerService service,
+            UserManagerInternal userManagerInternal,
             WindowManagerInternal wmService,
             InputMethodManagerService.ImeDisplayValidator imeDisplayValidator,
             ImeVisibilityPolicy imePolicy, @UserIdInt int userId) {
         mUserId = userId;
         mService = service;
+        mUserManagerInternal = userManagerInternal;
         mWindowManagerInternal = wmService;
         mImeDisplayValidator = imeDisplayValidator;
         mPolicy = imePolicy;
@@ -283,12 +292,14 @@ public final class ImeVisibilityStateComputer {
             @InputMethodManager.HideFlags int hideFlags) {
         if ((hideFlags & InputMethodManager.HIDE_IMPLICIT_ONLY) != 0
                 && (mRequestedShowExplicitly || mShowForced)) {
-            if (DEBUG) Slog.v(TAG, "Not hiding: explicit show not cancelled by non-explicit hide");
+            ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG,
+                    "Not hiding: explicit show not cancelled by non-explicit hide");
             ImeTracker.forLogging().onFailed(statsToken, ImeTracker.PHASE_SERVER_HIDE_IMPLICIT);
             return false;
         }
         if (mShowForced && (hideFlags & InputMethodManager.HIDE_NOT_ALWAYS) != 0) {
-            if (DEBUG) Slog.v(TAG, "Not hiding: forced show not cancelled by not-always hide");
+            ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG,
+                    "Not hiding: forced show not cancelled by not-always hide");
             ImeTracker.forLogging().onFailed(statsToken, ImeTracker.PHASE_SERVER_HIDE_NOT_ALWAYS);
             return false;
         }
@@ -337,7 +348,16 @@ public final class ImeVisibilityStateComputer {
 
     @GuardedBy("ImfLock.class")
     int computeImeDisplayId(@NonNull ImeTargetWindowState state, int displayId) {
-        final int displayToShowIme = computeImeDisplayIdForTarget(displayId, mImeDisplayValidator);
+        final int displayToShowIme;
+        final PackageManager pm = mService.mContext.getPackageManager();
+        if (pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
+                && mUserManagerInternal.isVisibleBackgroundFullUser(mUserId)
+                && Flags.fallbackDisplayForSecondaryUserOnSecondaryDisplay()) {
+            displayToShowIme = mService.computeImeDisplayIdForVisibleBackgroundUserOnAutomotive(
+                    displayId, mUserId, mImeDisplayValidator);
+        } else {
+            displayToShowIme = computeImeDisplayIdForTarget(displayId, mImeDisplayValidator);
+        }
         state.setImeDisplayId(displayToShowIme);
         final boolean imeHiddenByPolicy = displayToShowIme == INVALID_DISPLAY;
         mPolicy.setImeHiddenByDisplayPolicy(imeHiddenByPolicy);
@@ -399,8 +419,8 @@ public final class ImeVisibilityStateComputer {
 
     @GuardedBy("ImfLock.class")
     private void setWindowStateInner(IBinder windowToken, @NonNull ImeTargetWindowState newState) {
-        if (DEBUG) Slog.d(TAG, "setWindowStateInner, windowToken=" + windowToken
-                + ", state=" + newState);
+        ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG, "setWindowStateInner, windowToken=%s, state=%s",
+                windowToken, newState);
         mRequestWindowStateMap.put(windowToken, newState);
     }
 
@@ -423,7 +443,8 @@ public final class ImeVisibilityStateComputer {
     }
 
     @GuardedBy("ImfLock.class")
-    ImeVisibilityResult computeState(ImeTargetWindowState state, boolean allowVisible) {
+    ImeVisibilityResult computeState(ImeTargetWindowState state, boolean allowVisible,
+            boolean imeRequestedVisible) {
         // TODO: Output the request IME visibility state according to the requested window state
         final int softInputVisibility = state.mSoftInputModeState & SOFT_INPUT_MASK_STATE;
         // Should we auto-show the IME even if the caller has not
@@ -448,7 +469,7 @@ public final class ImeVisibilityStateComputer {
         // Because the app might leverage these flags to hide soft-keyboard with showing their own
         // UI for input.
         if (state.hasEditorFocused() && shouldRestoreImeVisibility(state)) {
-            if (DEBUG) Slog.v(TAG, "Will show input to restore visibility");
+            ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG, "Will show input to restore visibility");
             // Inherit the last requested IME visible state when the target window is still
             // focused with an editor.
             state.setRequestedImeVisible(true);
@@ -465,7 +486,8 @@ public final class ImeVisibilityStateComputer {
                         // There is no focus view, and this window will
                         // be behind any soft input window, so hide the
                         // soft input window if it is shown.
-                        if (DEBUG) Slog.v(TAG, "Unspecified window will hide input");
+                        ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG,
+                                "Unspecified window will hide input");
                         return new ImeVisibilityResult(STATE_HIDE_IME_NOT_ALWAYS,
                                 SoftInputShowHideReason.HIDE_UNSPECIFIED_WINDOW);
                     }
@@ -477,7 +499,7 @@ public final class ImeVisibilityStateComputer {
                     // them good context without input information being obscured
                     // by the IME) or if running on a large screen where there
                     // is more room for the target window + IME.
-                    if (DEBUG) Slog.v(TAG, "Unspecified window will show input");
+                    ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG, "Unspecified window will show input");
                     return new ImeVisibilityResult(STATE_SHOW_IME_IMPLICIT,
                             SoftInputShowHideReason.SHOW_AUTO_EDITOR_FORWARD_NAV);
                 }
@@ -495,7 +517,8 @@ public final class ImeVisibilityStateComputer {
                     // the WindowState, as they're already in the correct state
                     break;
                 } else if (isForwardNavigation) {
-                    if (DEBUG) Slog.v(TAG, "Window asks to hide input going forward");
+                    ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG,
+                            "Window asks to hide input going forward");
                     return new ImeVisibilityResult(STATE_HIDE_IME_EXPLICIT,
                             SoftInputShowHideReason.HIDE_STATE_HIDDEN_FORWARD_NAV);
                 }
@@ -506,7 +529,7 @@ public final class ImeVisibilityStateComputer {
                     // the WindowState, as they're already in the correct state
                     break;
                 } else if (state.hasImeFocusChanged()) {
-                    if (DEBUG) Slog.v(TAG, "Window asks to hide input");
+                    ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG, "Window asks to hide input");
                     return new ImeVisibilityResult(STATE_HIDE_IME_EXPLICIT,
                             SoftInputShowHideReason.HIDE_ALWAYS_HIDDEN_STATE);
                 }
@@ -514,7 +537,8 @@ public final class ImeVisibilityStateComputer {
             case WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE:
                 if (isForwardNavigation) {
                     if (allowVisible) {
-                        if (DEBUG) Slog.v(TAG, "Window asks to show input going forward");
+                        ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG,
+                                "Window asks to show input going forward");
                         return new ImeVisibilityResult(STATE_SHOW_IME_IMPLICIT,
                                 SoftInputShowHideReason.SHOW_STATE_VISIBLE_FORWARD_NAV);
                     } else {
@@ -525,7 +549,7 @@ public final class ImeVisibilityStateComputer {
                 }
                 break;
             case WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE:
-                if (DEBUG) Slog.v(TAG, "Window asks to always show input");
+                ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG, "Window asks to always show input");
                 if (allowVisible) {
                     if (state.hasImeFocusChanged()) {
                         return new ImeVisibilityResult(STATE_SHOW_IME_IMPLICIT,
@@ -547,12 +571,14 @@ public final class ImeVisibilityStateComputer {
             // To maintain compatibility, we are now hiding the IME when we don't have
             // an editor upon refocusing a window.
             if (state.isStartInputByGainFocus()) {
-                if (DEBUG) Slog.v(TAG, "Same window without editor will hide input");
+                ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG,
+                        "Same window without editor will hide input");
                 return new ImeVisibilityResult(STATE_HIDE_IME_EXPLICIT,
                         SoftInputShowHideReason.HIDE_SAME_WINDOW_FOCUSED_WITHOUT_EDITOR);
             }
         }
-        if (!state.hasEditorFocused() && mInputShown && state.isStartInputByGainFocus()
+        if (!state.hasEditorFocused() && (mInputShown || (Flags.refactorInsetsController()
+                && imeRequestedVisible)) && state.isStartInputByGainFocus()
                 && mService.mInputMethodDeviceConfigs.shouldHideImeWhenNoEditorFocus()) {
             // Hide the soft-keyboard when the system do nothing for softInputModeState
             // of the window being gained focus without an editor. This behavior benefits
@@ -561,7 +587,7 @@ public final class ImeVisibilityStateComputer {
             // 1) SOFT_INPUT_STATE_UNCHANGED state without an editor
             // 2) SOFT_INPUT_STATE_VISIBLE state without an editor
             // 3) SOFT_INPUT_STATE_ALWAYS_VISIBLE state without an editor
-            if (DEBUG) Slog.v(TAG, "Window without editor will hide input");
+            ProtoLog.v(IME_VIS_STATE_COMPUTER_DEBUG, "Window without editor will hide input");
             if (Flags.refactorInsetsController()) {
                 state.setRequestedImeVisible(false);
             }

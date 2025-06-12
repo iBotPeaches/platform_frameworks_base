@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktif (hanya kiri)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktif (hanya kanan)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktif (kiri dan kanan)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Tidak dapat memperbarui suara sekitar"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktif (hanya media). Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktif (hanya media). Baterai L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Perangkat tamu. Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Perangkat tamu. Baterai L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Perangkat tamu (hanya media). Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Perangkat tamu (hanya media). Baterai L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Terhubung (mendukung berbagi audio). Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Terhubung (mendukung berbagi audio). Baterai L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Terhubung (mendukung berbagi audio). Kiri: Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Terhubung (mendukung berbagi audio). Kanan: Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Terhubung (mendukung berbagi audio)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Perangkat tamu (mendukung berbagi audio). Baterai <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Perangkat tamu (mendukung berbagi audio). Baterai L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Perangkat tamu (mendukung berbagi audio)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktif (hanya media)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Perangkat tamu"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Perangkat tamu (hanya media)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Mendukung berbagi audio"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Perangkat tamu. Mendukung berbagi audio"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktif (hanya media), hanya kiri"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktif (hanya media), hanya kanan"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktif (hanya media), kiri dan kanan"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Render yang dipercepat hardware"</string>
     <string name="media_category" msgid="8122076702526144053">"Media"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Pemantauan"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Pengelolaan Jendela"</string>
     <string name="strict_mode" msgid="889864762140862437">"Mode ketat diaktifkan"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Buat layar berkedip saat aplikasi berlama-lama menjalankan operasi di thread utama"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Lokasi kursor"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Skala animasi transisi"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Skala durasi animator"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simulasikan tampilan sekunder"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Posisi shade layar"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplikasi"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Jangan simpan aktivitas"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Hancurkan aktivitas setelah ditinggal pengguna"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Penerapan WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Setel penerapan WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Pilihan ini tidak valid lagi. Coba lagi."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"DevTools WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Paket WebView tidak ditemukan."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Tidak dapat meluncurkan DevTools."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Mode warna gambar"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Gunakan sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Dinonaktifkan"</string>
@@ -504,7 +520,7 @@
     <string name="power_charging_future_paused" msgid="1809543660923642799">"<xliff:g id="LEVEL">%1$s</xliff:g> - Mengisi daya"</string>
     <string name="power_fast_charging_duration_v2" msgid="3797735998640359490">"<xliff:g id="LEVEL">%1$s</xliff:g> - <xliff:g id="STATUS">%2$s</xliff:g> - Penuh pukul <xliff:g id="TIME">%3$s</xliff:g>"</string>
     <string name="power_charging_duration_v2" msgid="2938998284074003248">"<xliff:g id="LEVEL">%1$s</xliff:g> - Baterai terisi penuh dalam <xliff:g id="TIME">%2$s</xliff:g>"</string>
-    <string name="power_remaining_charging_duration_only_v2" msgid="5358176435722950193">"Baterai terisi penuh dalam <xliff:g id="TIME">%1$s</xliff:g>"</string>
+    <string name="power_remaining_charging_duration_only_v2" msgid="5358176435722950193">"Baterai akan terisi penuh pada <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="power_remaining_fast_charging_duration_only_v2" msgid="6270950195810579563">"Penuh pukul <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="battery_info_status_unknown" msgid="268625384868401114">"Tidak diketahui"</string>
     <string name="battery_info_status_charging" msgid="4279958015430387405">"Mengisi daya"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Pengisian daya cepat"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Dikontrol oleh admin"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Dikontrol oleh Setelan Terbatas"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Tidak tersedia selama panggilan berlangsung"</string>
     <string name="disabled" msgid="8017887509554714950">"Dinonaktifkan"</string>
+    <string name="enabled" msgid="3997122818554810678">"Aktif"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Diizinkan"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Tidak diizinkan"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instal aplikasi tidak dikenal"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Speaker bawaan"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Audio TV"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Ada masalah saat menghubungkan. Nonaktifkan perangkat &amp; aktifkan kembali"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Tidak dapat terhubung"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Perangkat audio berkabel"</string>
     <string name="help_label" msgid="3528360748637781274">"Bantuan &amp; masukan"</string>
     <string name="storage_category" msgid="2287342585424631813">"Penyimpanan"</string>
@@ -631,7 +650,7 @@
     <string name="user_add_profile_item_title" msgid="3111051717414643029">"Profil dibatasi"</string>
     <string name="user_add_user_title" msgid="5457079143694924885">"Tambahkan pengguna baru?"</string>
     <string name="user_add_user_message_long" msgid="1527434966294733380">"Anda dapat menggunakan perangkat ini bersama orang lain dengan membuat pengguna tambahan. Setiap pengguna memiliki ruang sendiri, yang dapat disesuaikan dengan aplikasi, wallpaper, dan lainnya. Pengguna juga dapat menyesuaikan setelan perangkat seperti Wi-Fi yang dapat memengaruhi semua pengguna lain.\n\nSaat Anda menambahkan pengguna baru, pengguna tersebut perlu menyiapkan ruangnya.\n\nPengguna mana pun dapat mengupdate aplikasi untuk semua pengguna lainnya. Layanan dan setelan aksesibilitas mungkin tidak ditransfer ke pengguna baru."</string>
-    <string name="user_add_user_message_short" msgid="3295959985795716166">"Saat Anda menambahkan pengguna baru, orang tersebut harus menyiapkan ruangnya sendiri.\n\nPengguna mana pun dapat meng-update aplikasi untuk semua pengguna lain."</string>
+    <string name="user_add_user_message_short" msgid="3295959985795716166">"Saat Anda menambahkan pengguna baru, orang tersebut harus menyiapkan ruangnya sendiri.\n\nPengguna mana pun dapat mengupdate aplikasi untuk semua pengguna lain."</string>
     <string name="user_grant_admin_title" msgid="5157031020083343984">"Jadikan pengguna ini sebagai admin?"</string>
     <string name="user_grant_admin_message" msgid="1673791931033486709">"Admin memiliki hak istimewa khusus yang tidak dimiliki pengguna lain. Admin dapat mengelola semua pengguna, mengupdate atau mereset perangkat ini, mengubah setelan, melihat semua aplikasi terinstal, dan memberi atau mencabut hak istimewa admin untuk pengguna lain."</string>
     <string name="user_grant_admin_button" msgid="5441486731331725756">"Jadikan admin"</string>
@@ -648,7 +667,7 @@
     <string name="user_need_lock_message" msgid="4311424336209509301">"Sebelum dapat membuat profil yang dibatasi, Anda perlu menyiapkan kunci layar untuk melindungi aplikasi dan data pribadi Anda."</string>
     <string name="user_set_lock_button" msgid="1427128184982594856">"Setel kunci"</string>
     <string name="user_switch_to_user" msgid="6975428297154968543">"Beralih ke <xliff:g id="USER_NAME">%s</xliff:g>"</string>
-    <string name="creating_new_user_dialog_message" msgid="7232880257538970375">"Membuat pengguna baru …"</string>
+    <string name="creating_new_user_dialog_message" msgid="7232880257538970375">"Membuat pengguna baru…"</string>
     <string name="creating_new_guest_dialog_message" msgid="1114905602181350690">"Membuat tamu baru…"</string>
     <string name="add_user_failed" msgid="4809887794313944872">"Gagal membuat pengguna baru"</string>
     <string name="add_guest_failed" msgid="8074548434469843443">"Gagal membuat tamu baru"</string>

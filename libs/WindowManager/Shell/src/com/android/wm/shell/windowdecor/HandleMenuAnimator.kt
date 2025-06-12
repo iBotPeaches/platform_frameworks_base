@@ -327,7 +327,7 @@ class HandleMenuAnimator(
                 }
 
         // Open in Browser Button Opacity Animation
-        val button = openInAppOrBrowserPill.requireViewById<Button>(R.id.open_in_app_or_browser_button)
+        val button = openInAppOrBrowserPill.requireViewById<View>(R.id.open_in_app_or_browser_button)
         animators +=
                 ObjectAnimator.ofFloat(button, ALPHA, 1f).apply {
                     startDelay = BODY_ALPHA_OPEN_DELAY

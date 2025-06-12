@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Trình quản lý thiết bị đồng hành"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Cho phép ứng dụng &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; truy cập vào &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Hãy đảm bảo rằng <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> này đã bật <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> và được đặt gần <xliff:g id="PROFILE_NAME">%3$s</xliff:g> của bạn."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Không tìm thấy thiết bị nào. Vui lòng thử lại sau."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth và Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"đồng hồ"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Chọn một thiết bị sẽ do &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; quản lý"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Chọn một <xliff:g id="PROFILE_NAME">%1$s</xliff:g> để thiết lập"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Đang tìm <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Ứng dụng này sẽ được phép đồng bộ hoá thông tin (chẳng hạn như tên của người đang gọi điện) và dùng những quyền sau trên <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> của bạn"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Cho phép &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; quản lý &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"thiết bị"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Cho phép &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; truyền trực tuyến các ứng dụng trên <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> của bạn đến &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> sẽ có quyền truy cập vào mọi nội dung hiển thị hoặc phát trên <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, bao gồm cả âm thanh, ảnh, thông tin thanh toán, mật khẩu và tin nhắn.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> sẽ có thể truyền trực tuyến các ứng dụng đến <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> cho đến khi bạn thu hồi quyền này."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> đang yêu cầu quyền thay cho <xliff:g id="DEVICE_NAME">%2$s</xliff:g> để truyền trực tuyến các ứng dụng từ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> của bạn"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Cho phép &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; truyền trực tuyến âm thanh và các tính năng của hệ thống giữa <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> và &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> sẽ có quyền truy cập vào mọi nội dung được phát trên <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> sẽ có thể truyền trực tuyến âm thanh đến <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> cho đến khi bạn thu hồi quyền này."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"thiết bị"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ứng dụng này sẽ đồng bộ hoá thông tin (ví dụ: tên người gọi) giữa điện thoại của bạn và thiết bị bạn chọn"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Cho phép"</string>
     <string name="consent_no" msgid="2640796915611404382">"Không cho phép"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Huỷ"</string>
     <string name="consent_back" msgid="2560683030046918882">"Quay lại"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Di chuyển xuống danh sách"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Mũi tên xuống"</string>
     <string name="permission_expand" msgid="893185038020887411">"Mở rộng <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Thu gọn <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Cấp cho các ứng dụng trên &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; các quyền giống như trên &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

@@ -63,25 +63,10 @@ public class AppCompatLetterboxUtilsTest extends WindowTestsBase {
     }
 
     @Test
-    public void positionIsFromTaskWhenLetterboxAnimationIsRunning() {
+    public void positionIsFromActivity() {
         runTestScenario((robot) -> {
             robot.activity().createActivityWithComponent();
             robot.setTopActivityLetterboxPolicyRunning(true);
-            robot.activity().setIsInLetterboxAnimation(true);
-            robot.activity().configureTaskBounds(
-                    new Rect(/* left */ 100, /* top */ 200, /* right */ 300, /* bottom */ 400));
-            robot.getLetterboxPosition();
-
-            robot.assertPosition(/* x */ 100, /* y */ 200);
-        });
-    }
-
-    @Test
-    public void positionIsFromActivityWhenLetterboxAnimationIsNotRunning() {
-        runTestScenario((robot) -> {
-            robot.activity().createActivityWithComponent();
-            robot.setTopActivityLetterboxPolicyRunning(true);
-            robot.activity().setIsInLetterboxAnimation(false);
             robot.activity().configureTopActivityBounds(
                     new Rect(/* left */ 200, /* top */ 400, /* right */ 300, /* bottom */ 400));
             robot.getLetterboxPosition();
@@ -185,13 +170,13 @@ public class AppCompatLetterboxUtilsTest extends WindowTestsBase {
         @Override
         void onPostActivityCreation(@NonNull ActivityRecord activity) {
             super.onPostActivityCreation(activity);
-            spyOn(activity.mAppCompatController.getAppCompatLetterboxPolicy());
+            spyOn(activity.mAppCompatController.getLetterboxPolicy());
             spyOn(activity.mAppCompatController.getTransparentPolicy());
         }
 
         void setTopActivityLetterboxPolicyRunning(boolean running) {
             doReturn(running).when(activity().top().mAppCompatController
-                    .getAppCompatLetterboxPolicy()).isRunning();
+                    .getLetterboxPolicy()).isRunning();
         }
 
         void setTopActivityTransparentPolicyRunning(boolean running) {

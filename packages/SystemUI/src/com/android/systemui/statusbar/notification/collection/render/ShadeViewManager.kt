@@ -22,7 +22,7 @@ import com.android.app.tracing.traceSection
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.notification.NotificationSectionsFeatureManager
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.PipelineDumpable
 import com.android.systemui.statusbar.notification.collection.PipelineDumper
@@ -41,7 +41,6 @@ class ShadeViewManager
 constructor(
     @ShadeDisplayAware context: Context,
     @Assisted listContainer: NotificationListContainer,
-    @Assisted private val stackController: NotifStackController,
     mediaContainerController: MediaContainerController,
     featureManager: NotificationSectionsFeatureManager,
     sectionHeaderVisibilityProvider: SectionHeaderVisibilityProvider,
@@ -77,13 +76,11 @@ constructor(
     private val viewRenderer =
         object : NotifViewRenderer {
 
-            override fun onRenderList(notifList: List<ListEntry>) {
+            override fun onRenderList(notifList: List<PipelineEntry>) {
                 traceSection("ShadeViewManager.onRenderList") {
                     viewDiffer.applySpec(specBuilder.buildNodeSpec(rootController, notifList))
                 }
             }
-
-            override fun getStackController(): NotifStackController = stackController
 
             override fun getGroupController(group: GroupEntry): NotifGroupController =
                 viewBarn.requireGroupController(group.requireSummary)
@@ -95,8 +92,5 @@ constructor(
 
 @AssistedFactory
 interface ShadeViewManagerFactory {
-    fun create(
-        listContainer: NotificationListContainer,
-        stackController: NotifStackController,
-    ): ShadeViewManager
+    fun create(listContainer: NotificationListContainer): ShadeViewManager
 }

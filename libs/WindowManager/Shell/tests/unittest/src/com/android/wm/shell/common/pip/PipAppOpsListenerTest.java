@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.AppOpsManager;
@@ -78,7 +78,8 @@ public class PipAppOpsListenerTest {
     @Test
     public void onActivityPinned_registerAppOpsListener() {
         String packageName = "com.android.test.pip";
-        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockCallback, mMockExecutor);
+        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockExecutor);
+        mPipAppOpsListener.setCallback(mMockCallback);
 
         mPipAppOpsListener.onActivityPinned(packageName);
 
@@ -89,7 +90,8 @@ public class PipAppOpsListenerTest {
 
     @Test
     public void onActivityUnpinned_unregisterAppOpsListener() {
-        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockCallback, mMockExecutor);
+        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockExecutor);
+        mPipAppOpsListener.setCallback(mMockCallback);
 
         mPipAppOpsListener.onActivityUnpinned();
 
@@ -99,7 +101,8 @@ public class PipAppOpsListenerTest {
     @Test
     public void disablePipAppOps_dismissPip() throws PackageManager.NameNotFoundException {
         String packageName = "com.android.test.pip";
-        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockCallback, mMockExecutor);
+        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockExecutor);
+        mPipAppOpsListener.setCallback(mMockCallback);
         // Set up the top pip activity info as mTopPipActivity
         mTopPipActivity = new Pair<>(new ComponentName(packageName, "PipActivity"), 0);
         mPipAppOpsListener.setTopPipActivityInfoSupplier(this::getTopPipActivity);
@@ -131,7 +134,8 @@ public class PipAppOpsListenerTest {
     public void disablePipAppOps_differentPackage_doNothing()
             throws PackageManager.NameNotFoundException {
         String packageName = "com.android.test.pip";
-        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockCallback, mMockExecutor);
+        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockExecutor);
+        mPipAppOpsListener.setCallback(mMockCallback);
         // Set up the top pip activity info as mTopPipActivity
         mTopPipActivity = new Pair<>(new ComponentName(packageName, "PipActivity"), 0);
         mPipAppOpsListener.setTopPipActivityInfoSupplier(this::getTopPipActivity);
@@ -153,14 +157,15 @@ public class PipAppOpsListenerTest {
         opChangedListener.onOpChanged(String.valueOf(AppOpsManager.OP_PICTURE_IN_PICTURE),
                 packageName);
 
-        verifyZeroInteractions(mMockExecutor);
+        verifyNoMoreInteractions(mMockExecutor);
     }
 
     @Test
     public void disablePipAppOps_nameNotFound_unregisterAppOpsListener()
             throws PackageManager.NameNotFoundException {
         String packageName = "com.android.test.pip";
-        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockCallback, mMockExecutor);
+        mPipAppOpsListener = new PipAppOpsListener(mMockContext, mMockExecutor);
+        mPipAppOpsListener.setCallback(mMockCallback);
         // Set up the top pip activity info as mTopPipActivity
         mTopPipActivity = new Pair<>(new ComponentName(packageName, "PipActivity"), 0);
         mPipAppOpsListener.setTopPipActivityInfoSupplier(this::getTopPipActivity);

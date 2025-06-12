@@ -50,6 +50,7 @@ import com.android.settingslib.bluetooth.LocalBluetoothProfileManager;
 import com.android.settingslib.media.BluetoothMediaDevice;
 import com.android.settingslib.media.LocalMediaManager;
 import com.android.settingslib.media.MediaDevice;
+import com.android.settingslib.utils.ThreadUtils;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.SysuiTestCaseExtKt;
 import com.android.systemui.animation.DialogTransitionAnimator;
@@ -152,9 +153,9 @@ public class MediaOutputBroadcastDialogTest extends SysuiTestCase {
                         volumePanelGlobalStateInteractor,
                         mUserTracker);
         mMediaSwitchingController.mLocalMediaManager = mLocalMediaManager;
-        mMediaOutputBroadcastDialog =
-                new MediaOutputBroadcastDialog(
-                        mContext, false, mBroadcastSender, mMediaSwitchingController);
+        mMediaOutputBroadcastDialog = new MediaOutputBroadcastDialog(mContext, false,
+                mBroadcastSender, mMediaSwitchingController, mContext.getMainExecutor(),
+                ThreadUtils.getBackgroundExecutor());
         mMediaOutputBroadcastDialog.show();
     }
 

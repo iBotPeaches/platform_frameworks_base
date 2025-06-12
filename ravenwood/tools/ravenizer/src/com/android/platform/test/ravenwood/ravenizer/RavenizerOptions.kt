@@ -15,25 +15,11 @@
  */
 package com.android.platform.test.ravenwood.ravenizer
 
-import com.android.hoststubgen.ArgIterator
 import com.android.hoststubgen.ArgumentsException
-import com.android.hoststubgen.SetOnce
-import com.android.hoststubgen.ensureFileExists
-import com.android.hoststubgen.log
-import java.nio.file.Paths
-import kotlin.io.path.exists
-
-/**
- * If this file exits, we also read options from it. This is "unsafe" because it could break
- * incremental builds, if it sets any flag that affects the output file.
- * (however, for now, there's no such options.)
- *
- * For example, to enable verbose logging, do `echo '-v' > ~/.raveniezr-unsafe`
- *
- * (but even the content of this file changes, soong won't rerun the command, so you need to
- * remove the output first and then do a build again.)
- */
-private val RAVENIZER_DOTFILE = System.getenv("HOME") + "/.raveniezr-unsafe"
+import com.android.hoststubgen.HostStubGenClassProcessorOptions
+import com.android.hoststubgen.utils.ArgIterator
+import com.android.hoststubgen.utils.SetOnce
+import com.android.hoststubgen.utils.ensureFileExists
 
 class RavenizerOptions(
     /** Input jar file*/
@@ -50,72 +36,49 @@ class RavenizerOptions(
 
     /** Whether to remove mockito and dexmaker classes. */
     var stripMockito: SetOnce<Boolean> = SetOnce(false),
-) {
-    companion object {
+) : HostStubGenClassProcessorOptions() {
 
-        fun parseArgs(origArgs: Array<String>): RavenizerOptions {
-            val args = origArgs.toMutableList()
-            if (Paths.get(RAVENIZER_DOTFILE).exists()) {
-                log.i("Reading options from $RAVENIZER_DOTFILE")
-                args.add(0, "@$RAVENIZER_DOTFILE")
-            }
+    override fun parseOption(option: String, args: ArgIterator): Boolean {
+        fun nextArg(): String = args.nextArgRequired(option)
 
-            val ret = RavenizerOptions()
-            val ai = ArgIterator.withAtFiles(args.toTypedArray())
+        when (option) {
+            // TODO: Write help
+            "-h", "--help" -> TODO("Help is not implemented yet")
 
-            while (true) {
-                val arg = ai.nextArgOptional()
-                if (arg == null) {
-                    break
-                }
+            "--in-jar" -> inJar.set(nextArg()).ensureFileExists()
+            "--out-jar" -> outJar.set(nextArg())
 
-                fun nextArg(): String = ai.nextArgRequired(arg)
+            "--enable-validation" -> enableValidation.set(true)
+            "--disable-validation" -> enableValidation.set(false)
 
-                if (log.maybeHandleCommandLineArg(arg) { nextArg() }) {
-                    continue
-                }
-                try {
-                    when (arg) {
-                        // TODO: Write help
-                        "-h", "--help" -> TODO("Help is not implemented yet")
+            "--fatal-validation" -> fatalValidation.set(true)
+            "--no-fatal-validation" -> fatalValidation.set(false)
 
-                        "--in-jar" -> ret.inJar.set(nextArg()).ensureFileExists()
-                        "--out-jar" -> ret.outJar.set(nextArg())
+            "--strip-mockito" -> stripMockito.set(true)
+            "--no-strip-mockito" -> stripMockito.set(false)
 
-                        "--enable-validation" -> ret.enableValidation.set(true)
-                        "--disable-validation" -> ret.enableValidation.set(false)
+            else -> return super.parseOption(option, args)
+        }
 
-                        "--fatal-validation" -> ret.fatalValidation.set(true)
-                        "--no-fatal-validation" -> ret.fatalValidation.set(false)
+        return true
+    }
 
-                        "--strip-mockito" -> ret.stripMockito.set(true)
-                        "--no-strip-mockito" -> ret.stripMockito.set(false)
-
-                        else -> throw ArgumentsException("Unknown option: $arg")
-                    }
-                } catch (e: SetOnce.SetMoreThanOnceException) {
-                    throw ArgumentsException("Duplicate or conflicting argument found: $arg")
-                }
-            }
-
-            if (!ret.inJar.isSet) {
-                throw ArgumentsException("Required option missing: --in-jar")
-            }
-            if (!ret.outJar.isSet) {
-                throw ArgumentsException("Required option missing: --out-jar")
-            }
-           return ret
+    override fun checkArgs() {
+        if (!inJar.isSet) {
+            throw ArgumentsException("Required option missing: --in-jar")
+        }
+        if (!outJar.isSet) {
+            throw ArgumentsException("Required option missing: --out-jar")
         }
     }
 
-    override fun toString(): String {
+    override fun dumpFields(): String {
         return """
-            RavenizerOptions{
-              inJar=$inJar,
-              outJar=$outJar,
-              enableValidation=$enableValidation,
-              fatalValidation=$fatalValidation,
-            }
-            """.trimIndent()
+            inJar=$inJar,
+            outJar=$outJar,
+            enableValidation=$enableValidation,
+            fatalValidation=$fatalValidation,
+            stripMockito=$stripMockito,
+        """.trimIndent() + '\n' + super.dumpFields()
     }
 }

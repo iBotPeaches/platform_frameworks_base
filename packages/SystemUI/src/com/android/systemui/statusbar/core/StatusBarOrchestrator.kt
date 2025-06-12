@@ -19,7 +19,7 @@ package com.android.systemui.statusbar.core
 import android.view.Display
 import android.view.View
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.systemui.CoreStartable
+import com.android.systemui.Dumpable
 import com.android.systemui.bouncer.domain.interactor.PrimaryBouncerInteractor
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.demomode.DemoModeController
@@ -39,8 +39,8 @@ import com.android.systemui.statusbar.phone.CentralSurfaces
 import com.android.systemui.statusbar.phone.PhoneStatusBarTransitions
 import com.android.systemui.statusbar.phone.PhoneStatusBarViewController
 import com.android.systemui.statusbar.window.StatusBarWindowController
-import com.android.systemui.statusbar.window.data.model.StatusBarWindowState
 import com.android.systemui.statusbar.window.data.repository.StatusBarWindowStatePerDisplayRepository
+import com.android.systemui.statusbar.window.shared.model.StatusBarWindowState
 import com.android.wm.shell.bubbles.Bubbles
 import dagger.Lazy
 import dagger.assisted.Assisted
@@ -50,6 +50,7 @@ import java.io.PrintWriter
 import java.util.Optional
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -82,7 +83,7 @@ constructor(
     private val dumpManager: DumpManager,
     powerInteractor: PowerInteractor,
     primaryBouncerInteractor: PrimaryBouncerInteractor,
-) : CoreStartable {
+) : Dumpable {
 
     private val dumpableName: String =
         if (displayId == Display.DEFAULT_DISPLAY) {
@@ -90,6 +91,8 @@ constructor(
         } else {
             "${javaClass.simpleName}$displayId"
         }
+
+    private var startJob: Job? = null
 
     private val phoneStatusBarViewController =
         MutableStateFlow<PhoneStatusBarViewController?>(value = null)
@@ -141,32 +144,33 @@ constructor(
                 Pair(barTransitions, statusBarMode)
             }
 
-    override fun start() {
-        StatusBarConnectedDisplays.assertInNewMode()
-        coroutineScope
-            // Perform animations on the main thread to prevent crashes.
-            .launch(context = mainContext) {
-                dumpManager.registerCriticalDumpable(dumpableName, this@StatusBarOrchestrator)
-                launch {
-                    controllerAndBouncerShowing.collect { (controller, bouncerShowing) ->
-                        setBouncerShowingForStatusBarComponents(controller, bouncerShowing)
+    /** Starts status bar orchestration. To be called when status bar is created. */
+    fun start() {
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
+        startJob =
+            coroutineScope
+                // Perform animations on the main thread to prevent crashes.
+                .launch(context = mainContext) {
+                    dumpManager.registerCriticalDumpable(dumpableName, this@StatusBarOrchestrator)
+                    launch {
+                        controllerAndBouncerShowing.collect { (controller, bouncerShowing) ->
+                            setBouncerShowingForStatusBarComponents(controller, bouncerShowing)
+                        }
                     }
-                }
-                launch {
-                    barTransitionsAndDeviceAsleep.collect { (barTransitions, deviceAsleep) ->
-                        if (deviceAsleep) {
-                            barTransitions.finishAnimations()
+                    launch {
+                        barTransitionsAndDeviceAsleep.collect { (barTransitions, deviceAsleep) ->
+                            if (deviceAsleep) {
+                                barTransitions.finishAnimations()
+                            }
+                        }
+                    }
+                    launch { statusBarVisible.collect { updateBubblesVisibility(it) } }
+                    launch {
+                        barModeUpdate.collect { (animate, barTransitions, statusBarMode) ->
+                            updateBarMode(animate, barTransitions, statusBarMode)
                         }
                     }
                 }
-                launch { statusBarVisible.collect { updateBubblesVisibility(it) } }
-                launch {
-                    barModeUpdate.collect { (animate, barTransitions, statusBarMode) ->
-                        updateBarMode(animate, barTransitions, statusBarMode)
-                    }
-                }
-            }
-            .invokeOnCompletion { dumpManager.unregisterDumpable(dumpableName) }
         createAndAddWindow()
         setupPluginDependencies()
         setUpAutoHide()
@@ -270,6 +274,16 @@ constructor(
             "PhoneStatusBarTransitions",
             phoneStatusBarTransitions.value,
         )
+    }
+
+    /**
+     * Called when the [StatusBarOrchestrator] should stop doing any work and clean up if needed.
+     */
+    fun stop() {
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
+        dumpManager.unregisterDumpable(dumpableName)
+        startJob?.cancel()
+        startJob = null
     }
 
     @AssistedFactory

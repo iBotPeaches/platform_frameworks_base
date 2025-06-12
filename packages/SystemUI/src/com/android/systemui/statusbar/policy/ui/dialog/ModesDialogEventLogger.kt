@@ -21,29 +21,25 @@ import com.android.settingslib.notification.modes.ZenMode
 import com.android.systemui.qs.QSModesEvent
 import javax.inject.Inject
 
-class ModesDialogEventLogger
-@Inject
-constructor(
-    private val uiEventLogger: UiEventLogger,
-) {
+class ModesDialogEventLogger @Inject constructor(private val uiEventLogger: UiEventLogger) {
 
     fun logModeOn(mode: ZenMode) {
         val id =
             if (mode.isManualDnd) QSModesEvent.QS_MODES_DND_ON else QSModesEvent.QS_MODES_MODE_ON
-        uiEventLogger.log(id, /* uid= */ 0, mode.rule.packageName)
+        uiEventLogger.log(id, /* uid= */ 0, mode.ownerPackage)
     }
 
     fun logModeOff(mode: ZenMode) {
         val id =
             if (mode.isManualDnd) QSModesEvent.QS_MODES_DND_OFF else QSModesEvent.QS_MODES_MODE_OFF
-        uiEventLogger.log(id, /* uid= */ 0, mode.rule.packageName)
+        uiEventLogger.log(id, /* uid= */ 0, mode.ownerPackage)
     }
 
     fun logModeSettings(mode: ZenMode) {
         val id =
             if (mode.isManualDnd) QSModesEvent.QS_MODES_DND_SETTINGS
             else QSModesEvent.QS_MODES_MODE_SETTINGS
-        uiEventLogger.log(id, /* uid= */ 0, mode.rule.packageName)
+        uiEventLogger.log(id, /* uid= */ 0, mode.ownerPackage)
     }
 
     fun logOpenDurationDialog(mode: ZenMode) {

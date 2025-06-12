@@ -173,6 +173,17 @@ class PrivacyDotWindowControllerTest : SysuiTestCase() {
         expect.that(gravityForView(viewController.bottomRight!!)).isEqualTo(BOTTOM or LEFT)
     }
 
+    @Test
+    fun onStop_removeAllWindows() {
+        underTest.start()
+        executor.runAllReady()
+
+        underTest.stop()
+        executor.runAllReady()
+
+        assertThat(windowManager.addedViews).isEmpty()
+    }
+
     private fun paramsForView(view: View): WindowManager.LayoutParams {
         return windowManager.addedViews.entries
             .first { it.key == view || it.key.findViewById<View>(view.id) != null }

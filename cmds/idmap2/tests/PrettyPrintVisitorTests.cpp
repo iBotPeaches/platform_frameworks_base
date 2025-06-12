@@ -42,8 +42,10 @@ TEST(PrettyPrintVisitorTests, CreatePrettyPrintVisitor) {
   auto overlay = OverlayResourceContainer::FromPath(overlay_apk_path);
   ASSERT_TRUE(overlay);
 
+  auto constraints = std::make_unique<const IdmapConstraints>();
   const auto idmap = Idmap::FromContainers(**target, **overlay, TestConstants::OVERLAY_NAME_DEFAULT,
-                                           PolicyFlags::PUBLIC, /* enforce_overlayable */ true);
+                                           PolicyFlags::PUBLIC, /* enforce_overlayable */ true,
+                                           std::move(constraints));
   ASSERT_TRUE(idmap);
 
   std::stringstream stream;

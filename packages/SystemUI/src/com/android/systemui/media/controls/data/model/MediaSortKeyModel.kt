@@ -20,8 +20,6 @@ import com.android.internal.logging.InstanceId
 import com.android.systemui.media.controls.shared.model.MediaData.Companion.PLAYBACK_LOCAL
 
 data class MediaSortKeyModel(
-    /** Whether the item represents a Smartspace media recommendation that should be prioritized. */
-    val isPrioritizedRec: Boolean = false,
     val isPlaying: Boolean? = null,
     val playbackLocation: Int = PLAYBACK_LOCAL,
     val active: Boolean = true,

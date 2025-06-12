@@ -18,7 +18,6 @@ package com.android.wm.shell.bubbles.bar;
 import android.annotation.ColorInt;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.drawable.Icon;
 import android.util.AttributeSet;
@@ -34,6 +33,7 @@ import androidx.core.widget.ImageViewCompat;
 
 import com.android.wm.shell.R;
 import com.android.wm.shell.bubbles.Bubble;
+import com.android.wm.shell.shared.TypefaceUtils;
 
 import java.util.ArrayList;
 
@@ -76,6 +76,7 @@ public class BubbleBarMenuView extends LinearLayout {
         mActionsSectionView = findViewById(R.id.bubble_bar_manage_menu_actions_section);
         mBubbleIconView = findViewById(R.id.bubble_bar_manage_menu_bubble_icon);
         mBubbleTitleView = findViewById(R.id.bubble_bar_manage_menu_bubble_title);
+        TypefaceUtils.setTypeface(mBubbleTitleView, TypefaceUtils.FontFamily.GSF_TITLE_MEDIUM);
         mBubbleDismissIconView = findViewById(R.id.bubble_bar_manage_menu_dismiss_icon);
         updateThemeColors();
 
@@ -91,14 +92,11 @@ public class BubbleBarMenuView extends LinearLayout {
     }
 
     private void updateThemeColors() {
-        try (TypedArray ta = mContext.obtainStyledAttributes(new int[]{
-                com.android.internal.R.attr.materialColorSurfaceBright,
-                com.android.internal.R.attr.materialColorOnSurface
-        })) {
-            mActionsSectionView.getBackground().setTint(ta.getColor(0, Color.WHITE));
-            ImageViewCompat.setImageTintList(mBubbleDismissIconView,
-                    ColorStateList.valueOf(ta.getColor(1, Color.BLACK)));
-        }
+        mActionsSectionView.getBackground().setTint(
+                mContext.getColor(com.android.internal.R.color.materialColorSurfaceBright));
+        ImageViewCompat.setImageTintList(mBubbleDismissIconView,
+                ColorStateList.valueOf(
+                        mContext.getColor(com.android.internal.R.color.materialColorOnSurface)));
     }
 
     /** Animates the menu from the specified start scale. */

@@ -29,21 +29,46 @@ mkdir -p $out_dir
 mkdir -p $keep_all_dir
 mkdir -p $dump_dir
 
-# Where the input files are.
-path=$ANDROID_BUILD_TOP/out/host/linux-x86/testcases/ravenwood-stats-checker/x86_64/
+
+stats_checker_module="ravenwood-stats-checker"
+minfo=$OUT/module-info.json
 
 timestamp="$(date --iso-8601=seconds)"
 
-m() {
-    ${ANDROID_BUILD_TOP}/build/soong/soong_ui.bash --make-mode "$@"
-}
+# First, use jq to get the output files from the checker module. This will be something like this:
+#
+# ---
+# out/host/linux-x86/nativetest64/ravenwood-stats-checker/framework-configinfrastructure_apis.csv
+# out/host/linux-x86/nativetest64/ravenwood-stats-checker/framework-configinfrastructure_dump.txt
+#  :
+# out/host/linux-x86/nativetest64/ravenwood-stats-checker/hoststubgen_services.core_stats.csv
+# out/host/linux-x86/nativetest64/ravenwood-stats-checker/ravenwood-stats-checker
+# ---
+# Then, use grep to find the script's path (the last line in the above examle)
+script_path="$(
+    jq -r ".\"$stats_checker_module\".installed | .[]" $minfo |
+    grep '/ravenwood-stats-checker$'
+)"
 
-# Building this will generate the files we need.
-m ravenwood-stats-checker
+if [[ "$script_path" == "" ]] ; then
+    echo "Error: $stats_checker_module script not found from $minfo"
+    exit 1
+fi
+
+# This is the directory where our input files are.
+script_dir="$ANDROID_BUILD_TOP/$(dirname "$script_path")"
+
+# Clear it before (re-)buildign the script, to make sure we won't have stale files.
+rm -fr "$script_dir"
+
+# Then build it, which will also collect the input files in the same dir.
+echo "Collecting the input files..."
+m "$stats_checker_module"
 
 # Start...
 
-cd $path
+echo "Files directory is: $script_dir"
+cd "$script_dir"
 
 dump() {
     local jar=$1
@@ -55,6 +80,7 @@ dump() {
 
 collect_stats() {
     local out="$1"
+    local desc="$2"
     {
         # Copy the header, with the first column appended.
         echo -n "Jar,Generated Date,"
@@ -66,11 +92,12 @@ collect_stats() {
         dump "framework-statsd"  framework-statsd_stats.csv
     } > "$out"
 
-    echo "Stats CVS created at $out"
+    echo "Stats CVS created at $out$desc"
 }
 
 collect_apis() {
     local out="$1"
+    local desc="$2"
     {
         # Copy the header, with the first column appended.
         echo -n "Jar,Generated Date,"
@@ -82,12 +109,12 @@ collect_apis() {
         dump "framework-statsd"  framework-statsd_apis.csv
     } > "$out"
 
-    echo "API CVS created at $out"
+    echo "API CVS created at $out$desc"
 }
 
 
-collect_stats $stats
-collect_apis $apis
+collect_stats $stats " (import it as 'ravenwood_stats')"
+collect_apis $apis " (import it as 'ravenwood_supported_apis2')"
 
 cp *keep_all.txt $keep_all_dir
 echo "Keep all files created at:"

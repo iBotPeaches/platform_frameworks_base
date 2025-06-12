@@ -26,29 +26,28 @@
     <include layout="@layout/notification_2025_template_header" />
 
     <com.android.internal.widget.RemeasuringLinearLayout
-        android:id="@+id/notification_action_list_margin_target"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:layout_marginTop="@dimen/notification_content_margin_top"
-        android:layout_marginBottom="@dimen/notification_content_margin"
         android:clipToPadding="false"
         android:orientation="vertical"
         >
 
+        <!-- Note: the top margin is being set in code based on the estimated space needed for
+        the header text. -->
         <com.android.internal.widget.RemeasuringLinearLayout
             android:id="@+id/notification_main_column"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top"
             android:paddingStart="@dimen/notification_2025_content_margin_start"
-            android:paddingEnd="@dimen/notification_content_margin_end"
+            android:paddingEnd="@dimen/notification_2025_margin"
             android:clipToPadding="false"
             android:orientation="vertical"
             android:layout_weight="1"
             >
 
-            <include layout="@layout/notification_template_part_line1" />
+            <include layout="@layout/notification_2025_title" />
 
             <include
                 layout="@layout/notification_template_progress"
@@ -72,8 +71,8 @@
         </com.android.internal.widget.RemeasuringLinearLayout>
 
         <ViewStub
-            android:layout="@layout/notification_material_reply_text"
-            android:id="@+id/notification_2025_reply_container"
+            android:layout="@layout/notification_2025_reply_history_container"
+            android:id="@+id/notification_material_reply_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             />
@@ -83,12 +82,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/notification_2025_content_margin_start"
-            android:layout_marginEnd="@dimen/notification_content_margin_end"
-            android:layout_marginTop="@dimen/notification_content_margin"
+            android:layout_marginEnd="@dimen/notification_2025_margin"
+            android:layout_marginTop="@dimen/notification_2025_smart_reply_container_margin"
             />
 
-        <include layout="@layout/notification_material_action_list" />
+        <include layout="@layout/notification_2025_action_list" />
     </com.android.internal.widget.RemeasuringLinearLayout>
 
-    <include layout="@layout/notification_template_right_icon" />
+    <include layout="@layout/notification_2025_right_icon" />
 </FrameLayout>

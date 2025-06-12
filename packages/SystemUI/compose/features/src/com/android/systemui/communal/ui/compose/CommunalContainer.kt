@@ -1,5 +1,6 @@
 package com.android.systemui.communal.ui.compose
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -8,7 +9,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -16,16 +16,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
@@ -33,17 +36,21 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.compose.animation.scene.ContentKey
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.Edge
 import com.android.compose.animation.scene.ElementKey
 import com.android.compose.animation.scene.ElementMatcher
 import com.android.compose.animation.scene.LowestZIndexContentPicker
 import com.android.compose.animation.scene.MutableSceneTransitionLayoutState
 import com.android.compose.animation.scene.SceneKey
-import com.android.compose.animation.scene.SceneScope
 import com.android.compose.animation.scene.SceneTransitionLayout
 import com.android.compose.animation.scene.Swipe
+import com.android.compose.animation.scene.UserActionResult
 import com.android.compose.animation.scene.observableTransitionState
+import com.android.compose.animation.scene.rememberMutableSceneTransitionLayoutState
 import com.android.compose.animation.scene.transitions
+import com.android.compose.modifiers.thenIf
+import com.android.systemui.Flags
 import com.android.systemui.communal.shared.model.CommunalBackgroundType
 import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.communal.shared.model.CommunalTransitionKeys
@@ -51,6 +58,7 @@ import com.android.systemui.communal.ui.compose.Dimensions.Companion.SlideOffset
 import com.android.systemui.communal.ui.compose.extensions.allowGestures
 import com.android.systemui.communal.ui.viewmodel.CommunalViewModel
 import com.android.systemui.communal.util.CommunalColors
+import com.android.systemui.keyguard.domain.interactor.FromGlanceableHubTransitionInteractor.Companion.TO_LOCKSCREEN_DURATION
 import com.android.systemui.keyguard.domain.interactor.FromPrimaryBouncerTransitionInteractor.Companion.TO_GONE_DURATION
 import com.android.systemui.scene.shared.model.SceneDataSourceDelegator
 import com.android.systemui.scene.ui.composable.SceneTransitionLayoutDataSource
@@ -77,6 +85,47 @@ object TransitionDuration {
     const val EDIT_MODE_TO_HUB_GRID_END_MS =
         EDIT_MODE_TO_HUB_GRID_DELAY_MS + EDIT_MODE_TO_HUB_CONTENT_MS
     const val HUB_TO_EDIT_MODE_CONTENT_MS = 250
+    const val TO_GLANCEABLE_HUB_DURATION_MS = 1000
+}
+
+val sceneTransitionsV2 = transitions {
+    to(CommunalScenes.Communal) {
+        spec = tween(durationMillis = TransitionDuration.TO_GLANCEABLE_HUB_DURATION_MS)
+        fade(AllElements)
+    }
+    to(CommunalScenes.Communal, key = CommunalTransitionKeys.Swipe) {
+        spec = tween(durationMillis = TransitionDuration.TO_GLANCEABLE_HUB_DURATION_MS)
+        translate(Communal.Elements.Grid, Edge.End)
+        timestampRange(startMillis = 167, endMillis = 334) { fade(AllElements) }
+    }
+    to(CommunalScenes.Blank) {
+        spec = tween(durationMillis = TO_GONE_DURATION.toInt(DurationUnit.MILLISECONDS))
+        fade(AllElements)
+    }
+    to(CommunalScenes.Blank, key = CommunalTransitionKeys.SwipeInLandscape) {
+        spec = tween(durationMillis = TO_LOCKSCREEN_DURATION.toInt(DurationUnit.MILLISECONDS))
+        translate(Communal.Elements.Grid, Edge.End)
+        timestampRange(endMillis = 167) {
+            fade(Communal.Elements.Grid)
+            fade(Communal.Elements.IndicationArea)
+            fade(Communal.Elements.LockIcon)
+            fade(Communal.Elements.StatusBar)
+        }
+        timestampRange(startMillis = 167, endMillis = 500) { fade(Communal.Elements.Scrim) }
+    }
+    to(CommunalScenes.Blank, key = CommunalTransitionKeys.Swipe) {
+        spec = tween(durationMillis = TransitionDuration.TO_GLANCEABLE_HUB_DURATION_MS)
+        translate(Communal.Elements.Grid, Edge.End)
+        timestampRange(endMillis = 167) {
+            fade(Communal.Elements.Grid)
+            fade(Communal.Elements.IndicationArea)
+            fade(Communal.Elements.LockIcon)
+            if (!Flags.glanceableHubV2()) {
+                fade(Communal.Elements.StatusBar)
+            }
+        }
+        timestampRange(startMillis = 167, endMillis = 334) { fade(Communal.Elements.Scrim) }
+    }
 }
 
 val sceneTransitions = transitions {
@@ -100,7 +149,9 @@ val sceneTransitions = transitions {
             fade(Communal.Elements.Grid)
             fade(Communal.Elements.IndicationArea)
             fade(Communal.Elements.LockIcon)
-            fade(Communal.Elements.StatusBar)
+            if (!Flags.glanceableHubV2()) {
+                fade(Communal.Elements.StatusBar)
+            }
         }
         timestampRange(startMillis = 167, endMillis = 334) { fade(Communal.Elements.Scrim) }
     }
@@ -128,9 +179,6 @@ val sceneTransitions = transitions {
             fade(Communal.Elements.Grid)
         }
     }
-    // Disable horizontal overscroll. If the scene is overscrolled too soon after showing, this
-    // can lead to inconsistent KeyguardState changes.
-    overscrollDisabled(CommunalScenes.Communal, Orientation.Horizontal)
 }
 
 /**
@@ -148,20 +196,21 @@ fun CommunalContainer(
     content: CommunalContent,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val currentSceneKey: SceneKey by
-        viewModel.currentScene.collectAsStateWithLifecycle(CommunalScenes.Blank)
+    val currentSceneKey: SceneKey by viewModel.currentScene.collectAsStateWithLifecycle()
     val touchesAllowed by viewModel.touchesAllowed.collectAsStateWithLifecycle()
     val backgroundType by
         viewModel.communalBackground.collectAsStateWithLifecycle(
             initialValue = CommunalBackgroundType.ANIMATED
         )
-    val state: MutableSceneTransitionLayoutState = remember {
-        MutableSceneTransitionLayoutState(
+    val swipeToHubEnabled by viewModel.swipeToHubEnabled.collectAsStateWithLifecycle(false)
+    val state: MutableSceneTransitionLayoutState =
+        rememberMutableSceneTransitionLayoutState(
             initialScene = currentSceneKey,
             canChangeScene = { _ -> viewModel.canChangeScene() },
-            transitions = sceneTransitions,
+            transitions = if (viewModel.v2FlagEnabled()) sceneTransitionsV2 else sceneTransitions,
         )
-    }
+
+    val isUiBlurred by viewModel.isUiBlurred.collectAsStateWithLifecycle()
 
     val detector = remember { CommunalSwipeDetector() }
 
@@ -178,17 +227,28 @@ fun CommunalContainer(
         onDispose { viewModel.setTransitionState(null) }
     }
 
+    val blurRadius = with(LocalDensity.current) { viewModel.blurRadiusPx.toDp() }
+
+    val swipeFromHubInLandscape by
+        viewModel.swipeFromHubInLandscape.collectAsStateWithLifecycle(false)
+
     SceneTransitionLayout(
         state = state,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().thenIf(isUiBlurred) { Modifier.blur(blurRadius) },
         swipeSourceDetector = detector,
         swipeDetector = detector,
     ) {
         scene(
             CommunalScenes.Blank,
             userActions =
-                if (viewModel.v2FlagEnabled()) emptyMap()
-                else mapOf(Swipe.Start(fromSource = Edge.End) to CommunalScenes.Communal),
+                if (swipeToHubEnabled) {
+                    mapOf(
+                        Swipe.Start(fromSource = Edge.End) to
+                            UserActionResult(CommunalScenes.Communal, CommunalTransitionKeys.Swipe)
+                    )
+                } else {
+                    emptyMap()
+                },
         ) {
             // This scene shows nothing only allowing for transitions to the communal scene.
             Box(modifier = Modifier.fillMaxSize())
@@ -197,15 +257,23 @@ fun CommunalContainer(
         scene(
             CommunalScenes.Communal,
             userActions =
-                if (viewModel.v2FlagEnabled()) emptyMap()
-                else mapOf(Swipe.End to CommunalScenes.Blank),
+                mapOf(
+                    Swipe.End to
+                        UserActionResult(
+                            CommunalScenes.Blank,
+                            if (swipeFromHubInLandscape) {
+                                CommunalTransitionKeys.SwipeInLandscape
+                            } else {
+                                CommunalTransitionKeys.Swipe
+                            },
+                        )
+                ),
         ) {
             CommunalScene(
                 backgroundType = backgroundType,
                 colors = colors,
                 content = content,
                 viewModel = viewModel,
-                modifier = Modifier.horizontalNestedScrollToScene(),
             )
         }
     }
@@ -215,9 +283,23 @@ fun CommunalContainer(
     Box(modifier = Modifier.fillMaxSize().allowGestures(touchesAllowed))
 }
 
+/** Listens to orientation changes on communal scene and reset when scene is disposed. */
+@Composable
+fun ObserveOrientationChange(viewModel: CommunalViewModel) {
+    val configuration = LocalConfiguration.current
+
+    LaunchedEffect(configuration.orientation) {
+        viewModel.onOrientationChange(configuration.orientation)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { viewModel.onOrientationChange(Configuration.ORIENTATION_UNDEFINED) }
+    }
+}
+
 /** Scene containing the glanceable hub UI. */
 @Composable
-fun SceneScope.CommunalScene(
+fun ContentScope.CommunalScene(
     backgroundType: CommunalBackgroundType,
     colors: CommunalColors,
     content: CommunalContent,
@@ -226,6 +308,8 @@ fun SceneScope.CommunalScene(
 ) {
     val isFocusable by viewModel.isFocusable.collectAsStateWithLifecycle(initialValue = false)
 
+    // Observe screen rotation while Communal Scene is active.
+    ObserveOrientationChange(viewModel)
     Box(
         modifier =
             Modifier.element(Communal.Elements.Scrim)
@@ -243,6 +327,8 @@ fun SceneScope.CommunalScene(
             CommunalBackgroundType.STATIC_GRADIENT -> StaticLinearGradient()
             CommunalBackgroundType.ANIMATED -> AnimatedLinearGradient()
             CommunalBackgroundType.NONE -> BackgroundTopScrim()
+            CommunalBackgroundType.BLUR -> Background()
+            CommunalBackgroundType.SCRIM -> Scrimmed()
         }
 
         with(content) {
@@ -263,6 +349,11 @@ fun SceneScope.CommunalScene(
 private fun BoxScope.DefaultBackground(colors: CommunalColors) {
     val backgroundColor by colors.backgroundColor.collectAsStateWithLifecycle()
     Box(modifier = Modifier.matchParentSize().background(Color(backgroundColor.toArgb())))
+}
+
+@Composable
+private fun BoxScope.Scrimmed() {
+    Box(modifier = Modifier.matchParentSize().alpha(0.34f).background(Color.Black))
 }
 
 /** Experimental hub background, static linear gradient */
@@ -300,6 +391,9 @@ private fun BoxScope.BackgroundTopScrim() {
     val scrimOnTopColor = if (darkTheme) Color.Black else Color.White
     Box(Modifier.matchParentSize().alpha(0.34f).background(scrimOnTopColor))
 }
+
+/** Transparent (nothing) composable for when the background is blurred. */
+@Composable private fun BoxScope.Background() {}
 
 /** The duration to use for the gradient background animation. */
 private const val ANIMATION_DURATION_MS = 10_000

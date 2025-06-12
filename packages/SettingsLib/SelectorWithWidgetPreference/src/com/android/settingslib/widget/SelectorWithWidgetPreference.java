@@ -31,7 +31,6 @@ import androidx.preference.CheckBoxPreference;
 import androidx.preference.PreferenceViewHolder;
 
 import com.android.settingslib.widget.preference.selector.R;
-import com.android.settingslib.widget.selectorwithwidgetpreference.flags.Flags;
 
 /**
  * Selector preference (checkbox or radio button) with an optional additional widget.
@@ -180,10 +179,8 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
                     : getContext().getString(R.string.settings_label));
         }
 
-        if (Flags.allowSetTitleMaxLines()) {
-            TextView title = (TextView) holder.findViewById(android.R.id.title);
-            title.setMaxLines(mTitleMaxLines);
-        }
+        TextView title = (TextView) holder.findViewById(android.R.id.title);
+        title.setMaxLines(mTitleMaxLines);
     }
 
     /**
@@ -237,23 +234,19 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
     private void init(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr,
             int defStyleRes) {
         if (mIsCheckBox) {
-            setWidgetLayoutResource(R.layout.preference_widget_checkbox);
+            setWidgetLayoutResource(R.layout.settingslib_preference_widget_checkbox);
         } else {
-            setWidgetLayoutResource(R.layout.preference_widget_radiobutton);
+            setWidgetLayoutResource(R.layout.settingslib_preference_widget_radiobutton);
         }
         setLayoutResource(R.layout.preference_selector_with_widget);
         setIconSpaceReserved(false);
 
-        if (Flags.allowSetTitleMaxLines()) {
-            final TypedArray a =
-                    context.obtainStyledAttributes(
-                            attrs, R.styleable.SelectorWithWidgetPreference, defStyleAttr,
-                            defStyleRes);
-            mTitleMaxLines =
-                    a.getInt(R.styleable.SelectorWithWidgetPreference_titleMaxLines,
-                            DEFAULT_MAX_LINES);
-            a.recycle();
-        }
+        final TypedArray a =
+                context.obtainStyledAttributes(
+                        attrs, R.styleable.SelectorWithWidgetPreference, defStyleAttr, defStyleRes);
+        mTitleMaxLines =
+                a.getInt(R.styleable.SelectorWithWidgetPreference_titleMaxLines, DEFAULT_MAX_LINES);
+        a.recycle();
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.NONE)

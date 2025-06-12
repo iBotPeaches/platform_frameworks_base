@@ -24,6 +24,8 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.ScrollCaptureResponse;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.concurrent.futures.CallbackToFutureAdapter;
 import androidx.concurrent.futures.CallbackToFutureAdapter.Completer;
 
@@ -68,11 +70,15 @@ public class ScrollCaptureController {
     private final UiEventLogger mEventLogger;
     private final ScrollCaptureClient mClient;
 
+    @Nullable
     private Completer<LongScreenshot> mCaptureCompleter;
 
+    @Nullable
     private ListenableFuture<Session> mSessionFuture;
     private Session mSession;
+    @Nullable
     private ListenableFuture<CaptureResult> mTileFuture;
+    @Nullable
     private ListenableFuture<Void> mEndFuture;
     private String mWindowOwner;
     private volatile boolean mCancelled;
@@ -148,8 +154,9 @@ public class ScrollCaptureController {
     }
 
     @Inject
-    ScrollCaptureController(Context context, @Background Executor bgExecutor,
-            ScrollCaptureClient client, ImageTileSet imageTileSet, UiEventLogger logger) {
+    ScrollCaptureController(@NonNull Context context, @Background Executor bgExecutor,
+            @NonNull ScrollCaptureClient client, @NonNull ImageTileSet imageTileSet,
+            @NonNull UiEventLogger logger) {
         mContext = context;
         mBgExecutor = bgExecutor;
         mClient = client;
@@ -214,7 +221,9 @@ public class ScrollCaptureController {
         } catch (InterruptedException | ExecutionException e) {
             // Failure to start, propagate to caller
             Log.e(TAG, "session start failed!");
-            mCaptureCompleter.setException(e);
+            if (mCaptureCompleter != null) {
+                mCaptureCompleter.setException(e);
+            }
             mEventLogger.log(ScreenshotEvent.SCREENSHOT_LONG_SCREENSHOT_FAILURE, 0, mWindowOwner);
         }
     }
@@ -235,7 +244,9 @@ public class ScrollCaptureController {
                 Log.e(TAG, "requestTile cancelled");
             } catch (InterruptedException | ExecutionException e) {
                 Log.e(TAG, "requestTile failed!", e);
-                mCaptureCompleter.setException(e);
+                if (mCaptureCompleter != null) {
+                    mCaptureCompleter.setException(e);
+                }
             }
         }, mBgExecutor);
     }
@@ -350,7 +361,9 @@ public class ScrollCaptureController {
             }
             // Provide result to caller and complete the top-level future
             // Caller is responsible for releasing this resource (ImageReader/HardwareBuffers)
-            mCaptureCompleter.set(new LongScreenshot(mSession, mImageTileSet));
+            if (mCaptureCompleter != null) {
+                mCaptureCompleter.set(new LongScreenshot(mSession, mImageTileSet));
+            }
         }, mContext.getMainExecutor());
     }
 }

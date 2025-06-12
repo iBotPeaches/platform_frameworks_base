@@ -24,6 +24,7 @@ import android.annotation.SuppressLint
 import android.os.Trace
 import android.util.Log
 import com.android.app.animation.Interpolators
+import com.android.app.tracing.coroutines.flow.traceAs
 import com.android.app.tracing.coroutines.withContextTraced as withContext
 import com.android.systemui.Flags.transitionRaceCondition
 import com.android.systemui.dagger.SysUISingleton
@@ -33,6 +34,7 @@ import com.android.systemui.keyguard.shared.model.TransitionInfo
 import com.android.systemui.keyguard.shared.model.TransitionModeOnCanceled
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
+import com.android.systemui.keyguard.shared.transition.KeyguardTransitionAnimationCallback
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -42,7 +44,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -131,7 +132,10 @@ interface KeyguardTransitionRepository {
 @SysUISingleton
 class KeyguardTransitionRepositoryImpl
 @Inject
-constructor(@Main val mainDispatcher: CoroutineDispatcher) : KeyguardTransitionRepository {
+constructor(
+    @Main private val mainDispatcher: CoroutineDispatcher,
+    private val transitionCallback: KeyguardTransitionAnimationCallback,
+) : KeyguardTransitionRepository {
     /**
      * Each transition between [KeyguardState]s will have an associated Flow. In order to collect
      * these events, clients should call [transition].
@@ -139,11 +143,12 @@ constructor(@Main val mainDispatcher: CoroutineDispatcher) : KeyguardTransitionR
     @SuppressLint("SharedFlowCreation")
     private val _transitions =
         MutableSharedFlow<TransitionStep>(
-            replay = 2,
-            extraBufferCapacity = 20,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST,
-        )
-    override val transitions = _transitions.asSharedFlow().distinctUntilChanged()
+                replay = 2,
+                extraBufferCapacity = 20,
+                onBufferOverflow = BufferOverflow.DROP_OLDEST,
+            )
+            .traceAs("KTR-transitions")
+    override val transitions = _transitions.distinctUntilChanged()
     private var lastStep: TransitionStep = TransitionStep()
     private var lastAnimator: ValueAnimator? = null
     private var animatorListener: AnimatorListenerAdapter? = null
@@ -212,8 +217,11 @@ constructor(@Main val mainDispatcher: CoroutineDispatcher) : KeyguardTransitionR
                 Log.i(TAG, "Duplicate call to start the transition, rejecting: $info")
                 return@withContext null
             }
+            val isAnimatorRunning = lastAnimator?.isRunning() ?: false
+            val isManualTransitionRunning =
+                updateTransitionId != null && lastStep.transitionState != TransitionState.FINISHED
             val startingValue =
-                if (lastStep.transitionState != TransitionState.FINISHED) {
+                if (isAnimatorRunning || isManualTransitionRunning) {
                     Log.i(TAG, "Transition still active: $lastStep, canceling")
                     when (info.modeOnCanceled) {
                         TransitionModeOnCanceled.LAST_VALUE -> lastStep.value
@@ -249,16 +257,19 @@ constructor(@Main val mainDispatcher: CoroutineDispatcher) : KeyguardTransitionR
                 animatorListener =
                     object : AnimatorListenerAdapter() {
                         override fun onAnimationStart(animation: Animator) {
+                            transitionCallback.onAnimationStarted(info.from, info.to)
                             emitTransition(
                                 TransitionStep(info, startingValue, TransitionState.STARTED)
                             )
                         }
 
                         override fun onAnimationCancel(animation: Animator) {
+                            transitionCallback.onAnimationCanceled(info.from, info.to)
                             endAnimation(lastStep.value, TransitionState.CANCELED)
                         }
 
                         override fun onAnimationEnd(animation: Animator) {
+                            transitionCallback.onAnimationEnded(info.from, info.to)
                             endAnimation(1f, TransitionState.FINISHED)
                         }
 

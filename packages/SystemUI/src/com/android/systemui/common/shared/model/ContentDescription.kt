@@ -18,19 +18,17 @@ package com.android.systemui.common.shared.model
 
 import android.annotation.StringRes
 import android.content.Context
+import androidx.compose.runtime.Stable
 
 /**
  * Models a content description, that can either be already [loaded][ContentDescription.Loaded] or
  * be a [reference][ContentDescription.Resource] to a resource.
  */
+@Stable
 sealed class ContentDescription {
-    data class Loaded(
-        val description: String?,
-    ) : ContentDescription()
+    data class Loaded(val description: String?) : ContentDescription()
 
-    data class Resource(
-        @StringRes val res: Int,
-    ) : ContentDescription()
+    data class Resource(@StringRes val res: Int) : ContentDescription()
 
     companion object {
         /**
@@ -39,6 +37,7 @@ sealed class ContentDescription {
          * Prefer [com.android.systemui.common.ui.binder.ContentDescriptionViewBinder.bind] over
          * this method. This should only be used for testing or concatenation purposes.
          */
+        @JvmStatic
         fun ContentDescription?.loadContentDescription(context: Context): String? {
             return when (this) {
                 null -> null

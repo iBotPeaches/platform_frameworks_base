@@ -27,7 +27,6 @@
 #include "jni.h"
 #include <nativehelper/JNIHelp.h>
 
-#include <android_companion_virtualdevice_flags.h>
 #include <android/companion/virtualnative/IVirtualDeviceManagerNative.h>
 #include <android/hardware/drm/1.3/IDrmFactory.h>
 #include <binder/Parcel.h>
@@ -46,7 +45,6 @@
 using ::android::companion::virtualnative::IVirtualDeviceManagerNative;
 using ::android::os::PersistableBundle;
 namespace drm = ::android::hardware::drm;
-namespace virtualdevice_flags = android::companion::virtualdevice::flags;
 
 namespace android {
 
@@ -1050,11 +1048,6 @@ DrmPlugin::SecurityLevel jintToSecurityLevel(jint jlevel) {
 }
 
 std::vector<int> getVirtualDeviceIds() {
-    if (!virtualdevice_flags::device_aware_drm()) {
-        ALOGW("Device-aware DRM flag disabled.");
-        return std::vector<int>();
-    }
-
     sp<IBinder> binder =
             defaultServiceManager()->checkService(String16("virtualdevice_native"));
     if (binder != nullptr) {

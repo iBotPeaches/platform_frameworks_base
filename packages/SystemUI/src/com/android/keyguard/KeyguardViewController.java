@@ -160,7 +160,7 @@ public interface KeyguardViewController {
     /**
      * Shows the primary bouncer.
      */
-    void showPrimaryBouncer(boolean scrimmed);
+    void showPrimaryBouncer(boolean scrimmed, String reason);
 
     /**
      * When the primary bouncer is fully visible or is showing but animation didn't finish yet.
@@ -171,6 +171,11 @@ public interface KeyguardViewController {
      * Returns {@code true} when the primary bouncer or alternate bouncer is currently showing
      */
     boolean isBouncerShowing();
+
+    /**
+     * Report when the UI is ready for dismissing the whole Keyguard.
+     */
+    void readyForKeyguardDone();
 
     /**
      * Stop showing the alternate bouncer, if showing.

@@ -18,7 +18,7 @@ package com.android.internal.os;
 
 import static org.junit.Assert.assertEquals;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.LongSparseLongArray;
 
@@ -36,7 +36,7 @@ import java.io.BufferedReader;
  * Tests for KernelMemoryBandwidthStats parsing and delta calculation, based on memory_state_time.
  */
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(reason = "Needs kernel support")
+@DisabledOnRavenwood(reason = "Needs kernel support")
 public class KernelMemoryBandwidthStatsTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

@@ -51,6 +51,9 @@ public final class GpsAssistance implements Parcelable {
     /** The leap seconds model. */
     @Nullable private final LeapSecondsModel mLeapSecondsModel;
 
+    /** The list of auxiliary informations. */
+    @NonNull private final List<AuxiliaryInformation> mAuxiliaryInformation;
+
     /** The list of time models. */
     @NonNull private final List<TimeModel> mTimeModels;
 
@@ -68,6 +71,12 @@ public final class GpsAssistance implements Parcelable {
         mIonosphericModel = builder.mIonosphericModel;
         mUtcModel = builder.mUtcModel;
         mLeapSecondsModel = builder.mLeapSecondsModel;
+        if (builder.mAuxiliaryInformation != null) {
+            mAuxiliaryInformation =
+                    Collections.unmodifiableList(new ArrayList<>(builder.mAuxiliaryInformation));
+        } else {
+            mAuxiliaryInformation = new ArrayList<>();
+        }
         if (builder.mTimeModels != null) {
             mTimeModels = Collections.unmodifiableList(new ArrayList<>(builder.mTimeModels));
         } else {
@@ -117,6 +126,12 @@ public final class GpsAssistance implements Parcelable {
         return mLeapSecondsModel;
     }
 
+    /** Returns the list of auxiliary informations. */
+    @NonNull
+    public List<AuxiliaryInformation> getAuxiliaryInformation() {
+        return mAuxiliaryInformation;
+    }
+
     /** Returns the list of time models. */
     @NonNull
     public List<TimeModel> getTimeModels() {
@@ -152,6 +167,8 @@ public final class GpsAssistance implements Parcelable {
                                     in.readTypedObject(KlobucharIonosphericModel.CREATOR))
                             .setUtcModel(in.readTypedObject(UtcModel.CREATOR))
                             .setLeapSecondsModel(in.readTypedObject(LeapSecondsModel.CREATOR))
+                            .setAuxiliaryInformation(
+                                    in.createTypedArrayList(AuxiliaryInformation.CREATOR))
                             .setTimeModels(in.createTypedArrayList(TimeModel.CREATOR))
                             .setSatelliteEphemeris(
                                     in.createTypedArrayList(GpsSatelliteEphemeris.CREATOR))
@@ -179,6 +196,7 @@ public final class GpsAssistance implements Parcelable {
         dest.writeTypedObject(mIonosphericModel, flags);
         dest.writeTypedObject(mUtcModel, flags);
         dest.writeTypedObject(mLeapSecondsModel, flags);
+        dest.writeTypedList(mAuxiliaryInformation);
         dest.writeTypedList(mTimeModels);
         dest.writeTypedList(mSatelliteEphemeris);
         dest.writeTypedList(mRealTimeIntegrityModels);
@@ -193,6 +211,7 @@ public final class GpsAssistance implements Parcelable {
         builder.append(", ionosphericModel = ").append(mIonosphericModel);
         builder.append(", utcModel = ").append(mUtcModel);
         builder.append(", leapSecondsModel = ").append(mLeapSecondsModel);
+        builder.append(", auxiliaryInformation = ").append(mAuxiliaryInformation);
         builder.append(", timeModels = ").append(mTimeModels);
         builder.append(", satelliteEphemeris = ").append(mSatelliteEphemeris);
         builder.append(", realTimeIntegrityModels = ").append(mRealTimeIntegrityModels);
@@ -207,6 +226,7 @@ public final class GpsAssistance implements Parcelable {
         private KlobucharIonosphericModel mIonosphericModel;
         private UtcModel mUtcModel;
         private LeapSecondsModel mLeapSecondsModel;
+        private List<AuxiliaryInformation> mAuxiliaryInformation;
         private List<TimeModel> mTimeModels;
         private List<GpsSatelliteEphemeris> mSatelliteEphemeris;
         private List<RealTimeIntegrityModel> mRealTimeIntegrityModels;
@@ -222,33 +242,36 @@ public final class GpsAssistance implements Parcelable {
 
         /** Sets the Klobuchar ionospheric model. */
         @NonNull
-        public Builder setIonosphericModel(
-                @Nullable @SuppressLint("NullableCollection")
-                        KlobucharIonosphericModel ionosphericModel) {
+        public Builder setIonosphericModel(@Nullable KlobucharIonosphericModel ionosphericModel) {
             mIonosphericModel = ionosphericModel;
             return this;
         }
 
         /** Sets the UTC model. */
         @NonNull
-        public Builder setUtcModel(
-                @Nullable @SuppressLint("NullableCollection") UtcModel utcModel) {
+        public Builder setUtcModel(@Nullable UtcModel utcModel) {
             mUtcModel = utcModel;
             return this;
         }
 
         /** Sets the leap seconds model. */
         @NonNull
-        public Builder setLeapSecondsModel(
-                @Nullable @SuppressLint("NullableCollection") LeapSecondsModel leapSecondsModel) {
+        public Builder setLeapSecondsModel(@Nullable LeapSecondsModel leapSecondsModel) {
             mLeapSecondsModel = leapSecondsModel;
+            return this;
+        }
+
+        /** Sets the list of auxiliary informations. */
+        @NonNull
+        public Builder setAuxiliaryInformation(
+                @NonNull List<AuxiliaryInformation> auxiliaryInformation) {
+            mAuxiliaryInformation = auxiliaryInformation;
             return this;
         }
 
         /** Sets the list of time models. */
         @NonNull
-        public Builder setTimeModels(
-                @Nullable @SuppressLint("NullableCollection") List<TimeModel> timeModels) {
+        public Builder setTimeModels(@NonNull List<TimeModel> timeModels) {
             mTimeModels = timeModels;
             return this;
         }
@@ -256,8 +279,7 @@ public final class GpsAssistance implements Parcelable {
         /** Sets the list of GPS ephemeris. */
         @NonNull
         public Builder setSatelliteEphemeris(
-                @Nullable @SuppressLint("NullableCollection")
-                        List<GpsSatelliteEphemeris> satelliteEphemeris) {
+                @NonNull List<GpsSatelliteEphemeris> satelliteEphemeris) {
             mSatelliteEphemeris = satelliteEphemeris;
             return this;
         }
@@ -265,8 +287,7 @@ public final class GpsAssistance implements Parcelable {
         /** Sets the list of real time integrity models. */
         @NonNull
         public Builder setRealTimeIntegrityModels(
-                @Nullable @SuppressLint("NullableCollection")
-                        List<RealTimeIntegrityModel> realTimeIntegrityModels) {
+                @NonNull List<RealTimeIntegrityModel> realTimeIntegrityModels) {
             mRealTimeIntegrityModels = realTimeIntegrityModels;
             return this;
         }
@@ -274,8 +295,7 @@ public final class GpsAssistance implements Parcelable {
         /** Sets the list of GPS satellite corrections. */
         @NonNull
         public Builder setSatelliteCorrections(
-                @Nullable @SuppressLint("NullableCollection")
-                        List<GnssSatelliteCorrections> satelliteCorrections) {
+                @NonNull List<GnssSatelliteCorrections> satelliteCorrections) {
             mSatelliteCorrections = satelliteCorrections;
             return this;
         }

@@ -18,12 +18,17 @@ package com.android.systemui.mediaprojection.permission
 
 import android.app.AlertDialog
 import android.media.projection.MediaProjectionConfig
+import android.platform.test.annotations.RequiresFlagsDisabled
+import android.platform.test.annotations.RequiresFlagsEnabled
+import android.platform.test.flag.junit.CheckFlagsRule
+import android.platform.test.flag.junit.DeviceFlagsValueProvider
 import android.testing.TestableLooper
 import android.view.WindowManager
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.mediaprojection.MediaProjectionMetricsLogger
 import com.android.systemui.res.R
@@ -32,6 +37,7 @@ import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertEquals
 import org.junit.After
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
@@ -40,6 +46,8 @@ import org.mockito.kotlin.mock
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 class SystemCastPermissionDialogDelegateTest : SysuiTestCase() {
+
+    @get:Rule val checkFlagRule: CheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule()
 
     private lateinit var dialog: AlertDialog
 
@@ -51,6 +59,8 @@ class SystemCastPermissionDialogDelegateTest : SysuiTestCase() {
         R.string.media_projection_entry_cast_permission_dialog_option_text_entire_screen
     private val resIdSingleAppDisabled =
         R.string.media_projection_entry_app_permission_dialog_single_app_disabled
+    private val resIdSingleAppNotSupported =
+        R.string.media_projection_entry_app_permission_dialog_single_app_not_supported
 
     @After
     fun teardown() {
@@ -78,6 +88,7 @@ class SystemCastPermissionDialogDelegateTest : SysuiTestCase() {
     }
 
     @Test
+    @RequiresFlagsDisabled(Flags.FLAG_MEDIA_PROJECTION_GREY_ERROR_TEXT)
     fun showDialog_disableSingleApp() {
         setUpAndShowDialog(
             mediaProjectionConfig = MediaProjectionConfig.createConfigForDefaultDisplay()
@@ -95,6 +106,30 @@ class SystemCastPermissionDialogDelegateTest : SysuiTestCase() {
 
         // check that the second option is single app and disabled
         assertEquals(context.getString(resIdSingleAppDisabled, appName), secondOptionWarningText)
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_MEDIA_PROJECTION_GREY_ERROR_TEXT)
+    fun showDialog_disableSingleApp_appNotSupported() {
+        setUpAndShowDialog(
+            mediaProjectionConfig = MediaProjectionConfig.createConfigForDefaultDisplay()
+        )
+
+        val spinner = dialog.requireViewById<Spinner>(R.id.screen_share_mode_options)
+        val secondOptionWarningText =
+            spinner.adapter
+                .getDropDownView(1, null, spinner)
+                .findViewById<TextView>(android.R.id.text2)
+                ?.text
+
+        // check that the first option is full screen and enabled
+        assertEquals(context.getString(resIdFullScreen), spinner.selectedItem)
+
+        // check that the second option is single app and disabled
+        assertEquals(
+            context.getString(resIdSingleAppNotSupported, appName),
+            secondOptionWarningText,
+        )
     }
 
     @Test
@@ -169,7 +204,7 @@ class SystemCastPermissionDialogDelegateTest : SysuiTestCase() {
         SystemUIDialog.setDialogSize(dialog)
 
         dialog.window?.addSystemFlags(
-            WindowManager.LayoutParams.SYSTEM_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS,
+            WindowManager.LayoutParams.SYSTEM_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS
         )
 
         delegate.onCreate(dialog, savedInstanceState = null)

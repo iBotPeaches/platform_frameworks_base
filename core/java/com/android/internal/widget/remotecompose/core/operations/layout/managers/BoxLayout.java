@@ -26,15 +26,15 @@ import com.android.internal.widget.remotecompose.core.PaintContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentStartOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.ComponentMeasure;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.MeasurePass;
 import com.android.internal.widget.remotecompose.core.operations.layout.measure.Size;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
 /** Simple Box layout implementation */
-public class BoxLayout extends LayoutManager implements ComponentStartOperation {
+public class BoxLayout extends LayoutManager {
 
     public static final int START = 1;
     public static final int CENTER = 2;
@@ -115,13 +115,11 @@ public class BoxLayout extends LayoutManager implements ComponentStartOperation 
         for (Component c : mChildrenComponents) {
             c.measure(context, 0f, maxWidth, 0f, maxHeight, measure);
             ComponentMeasure m = measure.get(c);
-            size.setWidth(Math.max(size.getWidth(), m.getW()));
-            size.setHeight(Math.max(size.getHeight(), m.getH()));
+            if (!m.isGone()) {
+                size.setWidth(Math.max(size.getWidth(), m.getW()));
+                size.setHeight(Math.max(size.getHeight(), m.getH()));
+            }
         }
-        // add padding
-        size.setWidth(Math.max(size.getWidth(), computeModifierDefinedWidth(context.getContext())));
-        size.setHeight(
-                Math.max(size.getHeight(), computeModifierDefinedHeight(context.getContext())));
     }
 
     @Override
@@ -192,6 +190,15 @@ public class BoxLayout extends LayoutManager implements ComponentStartOperation 
         return Operations.LAYOUT_BOX;
     }
 
+    /**
+     * Write the operation to the buffer
+     *
+     * @param buffer a WireBuffer
+     * @param componentId the component id
+     * @param animationId the component animation id
+     * @param horizontalPositioning the horizontal positioning rules
+     * @param verticalPositioning the vertical positioning rules
+     */
     public static void apply(
             @NonNull WireBuffer buffer,
             int componentId,
@@ -260,5 +267,29 @@ public class BoxLayout extends LayoutManager implements ComponentStartOperation 
     @Override
     public void write(@NonNull WireBuffer buffer) {
         apply(buffer, mComponentId, mAnimationId, mHorizontalPositioning, mVerticalPositioning);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        super.serialize(serializer);
+        serializer.add("verticalPositioning", getPositioningString(mVerticalPositioning));
+        serializer.add("horizontalPositioning", getPositioningString(mHorizontalPositioning));
+    }
+
+    private String getPositioningString(int pos) {
+        switch (pos) {
+            case START:
+                return "START";
+            case CENTER:
+                return "CENTER";
+            case END:
+                return "END";
+            case TOP:
+                return "TOP";
+            case BOTTOM:
+                return "BOTTOM";
+            default:
+                return "NONE";
+        }
     }
 }

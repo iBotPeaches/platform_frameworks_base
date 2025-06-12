@@ -272,15 +272,6 @@ public class BatteryExternalStatsWorker implements BatteryStatsImpl.ExternalStat
         mHandler.removeMessages(SYNC_WAKELOCK_CHANGE);
     }
 
-    @Override
-    public void scheduleSyncDueToBatteryLevelChange(long delayMillis) {
-        synchronized (BatteryExternalStatsWorker.this) {
-            scheduleDelayedSyncLocked(SYNC_BATTERY_LEVEL_CHANGE,
-                    () -> scheduleSync("battery-level", UPDATE_ALL),
-                    delayMillis);
-        }
-    }
-
     @GuardedBy("this")
     private void cancelSyncDueToBatteryLevelChangeLocked() {
         mHandler.removeMessages(SYNC_BATTERY_LEVEL_CHANGE);

@@ -17,6 +17,7 @@
 package com.android.systemui.scene.data.repository
 
 import com.android.compose.animation.scene.ObservableTransitionState
+import com.android.compose.animation.scene.OverlayKey
 import com.android.compose.animation.scene.SceneKey
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.shared.model.KeyguardState
@@ -38,7 +39,7 @@ suspend fun Kosmos.setTransition(
     stateTransition: TransitionStep? = null,
     fillInStateSteps: Boolean = true,
     scope: TestScope = testScope,
-    repository: SceneContainerRepository = sceneContainerRepository
+    repository: SceneContainerRepository = sceneContainerRepository,
 ) {
     var state: TransitionStep? = stateTransition
     if (SceneContainerFlag.isEnabled) {
@@ -61,7 +62,7 @@ suspend fun Kosmos.setTransition(
 fun Kosmos.setSceneTransition(
     transition: ObservableTransitionState,
     scope: TestScope = testScope,
-    repository: SceneContainerRepository = sceneContainerRepository
+    repository: SceneContainerRepository = sceneContainerRepository,
 ) {
     repository.setTransitionState(mutableTransitionState)
     mutableTransitionState.value = transition
@@ -76,7 +77,7 @@ fun Transition(
     isInitiatedByUserInput: Boolean = false,
     isUserInputOngoing: Flow<Boolean> = flowOf(false),
     previewProgress: Flow<Float> = flowOf(0f),
-    isInPreviewStage: Flow<Boolean> = flowOf(false)
+    isInPreviewStage: Flow<Boolean> = flowOf(false),
 ): ObservableTransitionState.Transition {
     return ObservableTransitionState.Transition(
         fromScene = from,
@@ -86,17 +87,64 @@ fun Transition(
         isInitiatedByUserInput = isInitiatedByUserInput,
         isUserInputOngoing = isUserInputOngoing,
         previewProgress = previewProgress,
-        isInPreviewStage = isInPreviewStage
+        isInPreviewStage = isInPreviewStage,
     )
 }
 
-fun Idle(currentScene: SceneKey): ObservableTransitionState.Idle {
-    return ObservableTransitionState.Idle(currentScene)
+fun ShowOverlay(
+    overlay: OverlayKey,
+    fromScene: SceneKey,
+    currentOverlays: Flow<Set<OverlayKey>> = flowOf(setOf(overlay)),
+    progress: Flow<Float> = flowOf(0f),
+    isInitiatedByUserInput: Boolean = false,
+    isUserInputOngoing: Flow<Boolean> = flowOf(false),
+    previewProgress: Flow<Float> = flowOf(0f),
+    isInPreviewStage: Flow<Boolean> = flowOf(false),
+): ObservableTransitionState.Transition {
+    return ObservableTransitionState.Transition.showOverlay(
+        overlay = overlay,
+        fromScene = fromScene,
+        currentOverlays = currentOverlays,
+        progress = progress,
+        isInitiatedByUserInput = isInitiatedByUserInput,
+        isUserInputOngoing = isUserInputOngoing,
+        previewProgress = previewProgress,
+        isInPreviewStage = isInPreviewStage,
+    )
+}
+
+fun HideOverlay(
+    overlay: OverlayKey,
+    toScene: SceneKey,
+    currentOverlays: Flow<Set<OverlayKey>> = flowOf(setOf(overlay)),
+    progress: Flow<Float> = flowOf(0f),
+    isInitiatedByUserInput: Boolean = false,
+    isUserInputOngoing: Flow<Boolean> = flowOf(false),
+    previewProgress: Flow<Float> = flowOf(0f),
+    isInPreviewStage: Flow<Boolean> = flowOf(false),
+): ObservableTransitionState.Transition {
+    return ObservableTransitionState.Transition.hideOverlay(
+        overlay = overlay,
+        toScene = toScene,
+        currentOverlays = currentOverlays,
+        progress = progress,
+        isInitiatedByUserInput = isInitiatedByUserInput,
+        isUserInputOngoing = isUserInputOngoing,
+        previewProgress = previewProgress,
+        isInPreviewStage = isInPreviewStage,
+    )
+}
+
+fun Idle(
+    currentScene: SceneKey,
+    currentOverlays: Set<OverlayKey> = emptySet(),
+): ObservableTransitionState.Idle {
+    return ObservableTransitionState.Idle(currentScene, currentOverlays)
 }
 
 private fun getStateWithUndefined(
     sceneTransition: ObservableTransitionState,
-    state: TransitionStep
+    state: TransitionStep,
 ): TransitionStep {
     return when (sceneTransition) {
         is ObservableTransitionState.Idle -> {
@@ -109,7 +157,7 @@ private fun getStateWithUndefined(
                         state.to
                     },
                 value = state.value,
-                transitionState = state.transitionState
+                transitionState = state.transitionState,
             )
         }
         is ObservableTransitionState.Transition -> {
@@ -127,7 +175,7 @@ private fun getStateWithUndefined(
                         state.from
                     },
                 value = state.value,
-                transitionState = state.transitionState
+                transitionState = state.transitionState,
             )
         }
         else -> state

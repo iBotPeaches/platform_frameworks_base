@@ -39,6 +39,7 @@ import com.android.wm.shell.Flags;
 import com.android.wm.shell.shared.split.SplitScreenConstants.PersistentSnapPosition;
 
 import java.util.ArrayList;
+import java.util.stream.IntStream;
 
 /**
  * Calculates the snap targets and the snap position given a position and a velocity. All positions
@@ -352,12 +353,22 @@ public class DividerSnapAlgorithm {
                 ? mPinnedTaskbarInsets.right : mPinnedTaskbarInsets.bottom;
 
         float ratio = areOffscreenRatiosSupported()
-                ? SplitLayout.OFFSCREEN_ASYMMETRIC_RATIO
-                : SplitLayout.ONSCREEN_ONLY_ASYMMETRIC_RATIO;
+                ? SplitSpec.OFFSCREEN_ASYMMETRIC_RATIO
+                : SplitSpec.ONSCREEN_ONLY_ASYMMETRIC_RATIO;
+
+        // The intended size of the smaller app, in pixels
         int size = (int) (ratio * (end - start)) - mDividerSize / 2;
 
-        int leftTopPosition = start + pinnedTaskbarShiftStart + size;
-        int rightBottomPosition = end - pinnedTaskbarShiftEnd - size - mDividerSize;
+        // If there are insets that interfere with the smaller app (visually or blocking touch
+        // targets), make the smaller app bigger by that amount to compensate. This applies to
+        // pinned taskbar, 3-button nav (both create an opaque bar at bottom) and status bar (blocks
+        // touch targets at top).
+        int extraSpace = IntStream.of(
+                getStartInset(), getEndInset(), pinnedTaskbarShiftStart, pinnedTaskbarShiftEnd
+        ).max().getAsInt();
+
+        int leftTopPosition = start + extraSpace + size;
+        int rightBottomPosition = end - extraSpace - size - mDividerSize;
         addNonDismissingTargets(isLeftRightSplit, leftTopPosition, rightBottomPosition, dividerMax);
     }
 
@@ -464,6 +475,10 @@ public class DividerSnapAlgorithm {
             this.position = position;
             this.snapPosition = snapPosition;
             this.distanceMultiplier = distanceMultiplier;
+        }
+
+        public int getPosition() {
+            return position;
         }
     }
 }

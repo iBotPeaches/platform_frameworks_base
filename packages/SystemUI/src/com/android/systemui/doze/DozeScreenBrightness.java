@@ -40,6 +40,7 @@ import android.util.IndentingPrintWriter;
 import android.view.Display;
 
 import com.android.internal.R;
+import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.doze.dagger.BrightnessSensor;
 import com.android.systemui.doze.dagger.DozeScope;
 import com.android.systemui.doze.dagger.WrappedService;
@@ -118,7 +119,7 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
             @WrappedService DozeMachine.Service service,
             AsyncSensorManager sensorManager,
             @BrightnessSensor Optional<Sensor>[] lightSensorOptional,
-            DozeHost host, Handler handler,
+            DozeHost host, @Main Handler handler,
             AlwaysOnDisplayPolicy alwaysOnDisplayPolicy,
             WakefulnessLifecycle wakefulnessLifecycle,
             DozeParameters dozeParameters,

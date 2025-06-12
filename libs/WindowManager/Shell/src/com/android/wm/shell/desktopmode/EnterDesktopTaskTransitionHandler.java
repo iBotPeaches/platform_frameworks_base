@@ -41,6 +41,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.internal.jank.InteractionJankMonitor;
+import com.android.internal.util.LatencyTracker;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
 import com.android.wm.shell.transition.Transitions;
 import com.android.wm.shell.windowdecor.OnTaskResizeAnimationListener;
@@ -63,20 +64,25 @@ public class EnterDesktopTaskTransitionHandler implements Transitions.Transition
 
     private final List<IBinder> mPendingTransitionTokens = new ArrayList<>();
     private final InteractionJankMonitor mInteractionJankMonitor;
+    private final LatencyTracker mLatencyTracker;
 
     private OnTaskResizeAnimationListener mOnTaskResizeAnimationListener;
 
     public EnterDesktopTaskTransitionHandler(
-            Transitions transitions, InteractionJankMonitor interactionJankMonitor) {
-        this(transitions, interactionJankMonitor, SurfaceControl.Transaction::new);
+            Transitions transitions,
+            InteractionJankMonitor interactionJankMonitor,
+            LatencyTracker latencyTracker) {
+        this(transitions, interactionJankMonitor, latencyTracker, SurfaceControl.Transaction::new);
     }
 
     public EnterDesktopTaskTransitionHandler(
             Transitions transitions,
             InteractionJankMonitor interactionJankMonitor,
+            LatencyTracker latencyTracker,
             Supplier<SurfaceControl.Transaction> supplier) {
         mTransitions = transitions;
         mInteractionJankMonitor = interactionJankMonitor;
+        mLatencyTracker = latencyTracker;
         mTransactionSupplier = supplier;
     }
 
@@ -120,6 +126,13 @@ public class EnterDesktopTaskTransitionHandler implements Transitions.Transition
                 transitionHandled |= startChangeTransition(
                         transition, info.getType(), change, startT, finishT, finishCallback);
             }
+        }
+
+        if (transitionHandled
+                && info.getType()
+                        == DesktopModeTransitionTypes
+                                .TRANSIT_ENTER_DESKTOP_FROM_APP_HANDLE_MENU_BUTTON) {
+            mLatencyTracker.onActionEnd(LatencyTracker.ACTION_DESKTOP_MODE_ENTER_APP_HANDLE_MENU);
         }
 
         mPendingTransitionTokens.remove(transition);

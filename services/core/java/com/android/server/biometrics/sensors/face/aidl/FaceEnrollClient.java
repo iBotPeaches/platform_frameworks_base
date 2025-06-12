@@ -24,9 +24,11 @@ import static android.hardware.face.FaceManager.getErrorString;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
+import android.hardware.biometrics.BiometricAuthenticator;
 import android.hardware.biometrics.BiometricConstants;
 import android.hardware.biometrics.BiometricFaceConstants;
 import android.hardware.biometrics.BiometricSourceType;
+import android.hardware.biometrics.BiometricsProtoEnums;
 import android.hardware.biometrics.common.ICancellationSignal;
 import android.hardware.biometrics.events.AuthenticationErrorInfo;
 import android.hardware.biometrics.events.AuthenticationHelpInfo;
@@ -169,6 +171,14 @@ public class FaceEnrollClient extends EnrollClient<AidlSession> {
             );
         }
         onAcquiredInternal(acquireInfo, vendorCode, shouldSend);
+    }
+
+    @Override
+    public void onEnrollResult(BiometricAuthenticator.Identifier identifier, int remaining) {
+        super.onEnrollResult(identifier, remaining);
+        if (remaining == 0) {
+            notifyLastEnrollmentTime(BiometricsProtoEnums.MODALITY_FACE);
+        }
     }
 
     /**

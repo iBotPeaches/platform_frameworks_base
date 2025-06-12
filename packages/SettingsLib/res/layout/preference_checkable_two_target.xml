@@ -47,7 +47,7 @@
             android:clipToPadding="false"
             android:paddingTop="4dp"
             android:paddingBottom="4dp">
-            <include layout="@layout/preference_widget_checkbox" />
+            <include layout="@layout/settingslib_preference_widget_checkbox" />
         </LinearLayout>
 
         <RelativeLayout

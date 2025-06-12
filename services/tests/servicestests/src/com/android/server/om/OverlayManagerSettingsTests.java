@@ -16,6 +16,8 @@
 
 package com.android.server.om;
 
+import static android.content.om.OverlayConstraint.TYPE_DEVICE_ID;
+import static android.content.om.OverlayConstraint.TYPE_DISPLAY_ID;
 import static android.content.om.OverlayInfo.STATE_DISABLED;
 import static android.content.om.OverlayInfo.STATE_ENABLED;
 
@@ -26,15 +28,20 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import android.content.om.OverlayConstraint;
 import android.content.om.OverlayIdentifier;
 import android.content.om.OverlayInfo;
 import android.text.TextUtils;
 import android.util.Xml;
 
 import androidx.annotation.NonNull;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.modules.utils.TypedXmlPullParser;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -44,25 +51,32 @@ import org.xmlpull.v1.XmlPullParser;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
-@RunWith(AndroidJUnit4.class)
+@RunWith(JUnitParamsRunner.class)
 public class OverlayManagerSettingsTests {
     private OverlayManagerSettings mSettings;
-    private static int USER_0 = 0;
-    private static int USER_1 = 1;
+    private static final int USER_0 = 0;
+    private static final int USER_1 = 1;
 
-    private static OverlayIdentifier OVERLAY_A = new OverlayIdentifier("com.test.overlay_a",
+    private static final int DISPLAY_ID = 1;
+    private static final int DEVICE_ID = 2;
+
+    private static final OverlayConstraint CONSTRAINT_0 =
+            new OverlayConstraint(TYPE_DISPLAY_ID, DISPLAY_ID);
+    private static final OverlayConstraint CONSTRAINT_1 =
+            new OverlayConstraint(TYPE_DEVICE_ID, DEVICE_ID);
+
+    private static final OverlayIdentifier OVERLAY_A = new OverlayIdentifier("com.test.overlay_a",
             null /* overlayName */);
-    private static OverlayIdentifier OVERLAY_B = new OverlayIdentifier("com.test.overlay_b",
+    private static final OverlayIdentifier OVERLAY_B = new OverlayIdentifier("com.test.overlay_b",
             null /* overlayName */);
-    private static OverlayIdentifier OVERLAY_C = new OverlayIdentifier("com.test.overlay_c",
+    private static final OverlayIdentifier OVERLAY_C = new OverlayIdentifier("com.test.overlay_c",
             null /* overlayName */);
 
     private static final OverlayInfo OVERLAY_A_USER0 = createInfo(OVERLAY_A, USER_0);
@@ -71,6 +85,13 @@ public class OverlayManagerSettingsTests {
 
     private static final OverlayInfo OVERLAY_A_USER1 = createInfo(OVERLAY_A, USER_1);
     private static final OverlayInfo OVERLAY_B_USER1 = createInfo(OVERLAY_B, USER_1);
+
+    private static final OverlayInfo OVERLAY_A_USER0_WITH_CONSTRAINTS =
+            createInfo(OVERLAY_A, USER_0, List.of(CONSTRAINT_0, CONSTRAINT_1));
+    private static final OverlayInfo OVERLAY_B_USER0_WITH_CONSTRAINTS =
+            createInfo(OVERLAY_B, USER_0, List.of(CONSTRAINT_1));
+    private static final OverlayInfo OVERLAY_B_USER1_WITH_CONSTRAINTS =
+            createInfo(OVERLAY_B, USER_1, List.of(CONSTRAINT_1));
 
     private static final String TARGET_PACKAGE = "com.test.target";
 
@@ -228,6 +249,22 @@ public class OverlayManagerSettingsTests {
                 mSettings.getOverlaysForTarget(OVERLAY_A_USER0.targetPackageName, USER_0));
     }
 
+    @Test
+    public void testSetConstraints() throws Exception {
+        insertSetting(OVERLAY_A_USER0);
+        insertSetting(OVERLAY_B_USER0);
+        assertListsAreEqual(List.of(OVERLAY_A_USER0, OVERLAY_B_USER0),
+                mSettings.getOverlaysForTarget(TARGET_PACKAGE, USER_0));
+
+        assertTrue(mSettings.setConstraints(OVERLAY_A, USER_0,
+                List.of(CONSTRAINT_0, CONSTRAINT_1)));
+        assertTrue(mSettings.setConstraints(OVERLAY_B, USER_0, List.of(CONSTRAINT_1)));
+
+        assertListsAreEqual(
+                List.of(OVERLAY_A_USER0_WITH_CONSTRAINTS, OVERLAY_B_USER0_WITH_CONSTRAINTS),
+                mSettings.getOverlaysForTarget(TARGET_PACKAGE, USER_0));
+    }
+
     // tests: persist and restore
 
     @Test
@@ -291,12 +328,42 @@ public class OverlayManagerSettingsTests {
     }
 
     @Test
+    public void testPersistWithConstraints() throws Exception {
+        insertSetting(OVERLAY_A_USER0_WITH_CONSTRAINTS);
+        insertSetting(OVERLAY_B_USER1_WITH_CONSTRAINTS);
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        mSettings.persist(os);
+        ByteArrayInputStream xml = new ByteArrayInputStream(os.toByteArray());
+
+        assertEquals(1, countXmlTags(xml, "overlays"));
+        assertEquals(2, countXmlTags(xml, "item"));
+        assertEquals(3, countXmlTags(xml, "constraint"));
+        assertEquals(1, countXmlAttributesWhere(xml, "item", "packageName",
+                OVERLAY_A.getPackageName()));
+        assertEquals(1, countXmlAttributesWhere(xml, "item", "packageName",
+                OVERLAY_B.getPackageName()));
+        assertEquals(1, countXmlAttributesWhere(xml, "item", "userId",
+                Integer.toString(USER_0)));
+        assertEquals(1, countXmlAttributesWhere(xml, "item", "userId",
+                Integer.toString(USER_1)));
+        assertEquals(1, countXmlAttributesWhere(xml, "constraint", "type",
+                TYPE_DISPLAY_ID));
+        assertEquals(2, countXmlAttributesWhere(xml, "constraint", "type",
+                TYPE_DEVICE_ID));
+        assertEquals(1, countXmlAttributesWhere(xml, "constraint", "value",
+                DISPLAY_ID));
+        assertEquals(2, countXmlAttributesWhere(xml, "constraint", "value",
+                DEVICE_ID));
+    }
+
+    @Test
     public void testRestoreEmpty() throws Exception {
         final int version = OverlayManagerSettings.Serializer.CURRENT_VERSION;
         final String xml =
                 "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
                 + "<overlays version=\"" + version + "\" />\n";
-        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes("utf-8"));
+        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes(UTF_8));
 
         mSettings.restore(is);
         assertDoesNotContain(mSettings, new OverlayIdentifier("com.test.overlay"), 0);
@@ -319,7 +386,7 @@ public class OverlayManagerSettingsTests {
                 + "      isStatic='false'\n"
                 + "      priority='0' />\n"
                 + "</overlays>\n";
-        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes("utf-8"));
+        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes(UTF_8));
 
         mSettings.restore(is);
         final OverlayIdentifier identifier = new OverlayIdentifier("com.test.overlay", "test");
@@ -332,6 +399,78 @@ public class OverlayManagerSettingsTests {
         assertEquals(1234, oi.userId);
         assertEquals(STATE_DISABLED, oi.state);
         assertFalse(mSettings.getEnabled(identifier, 1234));
+        assertTrue(oi.constraints.isEmpty());
+    }
+
+    @Test
+    public void testRestoreSingleUserSingleOverlayWithConstraints() throws Exception {
+        final int version = OverlayManagerSettings.Serializer.CURRENT_VERSION;
+        final String xml =
+                "<?xml version='1.0' encoding='utf-8' standalone='yes'?>\n"
+                        + "<overlays version='" + version + "'>\n"
+                        + "<item packageName='com.test.overlay'\n"
+                        + "      overlayName='test'\n"
+                        + "      userId='1234'\n"
+                        + "      targetPackageName='com.test.target'\n"
+                        + "      baseCodePath='/data/app/com.test.overlay-1/base.apk'\n"
+                        + "      state='" + STATE_DISABLED + "'\n"
+                        + "      isEnabled='false'\n"
+                        + "      category='test-category'\n"
+                        + "      isStatic='false'\n"
+                        + "      priority='0' >\n"
+                        + "<constraint type='" + TYPE_DISPLAY_ID + "'\n"
+                        + "      value = '" + DISPLAY_ID + "' />\n"
+                        + "<constraint type='" + TYPE_DEVICE_ID + "'\n"
+                        + "      value = '" + DEVICE_ID + "' />\n"
+                        + "</item>\n"
+                        + "</overlays>\n";
+        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes(UTF_8));
+
+        mSettings.restore(is);
+        final OverlayIdentifier identifier = new OverlayIdentifier("com.test.overlay", "test");
+        OverlayInfo oi = mSettings.getOverlayInfo(identifier, 1234);
+        assertNotNull(oi);
+        assertEquals("com.test.overlay", oi.packageName);
+        assertEquals("test", oi.overlayName);
+        assertEquals("com.test.target", oi.targetPackageName);
+        assertEquals("/data/app/com.test.overlay-1/base.apk", oi.baseCodePath);
+        assertEquals(1234, oi.userId);
+        assertEquals(STATE_DISABLED, oi.state);
+        assertFalse(mSettings.getEnabled(identifier, 1234));
+        assertListsAreEqual(List.of(CONSTRAINT_0, CONSTRAINT_1), oi.constraints);
+    }
+
+    @Test
+    @Parameters(method = "getPreviousVersions")
+    public void testRestoreWithPreviousVersion(int version) throws Exception {
+        final String xml =
+                "<?xml version='1.0' encoding='utf-8' standalone='yes'?>\n"
+                        + "<overlays version='" + version + "'>\n"
+                        + "<item packageName='com.test.overlay'\n"
+                        + "      overlayName='test'\n"
+                        + "      userId='1234'\n"
+                        + "      targetPackageName='com.test.target'\n"
+                        + "      baseCodePath='/data/app/com.test.overlay-1/base.apk'\n"
+                        + "      state='" + STATE_DISABLED + "'\n"
+                        + "      isEnabled='false'\n"
+                        + "      category='test-category'\n"
+                        + "      isStatic='false'\n"
+                        + "      priority='0' />\n"
+                        + "</overlays>\n";
+        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes(UTF_8));
+
+        mSettings.restore(is);
+        final OverlayIdentifier identifier = new OverlayIdentifier("com.test.overlay", "test");
+        OverlayInfo oi = mSettings.getOverlayInfo(identifier, 1234);
+        assertNotNull(oi);
+        assertEquals("com.test.overlay", oi.packageName);
+        assertEquals("test", oi.overlayName);
+        assertEquals("com.test.target", oi.targetPackageName);
+        assertEquals("/data/app/com.test.overlay-1/base.apk", oi.baseCodePath);
+        assertEquals(1234, oi.userId);
+        assertEquals(STATE_DISABLED, oi.state);
+        assertFalse(mSettings.getEnabled(identifier, 1234));
+        assertTrue(oi.constraints.isEmpty());
     }
 
     @Test
@@ -350,6 +489,24 @@ public class OverlayManagerSettingsTests {
 
         OverlayInfo b = newSettings.getOverlayInfo(OVERLAY_B, USER_1);
         assertEquals(OVERLAY_B_USER1, b);
+    }
+
+    @Test
+    public void testPersistAndRestoreWithConstraints() throws Exception {
+        insertSetting(OVERLAY_A_USER0_WITH_CONSTRAINTS);
+        insertSetting(OVERLAY_B_USER1_WITH_CONSTRAINTS);
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        mSettings.persist(os);
+        ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
+        OverlayManagerSettings newSettings = new OverlayManagerSettings();
+        newSettings.restore(is);
+
+        OverlayInfo a = newSettings.getOverlayInfo(OVERLAY_A, USER_0);
+        assertEquals(OVERLAY_A_USER0_WITH_CONSTRAINTS, a);
+
+        OverlayInfo b = newSettings.getOverlayInfo(OVERLAY_B, USER_1);
+        assertEquals(OVERLAY_B_USER1_WITH_CONSTRAINTS, b);
     }
 
     private int countXmlTags(InputStream in, String tagToLookFor) throws Exception {
@@ -384,11 +541,30 @@ public class OverlayManagerSettingsTests {
         return count;
     }
 
+    private int countXmlAttributesWhere(InputStream in, String tag, String attr, int value)
+            throws Exception {
+        in.reset();
+        int count = 0;
+        TypedXmlPullParser parser = Xml.resolvePullParser(in);
+        int event = parser.getEventType();
+        while (event != XmlPullParser.END_DOCUMENT) {
+            if (event == XmlPullParser.START_TAG && tag.equals(parser.getName())) {
+                int v = parser.getAttributeInt(null, attr);
+                if (value == v) {
+                    count++;
+                }
+            }
+            event = parser.next();
+        }
+        return count;
+    }
+
     private void insertSetting(OverlayInfo oi) throws Exception {
         mSettings.init(oi.getOverlayIdentifier(), oi.userId, oi.targetPackageName, null,
                 oi.baseCodePath, true, false,0, oi.category, oi.isFabricated);
         mSettings.setState(oi.getOverlayIdentifier(), oi.userId, oi.state);
         mSettings.setEnabled(oi.getOverlayIdentifier(), oi.userId, false);
+        mSettings.setConstraints(oi.getOverlayIdentifier(), oi.userId, oi.constraints);
     }
 
     private static void assertContains(final OverlayManagerSettings settings,
@@ -417,45 +593,38 @@ public class OverlayManagerSettingsTests {
     }
 
     private static OverlayInfo createInfo(@NonNull OverlayIdentifier identifier, int userId) {
+        return createInfo(identifier, userId, Collections.emptyList());
+    }
+
+    private static OverlayInfo createInfo(@NonNull OverlayIdentifier identifier, int userId,
+            @NonNull List<OverlayConstraint> constraints) {
         return new OverlayInfo(
                 identifier.getPackageName(),
                 identifier.getOverlayName(),
                 "com.test.target",
-                null,
-                "some-category",
-                "/data/app/" + identifier + "/base.apk",
+                null /* targetOverlayableName */,
+                "some-category" /* category */,
+                "/data/app/" + identifier + "/base.apk" /* baseCodePath */,
                 STATE_DISABLED,
                 userId,
-                0,
-                true,
-                false);
+                0 /* priority */,
+                true /* isMutable */,
+                false /* isFabricated */,
+                constraints);
     }
 
-    private static void assertContains(int[] haystack, int needle) {
-        List<Integer> list = IntStream.of(haystack)
-                .boxed()
-                .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
-        if (!list.contains(needle)) {
-            fail(String.format("integer array [%s] does not contain value %s",
-                        TextUtils.join(",", list), needle));
-        }
-    }
-
-    private static void assertDoesNotContain(int[] haystack, int needle) {
-        List<Integer> list = IntStream.of(haystack)
-                .boxed()
-                .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
-        if (list.contains(needle)) {
-            fail(String.format("integer array [%s] contains value %s",
-                        TextUtils.join(",", list), needle));
-        }
-    }
-
-    private static void assertListsAreEqual(
-            @NonNull List<OverlayInfo> expected, @Nullable List<OverlayInfo> actual) {
+    private static <T> void assertListsAreEqual(
+            @NonNull List<T> expected, @Nullable List<T> actual) {
         if (!expected.equals(actual)) {
             fail(String.format("lists [%s] and [%s] differ",
                         TextUtils.join(",", expected), TextUtils.join(",", actual)));
         }
+    }
+
+    private static Integer[] getPreviousVersions() {
+        return new Integer[]{
+                3,
+                4,
+        };
     }
 }

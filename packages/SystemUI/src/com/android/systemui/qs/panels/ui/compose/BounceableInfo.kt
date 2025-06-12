@@ -16,13 +16,13 @@
 
 package com.android.systemui.qs.panels.ui.compose
 
+import androidx.compose.runtime.Stable
 import com.android.compose.animation.Bounceable
 import com.android.systemui.qs.panels.shared.model.SizedTile
-import com.android.systemui.qs.panels.ui.model.GridCell
-import com.android.systemui.qs.panels.ui.model.TileGridCell
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.TileViewModel
 
+@Stable
 data class BounceableInfo(
     val bounceable: BounceableTileViewModel,
     val previousTile: Bounceable?,
@@ -30,28 +30,21 @@ data class BounceableInfo(
     val bounceEnd: Boolean,
 )
 
-fun List<Pair<GridCell, BounceableTileViewModel>>.bounceableInfo(
-    index: Int,
-    columns: Int,
-): BounceableInfo {
-    val cell = this[index].first as TileGridCell
-    // Only look for neighbor bounceables if they are on the same row
-    val onLastColumn = cell.onLastColumn(cell.column, columns)
-    val previousTile = getOrNull(index - 1)?.takeIf { cell.column != 0 }
-    val nextTile = getOrNull(index + 1)?.takeIf { !onLastColumn }
-    return BounceableInfo(this[index].second, previousTile?.second, nextTile?.second, !onLastColumn)
-}
-
 fun List<BounceableTileViewModel>.bounceableInfo(
     sizedTile: SizedTile<TileViewModel>,
     index: Int,
     column: Int,
     columns: Int,
+    isFirstInRow: Boolean,
+    isLastInRow: Boolean,
 ): BounceableInfo {
-    // Only look for neighbor bounceables if they are on the same row
+    // A tile may be the last in the row without being on the last column
     val onLastColumn = sizedTile.onLastColumn(column, columns)
-    val previousTile = getOrNull(index - 1)?.takeIf { column != 0 }
-    val nextTile = getOrNull(index + 1)?.takeIf { !onLastColumn }
+
+    // Only look for neighbor bounceables if they are on the same row
+    val previousTile = getOrNull(index - 1)?.takeIf { !isFirstInRow }
+    val nextTile = getOrNull(index + 1)?.takeIf { !isLastInRow }
+
     return BounceableInfo(this[index], previousTile, nextTile, !onLastColumn)
 }
 

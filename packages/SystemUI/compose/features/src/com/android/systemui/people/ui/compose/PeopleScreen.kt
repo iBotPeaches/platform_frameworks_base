@@ -19,6 +19,7 @@ package com.android.systemui.people.ui.compose
 import android.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,12 +27,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,9 +45,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.theme.colorAttr
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.people.ui.viewmodel.PeopleTileViewModel
 import com.android.systemui.people.ui.viewmodel.PeopleViewModel
@@ -61,7 +61,11 @@ import com.android.systemui.res.R
  *   the Activity/Fragment/View hosting this Composable once a result is available.
  */
 @Composable
-fun PeopleScreen(viewModel: PeopleViewModel, onResult: (PeopleViewModel.Result) -> Unit) {
+fun PeopleScreen(
+    viewModel: PeopleViewModel,
+    onResult: (PeopleViewModel.Result) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val priorityTiles by viewModel.priorityTiles.collectAsStateWithLifecycle()
     val recentTiles by viewModel.recentTiles.collectAsStateWithLifecycle()
 
@@ -75,13 +79,7 @@ fun PeopleScreen(viewModel: PeopleViewModel, onResult: (PeopleViewModel.Result) 
         }
     }
 
-    // Make sure to use the Android colors and not the default Material3 colors to have the exact
-    // same colors as the View implementation.
-    Surface(
-        color = colorAttr(com.android.internal.R.attr.colorBackground),
-        contentColor = colorAttr(com.android.internal.R.attr.textColorPrimary),
-        modifier = Modifier.fillMaxSize(),
-    ) {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = modifier.fillMaxSize()) {
         if (priorityTiles.isNotEmpty() || recentTiles.isNotEmpty()) {
             PeopleScreenWithConversations(priorityTiles, recentTiles, viewModel.onTileClicked)
         } else {
@@ -95,9 +93,10 @@ private fun PeopleScreenWithConversations(
     priorityTiles: List<PeopleTileViewModel>,
     recentTiles: List<PeopleTileViewModel>,
     onTileClicked: (PeopleTileViewModel) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        Modifier.fillMaxSize().safeContentPadding().sysuiResTag("top_level_with_conversations")
+        modifier.fillMaxSize().safeDrawingPadding().sysuiResTag("top_level_with_conversations")
     ) {
         Column(
             Modifier.fillMaxWidth().padding(PeopleSpacePadding),
@@ -146,31 +145,32 @@ private fun ConversationList(
     @StringRes headerTextResource: Int,
     tiles: List<PeopleTileViewModel>,
     onTileClicked: (PeopleTileViewModel) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Text(
-        stringResource(headerTextResource),
-        Modifier.padding(start = 16.dp),
-        style = MaterialTheme.typography.labelLarge,
-        color = colorAttr(com.android.internal.R.attr.colorAccentPrimaryVariant),
-    )
+    val largeCornerRadius = dimensionResource(R.dimen.people_space_widget_radius)
+    val smallCornerRadius = 4.dp
 
-    Spacer(Modifier.height(10.dp))
+    fun topRadius(i: Int): Dp = if (i == 0) largeCornerRadius else smallCornerRadius
+    fun bottomRadius(i: Int): Dp =
+        if (i == tiles.lastIndex) largeCornerRadius else smallCornerRadius
 
-    tiles.forEachIndexed { index, tile ->
-        if (index > 0) {
-            Divider(
-                color = colorAttr(com.android.internal.R.attr.colorBackground),
-                thickness = 2.dp,
-            )
-        }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            stringResource(headerTextResource),
+            Modifier.padding(start = 16.dp, bottom = 8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
 
-        key(tile.key.toString()) {
-            Tile(
-                tile,
-                onTileClicked,
-                withTopCornerRadius = index == 0,
-                withBottomCornerRadius = index == tiles.lastIndex,
-            )
+        tiles.forEachIndexed { index, tile ->
+            key(tile.key.toString()) {
+                Tile(
+                    tile,
+                    onTileClicked,
+                    topCornerRadius = topRadius(index),
+                    bottomCornerRadius = bottomRadius(index),
+                )
+            }
         }
     }
 }
@@ -179,16 +179,13 @@ private fun ConversationList(
 private fun Tile(
     tile: PeopleTileViewModel,
     onTileClicked: (PeopleTileViewModel) -> Unit,
-    withTopCornerRadius: Boolean,
-    withBottomCornerRadius: Boolean,
+    topCornerRadius: Dp,
+    bottomCornerRadius: Dp,
+    modifier: Modifier = Modifier,
 ) {
-    val cornerRadius = dimensionResource(R.dimen.people_space_widget_radius)
-    val topCornerRadius = if (withTopCornerRadius) cornerRadius else 0.dp
-    val bottomCornerRadius = if (withBottomCornerRadius) cornerRadius else 0.dp
-
     Surface(
-        color = colorAttr(com.android.internal.R.attr.colorSurface),
-        contentColor = colorAttr(com.android.internal.R.attr.textColorPrimary),
+        modifier,
+        color = MaterialTheme.colorScheme.secondaryContainer,
         shape =
             RoundedCornerShape(
                 topStart = topCornerRadius,

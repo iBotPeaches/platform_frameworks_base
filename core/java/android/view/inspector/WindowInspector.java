@@ -16,11 +16,14 @@
 
 package android.view.inspector;
 
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.view.View;
 import android.view.WindowManagerGlobal;
 
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * Provides access to window inspection information.
@@ -36,5 +39,27 @@ public final class WindowInspector {
     @NonNull
     public static List<View> getGlobalWindowViews() {
         return WindowManagerGlobal.getInstance().getWindowViews();
+    }
+
+    /**
+     * Adds a listener that is notified whenever the value of {@link #getGlobalWindowViews()}
+     * changes. The current value is provided immediately using the provided {@link Executor}.
+     * If this {@link Consumer} is already registered, then this method is a no op.
+     * @see #getGlobalWindowViews()
+     */
+    @FlaggedApi(android.view.flags.Flags.FLAG_ROOT_VIEW_CHANGED_LISTENER)
+    public static void addGlobalWindowViewsListener(@NonNull Executor executor,
+            @NonNull Consumer<List<View>> consumer) {
+        WindowManagerGlobal.getInstance().addWindowViewsListener(executor, consumer);
+    }
+
+    /**
+     * Removes a listener from getting notifications of global window views changes. If the
+     * {@link Consumer} is not registered this method is a no op.
+     * @see #addGlobalWindowViewsListener(Executor, Consumer)
+     */
+    @FlaggedApi(android.view.flags.Flags.FLAG_ROOT_VIEW_CHANGED_LISTENER)
+    public static void removeGlobalWindowViewsListener(@NonNull Consumer<List<View>> consumer) {
+        WindowManagerGlobal.getInstance().removeWindowViewsListener(consumer);
     }
 }

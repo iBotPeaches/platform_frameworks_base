@@ -1043,7 +1043,6 @@ public class TypedArray implements AutoCloseable {
      *         not a font resource.
      */
     @Nullable
-    @RavenwoodThrow(blockedBy = Typeface.class)
     public Typeface getFont(@StyleableRes int index) {
         if (mRecycled) {
             throw new RuntimeException("Cannot make calls to a recycled instance!");

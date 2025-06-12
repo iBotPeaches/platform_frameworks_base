@@ -20,6 +20,7 @@ import android.content.testableContext
 import android.provider.Settings.Global.ONE_HANDED_KEYGUARD_SIDE
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.internal.logging.uiEventLoggerFake
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.authentication.data.repository.FakeAuthenticationRepository
@@ -39,14 +40,22 @@ import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.flags.Flags.FULL_SCREEN_USER_SWITCHER
 import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFaceAuthRepository
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runCurrent
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.power.data.repository.fakePowerRepository
 import com.android.systemui.res.R
+import com.android.systemui.scene.data.repository.sceneContainerRepository
+import com.android.systemui.scene.shared.model.Overlays
+import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.transitionState
 import com.android.systemui.testKosmos
 import com.android.systemui.util.settings.fakeGlobalSettings
 import com.google.common.truth.Truth.assertThat
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -55,7 +64,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableSceneContainer
@@ -368,6 +376,76 @@ class BouncerInteractorTest : SysuiTestCase() {
             assertThat(preferredInputSide).isEqualTo(BouncerInputSide.LEFT)
             testableResources.removeOverride(R.bool.config_enableBouncerUserSwitcher)
             testableResources.removeOverride(R.bool.can_use_one_handed_bouncer)
+        }
+
+    @Test
+    fun bouncerExpansion_lockscreenToBouncer() =
+        kosmos.runTest {
+            val bouncerExpansion by collectLastValue(underTest.bouncerExpansion)
+
+            val progress = MutableStateFlow(0f)
+            kosmos.sceneContainerRepository.setTransitionState(transitionState)
+            transitionState.value =
+                ObservableTransitionState.Transition.showOverlay(
+                    overlay = Overlays.Bouncer,
+                    fromScene = Scenes.Lockscreen,
+                    currentOverlays = flowOf(emptySet()),
+                    progress = progress,
+                    isInitiatedByUserInput = false,
+                    isUserInputOngoing = flowOf(false),
+                )
+
+            assertThat(bouncerExpansion).isEqualTo(0f)
+
+            progress.value = 1f
+            assertThat(bouncerExpansion).isEqualTo(1f)
+        }
+
+    @Test
+    fun bouncerExpansion_BouncerToLockscreen() =
+        kosmos.runTest {
+            val bouncerExpansion by collectLastValue(underTest.bouncerExpansion)
+
+            val progress = MutableStateFlow(0f)
+            kosmos.sceneContainerRepository.setTransitionState(transitionState)
+            transitionState.value =
+                ObservableTransitionState.Transition.hideOverlay(
+                    overlay = Overlays.Bouncer,
+                    toScene = Scenes.Lockscreen,
+                    currentOverlays = flowOf(emptySet()),
+                    progress = progress,
+                    isInitiatedByUserInput = false,
+                    isUserInputOngoing = flowOf(false),
+                )
+
+            assertThat(bouncerExpansion).isEqualTo(1f)
+
+            progress.value = 1f
+            assertThat(bouncerExpansion).isEqualTo(0f)
+        }
+
+    @Test
+    fun bouncerExpansion_shadeToLockscreenUnderBouncer() =
+        kosmos.runTest {
+            val bouncerExpansion by collectLastValue(underTest.bouncerExpansion)
+
+            val progress = MutableStateFlow(0f)
+            kosmos.sceneContainerRepository.setTransitionState(transitionState)
+            transitionState.value =
+                ObservableTransitionState.Transition(
+                    fromScene = Scenes.Shade,
+                    toScene = Scenes.Lockscreen,
+                    currentScene = flowOf(Scenes.Lockscreen),
+                    progress = progress,
+                    isInitiatedByUserInput = false,
+                    isUserInputOngoing = flowOf(false),
+                    currentOverlays = setOf(Overlays.Bouncer),
+                )
+
+            assertThat(bouncerExpansion).isEqualTo(1f)
+
+            progress.value = 1f
+            assertThat(bouncerExpansion).isEqualTo(1f)
         }
 
     companion object {

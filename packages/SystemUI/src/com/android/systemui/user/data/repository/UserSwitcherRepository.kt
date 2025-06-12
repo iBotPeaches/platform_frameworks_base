@@ -23,7 +23,7 @@ import android.os.UserManager
 import android.provider.Settings.Global.USER_SWITCHER_ENABLED
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background

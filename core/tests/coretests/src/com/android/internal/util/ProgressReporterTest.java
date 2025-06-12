@@ -18,7 +18,7 @@ package com.android.internal.util;
 
 import static org.junit.Assert.assertEquals;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -29,7 +29,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ProgressReporter.class)
+@DisabledOnRavenwood(blockedBy = ProgressReporter.class)
 public class ProgressReporterTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

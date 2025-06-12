@@ -16,6 +16,8 @@
 
 package com.android.systemui.volume.panel.shared
 
+import android.media.session.MediaSession
+import android.media.session.MediaSession.Token
 import com.android.settingslib.volume.shared.model.AudioStream
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
@@ -42,7 +44,7 @@ class VolumePanelLogger @Inject constructor(@VolumeLog private val logBuffer: Lo
                 str1 = key
                 bool1 = isAvailable
             },
-            { "$str1 isAvailable=$bool1" }
+            { "$str1 isAvailable=$bool1" },
         )
     }
 
@@ -51,7 +53,7 @@ class VolumePanelLogger @Inject constructor(@VolumeLog private val logBuffer: Lo
             TAG,
             LogLevel.DEBUG,
             { bool1 = globalState.isVisible },
-            { "Global state changed: isVisible=$bool1" }
+            { "Global state changed: isVisible=$bool1" },
         )
     }
 
@@ -63,7 +65,7 @@ class VolumePanelLogger @Inject constructor(@VolumeLog private val logBuffer: Lo
                 str1 = audioStream.toString()
                 int1 = volume
             },
-            { "Set volume: stream=$str1 volume=$int1" }
+            { "Set volume: stream=$str1 volume=$int1" },
         )
     }
 
@@ -75,7 +77,49 @@ class VolumePanelLogger @Inject constructor(@VolumeLog private val logBuffer: Lo
                 str1 = audioStream.toString()
                 int1 = volume
             },
-            { "Volume update received: stream=$str1 volume=$int1" }
+            { "Volume update received: stream=$str1 volume=$int1" },
+        )
+    }
+
+    fun onSetVolumeRequested(sessionToken: MediaSession.Token, volume: Int) {
+        logBuffer.log(
+            TAG,
+            LogLevel.DEBUG,
+            {
+                str1 = sessionToken.toString()
+                int1 = volume
+            },
+            { "Set volume: token=$str1 volume=$int1" },
+        )
+    }
+
+    fun onVolumeUpdateReceived(sessionToken: Token, volume: Int) {
+        logBuffer.log(
+            TAG,
+            LogLevel.DEBUG,
+            {
+                str1 = sessionToken.toString()
+                int1 = volume
+            },
+            { "Volume update received: token=$str1 volume=$int1" },
+        )
+    }
+
+    fun onSetAudioSharingVolumeRequested(volume: Int) {
+        logBuffer.log(
+            TAG,
+            LogLevel.DEBUG,
+            { int1 = volume },
+            { "Set volume: audio-sharing volume=$int1" },
+        )
+    }
+
+    fun onAudioSharingVolumeUpdateReceived(volume: Int) {
+        logBuffer.log(
+            TAG,
+            LogLevel.DEBUG,
+            { int1 = volume },
+            { "Volume update received: audio-sharing volume=$int1" },
         )
     }
 }

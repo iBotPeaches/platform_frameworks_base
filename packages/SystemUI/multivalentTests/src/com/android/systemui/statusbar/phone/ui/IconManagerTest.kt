@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalKairosApi::class)
+
 package com.android.systemui.statusbar.phone.ui
 
 import android.app.Flags
@@ -28,13 +30,17 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.internal.statusbar.StatusBarIcon
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.kairos.ExperimentalKairosApi
+import com.android.systemui.kairos.KairosNetwork
 import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider
 import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter
 import com.android.systemui.util.Assert
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineScope
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,7 +64,10 @@ class IconManagerTest : SysuiTestCase() {
                 StatusBarLocation.HOME,
                 mock<WifiUiAdapter>(defaultAnswer = RETURNS_DEEP_STUBS),
                 mock<MobileUiAdapter>(defaultAnswer = RETURNS_DEEP_STUBS),
+                { mock<MobileUiAdapterKairos>(defaultAnswer = RETURNS_DEEP_STUBS) },
                 mock<MobileContextProvider>(defaultAnswer = RETURNS_DEEP_STUBS),
+                mock<KairosNetwork>(defaultAnswer = RETURNS_DEEP_STUBS),
+                mock<CoroutineScope>(defaultAnswer = RETURNS_DEEP_STUBS),
             )
     }
 

@@ -16,18 +16,20 @@
 
 package com.android.systemui.statusbar.notification.promoted
 
+import androidx.constraintlayout.widget.ConstraintSet
+import com.android.systemui.keyguard.ui.view.layout.sections.AodPromotedNotificationSection
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel.ERROR
 import com.android.systemui.log.core.LogLevel.INFO
-import com.android.systemui.log.dagger.NotificationLog
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.logKey
-import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModels
 import javax.inject.Inject
 
+@OptIn(ExperimentalStdlibApi::class)
 class PromotedNotificationLogger
 @Inject
-constructor(@NotificationLog private val buffer: LogBuffer) {
+constructor(@PromotedNotificationLog private val buffer: LogBuffer) {
     fun logExtractionSkipped(entry: NotificationEntry, reason: String) {
         buffer.log(
             EXTRACTION_TAG,
@@ -54,18 +56,94 @@ constructor(@NotificationLog private val buffer: LogBuffer) {
 
     fun logExtractionSucceeded(
         entry: NotificationEntry,
-        content: PromotedNotificationContentModel,
+        content: PromotedNotificationContentModels,
     ) {
         buffer.log(
             EXTRACTION_TAG,
             INFO,
             {
                 str1 = entry.logKey
-                str2 = content.toString()
+                str2 = content.toRedactedString()
             },
             { "extraction succeeded: $str2 for $str1" },
+        )
+    }
+
+    fun logBinderBindSkipped(reason: String) {
+        buffer.log(
+            AOD_VIEW_BINDER_TAG,
+            INFO,
+            { str1 = reason },
+            { "binder skipped binding: $str1" },
+        )
+    }
+
+    fun logBinderAttached() {
+        buffer.log(AOD_VIEW_BINDER_TAG, INFO, "binder attached")
+    }
+
+    fun logBinderDetached() {
+        buffer.log(AOD_VIEW_BINDER_TAG, INFO, "binder detached")
+    }
+
+    fun logBinderBoundNotification() {
+        buffer.log(AOD_VIEW_BINDER_TAG, INFO, "binder bound notification")
+    }
+
+    fun logBinderUnboundNotification() {
+        buffer.log(AOD_VIEW_BINDER_TAG, INFO, "binder unbound notification")
+    }
+
+    fun logSectionCreated(section: AodPromotedNotificationSection) {
+        buffer.log(
+            AOD_SECTION_TAG,
+            INFO,
+            "section ${System.identityHashCode(section).toHexString()} created",
+        )
+    }
+
+    fun logSectionAddedViews(section: AodPromotedNotificationSection) {
+        buffer.log(
+            AOD_SECTION_TAG,
+            INFO,
+            "section ${System.identityHashCode(section).toHexString()} added views",
+        )
+    }
+
+    fun logSectionBoundData(section: AodPromotedNotificationSection) {
+        buffer.log(
+            AOD_SECTION_TAG,
+            INFO,
+            "section ${System.identityHashCode(section).toHexString()} bound data",
+        )
+    }
+
+    fun logSectionAppliedConstraints(section: AodPromotedNotificationSection) {
+        buffer.log(
+            AOD_SECTION_TAG,
+            INFO,
+            "section ${System.identityHashCode(section).toHexString()} applied constraints",
+        )
+    }
+
+    fun logSectionRemovedViews(section: AodPromotedNotificationSection) {
+        buffer.log(
+            AOD_SECTION_TAG,
+            INFO,
+            "section ${System.identityHashCode(section).toHexString()} removed views",
         )
     }
 }
 
 private const val EXTRACTION_TAG = "PromotedNotificationContentExtractor"
+private const val AOD_VIEW_BINDER_TAG = "AODPromotedNotificationViewBinder"
+private const val AOD_SECTION_TAG = "AodPromotedNotificationSection"
+
+private fun visibilityToString(visibility: Int): String {
+    return when (visibility) {
+        ConstraintSet.VISIBLE -> "VISIBLE"
+        ConstraintSet.INVISIBLE -> "INVISIBLE"
+        ConstraintSet.GONE -> "GONE"
+        else -> "UNKNOWN($visibility)"
+    }
+}

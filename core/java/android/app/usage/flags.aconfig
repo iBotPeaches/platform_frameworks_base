@@ -49,6 +49,16 @@ flag {
 }
 
 flag {
+    name: "get_app_art_managed_bytes"
+    namespace: "system_performance"
+    description: "Bug fixing flag for optional collection of app ART managed file stats"
+    bug: "395548922"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "disable_idle_check"
     namespace: "backstage_power"
     description: "disable idle check for USER_SYSTEM during boot up"

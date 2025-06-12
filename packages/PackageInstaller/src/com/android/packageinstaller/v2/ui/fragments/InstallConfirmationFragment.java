@@ -16,6 +16,11 @@
 
 package com.android.packageinstaller.v2.ui.fragments;
 
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_ACTION_REASON;
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_APP_SNIPPET;
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_IS_UPDATING;
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_SOURCE_APP;
+
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
@@ -26,11 +31,14 @@ import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
+
 import com.android.packageinstaller.R;
 import com.android.packageinstaller.v2.model.InstallUserActionRequired;
+import com.android.packageinstaller.v2.model.PackageUtil.AppSnippet;
 import com.android.packageinstaller.v2.ui.InstallActionListener;
 
 /**
@@ -39,15 +47,34 @@ import com.android.packageinstaller.v2.ui.InstallActionListener;
 public class InstallConfirmationFragment extends DialogFragment {
 
     public static final String LOG_TAG = InstallConfirmationFragment.class.getSimpleName();
-    @NonNull
-    private final InstallUserActionRequired mDialogData;
+    private InstallUserActionRequired mDialogData;
     @NonNull
     private InstallActionListener mInstallActionListener;
     @NonNull
     private AlertDialog mDialog;
 
-    public InstallConfirmationFragment(@NonNull InstallUserActionRequired dialogData) {
-        mDialogData = dialogData;
+    public InstallConfirmationFragment() {
+        // Required for DialogFragment
+    }
+
+    /**
+     * Creates a new instance of this fragment with necessary data set as fragment arguments
+     *
+     * @param dialogData {@link InstallUserActionRequired} object containing data to display
+     *         in the dialog
+     * @return an instance of the fragment
+     */
+    public static InstallConfirmationFragment newInstance(
+            @NonNull InstallUserActionRequired dialogData) {
+        Bundle args = new Bundle();
+        args.putInt(ARGS_ACTION_REASON, dialogData.getActionReason());
+        args.putParcelable(ARGS_APP_SNIPPET, dialogData.getAppSnippet());
+        args.putBoolean(ARGS_IS_UPDATING, dialogData.isAppUpdating());
+        args.putString(ARGS_SOURCE_APP, dialogData.getSourceApp());
+
+        InstallConfirmationFragment fragment = new InstallConfirmationFragment();
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @Override
@@ -59,6 +86,8 @@ public class InstallConfirmationFragment extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+        setDialogData(requireArguments());
+
         Log.i(LOG_TAG, "Creating " + LOG_TAG + "\n" + mDialogData);
         View dialogView = getLayoutInflater().inflate(R.layout.install_content_view, null);
 
@@ -126,5 +155,15 @@ public class InstallConfirmationFragment extends DialogFragment {
     public void onResume() {
         super.onResume();
         mDialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(true);
+    }
+
+    private void setDialogData(Bundle args) {
+        int actionReason = args.getInt(ARGS_ACTION_REASON);
+        AppSnippet appSnippet = args.getParcelable(ARGS_APP_SNIPPET, AppSnippet.class);
+        boolean isUpdating = args.getBoolean(ARGS_IS_UPDATING);
+        String sourceApp = args.getString(ARGS_SOURCE_APP);
+
+        mDialogData = new InstallUserActionRequired(actionReason, appSnippet, isUpdating,
+                sourceApp);
     }
 }

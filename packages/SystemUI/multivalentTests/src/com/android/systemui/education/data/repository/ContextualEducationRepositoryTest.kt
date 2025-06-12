@@ -26,9 +26,9 @@ import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.education.data.model.EduDeviceConnectionTime
 import com.android.systemui.education.data.model.GestureEduModel
 import com.android.systemui.education.domain.interactor.mockEduInputManager
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import javax.inject.Provider
@@ -36,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -43,10 +44,11 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
+@Ignore("b/384284415")
 class ContextualEducationRepositoryTest : SysuiTestCase() {
 
     private lateinit var underTest: UserContextualEducationRepository
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val dsScopeProvider: Provider<CoroutineScope> = Provider {
         TestScope(kosmos.testDispatcher).backgroundScope
@@ -68,7 +70,7 @@ class ContextualEducationRepositoryTest : SysuiTestCase() {
                 testContext,
                 dsScopeProvider,
                 kosmos.mockEduInputManager,
-                kosmos.testDispatcher
+                kosmos.testDispatcher,
             )
         underTest.setUser(testUserId)
     }
@@ -107,7 +109,7 @@ class ContextualEducationRepositoryTest : SysuiTestCase() {
                     lastEducationTime = kosmos.fakeEduClock.instant(),
                     usageSessionStartTime = kosmos.fakeEduClock.instant(),
                     userId = testUserId,
-                    gestureType = BACK
+                    gestureType = BACK,
                 )
             underTest.updateGestureEduModel(BACK) { newModel }
             val model by collectLastValue(underTest.readGestureEduModelFlow(BACK))

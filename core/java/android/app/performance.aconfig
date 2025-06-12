@@ -32,7 +32,7 @@ flag {
      name: "pic_isolated_cache_statistics"
      is_fixed_read_only: true
      description: "Collects statistics for cache UID isolation strategies"
-     bug: "373752556"
+     bug: "379098894"
 }
 
 flag {
@@ -49,4 +49,11 @@ flag {
      is_fixed_read_only: true
      description: "Cache null returns from binder calls"
      bug: "372923336"
+}
+
+flag {
+     namespace: "system_performance"
+     name: "pic_test_mode"
+     description: "Updated test mode for PIC"
+     bug: "396173886"
 }

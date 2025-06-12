@@ -44,6 +44,8 @@ class FakeSceneDataSource(initialSceneKey: SceneKey, val testScope: TestScope) :
     var pendingOverlays: Set<OverlayKey>? = null
         private set
 
+    var freezeAndAnimateToCurrentStateCallCount = 0
+
     override fun changeScene(toScene: SceneKey, transitionKey: TransitionKey?) {
         if (_isPaused) {
             _pendingScene = toScene
@@ -77,6 +79,18 @@ class FakeSceneDataSource(initialSceneKey: SceneKey, val testScope: TestScope) :
         showOverlay(to, transitionKey)
     }
 
+    override fun instantlyShowOverlay(overlay: OverlayKey) {
+        showOverlay(overlay)
+    }
+
+    override fun instantlyHideOverlay(overlay: OverlayKey) {
+        hideOverlay(overlay)
+    }
+
+    override fun freezeAndAnimateToCurrentState() {
+        freezeAndAnimateToCurrentStateCallCount++
+    }
+
     /**
      * Pauses scene and overlay changes.
      *
@@ -101,8 +115,14 @@ class FakeSceneDataSource(initialSceneKey: SceneKey, val testScope: TestScope) :
      * If [force] is `true`, there will be no check that [isPaused] is true.
      *
      * If [expectedScene] is provided, will assert that it's indeed the latest called.
+     *
+     * If [expectedOverlays] is provided, will assert they are indeed present.
      */
-    fun unpause(force: Boolean = false, expectedScene: SceneKey? = null) {
+    fun unpause(
+        force: Boolean = false,
+        expectedScene: SceneKey? = null,
+        expectedOverlays: Set<OverlayKey>? = null,
+    ) {
         check(force || _isPaused) { "Can't unpause what's already not paused!" }
 
         _isPaused = false
@@ -114,9 +134,12 @@ class FakeSceneDataSource(initialSceneKey: SceneKey, val testScope: TestScope) :
         check(expectedScene == null || currentScene.value == expectedScene) {
             """
                 Unexpected scene while unpausing.
-                Expected $expectedScene but was $currentScene.
+                Expected $expectedScene but was ${currentScene.value}.
             """
                 .trimIndent()
+        }
+        check(expectedOverlays == null || expectedOverlays == currentOverlays.value) {
+            "Expected $expectedOverlays, but instead found overlays ${currentOverlays.value}."
         }
     }
 }

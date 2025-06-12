@@ -19,7 +19,7 @@ package com.android.internal.os;
 import static org.junit.Assert.assertTrue;
 
 import android.os.Debug;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
@@ -28,7 +28,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 @SmallTest
-@IgnoreUnderRavenwood(reason = "Requires ART support")
+@DisabledOnRavenwood(reason = "Requires ART support")
 public class DebugTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

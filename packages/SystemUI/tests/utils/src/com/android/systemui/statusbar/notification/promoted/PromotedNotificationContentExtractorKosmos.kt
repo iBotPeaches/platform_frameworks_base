@@ -16,14 +16,34 @@
 
 package com.android.systemui.statusbar.notification.promoted
 
+import android.app.Notification
 import android.content.applicationContext
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.statusbar.NotificationLockscreenUserManager.REDACTION_TYPE_PUBLIC
+import com.android.systemui.statusbar.notification.collection.NotificationEntry
+import com.android.systemui.statusbar.notification.row.RowImageInflater
+import com.android.systemui.statusbar.notification.row.shared.skeletonImageTransform
+import com.android.systemui.util.time.systemClock
 
 var Kosmos.promotedNotificationContentExtractor by
     Kosmos.Fixture {
-        PromotedNotificationContentExtractor(
-            promotedNotificationsProvider,
+        PromotedNotificationContentExtractorImpl(
             applicationContext,
+            skeletonImageTransform,
+            systemClock,
             promotedNotificationLogger,
         )
     }
+
+fun Kosmos.setPromotedContent(entry: NotificationEntry) {
+    val extractedContent =
+        promotedNotificationContentExtractor.extractContent(
+            entry,
+            Notification.Builder.recoverBuilder(applicationContext, entry.sbn.notification),
+            REDACTION_TYPE_PUBLIC,
+            RowImageInflater.newInstance(previousIndex = null, reinflating = false)
+                .useForContentModel(),
+        )
+    entry.promotedNotificationContentModels =
+        requireNotNull(extractedContent) { "extractContent returned null" }
+}

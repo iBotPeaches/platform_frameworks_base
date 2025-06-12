@@ -60,6 +60,10 @@ public:
         return 0;
     }
 
+    int get() const {
+        return 0;
+    }
+
     inline Status getStatus() {
         // The sync_wait call underlying wait() has been measured to be
         // significantly faster than the sync_fence_info call underlying

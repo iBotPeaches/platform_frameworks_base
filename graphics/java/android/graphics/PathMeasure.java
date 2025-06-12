@@ -16,6 +16,7 @@
 
 package android.graphics;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class PathMeasure {
     private Path mPath;
 

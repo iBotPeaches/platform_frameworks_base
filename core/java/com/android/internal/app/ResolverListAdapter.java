@@ -680,6 +680,10 @@ public class ResolverListAdapter extends BaseAdapter {
         }
     }
 
+    protected void onIconLoaded(DisplayResolveInfo info) {
+        notifyDataSetChanged();
+    }
+
     private void loadLabel(DisplayResolveInfo info) {
         LoadLabelTask task = mLabelLoaders.get(info);
         if (task == null) {
@@ -747,8 +751,7 @@ public class ResolverListAdapter extends BaseAdapter {
     Drawable loadIconForResolveInfo(ResolveInfo ri) {
         // Load icons based on userHandle from ResolveInfo. If in work profile/clone profile, icons
         // should be badged.
-        return makePresentationGetter(ri)
-                .getIcon(ResolverActivity.getResolveInfoUserHandle(ri, getUserHandle()));
+        return makePresentationGetter(ri).getIcon(ri.userHandle);
     }
 
     void loadFilteredItemIconTaskAsync(@NonNull ImageView iconView) {
@@ -1005,7 +1008,7 @@ public class ResolverListAdapter extends BaseAdapter {
                 mResolverListCommunicator.updateProfileViewButton();
             } else if (!mDisplayResolveInfo.hasDisplayIcon()) {
                 mDisplayResolveInfo.setDisplayIcon(d);
-                notifyDataSetChanged();
+                onIconLoaded(mDisplayResolveInfo);
             }
         }
     }

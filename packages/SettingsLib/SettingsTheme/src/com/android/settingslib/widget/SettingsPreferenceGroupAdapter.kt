@@ -47,7 +47,7 @@ open class SettingsPreferenceGroupAdapter(preferenceGroup: PreferenceGroup) :
 
     private val mHandler = Handler(Looper.getMainLooper())
 
-    private val syncRunnable = Runnable { updatePreferences() }
+    private val syncRunnable = Runnable { updatePreferencesList() }
 
     init {
         val context = preferenceGroup.context
@@ -64,25 +64,34 @@ open class SettingsPreferenceGroupAdapter(preferenceGroup: PreferenceGroup) :
             true, /* resolveRefs */
         )
         mLegacyBackgroundRes = outValue.resourceId
-        updatePreferences()
+        updatePreferencesList()
     }
 
     @SuppressLint("RestrictedApi")
     override fun onPreferenceHierarchyChange(preference: Preference) {
         super.onPreferenceHierarchyChange(preference)
 
-        // Post after super class has posted their sync runnable to update preferences.
-        mHandler.removeCallbacks(syncRunnable)
-        mHandler.post(syncRunnable)
+        if (SettingsThemeHelper.isExpressiveTheme(preference.context)) {
+            // Post after super class has posted their sync runnable to update preferences.
+            mHandler.removeCallbacks(syncRunnable)
+            mHandler.post(syncRunnable)
+        }
     }
 
     @SuppressLint("RestrictedApi")
     override fun onBindViewHolder(holder: PreferenceViewHolder, position: Int) {
         super.onBindViewHolder(holder, position)
-        updateBackground(holder, position)
+
+        if (SettingsThemeHelper.isExpressiveTheme(holder.itemView.context)) {
+            updateBackground(holder, position)
+        }
     }
 
-    private fun updatePreferences() {
+    private fun updatePreferencesList() {
+        if (!SettingsThemeHelper.isExpressiveTheme(mPreferenceGroup.context)) {
+            return
+        }
+
         val oldList = ArrayList(mRoundCornerMappingList)
         mRoundCornerMappingList = ArrayList()
         mappingPreferenceGroup(mRoundCornerMappingList, mPreferenceGroup)
@@ -177,12 +186,30 @@ open class SettingsPreferenceGroupAdapter(preferenceGroup: PreferenceGroup) :
         val v = holder.itemView
         // Update padding
         if (SettingsThemeHelper.isExpressiveTheme(context)) {
-            val paddingStart = if (backgroundRes == 0) mNormalPaddingStart else mGroupPaddingStart
-            val paddingEnd = if (backgroundRes == 0) mNormalPaddingEnd else mGroupPaddingEnd
+            val (paddingStart, paddingEnd) = getStartEndPadding(position, backgroundRes)
             v.setPaddingRelative(paddingStart, v.paddingTop, paddingEnd, v.paddingBottom)
+            v.clipToOutline = backgroundRes != 0
         }
         // Update background
         v.setBackgroundResource(backgroundRes)
+    }
+
+    private fun getStartEndPadding(position: Int, backgroundRes: Int): Pair<Int, Int> {
+        val item = getItem(position)
+        return when {
+            // This item handles edge to edge itself
+            item is NormalPaddingMixin && item is GroupSectionDividerMixin -> 0 to 0
+
+            // According to mappingPreferenceGroup(), backgroundRes == 0 means this item is
+            // GroupSectionDividerMixin or PreferenceCategory, which is design to have normal
+            // padding.
+            // NormalPaddingMixin items are also designed to have normal padding.
+            backgroundRes == 0 || item is NormalPaddingMixin ->
+                mNormalPaddingStart to mNormalPaddingEnd
+
+            // Other items are suppose to have group padding.
+            else -> mGroupPaddingStart to mGroupPaddingEnd
+        }
     }
 
     @DrawableRes

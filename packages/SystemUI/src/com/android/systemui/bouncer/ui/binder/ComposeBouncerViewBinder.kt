@@ -6,11 +6,12 @@ import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.bouncer.domain.interactor.PrimaryBouncerInteractor
 import com.android.systemui.bouncer.ui.BouncerDialogFactory
 import com.android.systemui.bouncer.ui.composable.BouncerContainer
 import com.android.systemui.bouncer.ui.viewmodel.BouncerContainerViewModel
-import com.android.systemui.bouncer.ui.viewmodel.BouncerSceneContentViewModel
+import com.android.systemui.bouncer.ui.viewmodel.BouncerOverlayContentViewModel
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.lifecycle.WindowLifecycleState
 import com.android.systemui.lifecycle.repeatWhenAttached
@@ -20,7 +21,6 @@ import com.android.systemui.util.kotlin.sample
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /** View binder responsible for binding the compose version of the bouncer. */
 object ComposeBouncerViewBinder {
@@ -32,7 +32,7 @@ object ComposeBouncerViewBinder {
         legacyInteractor: PrimaryBouncerInteractor,
         keyguardInteractor: KeyguardInteractor,
         selectedUserInteractor: SelectedUserInteractor,
-        viewModelFactory: BouncerSceneContentViewModel.Factory,
+        viewModelFactory: BouncerOverlayContentViewModel.Factory,
         dialogFactory: BouncerDialogFactory,
         bouncerContainerViewModelFactory: BouncerContainerViewModel.Factory,
     ) {

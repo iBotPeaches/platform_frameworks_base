@@ -15,27 +15,30 @@
  */
 package com.android.keyguard
 
+import android.annotation.SuppressLint
 import android.os.PowerManager
 import android.os.SystemClock
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.UiBackground
 import java.util.concurrent.Executor
 import javax.inject.Inject
 
 /** Wrapper class for notifying the system about user activity in the background. */
+@SysUISingleton
 class UserActivityNotifier
 @Inject
 constructor(
     @UiBackground private val uiBgExecutor: Executor,
-    private val powerManager: PowerManager
+    private val powerManager: PowerManager,
 ) {
 
-    fun notifyUserActivity() {
-        uiBgExecutor.execute {
-            powerManager.userActivity(
-                SystemClock.uptimeMillis(),
-                PowerManager.USER_ACTIVITY_EVENT_OTHER,
-                0
-            )
-        }
+    @SuppressLint("MissingPermission")
+    @JvmOverloads
+    fun notifyUserActivity(
+        timeOfActivity: Long = SystemClock.uptimeMillis(),
+        event: Int = PowerManager.USER_ACTIVITY_EVENT_OTHER,
+        flags: Int = 0,
+    ) {
+        uiBgExecutor.execute { powerManager.userActivity(timeOfActivity, event, flags) }
     }
 }

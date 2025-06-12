@@ -56,6 +56,11 @@
     <item msgid="5376619709702103243">"ବନ୍ଦ ଅଛି"</item>
     <item msgid="4875147066469902392">"ଚାଲୁ ଅଛି"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"ଅନୁପଲବ୍ଧ"</item>
+    <item msgid="8589336868985358191">"ବନ୍ଦ ଅଛି"</item>
+    <item msgid="726072717827778234">"ଚାଲୁ ଅଛି"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"ଉପଲବ୍ଧ ନାହିଁ"</item>
     <item msgid="5044688398303285224">"ବନ୍ଦ ଅଛି"</item>
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"ଅନୁପଲବ୍ଧ"</item>
     <item msgid="6419996398343291862">"ବନ୍ଦ ଅଛି"</item>
     <item msgid="5908720590832378783">"ଚାଲୁ ଅଛି"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"ଅନୁପଲବ୍ଧ"</item>
+    <item msgid="6641673879029894995">"ବନ୍ଦ ଅଛି"</item>
+    <item msgid="5806682401126108403">"ଚାଲୁ ଅଛି"</item>
   </string-array>
 </resources>

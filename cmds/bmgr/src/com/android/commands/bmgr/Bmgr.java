@@ -18,6 +18,7 @@ package com.android.commands.bmgr;
 
 import android.annotation.IntDef;
 import android.annotation.UserIdInt;
+import android.app.ActivityManager;
 import android.app.backup.BackupManager;
 import android.app.backup.BackupManagerMonitor;
 import android.app.backup.BackupProgress;
@@ -73,6 +74,8 @@ public class Bmgr {
             "Error: Could not access the backup transport.  Is the system running?";
     private static final String PM_NOT_RUNNING_ERR =
             "Error: Could not access the Package Manager.  Is the system running?";
+    private static final String INVALID_USER_ID_ERR_TEMPLATE =
+            "Error: Invalid user id (%d).\n";
 
     private String[] mArgs;
     private int mNextArg;
@@ -104,6 +107,11 @@ public class Bmgr {
         mArgs = args;
         mNextArg = 0;
         int userId = parseUserId();
+        if (userId < 0) {
+            System.err.printf(INVALID_USER_ID_ERR_TEMPLATE, userId);
+            return;
+        }
+
         String op = nextArg();
         Slog.v(TAG, "Running " + op + " for user:" + userId);
 
@@ -955,12 +963,15 @@ public class Bmgr {
 
     private int parseUserId() {
         String arg = nextArg();
-        if ("--user".equals(arg)) {
-            return UserHandle.parseUserArg(nextArg());
-        } else {
+        if (!"--user".equals(arg)) {
             mNextArg--;
             return UserHandle.USER_SYSTEM;
         }
+        int userId = UserHandle.parseUserArg(nextArg());
+        if (userId == UserHandle.USER_CURRENT) {
+            userId = ActivityManager.getCurrentUser();
+        }
+        return userId;
     }
 
     private static void showUsage() {
@@ -1126,6 +1137,10 @@ public class Bmgr {
 
                 }
                 out.append("]");
+            }
+            if (event.containsKey(BackupManagerMonitor.EXTRA_LOG_CANCELLATION_REASON)) {
+                out.append(" cancellationReason: ");
+                out.append(event.getInt(BackupManagerMonitor.EXTRA_LOG_CANCELLATION_REASON));
             }
             if (mVerbose) {
                 Set<String> remainingKeys = new ArraySet<>(event.keySet());
@@ -1298,6 +1313,8 @@ public class Bmgr {
                 return "AGENT_FAILURE_DURING_RESTORE";
             case BackupManagerMonitor.LOG_EVENT_ID_FAILED_TO_READ_DATA_FROM_TRANSPORT:
                 return "FAILED_TO_READ_DATA_FROM_TRANSPORT";
+            case BackupManagerMonitor.LOG_EVENT_ID_FULL_BACKUP_AGENT_PIPE_BROKEN:
+                return "LOG_EVENT_ID_FULL_BACKUP_AGENT_PIPE_BROKEN";
             default:
                 return "UNKNOWN_ID";
         }

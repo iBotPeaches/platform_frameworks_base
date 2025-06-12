@@ -30,21 +30,27 @@ import static com.android.wm.shell.bubbles.bar.BubbleBarExpandedView.TASK_VIEW_A
 import static com.android.wm.shell.shared.animation.Interpolators.EMPHASIZED;
 import static com.android.wm.shell.shared.animation.Interpolators.EMPHASIZED_DECELERATE;
 
+import static java.lang.Math.max;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.annotation.NonNull;
 import android.content.Context;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.util.Log;
 import android.util.Size;
+import android.view.SurfaceControl;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
 
 import com.android.app.animation.Interpolators;
 import com.android.wm.shell.R;
+import com.android.wm.shell.animation.SizeChangeAnimation;
+import com.android.wm.shell.bubbles.Bubble;
 import com.android.wm.shell.bubbles.BubbleOverflow;
 import com.android.wm.shell.bubbles.BubblePositioner;
 import com.android.wm.shell.bubbles.BubbleViewProvider;
@@ -375,7 +381,6 @@ public class BubbleBarAnimationHelper {
         return animator;
     }
 
-
     /**
      * Animate the expanded bubble when it is being dragged
      */
@@ -463,6 +468,7 @@ public class BubbleBarAnimationHelper {
                 super.onAnimationEnd(animation);
                 bbev.resetPivot();
                 bbev.setDragging(false);
+                updateExpandedView(bbev);
             }
         });
         startNewAnimator(animatorSet);
@@ -569,6 +575,51 @@ public class BubbleBarAnimationHelper {
     }
 
     /**
+     * Animates converting of a non-bubble task into an expanded bubble view.
+     */
+    public void animateConvert(BubbleViewProvider expandedBubble,
+            @NonNull SurfaceControl.Transaction startT,
+            @NonNull Rect origBounds,
+            float origScale,
+            @NonNull SurfaceControl snapshot,
+            @NonNull SurfaceControl taskLeash,
+            @Nullable Runnable afterAnimation) {
+        mExpandedBubble = expandedBubble;
+        final BubbleBarExpandedView bbev = getExpandedView();
+        if (bbev == null) {
+            return;
+        }
+
+        bbev.setTaskViewAlpha(1f);
+        SurfaceControl tvSf = ((Bubble) mExpandedBubble).getTaskView().getSurfaceControl();
+
+        final Size size = getExpandedViewSize();
+        Point position = getExpandedViewRestPosition(size);
+
+        Rect startBounds = new Rect(origBounds.left - position.x, origBounds.top - position.y,
+                origBounds.right - position.x, origBounds.bottom - position.y);
+        Rect endBounds = new Rect(0, 0, size.getWidth(), size.getHeight());
+        final SizeChangeAnimation sca = new SizeChangeAnimation(startBounds, endBounds,
+                origScale, /* scaleFactor= */ 1f);
+        sca.initialize(bbev, taskLeash, snapshot, startT);
+
+        Animator a = sca.buildViewAnimator(bbev, tvSf, snapshot, /* onFinish */ (va) -> {
+            updateExpandedView(bbev);
+            snapshot.release();
+            bbev.setSurfaceZOrderedOnTop(false);
+            bbev.setAnimating(false);
+            if (afterAnimation != null) {
+                afterAnimation.run();
+            }
+        });
+
+        bbev.setSurfaceZOrderedOnTop(true);
+        a.setDuration(EXPANDED_VIEW_ANIMATE_TO_REST_DURATION);
+        a.setInterpolator(EMPHASIZED);
+        a.start();
+    }
+
+    /**
      * Cancel current animations
      */
     public void cancelAnimations() {
@@ -583,6 +634,18 @@ public class BubbleBarAnimationHelper {
             }
             mRunningAnimator = null;
         }
+    }
+
+    /** Handles IME position changes. */
+    public void onImeTopChanged(int imeTop) {
+        BubbleBarExpandedView bbev = getExpandedView();
+        if (bbev == null) {
+            Log.w(TAG, "Bubble bar expanded view was null when IME top changed");
+            return;
+        }
+        int bbevBottom = bbev.getContentBottomOnScreen();
+        int clip = max(bbevBottom - imeTop, 0);
+        bbev.updateBottomClip(clip);
     }
 
     private @Nullable BubbleBarExpandedView getExpandedView() {
@@ -611,6 +674,13 @@ public class BubbleBarAnimationHelper {
         bbev.setScaleY(1f);
         bbev.updateLocation();
         bbev.maybeShowOverflow();
+    }
+
+    void getExpandedViewRestBounds(Rect out) {
+        final int width = mPositioner.getExpandedViewWidthForBubbleBar(false /* overflow */);
+        final int height = mPositioner.getExpandedViewHeightForBubbleBar(false /* overflow */);
+        Point position = getExpandedViewRestPosition(new Size(width, height));
+        out.set(position.x, position.y, position.x + width, position.y + height);
     }
 
     private Point getExpandedViewRestPosition(Size size) {

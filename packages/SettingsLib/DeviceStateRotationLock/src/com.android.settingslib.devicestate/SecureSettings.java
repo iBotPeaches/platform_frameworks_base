@@ -19,7 +19,7 @@ package com.android.settingslib.devicestate;
 import android.database.ContentObserver;
 
 /** Minimal wrapper interface around {@link android.provider.Settings.Secure} for easier testing. */
-interface SecureSettings {
+public interface SecureSettings {
 
     void putStringForUser(String name, String value, int userHandle);
 

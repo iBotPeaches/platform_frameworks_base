@@ -42,6 +42,7 @@ import android.os.SystemProperties;
 import android.os.Trace;
 import android.provider.FontRequest;
 import android.provider.FontsContract;
+import android.ravenwood.annotation.RavenwoodReplace;
 import android.system.ErrnoException;
 import android.system.OsConstants;
 import android.text.FontConfig;
@@ -79,6 +80,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * The Typeface class specifies the typeface and intrinsic style of a font.
@@ -86,6 +88,7 @@ import java.util.Objects;
  * textSize, textSkewX, textScaleX to specify
  * how text appears when drawn (and measured).
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Typeface {
 
     private static String TAG = "Typeface";
@@ -93,9 +96,11 @@ public class Typeface {
     /** @hide */
     public static final boolean ENABLE_LAZY_TYPEFACE_INITIALIZATION = true;
 
-    private static final NativeAllocationRegistry sRegistry =
-            NativeAllocationRegistry.createMalloced(
-            Typeface.class.getClassLoader(), nativeGetReleaseFunc());
+    private static class NoImagePreloadHolder {
+        static final NativeAllocationRegistry sRegistry =
+                NativeAllocationRegistry.createMalloced(
+                        Typeface.class.getClassLoader(), nativeGetReleaseFunc());
+    }
 
     /** The default NORMAL typeface object */
     public static final Typeface DEFAULT = null;
@@ -237,6 +242,8 @@ public class Typeface {
 
     private @IntRange(from = 0, to = FontStyle.FONT_WEIGHT_MAX) final int mWeight;
 
+    private boolean mIsVariationInstance;
+
     // Value for weight and italic. Indicates the value is resolved by font metadata.
     // Must be the same as the C++ constant in core/jni/android/graphics/FontFamily.cpp
     /** @hide */
@@ -277,6 +284,11 @@ public class Typeface {
     /** Returns the typeface's weight value */
     public @IntRange(from = 0, to = 1000) int getWeight() {
         return mWeight;
+    }
+
+    /** @hide */
+    public boolean isVariationInstance() {
+        return mIsVariationInstance;
     }
 
     /** Returns the typeface's intrinsic style attributes */
@@ -1277,9 +1289,10 @@ public class Typeface {
         }
 
         native_instance = ni;
-        mCleaner = sRegistry.registerNativeAllocation(this, native_instance);
+        mCleaner = NoImagePreloadHolder.sRegistry.registerNativeAllocation(this, native_instance);
         mStyle = nativeGetStyle(ni);
         mWeight = nativeGetWeight(ni);
+        mIsVariationInstance = nativeIsVariationInstance(ni);
         mSystemFontFamilyName = systemFontFamilyName;
         mDerivedFrom = derivedFrom;
     }
@@ -1538,23 +1551,44 @@ public class Typeface {
             setDefault(defaults.get(0));
 
             ArrayList<Typeface> oldGenerics = new ArrayList<>();
-            oldGenerics.add(sSystemFontMap.get("sans-serif"));
-            sSystemFontMap.put("sans-serif", genericFamilies.get(0));
+            BiConsumer<Typeface, String> swapTypeface = (typeface, key) -> {
+                oldGenerics.add(sSystemFontMap.get(key));
+                sSystemFontMap.put(key, typeface);
+            };
 
-            oldGenerics.add(sSystemFontMap.get("serif"));
-            sSystemFontMap.put("serif", genericFamilies.get(1));
+            Typeface sansSerif = genericFamilies.get(0);
+            swapTypeface.accept(sansSerif, "sans-serif");
+            swapTypeface.accept(Typeface.create(sansSerif, 100, false), "sans-serif-thin");
+            swapTypeface.accept(Typeface.create(sansSerif, 300, false), "sans-serif-light");
+            swapTypeface.accept(Typeface.create(sansSerif, 500, false), "sans-serif-medium");
+            swapTypeface.accept(Typeface.create(sansSerif, 700, false), "sans-serif-bold");
+            swapTypeface.accept(Typeface.create(sansSerif, 900, false), "sans-serif-black");
 
-            oldGenerics.add(sSystemFontMap.get("monospace"));
-            sSystemFontMap.put("monospace", genericFamilies.get(2));
+            swapTypeface.accept(genericFamilies.get(1), "serif");
+            swapTypeface.accept(genericFamilies.get(2), "monospace");
 
             return new Pair<>(oldDefaults, oldGenerics);
         }
     }
 
     static {
+        staticInitializer();
+    }
+
+    @RavenwoodReplace(reason = "Prevent circular reference on host side JVM", bug = 337329128)
+    private static void staticInitializer() {
+        init();
+    }
+
+    private static void staticInitializer$ravenwood() {
+        /* no-op */
+    }
+
+    /** @hide */
+    public static void init() {
         // Preload Roboto-Regular.ttf in Zygote for improving app launch performance.
-        preloadFontFile("/system/fonts/Roboto-Regular.ttf");
-        preloadFontFile("/system/fonts/RobotoStatic-Regular.ttf");
+        preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "Roboto-Regular.ttf");
+        preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "RobotoStatic-Regular.ttf");
 
         String locale = SystemProperties.get("persist.sys.locale", "en-US");
         String script = ULocale.addLikelySubtags(ULocale.forLanguageTag(locale)).getScript();
@@ -1634,6 +1668,21 @@ public class Typeface {
         setSystemFontMap(typefaceMap);
     }
 
+    /**
+     * {@link #loadPreinstalledSystemFontMap()} does not actually initialize the native
+     * system font APIs. Add a new method to actually load the font files without going
+     * through SharedMemory.
+     *
+     * @hide
+     */
+    public static void loadNativeSystemFonts() {
+        synchronized (SYSTEM_FONT_MAP_LOCK) {
+            for (var type : sSystemFontMap.values()) {
+                nativeAddFontCollections(type.native_instance);
+            }
+        }
+    }
+
     static {
         if (!ENABLE_LAZY_TYPEFACE_INITIALIZATION) {
             loadPreinstalledSystemFontMap();
@@ -1696,6 +1745,9 @@ public class Typeface {
 
     @CriticalNative
     private static native int  nativeGetWeight(long nativePtr);
+
+    @CriticalNative
+    private static native boolean nativeIsVariationInstance(long nativePtr);
 
     @CriticalNative
     private static native long nativeGetReleaseFunc();

@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Inatumika (kushoto pekee)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Inatumika (kulia pekee)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Inatumika (kushoto na kulia)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Imeshindwa kusasisha mazingira"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Inatumika (maudhui pekee). Chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Inatumika (maudhui pekee), Kushoto: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Kulia: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Kifaa kingeni. Chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Kifaa kingeni. Kushoto: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Kulia: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Kifaa kingeni (sauti/video/picha pekee). Chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Kifaa kingeni (sauti/video/picha pekee). Kushoto: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Kulia: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Imeunganishwa (inaweza kutumia kipengele cha kusikiliza pamoja). Chaji imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Imeunganishwa (inaweza kutumia kipengele cha kusikiliza pamoja). Kushoto: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Kulia: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Imeunganishwa (inaweza kutumia kipengele cha kusikiliza pamoja). Kushoto: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Imeunganishwa (inaweza kutumia kipengele cha kusikiliza pamoja). Kulia: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Imeunganishwa (inaweza kusikiliza pamoja)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Kifaa kingeni (kinatumia kipengele cha kusikiliza pamoja). Chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Kifaa kingeni (kinatumia kipengele cha kusikiliza pamoja). Kushoto: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Kulia: chaji ya betri imefika <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Kifaa kingeni (kinatumia kipengele cha kusikiliza pamoja)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Inatumika (maudhui pekee)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Kifaa kingeni"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Kifaa kingeni (sauti/video/picha pekee)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Inaweza kutumia kipengele cha kusikiliza pamoja"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Kifaa kingeni. Kinatumia kipengele cha kusikiliza pamoja"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Inatumika (maudhui pekee), kushoto pekee"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Inatumika (maudhui pekee), kulia pekee"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Inatumika (maudhui pekee), kushoto na kulia"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Utekelezaji wa maunzi ulioharakishwa"</string>
     <string name="media_category" msgid="8122076702526144053">"Maudhui"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Ufuatiliaji"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Udhibiti wa Dirisha"</string>
     <string name="strict_mode" msgid="889864762140862437">"Hali makinifu imewashwa"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Fanya skrini imemeteke programu zinapoendeleza shughuli ndefu kwenye skrini kuu"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Mahali pa kiashiria"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Mageuzi ya kipimo cha uhuishaji"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Mizani ya muda wa uhuishaji"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Iga maonyesho mbadala"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Nafasi ya kiwango kwenye skrini"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Programu"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Usihifadhi shughuli"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Haribu kila shughuli pindi tu mtumiaji anapoondoka"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Utekelezaji wa WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Weka utekelezaji wa WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Chaguo hili halipo tena. Jaribu tena."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Zana za Wasanidi Programu za Mwonekano wa Wavuti"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Haijapata kifurushi cha Mwonekano wa Wavuti."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Imeshindwa kuwasha Zana za Wasanidi Programu."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Hali ya rangi ya picha"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Tumia sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Imezimwa"</string>
@@ -521,10 +537,12 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Inachaji kwa kasi"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Imedhibitiwa na msimamizi"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Imedhibitiwa na Mpangilio wenye Mipaka"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Haipatikani wakati unaongea kwa simu"</string>
     <string name="disabled" msgid="8017887509554714950">"Imezimwa"</string>
+    <string name="enabled" msgid="3997122818554810678">"Imewashwa"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Imeruhusiwa"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Hairuhusiwi"</string>
-    <string name="install_other_apps" msgid="3232595082023199454">"Kusakinisha programu zisizojulikana"</string>
+    <string name="install_other_apps" msgid="3232595082023199454">"Kuweka programu zisizojulikana"</string>
     <string name="home" msgid="973834627243661438">"Ukurasa wa Kwanza wa Mipangilio"</string>
   <string-array name="battery_labels">
     <item msgid="7878690469765357158">"0%"</item>
@@ -556,7 +574,7 @@
     <string name="wifi_tether_connected_summary" msgid="5100712926640492336">"{count,plural, =1{Kifaa 1 kimeunganishwa}other{Vifaa # vimeunganishwa}}"</string>
     <string name="accessibility_manual_zen_more_time" msgid="5141801092071134235">"Muda zaidi."</string>
     <string name="accessibility_manual_zen_less_time" msgid="6828877595848229965">"Muda kidogo."</string>
-    <string name="cancel" msgid="5665114069455378395">"Ghairi"</string>
+    <string name="cancel" msgid="5665114069455378395">"Acha"</string>
     <string name="next" msgid="2699398661093607009">"Endelea"</string>
     <string name="back" msgid="5554327870352703710">"Rudi nyuma"</string>
     <string name="save" msgid="3745809743277153149">"Hifadhi"</string>
@@ -606,9 +624,10 @@
     <string name="tv_media_transfer_earc_fallback_title" msgid="3098685494578519940">"HDMI eARC"</string>
     <string name="tv_media_transfer_arc_subtitle" msgid="1040017851325069082">"Imeunganishwa kupitia ARC"</string>
     <string name="tv_media_transfer_earc_subtitle" msgid="645191413103303077">"Imeunganishwa kupitia eARC"</string>
-    <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Spika iliyojumuishwa ndani"</string>
+    <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Spika iliyojumuishwa"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Sauti ya Televisheni"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Kuna tatizo la kuunganisha kwenye Intaneti. Zima kisha uwashe kifaa"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Imeshindwa kuunganisha"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Kifaa cha sauti kinachotumia waya"</string>
     <string name="help_label" msgid="3528360748637781274">"Usaidizi na maoni"</string>
     <string name="storage_category" msgid="2287342585424631813">"Hifadhi"</string>

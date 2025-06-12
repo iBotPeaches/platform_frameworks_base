@@ -40,6 +40,7 @@ import static com.android.server.pm.AppsFilterUtils.canQueryViaUsesLibrary;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.app.ApplicationPackageManager;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManagerInternal;
 import android.content.pm.SigningDetails;
@@ -173,6 +174,10 @@ public final class AppsFilterImpl extends AppsFilterLocked implements Watchable,
      * Report a change to observers.
      */
     private void onChanged() {
+        // App visibility may have changed, which means that earlier fetches from these caches may
+        // be invalid.
+        PackageManager.invalidatePackageInfoCache();
+        ApplicationPackageManager.invalidateGetPackagesForUidCache();
         dispatchChange(this);
     }
 

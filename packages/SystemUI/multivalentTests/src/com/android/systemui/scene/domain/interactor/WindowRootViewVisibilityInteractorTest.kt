@@ -25,7 +25,6 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
 import com.android.systemui.keyguard.shared.model.StatusBarState
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAwakeForTest
@@ -34,10 +33,11 @@ import com.android.systemui.scene.data.repository.WindowRootViewVisibilityReposi
 import com.android.systemui.statusbar.NotificationPresenter
 import com.android.systemui.statusbar.notification.data.repository.activeNotificationListRepository
 import com.android.systemui.statusbar.notification.data.repository.setActiveNotifs
-import com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsInteractor
+import com.android.systemui.statusbar.notification.domain.interactor.activeNotificationsInteractor
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
 import com.android.systemui.statusbar.notification.init.NotificationsController
 import com.android.systemui.statusbar.notification.shared.NotificationsLiveDataStoreRefactor
+import com.android.systemui.testKosmos
 import com.android.systemui.util.concurrency.FakeExecutor
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
@@ -57,7 +57,7 @@ import org.mockito.Mockito.verify
 @RunWith(AndroidJUnit4::class)
 class WindowRootViewVisibilityInteractorTest : SysuiTestCase() {
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val testDispatcher = StandardTestDispatcher()
     private val iStatusBarService = mock<IStatusBarService>()
@@ -70,8 +70,7 @@ class WindowRootViewVisibilityInteractorTest : SysuiTestCase() {
     private val notificationsController = mock<NotificationsController>()
     private val powerInteractor = PowerInteractorFactory.create().powerInteractor
     private val activeNotificationsRepository = kosmos.activeNotificationListRepository
-    private val activeNotificationsInteractor =
-        ActiveNotificationsInteractor(activeNotificationsRepository, testDispatcher)
+    private val activeNotificationsInteractor = kosmos.activeNotificationsInteractor
 
     private val underTest =
         WindowRootViewVisibilityInteractor(

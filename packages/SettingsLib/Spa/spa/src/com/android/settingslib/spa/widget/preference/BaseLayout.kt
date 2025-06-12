@@ -87,15 +87,28 @@ internal fun BaseLayout(
 
 @Composable
 internal fun BaseIcon(icon: @Composable (() -> Unit)?, modifier: Modifier, paddingStart: Dp) {
-    if (icon != null) {
-        Box(
-            modifier = modifier.size(SettingsDimension.itemIconContainerSize),
-            contentAlignment = Alignment.Center,
-        ) {
-            icon()
+    if (isSpaExpressiveEnabled) {
+        Spacer(modifier = Modifier.width(width = paddingStart))
+        if (icon != null) {
+            Box(
+                modifier = modifier.size(SettingsDimension.itemIconContainerSizeSmall),
+                contentAlignment = Alignment.Center,
+            ) {
+                icon()
+            }
+            Spacer(modifier = Modifier.width(width = SettingsDimension.paddingExtraSmall6))
         }
     } else {
-        Spacer(modifier = Modifier.width(width = paddingStart))
+        if (icon != null) {
+            Box(
+                modifier = modifier.size(SettingsDimension.itemIconContainerSize),
+                contentAlignment = Alignment.Center,
+            ) {
+                icon()
+            }
+        } else {
+            Spacer(modifier = Modifier.width(width = paddingStart))
+        }
     }
 }
 

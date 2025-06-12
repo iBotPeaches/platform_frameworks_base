@@ -16,9 +16,12 @@
 
 package com.android.systemui.inputdevice.tutorial.ui.composable
 
+import androidx.annotation.ColorInt
 import androidx.annotation.RawRes
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils
 import com.airbnb.lottie.compose.LottieDynamicProperties
 
 data class TutorialScreenConfig(
@@ -30,14 +33,31 @@ data class TutorialScreenConfig(
     data class Colors(
         val background: Color,
         val title: Color,
+        val bodyText: Color,
         val animationColors: LottieDynamicProperties,
-    )
+    ) {
+        constructor(
+            background: Color,
+            title: Color,
+            animationColors: LottieDynamicProperties,
+        ) : this(background, title, textColorOnBackground(background.toArgb()), animationColors)
+
+        companion object {
+            private fun textColorOnBackground(@ColorInt background: Int): Color {
+                val whiteContrast = ColorUtils.calculateContrast(Color.White.toArgb(), background)
+                val blackContrast = ColorUtils.calculateContrast(Color.Black.toArgb(), background)
+                return if (whiteContrast >= blackContrast) Color.White else Color.Black
+            }
+        }
+    }
 
     data class Strings(
         @StringRes val titleResId: Int,
         @StringRes val bodyResId: Int,
         @StringRes val titleSuccessResId: Int,
         @StringRes val bodySuccessResId: Int,
+        @StringRes val titleErrorResId: Int,
+        @StringRes val bodyErrorResId: Int,
     )
 
     data class Animations(@RawRes val educationResId: Int)

@@ -18,6 +18,8 @@ package com.android.internal.protolog;
 
 import android.annotation.NonNull;
 
+import java.io.PrintWriter;
+
 public interface ProtoLogConfigurationService extends IProtoLogConfigurationService {
     /**
      * Get the list of groups clients have registered to the protolog service.
@@ -37,11 +39,11 @@ public interface ProtoLogConfigurationService extends IProtoLogConfigurationServ
      * Enable logging target groups to logcat.
      * @param groups we want to enable logging them to logcat for.
      */
-    void enableProtoLogToLogcat(@NonNull String... groups);
+    void enableProtoLogToLogcat(@NonNull PrintWriter pw, @NonNull String... groups);
 
     /**
      * Disable logging target groups to logcat.
      * @param groups we want to disable from being logged to logcat.
      */
-    void disableProtoLogToLogcat(@NonNull String... groups);
+    void disableProtoLogToLogcat(@NonNull PrintWriter pw, @NonNull String... groups);
 }

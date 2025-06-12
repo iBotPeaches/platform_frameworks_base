@@ -16,6 +16,7 @@
 
 package android.telecom;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.net.Uri;
@@ -24,6 +25,7 @@ import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.telecom.Call.Details.CallDirection;
 
 import com.android.internal.telecom.IVideoProvider;
@@ -70,6 +72,7 @@ public final class ParcelableCall implements Parcelable {
         private String mContactDisplayName;
         private String mActiveChildCallId;
         private Uri mContactPhotoUri;
+        private UserHandle mAssociatedUser;
 
         public ParcelableCallBuilder setId(String id) {
             mId = id;
@@ -230,6 +233,11 @@ public final class ParcelableCall implements Parcelable {
             return this;
         }
 
+        public ParcelableCallBuilder setAssociatedUser(UserHandle user) {
+            mAssociatedUser = user;
+            return this;
+        }
+
         public ParcelableCall createParcelableCall() {
             return new ParcelableCall(
                     mId,
@@ -262,7 +270,8 @@ public final class ParcelableCall implements Parcelable {
                     mCallerNumberVerificationStatus,
                     mContactDisplayName,
                     mActiveChildCallId,
-                    mContactPhotoUri);
+                    mContactPhotoUri,
+                    mAssociatedUser);
         }
 
         public static ParcelableCallBuilder fromParcelableCall(ParcelableCall parcelableCall) {
@@ -300,6 +309,7 @@ public final class ParcelableCall implements Parcelable {
             newBuilder.mContactDisplayName = parcelableCall.mContactDisplayName;
             newBuilder.mActiveChildCallId = parcelableCall.mActiveChildCallId;
             newBuilder.mContactPhotoUri = parcelableCall.mContactPhotoUri;
+            newBuilder.mAssociatedUser = parcelableCall.mAssociatedUser;
             return newBuilder;
         }
     }
@@ -336,6 +346,7 @@ public final class ParcelableCall implements Parcelable {
     private final String mContactDisplayName;
     private final String mActiveChildCallId; // Only valid for CDMA conferences
     private final Uri mContactPhotoUri;
+    private final UserHandle mAssociatedUser;
 
     public ParcelableCall(
             String id,
@@ -368,7 +379,8 @@ public final class ParcelableCall implements Parcelable {
             int callerNumberVerificationStatus,
             String contactDisplayName,
             String activeChildCallId,
-            Uri contactPhotoUri
+            Uri contactPhotoUri,
+            UserHandle associatedUser
     ) {
         mId = id;
         mState = state;
@@ -401,6 +413,7 @@ public final class ParcelableCall implements Parcelable {
         mContactDisplayName = contactDisplayName;
         mActiveChildCallId = activeChildCallId;
         mContactPhotoUri = contactPhotoUri;
+        mAssociatedUser = associatedUser;
     }
 
     /** The unique ID of the call. */
@@ -624,6 +637,13 @@ public final class ParcelableCall implements Parcelable {
         return mContactPhotoUri;
     }
 
+    /**
+     * @return the originating user
+     */
+    public @NonNull UserHandle getAssociatedUser() {
+        return mAssociatedUser;
+    }
+
 
     /**
      * @return On a CDMA conference with two participants, returns the ID of the child call that's
@@ -675,6 +695,7 @@ public final class ParcelableCall implements Parcelable {
             String contactDisplayName = source.readString();
             String activeChildCallId = source.readString();
             Uri contactPhotoUri = source.readParcelable(classLoader, Uri.class);
+            UserHandle associatedUser = source.readParcelable(classLoader, UserHandle.class);
             return new ParcelableCallBuilder()
                     .setId(id)
                     .setState(state)
@@ -707,6 +728,7 @@ public final class ParcelableCall implements Parcelable {
                     .setContactDisplayName(contactDisplayName)
                     .setActiveChildCallId(activeChildCallId)
                     .setContactPhotoUri(contactPhotoUri)
+                    .setAssociatedUser(associatedUser)
                     .createParcelableCall();
         }
 
@@ -757,6 +779,7 @@ public final class ParcelableCall implements Parcelable {
         destination.writeString(mContactDisplayName);
         destination.writeString(mActiveChildCallId);
         destination.writeParcelable(mContactPhotoUri, 0);
+        destination.writeParcelable(mAssociatedUser, 0);
     }
 
     @Override

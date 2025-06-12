@@ -507,4 +507,25 @@ public class MediaDeviceTest {
         assertThat(mPhoneMediaDevice.getSelectionBehavior()).isEqualTo(
                 SELECTION_BEHAVIOR_TRANSFER);
     }
+
+    @Test
+    public void getSelectionBehavior_withRouteListingPreferenceItem_returnPreferenceBehavior() {
+        mItem =
+                new RouteListingPreference.Item.Builder(DEVICE_ADDRESS_1)
+                        .setSelectionBehavior(SELECTION_BEHAVIOR_GO_TO_APP)
+                        .build();
+        MediaDevice castMediaDevice = new ComplexMediaDevice(mContext, mRouteInfo1, mItem);
+
+        assertThat(castMediaDevice.hasRouteListingPreferenceItem()).isTrue();
+        assertThat(castMediaDevice.getSelectionBehavior()).isEqualTo(SELECTION_BEHAVIOR_GO_TO_APP);
+    }
+
+    @Test
+    public void getSelectionBehavior_withoutRouteListingPreferenceItem_returnTransfer() {
+        MediaDevice castMediaDevice =
+                new ComplexMediaDevice(mContext, mRouteInfo1, /* item= */ null);
+
+        assertThat(castMediaDevice.hasRouteListingPreferenceItem()).isFalse();
+        assertThat(castMediaDevice.getSelectionBehavior()).isEqualTo(SELECTION_BEHAVIOR_TRANSFER);
+    }
 }

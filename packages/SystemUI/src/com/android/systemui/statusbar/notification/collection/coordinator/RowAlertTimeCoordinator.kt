@@ -17,7 +17,7 @@ package com.android.systemui.statusbar.notification.collection.coordinator
 
 import android.util.ArrayMap
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
@@ -39,7 +39,7 @@ class RowAlertTimeCoordinator @Inject constructor() : Coordinator {
         pipeline.addOnAfterRenderEntryListener(::onAfterRenderEntry)
     }
 
-    private fun onBeforeFinalizeFilterListener(entries: List<ListEntry>) {
+    private fun onBeforeFinalizeFilterListener(entries: List<PipelineEntry>) {
         latestAlertTimeBySummary.clear()
         entries.asSequence().filterIsInstance<GroupEntry>().forEach { groupEntry ->
             val summary = checkNotNull(groupEntry.summary)

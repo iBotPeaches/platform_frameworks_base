@@ -56,6 +56,11 @@
     <item msgid="5376619709702103243">"Desligado"</item>
     <item msgid="4875147066469902392">"Ligado"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"Indisponível"</item>
+    <item msgid="8589336868985358191">"Desativado"</item>
+    <item msgid="726072717827778234">"Ativado"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"Indisponível"</item>
     <item msgid="5044688398303285224">"Desligada"</item>
@@ -79,7 +84,7 @@
   <string-array name="tile_states_location">
     <item msgid="3316542218706374405">"Indisponível"</item>
     <item msgid="4813655083852587017">"Desligado"</item>
-    <item msgid="6744077414775180687">"Ligado"</item>
+    <item msgid="6744077414775180687">"Ligada"</item>
   </string-array>
   <string-array name="tile_states_hotspot">
     <item msgid="3145597331197351214">"Indisponível"</item>
@@ -119,7 +124,7 @@
   <string-array name="tile_states_night">
     <item msgid="7857498964264855466">"Indisponível"</item>
     <item msgid="2744885441164350155">"Desligada"</item>
-    <item msgid="151121227514952197">"Ligado"</item>
+    <item msgid="151121227514952197">"Ligada"</item>
   </string-array>
   <string-array name="tile_states_screenrecord">
     <item msgid="1085836626613341403">"Indisponível"</item>
@@ -133,7 +138,7 @@
   </string-array>
   <string-array name="tile_states_reverse">
     <item msgid="3574611556622963971">"Indisponível"</item>
-    <item msgid="8707481475312432575">"Desligado"</item>
+    <item msgid="8707481475312432575">"Desligada"</item>
     <item msgid="8031106212477483874">"Ligado"</item>
   </string-array>
   <string-array name="tile_states_reduce_brightness">
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"Indisponível"</item>
     <item msgid="6419996398343291862">"Desativado"</item>
     <item msgid="5908720590832378783">"Ativado"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"Indisponível"</item>
+    <item msgid="6641673879029894995">"Desativado"</item>
+    <item msgid="5806682401126108403">"Ativado"</item>
   </string-array>
 </resources>

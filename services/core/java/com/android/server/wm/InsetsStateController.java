@@ -219,14 +219,23 @@ class InsetsStateController {
         }
     }
 
-    void onRequestedVisibleTypesChanged(InsetsTarget caller,
+    void onRequestedVisibleTypesChanged(InsetsTarget caller, @InsetsType int changedTypes,
             @Nullable ImeTracker.Token statsToken) {
         boolean changed = false;
         for (int i = mProviders.size() - 1; i >= 0; i--) {
             final InsetsSourceProvider provider = mProviders.valueAt(i);
-            final boolean isImeProvider = provider.getSource().getType() == WindowInsets.Type.ime();
-            changed |= provider.updateClientVisibility(caller,
-                    isImeProvider ? statsToken : null);
+            final @InsetsType int type = provider.getSource().getType();
+            final boolean isImeProvider = type == WindowInsets.Type.ime();
+            if ((type & changedTypes) != 0) {
+                changed |= provider.updateClientVisibility(
+                        caller, isImeProvider ? statsToken : null)
+                        // Fake control target cannot change the client visibility, but it should
+                        // change the insets with its newly requested visibility.
+                        || (caller == provider.getFakeControlTarget());
+            } else if (isImeProvider && android.view.inputmethod.Flags.refactorInsetsController()) {
+                ImeTracker.forLogging().onCancelled(statsToken,
+                        ImeTracker.PHASE_WM_SET_REMOTE_TARGET_IME_VISIBILITY);
+            }
         }
         if (changed) {
             notifyInsetsChanged();
@@ -255,7 +264,7 @@ class InsetsStateController {
         InsetsControlTarget target = imeTarget != null ? imeTarget : mEmptyImeControlTarget;
         onControlTargetChanged(getImeSourceProvider(), target, false /* fake */);
         ProtoLog.d(WM_DEBUG_IME, "onImeControlTargetChanged %s",
-                target != null ? target.getWindow() : "null");
+                target != null && target.getWindow() != null ? target.getWindow() : target);
         notifyPendingInsetsControlChanged();
     }
 
@@ -384,6 +393,15 @@ class InsetsStateController {
         }
     }
 
+    void onAnimatingTypesChanged(InsetsControlTarget target,
+            @Nullable ImeTracker.Token statsToken) {
+        for (int i = mProviders.size() - 1; i >= 0; i--) {
+            final InsetsSourceProvider provider = mProviders.valueAt(i);
+            final boolean isImeProvider = provider.getSource().getType() == WindowInsets.Type.ime();
+            provider.onAnimatingTypesChanged(target, isImeProvider ? statsToken : null);
+        }
+    }
+
     private void notifyPendingInsetsControlChanged() {
         if (mPendingTargetProvidersMap.isEmpty()) {
             return;
@@ -435,7 +453,8 @@ class InsetsStateController {
             for (int i = newControlTargets.size() - 1; i >= 0; i--) {
                 // TODO(b/353463205) the statsToken shouldn't be null as it is used later in the
                 //  IME provider. Check if we have to create a new request here
-                onRequestedVisibleTypesChanged(newControlTargets.valueAt(i), null /* statsToken */);
+                onRequestedVisibleTypesChanged(newControlTargets.valueAt(i),
+                        WindowInsets.Type.all(), null /* statsToken */);
             }
             newControlTargets.clear();
             if (!android.view.inputmethod.Flags.refactorInsetsController()) {

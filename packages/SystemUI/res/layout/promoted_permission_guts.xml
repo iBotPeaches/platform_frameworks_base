@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2017, The Android Open Source Project
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+
+<com.android.systemui.statusbar.notification.row.PromotedPermissionGutsContent
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
+    android:background="@androidprv:color/materialColorSurfaceContainerHigh"
+    android:theme="@style/Theme.SystemUI"
+    >
+
+    <RelativeLayout
+        android:id="@+id/promoted_guts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="@dimen/notification_2025_min_height">
+
+        <ImageView
+            android:id="@+id/unpin_icon"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:src="@drawable/unpin_icon"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:padding="@dimen/notification_importance_button_padding"
+            />
+
+        <TextView
+            android:id="@+id/demote_explain"
+            android:layout_width="400dp"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@id/unpin_icon"
+            android:layout_toLeftOf="@id/undo"
+            android:padding="@*android:dimen/notification_content_margin_end"
+            android:textColor="@androidprv:color/materialColorOnSurface"
+            android:minWidth="@dimen/min_clickable_item_size"
+            android:minHeight="@dimen/min_clickable_item_size"
+            style="@style/TextAppearance.NotificationMenuButtonText" />
+
+        <TextView
+            android:id="@+id/undo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/unpin_icon"
+            android:layout_alignParentRight="true"
+            android:padding="@*android:dimen/notification_content_margin_end"
+            android:textColor="@androidprv:color/materialColorOnSurface"
+            android:minWidth="@dimen/min_clickable_item_size"
+            android:minHeight="@dimen/min_clickable_item_size"
+            android:text="@string/snooze_undo"
+            style="@style/TextAppearance.NotificationInfo.Button" />
+    </RelativeLayout>
+
+</com.android.systemui.statusbar.notification.row.PromotedPermissionGutsContent>

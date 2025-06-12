@@ -88,7 +88,6 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 import static org.testng.Assert.assertThrows;
@@ -143,6 +142,7 @@ import android.provider.DeviceConfig;
 import android.provider.Settings;
 import android.security.KeyChain;
 import android.security.keystore.AttestationUtils;
+import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 import android.telephony.data.ApnSetting;
 import android.test.MoreAsserts;
@@ -816,14 +816,14 @@ public class DevicePolicyManagerTest extends DpmTestBase {
                 MockUtils.checkIntentAction(
                         DeviceAdminReceiver.ACTION_DEVICE_ADMIN_DISABLED),
                 MockUtils.checkUserHandle(CALLER_USER_HANDLE),
-                isNull(String.class),
+                isNull(),
                 eq(AppOpsManager.OP_NONE),
                 any(Bundle.class),
                 any(BroadcastReceiver.class),
                 eq(dpms.mHandler),
                 eq(Activity.RESULT_OK),
-                isNull(String.class),
-                isNull(Bundle.class));
+                isNull(),
+                isNull());
 
         assertThat(dpm.isAdminActiveAsUser(admin1, CALLER_USER_HANDLE)).isFalse();
         verify(getServices().usageStatsManagerInternal).setActiveAdminApps(
@@ -873,14 +873,14 @@ public class DevicePolicyManagerTest extends DpmTestBase {
                 MockUtils.checkIntentAction(
                         DeviceAdminReceiver.ACTION_DEVICE_ADMIN_DISABLED),
                 MockUtils.checkUserHandle(CALLER_USER_HANDLE),
-                isNull(String.class),
+                isNull(),
                 eq(AppOpsManager.OP_NONE),
                 any(Bundle.class),
                 any(BroadcastReceiver.class),
                 eq(dpms.mHandler),
                 eq(Activity.RESULT_OK),
-                isNull(String.class),
-                isNull(Bundle.class));
+                isNull(),
+                isNull());
 
         assertThat(dpm.isAdminActiveAsUser(admin1, CALLER_USER_HANDLE)).isFalse();
         verify(getServices().usageStatsManagerInternal).setActiveAdminApps(
@@ -5304,7 +5304,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         // both the user restriction and the policy were set by the PO.
         verify(getServices().userManagerInternal).removeUserEvenWhenDisallowed(
                 MANAGED_PROFILE_USER_ID);
-        verifyZeroInteractions(getServices().recoverySystem);
+        verifyNoMoreInteractions(getServices().recoverySystem);
     }
 
     @Test
@@ -5338,7 +5338,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         // not wiped.
         verify(getServices().userManagerInternal, never())
                 .removeUserEvenWhenDisallowed(anyInt());
-        verifyZeroInteractions(getServices().recoverySystem);
+        verifyNoMoreInteractions(getServices().recoverySystem);
     }
 
     @Test
@@ -5379,7 +5379,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         dpm.reportFailedPasswordAttempt(UserHandle.USER_SYSTEM);
 
         // DISALLOW_FACTORY_RESET was set by the system, not the DO, so the device is not wiped.
-        verifyZeroInteractions(getServices().recoverySystem);
+        verifyNoMoreInteractions(getServices().recoverySystem);
         verify(getServices().userManagerInternal, never())
                 .removeUserEvenWhenDisallowed(anyInt());
     }
@@ -7534,7 +7534,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         verify(getServices().notificationManager, never())
                 .notify(anyInt(), any(Notification.class));
         // Apps shouldn't be suspended.
-        verifyZeroInteractions(getServices().ipackageManager);
+        verifyNoMoreInteractions(getServices().ipackageManager);
         clearInvocations(getServices().alarmManager);
 
         setUserUnlocked(CALLER_USER_HANDLE, false);
@@ -7547,7 +7547,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         verify(getServices().notificationManager, never())
                 .notify(anyInt(), any(Notification.class));
         // Apps shouldn't be suspended.
-        verifyZeroInteractions(getServices().ipackageManager);
+        verifyNoMoreInteractions(getServices().ipackageManager);
         clearInvocations(getServices().alarmManager);
 
         // Pretend the alarm went off.
@@ -7560,7 +7560,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         verify(getServices().notificationManager, times(1))
                 .notifyAsUser(any(), anyInt(), any(), any());
         // Apps shouldn't be suspended yet.
-        verifyZeroInteractions(getServices().ipackageManager);
+        verifyNoMoreInteractions(getServices().ipackageManager);
         clearInvocations(getServices().alarmManager);
         clearInvocations(getServices().notificationManager);
 
@@ -7569,7 +7569,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         sendBroadcastWithUser(dpms, ACTION_PROFILE_OFF_DEADLINE, CALLER_USER_HANDLE);
 
         // Verify the alarm was not set.
-        verifyZeroInteractions(getServices().alarmManager);
+        verifyNoMoreInteractions(getServices().alarmManager);
         // Now the user should see a notification about suspended apps.
         verify(getServices().notificationManager, times(1))
                 .notifyAsUser(any(), anyInt(), any(), any());
@@ -8713,6 +8713,47 @@ public class DevicePolicyManagerTest extends DpmTestBase {
         for (int i = 0; i < 1024; i++) {
             assertThat(configOut.getString("key-" + i, null)).isEqualTo(kilobyteString);
         }
+    }
+
+    @RequiresFlagsEnabled(Flags.FLAG_REMOVE_MANAGED_ESIM_ON_WORK_PROFILE_DELETION)
+    @Test
+    public void testManagedProfileDeleted_managedEmbeddedSubscriptionDeleted() throws Exception {
+        // Setup PO mode.
+        setupProfileOwner();
+        // Mock SubscriptionManager to return a subscription managed by the profile owner package.
+        int managedSubscriptionId = 42;
+        SubscriptionInfo managedSubscription = new SubscriptionInfo.Builder().setCardId(1).setId(
+                managedSubscriptionId).setGroupOwner(admin1.getPackageName()).build();
+        when(getServices().subscriptionManager.getAvailableSubscriptionInfoList()).thenReturn(
+                List.of(managedSubscription));
+
+        // Send a ACTION_MANAGED_PROFILE_REMOVED broadcast to emulate a managed profile being
+        // removed.
+        sendBroadcastWithUser(dpms, Intent.ACTION_MANAGED_PROFILE_REMOVED, CALLER_USER_HANDLE);
+
+        // Verify that EuiccManager was called to delete the subscription.
+        verify(getServices().euiccManager).deleteSubscription(eq(managedSubscriptionId), any());
+    }
+
+    @RequiresFlagsDisabled(Flags.FLAG_REMOVE_MANAGED_ESIM_ON_WORK_PROFILE_DELETION)
+    @Test
+    public void testManagedProfileDeleted_flagDisabled_managedEmbeddedSubscriptionDeleted()
+            throws Exception {
+        // Set up PO mode.
+        setupProfileOwner();
+        // Mock SubscriptionManager to return a subscription managed by the profile owner package.
+        int managedSubscriptionId = 42;
+        SubscriptionInfo managedSubscription = new SubscriptionInfo.Builder().setCardId(1).setId(
+                managedSubscriptionId).setGroupOwner(admin1.getPackageName()).build();
+        when(getServices().subscriptionManager.getAvailableSubscriptionInfoList()).thenReturn(
+                List.of(managedSubscription));
+
+        // Send a ACTION_MANAGED_PROFILE_REMOVED broadcast to emulate a managed profile being
+        // removed.
+        sendBroadcastWithUser(dpms, Intent.ACTION_MANAGED_PROFILE_REMOVED, CALLER_USER_HANDLE);
+
+        // Verify that EuiccManager was not called to delete the subscription.
+        verifyNoMoreInteractions(getServices().euiccManager);
     }
 
     private void setupVpnAuthorization(String userVpnPackage, int userVpnUid) {

@@ -4,12 +4,13 @@ import android.content.Context
 
 class FakeAmbientDisplayConfiguration(context: Context) : AmbientDisplayConfiguration(context) {
     var fakePulseOnNotificationEnabled = true
+    var fakePickupGestureEnabled = true
 
     override fun pulseOnNotificationEnabled(user: Int) = fakePulseOnNotificationEnabled
 
     override fun pulseOnNotificationAvailable() = TODO("Not yet implemented")
 
-    override fun pickupGestureEnabled(user: Int) = TODO("Not yet implemented")
+    override fun pickupGestureEnabled(user: Int) = fakePickupGestureEnabled
 
     override fun dozePickupSensorAvailable() = TODO("Not yet implemented")
 

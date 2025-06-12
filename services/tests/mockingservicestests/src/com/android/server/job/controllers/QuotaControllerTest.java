@@ -76,6 +76,7 @@ import android.os.BatteryManagerInternal;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
@@ -93,6 +94,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.internal.util.ArrayUtils;
 import com.android.server.LocalServices;
 import com.android.server.PowerAllowlistInternal;
+import com.android.server.compat.PlatformCompat;
 import com.android.server.job.Flags;
 import com.android.server.job.JobSchedulerInternal;
 import com.android.server.job.JobSchedulerService;
@@ -103,8 +105,6 @@ import com.android.server.job.controllers.QuotaController.ShrinkableDebits;
 import com.android.server.job.controllers.QuotaController.TimedEvent;
 import com.android.server.job.controllers.QuotaController.TimingSession;
 import com.android.server.usage.AppStandbyInternal;
-
-import libcore.junit.util.compat.CoreCompatChangeRule.EnableCompatChanges;
 
 import org.junit.After;
 import org.junit.Before;
@@ -168,6 +168,8 @@ public class QuotaControllerTest {
     private PowerAllowlistInternal mPowerAllowlistInternal;
     @Mock
     private UsageStatsManagerInternal mUsageStatsManager;
+    @Mock
+    private PlatformCompat mPlatformCompat;
 
     @Rule
     public final CheckFlagsRule mCheckFlagsRule =
@@ -182,6 +184,7 @@ public class QuotaControllerTest {
                 .strictness(Strictness.LENIENT)
                 .spyStatic(DeviceConfig.class)
                 .mockStatic(LocalServices.class)
+                .mockStatic(ServiceManager.class)
                 .startMocking();
 
         // Called in StateController constructor.
@@ -198,6 +201,7 @@ public class QuotaControllerTest {
         }
         when(mContext.getMainLooper()).thenReturn(Looper.getMainLooper());
         when(mContext.getSystemService(AlarmManager.class)).thenReturn(mAlarmManager);
+
         doReturn(mActivityMangerInternal)
                 .when(() -> LocalServices.getService(ActivityManagerInternal.class));
         doReturn(mock(AppStandbyInternal.class))
@@ -253,6 +257,8 @@ public class QuotaControllerTest {
                 ArgumentCaptor.forClass(PowerAllowlistInternal.TempAllowlistChangeListener.class);
         ArgumentCaptor<UsageStatsManagerInternal.UsageEventListener> ueListenerCaptor =
                 ArgumentCaptor.forClass(UsageStatsManagerInternal.UsageEventListener.class);
+        doReturn(mPlatformCompat)
+                .when(() -> ServiceManager.getService(Context.PLATFORM_COMPAT_SERVICE));
         mQuotaController = new QuotaController(mJobSchedulerService,
                 mock(BackgroundJobsController.class), mock(ConnectivityController.class));
 
@@ -295,15 +301,15 @@ public class QuotaControllerTest {
     }
 
     private void setCharging() {
-        doReturn(true).when(mJobSchedulerService).isBatteryCharging();
         synchronized (mQuotaController.mLock) {
+            doReturn(true).when(mJobSchedulerService).isBatteryCharging();
             mQuotaController.onBatteryStateChangedLocked();
         }
     }
 
     private void setDischarging() {
-        doReturn(false).when(mJobSchedulerService).isBatteryCharging();
         synchronized (mQuotaController.mLock) {
+            doReturn(false).when(mJobSchedulerService).isBatteryCharging();
             mQuotaController.onBatteryStateChangedLocked();
         }
     }
@@ -1029,6 +1035,7 @@ public class QuotaControllerTest {
 
     @Test
     @EnableFlags(Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS)
+    @DisableFlags(Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS)
     public void testGetExecutionStatsLocked_Values_NewDefaultBucketWindowSizes() {
         final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
         mQuotaController.saveTimingSession(0, "com.android.test",
@@ -1127,6 +1134,54 @@ public class QuotaControllerTest {
         }
     }
 
+    @Test
+    @EnableFlags({Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS,
+            Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS})
+    public void testGetExecutionStatsLocked_Values_NewDefaultBucketWindowSizes_Tuning() {
+        final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
+        mQuotaController.saveTimingSession(0, "com.android.test",
+                createTimingSession(now - (23 * HOUR_IN_MILLIS), 10 * MINUTE_IN_MILLIS, 5), false);
+        mQuotaController.saveTimingSession(0, "com.android.test",
+                createTimingSession(now - (7 * HOUR_IN_MILLIS), 10 * MINUTE_IN_MILLIS, 5), false);
+        mQuotaController.saveTimingSession(0, "com.android.test",
+                createTimingSession(now - (2 * HOUR_IN_MILLIS), 10 * MINUTE_IN_MILLIS, 5), false);
+        mQuotaController.saveTimingSession(0, "com.android.test",
+                createTimingSession(now - (6 * MINUTE_IN_MILLIS), 3 * MINUTE_IN_MILLIS, 5), false);
+
+        ExecutionStats expectedStats = new ExecutionStats();
+
+        // Exempted
+        expectedStats.allowedTimePerPeriodMs = mQcConstants.ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS;
+        expectedStats.windowSizeMs = mQcConstants.WINDOW_SIZE_EXEMPTED_MS;
+        expectedStats.jobCountLimit = mQcConstants.MAX_JOB_COUNT_EXEMPTED;
+        expectedStats.sessionCountLimit = mQcConstants.MAX_SESSION_COUNT_EXEMPTED;
+        expectedStats.expirationTimeElapsed = now + 34 * MINUTE_IN_MILLIS;
+        expectedStats.executionTimeInWindowMs = 3 * MINUTE_IN_MILLIS;
+        expectedStats.bgJobCountInWindow = 5;
+        expectedStats.executionTimeInMaxPeriodMs = 33 * MINUTE_IN_MILLIS;
+        expectedStats.bgJobCountInMaxPeriod = 20;
+        expectedStats.sessionCountInWindow = 1;
+        synchronized (mQuotaController.mLock) {
+            assertEquals(expectedStats,
+                    mQuotaController.getExecutionStatsLocked(0, "com.android.test",
+                            EXEMPTED_INDEX));
+        }
+
+        // Active
+        expectedStats.allowedTimePerPeriodMs = mQcConstants.ALLOWED_TIME_PER_PERIOD_ACTIVE_MS;
+        expectedStats.windowSizeMs = mQcConstants.WINDOW_SIZE_ACTIVE_MS;
+        expectedStats.jobCountLimit = mQcConstants.MAX_JOB_COUNT_ACTIVE;
+        expectedStats.sessionCountLimit = mQcConstants.MAX_SESSION_COUNT_ACTIVE;
+        // There is only one session in the past active bucket window, the empty time for this
+        // window is the bucket window size - duration of the session.
+        expectedStats.expirationTimeElapsed = now + 54 * MINUTE_IN_MILLIS;
+        synchronized (mQuotaController.mLock) {
+            assertEquals(expectedStats,
+                    mQuotaController.getExecutionStatsLocked(0, "com.android.test",
+                            ACTIVE_INDEX));
+        }
+    }
+
     /**
      * Tests that getExecutionStatsLocked returns the correct stats soon after device startup.
      */
@@ -1195,6 +1250,7 @@ public class QuotaControllerTest {
 
     @Test
     @EnableFlags(Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS)
+    @DisableFlags(Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS)
     public void testGetExecutionStatsLocked_Values_BeginningOfTime_NewDefaultBucketWindowSizes() {
         // Set time to 3 minutes after boot.
         advanceElapsedClock(-JobSchedulerService.sElapsedRealtimeClock.millis());
@@ -1206,10 +1262,10 @@ public class QuotaControllerTest {
         ExecutionStats expectedStats = new ExecutionStats();
 
         // Exempted
-        expectedStats.allowedTimePerPeriodMs = mQcConstants.ALLOWED_TIME_PER_PERIOD_ACTIVE_MS;
+        expectedStats.allowedTimePerPeriodMs = mQcConstants.ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS;
         expectedStats.windowSizeMs = mQcConstants.WINDOW_SIZE_EXEMPTED_MS;
-        expectedStats.jobCountLimit = mQcConstants.MAX_JOB_COUNT_ACTIVE;
-        expectedStats.sessionCountLimit = mQcConstants.MAX_SESSION_COUNT_ACTIVE;
+        expectedStats.jobCountLimit = mQcConstants.MAX_JOB_COUNT_EXEMPTED;
+        expectedStats.sessionCountLimit = mQcConstants.MAX_SESSION_COUNT_EXEMPTED;
         expectedStats.expirationTimeElapsed = 10 * MINUTE_IN_MILLIS + 11 * MINUTE_IN_MILLIS;
         expectedStats.executionTimeInWindowMs = MINUTE_IN_MILLIS;
         expectedStats.bgJobCountInWindow = 2;
@@ -1265,6 +1321,49 @@ public class QuotaControllerTest {
             assertEquals(expectedStats,
                     mQuotaController.getExecutionStatsLocked(0, "com.android.test",
                             RARE_INDEX));
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS,
+            Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS})
+    public void testGetExecutionStatsLocked_Values_BeginningOfTime_NewDefaultBucketWindowSizes_Tunning() {
+        // Set time to 3 minutes after boot.
+        advanceElapsedClock(-JobSchedulerService.sElapsedRealtimeClock.millis());
+        advanceElapsedClock(3 * MINUTE_IN_MILLIS);
+
+        mQuotaController.saveTimingSession(0, "com.android.test",
+                createTimingSession(MINUTE_IN_MILLIS, MINUTE_IN_MILLIS, 2), false);
+
+        ExecutionStats expectedStats = new ExecutionStats();
+
+        // Exempted
+        expectedStats.allowedTimePerPeriodMs = mQcConstants.ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS;
+        expectedStats.windowSizeMs = mQcConstants.WINDOW_SIZE_EXEMPTED_MS;
+        expectedStats.jobCountLimit = mQcConstants.MAX_JOB_COUNT_EXEMPTED;
+        expectedStats.sessionCountLimit = mQcConstants.MAX_SESSION_COUNT_EXEMPTED;
+        expectedStats.expirationTimeElapsed = 30 * MINUTE_IN_MILLIS + 11 * MINUTE_IN_MILLIS;
+        expectedStats.executionTimeInWindowMs = MINUTE_IN_MILLIS;
+        expectedStats.bgJobCountInWindow = 2;
+        expectedStats.executionTimeInMaxPeriodMs = MINUTE_IN_MILLIS;
+        expectedStats.bgJobCountInMaxPeriod = 2;
+        expectedStats.sessionCountInWindow = 1;
+        synchronized (mQuotaController.mLock) {
+            assertEquals(expectedStats,
+                    mQuotaController.getExecutionStatsLocked(0, "com.android.test",
+                            EXEMPTED_INDEX));
+        }
+
+        // Active
+        expectedStats.allowedTimePerPeriodMs = mQcConstants.ALLOWED_TIME_PER_PERIOD_ACTIVE_MS;
+        expectedStats.windowSizeMs = mQcConstants.WINDOW_SIZE_ACTIVE_MS;
+        expectedStats.jobCountLimit = mQcConstants.MAX_JOB_COUNT_ACTIVE;
+        expectedStats.sessionCountLimit = mQcConstants.MAX_SESSION_COUNT_ACTIVE;
+        expectedStats.expirationTimeElapsed = 50 * MINUTE_IN_MILLIS + 11 * MINUTE_IN_MILLIS;
+        synchronized (mQuotaController.mLock) {
+            assertEquals(expectedStats,
+                    mQuotaController.getExecutionStatsLocked(0, "com.android.test",
+                            ACTIVE_INDEX));
         }
     }
 
@@ -1425,6 +1524,7 @@ public class QuotaControllerTest {
 
     @Test
     @EnableFlags(Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS)
+    @DisableFlags(Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS)
     public void testGetExecutionStatsLocked_CoalescingSessions_NewDefaultBucketWindowSizes() {
         for (int i = 0; i < 20; ++i) {
             mQuotaController.saveTimingSession(0, "com.android.test",
@@ -1571,6 +1671,165 @@ public class QuotaControllerTest {
         synchronized (mQuotaController.mLock) {
             mQuotaController.invalidateAllExecutionStatsLocked();
             assertEquals(0, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            assertEquals(4, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            assertEquals(12, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            assertEquals(20, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS,
+            Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS})
+    public void testGetExecutionStatsLocked_CoalescingSessions_NewDefaultBucketWindowSizes_Tuning() {
+        for (int i = 0; i < 20; ++i) {
+            mQuotaController.saveTimingSession(0, "com.android.test",
+                    createTimingSession(
+                            JobSchedulerService.sElapsedRealtimeClock.millis(),
+                            5 * MINUTE_IN_MILLIS, 5), false);
+            advanceElapsedClock(5 * MINUTE_IN_MILLIS);
+            advanceElapsedClock(5 * MINUTE_IN_MILLIS);
+            for (int j = 0; j < 5; ++j) {
+                mQuotaController.saveTimingSession(0, "com.android.test",
+                        createTimingSession(
+                                JobSchedulerService.sElapsedRealtimeClock.millis(),
+                                MINUTE_IN_MILLIS, 2), false);
+                advanceElapsedClock(MINUTE_IN_MILLIS);
+                advanceElapsedClock(54 * SECOND_IN_MILLIS);
+                mQuotaController.saveTimingSession(0, "com.android.test",
+                        createTimingSession(
+                                JobSchedulerService.sElapsedRealtimeClock.millis(), 500, 1), false);
+                advanceElapsedClock(500);
+                advanceElapsedClock(400);
+                mQuotaController.saveTimingSession(0, "com.android.test",
+                        createTimingSession(
+                                JobSchedulerService.sElapsedRealtimeClock.millis(), 100, 1), false);
+                advanceElapsedClock(100);
+                advanceElapsedClock(5 * SECOND_IN_MILLIS);
+            }
+            advanceElapsedClock(40 * MINUTE_IN_MILLIS);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS, 0);
+
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(16, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            assertEquals(64, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            assertEquals(192, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            assertEquals(320, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS, 500);
+
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(11, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            // WINDOW_SIZE_WORKING_MS * 5 TimingSessions are coalesced
+            assertEquals(44, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            // WINDOW_SIZE_FREQUENT_MS * 5 TimingSessions are coalesced
+            assertEquals(132, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            // WINDOW_SIZE_RARE_MS * 5 TimingSessions are coalesced
+            assertEquals(220, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS, 1000);
+
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(11, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            assertEquals(44, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            assertEquals(132, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            assertEquals(220, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS,
+                5 * SECOND_IN_MILLIS);
+
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(7, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            // WINDOW_SIZE_WORKING_MS * 9 TimingSessions are coalesced
+            assertEquals(28, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            // WINDOW_SIZE_FREQUENT_MS * 9 TimingSessions are coalesced
+            assertEquals(84, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            // WINDOW_SIZE_RARE_MS * 9 TimingSessions are coalesced
+            assertEquals(140, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS,
+                MINUTE_IN_MILLIS);
+
+        // Only two TimingSessions there for every hour.
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(2, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            assertEquals(8, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            assertEquals(24, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            assertEquals(40, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS,
+                5 * MINUTE_IN_MILLIS);
+
+        // Only one TimingSessions there for every hour
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(1, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            assertEquals(4, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            assertEquals(12, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            assertEquals(20, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS,
+                15 * MINUTE_IN_MILLIS);
+
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(1, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
+            assertEquals(4, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
+            assertEquals(12, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", FREQUENT_INDEX).sessionCountInWindow);
+            assertEquals(20, mQuotaController.getExecutionStatsLocked(
+                    0, "com.android.test", RARE_INDEX).sessionCountInWindow);
+        }
+
+        // QuotaController caps the duration at 15 minutes, so there shouldn't be any difference
+        // between an hour and 15 minutes.
+        setDeviceConfigLong(QcConstants.KEY_TIMING_SESSION_COALESCING_DURATION_MS, HOUR_IN_MILLIS);
+
+        synchronized (mQuotaController.mLock) {
+            mQuotaController.invalidateAllExecutionStatsLocked();
+            assertEquals(1, mQuotaController.getExecutionStatsLocked(
                     0, "com.android.test", ACTIVE_INDEX).sessionCountInWindow);
             assertEquals(4, mQuotaController.getExecutionStatsLocked(
                     0, "com.android.test", WORKING_INDEX).sessionCountInWindow);
@@ -2231,32 +2490,6 @@ public class QuotaControllerTest {
         }
     }
 
-    @Test
-    @EnableFlags(Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS)
-    public void testGetTimeUntilQuotaConsumedLocked_AllowedEqualsWindow_NewDefaultBucketWindowSizes() {
-        final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
-        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
-                createTimingSession(now - (8 * HOUR_IN_MILLIS), 20 * MINUTE_IN_MILLIS, 5), false);
-        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
-                createTimingSession(now - (10 * MINUTE_IN_MILLIS), 10 * MINUTE_IN_MILLIS, 5),
-                false);
-
-        setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS,
-                20 * MINUTE_IN_MILLIS);
-        setDeviceConfigLong(QcConstants.KEY_WINDOW_SIZE_EXEMPTED_MS, 20 * MINUTE_IN_MILLIS);
-        // window size = allowed time, so jobs can essentially run non-stop until they reach the
-        // max execution time.
-        setStandbyBucket(EXEMPTED_INDEX);
-        synchronized (mQuotaController.mLock) {
-            assertEquals(10 * MINUTE_IN_MILLIS,
-                    mQuotaController.getRemainingExecutionTimeLocked(
-                            SOURCE_USER_ID, SOURCE_PACKAGE));
-            assertEquals(mQcConstants.MAX_EXECUTION_TIME_MS - 30 * MINUTE_IN_MILLIS,
-                    mQuotaController.getTimeUntilQuotaConsumedLocked(
-                            SOURCE_USER_ID, SOURCE_PACKAGE));
-        }
-    }
-
     /**
      * Test getTimeUntilQuotaConsumedLocked when the determination is based within the bucket
      * window.
@@ -2327,6 +2560,7 @@ public class QuotaControllerTest {
 
     @Test
     @EnableFlags(Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS)
+    @DisableFlags(Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS)
     public void testGetTimeUntilQuotaConsumedLocked_BucketWindow_NewDefaultBucketWindowSizes() {
         final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
         // Close to RARE boundary.
@@ -2383,6 +2617,163 @@ public class QuotaControllerTest {
                     mQuotaController.getRemainingExecutionTimeLocked(
                             SOURCE_USER_ID, SOURCE_PACKAGE));
             assertEquals(10 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS,
+            Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS})
+    public void testGetTimeUntilQuotaConsumedLocked_BucketWindow_NewDefaultBucketWindowSizes_Tuning() {
+        final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
+        // Close to ACTIVE boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(now - (mQcConstants.WINDOW_SIZE_ACTIVE_MS -  MINUTE_IN_MILLIS),
+                        3 * MINUTE_IN_MILLIS, 5), false);
+
+        // ACTIVE window != allowed time.
+        setStandbyBucket(ACTIVE_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(17 * MINUTE_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(20 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS,
+            Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER})
+    @DisableFlags(Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS)
+    public void testGetTimeUntilQuotaConsumedLocked_Installer() {
+        PackageInfo pi = new PackageInfo();
+        pi.packageName = SOURCE_PACKAGE;
+        pi.requestedPermissions = new String[]{Manifest.permission.INSTALL_PACKAGES};
+        pi.requestedPermissionsFlags = new int[]{PackageInfo.REQUESTED_PERMISSION_GRANTED};
+        pi.applicationInfo = new ApplicationInfo();
+        pi.applicationInfo.uid = mSourceUid;
+        doReturn(List.of(pi)).when(mPackageManager).getInstalledPackagesAsUser(anyInt(), anyInt());
+        doReturn(PackageManager.PERMISSION_GRANTED).when(mContext).checkPermission(
+                eq(Manifest.permission.INSTALL_PACKAGES), anyInt(), eq(mSourceUid));
+        mQuotaController.onSystemServicesReady();
+
+        final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
+        // Close to RARE boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(
+                        now - (mQcConstants.WINDOW_SIZE_RARE_MS - 30 * SECOND_IN_MILLIS),
+                        90 * SECOND_IN_MILLIS, 5), false);
+        // Far away from FREQUENT boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(
+                        now - (mQcConstants.WINDOW_SIZE_FREQUENT_MS - HOUR_IN_MILLIS),
+                        2 * MINUTE_IN_MILLIS, 5), false);
+        // Overlap WORKING_SET boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(
+                        now - (mQcConstants.WINDOW_SIZE_WORKING_MS + MINUTE_IN_MILLIS),
+                        2 * MINUTE_IN_MILLIS, 5), false);
+        // Close to ACTIVE boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(
+                        now - (mQcConstants.WINDOW_SIZE_ACTIVE_MS - MINUTE_IN_MILLIS),
+                        2 * MINUTE_IN_MILLIS, 5), false);
+        // Close to EXEMPTED boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(
+                        now - (mQcConstants.WINDOW_SIZE_EXEMPTED_MS - MINUTE_IN_MILLIS),
+                        2 * MINUTE_IN_MILLIS, 5), false);
+
+        // No additional quota for the system installer when the app is in RARE, FREQUENT,
+        // WORKING_SET or ACTIVE bucket.
+        setStandbyBucket(RARE_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(30 * SECOND_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(2 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+
+        setStandbyBucket(FREQUENT_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(2 * MINUTE_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(2 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+
+        setStandbyBucket(WORKING_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(5 * MINUTE_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(6 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+
+        // ACTIVE window != allowed time.
+        setStandbyBucket(ACTIVE_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(6 * MINUTE_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(8 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+
+        // Additional quota for the system installer when the app is in EXEMPTED bucket.
+        // EXEMPTED window == allowed time.
+        setStandbyBucket(EXEMPTED_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(18 * MINUTE_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(mQcConstants.MAX_EXECUTION_TIME_MS - 8 * MINUTE_IN_MILLIS,
+                    mQuotaController.getTimeUntilQuotaConsumedLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS,
+            Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER,
+            Flags.FLAG_TUNE_QUOTA_WINDOW_DEFAULT_PARAMETERS})
+    public void testGetTimeUntilQuotaConsumedLocked_Installer_Tuning() {
+        PackageInfo pi = new PackageInfo();
+        pi.packageName = SOURCE_PACKAGE;
+        pi.requestedPermissions = new String[]{Manifest.permission.INSTALL_PACKAGES};
+        pi.requestedPermissionsFlags = new int[]{PackageInfo.REQUESTED_PERMISSION_GRANTED};
+        pi.applicationInfo = new ApplicationInfo();
+        pi.applicationInfo.uid = mSourceUid;
+        doReturn(List.of(pi)).when(mPackageManager).getInstalledPackagesAsUser(anyInt(), anyInt());
+        doReturn(PackageManager.PERMISSION_GRANTED).when(mContext).checkPermission(
+                eq(Manifest.permission.INSTALL_PACKAGES), anyInt(), eq(mSourceUid));
+        mQuotaController.onSystemServicesReady();
+
+        final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
+        // Close to EXEMPTED boundary.
+        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
+                createTimingSession(
+                        now - (mQcConstants.WINDOW_SIZE_EXEMPTED_MS - MINUTE_IN_MILLIS),
+                        2 * MINUTE_IN_MILLIS, 5), false);
+
+        // Additional quota for the system installer when the app is in EXEMPTED bucket.
+        // EXEMPTED window == allowed time.
+        setStandbyBucket(EXEMPTED_INDEX);
+        synchronized (mQuotaController.mLock) {
+            assertEquals(38 * MINUTE_IN_MILLIS,
+                    mQuotaController.getRemainingExecutionTimeLocked(
+                            SOURCE_USER_ID, SOURCE_PACKAGE));
+            assertEquals(mQcConstants.MAX_EXECUTION_TIME_MS - 2 * MINUTE_IN_MILLIS,
                     mQuotaController.getTimeUntilQuotaConsumedLocked(
                             SOURCE_USER_ID, SOURCE_PACKAGE));
         }
@@ -2534,33 +2925,6 @@ public class QuotaControllerTest {
                     mQuotaController.getRemainingExecutionTimeLocked(
                             SOURCE_USER_ID, SOURCE_PACKAGE));
             assertEquals(mQcConstants.MAX_EXECUTION_TIME_MS - 10 * MINUTE_IN_MILLIS,
-                    mQuotaController.getTimeUntilQuotaConsumedLocked(
-                            SOURCE_USER_ID, SOURCE_PACKAGE));
-        }
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_ADJUST_QUOTA_DEFAULT_CONSTANTS)
-    public void testGetTimeUntilQuotaConsumedLocked_EdgeOfWindow_AllowedEqualsWindow_NewDefaultBucketWindowSizes() {
-        final long now = JobSchedulerService.sElapsedRealtimeClock.millis();
-        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
-                createTimingSession(now - (24 * HOUR_IN_MILLIS),
-                        mQcConstants.MAX_EXECUTION_TIME_MS - 20 * MINUTE_IN_MILLIS, 5),
-                false);
-        mQuotaController.saveTimingSession(SOURCE_USER_ID, SOURCE_PACKAGE,
-                createTimingSession(now - (20 * MINUTE_IN_MILLIS), 20 * MINUTE_IN_MILLIS, 5),
-                false);
-
-        setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS,
-                20 * MINUTE_IN_MILLIS);
-        setDeviceConfigLong(QcConstants.KEY_WINDOW_SIZE_EXEMPTED_MS, 20 * MINUTE_IN_MILLIS);
-        // window size != allowed time.
-        setStandbyBucket(EXEMPTED_INDEX);
-        synchronized (mQuotaController.mLock) {
-            assertEquals(0,
-                    mQuotaController.getRemainingExecutionTimeLocked(
-                            SOURCE_USER_ID, SOURCE_PACKAGE));
-            assertEquals(mQcConstants.MAX_EXECUTION_TIME_MS - 20 * MINUTE_IN_MILLIS,
                     mQuotaController.getTimeUntilQuotaConsumedLocked(
                             SOURCE_USER_ID, SOURCE_PACKAGE));
         }
@@ -4119,6 +4483,12 @@ public class QuotaControllerTest {
         assertEquals(85 * SECOND_IN_MILLIS, mQuotaController.getEJRewardNotificationSeenMs());
         assertEquals(84 * SECOND_IN_MILLIS, mQuotaController.getEJGracePeriodTempAllowlistMs());
         assertEquals(83 * SECOND_IN_MILLIS, mQuotaController.getEJGracePeriodTopAppMs());
+
+        mSetFlagsRule.enableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
+        setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_ADDITION_INSTALLER_MS,
+                6 * MINUTE_IN_MILLIS);
+        assertEquals(6 * MINUTE_IN_MILLIS,
+                mQuotaController.getAllowedTimePeriodAdditionInstallerMs());
     }
 
     @Test
@@ -4222,6 +4592,13 @@ public class QuotaControllerTest {
         assertEquals(0, mQuotaController.getEJGracePeriodTempAllowlistMs());
         assertEquals(0, mQuotaController.getEJGracePeriodTopAppMs());
 
+        mSetFlagsRule.enableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
+        setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_ADDITION_INSTALLER_MS,
+                -MINUTE_IN_MILLIS);
+        assertEquals(0,
+                mQuotaController.getAllowedTimePeriodAdditionInstallerMs());
+        mSetFlagsRule.disableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
+
         // Invalid configurations.
         // In_QUOTA_BUFFER should never be greater than ALLOWED_TIME_PER_PERIOD
         setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS,
@@ -4237,8 +4614,17 @@ public class QuotaControllerTest {
                 10 * MINUTE_IN_MILLIS);
         setDeviceConfigLong(QcConstants.KEY_IN_QUOTA_BUFFER_MS, 5 * MINUTE_IN_MILLIS);
 
-        assertTrue(mQuotaController.getInQuotaBufferMs()
+        assertTrue(mQuotaController.getAllowedTimePeriodAdditionInstallerMs()
                 <= mQuotaController.getAllowedTimePerPeriodMs()[FREQUENT_INDEX]);
+
+        mSetFlagsRule.enableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
+        // ALLOWED_TIME_PER_PERIOD_ADDITION_INSTALLER should never be greater than
+        // ALLOWED_TIME_PER_PERIOD.
+        setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_ADDITION_INSTALLER_MS,
+                 15 * MINUTE_IN_MILLIS);
+        assertTrue(mQuotaController.getInQuotaBufferMs()
+                <= mQuotaController.getAllowedTimePerPeriodMs()[EXEMPTED_INDEX]);
+        mSetFlagsRule.disableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
 
         // Test larger than a day. Controller should cap at one day.
         setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_EXEMPTED_MS,
@@ -4318,6 +4704,12 @@ public class QuotaControllerTest {
         assertEquals(5 * MINUTE_IN_MILLIS, mQuotaController.getEJRewardNotificationSeenMs());
         assertEquals(HOUR_IN_MILLIS, mQuotaController.getEJGracePeriodTempAllowlistMs());
         assertEquals(HOUR_IN_MILLIS, mQuotaController.getEJGracePeriodTopAppMs());
+
+        mSetFlagsRule.enableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
+        setDeviceConfigLong(QcConstants.KEY_ALLOWED_TIME_PER_PERIOD_ADDITION_INSTALLER_MS,
+                25 * HOUR_IN_MILLIS);
+        assertEquals(0, mQuotaController.getAllowedTimePeriodAdditionInstallerMs());
+        mSetFlagsRule.disableFlags(Flags.FLAG_ADDITIONAL_QUOTA_FOR_SYSTEM_INSTALLER);
     }
 
     /** Tests that TimingSessions aren't saved when the device is charging. */
@@ -5205,12 +5597,16 @@ public class QuotaControllerTest {
     }
 
     @Test
-    @EnableCompatChanges({QuotaController.OVERRIDE_QUOTA_ENFORCEMENT_TO_TOP_STARTED_JOBS,
-            QuotaController.OVERRIDE_QUOTA_ENFORCEMENT_TO_FGS_JOBS})
     @RequiresFlagsEnabled({Flags.FLAG_ENFORCE_QUOTA_POLICY_TO_TOP_STARTED_JOBS,
             Flags.FLAG_ENFORCE_QUOTA_POLICY_TO_FGS_JOBS})
     public void testTracking_OutOfQuota_ForegroundAndBackground_CompactChangeOverrides() {
         setDischarging();
+
+        // Mock the OVERRIDE_QUOTA_ENFORCEMENT_TO_TOP_STARTED_JOBS compat change overrides.
+        doReturn(true).when(mPlatformCompat).isChangeEnabledByUid(
+                eq(QuotaController.OVERRIDE_QUOTA_ENFORCEMENT_TO_TOP_STARTED_JOBS), anyInt());
+        doReturn(true).when(mPlatformCompat).isChangeEnabledByUid(
+                eq(QuotaController.OVERRIDE_QUOTA_ENFORCEMENT_TO_FGS_JOBS), anyInt());
 
         JobStatus jobBg = createJobStatus("testTracking_OutOfQuota_ForegroundAndBackground", 1);
         JobStatus jobTop = createJobStatus("testTracking_OutOfQuota_ForegroundAndBackground", 2);

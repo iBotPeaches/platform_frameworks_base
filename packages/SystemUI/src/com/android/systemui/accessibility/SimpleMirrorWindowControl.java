@@ -27,6 +27,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
 
 import com.android.systemui.res.R;
 
@@ -48,8 +49,8 @@ class SimpleMirrorWindowControl extends MirrorWindowControl implements View.OnCl
     private final PointF mLastDrag = new PointF();
     private final Handler mHandler;
 
-    SimpleMirrorWindowControl(Context context, Handler handler) {
-        super(context);
+    SimpleMirrorWindowControl(Context context, Handler handler, WindowManager windowManager) {
+        super(context, windowManager);
         mHandler = handler;
         final Resources resource = context.getResources();
         mMoveFrameAmountShort = resource.getDimensionPixelSize(

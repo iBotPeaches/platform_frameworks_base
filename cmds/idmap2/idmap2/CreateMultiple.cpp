@@ -39,6 +39,7 @@ using android::idmap2::BinaryStreamVisitor;
 using android::idmap2::CommandLineOptions;
 using android::idmap2::Error;
 using android::idmap2::Idmap;
+using android::idmap2::IdmapConstraints;
 using android::idmap2::OverlayResourceContainer;
 using android::idmap2::Result;
 using android::idmap2::TargetResourceContainer;
@@ -115,8 +116,11 @@ Result<Unit> CreateMultiple(const std::vector<std::string>& args) {
         continue;
       }
 
+      // TODO(b/371801644): Add command-line support for RRO constraints.
+      auto constraints = std::make_unique<const IdmapConstraints>();
       const auto idmap =
-          Idmap::FromContainers(**target, **overlay, "", fulfilled_policies, !ignore_overlayable);
+          Idmap::FromContainers(**target, **overlay, "", fulfilled_policies, !ignore_overlayable,
+                                std::move(constraints));
       if (!idmap) {
         LOG(WARNING) << "failed to create idmap";
         continue;

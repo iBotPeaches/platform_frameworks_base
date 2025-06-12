@@ -27,7 +27,6 @@ import static org.mockito.Mockito.verify;
 import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import com.android.internal.os.BatteryStatsHistory;
 import com.android.internal.os.MonotonicClock;
@@ -37,7 +36,6 @@ import com.android.server.power.stats.PowerStatsSpan;
 import com.android.server.power.stats.PowerStatsStore;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -51,11 +49,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class MultiStatePowerAttributorTest {
-
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     private PowerStatsStore mPowerStatsStore;
     private Handler mHandler;

@@ -26,20 +26,18 @@ import static com.android.server.policy.PhoneWindowManager.POWER_VOLUME_UP_BEHAV
 import static com.android.server.policy.PhoneWindowManager.POWER_VOLUME_UP_BEHAVIOR_MUTE;
 import static com.android.server.policy.PhoneWindowManager.SETTINGS_KEY_BEHAVIOR_NOTIFICATION_PANEL;
 
-import android.hardware.input.InputSettings;
 import android.hardware.input.KeyGestureEvent;
 import android.os.RemoteException;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
+import android.provider.Settings;
 import android.view.KeyEvent;
 
 import androidx.test.filters.MediumTest;
 
 import com.android.hardware.input.Flags;
 import com.android.internal.annotations.Keep;
-
-import junit.framework.Assert;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -150,8 +148,6 @@ public class KeyGestureEventTests extends ShortcutKeyTestBase {
                 {"Meta + Left arrow -> Go back", new int[]{META_KEY, KeyEvent.KEYCODE_DPAD_LEFT},
                         KeyGestureEvent.KEY_GESTURE_TYPE_BACK, KeyEvent.KEYCODE_DPAD_LEFT,
                         META_ON},
-                {"Meta + Del -> Go back", new int[]{META_KEY, KeyEvent.KEYCODE_DEL},
-                        KeyGestureEvent.KEY_GESTURE_TYPE_BACK, KeyEvent.KEYCODE_DEL, META_ON},
                 {"APP_SWITCH key -> Open App switcher", new int[]{KeyEvent.KEYCODE_APP_SWITCH},
                         KeyGestureEvent.KEY_GESTURE_TYPE_APP_SWITCH,
                         KeyEvent.KEYCODE_APP_SWITCH, 0},
@@ -176,10 +172,10 @@ public class KeyGestureEventTests extends ShortcutKeyTestBase {
                         KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_NOTIFICATION_PANEL,
                         KeyEvent.KEYCODE_NOTIFICATION,
                         0},
-                {"Meta + Ctrl + S -> Take Screenshot",
-                        new int[]{META_KEY, CTRL_KEY, KeyEvent.KEYCODE_S},
+                {"Meta + S -> Take Screenshot",
+                        new int[]{META_KEY, KeyEvent.KEYCODE_S},
                         KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT, KeyEvent.KEYCODE_S,
-                        META_ON | CTRL_ON},
+                        META_ON},
                 {"Meta + / -> Open Shortcut Helper", new int[]{META_KEY, KeyEvent.KEYCODE_SLASH},
                         KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_SHORTCUT_HELPER,
                         KeyEvent.KEYCODE_SLASH, META_ON},
@@ -244,9 +240,6 @@ public class KeyGestureEventTests extends ShortcutKeyTestBase {
                 {"Meta + L -> Lock Homescreen", new int[]{META_KEY, KeyEvent.KEYCODE_L},
                         KeyGestureEvent.KEY_GESTURE_TYPE_LOCK_SCREEN, KeyEvent.KEYCODE_L,
                         META_ON},
-                {"Meta + Ctrl + N -> Open Notes", new int[]{META_KEY, CTRL_KEY, KeyEvent.KEYCODE_N},
-                        KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES, KeyEvent.KEYCODE_N,
-                        META_ON | CTRL_ON},
                 {"Meta + Ctrl + DPAD_DOWN -> Enter desktop mode",
                         new int[]{META_KEY, CTRL_KEY, KeyEvent.KEYCODE_DPAD_DOWN},
                         KeyGestureEvent.KEY_GESTURE_TYPE_DESKTOP_MODE,
@@ -402,9 +395,6 @@ public class KeyGestureEventTests extends ShortcutKeyTestBase {
 
     @Test
     @EnableFlags({com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SHORTCUT_CONTROL,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_BOUNCE_KEYS_FLAG,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SLOW_KEYS_FLAG,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_STICKY_KEYS_FLAG,
             com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_MOUSE_KEYS})
     @DisableFlags(com.android.hardware.input.Flags.FLAG_USE_KEY_GESTURE_EVENT_HANDLER)
     public void testKeyboardAccessibilityToggleShortcutPress() {
@@ -441,123 +431,99 @@ public class KeyGestureEventTests extends ShortcutKeyTestBase {
 
     @Test
     public void testKeyGestureRecentApps() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_RECENT_APPS));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_RECENT_APPS);
         mPhoneWindowManager.assertShowRecentApps();
     }
 
     @Test
     public void testKeyGestureAppSwitch() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_APP_SWITCH));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_APP_SWITCH);
         mPhoneWindowManager.assertToggleRecentApps();
     }
 
     @Test
     public void testKeyGestureLaunchAssistant() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_ASSISTANT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_ASSISTANT);
         mPhoneWindowManager.assertSearchManagerLaunchAssist();
     }
 
     @Test
     public void testKeyGestureLaunchVoiceAssistant() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_VOICE_ASSISTANT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_VOICE_ASSISTANT);
         mPhoneWindowManager.assertSearchManagerLaunchAssist();
     }
 
     @Test
     public void testKeyGestureGoHome() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_HOME));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_HOME);
         mPhoneWindowManager.assertGoToHomescreen();
     }
 
     @Test
     public void testKeyGestureLaunchSystemSettings() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SYSTEM_SETTINGS));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SYSTEM_SETTINGS);
         mPhoneWindowManager.assertLaunchSystemSettings();
     }
 
     @Test
     public void testKeyGestureLock() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LOCK_SCREEN));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LOCK_SCREEN);
         mPhoneWindowManager.assertLockedAfterAppTransitionFinished();
     }
 
     @Test
     public void testKeyGestureToggleNotificationPanel() throws RemoteException {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_NOTIFICATION_PANEL));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_NOTIFICATION_PANEL);
         mPhoneWindowManager.assertTogglePanel();
     }
 
     @Test
     public void testKeyGestureScreenshot() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT);
         mPhoneWindowManager.assertTakeScreenshotCalled();
     }
 
     @Test
     public void testKeyGestureTriggerBugReport() throws RemoteException {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TRIGGER_BUG_REPORT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TRIGGER_BUG_REPORT);
         mPhoneWindowManager.assertTakeBugreport(true);
     }
 
     @Test
     public void testKeyGestureBack() {
-        Assert.assertTrue(sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_BACK));
+        mPhoneWindowManager.overrideDelegateBackGestureRemote(true);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_BACK);
+        mPhoneWindowManager.assertBackEventInjected();
+
+        mPhoneWindowManager.overrideDelegateBackGestureRemote(false);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_BACK);
         mPhoneWindowManager.assertBackEventInjected();
     }
 
     @Test
     public void testKeyGestureMultiWindowNavigation() {
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_MULTI_WINDOW_NAVIGATION));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_MULTI_WINDOW_NAVIGATION);
         mPhoneWindowManager.assertMoveFocusedTaskToFullscreen();
     }
 
     @Test
     public void testKeyGestureDesktopMode() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_DESKTOP_MODE));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_DESKTOP_MODE);
         mPhoneWindowManager.assertMoveFocusedTaskToDesktop();
     }
 
     @Test
     public void testKeyGestureSplitscreenNavigation() {
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_LEFT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_LEFT);
         mPhoneWindowManager.assertMoveFocusedTaskToStageSplit(true);
 
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_RIGHT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_SPLIT_SCREEN_NAVIGATION_RIGHT);
         mPhoneWindowManager.assertMoveFocusedTaskToStageSplit(false);
     }
 
     @Test
-    public void testKeyGestureSplitscreenFocus() {
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_CHANGE_SPLITSCREEN_FOCUS_LEFT));
-        mPhoneWindowManager.assertSetSplitscreenFocus(true);
-
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_CHANGE_SPLITSCREEN_FOCUS_RIGHT));
-        mPhoneWindowManager.assertSetSplitscreenFocus(false);
-    }
-
-    @Test
     public void testKeyGestureShortcutHelper() {
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_SHORTCUT_HELPER));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_SHORTCUT_HELPER);
         mPhoneWindowManager.assertToggleShortcutsMenu();
     }
 
@@ -568,244 +534,179 @@ public class KeyGestureEventTests extends ShortcutKeyTestBase {
 
         for (int i = 0; i < currentBrightness.length; i++) {
             mPhoneWindowManager.prepareBrightnessDecrease(currentBrightness[i]);
-            Assert.assertTrue(
-                    sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_BRIGHTNESS_DOWN));
+            sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_BRIGHTNESS_DOWN);
             mPhoneWindowManager.verifyNewBrightness(newBrightness[i]);
         }
     }
 
     @Test
     public void testKeyGestureRecentAppSwitcher() {
-        Assert.assertTrue(sendKeyGestureEventStart(
-                KeyGestureEvent.KEY_GESTURE_TYPE_RECENT_APPS_SWITCHER));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_RECENT_APPS_SWITCHER);
         mPhoneWindowManager.assertShowRecentApps();
-
-        Assert.assertTrue(sendKeyGestureEventComplete(
-                KeyGestureEvent.KEY_GESTURE_TYPE_RECENT_APPS_SWITCHER));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_RECENT_APPS_SWITCHER);
         mPhoneWindowManager.assertHideRecentApps();
     }
 
     @Test
     public void testKeyGestureLanguageSwitch() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LANGUAGE_SWITCH));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LANGUAGE_SWITCH);
         mPhoneWindowManager.assertSwitchKeyboardLayout(1, DEFAULT_DISPLAY);
 
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LANGUAGE_SWITCH,
-                        KeyEvent.META_SHIFT_ON));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LANGUAGE_SWITCH,
+                KeyEvent.META_SHIFT_ON);
         mPhoneWindowManager.assertSwitchKeyboardLayout(-1, DEFAULT_DISPLAY);
     }
 
     @Test
     public void testKeyGestureLaunchSearch() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SEARCH));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SEARCH);
         mPhoneWindowManager.assertLaunchSearch();
     }
 
     @Test
     public void testKeyGestureScreenshotChord() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD);
         mPhoneWindowManager.moveTimeForward(500);
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD));
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD);
         mPhoneWindowManager.assertTakeScreenshotCalled();
     }
 
     @Test
     public void testKeyGestureScreenshotChordCancelled() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD));
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD);
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_SCREENSHOT_CHORD);
         mPhoneWindowManager.assertTakeScreenshotNotCalled();
-    }
-
-    @Test
-    public void testKeyGestureAccessibilityShortcutChord() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT_CHORD));
-        mPhoneWindowManager.moveTimeForward(5000);
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT_CHORD));
-        mPhoneWindowManager.assertAccessibilityKeychordCalled();
-    }
-
-    @Test
-    public void testKeyGestureAccessibilityShortcutChordCancelled() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT_CHORD));
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT_CHORD));
-        mPhoneWindowManager.assertAccessibilityKeychordNotCalled();
     }
 
     @Test
     public void testKeyGestureRingerToggleChord() {
         mPhoneWindowManager.overridePowerVolumeUp(POWER_VOLUME_UP_BEHAVIOR_MUTE);
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD);
         mPhoneWindowManager.moveTimeForward(500);
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD));
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD);
         mPhoneWindowManager.assertVolumeMute();
     }
 
     @Test
     public void testKeyGestureRingerToggleChordCancelled() {
         mPhoneWindowManager.overridePowerVolumeUp(POWER_VOLUME_UP_BEHAVIOR_MUTE);
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD));
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD);
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_RINGER_TOGGLE_CHORD);
         mPhoneWindowManager.assertVolumeNotMuted();
     }
 
     @Test
     public void testKeyGestureGlobalAction() {
         mPhoneWindowManager.overridePowerVolumeUp(POWER_VOLUME_UP_BEHAVIOR_GLOBAL_ACTIONS);
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS);
         mPhoneWindowManager.moveTimeForward(500);
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS));
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS);
         mPhoneWindowManager.assertShowGlobalActionsCalled();
     }
 
     @Test
     public void testKeyGestureGlobalActionCancelled() {
         mPhoneWindowManager.overridePowerVolumeUp(POWER_VOLUME_UP_BEHAVIOR_GLOBAL_ACTIONS);
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS));
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS);
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_GLOBAL_ACTIONS);
         mPhoneWindowManager.assertShowGlobalActionsNotCalled();
     }
 
     @Test
-    public void testKeyGestureAccessibilityTvShortcutChord() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD));
-        mPhoneWindowManager.moveTimeForward(5000);
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD));
-        mPhoneWindowManager.assertAccessibilityKeychordCalled();
-    }
-
-    @Test
-    public void testKeyGestureAccessibilityTvShortcutChordCancelled() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD));
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_TV_ACCESSIBILITY_SHORTCUT_CHORD));
-        mPhoneWindowManager.assertAccessibilityKeychordNotCalled();
-    }
-
-    @Test
     public void testKeyGestureTvTriggerBugReport() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT);
         mPhoneWindowManager.moveTimeForward(1000);
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT));
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT);
         mPhoneWindowManager.assertBugReportTakenForTv();
     }
 
     @Test
     public void testKeyGestureTvTriggerBugReportCancelled() {
-        Assert.assertTrue(
-                sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT));
-        Assert.assertTrue(
-                sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT));
+        sendKeyGestureEventStart(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT);
+        sendKeyGestureEventCancel(KeyGestureEvent.KEY_GESTURE_TYPE_TV_TRIGGER_BUG_REPORT);
         mPhoneWindowManager.assertBugReportNotTakenForTv();
     }
 
     @Test
     public void testKeyGestureAccessibilityShortcut() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(
-                        KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_SHORTCUT);
         mPhoneWindowManager.assertAccessibilityKeychordCalled();
     }
 
     @Test
     public void testKeyGestureCloseAllDialogs() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_CLOSE_ALL_DIALOGS));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_CLOSE_ALL_DIALOGS);
         mPhoneWindowManager.assertCloseAllDialogs();
     }
 
     @Test
     @EnableFlags(com.android.hardware.input.Flags.FLAG_ENABLE_TALKBACK_AND_MAGNIFIER_KEY_GESTURES)
     public void testKeyGestureToggleTalkback() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_TALKBACK));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_TALKBACK);
         mPhoneWindowManager.assertTalkBack(true);
 
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_TALKBACK));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_TALKBACK);
         mPhoneWindowManager.assertTalkBack(false);
     }
 
     @Test
-    @EnableFlags({com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SHORTCUT_CONTROL,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_STICKY_KEYS_FLAG})
-    public void testKeyGestureToggleStickyKeys() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_STICKY_KEYS));
-        Assert.assertTrue(InputSettings.isAccessibilityStickyKeysEnabled(mContext));
+    @EnableFlags(com.android.hardware.input.Flags.FLAG_ENABLE_VOICE_ACCESS_KEY_GESTURES)
+    public void testKeyGestureToggleVoiceAccess() {
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS);
+        mPhoneWindowManager.assertVoiceAccess(true);
 
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_STICKY_KEYS));
-        Assert.assertFalse(InputSettings.isAccessibilityStickyKeysEnabled(mContext));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_VOICE_ACCESS);
+        mPhoneWindowManager.assertVoiceAccess(false);
     }
 
     @Test
-    @EnableFlags({com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SHORTCUT_CONTROL,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SLOW_KEYS_FLAG})
-    public void testKeyGestureToggleSlowKeys() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_SLOW_KEYS));
-        Assert.assertTrue(InputSettings.isAccessibilitySlowKeysEnabled(mContext));
+    public void testKeyGestureToggleDoNotDisturb() {
+        mPhoneWindowManager.overrideZenMode(Settings.Global.ZEN_MODE_OFF);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_DO_NOT_DISTURB);
+        mPhoneWindowManager.assertZenMode(Settings.Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS);
 
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_SLOW_KEYS));
-        Assert.assertFalse(InputSettings.isAccessibilitySlowKeysEnabled(mContext));
+        mPhoneWindowManager.overrideZenMode(Settings.Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_DO_NOT_DISTURB);
+        mPhoneWindowManager.assertZenMode(Settings.Global.ZEN_MODE_OFF);
     }
 
     @Test
-    @EnableFlags({com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SHORTCUT_CONTROL,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_MOUSE_KEYS})
-    public void testKeyGestureToggleMouseKeys() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_MOUSE_KEYS));
-        Assert.assertTrue(InputSettings.isAccessibilityMouseKeysEnabled(mContext));
+    public void testLaunchSettingsAndSearchDoesntOpenAnything_withKeyguardOn() {
+        mPhoneWindowManager.overrideKeyguardOn(true);
 
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_MOUSE_KEYS));
-        Assert.assertFalse(InputSettings.isAccessibilityMouseKeysEnabled(mContext));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SYSTEM_SETTINGS);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SEARCH);
+
+        mPhoneWindowManager.assertNoActivityLaunched();
     }
 
     @Test
-    @EnableFlags({com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_SHORTCUT_CONTROL,
-            com.android.hardware.input.Flags.FLAG_KEYBOARD_A11Y_BOUNCE_KEYS_FLAG})
-    public void testKeyGestureToggleBounceKeys() {
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_BOUNCE_KEYS));
-        Assert.assertTrue(InputSettings.isAccessibilityBounceKeysEnabled(mContext));
+    public void testLaunchSettingsAndSearchDoesntOpenAnything_withUserSetupIncomplete() {
+        mPhoneWindowManager.overrideIsUserSetupComplete(false);
 
-        Assert.assertTrue(
-                sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_TOGGLE_BOUNCE_KEYS));
-        Assert.assertFalse(InputSettings.isAccessibilityBounceKeysEnabled(mContext));
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SYSTEM_SETTINGS);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_SEARCH);
+
+        mPhoneWindowManager.assertNoActivityLaunched();
+    }
+
+    @Test
+    public void testLaunchAssistantDoesntWork_withKeyguardOn() {
+        mPhoneWindowManager.overrideKeyguardOn(true);
+
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_ASSISTANT);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_VOICE_ASSISTANT);
+
+        mPhoneWindowManager.assertSearchManagerDoesntLaunchAssist();
+    }
+
+    @Test
+    public void testLaunchAssistantDoesntWork_withUserSetupIncomplete() {
+        mPhoneWindowManager.overrideIsUserSetupComplete(false);
+
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_ASSISTANT);
+        sendKeyGestureEventComplete(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_VOICE_ASSISTANT);
+
+        mPhoneWindowManager.assertSearchManagerDoesntLaunchAssist();
     }
 }

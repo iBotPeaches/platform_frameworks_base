@@ -96,6 +96,7 @@ import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
 import android.os.ShellCommand;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -1564,6 +1565,12 @@ class PackageManagerShellCommand extends ShellCommand {
     private int doRunInstall(final InstallParams params) throws RemoteException {
         final PrintWriter pw = getOutPrintWriter();
 
+        // Do not allow app installation if boot has not completed already
+        if (!SystemProperties.getBoolean("sys.boot_completed", false)) {
+            pw.println("Error: device is still booting.");
+            return 1;
+        }
+
         int requestUserId = params.userId;
         if (requestUserId != UserHandle.USER_ALL && requestUserId != UserHandle.USER_CURRENT) {
             UserManagerInternal umi =
@@ -2174,6 +2181,13 @@ class PackageManagerShellCommand extends ShellCommand {
 
     private int runUninstall() throws RemoteException {
         final PrintWriter pw = getOutPrintWriter();
+
+        // Do not allow app uninstallation if boot has not completed already
+        if (!SystemProperties.getBoolean("sys.boot_completed", false)) {
+            pw.println("Error: device is still booting.");
+            return 1;
+        }
+
         int flags = 0;
         int userId = UserHandle.USER_ALL;
         long versionCode = PackageManager.VERSION_CODE_HIGHEST;
@@ -3561,9 +3575,6 @@ class PackageManagerShellCommand extends ShellCommand {
                     sessionParams.setEnableRollback(true, rollbackStrategy);
                     break;
                 case "--rollback-impact-level":
-                    if (!Flags.recoverabilityDetection()) {
-                        throw new IllegalArgumentException("Unknown option " + opt);
-                    }
                     int rollbackImpactLevel = Integer.parseInt(peekNextArg());
                     if (rollbackImpactLevel < PackageManager.ROLLBACK_USER_IMPACT_LOW
                             || rollbackImpactLevel
@@ -4775,11 +4786,9 @@ class PackageManagerShellCommand extends ShellCommand {
         pw.println("      --full: cause the app to be installed as a non-ephemeral full app");
         pw.println("      --enable-rollback: enable rollbacks for the upgrade.");
         pw.println("          0=restore (default), 1=wipe, 2=retain");
-        if (Flags.recoverabilityDetection()) {
-            pw.println(
-                    "      --rollback-impact-level: set device impact required for rollback.");
-            pw.println("          0=low (default), 1=high, 2=manual only");
-        }
+        pw.println(
+                "      --rollback-impact-level: set device impact required for rollback.");
+        pw.println("          0=low (default), 1=high, 2=manual only");
         pw.println("      --install-location: force the install location:");
         pw.println("          0=auto, 1=internal only, 2=prefer external");
         pw.println("      --install-reason: indicates why the app is being installed:");

@@ -48,12 +48,14 @@ abstract class ManageWindowsViewContainer(
     lateinit var menuView: ManageWindowsView
 
     /** Creates the base menu view and fills it with icon views. */
-    fun createMenu(snapshotList: List<Pair<Int, TaskSnapshot>>,
+    fun createMenu(snapshotList: List<Pair<Int, TaskSnapshot?>>,
              onIconClickListener: ((Int) -> Unit),
              onOutsideClickListener: (() -> Unit)): ManageWindowsView {
-        val bitmapList = snapshotList.map { (index, snapshot) ->
-            index to Bitmap.wrapHardwareBuffer(snapshot.hardwareBuffer, snapshot.colorSpace)
-        }
+        val bitmapList = snapshotList
+            .filter { it.second != null }
+            .map { (index, snapshot) ->
+                index to Bitmap.wrapHardwareBuffer(snapshot!!.hardwareBuffer, snapshot.colorSpace)
+            }
         return createAndShowMenuView(
             bitmapList,
             onIconClickListener,

@@ -49,6 +49,7 @@ import org.mockito.kotlin.verify
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
+@EnableFlags(Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR)
 class KeyguardStateCallbackInteractorTest : SysuiTestCase() {
 
     private val kosmos = testKosmos()
@@ -81,7 +82,6 @@ class KeyguardStateCallbackInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR)
     fun test_lockscreenVisibility_notifyDismissSucceeded_ifNotVisible() =
         testScope.runTest {
             underTest.addCallback(callback)
@@ -109,7 +109,6 @@ class KeyguardStateCallbackInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    @EnableFlags(Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR)
     fun test_lockscreenVisibility_reportsKeyguardShowingChanged() =
         testScope.runTest {
             underTest.addCallback(callback)

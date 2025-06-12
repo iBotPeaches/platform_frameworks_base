@@ -27,9 +27,8 @@ import android.util.IndentingPrintWriter;
 
 import androidx.annotation.NonNull;
 
-import com.android.settingslib.devicestate.DeviceStateRotationLockSettingsManager;
+import com.android.settingslib.devicestate.DeviceStateAutoRotateSettingManager;
 import com.android.systemui.Dumpable;
-import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.util.wrapper.RotationPolicyWrapper;
@@ -43,14 +42,13 @@ import javax.inject.Inject;
  * Handles reading and writing of rotation lock settings per device state, as well as setting the
  * rotation lock when device state changes.
  */
-@SysUISingleton
 public final class DeviceStateRotationLockSettingController
         implements Listenable, RotationLockController.RotationLockControllerCallback, Dumpable {
 
     private final RotationPolicyWrapper mRotationPolicyWrapper;
     private final DeviceStateManager mDeviceStateManager;
     private final Executor mMainExecutor;
-    private final DeviceStateRotationLockSettingsManager mDeviceStateRotationLockSettingsManager;
+    private final DeviceStateAutoRotateSettingManager mDeviceStateAutoRotateSettingManager;
     private final DeviceStateRotationLockSettingControllerLogger mLogger;
 
     // On registration for DeviceStateCallback, we will receive a callback with the current state
@@ -58,21 +56,21 @@ public final class DeviceStateRotationLockSettingController
     private int mDeviceState = -1;
     @Nullable
     private DeviceStateManager.DeviceStateCallback mDeviceStateCallback;
-    private DeviceStateRotationLockSettingsManager.DeviceStateRotationLockSettingsListener
-            mDeviceStateRotationLockSettingsListener;
+    private DeviceStateAutoRotateSettingManager.DeviceStateAutoRotateSettingListener
+            mDeviceStateAutoRotateSettingListener;
 
     @Inject
     public DeviceStateRotationLockSettingController(
             RotationPolicyWrapper rotationPolicyWrapper,
             DeviceStateManager deviceStateManager,
             @Main Executor executor,
-            DeviceStateRotationLockSettingsManager deviceStateRotationLockSettingsManager,
+            DeviceStateAutoRotateSettingManager deviceStateAutoRotateSettingManager,
             DeviceStateRotationLockSettingControllerLogger logger,
             DumpManager dumpManager) {
         mRotationPolicyWrapper = rotationPolicyWrapper;
         mDeviceStateManager = deviceStateManager;
         mMainExecutor = executor;
-        mDeviceStateRotationLockSettingsManager = deviceStateRotationLockSettingsManager;
+        mDeviceStateAutoRotateSettingManager = deviceStateAutoRotateSettingManager;
         mLogger = logger;
         dumpManager.registerDumpable(this);
     }
@@ -85,17 +83,17 @@ public final class DeviceStateRotationLockSettingController
             // is no user action.
             mDeviceStateCallback = this::updateDeviceState;
             mDeviceStateManager.registerCallback(mMainExecutor, mDeviceStateCallback);
-            mDeviceStateRotationLockSettingsListener = () ->
+            mDeviceStateAutoRotateSettingListener = () ->
                     readPersistedSetting("deviceStateRotationLockChange", mDeviceState);
-            mDeviceStateRotationLockSettingsManager.registerListener(
-                    mDeviceStateRotationLockSettingsListener);
+            mDeviceStateAutoRotateSettingManager.registerListener(
+                    mDeviceStateAutoRotateSettingListener);
         } else {
             if (mDeviceStateCallback != null) {
                 mDeviceStateManager.unregisterCallback(mDeviceStateCallback);
             }
-            if (mDeviceStateRotationLockSettingsListener != null) {
-                mDeviceStateRotationLockSettingsManager.unregisterListener(
-                        mDeviceStateRotationLockSettingsListener);
+            if (mDeviceStateAutoRotateSettingListener != null) {
+                mDeviceStateAutoRotateSettingManager.unregisterListener(
+                        mDeviceStateAutoRotateSettingListener);
             }
         }
     }
@@ -103,7 +101,7 @@ public final class DeviceStateRotationLockSettingController
     @Override
     public void onRotationLockStateChanged(boolean newRotationLocked, boolean affordanceVisible) {
         int deviceState = mDeviceState;
-        boolean currentRotationLocked = mDeviceStateRotationLockSettingsManager
+        boolean currentRotationLocked = mDeviceStateAutoRotateSettingManager
                 .isRotationLocked(deviceState);
         mLogger.logRotationLockStateChanged(deviceState, newRotationLocked, currentRotationLocked);
         if (deviceState == -1) {
@@ -118,7 +116,7 @@ public final class DeviceStateRotationLockSettingController
     private void saveNewRotationLockSetting(boolean isRotationLocked) {
         int deviceState = mDeviceState;
         mLogger.logSaveNewRotationLockSetting(isRotationLocked, deviceState);
-        mDeviceStateRotationLockSettingsManager.updateSetting(deviceState, isRotationLocked);
+        mDeviceStateAutoRotateSettingManager.updateSetting(deviceState, isRotationLocked);
     }
 
     private void updateDeviceState(@NonNull DeviceState state) {
@@ -140,7 +138,7 @@ public final class DeviceStateRotationLockSettingController
 
     private void readPersistedSetting(String caller, int state) {
         int rotationLockSetting =
-                mDeviceStateRotationLockSettingsManager.getRotationLockSetting(state);
+                mDeviceStateAutoRotateSettingManager.getRotationLockSetting(state);
         boolean shouldBeLocked = rotationLockSetting == DEVICE_STATE_ROTATION_LOCK_LOCKED;
         boolean isLocked = mRotationPolicyWrapper.isRotationLocked();
 
@@ -168,7 +166,7 @@ public final class DeviceStateRotationLockSettingController
     @Override
     public void dump(@NonNull PrintWriter printWriter, @NonNull String[] args) {
         IndentingPrintWriter pw = new IndentingPrintWriter(printWriter);
-        mDeviceStateRotationLockSettingsManager.dump(pw);
+        mDeviceStateAutoRotateSettingManager.dump(printWriter, null);
         pw.println("DeviceStateRotationLockSettingController");
         pw.increaseIndent();
         pw.println("mDeviceState: " + mDeviceState);

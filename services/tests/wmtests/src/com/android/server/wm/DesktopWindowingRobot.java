@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 /** Robot for changing desktop windowing properties. */
 class DesktopWindowingRobot {
     void allowEnterDesktopMode(boolean isAllowed) {
-        doReturn(isAllowed).when(() -> DesktopModeHelper.canEnterDesktopMode(any()));
+        doReturn(isAllowed).when(() ->
+                DesktopModeHelper.canEnterDesktopMode(any()));
     }
 }

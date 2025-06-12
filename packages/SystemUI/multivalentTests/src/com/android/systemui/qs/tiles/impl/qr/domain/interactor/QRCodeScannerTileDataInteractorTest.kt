@@ -24,7 +24,7 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.qrcodescanner.controller.QRCodeScannerController
 import com.android.systemui.qrcodescanner.controller.QRCodeScannerController.Callback
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.qr.domain.model.QRCodeScannerTileModel
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.mock

@@ -22,6 +22,9 @@ import static org.junit.Assert.assertThrows;
 import android.os.instrumentation.MethodDescriptor;
 import android.os.instrumentation.MethodDescriptorParser;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
 import androidx.test.filters.SmallTest;
 
@@ -31,9 +34,10 @@ import com.android.server.TestClass;
 import com.android.server.TestInterface;
 import com.android.server.TestInterfaceImpl;
 
+import org.junit.Rule;
 import org.junit.Test;
 
-import java.lang.reflect.Method;
+import java.lang.reflect.Executable;
 
 
 /**
@@ -53,6 +57,10 @@ public class ParseMethodDescriptorTest {
     private static final String[] CLASS_PARAMS =
             new String[]{"java.lang.String", "java.lang.String[]"};
 
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule =
+            DeviceFlagsValueProvider.createCheckFlagsRule();
+
     @Test
     public void primitiveParams() {
         assertNotNull(parseMethodDescriptor(TestClass.class.getName(), "primitiveParams",
@@ -63,6 +71,13 @@ public class ParseMethodDescriptorTest {
     public void classParams() {
         assertNotNull(
                 parseMethodDescriptor(TestClass.class.getName(), "classParams", CLASS_PARAMS));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS_V2)
+    public void constructor() {
+        assertNotNull(
+                parseMethodDescriptor(TestClass.class.getName(), "<init>"));
     }
 
     @Test
@@ -119,13 +134,14 @@ public class ParseMethodDescriptorTest {
                         new String[]{"int"}));
     }
 
-    private Method parseMethodDescriptor(String fqcn, String methodName) {
+    private Executable parseMethodDescriptor(String fqcn, String methodName) {
         return MethodDescriptorParser.parseMethodDescriptor(
                 getClass().getClassLoader(),
                 getMethodDescriptor(fqcn, methodName, new String[]{}));
     }
 
-    private Method parseMethodDescriptor(String fqcn, String methodName, String[] fqParameters) {
+    private Executable parseMethodDescriptor(
+            String fqcn, String methodName, String[] fqParameters) {
         return MethodDescriptorParser.parseMethodDescriptor(
                 getClass().getClassLoader(),
                 getMethodDescriptor(fqcn, methodName, fqParameters));

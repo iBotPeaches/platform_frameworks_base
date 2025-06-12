@@ -84,12 +84,10 @@ public class ViewPerfTest {
 
         final BenchmarkState state = mBenchmarkRule.getState();
         mActivityRule.runOnUiThread(() -> {
-            state.pauseTiming();
             View view = new View(mContext);
             mActivityRule.getActivity().setContentView(view);
             assertTrue("View needs to be attached to Window to perform haptic feedback",
                     view.isAttachedToWindow());
-            state.resumeTiming();
 
             // Disable settings so perform will never be ignored.
             int flags = HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING

@@ -17,11 +17,12 @@
 package com.android.wm.shell.apptoweb
 
 import android.app.ActivityManager.RunningTaskInfo
-import android.app.TaskInfo
 import android.content.Context
+import android.content.pm.PackageManager.NameNotFoundException
 import android.content.pm.verify.domain.DomainVerificationManager
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.util.Slog
 import android.view.LayoutInflater
 import android.view.SurfaceControl
 import android.view.SurfaceControlViewHost
@@ -36,8 +37,17 @@ import android.widget.TextView
 import android.window.TaskConstants
 import com.android.wm.shell.R
 import com.android.wm.shell.common.DisplayController
+import com.android.wm.shell.shared.annotations.ShellBackgroundThread
+import com.android.wm.shell.shared.annotations.ShellMainThread
 import com.android.wm.shell.windowdecor.additionalviewcontainer.AdditionalViewHostViewContainer
+import com.android.wm.shell.windowdecor.common.WindowDecorTaskResourceLoader
 import java.util.function.Supplier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainCoroutineDispatcher
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 /**
@@ -45,13 +55,14 @@ import java.util.function.Supplier
  */
 internal class OpenByDefaultDialog(
     private val context: Context,
-    private val taskInfo: TaskInfo,
+    private val taskInfo: RunningTaskInfo,
     private val taskSurface: SurfaceControl,
     private val displayController: DisplayController,
+    private val taskResourceLoader: WindowDecorTaskResourceLoader,
     private val surfaceControlTransactionSupplier: Supplier<SurfaceControl.Transaction>,
+    @ShellMainThread private val mainDispatcher: MainCoroutineDispatcher,
+    @ShellBackgroundThread private val bgScope: CoroutineScope,
     private val listener: DialogLifecycleListener,
-    appIconBitmap: Bitmap?,
-    appName: CharSequence?
 ) {
     private lateinit var dialog: OpenByDefaultDialogView
     private lateinit var viewHost: SurfaceControlViewHost
@@ -67,11 +78,20 @@ internal class OpenByDefaultDialog(
         context.getSystemService(DomainVerificationManager::class.java)!!
     private val packageName = taskInfo.baseActivity?.packageName!!
 
+    private var loadAppInfoJob: Job? = null
 
     init {
         createDialog()
         initializeRadioButtons()
-        bindAppInfo(appIconBitmap, appName)
+        loadAppInfoJob = bgScope.launch {
+            if (!isActive) return@launch
+            val name = taskResourceLoader.getName(taskInfo)
+            val icon = taskResourceLoader.getHeaderIcon(taskInfo)
+            withContext(mainDispatcher.immediate) {
+                if (!isActive) return@withContext
+                bindAppInfo(icon, name)
+            }
+        }
     }
 
     /** Creates an open by default settings dialog. */
@@ -142,19 +162,27 @@ internal class OpenByDefaultDialog(
     }
 
     private fun setDefaultLinkHandlingSetting() {
-        domainVerificationManager.setDomainVerificationLinkHandlingAllowed(
-            packageName, openInAppButton.isChecked)
+        try {
+            domainVerificationManager.setDomainVerificationLinkHandlingAllowed(
+                packageName, openInAppButton.isChecked)
+        } catch (e: NameNotFoundException) {
+            Slog.e(
+                TAG,
+                "Failed to change link handling policy due to the package name is not found: " + e
+            )
+        }
     }
 
     private fun closeMenu() {
+        loadAppInfoJob?.cancel()
         dialogContainer?.releaseView()
         dialogContainer = null
         listener.onDialogDismissed()
     }
 
      private fun bindAppInfo(
-        appIconBitmap: Bitmap?,
-        appName: CharSequence?
+        appIconBitmap: Bitmap,
+        appName: CharSequence
     ) {
         appIconView.setImageBitmap(appIconBitmap)
         appNameView.text = appName
@@ -183,5 +211,9 @@ internal class OpenByDefaultDialog(
 
         /** Called when open by default dialog view has been released. */
         fun onDialogDismissed()
+    }
+
+    companion object {
+        private const val TAG = "OpenByDefaultDialog"
     }
 }

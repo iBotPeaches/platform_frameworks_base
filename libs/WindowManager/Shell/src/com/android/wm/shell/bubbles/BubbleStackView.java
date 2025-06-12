@@ -40,7 +40,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
-import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
@@ -90,8 +89,13 @@ import com.android.wm.shell.bubbles.animation.PhysicsAnimationLayout;
 import com.android.wm.shell.bubbles.animation.StackAnimationController;
 import com.android.wm.shell.common.FloatingContentCoordinator;
 import com.android.wm.shell.common.ShellExecutor;
+import com.android.wm.shell.shared.TypefaceUtils;
+import com.android.wm.shell.shared.TypefaceUtils.FontFamily;
 import com.android.wm.shell.shared.animation.Interpolators;
 import com.android.wm.shell.shared.animation.PhysicsAnimator;
+import com.android.wm.shell.shared.bubbles.BubbleAnythingFlagHelper;
+import com.android.wm.shell.shared.bubbles.ContextUtils;
+import com.android.wm.shell.shared.bubbles.DeviceConfig;
 import com.android.wm.shell.shared.bubbles.DismissView;
 import com.android.wm.shell.shared.bubbles.RelativeTouchListener;
 import com.android.wm.shell.shared.magnetictarget.MagnetizedObject;
@@ -498,7 +502,7 @@ public class BubbleStackView extends FrameLayout
                                 view /* bubble */,
                                 mDismissView.getHeight() /* translationYBy */,
                                 () -> dismissBubbleIfExists(
-                                        mBubbleData.getBubbleWithView(view)) /* after */);
+                                        mBubbleData.getBubbleInStackWithView(view)) /* after */);
                     }
 
                     mDismissView.hide();
@@ -559,7 +563,7 @@ public class BubbleStackView extends FrameLayout
                 return;
             }
 
-            final Bubble clickedBubble = mBubbleData.getBubbleWithView(view);
+            final Bubble clickedBubble = mBubbleData.getBubbleInStackWithView(view);
 
             // If the bubble has since left us, ignore the click.
             if (clickedBubble == null) {
@@ -634,8 +638,6 @@ public class BubbleStackView extends FrameLayout
                         mMagneticTarget,
                         mIndividualBubbleMagnetListener);
 
-                hideCurrentInputMethod();
-
                 // Save the magnetized individual bubble so we can dispatch touch events to it.
                 mMagnetizedObject = mExpandedAnimationController.getMagnetizedBubbleDraggingOut();
             } else {
@@ -670,6 +672,10 @@ public class BubbleStackView extends FrameLayout
             // If we're expanding or collapsing, ignore all touch events.
             if (mIsExpansionAnimating || mShowedUserEducationInTouchListenerActive) {
                 return;
+            }
+
+            if (mPositioner.isImeVisible()) {
+                hideCurrentInputMethod();
             }
 
             // Show the dismiss target, if we haven't already.
@@ -1317,7 +1323,7 @@ public class BubbleStackView extends FrameLayout
         mBubbleContainer.bringToFront();
     }
 
-    // TODO: Create ManageMenuView and move setup / animations there
+    // TODO (b/402196554) : Create ManageMenuView and move setup / animations there
     private void setUpManageMenu() {
         if (mManageMenu != null) {
             removeView(mManageMenu);
@@ -1327,10 +1333,9 @@ public class BubbleStackView extends FrameLayout
                 R.layout.bubble_manage_menu, this, false);
         mManageMenu.setVisibility(View.INVISIBLE);
 
-        final TypedArray ta = mContext.obtainStyledAttributes(new int[]{
-                com.android.internal.R.attr.materialColorSurfaceBright});
-        final int menuBackgroundColor = ta.getColor(0, Color.WHITE);
-        ta.recycle();
+        final int menuBackgroundColor = mContext.getColor(
+                com.android.internal.R.color.materialColorSurfaceBright);
+
         mManageMenu.getBackground().setColorFilter(menuBackgroundColor, PorterDuff.Mode.SRC_IN);
 
         PhysicsAnimator.getInstance(mManageMenu).setDefaultSpringConfig(mManageSpringConfig);
@@ -1376,24 +1381,48 @@ public class BubbleStackView extends FrameLayout
         mManageSettingsIcon = mManageMenu.findViewById(R.id.bubble_manage_menu_settings_icon);
         mManageSettingsText = mManageMenu.findViewById(R.id.bubble_manage_menu_settings_name);
 
+        View fullscreenView = mManageMenu.findViewById(
+                R.id.bubble_manage_menu_fullscreen_container);
+        if (BubbleAnythingFlagHelper.enableBubbleToFullscreen()) {
+            fullscreenView.setVisibility(VISIBLE);
+            fullscreenView.setOnClickListener(
+                    view -> {
+                        showManageMenu(false /* show */);
+                        BubbleExpandedView expandedView = getExpandedView();
+                        if (expandedView != null && expandedView.getTaskView() != null) {
+                            expandedView.getTaskView().moveToFullscreen();
+                        }
+                    });
+        } else {
+            fullscreenView.setVisibility(GONE);
+        }
+
         // The menu itself should respect locale direction so the icons are on the correct side.
         mManageMenu.setLayoutDirection(LAYOUT_DIRECTION_LOCALE);
         addView(mManageMenu);
+
+        // Doesn't seem to work unless view is added; so set font after.
+        TypefaceUtils.setTypeface(findViewById(R.id.manage_dismiss), FontFamily.GSF_LABEL_LARGE);
+        TypefaceUtils.setTypeface(findViewById(R.id.manage_dont_bubble),
+                FontFamily.GSF_LABEL_LARGE);
+        TypefaceUtils.setTypeface(mManageSettingsText, FontFamily.GSF_LABEL_LARGE);
+        TypefaceUtils.setTypeface(findViewById(R.id.bubble_manage_menu_fullscreen_title),
+                FontFamily.GSF_LABEL_LARGE);
     }
 
     /**
      * Whether the selected bubble is conversation bubble
      */
-    private boolean isConversationBubble() {
+    private boolean isChat() {
         BubbleViewProvider bubble = mBubbleData.getSelectedBubble();
-        return bubble instanceof Bubble && ((Bubble) bubble).isConversation();
+        return bubble instanceof Bubble && ((Bubble) bubble).isChat();
     }
 
     /**
      * Whether the educational view should show for the expanded view "manage" menu.
      */
     private boolean shouldShowManageEdu() {
-        if (!isConversationBubble()) {
+        if (!isChat()) {
             // We only show user education for conversation bubbles right now
             return false;
         }
@@ -1440,7 +1469,7 @@ public class BubbleStackView extends FrameLayout
      * Whether education view should show for the collapsed stack.
      */
     private boolean shouldShowStackEdu() {
-        if (!isConversationBubble()) {
+        if (!isChat()) {
             // We only show user education for conversation bubbles right now
             return false;
         }
@@ -1975,12 +2004,11 @@ public class BubbleStackView extends FrameLayout
             return;
         }
 
-        if (firstBubble && bubble.isAppBubble() && !mPositioner.hasUserModifiedDefaultPosition()) {
-            // TODO (b/294284894): update language around "app bubble" here
-            // If it's an app bubble and we don't have a previous resting position, update the
-            // controllers to use the default position for the app bubble (it'd be different from
+        if (firstBubble && bubble.isNote() && !mPositioner.hasUserModifiedDefaultPosition()) {
+            // If it's an note bubble and we don't have a previous resting position, update the
+            // controllers to use the default position for the note bubble (it'd be different from
             // the position initialized with the controllers originally).
-            PointF startPosition =  mPositioner.getDefaultStartPosition(true /* isAppBubble */);
+            PointF startPosition =  mPositioner.getDefaultStartPosition(true /* isNoteBubble */);
             mStackOnLeftOrWillBe = mPositioner.isStackOnLeft(startPosition);
             mStackAnimationController.setStackPosition(startPosition);
             mExpandedAnimationController.setCollapsePoint(startPosition);
@@ -2185,34 +2213,39 @@ public class BubbleStackView extends FrameLayout
         ProtoLog.d(WM_SHELL_BUBBLES, "showNewlySelectedBubble b=%s, previouslySelected=%s,"
                         + " mIsExpanded=%b", newlySelectedKey, previouslySelectedKey, mIsExpanded);
         if (mIsExpanded) {
-            hideCurrentInputMethod();
-
-            if (Flags.enableRetrievableBubbles()) {
-                if (mBubbleData.getBubbles().size() == 1) {
-                    // First bubble, check if overflow visibility needs to change
-                    updateOverflowVisibility();
+            Runnable onImeHidden = () -> {
+                if (Flags.enableRetrievableBubbles()) {
+                    if (mBubbleData.getBubbles().size() == 1) {
+                        // First bubble, check if overflow visibility needs to change
+                        updateOverflowVisibility();
+                    }
                 }
+
+                // Make the container of the expanded view transparent before removing the expanded
+                // view from it. Otherwise a punch hole created by {@link android.view.SurfaceView}
+                // in the expanded view becomes visible on the screen. See b/126856255
+                mExpandedViewContainer.setAlpha(0.0f);
+                mSurfaceSynchronizer.syncSurfaceAndRun(() -> {
+                    if (previouslySelected != null) {
+                        previouslySelected.setTaskViewVisibility(false);
+                    }
+
+                    updateExpandedBubble();
+                    requestUpdate();
+
+                    logBubbleEvent(previouslySelected,
+                            FrameworkStatsLog.BUBBLE_UICHANGED__ACTION__COLLAPSED);
+                    logBubbleEvent(bubbleToSelect,
+                            FrameworkStatsLog.BUBBLE_UICHANGED__ACTION__EXPANDED);
+                    notifyExpansionChanged(previouslySelected, false /* expanded */);
+                    notifyExpansionChanged(bubbleToSelect, true /* expanded */);
+                });
+            };
+            if (mPositioner.isImeVisible()) {
+                hideCurrentInputMethod(onImeHidden);
+            } else {
+                onImeHidden.run();
             }
-
-            // Make the container of the expanded view transparent before removing the expanded view
-            // from it. Otherwise a punch hole created by {@link android.view.SurfaceView} in the
-            // expanded view becomes visible on the screen. See b/126856255
-            mExpandedViewContainer.setAlpha(0.0f);
-            mSurfaceSynchronizer.syncSurfaceAndRun(() -> {
-                if (previouslySelected != null) {
-                    previouslySelected.setTaskViewVisibility(false);
-                }
-
-                updateExpandedBubble();
-                requestUpdate();
-
-                logBubbleEvent(previouslySelected,
-                        FrameworkStatsLog.BUBBLE_UICHANGED__ACTION__COLLAPSED);
-                logBubbleEvent(bubbleToSelect,
-                        FrameworkStatsLog.BUBBLE_UICHANGED__ACTION__EXPANDED);
-                notifyExpansionChanged(previouslySelected, false /* expanded */);
-                notifyExpansionChanged(bubbleToSelect, true /* expanded */);
-            });
         }
     }
 
@@ -2926,6 +2959,9 @@ public class BubbleStackView extends FrameLayout
         if (mIsExpanded) {
             mExpandedViewAnimationController.animateForImeVisibilityChange(visible);
             BubbleExpandedView expandedView = getExpandedView();
+            if (expandedView != null) {
+                expandedView.setImeVisible(visible);
+            }
             if (mPositioner.showBubblesVertically() && expandedView != null) {
                 float selectedY = mPositioner.getExpandedBubbleXY(getState().selectedIndex,
                         getState()).y;
@@ -3317,20 +3353,16 @@ public class BubbleStackView extends FrameLayout
         // name and icon.
         if (show) {
             final Bubble bubble = mBubbleData.getBubbleInStackWithKey(mExpandedBubble.getKey());
-            if (bubble != null && !bubble.isAppBubble()) {
-                // Setup options for non app bubbles
+            if (bubble != null && bubble.isChat()) {
+                // Setup options for chat bubbles
                 mManageDontBubbleView.setVisibility(VISIBLE);
                 mManageSettingsIcon.setImageBitmap(bubble.getRawAppBadge());
                 mManageSettingsText.setText(getResources().getString(
                         R.string.bubbles_app_settings, bubble.getAppName()));
                 mManageSettingsView.setVisibility(VISIBLE);
             } else {
-                // Setup options for app bubbles
-                // App bubbles have no conversations
-                // so we don't show the option to not bubble conversation
+                // Not a chat bubble, so don't show conversation / notification settings
                 mManageDontBubbleView.setVisibility(GONE);
-                // App bubbles are not notification based
-                // so we don't show the option to go to notification settings
                 mManageSettingsView.setVisibility(GONE);
             }
         }
@@ -3547,7 +3579,7 @@ public class BubbleStackView extends FrameLayout
         }
     }
 
-    private void updateExpandedView() {
+    void updateExpandedView() {
         boolean isOverflowExpanded = mExpandedBubble != null
                 && BubbleOverflow.KEY.equals(mExpandedBubble.getKey());
         int[] paddings = mPositioner.getExpandedViewContainerPadding(

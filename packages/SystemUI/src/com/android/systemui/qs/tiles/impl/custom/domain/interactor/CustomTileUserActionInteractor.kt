@@ -34,13 +34,13 @@ import androidx.annotation.GuardedBy
 import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.qs.pipeline.shared.TileSpec
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
-import com.android.systemui.qs.tiles.base.logging.QSTileLogger
-import com.android.systemui.qs.tiles.impl.custom.domain.entity.CustomTileDataModel
-import com.android.systemui.qs.tiles.impl.di.QSTileScope
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.logging.QSTileLogger
+import com.android.systemui.qs.tiles.base.shared.model.QSTileScope
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
+import com.android.systemui.qs.tiles.impl.custom.domain.model.CustomTileDataModel
 import com.android.systemui.settings.DisplayTracker
 import com.android.systemui.shade.ShadeDisplayAware
 import java.util.concurrent.atomic.AtomicReference
@@ -80,10 +80,7 @@ constructor(
             qsTileLogger.logCustomTileUserActionDelivered(tileSpec)
         }
 
-    private suspend fun click(
-        expandable: Expandable?,
-        activityLaunchForClick: PendingIntent?,
-    ) {
+    private suspend fun click(expandable: Expandable?, activityLaunchForClick: PendingIntent?) {
         grantToken()
         try {
             // Bind active tile to deliver user action
@@ -133,7 +130,7 @@ constructor(
                         token,
                         WindowManager.LayoutParams.TYPE_QS_DIALOG,
                         displayTracker.defaultDisplayId,
-                        null /* options */
+                        null, /* options */
                     )
                 } catch (e: RemoteException) {
                     qsTileLogger.logError(tileSpec, "Failed to grant a window token", e)
@@ -147,7 +144,7 @@ constructor(
         user: UserHandle,
         expandable: Expandable?,
         componentName: ComponentName,
-        state: Int
+        state: Int,
     ) {
         val resolvedIntent: Intent? =
             resolveIntent(
@@ -166,7 +163,7 @@ constructor(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                     .setData(
                         Uri.fromParts(IntentFilter.SCHEME_PACKAGE, componentName.packageName, null)
-                    )
+                    ),
             )
         } else {
             qsTileIntentUserInputHandler.handle(expandable, resolvedIntent)

@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.os.Handler;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.DeviceConfig;
 import android.provider.Settings;
@@ -160,8 +161,13 @@ public class GestureNavigationSettingsObserver extends ContentObserver {
     }
 
     public boolean areNavigationButtonForcedVisible() {
-        return Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                Settings.Secure.USER_SETUP_COMPLETE, 0, UserHandle.USER_CURRENT) == 0;
+        String SUWTheme = SystemProperties.get("setupwizard.theme", "");
+        boolean isExpressiveThemeEnabled = SUWTheme.equals("glif_expressive")
+                || SUWTheme.equals("glif_expressive_light");
+        // The back gesture is enabled if using the expressive theme
+        return !isExpressiveThemeEnabled
+                && Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                    Settings.Secure.USER_SETUP_COMPLETE, 0, UserHandle.USER_CURRENT) == 0;
     }
 
     private float getUnscaledInset(Resources userRes) {

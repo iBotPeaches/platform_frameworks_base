@@ -167,7 +167,7 @@ public class ExpandHelper implements Gefingerpoken {
 
         public void setHeight(float h) {
             if (DEBUG_SCALE) Log.v(TAG, "SetHeight: setting to " + h);
-            mView.setActualHeight((int) h);
+            mView.setFinalActualHeight((int) h);
             mCurrentHeight = h;
         }
         public float getHeight() {

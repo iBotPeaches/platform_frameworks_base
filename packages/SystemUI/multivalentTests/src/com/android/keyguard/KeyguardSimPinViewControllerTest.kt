@@ -16,6 +16,7 @@
 
 package com.android.keyguard
 
+import android.hardware.input.InputManager
 import android.telephony.TelephonyManager
 import android.testing.TestableLooper
 import android.view.LayoutInflater
@@ -63,7 +64,6 @@ class KeyguardSimPinViewControllerTest : SysuiTestCase() {
     @Mock private lateinit var keyguardSecurityCallback: KeyguardSecurityCallback
     @Mock private lateinit var messageAreaControllerFactory: KeyguardMessageAreaController.Factory
     @Mock private lateinit var latencyTracker: LatencyTracker
-    @Mock private lateinit var liftToActivateListener: LiftToActivateListener
     @Mock private lateinit var telephonyManager: TelephonyManager
     @Mock private lateinit var falsingCollector: FalsingCollector
     @Mock private lateinit var emergencyButtonController: EmergencyButtonController
@@ -74,6 +74,7 @@ class KeyguardSimPinViewControllerTest : SysuiTestCase() {
     @Mock private lateinit var mUserActivityNotifier: UserActivityNotifier
     private val updateMonitorCallbackArgumentCaptor =
         ArgumentCaptor.forClass(KeyguardUpdateMonitorCallback::class.java)
+    @Mock private lateinit var inputManager: InputManager
 
     private val kosmos = testKosmos()
 
@@ -100,7 +101,6 @@ class KeyguardSimPinViewControllerTest : SysuiTestCase() {
                 keyguardSecurityCallback,
                 messageAreaControllerFactory,
                 latencyTracker,
-                liftToActivateListener,
                 telephonyManager,
                 falsingCollector,
                 emergencyButtonController,
@@ -109,6 +109,7 @@ class KeyguardSimPinViewControllerTest : SysuiTestCase() {
                 keyguardKeyboardInteractor,
                 kosmos.bouncerHapticPlayer,
                 mUserActivityNotifier,
+                inputManager,
             )
         underTest.init()
         underTest.onViewAttached()

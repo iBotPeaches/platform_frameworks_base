@@ -36,6 +36,7 @@ import android.view.View;
  * <img src="{@docRoot}reference/android/images/text/style/clickablespan.png" />
  * <figcaption>Text with <code>ClickableSpan</code>.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class ClickableSpan extends CharacterStyle implements UpdateAppearance {
     private static int sIdCounter = 0;
 

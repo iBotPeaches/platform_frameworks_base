@@ -17,11 +17,11 @@
 package com.android.server.power.stats;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.os.BatteryManager;
 import android.os.BatteryStats;
 import android.os.Process;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -30,7 +30,6 @@ import com.android.internal.os.BatteryStatsHistoryIterator;
 import com.android.internal.os.MonotonicClock;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -43,24 +42,17 @@ import java.util.Random;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class BatteryStatsHistoryIteratorTest {
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
 
     private final MockClock mMockClock = new MockClock();
     private MockBatteryStatsImpl mBatteryStats;
     private final Random mRandom = new Random();
-    private final MockExternalStatsSync mExternalStatsSync = new MockExternalStatsSync();
 
     @Before
     public void setup() {
         final File historyDir = createTemporaryDirectory(getClass().getSimpleName());
         mMockClock.currentTime = 3000;
         mBatteryStats = new MockBatteryStatsImpl(mMockClock, historyDir);
-        mBatteryStats.setDummyExternalStatsSync(mExternalStatsSync);
         mBatteryStats.setRecordAllHistoryLocked(true);
         mBatteryStats.forceRecordAllHistory();
         mBatteryStats.setNoAutoReset(true);
@@ -233,26 +225,23 @@ public class BatteryStatsHistoryIteratorTest {
                 100, /* plugType */ 0, 90, 72, 3700, 3_600_000, 4_000_000, 0,
                 1_000_000, 1_000_000, 1_000_000);
 
-        mExternalStatsSync.updateCpuStats(100, 1_100_000, 1_100_000);
-
         // Device was suspended for 3_000 seconds, note the difference in elapsed time and uptime
         mBatteryStats.setBatteryStateLocked(BatteryManager.BATTERY_STATUS_DISCHARGING,
                 100, /* plugType */ 0, 80, 72, 3700, 2_400_000, 4_000_000, 0,
                 5_000_000, 2_000_000, 5_000_000);
 
-        mExternalStatsSync.updateCpuStats(200, 5_100_000, 2_100_000);
-
         // Battery level is unchanged, so we don't write battery level details in history
-        mBatteryStats.noteAlarmStartLocked("wakeup", null, APP_UID, 6_000_000, 3_000_000);
+        mBatteryStats.setBatteryStateLocked(BatteryManager.BATTERY_STATUS_DISCHARGING,
+                100, /* plugType */ 0, 80, 72, 3700, 2_400_000, 4_000_000, 0,
+                5_500_000, 2_500_000, 5_000_000);
 
-        assertThat(mExternalStatsSync.isSyncScheduled()).isFalse();
+        // Not a battery state change event, so details are not written
+        mBatteryStats.noteAlarmStartLocked("wakeup", null, APP_UID, 6_000_000, 3_000_000);
 
         // Battery level drops, so we write the accumulated battery level details
         mBatteryStats.setBatteryStateLocked(BatteryManager.BATTERY_STATUS_DISCHARGING,
-                100, /* plugType */ 0, 79, 72, 3700, 2_000_000, 4_000_000, 0,
+                100, /* plugType */ 0, 70, 72, 3700, 2_000_000, 4_000_000, 0,
                 7_000_000, 4_000_000, 6_000_000);
-
-        mExternalStatsSync.updateCpuStats(300, 7_100_000, 4_100_000);
 
         final BatteryStatsHistoryIterator iterator =
                 mBatteryStats.iterateBatteryStatsHistory(0, MonotonicClock.UNDEFINED);
@@ -260,43 +249,109 @@ public class BatteryStatsHistoryIteratorTest {
         BatteryStats.HistoryItem item;
         assertThat(item = iterator.next()).isNotNull();
         assertThat(item.cmd).isEqualTo((int) BatteryStats.HistoryItem.CMD_RESET);
-        assertThat(item.stepDetails).isNull();
 
         assertThat(item = iterator.next()).isNotNull();
         assertThat(item.batteryLevel).isEqualTo(90);
-        assertThat(item.stepDetails).isNull();
-
-        assertThat(item = iterator.next()).isNotNull();
-        assertThat(item.batteryLevel).isEqualTo(90);
-        assertThat(item.eventCode).isEqualTo(BatteryStats.HistoryItem.EVENT_COLLECT_EXTERNAL_STATS);
+        assertThat(item.states & BatteryStats.HistoryItem.STATE_CPU_RUNNING_FLAG).isNotEqualTo(0);
 
         assertThat(item = iterator.next()).isNotNull();
         assertThat(item.batteryLevel).isEqualTo(90);
         assertThat(item.states & BatteryStats.HistoryItem.STATE_CPU_RUNNING_FLAG).isEqualTo(0);
-        assertThat(item.stepDetails.userTime).isEqualTo(100);
 
         assertThat(item = iterator.next()).isNotNull();
         assertThat(item.batteryLevel).isEqualTo(80);
         assertThat(item.states & BatteryStats.HistoryItem.STATE_CPU_RUNNING_FLAG).isNotEqualTo(0);
-        assertThat(item.stepDetails.userTime).isEqualTo(0);
-
-        assertThat(item = iterator.next()).isNotNull();
-        assertThat(item.batteryLevel).isEqualTo(80);
-        assertThat(item.eventCode).isEqualTo(BatteryStats.HistoryItem.EVENT_COLLECT_EXTERNAL_STATS);
 
         assertThat(item = iterator.next()).isNotNull();
         assertThat(item.batteryLevel).isEqualTo(80);
         assertThat(item.eventCode).isEqualTo(BatteryStats.HistoryItem.EVENT_ALARM_START);
-        assertThat(item.stepDetails).isNull();
-
-        assertThat(item = iterator.next()).isNotNull();
-        assertThat(item.batteryLevel).isEqualTo(79);
         assertThat(item.states & BatteryStats.HistoryItem.STATE_CPU_RUNNING_FLAG).isNotEqualTo(0);
-        assertThat(item.stepDetails.userTime).isEqualTo(200);
 
         assertThat(item = iterator.next()).isNotNull();
-        assertThat(item.batteryLevel).isEqualTo(79);
-        assertThat(item.eventCode).isEqualTo(BatteryStats.HistoryItem.EVENT_COLLECT_EXTERNAL_STATS);
+        assertThat(item.batteryLevel).isEqualTo(70);
+        assertThat(item.states & BatteryStats.HistoryItem.STATE_CPU_RUNNING_FLAG).isNotEqualTo(0);
+
+        assertThat(iterator.next()).isNull();
+    }
+
+    @Test
+    public void batteryLevelAccuracy() {
+        // Check that battery values are recorded correctly throughout their valid ranges:
+        // - Battery level range: [0, 100]
+        // - Voltage and temperature range: [-2**15, 2**15-1] (note: exceeds physical requirements)
+
+        int i16Min = Short.MIN_VALUE;
+        int i16Max = Short.MAX_VALUE;
+        int[][] testValues = {
+                // { level, temperature, voltage }
+
+                // Min/max values
+                {   0,      0,      0 },
+                {   0, i16Min, i16Min },
+                { 100, i16Max, i16Max },
+
+                // Level changes
+                {  0, 0, 0 },
+                { 12, 0, 0 },
+                { 90, 0, 0 },
+                { 34, 0, 0 },
+                { 78, 0, 0 },
+                { 56, 0, 0 },
+
+                // Temperature changes
+                { 0,           0, 0 },
+                { 0, i16Max,      0 }, // Large change to max
+                { 0, i16Max - 12, 0 }, // Small change near max
+                { 0, i16Max - 56, 0 }, // Small change near max
+                { 0, i16Max - 34, 0 }, // Small change near max
+                { 0,           0, 0 }, // Large change to 0
+                { 0,          12, 0 }, // Small change near 0
+                { 0,         -34, 0 }, // Small change near 0
+                { 0,          56, 0 }, // Small change near 0
+                { 0,         -78, 0 }, // Small change near 0
+                { 0, i16Min,      0 }, // Large change to min
+                { 0, i16Min + 12, 0 }, // Small change near min
+                { 0, i16Min + 56, 0 }, // Small change near min
+                { 0, i16Min + 34, 0 }, // Small change near min
+
+                // Voltage changes
+                { 0, 0,            0 },
+                { 0, 0, i16Max       }, // Large change to max
+                { 0, 0, i16Max - 120 }, // Small change near max
+                { 0, 0, i16Max - 560 }, // Small change near max
+                { 0, 0, i16Max - 340 }, // Small change near max
+                { 0, 0,            0 }, // Large change to 0
+                { 0, 0,          120 }, // Small change near 0
+                { 0, 0,         -340 }, // Small change near 0
+                { 0, 0,          560 }, // Small change near 0
+                { 0, 0,         -780 }, // Small change near 0
+                { 0, 0, i16Min       }, // Large change to min
+                { 0, 0, i16Min + 120 }, // Small change near min
+                { 0, 0, i16Min + 560 }, // Small change near min
+                { 0, 0, i16Min + 340 }, // Small change near min
+        };
+
+        for (int[] val : testValues) {
+            mBatteryStats.setBatteryStateLocked(
+                    BatteryManager.BATTERY_STATUS_DISCHARGING,
+                    100, 0, val[0], val[1], val[2], 1000_000, 1000_000, 0, 0, 0, 0);
+        }
+
+        final BatteryStatsHistoryIterator iterator =
+                mBatteryStats.iterateBatteryStatsHistory(0, MonotonicClock.UNDEFINED);
+
+        BatteryStats.HistoryItem item;
+        assertThat(item = iterator.next()).isNotNull();
+        assertThat(item.cmd).isEqualTo((int) BatteryStats.HistoryItem.CMD_RESET);
+
+        for (int i = 0; i < testValues.length; i++) {
+            int[] val = testValues[i];
+            String msg = String.format("Incorrect battery value returned at index %d:", i);
+            assertThat(item = iterator.next()).isNotNull();
+            assertWithMessage(msg).that(item.batteryLevel).isEqualTo(val[0]);
+            assertWithMessage(msg).that(item.batteryTemperature).isEqualTo(val[1]);
+            assertWithMessage(msg).that(item.batteryVoltage).isEqualTo(val[2]);
+        }
 
         assertThat(item = iterator.next()).isNull();
     }
@@ -317,27 +372,5 @@ public class BatteryStatsHistoryIteratorTest {
         assertThat(item.batteryLevel).isEqualTo(batteryLevel);
 
         assertThat(item.time).isEqualTo(elapsedTimeMs);
-    }
-
-    private class MockExternalStatsSync extends MockBatteryStatsImpl.DummyExternalStatsSync {
-        private boolean mSyncScheduled;
-
-        @Override
-        public void scheduleCpuSyncDueToWakelockChange(long delayMillis) {
-            mSyncScheduled = true;
-        }
-
-        public boolean isSyncScheduled() {
-            return mSyncScheduled;
-        }
-
-        public void updateCpuStats(int totalUTimeMs, long elapsedRealtime, long uptime) {
-            assertThat(mExternalStatsSync.mSyncScheduled).isTrue();
-            mBatteryStats.recordHistoryEventLocked(elapsedRealtime, uptime,
-                    BatteryStats.HistoryItem.EVENT_COLLECT_EXTERNAL_STATS, "wakelock-update", 0);
-            mBatteryStats.addCpuStatsLocked(totalUTimeMs, 0, 0, 0, 0, 0, 0, 0);
-            mBatteryStats.finishAddingCpuStatsLocked();
-            mExternalStatsSync.mSyncScheduled = false;
-        }
     }
 }

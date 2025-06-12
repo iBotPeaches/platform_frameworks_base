@@ -18,8 +18,8 @@ package com.android.systemui.qs.tiles.impl.colorcorrection.domain.interactor
 
 import android.os.UserHandle
 import com.android.systemui.accessibility.data.repository.ColorCorrectionRepository
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.colorcorrection.domain.model.ColorCorrectionTileModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -29,15 +29,15 @@ import kotlinx.coroutines.flow.map
 /** Observes color correction state changes providing the [ColorCorrectionTileModel]. */
 class ColorCorrectionTileDataInteractor
 @Inject
-constructor(
-    private val colorCorrectionRepository: ColorCorrectionRepository,
-) : QSTileDataInteractor<ColorCorrectionTileModel> {
+constructor(private val colorCorrectionRepository: ColorCorrectionRepository) :
+    QSTileDataInteractor<ColorCorrectionTileModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<ColorCorrectionTileModel> {
         return colorCorrectionRepository.isEnabled(user).map { ColorCorrectionTileModel(it) }
     }
+
     override fun availability(user: UserHandle): Flow<Boolean> = flowOf(true)
 }

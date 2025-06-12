@@ -27,10 +27,9 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.graphics.Region;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.Trace;
-import android.os.UserHandle;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.Display;
 import android.view.IWindow;
@@ -74,7 +73,6 @@ import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
-import com.android.systemui.util.settings.SecureSettings;
 
 import dagger.Lazy;
 
@@ -133,7 +131,6 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
 
     private final SysuiColorExtractor mColorExtractor;
     private final NotificationShadeWindowModel mNotificationShadeWindowModel;
-    private final SecureSettings mSecureSettings;
     /**
      * Layout params would be aggregated and dispatched all at once if this is > 0.
      *
@@ -167,7 +164,6 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
             Lazy<SelectedUserInteractor> userInteractor,
             UserTracker userTracker,
             NotificationShadeWindowModel notificationShadeWindowModel,
-            SecureSettings secureSettings,
             Lazy<CommunalInteractor> communalInteractor,
             @ShadeDisplayAware LayoutParams shadeWindowLayoutParams) {
         mContext = context;
@@ -185,7 +181,6 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
         mBackgroundExecutor = backgroundExecutor;
         mColorExtractor = colorExtractor;
         mNotificationShadeWindowModel = notificationShadeWindowModel;
-        mSecureSettings = secureSettings;
         // prefix with {slow} to make sure this dumps at the END of the critical section.
         dumpManager.registerCriticalDumpable("{slow}NotificationShadeWindowControllerImpl", this);
         mAuthController = authController;
@@ -252,6 +247,19 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
         if (mCurrentState.shadeOrQsExpanded != isExpanded) {
             mCurrentState.shadeOrQsExpanded = isExpanded;
             apply(mCurrentState);
+
+            final IBinder token;
+            if (com.android.window.flags.Flags.schedulingForNotificationShade()
+                    && (token = mWindowRootView.getWindowToken()) != null) {
+                mBackgroundExecutor.execute(() -> {
+                    try {
+                        WindowManagerGlobal.getWindowManagerService()
+                                .onNotificationShadeExpanded(token, isExpanded);
+                    } catch (RemoteException e) {
+                        Log.e(TAG, "Failed to call onNotificationShadeExpanded", e);
+                    }
+                });
+            }
         }
     }
 
@@ -410,7 +418,7 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
                     (long) mLpChanged.preferredMaxDisplayRefreshRate);
         }
 
-        if (state.bouncerShowing && !isSecureWindowsDisabled()) {
+        if (state.bouncerShowing) {
             mLpChanged.flags |= LayoutParams.FLAG_SECURE;
         } else {
             mLpChanged.flags &= ~LayoutParams.FLAG_SECURE;
@@ -423,13 +431,6 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
         }
     }
 
-    private boolean isSecureWindowsDisabled() {
-        return mSecureSettings.getIntForUser(
-            Settings.Secure.DISABLE_SECURE_WINDOWS,
-            0,
-            UserHandle.USER_CURRENT) == 1;
-    }
-
     private void adjustScreenOrientation(NotificationShadeWindowState state) {
         if (state.bouncerShowing || state.isKeyguardShowingAndNotOccluded() || state.dozing) {
             if (mKeyguardStateController.isKeyguardScreenRotationAllowed()) {
@@ -437,6 +438,8 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
             } else {
                 mLpChanged.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_NOSENSOR;
             }
+        } else if (state.glanceableHubOrientationAware) {
+            mLpChanged.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_USER;
         } else {
             mLpChanged.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
         }
@@ -495,17 +498,18 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
     }
 
     private boolean isExpanded(NotificationShadeWindowState state) {
+        boolean visForBlur = !Flags.disableBlurredShadeVisible() && state.backgroundBlurRadius > 0;
         boolean isExpanded = !state.forceWindowCollapsed && (state.isKeyguardShowingAndNotOccluded()
                 || state.panelVisible || state.keyguardFadingAway || state.bouncerShowing
                 || state.headsUpNotificationShowing
                 || state.scrimsVisibility != ScrimController.TRANSPARENT)
-                || state.backgroundBlurRadius > 0
+                || visForBlur
                 || state.launchingActivityFromNotification;
         mLogger.logIsExpanded(isExpanded, state.forceWindowCollapsed,
                 state.isKeyguardShowingAndNotOccluded(), state.panelVisible,
                 state.keyguardFadingAway, state.bouncerShowing, state.headsUpNotificationShowing,
                 state.scrimsVisibility != ScrimController.TRANSPARENT,
-                state.backgroundBlurRadius > 0, state.launchingActivityFromNotification);
+                visForBlur, state.launchingActivityFromNotification);
         return isExpanded;
     }
 
@@ -613,6 +617,7 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
                 state.shadeOrQsExpanded,
                 state.notificationShadeFocusable,
                 state.glanceableHubShowing,
+                state.glanceableHubOrientationAware,
                 state.bouncerShowing,
                 state.keyguardFadingAway,
                 state.keyguardGoingAway,
@@ -745,6 +750,12 @@ public class NotificationShadeWindowControllerImpl implements NotificationShadeW
     @Override
     public void setGlanceableHubShowing(boolean showing) {
         mCurrentState.glanceableHubShowing = showing;
+        apply(mCurrentState);
+    }
+
+    @Override
+    public void setGlanceableHubOrientationAware(boolean isOrientationAware) {
+        mCurrentState.glanceableHubOrientationAware = isOrientationAware;
         apply(mCurrentState);
     }
 

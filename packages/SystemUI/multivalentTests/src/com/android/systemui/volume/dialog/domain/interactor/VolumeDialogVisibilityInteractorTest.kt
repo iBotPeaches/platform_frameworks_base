@@ -17,44 +17,43 @@
 package com.android.systemui.volume.dialog.domain.interactor
 
 import android.app.ActivityManager
-import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.accessibility.data.repository.accessibilityRepository
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.fakeVolumeDialogController
 import com.android.systemui.testKosmos
 import com.android.systemui.volume.Events
+import com.android.systemui.volume.dialog.shared.model.VolumeDialogSafetyWarningModel
 import com.android.systemui.volume.dialog.shared.model.VolumeDialogVisibilityModel
 import com.google.common.truth.Truth.assertThat
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 private val dialogTimeoutDuration = 3.seconds
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@TestableLooper.RunWithLooper
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class VolumeDialogVisibilityInteractorTest : SysuiTestCase() {
 
-    private val kosmos: Kosmos = testKosmos()
+    private val kosmos: Kosmos =
+        testKosmos().apply {
+            accessibilityRepository.setRecommendedTimeout(dialogTimeoutDuration)
+            volumeDialogStateInteractor.setHovering(false)
+            volumeDialogStateInteractor.setSafetyWarning(VolumeDialogSafetyWarningModel.Invisible)
+        }
 
-    private lateinit var underTest: VolumeDialogVisibilityInteractor
-
-    @Before
-    fun setUp() {
-        underTest = kosmos.volumeDialogVisibilityInteractor
-    }
+    private val underTest: VolumeDialogVisibilityInteractor =
+        kosmos.volumeDialogVisibilityInteractor
 
     @Test
     fun testShowRequest_visible() =
@@ -94,6 +93,7 @@ class VolumeDialogVisibilityInteractorTest : SysuiTestCase() {
                 runCurrent()
 
                 fakeVolumeDialogController.onDismissRequested(Events.DISMISS_REASON_SCREEN_OFF)
+                runCurrent()
 
                 assertThat(visibilityModel!!)
                     .isEqualTo(
@@ -107,7 +107,6 @@ class VolumeDialogVisibilityInteractorTest : SysuiTestCase() {
         with(kosmos) {
             testScope.runTest {
                 runCurrent()
-                underTest.resetDismissTimeout()
                 val visibilityModel by collectLastValue(underTest.dialogVisibility)
                 fakeVolumeDialogController.onShowRequested(
                     Events.SHOW_REASON_VOLUME_CHANGED,
@@ -128,7 +127,6 @@ class VolumeDialogVisibilityInteractorTest : SysuiTestCase() {
         with(kosmos) {
             testScope.runTest {
                 runCurrent()
-                underTest.resetDismissTimeout()
                 val visibilityModel by collectLastValue(underTest.dialogVisibility)
                 fakeVolumeDialogController.onShowRequested(
                     Events.SHOW_REASON_VOLUME_CHANGED,
@@ -145,6 +143,7 @@ class VolumeDialogVisibilityInteractorTest : SysuiTestCase() {
 
                 assertThat(visibilityModel)
                     .isInstanceOf(VolumeDialogVisibilityModel.Visible::class.java)
+                assertThat(fakeVolumeDialogController.hasUserActivity).isTrue()
             }
         }
 }

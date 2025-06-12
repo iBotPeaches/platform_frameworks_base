@@ -16,7 +16,7 @@
 
 package com.android.systemui.statusbar.notification.collection.listbuilder;
 
-import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 
 import java.util.List;
@@ -30,5 +30,5 @@ public interface OnBeforeSortListener {
      * @param entries The current list of top-level entries. Note that this is a live view into the
      *                current list and will change whenever the pipeline is rerun.
      */
-    void onBeforeSort(List<ListEntry> entries);
+    void onBeforeSort(List<PipelineEntry> entries);
 }

@@ -16,7 +16,7 @@
 
 package com.android.systemui.qs.pipeline.domain.autoaddable
 
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.qs.pipeline.domain.model.AutoAddSignal
 import com.android.systemui.qs.pipeline.domain.model.AutoAddTracking
 import com.android.systemui.qs.pipeline.domain.model.AutoAddable

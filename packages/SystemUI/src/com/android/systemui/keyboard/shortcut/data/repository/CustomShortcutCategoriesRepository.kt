@@ -18,67 +18,58 @@ package com.android.systemui.keyboard.shortcut.data.repository
 
 import android.hardware.input.InputGestureData
 import android.hardware.input.InputGestureData.Builder
+import android.hardware.input.InputGestureData.KeyTrigger
+import android.hardware.input.InputGestureData.Trigger
 import android.hardware.input.InputGestureData.createKeyTrigger
 import android.hardware.input.InputManager
+import android.hardware.input.KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION
 import android.hardware.input.KeyGestureEvent.KeyGestureType
+import android.hardware.input.KeyGlyphMap
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import androidx.compose.runtime.mutableStateOf
+import com.android.systemui.Flags.appShortcutRemovalFix
 import com.android.systemui.Flags.shortcutHelperKeyGlyph
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.keyboard.shared.model.ShortcutCustomizationRequestResult
 import com.android.systemui.keyboard.shortcut.shared.model.KeyCombination
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategory
+import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategoryType
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCustomizationRequestInfo
-import com.android.systemui.keyboard.shortcut.shared.model.ShortcutHelperState.Active
+import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCustomizationRequestInfo.SingleShortcutCustomization
+import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCustomizationRequestInfo.SingleShortcutCustomization.Delete
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutKey
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import kotlin.coroutines.CoroutineContext
 
 @SysUISingleton
 class CustomShortcutCategoriesRepository
 @Inject
 constructor(
-    stateRepository: ShortcutHelperStateRepository,
+    private val inputDeviceRepository: ShortcutHelperInputDeviceRepository,
     @Background private val backgroundScope: CoroutineScope,
-    @Background private val bgCoroutineContext: CoroutineContext,
     private val shortcutCategoriesUtils: ShortcutCategoriesUtils,
     private val inputGestureDataAdapter: InputGestureDataAdapter,
     private val customInputGesturesRepository: CustomInputGesturesRepository,
-    private val inputManager: InputManager
+    private val inputManager: InputManager,
+    private val appLaunchDataRepository: AppLaunchDataRepository,
 ) : ShortcutCategoriesRepository {
 
     private val _selectedKeyCombination = MutableStateFlow<KeyCombination?>(null)
-    private val _shortcutBeingCustomized = mutableStateOf<ShortcutCustomizationRequestInfo?>(null)
-
-    private val activeInputDevice =
-        stateRepository.state.map {
-            if (it is Active) {
-                withContext(bgCoroutineContext) { inputManager.getInputDevice(it.deviceId) }
-            } else {
-                null
-            }
-        }
+    private val _shortcutBeingCustomized = MutableStateFlow<ShortcutCustomizationRequestInfo?>(null)
 
     val pressedKeys =
         _selectedKeyCombination
-            .combine(activeInputDevice) { keyCombination, inputDevice ->
+            .combine(inputDeviceRepository.activeInputDevice) { keyCombination, inputDevice ->
                 if (inputDevice == null || keyCombination == null) {
                     return@combine emptyList()
                 } else {
-                    val keyGlyphMap =
-                        if (shortcutHelperKeyGlyph()) {
-                            inputManager.getKeyGlyphMap(inputDevice.id)
-                        } else null
+                    val keyGlyphMap = getKeyGlyphMap(inputDevice.id)
                     val modifiers =
                         shortcutCategoriesUtils.toShortcutModifierKeys(
                             keyCombination.modifiers,
@@ -105,8 +96,10 @@ constructor(
             )
 
     override val categories: Flow<List<ShortcutCategory>> =
-        combine(activeInputDevice, customInputGesturesRepository.customInputGestures)
-        { inputDevice, inputGestures ->
+        combine(
+                inputDeviceRepository.activeInputDevice,
+                customInputGesturesRepository.customInputGestures,
+            ) { inputDevice, inputGestures ->
                 if (inputDevice == null) {
                     emptyList()
                 } else {
@@ -147,10 +140,10 @@ constructor(
     fun buildInputGestureDataForShortcutBeingCustomized(): InputGestureData? {
         try {
             return Builder()
-                .addKeyGestureTypeFromShortcutLabel()
+                .addKeyGestureTypeForShortcutBeingCustomized()
                 .addTriggerFromSelectedKeyCombination()
+                .addAppLaunchDataFromShortcutBeingCustomized()
                 .build()
-            // TODO(b/379648200) add app launch data after dynamic label/icon mapping implementation
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "could not add custom shortcut: $e")
             return null
@@ -158,9 +151,39 @@ constructor(
     }
 
     private fun retrieveInputGestureDataForShortcutBeingDeleted(): InputGestureData? {
-        val keyGestureType = getKeyGestureTypeFromShortcutBeingDeletedLabel()
-        return customInputGesturesRepository.retrieveCustomInputGestures()
-            .firstOrNull { it.action.keyGestureType() == keyGestureType }
+        val keyGestureTypeForShortcutBeingDeleted = getKeyGestureTypeForShortcutBeingCustomized()
+        if (appShortcutRemovalFix()) {
+            val inputGesturesMatchingKeyGestureType =
+                customInputGesturesRepository.retrieveCustomInputGestures().filter {
+                    it.action.keyGestureType() == keyGestureTypeForShortcutBeingDeleted
+                }
+
+            return if (
+                keyGestureTypeForShortcutBeingDeleted == KEY_GESTURE_TYPE_LAUNCH_APPLICATION
+            ) {
+                val shortcutBeingDeleted = getShortcutBeingCustomized() as Delete
+                if (shortcutBeingDeleted.customShortcutCommand == null) {
+                    Log.w(
+                        TAG,
+                        "Requested to delete custom shortcut but customShortcutCommand was null",
+                    )
+                    return null
+                }
+
+                inputGesturesMatchingKeyGestureType.firstOrNull {
+                    checkShortcutKeyTriggerEquality(
+                        it.trigger,
+                        shortcutBeingDeleted.customShortcutCommand.keys,
+                    ) ?: false
+                }
+            } else {
+                inputGesturesMatchingKeyGestureType.firstOrNull()
+            }
+        } else {
+            return customInputGesturesRepository.retrieveCustomInputGestures().firstOrNull {
+                it.action.keyGestureType() == keyGestureTypeForShortcutBeingDeleted
+            }
+        }
     }
 
     suspend fun confirmAndSetShortcutCurrentlyBeingCustomized():
@@ -183,8 +206,48 @@ constructor(
         return customInputGesturesRepository.resetAllCustomInputGestures()
     }
 
-    private fun Builder.addKeyGestureTypeFromShortcutLabel(): Builder {
-        val keyGestureType = getKeyGestureTypeFromShortcutBeingCustomizedLabel()
+    suspend fun isSelectedKeyCombinationAvailable(): Boolean {
+        val trigger = buildTriggerFromSelectedKeyCombination() ?: return false
+        return customInputGesturesRepository.getInputGestureByTrigger(trigger) == null
+    }
+
+    private fun checkShortcutKeyTriggerEquality(
+        trigger: Trigger,
+        keys: List<ShortcutKey>,
+    ): Boolean? {
+        return getConvertedKeyTrigger(trigger)?.containsAll(keys)
+    }
+
+    private fun getConvertedKeyTrigger(trigger: Trigger): List<ShortcutKey>? {
+        if (trigger is KeyTrigger) {
+            val inputDevice = inputDeviceRepository.activeInputDevice.value ?: return null
+
+            val modifierKeys =
+                shortcutCategoriesUtils.toShortcutModifierKeys(
+                    keyGlyphMap = getKeyGlyphMap(inputDevice.id),
+                    modifiers = trigger.modifierState,
+                ) ?: return null
+
+            val keyCodeShortcutKey =
+                shortcutCategoriesUtils.toShortcutKey(
+                    keyGlyphMap = getKeyGlyphMap(inputDevice.id),
+                    keyCharacterMap = inputDevice.keyCharacterMap,
+                    keyCode = trigger.keycode,
+                ) ?: return null
+
+            return modifierKeys + keyCodeShortcutKey
+        }
+        return null
+    }
+
+    private fun getKeyGlyphMap(deviceId: Int): KeyGlyphMap? {
+        return if (shortcutHelperKeyGlyph()) {
+            inputManager.getKeyGlyphMap(deviceId)
+        } else null
+    }
+
+    private fun Builder.addKeyGestureTypeForShortcutBeingCustomized(): Builder {
+        val keyGestureType = getKeyGestureTypeForShortcutBeingCustomized()
 
         if (keyGestureType == null) {
             Log.w(
@@ -193,14 +256,27 @@ constructor(
             )
             return this
         }
-
         return setKeyGestureType(keyGestureType)
     }
 
-    @KeyGestureType
-    private fun getKeyGestureTypeFromShortcutBeingCustomizedLabel(): Int? {
+    private fun Builder.addAppLaunchDataFromShortcutBeingCustomized(): Builder {
         val shortcutBeingCustomized =
-            getShortcutBeingCustomized() as? ShortcutCustomizationRequestInfo.Add
+            (_shortcutBeingCustomized.value as? SingleShortcutCustomization) ?: return this
+
+        if (shortcutBeingCustomized.categoryType != ShortcutCategoryType.AppCategories) {
+            return this
+        }
+
+        val defaultShortcutCommand = shortcutBeingCustomized.defaultShortcutCommand ?: return this
+        val appLaunchData =
+            appLaunchDataRepository.getAppLaunchDataForShortcutWithCommand(defaultShortcutCommand)
+
+        return if (appLaunchData == null) this else this.setAppLaunchData(appLaunchData)
+    }
+
+    @KeyGestureType
+    private fun getKeyGestureTypeForShortcutBeingCustomized(): Int? {
+        val shortcutBeingCustomized = getShortcutBeingCustomized() as? SingleShortcutCustomization
 
         if (shortcutBeingCustomized == null) {
             Log.w(
@@ -210,28 +286,16 @@ constructor(
             return null
         }
 
-        return inputGestureDataAdapter
-            .getKeyGestureTypeFromShortcutLabel(shortcutBeingCustomized.label)
+        return inputGestureDataAdapter.getKeyGestureTypeForShortcut(
+            shortcutLabel = shortcutBeingCustomized.label,
+            shortcutCategoryType = shortcutBeingCustomized.categoryType,
+        )
     }
 
-    @KeyGestureType
-    private fun getKeyGestureTypeFromShortcutBeingDeletedLabel(): Int? {
-        val shortcutBeingCustomized =
-            getShortcutBeingCustomized() as? ShortcutCustomizationRequestInfo.Delete
+    private fun Builder.addTriggerFromSelectedKeyCombination(): Builder =
+        setTrigger(buildTriggerFromSelectedKeyCombination())
 
-        if (shortcutBeingCustomized == null) {
-            Log.w(
-                TAG,
-                "Requested key gesture type from label but shortcut being customized is null",
-            )
-            return null
-        }
-
-        return inputGestureDataAdapter
-            .getKeyGestureTypeFromShortcutLabel(shortcutBeingCustomized.label)
-    }
-
-    private fun Builder.addTriggerFromSelectedKeyCombination(): Builder {
+    private fun buildTriggerFromSelectedKeyCombination(): Trigger? {
         val selectedKeyCombination = _selectedKeyCombination.value
         if (selectedKeyCombination?.keyCode == null) {
             Log.w(
@@ -239,16 +303,14 @@ constructor(
                 "User requested to set shortcut but selected key combination is " +
                     "$selectedKeyCombination",
             )
-            return this
+            return null
         }
 
-        return setTrigger(
-            createKeyTrigger(
-                /* keycode = */ selectedKeyCombination.keyCode,
-                /* modifierState = */ shortcutCategoriesUtils.removeUnsupportedModifiers(
-                    selectedKeyCombination.modifiers
-                ),
-            )
+        return createKeyTrigger(
+            /* keycode= */ selectedKeyCombination.keyCode,
+            /* modifierState= */ shortcutCategoriesUtils.removeUnsupportedModifiers(
+                selectedKeyCombination.modifiers
+            ),
         )
     }
 

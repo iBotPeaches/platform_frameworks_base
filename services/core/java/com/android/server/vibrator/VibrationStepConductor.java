@@ -30,6 +30,7 @@ import android.os.vibrator.VibrationEffectSegment;
 import android.util.IntArray;
 import android.util.Slog;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.server.vibrator.VibrationSession.Status;
@@ -93,6 +94,8 @@ final class VibrationStepConductor {
     private final Object mLock = new Object();
     @GuardedBy("mLock")
     private final IntArray mSignalVibratorsComplete;
+    @GuardedBy("mLock")
+    private final SparseIntArray mSignalVibratorStepIds;
     @Nullable
     @GuardedBy("mLock")
     private Vibration.EndInfo mSignalCancel = null;
@@ -121,6 +124,8 @@ final class VibrationStepConductor {
         this.vibratorManagerHooks = vibratorManagerHooks;
         this.mSignalVibratorsComplete =
                 new IntArray(mDeviceAdapter.getAvailableVibratorIds().length);
+        this.mSignalVibratorStepIds =
+                new SparseIntArray(mDeviceAdapter.getAvailableVibratorIds().length);
     }
 
     @Nullable
@@ -418,7 +423,7 @@ final class VibrationStepConductor {
      * <p>This is a lightweight method intended to be called directly via native callbacks.
      * The state update is recorded for processing on the main execution thread (VibrationThread).
      */
-    public void notifyVibratorComplete(int vibratorId) {
+    public void notifyVibratorComplete(int vibratorId, long stepId) {
         // HAL callbacks may be triggered directly within HAL calls, so these notifications
         // could be on the VibrationThread as it calls the HAL, or some other executor later.
         // Therefore no thread assertion is made here.
@@ -428,6 +433,14 @@ final class VibrationStepConductor {
         }
 
         synchronized (mLock) {
+            if (Flags.fixVibrationThreadCallbackHandling()
+                    && mSignalVibratorStepIds.get(vibratorId) != stepId) {
+                if (DEBUG) {
+                    Slog.d(TAG, "Vibrator " + vibratorId + " callback for step=" + stepId
+                            + " ignored, current step=" + mSignalVibratorStepIds.get(vibratorId));
+                }
+                return;
+            }
             mSignalVibratorsComplete.add(vibratorId);
             mLock.notify();
         }
@@ -642,6 +655,26 @@ final class VibrationStepConductor {
                     break;
                 }
             }
+        }
+    }
+
+    /**
+     * Updates and returns the next step id value to be used in vibrator commands.
+     *
+     * <p>This new step id will be kept by this conductor to filter out old callbacks that might be
+     * triggered too late by the HAL, preventing them from affecting the ongoing vibration playback.
+     */
+    public int nextVibratorCallbackStepId(int vibratorId) {
+        if (!Flags.fixVibrationThreadCallbackHandling()) {
+            return 0;
+        }
+        if (Build.IS_DEBUGGABLE) {
+            expectIsVibrationThread(true);
+        }
+        synchronized (mLock) {
+            int stepId = mSignalVibratorStepIds.get(vibratorId) + 1;
+            mSignalVibratorStepIds.put(vibratorId, stepId);
+            return stepId;
         }
     }
 

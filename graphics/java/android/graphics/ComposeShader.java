@@ -22,6 +22,7 @@ import android.annotation.NonNull;
 /** A subclass of shader that returns the composition of two other shaders, combined by
     an {@link android.graphics.Xfermode} subclass.
 */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class ComposeShader extends Shader {
 
     Shader mShaderA;

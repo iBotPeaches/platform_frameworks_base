@@ -24,6 +24,7 @@ import com.android.systemui.statusbar.notification.collection.listbuilder.OnBefo
 import com.android.systemui.statusbar.notification.collection.listbuilder.OnBeforeSortListener
 import com.android.systemui.statusbar.notification.collection.listbuilder.OnBeforeTransformGroupsListener
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.Invalidator
+import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifBundler
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifComparator
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifFilter
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifPromoter
@@ -166,6 +167,14 @@ class NotifPipeline @Inject constructor(
      */
     fun setSections(sections: List<NotifSectioner>) {
         mShadeListBuilder.setSectioners(sections)
+    }
+
+    /**
+     * NotifBundler that is used to determine whether a notification should be bundled according to
+     * classification.
+     */
+    fun setNotifBundler(bundler: NotifBundler) {
+        mShadeListBuilder.setBundler(bundler)
     }
 
     /**

@@ -3,115 +3,101 @@ package com.android.systemui.shared.condition
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.condition.testStart
+import com.android.systemui.condition.testStop
+import com.android.systemui.kosmos.runCurrent
+import com.android.systemui.kosmos.runTest
+import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class ConditionExtensionsTest : SysuiTestCase() {
-    private lateinit var testScope: TestScope
-
-    @Before
-    fun setUp() {
-        testScope = TestScope(StandardTestDispatcher())
-    }
+    private val kosmos = testKosmos()
 
     @Test
     fun flowInitiallyTrue() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = flowOf(true)
-            val condition = flow.toCondition(scope = this, Condition.START_EAGERLY)
+            val condition = flow.toCondition(scope = testScope, Condition.START_EAGERLY)
 
-            runCurrent()
             assertThat(condition.isConditionSet).isFalse()
 
-            condition.start()
-            runCurrent()
+            testStart(condition)
             assertThat(condition.isConditionSet).isTrue()
             assertThat(condition.isConditionMet).isTrue()
         }
 
     @Test
     fun flowInitiallyFalse() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = flowOf(false)
-            val condition = flow.toCondition(scope = this, Condition.START_EAGERLY)
+            val condition = flow.toCondition(scope = testScope, Condition.START_EAGERLY)
 
-            runCurrent()
             assertThat(condition.isConditionSet).isFalse()
 
-            condition.start()
-            runCurrent()
+            testStart(condition)
             assertThat(condition.isConditionSet).isTrue()
             assertThat(condition.isConditionMet).isFalse()
         }
 
     @Test
     fun emptyFlowWithNoInitialValue() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = emptyFlow<Boolean>()
-            val condition = flow.toCondition(scope = this, Condition.START_EAGERLY)
-            condition.start()
+            val condition = flow.toCondition(scope = testScope, Condition.START_EAGERLY)
+            testStop(condition)
 
-            runCurrent()
             assertThat(condition.isConditionSet).isFalse()
             assertThat(condition.isConditionMet).isFalse()
         }
 
     @Test
     fun emptyFlowWithInitialValueOfTrue() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = emptyFlow<Boolean>()
             val condition =
                 flow.toCondition(
-                    scope = this,
+                    scope = testScope,
                     strategy = Condition.START_EAGERLY,
-                    initialValue = true
+                    initialValue = true,
                 )
-            condition.start()
+            testStart(condition)
 
-            runCurrent()
             assertThat(condition.isConditionSet).isTrue()
             assertThat(condition.isConditionMet).isTrue()
         }
 
     @Test
     fun emptyFlowWithInitialValueOfFalse() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = emptyFlow<Boolean>()
             val condition =
                 flow.toCondition(
-                    scope = this,
+                    scope = testScope,
                     strategy = Condition.START_EAGERLY,
-                    initialValue = false
+                    initialValue = false,
                 )
-            condition.start()
+            testStart(condition)
 
-            runCurrent()
             assertThat(condition.isConditionSet).isTrue()
             assertThat(condition.isConditionMet).isFalse()
         }
 
     @Test
     fun conditionUpdatesWhenFlowEmitsNewValue() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = MutableStateFlow(false)
-            val condition = flow.toCondition(scope = this, strategy = Condition.START_EAGERLY)
-            condition.start()
+            val condition = flow.toCondition(scope = testScope, strategy = Condition.START_EAGERLY)
+            testStart(condition)
 
-            runCurrent()
             assertThat(condition.isConditionSet).isTrue()
             assertThat(condition.isConditionMet).isFalse()
 
@@ -123,23 +109,20 @@ class ConditionExtensionsTest : SysuiTestCase() {
             runCurrent()
             assertThat(condition.isConditionMet).isFalse()
 
-            condition.stop()
+            testStop(condition)
         }
 
     @Test
     fun stoppingConditionUnsubscribesFromFlow() =
-        testScope.runTest {
+        kosmos.runTest {
             val flow = MutableSharedFlow<Boolean>()
-            val condition = flow.toCondition(scope = this, strategy = Condition.START_EAGERLY)
-            runCurrent()
+            val condition = flow.toCondition(scope = testScope, strategy = Condition.START_EAGERLY)
             assertThat(flow.subscriptionCount.value).isEqualTo(0)
 
-            condition.start()
-            runCurrent()
+            testStart(condition)
             assertThat(flow.subscriptionCount.value).isEqualTo(1)
 
-            condition.stop()
-            runCurrent()
+            testStop(condition)
             assertThat(flow.subscriptionCount.value).isEqualTo(0)
         }
 }

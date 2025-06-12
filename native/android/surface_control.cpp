@@ -89,7 +89,7 @@ ASurfaceControl* ASurfaceControl_createFromWindow(ANativeWindow* window, const c
     CHECK_NOT_NULL(window);
     CHECK_NOT_NULL(debug_name);
 
-    sp<SurfaceComposerClient> client = new SurfaceComposerClient();
+    sp<SurfaceComposerClient> client = sp<SurfaceComposerClient>::make();
     if (client->initCheck() != NO_ERROR) {
         return nullptr;
     }
@@ -715,47 +715,45 @@ void ASurfaceTransaction_setLuts(ASurfaceTransaction* aSurfaceTransaction,
     sp<SurfaceControl> surfaceControl = ASurfaceControl_to_SurfaceControl(aSurfaceControl);
     Transaction* transaction = ASurfaceTransaction_to_Transaction(aSurfaceTransaction);
 
-    int fd = -1;
+    base::unique_fd fd;
     std::vector<int32_t> offsets;
     std::vector<int32_t> dimensions;
     std::vector<int32_t> sizes;
     std::vector<int32_t> samplingKeys;
 
     if (luts) {
-        std::vector<float> buffer(luts->totalBufferSize);
         int32_t count = luts->offsets.size();
         offsets = luts->offsets;
 
         dimensions.reserve(count);
         sizes.reserve(count);
         samplingKeys.reserve(count);
-        for (int32_t i = 0; i < count; i++) {
-            dimensions.emplace_back(luts->entries[i]->properties.dimension);
-            sizes.emplace_back(luts->entries[i]->properties.size);
-            samplingKeys.emplace_back(luts->entries[i]->properties.samplingKey);
-            std::copy(luts->entries[i]->buffer.data.begin(), luts->entries[i]->buffer.data.end(),
-                      buffer.begin() + offsets[i]);
-        }
 
         // mmap
-        fd = ashmem_create_region("lut_shared_mem", luts->totalBufferSize * sizeof(float));
+        fd.reset(ashmem_create_region("lut_shared_mem", luts->totalBufferSize * sizeof(float)));
         if (fd < 0) {
             LOG_ALWAYS_FATAL("setLuts, ashmem_create_region() failed");
             return;
         }
-        void* ptr = mmap(nullptr, luts->totalBufferSize * sizeof(float), PROT_READ | PROT_WRITE,
-                         MAP_SHARED, fd, 0);
+        float* ptr = (float*)mmap(nullptr, luts->totalBufferSize * sizeof(float),
+                                  PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         if (ptr == MAP_FAILED) {
             LOG_ALWAYS_FATAL("setLuts, Failed to map the shared memory");
             return;
         }
 
-        memcpy(ptr, buffer.data(), luts->totalBufferSize * sizeof(float));
+        for (int32_t i = 0; i < count; i++) {
+            dimensions.emplace_back(luts->entries[i]->properties.dimension);
+            sizes.emplace_back(luts->entries[i]->properties.size);
+            samplingKeys.emplace_back(luts->entries[i]->properties.samplingKey);
+            std::copy(luts->entries[i]->buffer.data.begin(), luts->entries[i]->buffer.data.end(),
+                      ptr + offsets[i]);
+        }
+
         munmap(ptr, luts->totalBufferSize * sizeof(float));
     }
 
-    transaction->setLuts(surfaceControl, base::unique_fd(fd), offsets, dimensions, sizes,
-                         samplingKeys);
+    transaction->setLuts(surfaceControl, std::move(fd), offsets, dimensions, sizes, samplingKeys);
 }
 
 void ASurfaceTransaction_setColor(ASurfaceTransaction* aSurfaceTransaction,

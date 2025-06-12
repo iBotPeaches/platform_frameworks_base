@@ -18,7 +18,7 @@ package android.os.instrumentation;
 
 import android.annotation.NonNull;
 
-import java.lang.reflect.Method;
+import java.lang.reflect.Executable;
 
 /**
  * A utility class for dynamic instrumentation / uprobestats.
@@ -28,9 +28,9 @@ import java.lang.reflect.Method;
 public final class MethodDescriptorParser {
 
     /**
-     * Parses a {@link MethodDescriptor} (in string representation) into a {@link Method}.
+     * Parses a {@link MethodDescriptor} (in string representation) into a {@link Executable}.
      */
-    public static Method parseMethodDescriptor(ClassLoader classLoader,
+    public static Executable parseMethodDescriptor(ClassLoader classLoader,
             @NonNull MethodDescriptor descriptor) {
         try {
             Class<?> javaClass = classLoader.loadClass(descriptor.fullyQualifiedClassName);
@@ -72,6 +72,10 @@ public final class MethodDescriptorParser {
                 }
             }
 
+            if (com.android.art.flags.Flags.executableMethodFileOffsetsV2()
+                    && descriptor.methodName.equals("<init>")) {
+                return javaClass.getDeclaredConstructor(parameters);
+            }
             return javaClass.getDeclaredMethod(descriptor.methodName, parameters);
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             throw new IllegalArgumentException(

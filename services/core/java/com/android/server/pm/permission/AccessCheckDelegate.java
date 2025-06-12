@@ -36,11 +36,12 @@ import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.SparseArray;
 
+import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.function.DodecFunction;
 import com.android.internal.util.function.HexConsumer;
 import com.android.internal.util.function.HexFunction;
-import com.android.internal.util.function.OctFunction;
+import com.android.internal.util.function.NonaFunction;
 import com.android.internal.util.function.QuadFunction;
 import com.android.internal.util.function.TriFunction;
 import com.android.internal.util.function.UndecFunction;
@@ -141,150 +142,191 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
 
     class AccessCheckDelegateImpl implements AccessCheckDelegate {
         public static final String SHELL_PKG = "com.android.shell";
+
+        private final Object mLock = new Object();
+
+        @GuardedBy("mLock")
         private int mDelegateAndOwnerUid = INVALID_UID;
         @Nullable
+        @GuardedBy("mLock")
         private String mDelegatePackage;
         @Nullable
+        @GuardedBy("mLock")
         private String[] mDelegatePermissions;
+        @GuardedBy("mLock")
         boolean mDelegateAllPermissions;
         @Nullable
+        @GuardedBy("mLock")
         private SparseArray<ArrayMap<String, Integer>> mOverridePermissionStates;
 
         @Override
         public void setShellPermissionDelegate(int uid, @NonNull String packageName,
                 @Nullable String[] permissions) {
-            mDelegateAndOwnerUid = uid;
-            mDelegatePackage = packageName;
-            mDelegatePermissions = permissions;
-            mDelegateAllPermissions = permissions == null;
+            synchronized (mLock) {
+                mDelegateAndOwnerUid = uid;
+                mDelegatePackage = packageName;
+                mDelegatePermissions = permissions;
+                mDelegateAllPermissions = permissions == null;
+            }
             PackageManager.invalidatePackageInfoCache();
         }
 
         @Override
         public void removeShellPermissionDelegate() {
-            mDelegatePackage = null;
-            mDelegatePermissions = null;
-            mDelegateAllPermissions = false;
+            synchronized (mLock) {
+                mDelegatePackage = null;
+                mDelegatePermissions = null;
+                mDelegateAllPermissions = false;
+            }
             PackageManager.invalidatePackageInfoCache();
         }
 
         @Override
         public void addOverridePermissionState(int ownerUid, int uid, @NonNull String permission,
                 int state) {
-            if (mOverridePermissionStates == null) {
-                mDelegateAndOwnerUid = ownerUid;
-                mOverridePermissionStates = new SparseArray<>();
-            }
+            synchronized (mLock) {
+                if (mOverridePermissionStates == null) {
+                    mDelegateAndOwnerUid = ownerUid;
+                    mOverridePermissionStates = new SparseArray<>();
+                }
 
-            int uidIdx = mOverridePermissionStates.indexOfKey(uid);
-            ArrayMap<String, Integer> perUidOverrides;
-            if (uidIdx < 0) {
-                perUidOverrides = new ArrayMap<>();
-                mOverridePermissionStates.put(uid, perUidOverrides);
-            } else {
-                perUidOverrides = mOverridePermissionStates.valueAt(uidIdx);
-            }
+                int uidIdx = mOverridePermissionStates.indexOfKey(uid);
+                ArrayMap<String, Integer> perUidOverrides;
+                if (uidIdx < 0) {
+                    perUidOverrides = new ArrayMap<>();
+                    mOverridePermissionStates.put(uid, perUidOverrides);
+                } else {
+                    perUidOverrides = mOverridePermissionStates.valueAt(uidIdx);
+                }
 
-            perUidOverrides.put(permission, state);
+                perUidOverrides.put(permission, state);
+            }
             PackageManager.invalidatePackageInfoCache();
         }
 
         @Override
         public void removeOverridePermissionState(int uid, @NonNull String permission) {
-            if (mOverridePermissionStates == null) {
-                return;
+            synchronized (mLock) {
+                if (mOverridePermissionStates == null) {
+                    return;
+                }
+
+                ArrayMap<String, Integer> perUidOverrides = mOverridePermissionStates.get(uid);
+
+                if (perUidOverrides == null) {
+                    return;
+                }
+
+                perUidOverrides.remove(permission);
+
+                if (perUidOverrides.isEmpty()) {
+                    mOverridePermissionStates.remove(uid);
+                }
+                if (mOverridePermissionStates.size() == 0) {
+                    mOverridePermissionStates = null;
+                }
             }
-
-            ArrayMap<String, Integer> perUidOverrides = mOverridePermissionStates.get(uid);
-
-            if (perUidOverrides == null) {
-                return;
-            }
-
-            perUidOverrides.remove(permission);
             PackageManager.invalidatePackageInfoCache();
-
-            if (perUidOverrides.isEmpty()) {
-                mOverridePermissionStates.remove(uid);
-            }
-            if (mOverridePermissionStates.size() == 0) {
-                mOverridePermissionStates = null;
-            }
         }
 
         @Override
         public void clearOverridePermissionStates(int uid) {
-            if (mOverridePermissionStates == null) {
-                return;
-            }
+            synchronized (mLock) {
+                if (mOverridePermissionStates == null) {
+                    return;
+                }
 
-            mOverridePermissionStates.remove(uid);
+                mOverridePermissionStates.remove(uid);
+
+                if (mOverridePermissionStates.size() == 0) {
+                    mOverridePermissionStates = null;
+                }
+            }
             PackageManager.invalidatePackageInfoCache();
-
-            if (mOverridePermissionStates.size() == 0) {
-                mOverridePermissionStates = null;
-            }
         }
 
         @Override
         public void clearAllOverridePermissionStates() {
-            mOverridePermissionStates = null;
+            synchronized (mLock) {
+                mOverridePermissionStates = null;
+            }
             PackageManager.invalidatePackageInfoCache();
         }
 
         @Override
         public List<String> getDelegatedPermissionNames() {
-            return mDelegatePermissions == null ? null : List.of(mDelegatePermissions);
+            synchronized (mLock) {
+                return mDelegatePermissions == null ? null : List.of(mDelegatePermissions);
+            }
         }
 
         @Override
         public boolean hasShellPermissionDelegate() {
-            return mDelegateAllPermissions || mDelegatePermissions != null;
+            synchronized (mLock) {
+                return mDelegateAllPermissions || mDelegatePermissions != null;
+            }
         }
 
         @Override
         public boolean isDelegatePackage(int uid, @NonNull String packageName) {
-            return mDelegateAndOwnerUid == uid && TextUtils.equals(mDelegatePackage, packageName);
+            synchronized (mLock) {
+                return mDelegateAndOwnerUid == uid
+                        && TextUtils.equals(mDelegatePackage, packageName);
+            }
         }
 
         @Override
         public boolean hasOverriddenPermissions() {
-            return mOverridePermissionStates != null;
+            synchronized (mLock) {
+                return mOverridePermissionStates != null;
+            }
         }
 
         @Override
         public boolean isDelegateAndOwnerUid(int uid) {
-            return uid == mDelegateAndOwnerUid;
+            synchronized (mLock) {
+                return uid == mDelegateAndOwnerUid;
+            }
         }
 
         @Override
         public boolean hasDelegateOrOverrides() {
-            return hasShellPermissionDelegate() || hasOverriddenPermissions();
+            synchronized (mLock) {
+                return hasShellPermissionDelegate() || hasOverriddenPermissions();
+            }
         }
 
         @Override
         public int checkPermission(@NonNull String packageName, @NonNull String permissionName,
                 @NonNull String persistentDeviceId, @UserIdInt int userId,
                 @NonNull QuadFunction<String, String, String, Integer, Integer> superImpl) {
-            if (TextUtils.equals(mDelegatePackage, packageName) && !SHELL_PKG.equals(packageName)) {
-                if (isDelegatePermission(permissionName)) {
-                    final long identity = Binder.clearCallingIdentity();
-                    try {
-                        return checkPermission(SHELL_PKG, permissionName, persistentDeviceId,
-                                userId, superImpl);
-                    } finally {
-                        Binder.restoreCallingIdentity(identity);
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = !SHELL_PKG.equals(packageName)
+                        && TextUtils.equals(mDelegatePackage, packageName)
+                        && isDelegatePermission(permissionName);
+
+                if (!useShellDelegate && mOverridePermissionStates != null) {
+                    int uid = LocalServices.getService(PackageManagerInternal.class)
+                                    .getPackageUid(packageName, 0, userId);
+                    if (uid >= 0) {
+                        Map<String, Integer> permissionGrants = mOverridePermissionStates.get(uid);
+                        if (permissionGrants != null
+                                && permissionGrants.containsKey(permissionName)) {
+                            return permissionGrants.get(permissionName);
+                        }
                     }
                 }
             }
-            if (mOverridePermissionStates != null) {
-                int uid = LocalServices.getService(PackageManagerInternal.class)
-                                .getPackageUid(packageName, 0, userId);
-                if (uid >= 0) {
-                    Map<String, Integer> permissionGrants = mOverridePermissionStates.get(uid);
-                    if (permissionGrants != null && permissionGrants.containsKey(permissionName)) {
-                        return permissionGrants.get(permissionName);
-                    }
+
+            if (useShellDelegate) {
+                final long identity = Binder.clearCallingIdentity();
+                try {
+                    return checkPermission(SHELL_PKG, permissionName, persistentDeviceId, userId,
+                            superImpl);
+                } finally {
+                    Binder.restoreCallingIdentity(identity);
                 }
             }
             return superImpl.apply(packageName, permissionName, persistentDeviceId, userId);
@@ -294,21 +336,27 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
         public int checkUidPermission(int uid, @NonNull String permissionName,
                 @NonNull String persistentDeviceId,
                 @NonNull TriFunction<Integer, String, String, Integer> superImpl) {
-            if (uid == mDelegateAndOwnerUid && uid != Process.SHELL_UID) {
-                if (isDelegatePermission(permissionName)) {
-                    final long identity = Binder.clearCallingIdentity();
-                    try {
-                        return checkUidPermission(Process.SHELL_UID, permissionName,
-                                persistentDeviceId, superImpl);
-                    } finally {
-                        Binder.restoreCallingIdentity(identity);
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = uid != Process.SHELL_UID && uid == mDelegateAndOwnerUid
+                        && isDelegatePermission(permissionName);
+
+                if (!useShellDelegate && mOverridePermissionStates != null) {
+                    Map<String, Integer> permissionGrants = mOverridePermissionStates.get(uid);
+                    if (permissionGrants != null && permissionGrants.containsKey(permissionName)) {
+                        return permissionGrants.get(permissionName);
                     }
                 }
             }
-            if (mOverridePermissionStates != null) {
-                Map<String, Integer> permissionGrants = mOverridePermissionStates.get(uid);
-                if (permissionGrants != null && permissionGrants.containsKey(permissionName)) {
-                    return permissionGrants.get(permissionName);
+
+            if (useShellDelegate) {
+                final long identity = Binder.clearCallingIdentity();
+                try {
+                    return checkUidPermission(Process.SHELL_UID, permissionName, persistentDeviceId,
+                            superImpl);
+                } finally {
+                    Binder.restoreCallingIdentity(identity);
                 }
             }
             return superImpl.apply(uid, permissionName, persistentDeviceId);
@@ -319,7 +367,13 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
                 @Nullable String attributionTag, int virtualDeviceId, boolean raw,
                 @NonNull HexFunction<Integer, Integer, String, String, Integer, Boolean, Integer>
                         superImpl) {
-            if (uid == mDelegateAndOwnerUid && isDelegateOp(code)) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = uid == mDelegateAndOwnerUid && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid = UserHandle.getUid(UserHandle.getUserId(uid),
                         Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();
@@ -335,7 +389,13 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
         @Override
         public int checkAudioOperation(int code, int usage, int uid, @Nullable String packageName,
                 @NonNull QuadFunction<Integer, Integer, Integer, String, Integer> superImpl) {
-            if (uid == mDelegateAndOwnerUid && isDelegateOp(code)) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = uid == mDelegateAndOwnerUid && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid = UserHandle.getUid(UserHandle.getUserId(uid),
                         Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();
@@ -351,22 +411,28 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
         @Override
         public SyncNotedAppOp noteOperation(int code, int uid, @Nullable String packageName,
                 @Nullable String featureId, int virtualDeviceId, boolean shouldCollectAsyncNotedOp,
-                @Nullable String message, boolean shouldCollectMessage,
-                @NonNull OctFunction<Integer, Integer, String, String, Integer, Boolean, String,
-                        Boolean, SyncNotedAppOp> superImpl) {
-            if (uid == mDelegateAndOwnerUid && isDelegateOp(code)) {
+                @Nullable String message, boolean shouldCollectMessage, int notedCount,
+                @NonNull NonaFunction<Integer, Integer, String, String, Integer, Boolean, String,
+                                        Boolean, Integer, SyncNotedAppOp> superImpl) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = uid == mDelegateAndOwnerUid && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid = UserHandle.getUid(UserHandle.getUserId(uid),
                         Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();
                 try {
                     return superImpl.apply(code, shellUid, SHELL_PKG, featureId, virtualDeviceId,
-                            shouldCollectAsyncNotedOp, message, shouldCollectMessage);
+                            shouldCollectAsyncNotedOp, message, shouldCollectMessage, notedCount);
                 } finally {
                     Binder.restoreCallingIdentity(identity);
                 }
             }
             return superImpl.apply(code, uid, packageName, featureId, virtualDeviceId,
-                    shouldCollectAsyncNotedOp, message, shouldCollectMessage);
+                    shouldCollectAsyncNotedOp, message, shouldCollectMessage, notedCount);
         }
 
         @Override
@@ -375,21 +441,29 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
                 @Nullable String message, boolean shouldCollectMessage, boolean skiProxyOperation,
                 @NonNull HexFunction<Integer, AttributionSource, Boolean, String, Boolean,
                         Boolean, SyncNotedAppOp> superImpl) {
-            if (!isDelegateOp(code)) {
-                return superImpl.apply(code, attributionSource, shouldCollectAsyncNotedOp,
-                        message, shouldCollectMessage, skiProxyOperation);
+            boolean isDelegateOp;
+            int delegateAndOwnerUid;
+
+            synchronized (mLock) {
+                isDelegateOp = isDelegateOp(code);
+                delegateAndOwnerUid = mDelegateAndOwnerUid;
+            }
+
+            if (!isDelegateOp) {
+                return superImpl.apply(code, attributionSource, shouldCollectAsyncNotedOp, message,
+                        shouldCollectMessage, skiProxyOperation);
             }
 
             final int shellUid = UserHandle.getUid(
                     UserHandle.getUserId(attributionSource.getUid()), Process.SHELL_UID);
             AttributionSource next = attributionSource.getNext();
-            if (next != null && next.getUid() == mDelegateAndOwnerUid) {
+            if (next != null && next.getUid() == delegateAndOwnerUid) {
                 next = new AttributionSource(shellUid, Process.INVALID_PID, SHELL_PKG,
                         next.getAttributionTag(), next.getToken(), /*renouncedPermissions*/ null,
                         next.getDeviceId(), next.getNext());
                 attributionSource = new AttributionSource(attributionSource, next);
             }
-            if (attributionSource.getUid() == mDelegateAndOwnerUid) {
+            if (attributionSource.getUid() == delegateAndOwnerUid) {
                 attributionSource = new AttributionSource(shellUid, Process.INVALID_PID, SHELL_PKG,
                         attributionSource.getAttributionTag(),
                         attributionSource.getToken(), /*renouncedPermissions*/ null,
@@ -397,9 +471,8 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
             }
             final long identity = Binder.clearCallingIdentity();
             try {
-                return superImpl.apply(code, attributionSource,
-                        shouldCollectAsyncNotedOp, message, shouldCollectMessage,
-                        skiProxyOperation);
+                return superImpl.apply(code, attributionSource, shouldCollectAsyncNotedOp, message,
+                        shouldCollectMessage, skiProxyOperation);
             } finally {
                 Binder.restoreCallingIdentity(identity);
             }
@@ -413,7 +486,13 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
                 @AttributionFlags int attributionFlags, int attributionChainId,
                 @NonNull DodecFunction<IBinder, Integer, Integer, String, String, Integer, Boolean,
                         Boolean, String, Boolean, Integer, Integer, SyncNotedAppOp> superImpl) {
-            if (uid == mDelegateAndOwnerUid && isDelegateOp(code)) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = uid == mDelegateAndOwnerUid && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid = UserHandle.getUid(UserHandle.getUserId(uid),
                         Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();
@@ -440,7 +519,14 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
                 @NonNull UndecFunction<IBinder, Integer, AttributionSource, Boolean,
                         Boolean, String, Boolean, Boolean, Integer, Integer, Integer,
                         SyncNotedAppOp> superImpl) {
-            if (attributionSource.getUid() == mDelegateAndOwnerUid && isDelegateOp(code)) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = attributionSource.getUid() == mDelegateAndOwnerUid
+                        && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid = UserHandle.getUid(UserHandle.getUserId(
                         attributionSource.getUid()), Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();
@@ -467,7 +553,14 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
                 @NonNull AttributionSource attributionSource, boolean skipProxyOperation,
                 @NonNull QuadFunction<IBinder, Integer, AttributionSource, Boolean,
                         Void> superImpl) {
-            if (attributionSource.getUid() == mDelegateAndOwnerUid && isDelegateOp(code)) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = attributionSource.getUid() == mDelegateAndOwnerUid
+                        && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid = UserHandle.getUid(UserHandle.getUserId(
                         attributionSource.getUid()), Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();
@@ -490,7 +583,13 @@ public interface AccessCheckDelegate extends CheckPermissionDelegate, CheckOpsDe
         public void finishOperation(IBinder clientId, int code, int uid, String packageName,
                 String attributionTag, int virtualDeviceId, @NonNull HexConsumer<IBinder, Integer,
                                         Integer, String, String, Integer> superImpl) {
-            if (uid == mDelegateAndOwnerUid && isDelegateOp(code)) {
+            boolean useShellDelegate;
+
+            synchronized (mLock) {
+                useShellDelegate = uid == mDelegateAndOwnerUid && isDelegateOp(code);
+            }
+
+            if (useShellDelegate) {
                 final int shellUid =
                         UserHandle.getUid(UserHandle.getUserId(uid), Process.SHELL_UID);
                 final long identity = Binder.clearCallingIdentity();

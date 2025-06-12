@@ -20,81 +20,166 @@ import static android.view.Display.DEFAULT_DISPLAY;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.os.Parcelable;
 
-import com.android.internal.util.AnnotationValidations;
-import com.android.internal.util.DataClass;
+import com.android.media.projection.flags.Flags;
 
 import java.lang.annotation.Retention;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Configure the {@link MediaProjection} session requested from
  * {@link MediaProjectionManager#createScreenCaptureIntent(MediaProjectionConfig)}.
+ * <p>
+ * This configuration should be used to provide the user with options for choosing the content to
+ * be shared with the requesting application.
  */
-@DataClass(
-        genEqualsHashCode = true,
-        genAidl = true,
-        genSetters = false,
-        genConstructor = false,
-        genBuilder = false,
-        genToString = false,
-        genHiddenConstDefs = true,
-        genHiddenGetters = true,
-        genConstDefs = false
-)
 public final class MediaProjectionConfig implements Parcelable {
 
     /**
+     * Bitmask for setting whether this configuration is for projecting the whole display.
+     */
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    public static final int PROJECTION_SOURCE_DISPLAY = 1 << 1;
+
+    /**
+     * Bitmask for setting whether this configuration is for projecting the a custom region display.
+     *
+     * @hide
+     */
+    public static final int PROJECTION_SOURCE_DISPLAY_REGION = 1 << 2;
+
+    /**
+     * Bitmask for setting whether this configuration is for projecting the a single application.
+     */
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    public static final int PROJECTION_SOURCE_APP = 1 << 3;
+
+    /**
+     * Bitmask for setting whether this configuration is for projecting the content provided by an
+     * application.
+     */
+    @FlaggedApi(com.android.media.projection.flags.Flags.FLAG_APP_CONTENT_SHARING)
+    public static final int PROJECTION_SOURCE_APP_CONTENT = 1 << 4;
+
+    /**
      * The user, rather than the host app, determines which region of the display to capture.
+     *
      * @hide
      */
     public static final int CAPTURE_REGION_USER_CHOICE = 0;
 
     /**
+     * @hide
+     */
+    public static final int DEFAULT_PROJECTION_SOURCES =
+            PROJECTION_SOURCE_DISPLAY | PROJECTION_SOURCE_APP;
+
+    /**
      * The host app specifies a particular display to capture.
+     *
      * @hide
      */
     public static final int CAPTURE_REGION_FIXED_DISPLAY = 1;
 
+    private static final int[] PROJECTION_SOURCES =
+            new int[]{PROJECTION_SOURCE_DISPLAY, PROJECTION_SOURCE_DISPLAY_REGION,
+                    PROJECTION_SOURCE_APP,
+                    PROJECTION_SOURCE_APP_CONTENT};
+
+    private static final String[] PROJECTION_SOURCES_STRING =
+            new String[]{"PROJECTION_SOURCE_DISPLAY", "PROJECTION_SOURCE_DISPLAY_REGION",
+                    "PROJECTION_SOURCE_APP", "PROJECTION_SOURCE_APP_CONTENT"};
+
+    private static final int VALID_PROJECTION_SOURCES = createValidSourcesMask();
+
+    private final int mInitialSelection;
+
     /** @hide */
-    @IntDef(prefix = "CAPTURE_REGION_", value = {
-            CAPTURE_REGION_USER_CHOICE,
-            CAPTURE_REGION_FIXED_DISPLAY
-    })
+    @IntDef(prefix = "CAPTURE_REGION_", value = {CAPTURE_REGION_USER_CHOICE,
+            CAPTURE_REGION_FIXED_DISPLAY})
     @Retention(SOURCE)
+    @Deprecated // Remove when FLAG_APP_CONTENT_SHARING is removed
     public @interface CaptureRegion {
     }
 
+    /** @hide */
+    @IntDef(flag = true, prefix = "PROJECTION_SOURCE_", value = {PROJECTION_SOURCE_DISPLAY,
+            PROJECTION_SOURCE_DISPLAY_REGION, PROJECTION_SOURCE_APP, PROJECTION_SOURCE_APP_CONTENT})
+    @Retention(SOURCE)
+    public @interface MediaProjectionSource {
+    }
+
     /**
-     * The particular display to capture. Only used when {@link #getRegionToCapture()} is
-     * {@link #CAPTURE_REGION_FIXED_DISPLAY}; ignored otherwise.
-     *
+     * The particular display to capture. Only used when {@link #PROJECTION_SOURCE_DISPLAY} is set,
+     * ignored otherwise.
+     * <p>
      * Only supports values of {@link android.view.Display#DEFAULT_DISPLAY}.
      */
     @IntRange(from = DEFAULT_DISPLAY, to = DEFAULT_DISPLAY)
-    private int mDisplayToCapture;
+    private final int mDisplayToCapture;
 
     /**
      * The region to capture. Defaults to the user's choice.
      */
     @CaptureRegion
-    private int mRegionToCapture = CAPTURE_REGION_USER_CHOICE;
+    @Deprecated // Remove when FLAG_APP_CONTENT_SHARING is removed
+    private int mRegionToCapture;
 
     /**
-     * Default instance, with region set to the user's choice.
+     * The region to capture. Defaults to the user's choice.
      */
-    private MediaProjectionConfig() {
+    @MediaProjectionSource
+    private final int mProjectionSources;
+
+    /**
+     * @see #getRequesterHint()
+     */
+    @Nullable
+    private final String mRequesterHint;
+
+    /**
+     * Customized instance, with region set to the provided value.
+     * @deprecated To be removed FLAG_APP_CONTENT_SHARING is removed
+     */
+    @Deprecated // Remove when FLAG_APP_CONTENT_SHARING is removed
+    private MediaProjectionConfig(@CaptureRegion int captureRegion) {
+        if (Flags.appContentSharing()) {
+            throw new UnsupportedOperationException(
+                    "Flag FLAG_APP_CONTENT_SHARING enabled. This method must not be called.");
+        }
+        mRegionToCapture = captureRegion;
+        mDisplayToCapture = DEFAULT_DISPLAY;
+
+        mRequesterHint = null;
+        mInitialSelection = -1;
+        mProjectionSources = -1;
     }
 
     /**
      * Customized instance, with region set to the provided value.
      */
-    private MediaProjectionConfig(@CaptureRegion int captureRegion) {
-        mRegionToCapture = captureRegion;
+    private MediaProjectionConfig(@MediaProjectionSource int projectionSource,
+            @Nullable String requesterHint, int displayId, int initialSelection) {
+        if (!Flags.appContentSharing()) {
+            throw new UnsupportedOperationException(
+                    "Flag FLAG_APP_CONTENT_SHARING disabled. This method must not be called");
+        }
+        if (projectionSource == 0) {
+            mProjectionSources = DEFAULT_PROJECTION_SOURCES;
+        } else {
+            mProjectionSources = projectionSource;
+        }
+        mRequesterHint = requesterHint;
+        mDisplayToCapture = displayId;
+        mInitialSelection = initialSelection;
     }
 
     /**
@@ -102,16 +187,17 @@ public final class MediaProjectionConfig implements Parcelable {
      */
     @NonNull
     public static MediaProjectionConfig createConfigForDefaultDisplay() {
-        MediaProjectionConfig config = new MediaProjectionConfig(CAPTURE_REGION_FIXED_DISPLAY);
-        config.mDisplayToCapture = DEFAULT_DISPLAY;
-        return config;
+        if (Flags.appContentSharing()) {
+            return new Builder().setSourceEnabled(PROJECTION_SOURCE_DISPLAY, true).build();
+        } else {
+            return new MediaProjectionConfig(CAPTURE_REGION_FIXED_DISPLAY);
+        }
     }
 
     /**
      * Returns an instance which allows the user to decide which region is captured. The consent
      * dialog presents the user with all possible options. If the user selects display capture,
      * then only the {@link android.view.Display#DEFAULT_DISPLAY} is supported.
-     *
      * <p>
      * When passed in to
      * {@link MediaProjectionManager#createScreenCaptureIntent(MediaProjectionConfig)}, the consent
@@ -121,59 +207,68 @@ public final class MediaProjectionConfig implements Parcelable {
      */
     @NonNull
     public static MediaProjectionConfig createConfigForUserChoice() {
-        return new MediaProjectionConfig(CAPTURE_REGION_USER_CHOICE);
+        if (Flags.appContentSharing()) {
+            return new MediaProjectionConfig.Builder().build();
+        } else {
+            return new MediaProjectionConfig(CAPTURE_REGION_USER_CHOICE);
+        }
     }
 
     /**
      * Returns string representation of the captured region.
      */
     @NonNull
+    @Deprecated // Remove when FLAG_APP_CONTENT_SHARING is removed
     private static String captureRegionToString(int value) {
-        switch (value) {
-            case CAPTURE_REGION_USER_CHOICE:
-                return "CAPTURE_REGION_USERS_CHOICE";
-            case CAPTURE_REGION_FIXED_DISPLAY:
-                return "CAPTURE_REGION_GIVEN_DISPLAY";
-            default:
-                return Integer.toHexString(value);
+        return switch (value) {
+            case CAPTURE_REGION_USER_CHOICE -> "CAPTURE_REGION_USERS_CHOICE";
+            case CAPTURE_REGION_FIXED_DISPLAY -> "CAPTURE_REGION_GIVEN_DISPLAY";
+            default -> Integer.toHexString(value);
+        };
+    }
+
+    /**
+     * Returns string representation of the captured region.
+     */
+    @NonNull
+    private static String projectionSourceToString(int value) {
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 0; i < PROJECTION_SOURCES.length; i++) {
+            if ((value & PROJECTION_SOURCES[i]) > 0) {
+                stringBuilder.append(PROJECTION_SOURCES_STRING[i]);
+                stringBuilder.append(" ");
+                value &= ~PROJECTION_SOURCES[i];
+            }
         }
+        if (value > 0) {
+            stringBuilder.append("Unknown projection sources: ");
+            stringBuilder.append(Integer.toHexString(value));
+        }
+        return stringBuilder.toString();
     }
 
     @Override
     public String toString() {
-        return "MediaProjectionConfig { "
-                + "displayToCapture = " + mDisplayToCapture + ", "
-                + "regionToCapture = " + captureRegionToString(mRegionToCapture)
-                + " }";
+        if (Flags.appContentSharing()) {
+            return ("MediaProjectionConfig{mInitialSelection=%d, mDisplayToCapture=%d, "
+                    + "mProjectionSource=%s, mRequesterHint='%s'}").formatted(mInitialSelection,
+                    mDisplayToCapture, projectionSourceToString(mProjectionSources),
+                    mRequesterHint);
+        } else {
+            return "MediaProjectionConfig { " + "displayToCapture = " + mDisplayToCapture + ", "
+                    + "regionToCapture = " + captureRegionToString(mRegionToCapture) + " }";
+        }
     }
 
-
-
-
-
-    // Code below generated by codegen v1.0.23.
-    //
-    // DO NOT MODIFY!
-    // CHECKSTYLE:OFF Generated code
-    //
-    // To regenerate run:
-    // $ codegen $ANDROID_BUILD_TOP/frameworks/base/media/java/android/media/projection/MediaProjectionConfig.java
-    //
-    // To exclude the generated code from IntelliJ auto-formatting enable (one-time):
-    //   Settings > Editor > Code Style > Formatter Control
-    //@formatter:off
-
-
     /**
-     * The particular display to capture. Only used when {@link #getRegionToCapture()} is
-     * {@link #CAPTURE_REGION_FIXED_DISPLAY}; ignored otherwise.
-     *
+     * The particular display to capture. Only used when {@link #PROJECTION_SOURCE_DISPLAY} is
+     * set; ignored otherwise.
+     * <p>
      * Only supports values of {@link android.view.Display#DEFAULT_DISPLAY}.
      *
      * @hide
      */
-    @DataClass.Generated.Member
-    public @IntRange(from = DEFAULT_DISPLAY, to = DEFAULT_DISPLAY) int getDisplayToCapture() {
+    public int getDisplayToCapture() {
         return mDisplayToCapture;
     }
 
@@ -182,100 +277,227 @@ public final class MediaProjectionConfig implements Parcelable {
      *
      * @hide
      */
-    @DataClass.Generated.Member
     public @CaptureRegion int getRegionToCapture() {
         return mRegionToCapture;
     }
 
-    @Override
-    @DataClass.Generated.Member
-    public boolean equals(@Nullable Object o) {
-        // You can override field equality logic by defining either of the methods like:
-        // boolean fieldNameEquals(MediaProjectionConfig other) { ... }
-        // boolean fieldNameEquals(FieldType otherValue) { ... }
-
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        @SuppressWarnings("unchecked")
-        MediaProjectionConfig that = (MediaProjectionConfig) o;
-        //noinspection PointlessBooleanExpression
-        return true
-                && mDisplayToCapture == that.mDisplayToCapture
-                && mRegionToCapture == that.mRegionToCapture;
+    /**
+     * A bitmask representing of requested projection sources.
+     * <p>
+     * The system supports different kind of media projection session. Although the user is
+     * picking the target content, the requesting application can configure the choices displayed
+     * to the user.
+     */
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    public @MediaProjectionSource int getProjectionSources() {
+        return mProjectionSources;
     }
 
     @Override
-    @DataClass.Generated.Member
-    public int hashCode() {
-        // You can override field hashCode logic by defining methods like:
-        // int fieldNameHashCode() { ... }
+    public boolean equals(@Nullable Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MediaProjectionConfig that = (MediaProjectionConfig) o;
+        if (Flags.appContentSharing()) {
+            return mDisplayToCapture == that.mDisplayToCapture
+                    && mProjectionSources == that.mProjectionSources
+                    && mInitialSelection == that.mInitialSelection
+                    && Objects.equals(mRequesterHint, that.mRequesterHint);
+        } else {
+            return mDisplayToCapture == that.mDisplayToCapture
+                    && mRegionToCapture == that.mRegionToCapture;
+        }
+    }
 
+    @Override
+    public int hashCode() {
         int _hash = 1;
-        _hash = 31 * _hash + mDisplayToCapture;
-        _hash = 31 * _hash + mRegionToCapture;
+        if (Flags.appContentSharing()) {
+            return Objects.hash(mDisplayToCapture, mProjectionSources, mInitialSelection,
+                    mRequesterHint);
+        } else {
+            _hash = 31 * _hash + mDisplayToCapture;
+            _hash = 31 * _hash + mRegionToCapture;
+        }
         return _hash;
     }
 
     @Override
-    @DataClass.Generated.Member
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
-        // You can override field parcelling by defining methods like:
-        // void parcelFieldName(Parcel dest, int flags) { ... }
-
         dest.writeInt(mDisplayToCapture);
-        dest.writeInt(mRegionToCapture);
+        if (Flags.appContentSharing()) {
+            dest.writeInt(mProjectionSources);
+            dest.writeString(mRequesterHint);
+            dest.writeInt(mInitialSelection);
+        } else {
+            dest.writeInt(mRegionToCapture);
+        }
     }
 
     @Override
-    @DataClass.Generated.Member
-    public int describeContents() { return 0; }
-
-    /** @hide */
-    @SuppressWarnings({"unchecked", "RedundantCast"})
-    @DataClass.Generated.Member
-    /* package-private */ MediaProjectionConfig(@NonNull android.os.Parcel in) {
-        // You can override field unparcelling by defining methods like:
-        // static FieldType unparcelFieldName(Parcel in) { ... }
-
-        int displayToCapture = in.readInt();
-        int regionToCapture = in.readInt();
-
-        this.mDisplayToCapture = displayToCapture;
-        AnnotationValidations.validate(
-                IntRange.class, null, mDisplayToCapture,
-                "from", DEFAULT_DISPLAY,
-                "to", DEFAULT_DISPLAY);
-        this.mRegionToCapture = regionToCapture;
-        AnnotationValidations.validate(
-                CaptureRegion.class, null, mRegionToCapture);
-
-        // onConstructed(); // You can define this method to get a callback
+    public int describeContents() {
+        return 0;
     }
 
-    @DataClass.Generated.Member
-    public static final @NonNull Parcelable.Creator<MediaProjectionConfig> CREATOR
-            = new Parcelable.Creator<MediaProjectionConfig>() {
-        @Override
-        public MediaProjectionConfig[] newArray(int size) {
-            return new MediaProjectionConfig[size];
+    /** @hide */
+    /* package-private */ MediaProjectionConfig(@NonNull android.os.Parcel in) {
+        mDisplayToCapture = in.readInt();
+        if (Flags.appContentSharing()) {
+            mProjectionSources = in.readInt();
+            mRequesterHint = in.readString();
+            mInitialSelection = in.readInt();
+        } else {
+            mRegionToCapture = in.readInt();
+            mProjectionSources = -1;
+            mRequesterHint = null;
+            mInitialSelection = -1;
+        }
+    }
+
+    public static final @NonNull Parcelable.Creator<MediaProjectionConfig> CREATOR =
+            new Parcelable.Creator<>() {
+                @Override
+                public MediaProjectionConfig[] newArray(int size) {
+                    return new MediaProjectionConfig[size];
+                }
+
+                @Override
+                public MediaProjectionConfig createFromParcel(@NonNull android.os.Parcel in) {
+                    return new MediaProjectionConfig(in);
+                }
+            };
+
+    /**
+     * Returns true if the provided source should be enabled.
+     *
+     * @param projectionSource projection source integer to check for. The parameter can also be a
+     *                         bitmask of multiple sources.
+     */
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    public boolean isSourceEnabled(@MediaProjectionSource int projectionSource) {
+        return (mProjectionSources & projectionSource) > 0;
+    }
+
+    /**
+     * Returns a bit mask of one, and only one, of the projection type flag.
+     */
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    @MediaProjectionSource
+    public int getInitiallySelectedSource() {
+        return mInitialSelection;
+    }
+
+    /**
+     * A hint set by the requesting app indicating who the requester of this {@link MediaProjection}
+     * session is.
+     * <p>
+     * The UI component prompting the user for the permission to start the session can use
+     * this hint to provide more information about the origin of the request (e.g. a browser
+     * tab title, a meeting id if sharing to a video conferencing app, a player name if
+     * sharing the screen within a game).
+     *
+     * @return the hint to be displayed if set, null otherwise.
+     */
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    @Nullable
+    public CharSequence getRequesterHint() {
+        return mRequesterHint;
+    }
+
+    private static int createValidSourcesMask() {
+        int validSources = 0;
+        for (int projectionSource : PROJECTION_SOURCES) {
+            validSources |= projectionSource;
+        }
+        return validSources;
+    }
+
+    @FlaggedApi(Flags.FLAG_APP_CONTENT_SHARING)
+    public static final class Builder {
+        private int mOptions = 0;
+        private String mRequesterHint = null;
+
+        @MediaProjectionSource
+        private int mInitialSelection;
+
+        public Builder() {
+            if (!Flags.appContentSharing()) {
+                throw new UnsupportedOperationException("Flag FLAG_APP_CONTENT_SHARING disabled");
+            }
         }
 
-        @Override
-        public MediaProjectionConfig createFromParcel(@NonNull android.os.Parcel in) {
-            return new MediaProjectionConfig(in);
+        /**
+         * Indicates which projection source the UI component should display to the user
+         * first. Calling this method without enabling the respective choice will have no effect.
+         *
+         * @return instance of this {@link Builder}.
+         * @see #setSourceEnabled(int, boolean)
+         */
+        @NonNull
+        public Builder setInitiallySelectedSource(@MediaProjectionSource int projectionSource) {
+            for (int source : PROJECTION_SOURCES) {
+                if (projectionSource == source) {
+                    mInitialSelection = projectionSource;
+                    return this;
+                }
+            }
+            throw new IllegalArgumentException(
+                    ("projectionSource is no a valid projection source. projectionSource must be "
+                            + "one of %s but was %s")
+                            .formatted(Arrays.toString(PROJECTION_SOURCES_STRING),
+                                    projectionSourceToString(projectionSource)));
         }
-    };
 
-    @DataClass.Generated(
-            time = 1673548980960L,
-            codegenVersion = "1.0.23",
-            sourceFile = "frameworks/base/media/java/android/media/projection/MediaProjectionConfig.java",
-            inputSignatures = "public static final  int CAPTURE_REGION_USER_CHOICE\npublic static final  int CAPTURE_REGION_FIXED_DISPLAY\nprivate @android.annotation.IntRange int mDisplayToCapture\nprivate @android.media.projection.MediaProjectionConfig.CaptureRegion int mRegionToCapture\npublic static @android.annotation.NonNull android.media.projection.MediaProjectionConfig createConfigForDefaultDisplay()\npublic static @android.annotation.NonNull android.media.projection.MediaProjectionConfig createConfigForUserChoice()\nprivate static @android.annotation.NonNull java.lang.String captureRegionToString(int)\npublic @java.lang.Override java.lang.String toString()\nclass MediaProjectionConfig extends java.lang.Object implements [android.os.Parcelable]\n@com.android.internal.util.DataClass(genEqualsHashCode=true, genAidl=true, genSetters=false, genConstructor=false, genBuilder=false, genToString=false, genHiddenConstDefs=true, genHiddenGetters=true, genConstDefs=false)")
-    @Deprecated
-    private void __metadata() {}
+        /**
+         * Let the requesting app indicate who the requester of this {@link MediaProjection}
+         * session is..
+         * <p>
+         * The UI component prompting the user for the permission to start the session can use
+         * this hint to provide more information about the origin of the request (e.g. a browser
+         * tab title, a meeting id if sharing to a video conferencing app, a player name if
+         * sharing the screen within a game).
+         * <p>
+         * Note that setting this won't hide or change the name of the application
+         * requesting the session.
+         *
+         * @return instance of this {@link Builder}.
+         */
+        @NonNull
+        public Builder setRequesterHint(@Nullable String requesterHint) {
+            mRequesterHint = requesterHint;
+            return this;
+        }
 
+        /**
+         * Set whether the UI component requesting the user permission to share their screen
+         * should display an option to share the specified source
+         *
+         * @param source  the projection source to enable or disable
+         * @param enabled true to enable the source, false otherwise
+         * @return this instance for chaining.
+         * @throws IllegalArgumentException if the source is not one of the valid sources.
+         */
+        @NonNull
+        @SuppressLint("MissingGetterMatchingBuilder") // isSourceEnabled is defined
+        public Builder setSourceEnabled(@MediaProjectionSource int source, boolean enabled) {
+            if ((source & VALID_PROJECTION_SOURCES) == 0) {
+                throw new IllegalArgumentException(
+                        ("source is no a valid projection source. source must be "
+                                + "any of %s but was %s")
+                                .formatted(Arrays.toString(PROJECTION_SOURCES_STRING),
+                                        projectionSourceToString(source)));
+            }
+            mOptions = enabled ? mOptions | source : mOptions & ~source;
+            return this;
+        }
 
-    //@formatter:on
-    // End of generated code
-
+        /**
+         * Builds a new immutable instance of {@link MediaProjectionConfig}
+         */
+        @NonNull
+        public MediaProjectionConfig build() {
+            return new MediaProjectionConfig(mOptions, mRequesterHint, DEFAULT_DISPLAY,
+                    mInitialSelection);
+        }
+    }
 }

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<lint>
+<!-- TODO(397519800): Remove hard coded once ASfP is capable of configuring this automatically -->
+<lint lintJars="../../../../out/soong/.intermediates/frameworks/base/packages/SystemUI/checks/SystemUILintChecker/linux_glibc_common/combined/SystemUILintChecker.jar">
     <issue id="PrivateResource" severity="ignore" />
 </lint>

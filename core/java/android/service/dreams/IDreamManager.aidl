@@ -53,8 +53,12 @@ interface IDreamManager {
     void startDreamActivity(in Intent intent);
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.WRITE_DREAM_STATE)")
     oneway void setDreamIsObscured(in boolean isObscured);
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.WRITE_DREAM_STATE)")
+    oneway void setDevicePostured(in boolean isPostured);
     oneway void startDozingOneway(in IBinder token, int screenState, int reason,
             float screenBrightnessFloat, int screenBrightnessInt,
             boolean useNormalBrightnessForDoze);
     oneway void finishSelfOneway(in IBinder token, boolean immediate);
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)")
+    void setScreensaverEnabled(boolean enabled);
 }

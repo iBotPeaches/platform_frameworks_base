@@ -26,6 +26,7 @@ import android.content.res.Resources;
 import android.graphics.fonts.FontFamily;
 import android.graphics.fonts.SystemFonts;
 import android.os.SharedMemory;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.text.FontConfig;
 import android.util.ArrayMap;
 
@@ -196,6 +197,7 @@ public class TypefaceTest {
 
     @SmallTest
     @Test
+    @DisabledOnRavenwood(blockedBy = SharedMemory.class)
     public void testSerialize() throws Exception {
         FontConfig fontConfig = SystemFonts.getSystemPreinstalledFontConfig();
         Map<String, FontFamily[]> fallbackMap = SystemFonts.buildSystemFallback(fontConfig);

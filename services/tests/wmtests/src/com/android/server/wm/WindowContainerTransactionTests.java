@@ -18,23 +18,37 @@ package com.android.server.wm;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.window.WindowContainerTransaction.HierarchyOp.HIERARCHY_OP_TYPE_APP_COMPAT_REACHABILITY;
+import static android.window.WindowContainerTransaction.HierarchyOp.LAUNCH_KEY_TASK_ID;
+import static android.window.WindowContainerTransaction.HierarchyOp.REACHABILITY_EVENT_X;
+import static android.window.WindowContainerTransaction.HierarchyOp.REACHABILITY_EVENT_Y;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.times;
 
 import android.content.Intent;
+import android.graphics.Rect;
+import android.os.Binder;
+import android.os.Bundle;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.window.WindowContainerToken;
 import android.window.WindowContainerTransaction;
+import android.window.WindowContainerTransaction.HierarchyOp;
 
 import androidx.annotation.NonNull;
 import androidx.test.filters.SmallTest;
+
+import com.android.window.flags.Flags;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -52,6 +66,8 @@ import java.util.List;
 @Presubmit
 @RunWith(WindowTestRunner.class)
 public class WindowContainerTransactionTests extends WindowTestsBase {
+    private final Rect mSafeRegionBounds = new Rect(50, 50, 200, 300);
+
     @Test
     public void testRemoveTask() {
         final Task rootTask = createTask(mDisplayContent);
@@ -74,6 +90,34 @@ public class WindowContainerTransactionTests extends WindowTestsBase {
         assertNull(task.getParent());
         assertEquals(0, task.getChildCount());
         assertNull(activity.getParent());
+        verify(mAtm.getLockTaskController(), atLeast(1)).clearLockedTask(task);
+        verify(mAtm.getLockTaskController(), atLeast(1)).clearLockedTask(rootTask);
+    }
+
+    @Test
+    public void testRemoveRootTask() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+        WindowContainerToken token = rootTask.getTaskInfo().token;
+        wct.removeTask(token);
+        applyTransaction(wct);
+
+        // There is still an activity to be destroyed, so the task is not removed immediately.
+        assertNotNull(task.getParent());
+        assertTrue(rootTask.hasChild());
+        assertTrue(task.hasChild());
+        assertTrue(activity.finishing);
+
+        activity.destroyed("testRemoveRootTask");
+        // Assert that the container was removed after the activity is destroyed.
+        assertNull(task.getParent());
+        assertEquals(0, task.getChildCount());
+        assertNull(activity.getParent());
+        assertNull(taskDisplayArea.getTask(task1 -> task1.mTaskId == rootTask.mTaskId));
         verify(mAtm.getLockTaskController(), atLeast(1)).clearLockedTask(task);
         verify(mAtm.getLockTaskController(), atLeast(1)).clearLockedTask(rootTask);
     }
@@ -171,6 +215,152 @@ public class WindowContainerTransactionTests extends WindowTestsBase {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnTaskDisplayArea() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        final WindowContainerToken token = taskDisplayArea.mRemoteToken.toWindowContainerToken();
+        // Set safe region bounds on the task display area
+        wct.setSafeRegionBounds(token, mSafeRegionBounds);
+        applyTransaction(wct);
+
+        assertEquals(activity.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(rootTask.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(taskDisplayArea.getSafeRegionBounds(), mSafeRegionBounds);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnRootTask() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        final WindowContainerToken token = rootTask.mRemoteToken.toWindowContainerToken();
+        // Set safe region bounds on the root task
+        wct.setSafeRegionBounds(token, mSafeRegionBounds);
+        applyTransaction(wct);
+
+        assertEquals(activity.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(rootTask.getSafeRegionBounds(), mSafeRegionBounds);
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnTask() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        final WindowContainerToken token = task.mRemoteToken.toWindowContainerToken();
+        // Set safe region bounds on the task
+        wct.setSafeRegionBounds(token, mSafeRegionBounds);
+        applyTransaction(wct);
+
+        assertEquals(activity.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), mSafeRegionBounds);
+        assertNull(rootTask.getSafeRegionBounds());
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnTask_resetSafeRegionBounds() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        final WindowContainerToken token = task.mRemoteToken.toWindowContainerToken();
+        // Set safe region bounds on the task
+        wct.setSafeRegionBounds(token, mSafeRegionBounds);
+        applyTransaction(wct);
+
+        assertEquals(activity.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), mSafeRegionBounds);
+        assertNull(rootTask.getSafeRegionBounds());
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+
+        // Reset safe region bounds on the task
+        wct.setSafeRegionBounds(token, /* safeRegionBounds */null);
+        applyTransaction(wct);
+
+        assertNull(activity.getSafeRegionBounds());
+        assertNull(task.getSafeRegionBounds());
+        assertNull(rootTask.getSafeRegionBounds());
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnRootTaskAndTask() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        final WindowContainerToken token = rootTask.mRemoteToken.toWindowContainerToken();
+        // Set safe region bounds on the root task
+        wct.setSafeRegionBounds(token, mSafeRegionBounds);
+        // Set different safe region bounds on task
+        final Rect tempSafeRegionBounds = new Rect(30, 30, 200, 200);
+        wct.setSafeRegionBounds(task.mRemoteToken.toWindowContainerToken(), tempSafeRegionBounds);
+        applyTransaction(wct);
+
+        assertEquals(activity.getSafeRegionBounds(), tempSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), tempSafeRegionBounds);
+        assertEquals(rootTask.getSafeRegionBounds(), mSafeRegionBounds);
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    public void testSetSafeRegionBoundsOnRootTaskAndTask_resetSafeRegionBoundsOnTask() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
+        final TaskDisplayArea taskDisplayArea = mDisplayContent.getDefaultTaskDisplayArea();
+
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        final WindowContainerToken token = rootTask.mRemoteToken.toWindowContainerToken();
+        // Set safe region bounds on the root task
+        wct.setSafeRegionBounds(token, mSafeRegionBounds);
+        // Set different safe region bounds on task
+        final Rect mTmpSafeRegionBounds = new Rect(30, 30, 200, 200);
+        wct.setSafeRegionBounds(task.mRemoteToken.toWindowContainerToken(), mTmpSafeRegionBounds);
+        applyTransaction(wct);
+
+        // Task and activity will use different safe region bounds
+        assertEquals(activity.getSafeRegionBounds(), mTmpSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), mTmpSafeRegionBounds);
+        assertEquals(rootTask.getSafeRegionBounds(), mSafeRegionBounds);
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+
+        // Reset safe region bounds on task
+        wct.setSafeRegionBounds(task.mRemoteToken.toWindowContainerToken(),
+                /* safeRegionBounds */null);
+        applyTransaction(wct);
+
+        assertEquals(activity.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(task.getSafeRegionBounds(), mSafeRegionBounds);
+        assertEquals(rootTask.getSafeRegionBounds(), mSafeRegionBounds);
+        assertNull(taskDisplayArea.getSafeRegionBounds());
+    }
+
+    @Test
     public void testDesktopMode_moveTaskToFront() {
         final TestDesktopOrganizer desktopOrganizer = new TestDesktopOrganizer(mAtm);
         TaskDisplayArea tda = desktopOrganizer.mDefaultTDA;
@@ -193,6 +383,31 @@ public class WindowContainerTransactionTests extends WindowTestsBase {
                 < tda.mChildren.indexOf(desktopOrganizer.mTasks.get(4).getRootTask()));
         assertTrue(tda.mChildren.indexOf(desktopOrganizer.mTasks.get(4).getRootTask())
                 < tda.mChildren.indexOf(desktopOrganizer.mTasks.get(2).getRootTask()));
+    }
+
+    @Test
+    public void testAppCompat_setReachabilityOffsets() {
+        final Task task = createTask(/* taskId */ 37);
+        final WindowContainerToken containerToken = task.getTaskInfo().token;
+        spyOn(containerToken);
+        final Binder asBinder = new Binder();
+        doReturn(asBinder).when(containerToken).asBinder();
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        wct.setReachabilityOffset(containerToken, /* taskId */ task.mTaskId, 10, 20);
+
+        final List<HierarchyOp> hierarchyOps = wct.getHierarchyOps().stream()
+                .filter(op -> op.getType() == HIERARCHY_OP_TYPE_APP_COMPAT_REACHABILITY)
+                .toList();
+
+        assertEquals(1, hierarchyOps.size());
+        final HierarchyOp appCompatOp = hierarchyOps.getFirst();
+        assertNotNull(appCompatOp);
+        final Bundle appCompatOptions = appCompatOp.getAppCompatOptions();
+
+        assertEquals(task.mTaskId, appCompatOptions.getInt(LAUNCH_KEY_TASK_ID));
+        assertEquals(10, appCompatOptions.getInt(REACHABILITY_EVENT_X));
+        assertEquals(20, appCompatOptions.getInt(REACHABILITY_EVENT_Y));
+        assertSame(asBinder, appCompatOp.getContainer());
     }
 
     private Task createTask(int taskId) {

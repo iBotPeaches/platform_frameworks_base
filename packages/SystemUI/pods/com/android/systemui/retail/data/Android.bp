@@ -14,42 +14,44 @@
 // limitations under the License.
 //
 
-soong_namespace {
-}
-
 package {
     default_applicable_licenses: ["frameworks_base_packages_SystemUI_license"],
 }
 
 java_library {
-    name: "api",
+    name: "com.android.systemui.retail.data-api",
     srcs: ["repository/*.kt"],
     libs: [
         "kotlinx_coroutines",
     ],
+    defaults: [
+        "SystemUI_pod_defaults",
+    ],
     visibility: [
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/dagger",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/domain",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail:__pkg__",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/dagger:__pkg__",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/domain:__pkg__",
     ],
 }
 
 java_library {
-    name: "impl",
+    name: "com.android.systemui.retail.data-impl",
     srcs: ["repository/impl/*.kt"],
     libs: [
-        "jsr330",
         "kotlinx_coroutines",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/dagger:api",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/util/settings:api",
+        "com.android.systemui.dagger-api",
+        "com.android.systemui.util.settings-api",
         "SystemUICommon",
     ],
     static_libs: [
-        "api",
+        "com.android.systemui.retail.data-api",
+    ],
+    defaults: [
+        "SystemUI_pod_defaults",
     ],
     visibility: [
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/dagger",
-        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/domain",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail:__pkg__",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/dagger:__pkg__",
+        "//frameworks/base/packages/SystemUI/pods/com/android/systemui/retail/domain:__pkg__",
     ],
 }

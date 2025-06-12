@@ -33,7 +33,6 @@ import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 
 import com.android.app.animation.Interpolators;
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.systemui.res.R;
 
 /**
@@ -41,17 +40,16 @@ import com.android.systemui.res.R;
  */
 public class AssistDisclosure {
     private final Context mContext;
-    private final ViewCaptureAwareWindowManager mWm;
+    private final WindowManager mWm;
     private final Handler mHandler;
 
     private AssistDisclosureView mView;
     private boolean mViewAdded;
 
-    public AssistDisclosure(Context context, Handler handler,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager) {
+    public AssistDisclosure(Context context, Handler handler, WindowManager windowManager) {
         mContext = context;
         mHandler = handler;
-        mWm = viewCaptureAwareWindowManager;
+        mWm = windowManager;
     }
 
     public void postShow() {

@@ -57,6 +57,7 @@ import com.android.systemui.SysuiTestCase;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.util.concurrency.FakeExecutor;
 import com.android.systemui.util.time.FakeSystemClock;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -89,6 +90,8 @@ public class ImageWallpaperTest extends SysuiTestCase {
     private Context mMockContext;
     @Mock
     private UserTracker mUserTracker;
+    @Mock
+    private WindowManagerProvider mWindowManagerProvider;
 
     @Mock
     private Bitmap mWallpaperBitmap;
@@ -105,7 +108,7 @@ public class ImageWallpaperTest extends SysuiTestCase {
         when(mWindowMetrics.getBounds()).thenReturn(
                 new Rect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT));
         when(mWindowManager.getCurrentWindowMetrics()).thenReturn(mWindowMetrics);
-        when(mMockContext.getSystemService(WindowManager.class)).thenReturn(mWindowManager);
+        when(mWindowManagerProvider.getWindowManager(any())).thenReturn(mWindowManager);
 
         // set up display manager
         doNothing().when(mDisplayManager).registerDisplayListener(any(), any());
@@ -182,7 +185,7 @@ public class ImageWallpaperTest extends SysuiTestCase {
     }
 
     private ImageWallpaper createImageWallpaper() {
-        return new ImageWallpaper(mFakeExecutor, mUserTracker) {
+        return new ImageWallpaper(mFakeExecutor, mUserTracker, mWindowManagerProvider) {
             @Override
             public Engine onCreateEngine() {
                 return new CanvasEngine() {

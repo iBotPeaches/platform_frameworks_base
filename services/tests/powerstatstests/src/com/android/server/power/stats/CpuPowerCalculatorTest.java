@@ -32,7 +32,6 @@ import android.os.BatteryStats;
 import android.os.BatteryUsageStatsQuery;
 import android.os.Process;
 import android.os.UidBatteryConsumer;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.SparseArray;
 
 import androidx.test.filters.SmallTest;
@@ -56,11 +55,6 @@ import org.mockito.MockitoAnnotations;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class CpuPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
 
     private static final int APP_UID1 = Process.FIRST_APPLICATION_UID + 42;
@@ -68,7 +62,7 @@ public class CpuPowerCalculatorTest {
 
     private static final int NUM_CPU_FREQS = 2 + 2;  // 2 clusters * 2 freqs each
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_CPU_ACTIVE, 720)
             .setCpuScalingPolicy(0, new int[]{0, 1}, new int[]{100, 200})

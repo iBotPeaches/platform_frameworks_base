@@ -19,7 +19,8 @@ package com.android.systemui.keyguard.ui.composable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.android.compose.animation.scene.SceneScope
+import androidx.compose.ui.platform.testTag
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
 import com.android.compose.animation.scene.animateContentFloatAsState
@@ -54,18 +55,17 @@ constructor(
     }
 
     @Composable
-    override fun SceneScope.Content(
-        modifier: Modifier,
-    ) {
+    override fun ContentScope.Content(modifier: Modifier) {
         LockscreenScene(
             lockscreenContent = lockscreenContent,
-            modifier = modifier,
+            // TODO(b/393516240): Use the same sysuiResTag() as views instead.
+            modifier = modifier.testTag(key.rootElementKey.testTag),
         )
     }
 }
 
 @Composable
-private fun SceneScope.LockscreenScene(
+private fun ContentScope.LockscreenScene(
     lockscreenContent: Lazy<LockscreenContent>,
     modifier: Modifier = Modifier,
 ) {

@@ -204,6 +204,21 @@ public class ScrollCaptureControllerTest extends SysuiTestCase {
         assertEquals("bottom", 200, screenshot.getBottom());
     }
 
+    @Test
+    public void testCancellation() {
+        ScrollCaptureController controller = new TestScenario()
+                .withPageHeight(100)
+                .withMaxPages(2.5f)
+                .withTileHeight(10)
+                .withAvailableRange(-10, Integer.MAX_VALUE)
+                .createController(mContext);
+
+        ScrollCaptureController.LongScreenshot screenshot =
+                getUnchecked(controller.run(EMPTY_RESPONSE));
+
+        assertEquals("top", -10, screenshot.getTop());
+        assertEquals("bottom", 240, screenshot.getBottom());
+    }
     /**
      * Build and configure a stubbed controller for each test case.
      */

@@ -24,6 +24,7 @@ import android.companion.virtual.IVirtualDeviceSoundEffectListener;
 import android.companion.virtual.audio.IAudioConfigChangedCallback;
 import android.companion.virtual.audio.IAudioRoutingCallback;
 import android.companion.virtual.sensor.VirtualSensor;
+import android.companion.virtual.sensor.VirtualSensorAdditionalInfo;
 import android.companion.virtual.sensor.VirtualSensorConfig;
 import android.companion.virtual.sensor.VirtualSensorEvent;
 import android.companion.virtual.camera.VirtualCameraConfig;
@@ -249,6 +250,11 @@ interface IVirtualDevice {
      * Sends an event to the virtual sensor corresponding to the given token.
      */
     boolean sendSensorEvent(IBinder token, in VirtualSensorEvent event);
+
+    /**
+     * Sends additional information about the virtual sensor corresponding to the given token.
+     */
+    boolean sendSensorAdditionalInfo(IBinder token, in VirtualSensorAdditionalInfo info);
 
     /**
      * Launches a pending intent on the given display that is owned by this virtual device.

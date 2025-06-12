@@ -35,7 +35,6 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import com.android.app.animation.Interpolators
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.logging.InstanceId
 import com.android.internal.widget.CachingIconView
 import com.android.systemui.common.shared.model.ContentDescription
@@ -73,8 +72,8 @@ constructor(
     private val commandQueue: CommandQueue,
     context: Context,
     logger: MediaTttReceiverLogger,
-    viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
-    @Main mainExecutor: DelayableExecutor,
+    windowManager: WindowManager,
+    @Main private val mainExecutor: DelayableExecutor,
     accessibilityManager: AccessibilityManager,
     configurationController: ConfigurationController,
     dumpManager: DumpManager,
@@ -90,7 +89,7 @@ constructor(
     TemporaryViewDisplayController<ChipReceiverInfo, MediaTttReceiverLogger>(
         context,
         logger,
-        viewCaptureAwareWindowManager,
+        windowManager,
         mainExecutor,
         accessibilityManager,
         configurationController,
@@ -285,6 +284,14 @@ constructor(
         } else {
             rippleController.collapseRipple(rippleView, onAnimationEnd)
             animateViewTranslationAndFade(iconContainerView, translationYBy, 0f)
+            mainExecutor.executeDelayed(
+                {
+                    if (view.isAttachedToWindow) {
+                        onAnimationEnd.run()
+                    }
+                },
+                ICON_TRANSLATION_ANIM_DURATION,
+            )
         }
     }
 

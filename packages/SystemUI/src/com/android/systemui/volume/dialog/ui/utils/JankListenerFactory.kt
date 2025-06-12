@@ -17,8 +17,8 @@
 package com.android.systemui.volume.dialog.ui.utils
 
 import android.animation.Animator
-import android.animation.AnimatorListenerAdapter
 import android.view.View
+import androidx.dynamicanimation.animation.DynamicAnimation
 import com.android.internal.jank.Cuj
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.systemui.volume.dialog.dagger.scope.VolumeDialogPluginScope
@@ -30,35 +30,36 @@ class JankListenerFactory
 @Inject
 constructor(private val interactionJankMonitor: InteractionJankMonitor) {
 
-    fun show(view: View, timeout: Long) = getJunkListener(view, "show", timeout)
+    fun show(view: View): DynamicAnimation.OnAnimationUpdateListener {
+        return createJunkListener(view, "show")
+    }
 
-    fun update(view: View, timeout: Long) = getJunkListener(view, "update", timeout)
+    fun dismiss(view: View): DynamicAnimation.OnAnimationUpdateListener {
+        return createJunkListener(view, "dismiss")
+    }
 
-    fun dismiss(view: View, timeout: Long) = getJunkListener(view, "dismiss", timeout)
-
-    private fun getJunkListener(
+    private fun createJunkListener(
         view: View,
         type: String,
-        timeout: Long,
-    ): Animator.AnimatorListener {
-        return object : AnimatorListenerAdapter() {
-            override fun onAnimationStart(animation: Animator) {
+    ): DynamicAnimation.OnAnimationUpdateListener {
+        var trackedStart = false
+        return DynamicAnimation.OnAnimationUpdateListener { animation, _, _ ->
+            if (!trackedStart) {
+                trackedStart = true
                 interactionJankMonitor.begin(
                     InteractionJankMonitor.Configuration.Builder.withView(
                             Cuj.CUJ_VOLUME_CONTROL,
                             view,
                         )
                         .setTag(type)
-                        .setTimeout(timeout)
                 )
-            }
-
-            override fun onAnimationEnd(animation: Animator) {
-                interactionJankMonitor.end(Cuj.CUJ_VOLUME_CONTROL)
-            }
-
-            override fun onAnimationCancel(animation: Animator) {
-                interactionJankMonitor.cancel(Cuj.CUJ_VOLUME_CONTROL)
+                animation.addEndListener { _, canceled, _, _ ->
+                    if (canceled) {
+                        interactionJankMonitor.cancel(Cuj.CUJ_VOLUME_CONTROL)
+                    } else {
+                        interactionJankMonitor.end(Cuj.CUJ_VOLUME_CONTROL)
+                    }
+                }
             }
         }
     }

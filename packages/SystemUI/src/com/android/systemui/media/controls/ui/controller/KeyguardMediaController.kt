@@ -25,11 +25,11 @@ import androidx.annotation.VisibleForTesting
 import com.android.systemui.Dumpable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dump.DumpManager
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.media.controls.ui.view.MediaHost
 import com.android.systemui.media.controls.ui.view.MediaHostState
 import com.android.systemui.media.dagger.MediaModule.KEYGUARD
 import com.android.systemui.plugins.statusbar.StatusBarStateController
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.notification.stack.MediaContainerView
@@ -54,8 +54,8 @@ constructor(
     @param:Named(KEYGUARD) private val mediaHost: MediaHost,
     private val bypassController: KeyguardBypassController,
     private val statusBarStateController: SysuiStatusBarStateController,
-    private val context: Context,
-    configurationController: ConfigurationController,
+    @ShadeDisplayAware private val context: Context,
+    @ShadeDisplayAware configurationController: ConfigurationController,
     private val splitShadeStateController: SplitShadeStateController,
     private val logger: KeyguardMediaControllerLogger,
     dumpManager: DumpManager,
@@ -114,15 +114,6 @@ constructor(
 
     var visibilityChangedListener: ((Boolean) -> Unit)? = null
 
-    /**
-     * Whether the doze wake up animation is delayed and we are currently waiting for it to start.
-     */
-    var isDozeWakeUpAnimationWaiting: Boolean = false
-        set(value) {
-            field = value
-            refreshMediaPosition(reason = "isDozeWakeUpAnimationWaiting changed")
-        }
-
     /** single pane media container placed at the top of the notifications list */
     var singlePaneContainer: MediaContainerView? = null
         private set
@@ -150,7 +141,7 @@ constructor(
         refreshMediaPosition(reason = "onMediaHostVisibilityChanged")
 
         if (visible) {
-            if (MigrateClocksToBlueprint.isEnabled && useSplitShade) {
+            if (useSplitShade) {
                 return
             }
             mediaHost.hostView.layoutParams.apply {
@@ -241,13 +232,7 @@ constructor(
         // by the clock. This is not the case for single-line clock though.
         // For single shade, we don't need to do it, because media is a child of NSSL, which already
         // gets hidden on AOD.
-        // Media also has to be hidden when waking up from dozing, and the doze wake up animation is
-        // delayed and waiting to be started.
-        // This is to stay in sync with the delaying of the horizontal alignment of the rest of the
-        // keyguard container, that is also delayed until the "wait" is over.
-        // If we show media during this waiting period, the shade will still be centered, and using
-        // the entire width of the screen, and making media show fully stretched.
-        return !statusBarStateController.isDozing && !isDozeWakeUpAnimationWaiting
+        return !statusBarStateController.isDozing
     }
 
     private fun showMediaPlayer() {
@@ -291,18 +276,17 @@ constructor(
                 println("visible", visible)
                 println("useSplitShade", useSplitShade)
                 println("bypassController.bypassEnabled", bypassController.bypassEnabled)
-                println("isDozeWakeUpAnimationWaiting", isDozeWakeUpAnimationWaiting)
                 println("singlePaneContainer", singlePaneContainer)
                 println("splitShadeContainer", splitShadeContainer)
                 if (lastUsedStatusBarState != -1) {
                     println(
                         "lastUsedStatusBarState",
-                        StatusBarState.toString(lastUsedStatusBarState)
+                        StatusBarState.toString(lastUsedStatusBarState),
                     )
                 }
                 println(
                     "statusBarStateController.state",
-                    StatusBarState.toString(statusBarStateController.state)
+                    StatusBarState.toString(statusBarStateController.state),
                 )
             }
         }

@@ -34,6 +34,7 @@ import android.util.Log
 import android.util.RotationUtils
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
+import android.view.accessibility.AccessibilityManager
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.keyguard.AuthInteractionProperties
 import com.android.launcher3.icons.IconProvider
@@ -85,7 +86,17 @@ constructor(
     private val udfpsUtils: UdfpsUtils,
     private val iconProvider: IconProvider,
     private val activityTaskManager: ActivityTaskManager,
+    private val accessibilityManager: AccessibilityManager,
 ) {
+    // When a11y enabled, increase message delay to ensure messages get read
+    private val messageDelay =
+        accessibilityManager
+            .getRecommendedTimeoutMillis(
+                BiometricPrompt.HIDE_DIALOG_DELAY,
+                AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_TEXT,
+            )
+            .toLong()
+
     /** The set of modalities available for this prompt */
     val modalities: Flow<BiometricModalities> =
         promptSelectorInteractor.prompt
@@ -692,7 +703,7 @@ constructor(
 
         messageJob?.cancel()
         messageJob = launch {
-            delay(BiometricPrompt.HIDE_DIALOG_DELAY.toLong())
+            delay(messageDelay)
             if (authenticateAfterError) {
                 showAuthenticating(messageAfterError)
             } else {
@@ -754,7 +765,7 @@ constructor(
 
         messageJob?.cancel()
         messageJob = launch {
-            delay(BiometricPrompt.HIDE_DIALOG_DELAY.toLong())
+            delay(messageDelay)
             showAuthenticating(messageAfterHelp)
         }
     }

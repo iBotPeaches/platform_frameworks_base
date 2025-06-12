@@ -15,8 +15,8 @@
  */
 package com.android.platform.test.ravenwood.ravenizer
 
-import android.platform.test.annotations.internal.InnerRunner
 import android.platform.test.annotations.NoRavenizer
+import android.platform.test.annotations.internal.InnerRunner
 import android.platform.test.ravenwood.RavenwoodAwareTestRunner
 import com.android.hoststubgen.asm.ClassNodes
 import com.android.hoststubgen.asm.findAnyAnnotation
@@ -85,7 +85,7 @@ fun String.isRavenwoodClass(): Boolean {
 /**
  * Classes that should never be modified.
  */
-fun String.shouldByBypassed(): Boolean {
+fun String.shouldBypass(): Boolean {
     if (this.isRavenwoodClass()) {
         return true
     }

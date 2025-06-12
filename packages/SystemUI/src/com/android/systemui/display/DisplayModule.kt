@@ -16,18 +16,26 @@
 
 package com.android.systemui.display
 
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import com.android.app.displaylib.DisplayLibBackground
+import com.android.app.displaylib.DisplayLibComponent
+import com.android.app.displaylib.PerDisplayRepository
+import com.android.app.displaylib.createDisplayLibComponent
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DeviceStateRepository
 import com.android.systemui.display.data.repository.DeviceStateRepositoryImpl
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayRepositoryImpl
-import com.android.systemui.display.data.repository.DisplayScopeRepository
-import com.android.systemui.display.data.repository.DisplayScopeRepositoryImpl
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepositoryImpl
+import com.android.systemui.display.data.repository.DisplaysWithDecorationsRepository
+import com.android.systemui.display.data.repository.DisplaysWithDecorationsRepositoryImpl
 import com.android.systemui.display.data.repository.FocusedDisplayRepository
 import com.android.systemui.display.data.repository.FocusedDisplayRepositoryImpl
+import com.android.systemui.display.data.repository.PerDisplayRepoDumpHelper
 import com.android.systemui.display.domain.interactor.ConnectedDisplayInteractor
 import com.android.systemui.display.domain.interactor.ConnectedDisplayInteractorImpl
 import com.android.systemui.display.domain.interactor.DisplayWindowPropertiesInteractorModule
@@ -40,9 +48,11 @@ import dagger.Module
 import dagger.Provides
 import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 
 /** Module binding display related classes. */
-@Module(includes = [DisplayWindowPropertiesInteractorModule::class])
+@Module(includes = [DisplayWindowPropertiesInteractorModule::class, DisplayLibModule::class])
 interface DisplayModule {
     @Binds
     fun bindConnectedDisplayInteractor(
@@ -66,28 +76,24 @@ interface DisplayModule {
         focusedDisplayRepository: FocusedDisplayRepositoryImpl
     ): FocusedDisplayRepository
 
-    @Binds fun displayScopeRepository(impl: DisplayScopeRepositoryImpl): DisplayScopeRepository
-
     @Binds
     fun displayWindowPropertiesRepository(
         impl: DisplayWindowPropertiesRepositoryImpl
     ): DisplayWindowPropertiesRepository
 
-    companion object {
-        @Provides
-        @SysUISingleton
-        @IntoMap
-        @ClassKey(DisplayScopeRepositoryImpl::class)
-        fun displayScopeRepoCoreStartable(
-            repoImplLazy: Lazy<DisplayScopeRepositoryImpl>
-        ): CoreStartable {
-            return if (StatusBarConnectedDisplays.isEnabled) {
-                repoImplLazy.get()
-            } else {
-                CoreStartable.NOP
-            }
-        }
+    @Binds
+    fun displaysWithDecorationsRepository(
+        impl: DisplaysWithDecorationsRepositoryImpl
+    ): DisplaysWithDecorationsRepository
 
+    @Binds
+    fun dumpRegistrationLambda(helper: PerDisplayRepoDumpHelper): PerDisplayRepository.InitCallback
+
+    @Binds
+    @DisplayLibBackground
+    fun bindDisplayLibBackground(@Background bgScope: CoroutineScope): CoroutineScope
+
+    companion object {
         @Provides
         @SysUISingleton
         @IntoMap
@@ -101,5 +107,33 @@ interface DisplayModule {
                 CoreStartable.NOP
             }
         }
+    }
+}
+
+/** Module to bind the DisplayRepository from displaylib to the systemui dagger graph. */
+@Module
+object DisplayLibModule {
+    @Provides
+    @SysUISingleton
+    fun displayLibComponent(
+        displayManager: DisplayManager,
+        @Background backgroundHandler: Handler,
+        @Background bgApplicationScope: CoroutineScope,
+        @Background backgroundCoroutineDispatcher: CoroutineDispatcher,
+    ): DisplayLibComponent {
+        return createDisplayLibComponent(
+            displayManager,
+            backgroundHandler,
+            bgApplicationScope,
+            backgroundCoroutineDispatcher,
+        )
+    }
+
+    @Provides
+    @SysUISingleton
+    fun providesDisplayRepositoryFromLib(
+        displayLibComponent: DisplayLibComponent
+    ): com.android.app.displaylib.DisplayRepository {
+        return displayLibComponent.displayRepository
     }
 }

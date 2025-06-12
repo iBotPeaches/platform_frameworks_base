@@ -21,7 +21,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 
 import android.os.SystemClock;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.runner.AndroidJUnit4;
@@ -32,7 +32,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = SystemConfigFileCommitEventLogger.class)
+@DisabledOnRavenwood(blockedBy = SystemConfigFileCommitEventLogger.class)
 public class SystemConfigFileCommitEventLoggerTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

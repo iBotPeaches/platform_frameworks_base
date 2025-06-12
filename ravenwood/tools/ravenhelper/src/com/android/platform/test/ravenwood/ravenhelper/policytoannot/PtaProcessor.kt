@@ -19,10 +19,10 @@ import com.android.hoststubgen.LogLevel
 import com.android.hoststubgen.asm.CLASS_INITIALIZER_NAME
 import com.android.hoststubgen.asm.toJvmClassName
 import com.android.hoststubgen.filters.FilterPolicyWithReason
+import com.android.hoststubgen.filters.MethodCallReplaceSpec
 import com.android.hoststubgen.filters.PolicyFileProcessor
 import com.android.hoststubgen.filters.SpecialClass
 import com.android.hoststubgen.filters.TextFileFilterPolicyParser
-import com.android.hoststubgen.filters.TextFilePolicyMethodReplaceFilter
 import com.android.hoststubgen.log
 import com.android.hoststubgen.utils.ClassPredicate
 import com.android.platform.test.ravenwood.ravenhelper.SubcommandHandler
@@ -39,7 +39,7 @@ import java.util.regex.Pattern
  */
 class PtaProcessor : SubcommandHandler {
     override fun handle(args: List<String>) {
-        val options = PtaOptions.parseArgs(args)
+        val options = PtaOptions().apply { parseArgs(args) }
 
         log.v("Options: $options")
 
@@ -448,7 +448,7 @@ private class TextPolicyToAnnotationConverter(
             className: String,
             methodName: String,
             methodDesc: String,
-            replaceSpec: TextFilePolicyMethodReplaceFilter.MethodCallReplaceSpec,
+            replaceSpec: MethodCallReplaceSpec,
         ) {
             // This can't be converted to an annotation.
             classHasMember = true

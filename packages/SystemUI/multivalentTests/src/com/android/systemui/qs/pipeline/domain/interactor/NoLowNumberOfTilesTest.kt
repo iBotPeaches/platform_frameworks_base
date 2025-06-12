@@ -22,7 +22,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.qs.FakeQSFactory
@@ -39,8 +38,8 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.qsTileFactory
 import com.android.systemui.settings.fakeUserTracker
 import com.android.systemui.settings.userTracker
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -52,27 +51,16 @@ import org.junit.runner.RunWith
  * from a device that uses different specs for tiles, we may end up with empty (or mostly empty) QS.
  * In that case, we want to prepend the default tiles instead.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @MediumTest
 @RunWith(AndroidJUnit4::class)
 class NoLowNumberOfTilesTest : SysuiTestCase() {
 
-    private val USER_0_INFO =
-        UserInfo(
-            0,
-            "zero",
-            "",
-            UserInfo.FLAG_ADMIN or UserInfo.FLAG_FULL,
-        )
+    private val USER_0_INFO = UserInfo(0, "zero", "", UserInfo.FLAG_ADMIN or UserInfo.FLAG_FULL)
 
-    private val defaultTiles =
-        listOf(
-            TileSpec.create("internet"),
-            TileSpec.create("bt"),
-        )
+    private val defaultTiles = listOf(TileSpec.create("internet"), TileSpec.create("bt"))
 
     private val kosmos =
-        Kosmos().apply {
+        testKosmos().apply {
             fakeMinimumTilesRepository = MinimumTilesFixedRepository(minNumberOfTiles = 2)
             fakeUserTracker.set(listOf(USER_0_INFO), 0)
             qsTileFactory = FakeQSFactory(::tileCreator)

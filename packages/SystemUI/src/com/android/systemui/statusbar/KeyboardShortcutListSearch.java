@@ -77,9 +77,9 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.AssistUtils;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto;
-import com.android.settingslib.Utils;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.phone.CentralSurfaces;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -149,43 +149,44 @@ public final class KeyboardShortcutListSearch {
     private KeyCharacterMap mBackupKeyCharacterMap;
 
     @VisibleForTesting
-    KeyboardShortcutListSearch(Context context, WindowManager windowManager, int deviceId) {
+    KeyboardShortcutListSearch(Context context, @NonNull WindowManager windowManager,
+            int deviceId) {
         this.mContext = new ContextThemeWrapper(
                 context, R.style.KeyboardShortcutHelper);
         this.mPackageManager = AppGlobals.getPackageManager();
-        if (windowManager != null) {
-            this.mWindowManager = windowManager;
-        } else {
-            this.mWindowManager = mContext.getSystemService(WindowManager.class);
-        }
+        this.mWindowManager = windowManager;
         loadResources(this.mContext);
         createHardcodedShortcuts(deviceId);
     }
 
-    private static KeyboardShortcutListSearch getInstance(Context context, int deviceId) {
+    private static KeyboardShortcutListSearch getInstance(Context context, int deviceId,
+            WindowManagerProvider windowManagerProvider) {
         if (sInstance == null) {
-            sInstance = new KeyboardShortcutListSearch(context, null, deviceId);
+            WindowManager windowManager = windowManagerProvider.getWindowManager(context);
+            sInstance = new KeyboardShortcutListSearch(context, windowManager, deviceId);
         }
         return sInstance;
     }
 
-    public static void show(Context context, int deviceId) {
+    public static void show(Context context, int deviceId,
+            WindowManagerProvider windowManagerProvider) {
         MetricsLogger.visible(context,
                 MetricsProto.MetricsEvent.KEYBOARD_SHORTCUTS_HELPER);
         synchronized (sLock) {
             if (sInstance != null && !sInstance.mContext.equals(context)) {
                 dismiss();
             }
-            getInstance(context, deviceId).showKeyboardShortcuts(deviceId);
+            getInstance(context, deviceId, windowManagerProvider).showKeyboardShortcuts(deviceId);
         }
     }
 
-    public static void toggle(Context context, int deviceId) {
+    public static void toggle(Context context, int deviceId,
+            WindowManagerProvider windowManagerProvider) {
         synchronized (sLock) {
             if (isShowing()) {
                 dismiss();
             } else {
-                show(context, deviceId);
+                show(context, deviceId, windowManagerProvider);
             }
         }
     }
@@ -567,20 +568,19 @@ public final class KeyboardShortcutListSearch {
                         Arrays.asList(
                                 Pair.create(KeyEvent.KEYCODE_TAB, KeyEvent.META_META_ON))),
                 /* Back: go back to previous state (back button) */
-                /* Meta + Escape, Meta + backspace, Meta + left arrow */
+                /* Meta + Escape, Meta + left arrow */
                 new ShortcutKeyGroupMultiMappingInfo(
                         context.getString(R.string.group_system_go_back),
                         Arrays.asList(
                                 Pair.create(KeyEvent.KEYCODE_ESCAPE, KeyEvent.META_META_ON),
-                                Pair.create(KeyEvent.KEYCODE_DEL, KeyEvent.META_META_ON),
                                 Pair.create(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.META_META_ON))),
-                /* Take a full screenshot: Meta + Ctrl + S */
+                /* Take a full screenshot: Meta + S */
                 new ShortcutKeyGroupMultiMappingInfo(
                         context.getString(R.string.group_system_full_screenshot),
                         Arrays.asList(
                                 Pair.create(
                                         KeyEvent.KEYCODE_S,
-                                        KeyEvent.META_META_ON | KeyEvent.META_CTRL_ON))),
+                                        KeyEvent.META_META_ON))),
                 /* Access list of system / apps shortcuts: Meta + / */
                 new ShortcutKeyGroupMultiMappingInfo(
                         context.getString(R.string.group_system_access_system_app_shortcuts),
@@ -608,13 +608,6 @@ public final class KeyboardShortcutListSearch {
                         context.getString(R.string.group_system_lock_screen),
                         Arrays.asList(
                                 Pair.create(KeyEvent.KEYCODE_L, KeyEvent.META_META_ON))),
-                /* Pull up Notes app for quick memo: Meta + Ctrl + N */
-                new ShortcutKeyGroupMultiMappingInfo(
-                        context.getString(R.string.group_system_quick_memo),
-                        Arrays.asList(
-                                Pair.create(
-                                        KeyEvent.KEYCODE_N,
-                                        KeyEvent.META_META_ON | KeyEvent.META_CTRL_ON))),
                 /* Access system settings: Meta + I */
                 new ShortcutKeyGroupMultiMappingInfo(
                         context.getString(R.string.group_system_access_system_settings),
@@ -1411,13 +1404,11 @@ public final class KeyboardShortcutListSearch {
     }
 
     private int getColorOfTextColorOnAccent() {
-        return Utils.getColorAttrDefaultColor(
-                mContext, com.android.internal.R.attr.materialColorOnPrimary);
+        return mContext.getColor(com.android.internal.R.color.materialColorOnPrimary);
     }
 
     private int getColorOfTextColorSecondary() {
-        return Utils.getColorAttrDefaultColor(
-                mContext, com.android.internal.R.attr.materialColorOnSurface);
+        return mContext.getColor(com.android.internal.R.color.materialColorOnSurface);
     }
 
     // Create the new data structure for handling the N-to-1 key mapping and other complex case.

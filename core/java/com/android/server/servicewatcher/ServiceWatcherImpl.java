@@ -21,11 +21,13 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.location.flags.Flags;
 import android.os.DeadObjectException;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -52,12 +54,22 @@ class ServiceWatcherImpl<TBoundServiceInfo extends BoundServiceInfo> implements 
     static final boolean D = Log.isLoggable(TAG, Log.DEBUG);
 
     static final long RETRY_DELAY_MS = 15 * 1000;
+    /* Used for the unstable fallback logic, it is the time period in milliseconds where the number
+     * of disconnections is tracked in order to determine if the service is unstable. */
+    private static final long UNSTABLE_TIME_PERIOD_MS = 60 * 1000;
+    /* Used for the unstable fallback logic, it is the number of disconnections within the time
+     * period that will mark the service as unstable and allow the fallback to a stable service. */
+    private static final int DISCONNECTED_COUNT_BEFORE_MARKED_AS_UNSTABLE = 10;
 
     final Context mContext;
     final Handler mHandler;
     final String mTag;
     final ServiceSupplier<TBoundServiceInfo> mServiceSupplier;
     final @Nullable ServiceListener<? super TBoundServiceInfo> mServiceListener;
+    private boolean mUnstableFallbackEnabled;
+    private @Nullable String mDisconnectedService;
+    private long mDisconnectedStartTime;
+    private int mDisconnectedCount;
 
     private final PackageMonitor mPackageMonitor = new PackageMonitor() {
         @Override
@@ -82,6 +94,20 @@ class ServiceWatcherImpl<TBoundServiceInfo extends BoundServiceInfo> implements 
         mContext = context;
         mHandler = handler;
         mTag = tag;
+        mServiceSupplier = serviceSupplier;
+        mServiceListener = serviceListener;
+    }
+
+    ServiceWatcherImpl(Context context, Handler handler, String tag,
+            boolean unstableFallbackEnabled,
+            ServiceSupplier<TBoundServiceInfo> serviceSupplier,
+            ServiceListener<? super TBoundServiceInfo> serviceListener) {
+        mContext = context;
+        mHandler = handler;
+        mTag = tag;
+        if (Flags.serviceWatcherUnstableFallback()) {
+            mUnstableFallbackEnabled = unstableFallbackEnabled;
+        }
         mServiceSupplier = serviceSupplier;
         mServiceListener = serviceListener;
     }
@@ -178,6 +204,7 @@ class ServiceWatcherImpl<TBoundServiceInfo extends BoundServiceInfo> implements 
         // volatile so that isConnected can be called from any thread easily
         private volatile @Nullable IBinder mBinder;
         private @Nullable Runnable mRebinder;
+        private boolean mForcingRebind;
 
         MyServiceConnection(@Nullable TBoundServiceInfo boundServiceInfo) {
             mBoundServiceInfo = boundServiceInfo;
@@ -269,6 +296,11 @@ class ServiceWatcherImpl<TBoundServiceInfo extends BoundServiceInfo> implements 
             Log.i(TAG, "[" + mTag + "] connected to " + component.toShortString());
 
             mBinder = binder;
+            /* Used to keep track of whether we are forcing a rebind, so that we don't force a
+             * rebind while in the process of already forcing a rebind. This is needed because
+             * onServiceDisconnected and onBindingDied can happen in quick succession and we only
+             * want one rebind to happen in this case. */
+            mForcingRebind = false;
 
             if (mServiceListener != null) {
                 try {
@@ -295,6 +327,44 @@ class ServiceWatcherImpl<TBoundServiceInfo extends BoundServiceInfo> implements 
             if (mServiceListener != null) {
                 mServiceListener.onUnbind();
             }
+
+            // If unstable fallback is not enabled or no current service is bound, then avoid the
+            // unstable fallback logic below and return early.
+            if (!mUnstableFallbackEnabled
+                    || mBoundServiceInfo == null
+                    || mBoundServiceInfo.toString() == null) {
+                return;
+            }
+
+            String currentService = mBoundServiceInfo.toString();
+            // If the service has already disconnected within the time period, increment the count.
+            // Otherwise, set the service as disconnected, set the start time, and reset the count.
+            if (Objects.equals(mDisconnectedService, currentService)
+                    && mDisconnectedStartTime > 0
+                    && (SystemClock.elapsedRealtime() - mDisconnectedStartTime
+                            <= UNSTABLE_TIME_PERIOD_MS)) {
+                mDisconnectedCount++;
+            } else {
+                mDisconnectedService = currentService;
+                mDisconnectedStartTime = SystemClock.elapsedRealtime();
+                mDisconnectedCount = 1;
+            }
+            Log.d(TAG, "[" + mTag + "] Service disconnected : " + currentService + " Count = "
+                + mDisconnectedCount);
+            if (mDisconnectedCount >= DISCONNECTED_COUNT_BEFORE_MARKED_AS_UNSTABLE) {
+                Log.i(TAG, "[" + mTag + "] Service disconnected too many times, set as unstable : "
+                    + mDisconnectedService);
+                // Alert this service as unstable will last until the next device restart.
+                mServiceSupplier.alertUnstableService(mDisconnectedService);
+                mDisconnectedService = null;
+                mDisconnectedStartTime = 0;
+                mDisconnectedCount = 0;
+                // Force rebind to allow the possibility of fallback to a stable service.
+                if (!mForcingRebind) {
+                    mForcingRebind = true;
+                    onServiceChanged(/*forceRebind=*/ true);
+                }
+            }
         }
 
         @Override
@@ -305,7 +375,10 @@ class ServiceWatcherImpl<TBoundServiceInfo extends BoundServiceInfo> implements 
 
             // introduce a small delay to prevent spamming binding over and over, since the likely
             // cause of a binding dying is some package event that may take time to recover from
-            mHandler.postDelayed(() -> onServiceChanged(true), 500);
+            if (!mForcingRebind) {
+                mForcingRebind = true;
+                mHandler.postDelayed(() -> onServiceChanged(/*forceRebind=*/ true), 500);
+            }
         }
 
         @Override

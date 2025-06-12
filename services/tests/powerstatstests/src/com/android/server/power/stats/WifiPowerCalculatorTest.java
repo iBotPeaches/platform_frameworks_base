@@ -54,11 +54,6 @@ import java.util.List;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class WifiPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
 
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
@@ -66,7 +61,7 @@ public class WifiPowerCalculatorTest {
     @Mock
     NetworkStatsManager mNetworkStatsManager;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_WIFI_CONTROLLER_IDLE, 360.0)
             .setAveragePower(PowerProfile.POWER_WIFI_CONTROLLER_RX, 480.0)
@@ -92,7 +87,7 @@ public class WifiPowerCalculatorTest {
 
     private NetworkStats buildNetworkStats(long elapsedRealtime, long rxBytes, long rxPackets,
             long txBytes, long txPackets) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             NetworkStats stats = mock(NetworkStats.class);
 //        when(stats.getElapsedRealtime()).thenReturn(elapsedRealtime);
 
@@ -358,7 +353,7 @@ public class WifiPowerCalculatorTest {
     private WifiActivityEnergyInfo buildWifiActivityEnergyInfo(long timeSinceBoot,
             int stackState, long txDuration, long rxDuration, long scanDuration,
             long idleDuration) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             WifiActivityEnergyInfo info = mock(WifiActivityEnergyInfo.class);
             when(info.getTimeSinceBootMillis()).thenReturn(timeSinceBoot);
             when(info.getStackState()).thenReturn(stackState);

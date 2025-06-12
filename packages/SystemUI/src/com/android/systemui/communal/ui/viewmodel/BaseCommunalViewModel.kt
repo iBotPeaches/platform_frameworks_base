@@ -19,7 +19,6 @@ package com.android.systemui.communal.ui.viewmodel
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.os.UserHandle
-import android.view.View
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.SceneKey
 import com.android.compose.animation.scene.TransitionKey
@@ -46,7 +45,7 @@ abstract class BaseCommunalViewModel(
     val mediaHost: MediaHost,
     val mediaCarouselController: MediaCarouselController,
 ) {
-    val currentScene: Flow<SceneKey> = communalSceneInteractor.currentScene
+    val currentScene: StateFlow<SceneKey> = communalSceneInteractor.currentScene
 
     /** Used to animate showing or hiding the communal content. */
     open val isCommunalContentVisible: Flow<Boolean> = MutableStateFlow(false)
@@ -79,9 +78,6 @@ abstract class BaseCommunalViewModel(
      * vertical, which the lazy horizontal grid does not handle.
      */
     val glanceableTouchAvailable: Flow<Boolean> = anyOf(not(isTouchConsumed), isNestedScrolling)
-
-    /** Accessibility delegate to be set on CommunalAppWidgetHostView. */
-    open val widgetAccessibilityDelegate: View.AccessibilityDelegate? = null
 
     /**
      * The up-to-date value of the grid scroll offset. persisted to interactor on
@@ -157,7 +153,7 @@ abstract class BaseCommunalViewModel(
     ) {}
 
     /** Called as the UI requests deleting a widget. */
-    open fun onDeleteWidget(id: Int, componentName: ComponentName, rank: Int) {}
+    open fun onDeleteWidget(id: Int, key: String, componentName: ComponentName, rank: Int) {}
 
     /** Called as the UI detects a tap event on the widget. */
     open fun onTapWidget(componentName: ComponentName, rank: Int) {}
@@ -195,7 +191,7 @@ abstract class BaseCommunalViewModel(
     open fun onDismissCtaTile() {}
 
     /** Called as the user starts dragging a widget to reorder. */
-    open fun onReorderWidgetStart() {}
+    open fun onReorderWidgetStart(draggingItemKey: String) {}
 
     /** Called as the user finishes dragging a widget to reorder. */
     open fun onReorderWidgetEnd() {}
@@ -205,6 +201,12 @@ abstract class BaseCommunalViewModel(
 
     /** Called as the user request to show the customize widget button. */
     open fun onLongClick() {}
+
+    /** Called as the user requests to switch to the previous player in UMO. */
+    open fun onShowPreviousMedia() {}
+
+    /** Called as the user requests to switch to the next player in UMO. */
+    open fun onShowNextMedia() {}
 
     /** Called as the UI determines that a new widget has been added to the grid. */
     open fun onNewWidgetAdded(provider: AppWidgetProviderInfo) {}

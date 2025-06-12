@@ -28,6 +28,7 @@ import com.android.internal.logging.MetricsLogger
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.classifier.FalsingManagerFake
 import com.android.systemui.common.shared.model.asIcon
+import com.android.systemui.kosmos.mainCoroutineContext
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.plugins.ActivityStarter
@@ -36,24 +37,25 @@ import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.qs.QSHost
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.logging.QSLogger
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfigProvider
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfigTestBuilder
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
 import com.android.systemui.qs.tiles.impl.modes.domain.interactor.ModesTileDataInteractor
 import com.android.systemui.qs.tiles.impl.modes.domain.interactor.ModesTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.modes.domain.model.ModesTileModel
-import com.android.systemui.qs.tiles.impl.modes.ui.ModesTileMapper
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfigProvider
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfigTestBuilder
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
+import com.android.systemui.qs.tiles.impl.modes.ui.mapper.ModesTileMapper
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.policy.data.repository.zenModeRepository
 import com.android.systemui.statusbar.policy.domain.interactor.zenModeInteractor
 import com.android.systemui.statusbar.policy.ui.dialog.ModesDialogDelegate
+import com.android.systemui.statusbar.policy.ui.dialog.modesDialogEventLogger
+import com.android.systemui.statusbar.policy.ui.dialog.viewmodel.modesDialogViewModel
 import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.settings.FakeSettings
 import com.android.systemui.util.settings.SecureSettings
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -64,7 +66,6 @@ import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.whenever
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @EnableFlags(android.app.Flags.FLAG_MODES_UI)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -123,7 +124,13 @@ class ModesTileTest : SysuiTestCase() {
             )
 
         userActionInteractor =
-            ModesTileUserActionInteractor(inputHandler, dialogDelegate, kosmos.zenModeInteractor)
+            ModesTileUserActionInteractor(
+                kosmos.mainCoroutineContext,
+                inputHandler,
+                dialogDelegate,
+                kosmos.zenModeInteractor,
+                kosmos.modesDialogEventLogger,
+            )
 
         underTest =
             ModesTile(
@@ -140,6 +147,7 @@ class ModesTileTest : SysuiTestCase() {
                 tileDataInteractor,
                 mapper,
                 userActionInteractor,
+                kosmos.modesDialogViewModel,
             )
 
         underTest.initialize()

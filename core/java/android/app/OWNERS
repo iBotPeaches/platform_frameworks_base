@@ -132,7 +132,7 @@ per-file Window* = file:/services/core/java/com/android/server/wm/OWNERS
 per-file ConfigurationController.java = file:/services/core/java/com/android/server/wm/OWNERS
 per-file *ScreenCapture* = file:/services/core/java/com/android/server/wm/OWNERS
 per-file ComponentOptions.java = file:/services/core/java/com/android/server/wm/OWNERS
-
+per-file Presentation.java = file:/services/core/java/com/android/server/wm/OWNERS
 
 # Multitasking
 per-file multitasking.aconfig = file:/services/core/java/com/android/server/wm/OWNERS

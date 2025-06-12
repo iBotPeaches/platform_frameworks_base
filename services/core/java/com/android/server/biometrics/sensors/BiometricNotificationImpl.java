@@ -35,4 +35,9 @@ public class BiometricNotificationImpl implements BiometricNotification {
     public void sendFpEnrollNotification(@NonNull Context context) {
         BiometricNotificationUtils.showFingerprintEnrollNotification(context);
     }
+
+    @Override
+    public boolean sendCustomizeFpFrrNotification(@NonNull Context context) {
+        return BiometricNotificationUtils.showCustomizeFpFrrNotification(context);
+    }
 }

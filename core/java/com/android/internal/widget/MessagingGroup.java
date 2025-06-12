@@ -81,7 +81,6 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
     private MessagingLinearLayout mMessageContainer;
     ImageFloatingTextView mSenderView;
     private ImageView mAvatarView;
-    private View mAvatarContainer;
     private String mAvatarSymbol = "";
     private int mLayoutColor;
     private CharSequence mAvatarName = "";
@@ -104,6 +103,7 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
     private boolean mShowingAvatar = true;
     private CharSequence mSenderName;
     private boolean mSingleLine = false;
+    private boolean mIsCollapsed = false;
     private LinearLayout mContentContainer;
     private int mRequestedMaxDisplayedLines = Integer.MAX_VALUE;
     private int mSenderTextPaddingSingleLine;
@@ -449,6 +449,13 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
         mSenderView.setVisibility(hidden ? GONE : VISIBLE);
     }
 
+    private void updateIconVisibility() {
+        if (Flags.notificationsRedesignTemplates()) {
+            // We don't show any icon (other than the app or person icon) in the collapsed form.
+            mMessagingIconContainer.setVisibility(mIsCollapsed ? GONE : VISIBLE);
+        }
+    }
+
     @Override
     public boolean hasDifferentHeightWhenFirst() {
         return mCanHideSenderIfFirst && !mSingleLine && !TextUtils.isEmpty(mSenderName);
@@ -563,6 +570,10 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
         mIsolatedMessage = isolatedMessage;
         updateImageContainerVisibility();
         mMessages = group;
+        if (android.widget.flags.Flags.dropNonExistingMessages()) {
+            // remove messages from mAddedMessages when they are no longer in mMessages.
+            mAddedMessages.removeIf(message -> !mMessages.contains(message));
+        }
         updateMessageColor();
     }
 
@@ -707,6 +718,15 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
         }
     }
 
+    /**
+     * Sets whether this is in a collapsed layout or not. Certain elements like icons are not shown
+     * when the notification is collapsed.
+     */
+    public void setIsCollapsed(boolean isCollapsed) {
+        mIsCollapsed = isCollapsed;
+        updateIconVisibility();
+    }
+
     public boolean isSingleLine() {
         return mSingleLine;
     }
@@ -719,6 +739,14 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
     public void setIsInConversation(boolean isInConversation) {
         if (mIsInConversation != isInConversation) {
             mIsInConversation = isInConversation;
+
+            if (Flags.notificationsRedesignTemplates()) {
+                updateIconVisibility();
+                // No other alignment adjustments are necessary in the redesign, as the size of the
+                // icons in both conversations and old messaging notifications are the same.
+                return;
+            }
+
             MarginLayoutParams layoutParams =
                     (MarginLayoutParams) mMessagingIconContainer.getLayoutParams();
             layoutParams.width = mIsInConversation

@@ -26,7 +26,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import android.app.role.RoleManager;
+import android.companion.AssociationRequest;
 import android.content.pm.PackageManagerInternal;
 import android.media.projection.MediaProjectionInfo;
 import android.media.projection.MediaProjectionManager;
@@ -54,6 +57,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
 import java.util.Set;
 
 @SmallTest
@@ -74,6 +78,7 @@ public class SensitiveContentProtectionManagerServiceContentTest {
     @Mock private WindowManagerInternal mWindowManager;
     @Mock private MediaProjectionManager mProjectionManager;
     @Mock private PackageManagerInternal mPackageManagerInternal;
+    @Mock private RoleManager mRoleManager;
     private MediaProjectionInfo mMediaProjectionInfo;
 
     @Captor
@@ -93,7 +98,8 @@ public class SensitiveContentProtectionManagerServiceContentTest {
         mSensitiveContentProtectionManagerService =
                 new SensitiveContentProtectionManagerService(mContext);
         mSensitiveContentProtectionManagerService.init(mProjectionManager, mWindowManager,
-                mPackageManagerInternal, new ArraySet<>(Set.of(mExemptedScreenRecorderPackage)));
+                mPackageManagerInternal, mRoleManager,
+                new ArraySet<>(Set.of(mExemptedScreenRecorderPackage)));
         verify(mProjectionManager).addCallback(mMediaProjectionCallbackCaptor.capture(), any());
         mMediaPorjectionCallback = mMediaProjectionCallbackCaptor.getValue();
         mMediaProjectionInfo =
@@ -152,7 +158,7 @@ public class SensitiveContentProtectionManagerServiceContentTest {
         String testAutofillService = mScreenRecorderPackage + "/com.example.SampleAutofillService";
         int userId = Process.myUserHandle().getIdentifier();
         Settings.Secure.putStringForUser(mContext.getContentResolver(),
-                Settings.Secure.AUTOFILL_SERVICE, testAutofillService , userId);
+                Settings.Secure.AUTOFILL_SERVICE, testAutofillService, userId);
 
         mMediaPorjectionCallback.onStart(mMediaProjectionInfo);
         mSensitiveContentProtectionManagerService.setSensitiveContentProtection(
@@ -164,6 +170,19 @@ public class SensitiveContentProtectionManagerServiceContentTest {
     public void testDeveloperOptionDisableFeature() {
         mockDisabledViaDeveloperOption();
         mMediaProjectionCallbackCaptor.getValue().onStart(mMediaProjectionInfo);
+        mSensitiveContentProtectionManagerService.setSensitiveContentProtection(
+                mPackageInfo.getWindowToken(), mPackageInfo.getPkg(), mPackageInfo.getUid(), true);
+        verify(mWindowManager, never()).addBlockScreenCaptureForApps(mPackageInfoCaptor.capture());
+    }
+
+    @Test
+    public void testAppStreamingRoleHolderExemption() {
+        when(mRoleManager.getRoleHoldersAsUser(
+                AssociationRequest.DEVICE_PROFILE_APP_STREAMING,
+                mMediaProjectionInfo.getUserHandle())).thenReturn(
+                List.of(mMediaProjectionInfo.getPackageName()));
+
+        mMediaPorjectionCallback.onStart(mMediaProjectionInfo);
         mSensitiveContentProtectionManagerService.setSensitiveContentProtection(
                 mPackageInfo.getWindowToken(), mPackageInfo.getPkg(), mPackageInfo.getUid(), true);
         verify(mWindowManager, never()).addBlockScreenCaptureForApps(mPackageInfoCaptor.capture());

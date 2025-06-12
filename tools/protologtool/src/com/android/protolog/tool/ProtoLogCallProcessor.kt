@@ -24,5 +24,5 @@ interface ProtoLogCallProcessor {
         logCallVisitor: ProtoLogCallVisitor?,
         otherCallVisitor: MethodCallVisitor?,
         fileName: String
-    ): CompilationUnit
+    ): Collection<CodeProcessingException>
 }

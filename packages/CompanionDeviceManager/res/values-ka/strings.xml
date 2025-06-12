@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"კომპანიონი მოწყობილობების მენეჯერი"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"ნებას რთავთ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; აპს, წვდომა ჰქონდეს &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; მოწყობილობაზე?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"დარწმუნდით, რომ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>-ზე ჩართულია <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> და <xliff:g id="PROFILE_NAME">%3$s</xliff:g> იქონიეთ ახლოს."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"მოწყობილობები ვერ მოიძებნა. ცადეთ მოგვიანებით."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth და Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"საათი"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"აირჩიეთ მოწყობილობა, რომელიც უნდა მართოს &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; აპმა"</string>
     <string name="chooser_title" msgid="2235819929238267637">"აირჩიეთ <xliff:g id="PROFILE_NAME">%1$s</xliff:g> დასაყენებლად"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"იძებნება <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"ეს აპი შეძლებს ინფორმაციის (მაგალითად, იმ ადამიანის სახელი, რომელიც გირეკავთ) სინქრონიზებას და თქვენს <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>-ზე არსებულ ამ ნებართვებზე წვდომას"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"ნება დართეთ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>-ს&lt;/strong&gt; მართოს &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"მოწყობილობა"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"გსურთ, &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;-ს მისცეთ თქვენი <xliff:g id="DEVICE_TYPE">%2$s</xliff:g>-ის აპების სტრიმინგის საშუალება &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;-ზე?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> მიიღებს წვდომას ყველაფერზე, რაც ჩანს ან უკრავს <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>-ზე, მათ შორის, აუდიოზე, ფოტოებზე, პაროლებსა და შეტყობინებებზე.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> შეძლებს აპების სტრიმინგს <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>-ზე მანამ, სანამ თქვენ არ გააუქმებთ წვდომას ამ ნებართვაზე."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> ითხოვს ნებართვას <xliff:g id="DEVICE_NAME">%2$s</xliff:g>-ის სახელით აპების სტრიმინგისთვის თქვენი <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>-იდან"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"გსურთ, ნება დართოთ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;-ს აუდიოს და სისტემის ფუნქციების სტრიმინგზე თქვენს <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>-სა და &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;-ს შორის?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> მიიღებს წვდომას ყველაფერზე, რაც უკრავს <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>-ზე.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> შეძლებს აუდიოს სტრიმინგს <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>-ზე, სანამ თქვენ გააუქმებთ წვდომას ამ ნებართვაზე."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"მოწყობილობა"</string>
     <string name="summary_generic" msgid="1761976003668044801">"ეს აპი შეძლებს ინფორმაციის სინქრონიზებას თქვენს ტელეფონსა და თქვენ მიერ არჩეულ მოწყობილობას შორის, მაგალითად, იმ ადამიანის სახელის, რომელიც გირეკავთ"</string>
     <string name="consent_yes" msgid="8344487259618762872">"დაშვება"</string>
     <string name="consent_no" msgid="2640796915611404382">"არ დაიშვას"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"გაუქმება"</string>
     <string name="consent_back" msgid="2560683030046918882">"უკან"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"გადაადგილება სიის ქვემოთ"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"ქვემოთ მიმართული ისარი"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>-ის გაფართოება"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>-ის ჩაკეცვა"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"გსურთ აპებს &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt;-ზე იგივე ნებართვები მიანიჭოთ, როგორიც აქვს &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;-ზე?"</string>

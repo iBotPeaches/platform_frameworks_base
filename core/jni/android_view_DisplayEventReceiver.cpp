@@ -284,6 +284,8 @@ void NativeDisplayEventReceiver::dispatchModeRejected(PhysicalDisplayId displayI
                             displayId.value, modeId);
         ALOGV("receiver %p ~ Returned from Mode Rejected handler.", this);
     }
+
+    mMessageQueue->raiseAndClearException(env, "dispatchModeRejected");
 }
 
 void NativeDisplayEventReceiver::dispatchFrameRateOverrides(
@@ -314,7 +316,7 @@ void NativeDisplayEventReceiver::dispatchFrameRateOverrides(
         ALOGV("receiver %p ~ Returned from FrameRateOverride handler.", this);
     }
 
-    mMessageQueue->raiseAndClearException(env, "dispatchModeChanged");
+    mMessageQueue->raiseAndClearException(env, "dispatchFrameRateOverrides");
 }
 
 void NativeDisplayEventReceiver::dispatchHdcpLevelsChanged(PhysicalDisplayId displayId,

@@ -352,7 +352,53 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
     }
 
     @Override
-    public StorageStats queryStatsForPackage(String volumeUuid, String packageName, int userId,
+    public StorageStats queryArtManagedStats(String packageName, int userId, int uid) {
+        if (userId != UserHandle.getCallingUserId()) {
+            mContext.enforceCallingOrSelfPermission(
+                    android.Manifest.permission.INTERACT_ACROSS_USERS, TAG);
+        }
+
+        ApplicationInfo appInfo;
+        if (!TextUtils.isEmpty(packageName)) {
+          try {
+            appInfo = mPackage.getApplicationInfoAsUser(packageName,
+                    PackageManager.MATCH_UNINSTALLED_PACKAGES, userId);
+          } catch (NameNotFoundException e) {
+            throw new ParcelableException(e);
+          }
+          uid = appInfo.uid;
+          if (defeatNullable(mPackage.getPackagesForUid(appInfo.uid)).length > 1) {
+              // Multiple packages, skip
+              return translate(new PackageStats(TAG));
+          }
+        }
+
+        int callingUid = Binder.getCallingUid();
+        String callingPackage = mPackage.getNameForUid(callingUid);
+        if (Binder.getCallingUid() != uid) {
+            enforceStatsPermission(Binder.getCallingUid(), callingPackage);
+        }
+
+        final String[] packageNames = defeatNullable(mPackage.getPackagesForUid(uid));
+        final PackageStats stats = new PackageStats(TAG);
+        for (int i = 0; i < packageNames.length; i++) {
+            try {
+                appInfo = mPackage.getApplicationInfoAsUser(packageNames[i],
+                        PackageManager.MATCH_UNINSTALLED_PACKAGES, userId);
+                if (appInfo.isSystemApp() && !appInfo.isUpdatedSystemApp()) {
+                    // We don't count code baked into system image
+                } else {
+                    computeAppArtStats(stats, packageNames[i]);
+                }
+            } catch (NameNotFoundException e) {
+                throw new ParcelableException(e);
+            }
+        }
+        return translate(stats);
+    }
+
+    @Override
+    public  StorageStats queryStatsForPackage(String volumeUuid, String packageName, int userId,
             String callingPackage) {
         if (userId != UserHandle.getCallingUserId()) {
             mContext.enforceCallingOrSelfPermission(
@@ -378,9 +424,10 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
             callerHasStatsPermission = true;
         }
 
+        StorageStats storageStats;
         if (defeatNullable(mPackage.getPackagesForUid(appInfo.uid)).length == 1) {
             // Only one package inside UID means we can fast-path
-            return queryStatsForUid(volumeUuid, appInfo.uid, callingPackage);
+            storageStats = queryStatsForUid(volumeUuid, appInfo.uid, callingPackage);
         } else {
             // Multiple packages means we need to go manual
             final int appId = UserHandle.getAppId(appInfo.uid);
@@ -411,12 +458,16 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
                             packageName, userHandle, callerHasStatsPermission);
                 }, "queryStatsForPackage");
             }
-            return translate(stats);
+            storageStats = translate(stats);
         }
+        storageStats.packageName = packageName;
+        storageStats.userHandle = userId;
+        return storageStats;
     }
 
     @Override
-    public StorageStats queryStatsForUid(String volumeUuid, int uid, String callingPackage) {
+    public StorageStats queryStatsForUid(String volumeUuid, int uid,
+            String callingPackage) {
         final int userId = UserHandle.getUserId(uid);
         final int appId = UserHandle.getAppId(uid);
 
@@ -481,7 +532,10 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
                 storageStatsAugmenter.augmentStatsForUid(stats, uid, callerHasStatsPermission);
             }, "queryStatsForUid");
         }
-        return translate(stats);
+        StorageStats storageStats = translate(stats);
+        storageStats.userHandle = userId;
+        storageStats.uid = uid;
+        return storageStats;
     }
 
     @Override
@@ -592,8 +646,9 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
         }
     }
 
-    private static StorageStats translate(PackageStats stats) {
+    private StorageStats translate(PackageStats stats) {
         final StorageStats res = new StorageStats();
+        res.userHandle = stats.userHandle;
         res.codeBytes = stats.codeSize + stats.externalCodeSize;
         res.dataBytes = stats.dataSize + stats.externalDataSize;
         res.cacheBytes = stats.cacheSize + stats.externalCacheSize;
@@ -967,6 +1022,12 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
         stats.dmSize += getFileBytesInDir(srcDir, ".dm");
         stats.libSize += getDirBytes(new File(sourceDirName + "/lib/"));
 
+        if (!Flags.getAppArtManagedBytes()) {
+            computeAppArtStats(stats, packageName);
+        }
+    }
+
+    private void computeAppArtStats(PackageStats stats, String packageName) {
         // Get dexopt, current profle and reference profile sizes.
         ArtManagedFileStats artManagedFileStats;
         try (var snapshot = getPackageManagerLocal().withFilteredSnapshot()) {

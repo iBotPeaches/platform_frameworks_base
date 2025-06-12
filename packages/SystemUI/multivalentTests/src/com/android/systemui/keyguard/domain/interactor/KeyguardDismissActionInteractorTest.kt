@@ -38,14 +38,15 @@ import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticati
 import com.android.systemui.kosmos.collectLastValue
 import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.scene.data.repository.HideOverlay
 import com.android.systemui.scene.data.repository.Idle
 import com.android.systemui.scene.data.repository.Transition
 import com.android.systemui.scene.data.repository.setSceneTransition
 import com.android.systemui.scene.domain.interactor.sceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
@@ -56,7 +57,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @EnableSceneContainer
 @RunWith(AndroidJUnit4::class)
@@ -223,7 +223,7 @@ class KeyguardDismissActionInteractorTest : SysuiTestCase() {
     @Test
     fun doNotResetDismissActionOnUnlockedShade() =
         testScope.runTest {
-            kosmos.setSceneTransition(Idle(Scenes.Bouncer))
+            kosmos.setSceneTransition(Idle(Scenes.Lockscreen, setOf(Overlays.Bouncer)))
             kosmos.fakeAuthenticationRepository.setAuthenticationMethod(
                 AuthenticationMethodModel.None
             )
@@ -240,7 +240,12 @@ class KeyguardDismissActionInteractorTest : SysuiTestCase() {
             assertThat(wasOnCancelInvoked).isFalse()
 
             kosmos.setSceneTransition(
-                Transition(from = Scenes.Bouncer, to = Scenes.Shade, progress = flowOf(1f))
+                HideOverlay(
+                    overlay = Overlays.Bouncer,
+                    toScene = Scenes.Shade,
+                    currentOverlays = flowOf(emptySet()),
+                    progress = flowOf(1f),
+                )
             )
             runCurrent()
 

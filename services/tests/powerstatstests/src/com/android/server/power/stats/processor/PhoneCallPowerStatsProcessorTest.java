@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.power.stats.EnergyConsumerType;
@@ -36,13 +37,13 @@ import android.net.NetworkStats;
 import android.os.BatteryConsumer;
 import android.os.Handler;
 import android.os.OutcomeReceiver;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.telephony.ModemActivityInfo;
 import android.telephony.TelephonyManager;
 
 import com.android.internal.os.Clock;
 import com.android.server.power.stats.BatteryUsageStatsRule;
 import com.android.server.power.stats.MobileRadioPowerStatsCollector;
+import com.android.server.power.stats.NetworkStatsTestUtils;
 import com.android.server.power.stats.PowerStatsCollector;
 import com.android.server.power.stats.PowerStatsUidResolver;
 import com.android.server.power.stats.format.PowerStatsLayout;
@@ -57,15 +58,10 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 public class PhoneCallPowerStatsProcessorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
     private static final int VOLTAGE_MV = 3500;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule();
     @Mock
     private Context mContext;
@@ -135,6 +131,11 @@ public class PhoneCallPowerStatsProcessorTest {
                 public LongSupplier getPhoneSignalScanDurationSupplier() {
                     return mScanDurationSupplier;
                 }
+
+                @Override
+                public NetworkStats networkStatsDelta(NetworkStats stats, NetworkStats oldStats) {
+                    return NetworkStatsTestUtils.networkStatsDelta(stats, oldStats);
+                }
             };
 
     @Before
@@ -153,6 +154,7 @@ public class PhoneCallPowerStatsProcessorTest {
         mStatsRule.setTestPowerProfile("power_profile_test_legacy_modem");
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void copyEstimatesFromMobileRadioPowerStats() {
         AggregatedPowerStatsConfig config = new AggregatedPowerStatsConfig();

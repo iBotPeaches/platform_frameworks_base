@@ -16,34 +16,46 @@
 
 package com.android.systemui.notifications.ui.composable
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.dimensionResource
 import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
-import com.android.systemui.battery.BatteryMeterViewController
+import com.android.internal.jank.InteractionJankMonitor
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
 import com.android.systemui.keyguard.ui.composable.blueprint.rememberBurnIn
 import com.android.systemui.keyguard.ui.composable.section.DefaultClockSection
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
 import com.android.systemui.lifecycle.rememberViewModel
+import com.android.systemui.media.controls.ui.composable.MediaCarousel
+import com.android.systemui.media.controls.ui.composable.isLandscape
+import com.android.systemui.media.controls.ui.controller.MediaCarouselController
+import com.android.systemui.media.controls.ui.view.MediaHost
+import com.android.systemui.media.controls.ui.view.MediaHostState.Companion.COLLAPSED
+import com.android.systemui.media.controls.ui.view.MediaHostState.Companion.EXPANDED
+import com.android.systemui.media.dagger.MediaModule.QUICK_QS_PANEL
 import com.android.systemui.notifications.ui.viewmodel.NotificationsShadeOverlayActionsViewModel
 import com.android.systemui.notifications.ui.viewmodel.NotificationsShadeOverlayContentViewModel
+import com.android.systemui.res.R
 import com.android.systemui.scene.session.ui.composable.SaveableSession
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.ui.composable.Overlay
-import com.android.systemui.shade.ui.composable.CollapsedShadeHeader
 import com.android.systemui.shade.ui.composable.OverlayShade
-import com.android.systemui.shade.ui.composable.SingleShadeMeasurePolicy
+import com.android.systemui.shade.ui.composable.OverlayShadeHeader
+import com.android.systemui.shade.ui.composable.isFullWidthShade
 import com.android.systemui.statusbar.notification.stack.ui.view.NotificationScrollView
-import com.android.systemui.statusbar.phone.ui.StatusBarIconController
-import com.android.systemui.statusbar.phone.ui.TintedIconManager
+import com.android.systemui.util.Utils
 import dagger.Lazy
 import javax.inject.Inject
+import javax.inject.Named
 import kotlinx.coroutines.flow.Flow
 
 @SysUISingleton
@@ -52,15 +64,14 @@ class NotificationsShadeOverlay
 constructor(
     private val actionsViewModelFactory: NotificationsShadeOverlayActionsViewModel.Factory,
     private val contentViewModelFactory: NotificationsShadeOverlayContentViewModel.Factory,
-    private val tintedIconManagerFactory: TintedIconManager.Factory,
-    private val batteryMeterViewControllerFactory: BatteryMeterViewController.Factory,
-    private val statusBarIconController: StatusBarIconController,
     private val shadeSession: SaveableSession,
     private val stackScrollView: Lazy<NotificationScrollView>,
     private val clockSection: DefaultClockSection,
-    private val clockInteractor: KeyguardClockInteractor,
+    private val keyguardClockViewModel: KeyguardClockViewModel,
+    private val mediaCarouselController: MediaCarouselController,
+    @Named(QUICK_QS_PANEL) private val mediaHost: Lazy<MediaHost>,
+    private val jankMonitor: InteractionJankMonitor,
 ) : Overlay {
-
     override val key = Overlays.NotificationsShade
 
     private val actionsViewModel: NotificationsShadeOverlayActionsViewModel by lazy {
@@ -75,6 +86,8 @@ constructor(
 
     @Composable
     override fun ContentScope.Content(modifier: Modifier) {
+        val notificationStackPadding = dimensionResource(id = R.dimen.notification_side_paddings)
+
         val viewModel =
             rememberViewModel("NotificationsShadeOverlay-viewModel") {
                 contentViewModelFactory.create()
@@ -84,48 +97,75 @@ constructor(
                 viewModel.notificationsPlaceholderViewModelFactory.create()
             }
 
-        OverlayShade(modifier = modifier, onScrimClicked = viewModel::onScrimClicked) {
-            Column {
-                if (viewModel.showHeader) {
-                    val burnIn = rememberBurnIn(clockInteractor)
+        val usingCollapsedLandscapeMedia =
+            Utils.useCollapsedMediaInLandscape(LocalResources.current)
+        mediaHost.get().expansion =
+            if (usingCollapsedLandscapeMedia && isLandscape()) COLLAPSED else EXPANDED
 
-                    CollapsedShadeHeader(
-                        viewModelFactory = viewModel.shadeHeaderViewModelFactory,
-                        createTintedIconManager = tintedIconManagerFactory::create,
-                        createBatteryMeterViewController =
-                            batteryMeterViewControllerFactory::create,
-                        statusBarIconController = statusBarIconController,
+        OverlayShade(
+            panelElement = NotificationsShade.Elements.Panel,
+            alignmentOnWideScreens = Alignment.TopStart,
+            modifier = modifier,
+            onScrimClicked = viewModel::onScrimClicked,
+            header = {
+                val headerViewModel =
+                    rememberViewModel("NotificationsShadeOverlayHeader") {
+                        viewModel.shadeHeaderViewModelFactory.create()
+                    }
+                OverlayShadeHeader(
+                    viewModel = headerViewModel,
+                    modifier = Modifier.element(NotificationsShade.Elements.StatusBar),
+                )
+            },
+        ) {
+            Box {
+                Column {
+                    if (isFullWidthShade()) {
+                        val burnIn = rememberBurnIn(keyguardClockViewModel)
+
+                        with(clockSection) {
+                            SmallClock(
+                                burnInParams = burnIn.parameters,
+                                onTopChanged = burnIn.onSmallClockTopChanged,
+                            )
+                        }
+                    }
+
+                    MediaCarousel(
+                        isVisible = viewModel.showMedia,
+                        mediaHost = mediaHost.get(),
+                        carouselController = mediaCarouselController,
+                        usingCollapsedLandscapeMedia = usingCollapsedLandscapeMedia,
                         modifier =
-                            Modifier.element(NotificationsShade.Elements.StatusBar)
-                                .layoutId(SingleShadeMeasurePolicy.LayoutId.ShadeHeader),
+                            Modifier.padding(
+                                top = notificationStackPadding,
+                                start = notificationStackPadding,
+                                end = notificationStackPadding,
+                            ),
                     )
 
-                    with(clockSection) {
-                        SmallClock(
-                            burnInParams = burnIn.parameters,
-                            onTopChanged = burnIn.onSmallClockTopChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                    NotificationScrollingStack(
+                        shadeSession = shadeSession,
+                        stackScrollView = stackScrollView.get(),
+                        viewModel = placeholderViewModel,
+                        jankMonitor = jankMonitor,
+                        maxScrimTop = { 0f },
+                        shouldPunchHoleBehindScrim = false,
+                        stackTopPadding = notificationStackPadding,
+                        stackBottomPadding = notificationStackPadding,
+                        shouldFillMaxSize = false,
+                        shouldShowScrim = false,
+                        supportNestedScrolling = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-
-                NotificationScrollingStack(
-                    shadeSession = shadeSession,
-                    stackScrollView = stackScrollView.get(),
-                    viewModel = placeholderViewModel,
-                    maxScrimTop = { 0f },
-                    shouldPunchHoleBehindScrim = false,
-                    shouldFillMaxSize = false,
-                    shouldReserveSpaceForNavBar = false,
-                    shouldShowScrim = false,
-                    supportNestedScrolling = false,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
                 // Communicates the bottom position of the drawable area within the shade to NSSL.
                 NotificationStackCutoffGuideline(
                     stackScrollView = stackScrollView.get(),
                     viewModel = placeholderViewModel,
+                    modifier =
+                        Modifier.align(Alignment.BottomCenter)
+                            .padding(bottom = notificationStackPadding),
                 )
             }
         }
@@ -134,6 +174,7 @@ constructor(
 
 object NotificationsShade {
     object Elements {
-        val StatusBar = ElementKey("NotificationsShadeStatusBar")
+        val Panel = ElementKey("NotificationsShadeOverlayPanel")
+        val StatusBar = ElementKey("NotificationsShadeOverlayStatusBar")
     }
 }

@@ -17,7 +17,6 @@
 
 package android.telephony.data;
 
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
 import android.annotation.NonNull;
@@ -32,7 +31,6 @@ import android.telephony.PreciseDataConnectionState;
 import android.telephony.data.ApnSetting.ProtocolType;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.telephony.flags.Flags;
 import com.android.internal.util.Preconditions;
 
 import java.lang.annotation.Retention;
@@ -455,7 +453,6 @@ public final class DataCallResponse implements Parcelable {
      *
      * @return The network validation status of data connection.
      */
-    @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
     public @PreciseDataConnectionState.NetworkValidationStatus int getNetworkValidationStatus() {
         return mNetworkValidationStatus;
     }
@@ -936,7 +933,6 @@ public final class DataCallResponse implements Parcelable {
          * @param status The network validation status.
          * @return The same instance of the builder.
          */
-        @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
         public @NonNull Builder setNetworkValidationStatus(
                 @PreciseDataConnectionState.NetworkValidationStatus int status) {
             mNetworkValidationStatus = status;

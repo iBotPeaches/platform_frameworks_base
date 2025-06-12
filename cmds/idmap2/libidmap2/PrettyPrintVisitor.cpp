@@ -58,6 +58,19 @@ void PrettyPrintVisitor::visit(const IdmapHeader& header) {
   if (auto overlay = OverlayResourceContainer::FromPath(header.GetOverlayPath())) {
     overlay_ = std::move(*overlay);
   }
+}
+
+void PrettyPrintVisitor::visit(const IdmapConstraints& constraints) {
+  stream_ << "Constraints:" << '\n';
+  if (constraints.constraints.empty()) {
+    stream_ << TAB << "None\n";
+  } else {
+    for (const IdmapConstraint& constraint : constraints.constraints) {
+      stream_ << TAB
+              << base::StringPrintf("Type: %d, Value: %d\n", constraint.constraint_type,
+                                    constraint.constraint_value);
+    }
+  }
 
   stream_ << "Mapping:" << '\n';
 }

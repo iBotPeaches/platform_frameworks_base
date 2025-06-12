@@ -16,9 +16,10 @@
 
 package com.android.systemui.statusbar.notification.row;
 
+import static com.android.systemui.statusbar.NotificationLockscreenUserManager.REDACTION_TYPE_NONE;
+import static com.android.systemui.statusbar.NotificationLockscreenUserManager.RedactionType;
 import static com.android.systemui.statusbar.notification.row.NotificationRowContentBinder.FLAG_CONTENT_VIEW_CONTRACTED;
 import static com.android.systemui.statusbar.notification.row.NotificationRowContentBinder.FLAG_CONTENT_VIEW_EXPANDED;
-import static com.android.systemui.statusbar.notification.row.NotificationRowContentBinder.FLAG_CONTENT_VIEW_HEADS_UP;
 
 import com.android.systemui.statusbar.notification.row.NotificationRowContentBinder.InflationFlag;
 
@@ -27,10 +28,9 @@ import com.android.systemui.statusbar.notification.row.NotificationRowContentBin
  */
 public final class RowContentBindParams {
     private boolean mUseMinimized;
-    private boolean mUseIncreasedHeight;
-    private boolean mUseIncreasedHeadsUpHeight;
     private boolean mViewsNeedReinflation;
     private @InflationFlag int mContentViews = DEFAULT_INFLATION_FLAGS;
+    private @RedactionType int mRedactionType = REDACTION_TYPE_NONE;
 
     /**
      * Content views that are out of date and need to be rebound.
@@ -58,31 +58,17 @@ public final class RowContentBindParams {
     }
 
     /**
-     * Set whether content should use an increased height version of its contracted view.
+     * @return What type of redaction should be used by the public view (if requested)
      */
-    public void setUseIncreasedCollapsedHeight(boolean useIncreasedHeight) {
-        if (mUseIncreasedHeight != useIncreasedHeight) {
-            mDirtyContentViews |= FLAG_CONTENT_VIEW_CONTRACTED;
-        }
-        mUseIncreasedHeight = useIncreasedHeight;
-    }
-
-    public boolean useIncreasedHeight() {
-        return mUseIncreasedHeight;
+    public @RedactionType int getRedactionType() {
+        return mRedactionType;
     }
 
     /**
-     * Set whether content should use an increased height version of its heads up view.
+     * Set the redaction type, which controls what sort of public view is shown.
      */
-    public void setUseIncreasedHeadsUpHeight(boolean useIncreasedHeadsUpHeight) {
-        if (mUseIncreasedHeadsUpHeight != useIncreasedHeadsUpHeight) {
-            mDirtyContentViews |= FLAG_CONTENT_VIEW_HEADS_UP;
-        }
-        mUseIncreasedHeadsUpHeight = useIncreasedHeadsUpHeight;
-    }
-
-    public boolean useIncreasedHeadsUpHeight() {
-        return mUseIncreasedHeadsUpHeight;
+    public void setRedactionType(@RedactionType int redactionType) {
+        mRedactionType = redactionType;
     }
 
     /**
@@ -152,10 +138,8 @@ public final class RowContentBindParams {
     @Override
     public String toString() {
         return String.format("RowContentBindParams[mContentViews=%x mDirtyContentViews=%x "
-                + "mUseMinimized=%b mUseIncreasedHeight=%b "
-                + "mUseIncreasedHeadsUpHeight=%b mViewsNeedReinflation=%b]",
-                mContentViews, mDirtyContentViews, mUseMinimized, mUseIncreasedHeight,
-                mUseIncreasedHeadsUpHeight, mViewsNeedReinflation);
+                + "mUseMinimized=%b mViewsNeedReinflation=%b]",
+                mContentViews, mDirtyContentViews, mUseMinimized, mViewsNeedReinflation);
     }
 
     /**

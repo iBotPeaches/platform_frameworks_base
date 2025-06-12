@@ -28,9 +28,12 @@ class FakeAudioSharingRepository : AudioSharingRepository {
 
     private val mutableInAudioSharing: MutableStateFlow<Boolean> = MutableStateFlow(false)
 
-    private val mutableAudioSourceStateUpdate = MutableSharedFlow<Unit>()
+    private val mutableAudioSourceStateUpdate = MutableSharedFlow<Unit>(replay = 1)
 
     var sourceAdded: Boolean = false
+        private set
+
+    var audioSharingStarted: Boolean = false
         private set
 
     private var profile: LocalBluetoothLeBroadcast? = null
@@ -50,7 +53,13 @@ class FakeAudioSharingRepository : AudioSharingRepository {
 
     override suspend fun setActive(cachedBluetoothDevice: CachedBluetoothDevice) {}
 
-    override suspend fun startAudioSharing() {}
+    override suspend fun startAudioSharing() {
+        audioSharingStarted = true
+    }
+
+    override suspend fun stopAudioSharing() {
+        audioSharingStarted = false
+    }
 
     fun setAudioSharingAvailable(available: Boolean) {
         mutableAvailable = available

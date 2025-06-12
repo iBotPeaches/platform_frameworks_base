@@ -26,9 +26,7 @@ import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.keyguard.ui.viewmodel.AlternateBouncerUdfpsIconViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-@ExperimentalCoroutinesApi
 object AlternateBouncerUdfpsViewBinder {
 
     /** Updates UI for the UDFPS icon on the alternate bouncer. */
@@ -40,9 +38,15 @@ object AlternateBouncerUdfpsViewBinder {
         view.repeatWhenAttached {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 view.alpha = 0f
+
                 launch("$TAG#viewModel.accessibilityDelegateHint") {
                     viewModel.accessibilityDelegateHint.collect { hint ->
                         view.accessibilityHintType = hint
+                        if (hint != DeviceEntryIconView.AccessibilityHintType.NONE) {
+                            view.setOnClickListener { viewModel.onTapped() }
+                        } else {
+                            view.setOnClickListener(null)
+                        }
                     }
                 }
 

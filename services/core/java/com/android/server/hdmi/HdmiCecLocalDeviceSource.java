@@ -197,6 +197,8 @@ abstract class HdmiCecLocalDeviceSource extends HdmiCecLocalDevice {
         boolean wasActiveSource = isActiveSource();
         super.setActiveSource(logicalAddress, physicalAddress, caller);
         if (wasActiveSource && !isActiveSource()) {
+            // Prevent focus stealing when losing active source.
+            removeAction(ActiveSourceAction.class);
             onActiveSourceLost();
         }
     }

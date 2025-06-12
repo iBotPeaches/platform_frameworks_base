@@ -32,10 +32,8 @@ import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 /** Handles key events arriving when the keyguard is showing or device is dozing. */
-@ExperimentalCoroutinesApi
 @SysUISingleton
 class KeyguardKeyEventInteractor
 @Inject
@@ -138,7 +136,10 @@ constructor(
                 return true
             }
             StatusBarState.KEYGUARD -> {
-                statusBarKeyguardViewManager.showPrimaryBouncer(true)
+                statusBarKeyguardViewManager.showPrimaryBouncer(
+                    true,
+                    "KeyguardKeyEventInteractor#collapseShadeLockedOrShowPrimaryBouncer",
+                )
                 return true
             }
         }

@@ -18,10 +18,16 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Διαχείριση συνοδευτικής εφαρμογής"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Να επιτρέπεται στην εφαρμογή &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; να έχει πρόσβαση στη συσκευή &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;;"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Βεβαιωθείτε ότι αυτό το <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> έχει ενεργοποιημένο το <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> και κρατήστε το <xliff:g id="PROFILE_NAME">%3$s</xliff:g> κοντά."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Δεν βρέθηκαν συσκευές. Δοκιμάστε ξανά αργότερα."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth και Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ρολόι"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Επιλέξτε μια συσκευή για διαχείριση μέσω της εφαρμογής &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"Επιλέξτε ένα προφίλ <xliff:g id="PROFILE_NAME">%1$s</xliff:g> για ρύθμιση"</string>
-    <string name="summary_watch" msgid="8134580124808507407">"Αυτή η εφαρμογή θα μπορεί να συγχρονίζει πληροφορίες, όπως το όνομα ενός ατόμου που σας καλεί, και να αποκτά πρόσβαση σε αυτές τις άδειες στη συσκευή <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"Επιλέξτε ένα <xliff:g id="PROFILE_NAME">%1$s</xliff:g> για ρύθμιση"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Αναζήτηση για <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="summary_watch" msgid="8134580124808507407">"Αυτή η εφαρμογή θα μπορεί να συγχρονίζει πληροφορίες, όπως το όνομα ενός ατόμου που σας καλεί, και να αποκτά πρόσβαση σε αυτές τις άδειες στο <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Να επιτρέπεται στην εφαρμογή &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; να διαχειρίζεται τη συσκευή &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ;"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"συσκευή"</string>
     <string name="summary_glasses" msgid="5469208629679579157">"Αυτή η εφαρμογή θα μπορεί να έχει πρόσβαση σε αυτές τις άδειες στη συσκευή <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Να επιτρέπεται στο &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; η δυνατότητα ροής εφαρμογών του <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> σας στο &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;;"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Το <xliff:g id="APP_NAME_0">%1$s</xliff:g> θα έχει πρόσβαση σε οτιδήποτε είναι ορατό ή αναπαράγεται στο <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, συμπεριλαμβανομένων ήχων, φωτογραφιών, στοιχείων πληρωμής, κωδικών πρόσβασης και μηνυμάτων.&lt;br/&gt;&lt;br/&gt;Το <xliff:g id="APP_NAME_2">%1$s</xliff:g> θα έχει τη δυνατότητα ροής εφαρμογών στο <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, μέχρι να καταργήσετε την πρόσβαση σε αυτή την άδεια."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"Το <xliff:g id="APP_NAME">%1$s</xliff:g> ζητά άδεια εκ μέρους του <xliff:g id="DEVICE_NAME">%2$s</xliff:g> για τη ροή εφαρμογών από το <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> σας"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Να επιτρέπεται στην εφαρμογή &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; η μετάδοση σε ροή ήχου και λειτουργιών συστήματος μεταξύ της συσκευής <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> και της συσκευής &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;;"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Η εφαρμογή <xliff:g id="APP_NAME_0">%2$s</xliff:g> θα έχει πρόσβαση σε οτιδήποτε αναπαράγεται στη συσκευή <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;Η εφαρμογή <xliff:g id="APP_NAME_2">%2$s</xliff:g> θα έχει τη δυνατότητα μετάδοσης σε ροή ήχου στη συσκευή <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, μέχρι να καταργήσετε την πρόσβαση σε αυτή την άδεια."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"συσκευή"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Αυτή η εφαρμογή θα μπορεί να συγχρονίζει πληροφορίες μεταξύ του τηλεφώνου και της επιλεγμένης συσκευής σας, όπως το όνομα ενός ατόμου που σας καλεί."</string>
     <string name="consent_yes" msgid="8344487259618762872">"Να επιτρέπεται"</string>
     <string name="consent_no" msgid="2640796915611404382">"Να μην επιτρέπεται"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Ακύρωση"</string>
     <string name="consent_back" msgid="2560683030046918882">"Πίσω"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Κύλιση προς τα κάτω στη λίστα"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Βέλος που δείχνει προς τα κάτω"</string>
     <string name="permission_expand" msgid="893185038020887411">"Ανάπτυξη <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Σύμπτυξη <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Παραχώρηση των ίδιων αδειών στις εφαρμογές στη συσκευή &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; όπως στη συσκευή &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;;"</string>

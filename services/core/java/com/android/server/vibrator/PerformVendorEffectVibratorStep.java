@@ -49,7 +49,8 @@ final class PerformVendorEffectVibratorStep extends AbstractVibratorStep {
     public List<Step> play() {
         Trace.traceBegin(Trace.TRACE_TAG_VIBRATOR, "PerformVendorEffectVibratorStep");
         try {
-            long vibratorOnResult = controller.on(effect, getVibration().id);
+            int stepId = conductor.nextVibratorCallbackStepId(getVibratorId());
+            long vibratorOnResult = controller.on(effect, getVibration().id, stepId);
             vibratorOnResult = Math.min(vibratorOnResult, VENDOR_EFFECT_MAX_DURATION_MS);
             handleVibratorOnResult(vibratorOnResult);
             getVibration().stats.reportPerformVendorEffect(vibratorOnResult);

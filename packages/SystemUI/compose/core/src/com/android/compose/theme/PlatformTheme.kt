@@ -31,6 +31,7 @@ import com.android.compose.theme.typography.TypeScaleTokens
 import com.android.compose.theme.typography.TypefaceNames
 import com.android.compose.theme.typography.TypefaceTokens
 import com.android.compose.theme.typography.TypographyTokens
+import com.android.compose.theme.typography.VariableFontTypeScaleEmphasizedTokens
 import com.android.compose.theme.typography.platformTypography
 import com.android.compose.windowsizeclass.LocalWindowSizeClass
 import com.android.compose.windowsizeclass.calculateWindowSizeClass
@@ -42,11 +43,17 @@ fun PlatformTheme(isDarkTheme: Boolean = isSystemInDarkTheme(), content: @Compos
     val context = LocalContext.current
 
     val colorScheme = remember(context, isDarkTheme) { platformColorScheme(isDarkTheme, context) }
-    val androidColorScheme = remember(context) { AndroidColorScheme(context) }
+    val androidColorScheme = remember(context, isDarkTheme) { AndroidColorScheme(context) }
     val typefaceNames = remember(context) { TypefaceNames.get(context) }
+    val typefaceTokens = remember(typefaceNames) { TypefaceTokens(typefaceNames) }
     val typography =
-        remember(typefaceNames) {
-            platformTypography(TypographyTokens(TypeScaleTokens(TypefaceTokens(typefaceNames))))
+        remember(typefaceTokens) {
+            platformTypography(
+                TypographyTokens(
+                    TypeScaleTokens(typefaceTokens),
+                    VariableFontTypeScaleEmphasizedTokens(typefaceTokens),
+                )
+            )
         }
     val windowSizeClass = calculateWindowSizeClass()
 

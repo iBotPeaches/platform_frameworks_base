@@ -57,6 +57,7 @@ import android.hardware.devicestate.DeviceStateManager.FoldStateListener;
 import android.hardware.display.DisplayManager;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
+import android.hidl.manager.V1_0.IServiceManager;
 import android.media.AudioManager;
 import android.nfc.NfcAdapter;
 import android.nfc.NfcManager;
@@ -68,6 +69,8 @@ import android.os.Message;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
+import android.os.ServiceDebugInfo;
+import android.os.ServiceManager;
 import android.os.ShellCallback;
 import android.os.ShellCommand;
 import android.os.SystemClock;
@@ -93,6 +96,7 @@ import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
 import com.android.server.SystemService;
+import com.android.server.am.StackTracesDumpHelper;
 import com.android.server.wm.WindowManagerInternal;
 
 import java.io.FileDescriptor;
@@ -103,8 +107,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -559,6 +565,9 @@ public class CameraServiceProxy extends SystemService
         @Override
         public void onKeepClearAreasChanged(int displayId, List<Rect> restricted,
                 List<Rect> unrestricted) { }
+
+        @Override
+        public void onDesktopModeEligibleChanged(int displayId) { }
     }
 
 
@@ -889,6 +898,11 @@ public class CameraServiceProxy extends SystemService
             } finally {
                 Binder.restoreCallingIdentity(ident);
             }
+        }
+
+        @Override
+        public void notifyWatchdog(int pid, boolean isNativePid) {
+            dumpStackTraces(pid, isNativePid);
         }
 
         @Override
@@ -1559,5 +1573,101 @@ public class CameraServiceProxy extends SystemService
         combinationStr.append("}");
 
         return combinationStr.toString();
+    }
+
+    // Which native services to dump into dropbox's stack traces
+    private static final String[] NATIVE_SERVICES_OF_INTEREST = new String[] {
+        "/system/bin/cameraserver",
+    };
+
+    // Which AIDL interfaces to dump into dropbox's stack traces
+    private static final String[] AIDL_INTERFACE_PREFIXES_OF_INTEREST = new String[] {
+        "android.hardware.camera.provider.ICameraProvider/",
+    };
+
+    // Which HIDL interfaces to dump into dropbox's stack traces
+    public static final List<String> HIDL_INTERFACES_OF_INTEREST = Arrays.asList(
+            "android.hardware.camera.provider@2.4::ICameraProvider"
+    );
+
+    private static void addHidlInterfacesOfInterest(Set<Integer> pids) {
+        try {
+            IServiceManager serviceManager = IServiceManager.getService();
+            ArrayList<IServiceManager.InstanceDebugInfo> dump =
+                    serviceManager.debugDump();
+            for (IServiceManager.InstanceDebugInfo info : dump) {
+                if (info.pid == IServiceManager.PidConstant.NO_PID) {
+                    continue;
+                }
+
+                if (HIDL_INTERFACES_OF_INTEREST.contains(info.interfaceName)) {
+                    pids.add(info.pid);
+                }
+            }
+        } catch (RemoteException e) {
+            Slog.w(TAG, "Remote exception while querying HIDL service manager", e);
+        }
+    }
+
+    private static boolean matchesAidlInterfacePrefixes(
+            String[] interfacePrefixes, String interfaceName) {
+        for (String prefix : interfacePrefixes) {
+            if (interfaceName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void addAidlInterfacesOfInterest(Set<Integer> pids) {
+        ServiceDebugInfo[] infos = ServiceManager.getServiceDebugInfo();
+        if (infos == null) return;
+
+        for (ServiceDebugInfo info : infos) {
+            if (matchesAidlInterfacePrefixes(
+                    AIDL_INTERFACE_PREFIXES_OF_INTEREST, info.name)) {
+                pids.add(info.debugPid);
+            }
+        }
+    }
+
+    /**
+     * Find the camera native Pids to dump stack traces.
+     */
+    private static Set<Integer> getRelevantNativePids() {
+        HashSet<Integer> pids = new HashSet<Integer>();
+        addHidlInterfacesOfInterest(pids);
+        addAidlInterfacesOfInterest(pids);
+
+        int[] nativePids = Process.getPidsForCommands(NATIVE_SERVICES_OF_INTEREST);
+        if (nativePids != null) {
+            for (int i : nativePids) {
+                pids.add(i);
+            }
+        }
+
+        return pids;
+    }
+
+    /**
+     * A helper function to call StackTracesDumpHelper.dumpStackTraces().
+     */
+    private static void dumpStackTraces(int pid, boolean isNativePid) {
+        ArrayList<Integer> dalvikPids = new ArrayList<>();
+        ArrayList<Integer> nativePids = new ArrayList<>();
+        if (isNativePid) {
+            nativePids.add(pid);
+        } else {
+            dalvikPids.add(pid);
+        }
+
+        nativePids.addAll(getRelevantNativePids());
+
+        StackTracesDumpHelper.dumpStackTraces(dalvikPids,
+                /* processCpuTracker= */null, /* lastPids= */null,
+                CompletableFuture.completedFuture(nativePids),
+                /* logExceptionCreatingFile= */null, /* subject= */null,
+                /* criticalEventSection= */null, /* extraHeaders= */ null,
+                Runnable::run, /* latencyTracker= */null);
     }
 }

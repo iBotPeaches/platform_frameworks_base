@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.yield
 
 @SysUISingleton
@@ -75,6 +76,11 @@ class FakeUserRepository @Inject constructor() : UserRepository {
     private val _isLogoutToSystemUserEnabled = MutableStateFlow<Boolean>(false)
     override val isLogoutToSystemUserEnabled: StateFlow<Boolean> =
         _isLogoutToSystemUserEnabled.asStateFlow()
+
+    private val _userUnlockedState = MutableStateFlow(emptyMap<UserHandle, Boolean>())
+
+    override fun isUserUnlocked(userHandle: UserHandle?): Flow<Boolean> =
+        _userUnlockedState.map { it[userHandle] ?: false }
 
     override var mainUserId: Int = MAIN_USER_ID
     override var lastSelectedNonGuestUserId: Int = mainUserId
@@ -175,6 +181,14 @@ class FakeUserRepository @Inject constructor() : UserRepository {
 
     fun setGuestUserAutoCreated(value: Boolean) {
         _isGuestUserAutoCreated = value
+    }
+
+    fun setUserUnlocked(userId: Int, unlocked: Boolean) {
+        setUserUnlocked(UserHandle(userId), unlocked)
+    }
+
+    fun setUserUnlocked(userHandle: UserHandle, unlocked: Boolean) {
+        _userUnlockedState.update { it + (userHandle to unlocked) }
     }
 }
 

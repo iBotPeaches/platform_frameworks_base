@@ -16,24 +16,24 @@
 
 package com.android.internal.os;
 
-import java.io.IOException;
+import static com.google.common.truth.Truth.assertThat;
 
-import static org.junit.Assert.fail;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.Presubmit;
 
 import androidx.test.filters.SmallTest;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.junit.Before;
 
 import java.io.FileDescriptor;
+import java.io.IOException;
 
 /** Tests for {@link TimeoutRecord}. */
 @SmallTest
@@ -77,6 +77,8 @@ public class ApplicationSharedMemoryTest {
         try {
             instance.setLatestNetworkTimeUnixEpochMillisAtZeroElapsedRealtimeMillis(17);
             fail("Attempted mutation in an app process should throw");
+            instance.writeSystemFeaturesCache(new int[] {1, 2, 3, 4, 5});
+            fail("Attempted feature mutation in an app process should throw");
         } catch (Exception expected) {
         }
     }
@@ -119,6 +121,58 @@ public class ApplicationSharedMemoryTest {
             ApplicationSharedMemory.fromFileDescriptor(readOnlyFileDescriptor, /* mutable= */ true);
             fail("Shouldn't be able to map read-only memory as mutable");
         } catch (Exception expected) {
+        }
+    }
+
+    /** If system feature caching is enabled, it should be auto-written into app shared memory. */
+    @Test
+    public void canReadSystemFeatures() throws IOException {
+        assumeTrue(android.content.pm.Flags.cacheSdkSystemFeatures());
+        ApplicationSharedMemory instance = ApplicationSharedMemory.getInstance();
+        assertThat(instance.readSystemFeaturesCache()).isNotEmpty();
+    }
+
+    @Test
+    public void systemFeaturesShareMemory() throws IOException {
+        ApplicationSharedMemory instance1 = ApplicationSharedMemory.create();
+
+        int[] featureVersions = new int[] {1, 2, 3, 4, 5};
+        instance1.writeSystemFeaturesCache(featureVersions);
+        assertThat(featureVersions).isEqualTo(instance1.readSystemFeaturesCache());
+
+        ApplicationSharedMemory instance2 =
+                ApplicationSharedMemory.fromFileDescriptor(
+                        instance1.getReadOnlyFileDescriptor(), /* mutable= */ false);
+        assertThat(featureVersions).isEqualTo(instance2.readSystemFeaturesCache());
+    }
+
+    @Test
+    public void systemFeaturesAreWriteOnce() throws IOException {
+        ApplicationSharedMemory instance1 = ApplicationSharedMemory.create();
+
+        try {
+            instance1.writeSystemFeaturesCache(new int[5000]);
+            fail("Cannot write an overly large system feature version buffer.");
+        } catch (IllegalArgumentException expected) {
+        }
+
+        int[] featureVersions = new int[] {1, 2, 3, 4, 5};
+        instance1.writeSystemFeaturesCache(featureVersions);
+
+        int[] newFeatureVersions = new int[] {1, 2, 3, 4, 5, 6, 7};
+        try {
+            instance1.writeSystemFeaturesCache(newFeatureVersions);
+            fail("Cannot update system features after first write.");
+        } catch (IllegalStateException expected) {
+        }
+
+        ApplicationSharedMemory instance2 =
+                ApplicationSharedMemory.fromFileDescriptor(
+                        instance1.getReadOnlyFileDescriptor(), /* mutable= */ false);
+        try {
+            instance2.writeSystemFeaturesCache(newFeatureVersions);
+            fail("Cannot update system features for read-only ashmem.");
+        } catch (IllegalStateException expected) {
         }
     }
 }

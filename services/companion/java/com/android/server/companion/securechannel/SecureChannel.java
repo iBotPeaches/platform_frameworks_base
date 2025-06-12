@@ -59,6 +59,7 @@ public class SecureChannel {
     private final Callback mCallback;
     private final byte[] mPreSharedKey;
     private final AttestationVerifier mVerifier;
+    private final int mFlags;
 
     private volatile boolean mStopped;
     private volatile boolean mInProgress;
@@ -71,6 +72,8 @@ public class SecureChannel {
     private String mAlias;
     private int mVerificationResult = FLAG_FAILURE_UNKNOWN;
     private boolean mPskVerified;
+
+    private final Object mHandshakeLock = new Object();
 
 
     /**
@@ -89,7 +92,7 @@ public class SecureChannel {
             @NonNull Callback callback,
             @NonNull byte[] preSharedKey
     ) {
-        this(in, out, callback, preSharedKey, null);
+        this(in, out, callback, preSharedKey, null, 0);
     }
 
     /**
@@ -100,14 +103,16 @@ public class SecureChannel {
      * @param out output stream from which data is sent out
      * @param callback subscription to received messages from the channel
      * @param context context for fetching the Attestation Verifier Framework system service
+     * @param flags flags for custom security settings on the channel
      */
     public SecureChannel(
             @NonNull final InputStream in,
             @NonNull final OutputStream out,
             @NonNull Callback callback,
-            @NonNull Context context
+            @NonNull Context context,
+            int flags
     ) {
-        this(in, out, callback, null, new AttestationVerifier(context));
+        this(in, out, callback, null, new AttestationVerifier(context, flags), flags);
     }
 
     public SecureChannel(
@@ -115,13 +120,15 @@ public class SecureChannel {
             final OutputStream out,
             Callback callback,
             byte[] preSharedKey,
-            AttestationVerifier verifier
+            AttestationVerifier verifier,
+            int flags
     ) {
         this.mInput = in;
         this.mOutput = out;
         this.mCallback = callback;
         this.mPreSharedKey = preSharedKey;
         this.mVerifier = verifier;
+        this.mFlags = flags;
     }
 
     /**
@@ -337,20 +344,22 @@ public class SecureChannel {
     }
 
     private void initiateHandshake() throws IOException, BadHandleException , HandshakeException {
-        if (mConnectionContext != null) {
-            Slog.d(TAG, "Ukey2 handshake is already completed.");
-            return;
-        }
+        synchronized (mHandshakeLock) {
+            if (mConnectionContext != null) {
+                Slog.d(TAG, "Ukey2 handshake is already completed.");
+                return;
+            }
 
-        mRole = Role.INITIATOR;
-        mHandshakeContext = D2DHandshakeContext.forInitiator();
-        mClientInit = mHandshakeContext.getNextHandshakeMessage();
+            mRole = Role.INITIATOR;
+            mHandshakeContext = D2DHandshakeContext.forInitiator();
+            mClientInit = mHandshakeContext.getNextHandshakeMessage();
 
-        // Send Client Init
-        if (DEBUG) {
-            Slog.d(TAG, "Sending Ukey2 Client Init message");
+            // Send Client Init
+            if (DEBUG) {
+                Slog.d(TAG, "Sending Ukey2 Client Init message");
+            }
+            sendMessage(MessageType.HANDSHAKE_INIT, constructHandshakeInitMessage(mClientInit));
         }
-        sendMessage(MessageType.HANDSHAKE_INIT, constructHandshakeInitMessage(mClientInit));
     }
 
     // In an occasion where both participants try to initiate a handshake, resolve the conflict
@@ -409,8 +418,17 @@ public class SecureChannel {
         // Mark "in-progress" upon receiving the first message
         mInProgress = true;
 
+        // Complete a series of handshake exchange and processing
+        synchronized (mHandshakeLock) {
+            completeHandshake(handshakeInitMessage);
+        }
+    }
+
+    private void completeHandshake(byte[] initMessage) throws IOException, HandshakeException,
+            BadHandleException, CryptoException, AlertException {
+
         // Handle a potential collision where both devices tried to initiate a connection
-        byte[] handshakeMessage = handleHandshakeCollision(handshakeInitMessage);
+        byte[] handshakeMessage = handleHandshakeCollision(initMessage);
 
         // Proceed with the rest of Ukey2 handshake
         if (mHandshakeContext == null) { // Server-side logic

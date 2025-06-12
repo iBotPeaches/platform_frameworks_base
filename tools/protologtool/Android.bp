@@ -11,13 +11,13 @@ java_library_host {
     name: "protologtool-lib",
     srcs: [
         "src/com/android/protolog/tool/**/*.kt",
-        ":protolog-common-src",
     ],
     static_libs: [
         "javaparser",
-        "platformprotos",
         "jsonlib",
         "perfetto_trace-full",
+        "platformprotos",
+        "protolog-common-lib",
     ],
 }
 
@@ -39,10 +39,10 @@ java_test_host {
         unit_test: true,
     },
     static_libs: [
-        "protologtool-lib",
         "junit",
         "mockito",
         "objenesis",
+        "protologtool-lib",
         "truth",
     ],
 }

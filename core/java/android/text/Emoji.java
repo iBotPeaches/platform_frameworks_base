@@ -23,6 +23,7 @@ import android.icu.lang.UProperty;
  * An utility class for Emoji.
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Emoji {
     public static int COMBINING_ENCLOSING_KEYCAP = 0x20E3;
 

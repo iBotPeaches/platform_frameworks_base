@@ -14,7 +14,7 @@ class QSPipelineFlagsRepository @Inject constructor() {
 
     companion object Utils {
         fun assertNewTiles() =
-            RefactorFlagUtils.assertInNewMode(
+            RefactorFlagUtils.unsafeAssertInNewMode(
                 AconfigFlags.qsNewTiles(),
                 AconfigFlags.FLAG_QS_NEW_TILES
             )

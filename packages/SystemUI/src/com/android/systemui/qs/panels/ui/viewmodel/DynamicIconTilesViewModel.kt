@@ -35,6 +35,9 @@ constructor(
     private val hydrator = Hydrator("DynamicIconTilesViewModel")
     private val interactor = interactorFactory.create()
 
+    val largeTilesState =
+        hydrator.hydratedStateOf(traceName = "largeTiles", source = iconTilesViewModel.largeTiles)
+
     val largeTilesSpanState =
         hydrator.hydratedStateOf(
             traceName = "largeTilesSpan",

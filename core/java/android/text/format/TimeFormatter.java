@@ -40,6 +40,7 @@ import java.util.TimeZone;
  *
  * <p>This class is not thread safe.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 class TimeFormatter {
     // An arbitrary value outside the range representable by a char.
     private static final int FORCE_LOWER_CASE = -1;

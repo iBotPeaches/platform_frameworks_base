@@ -33,6 +33,7 @@ import android.os.Parcel;
 import android.platform.test.annotations.Presubmit;
 import android.view.Display.Mode;
 import android.view.Surface;
+import android.view.WindowInsets;
 import android.view.WindowManager.LayoutParams;
 
 import androidx.test.filters.SmallTest;
@@ -108,7 +109,7 @@ public class RefreshRatePolicyTest extends WindowTestsBase {
     }
 
     WindowState createWindow(String name) {
-        WindowState window = createWindow(null, TYPE_BASE_APPLICATION, name);
+        WindowState window = newWindowBuilder(name, TYPE_BASE_APPLICATION).build();
         when(window.getDisplayInfo()).thenReturn(mDisplayInfo);
         when(window.mWmService.mDisplayManagerInternal.getRefreshRateSwitchingType())
                 .thenReturn(DisplayManager.SWITCHING_TYPE_WITHIN_GROUPS);
@@ -283,7 +284,7 @@ public class RefreshRatePolicyTest extends WindowTestsBase {
         assertEquals(0, mPolicy.getPreferredMinRefreshRate(overrideWindow), FLOAT_TOLERANCE);
         assertEquals(0, mPolicy.getPreferredMaxRefreshRate(overrideWindow), FLOAT_TOLERANCE);
 
-        overrideWindow.notifyInsetsAnimationRunningStateChanged(true);
+        overrideWindow.setAnimatingTypes(WindowInsets.Type.statusBars(), null /* statsToken */);
         assertEquals(LOW_MODE_ID, mPolicy.getPreferredModeId(overrideWindow));
         assertTrue(mPolicy.updateFrameRateVote(overrideWindow));
         assertEquals(FRAME_RATE_VOTE_NONE, overrideWindow.mFrameRateVote);
@@ -303,7 +304,7 @@ public class RefreshRatePolicyTest extends WindowTestsBase {
         assertEquals(0, mPolicy.getPreferredMinRefreshRate(overrideWindow), FLOAT_TOLERANCE);
         assertEquals(0, mPolicy.getPreferredMaxRefreshRate(overrideWindow), FLOAT_TOLERANCE);
 
-        overrideWindow.notifyInsetsAnimationRunningStateChanged(true);
+        overrideWindow.setAnimatingTypes(WindowInsets.Type.statusBars(), null /* statsToken */);
         assertEquals(0, mPolicy.getPreferredModeId(overrideWindow));
         assertTrue(mPolicy.updateFrameRateVote(overrideWindow));
         assertEquals(FRAME_RATE_VOTE_NONE, overrideWindow.mFrameRateVote);

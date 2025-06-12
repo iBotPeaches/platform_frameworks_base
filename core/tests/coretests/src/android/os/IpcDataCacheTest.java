@@ -16,16 +16,17 @@
 
 package android.os;
 
-import static android.app.Flags.FLAG_PIC_CACHE_NULLS;
 import static android.app.Flags.FLAG_PIC_ISOLATE_CACHE_BY_UID;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.app.PropertyInvalidatedCache;
 import android.app.PropertyInvalidatedCache.Args;
 import android.multiuser.Flags;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
@@ -196,9 +197,9 @@ public class IpcDataCacheTest {
 
         try {
             testCache.query(9);
-            assertEquals(false, true);          // The code should not reach this point.
+            fail();          // The code should not reach this point.
         } catch (RuntimeException e) {
-            assertEquals(e.getCause() instanceof RemoteException, true);
+            assertTrue(e.getCause() instanceof RemoteException);
         }
         tester.verify(4);
     }
@@ -257,38 +258,38 @@ public class IpcDataCacheTest {
                         new ServerQuery(tester));
 
         // Caches are enabled upon creation.
-        assertEquals(false, cache1.getDisabledState());
-        assertEquals(false, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertFalse(cache1.isDisabled());
+        assertFalse(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Disable the cache1 instance.  Only cache1 is disabled
         cache1.disableInstance();
-        assertEquals(true, cache1.getDisabledState());
-        assertEquals(false, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertTrue(cache1.isDisabled());
+        assertFalse(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Disable cache1.  This will disable cache1 and cache2 because they share the
         // same name.  cache3 has a different name and will not be disabled.
         cache1.disableForCurrentProcess();
-        assertEquals(true, cache1.getDisabledState());
-        assertEquals(true, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertTrue(cache1.isDisabled());
+        assertTrue(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Create a new cache1.  Verify that the new instance is disabled.
         cache1 = new IpcDataCache<>(4, MODULE, API, "cacheA",
                 new ServerQuery(tester));
-        assertEquals(true, cache1.getDisabledState());
+        assertTrue(cache1.isDisabled());
 
         // Remove the record of caches being locally disabled.  This is a clean-up step.
         cache1.forgetDisableLocal();
-        assertEquals(true, cache1.getDisabledState());
-        assertEquals(true, cache2.getDisabledState());
-        assertEquals(false, cache3.getDisabledState());
+        assertTrue(cache1.isDisabled());
+        assertTrue(cache2.isDisabled());
+        assertFalse(cache3.isDisabled());
 
         // Create a new cache1.  Verify that the new instance is not disabled.
         cache1 = new IpcDataCache<>(4, MODULE, API, "cacheA",
                 new ServerQuery(tester));
-        assertEquals(false, cache1.getDisabledState());
+        assertFalse(cache1.isDisabled());
     }
 
     private static class TestQuery
@@ -346,7 +347,7 @@ public class IpcDataCacheTest {
     public void testCacheRecompute() {
         TestCache cache = new TestCache();
         cache.invalidateCache();
-        assertEquals(cache.isDisabled(), false);
+        assertFalse(cache.isDisabled());
         assertEquals("foo5", cache.query(5));
         assertEquals(1, cache.getRecomputeCount());
         assertEquals("foo5", cache.query(5));
@@ -408,15 +409,15 @@ public class IpcDataCacheTest {
     @Test
     public void testLocalProcessDisable() {
         TestCache cache = new TestCache();
-        assertEquals(cache.isDisabled(), false);
+        assertFalse(cache.isDisabled());
         cache.invalidateCache();
         assertEquals("foo5", cache.query(5));
         assertEquals(1, cache.getRecomputeCount());
         assertEquals("foo5", cache.query(5));
         assertEquals(1, cache.getRecomputeCount());
-        assertEquals(cache.isDisabled(), false);
+        assertFalse(cache.isDisabled());
         cache.disableForCurrentProcess();
-        assertEquals(cache.isDisabled(), true);
+        assertTrue(cache.isDisabled());
         assertEquals("foo5", cache.query(5));
         assertEquals("foo5", cache.query(5));
         assertEquals(3, cache.getRecomputeCount());
@@ -435,38 +436,44 @@ public class IpcDataCacheTest {
         TestCache dc = new TestCache(d);
 
         a.disableForCurrentProcess();
-        assertEquals(ac.isDisabled(), true);
-        assertEquals(bc.isDisabled(), false);
-        assertEquals(cc.isDisabled(), false);
-        assertEquals(dc.isDisabled(), false);
+        assertTrue(ac.isDisabled());
+        assertFalse(bc.isDisabled());
+        assertFalse(cc.isDisabled());
+        assertFalse(dc.isDisabled());
 
         a.disableAllForCurrentProcess();
-        assertEquals(ac.isDisabled(), true);
-        assertEquals(bc.isDisabled(), false);
-        assertEquals(cc.isDisabled(), false);
-        assertEquals(dc.isDisabled(), true);
+        assertTrue(ac.isDisabled());
+        assertFalse(bc.isDisabled());
+        assertFalse(cc.isDisabled());
+        assertTrue(dc.isDisabled());
 
         IpcDataCache.Config e = a.child("nameE");
         TestCache ec = new TestCache(e);
-        assertEquals(ec.isDisabled(), true);
+        assertTrue(ec.isDisabled());
     }
-
 
     // Verify that invalidating the cache from an app process would fail due to lack of permissions.
     @Test
     @android.platform.test.annotations.DisabledOnRavenwood(
             reason = "SystemProperties doesn't have permission check")
     public void testPermissionFailure() {
-        // Create a cache that will write a system nonce.
-        TestCache sysCache = new TestCache(IpcDataCache.MODULE_SYSTEM, "mode1");
         try {
-            // Invalidate the cache, which writes the system property.  There must be a permission
-            // failure.
-            sysCache.invalidateCache();
-            fail("expected permission failure");
-        } catch (RuntimeException e) {
-            // The expected exception is a bare RuntimeException.  The test does not attempt to
-            // validate the text of the exception message.
+            // Disable test mode for this test.  Guarantee that the mode is enabled before the
+            // test exits.
+            IpcDataCache.setTestMode(false);
+            // Create a cache that will write a system nonce.
+            TestCache sysCache = new TestCache(IpcDataCache.MODULE_SYSTEM, "mode1");
+            try {
+                // Invalidate the cache, which writes the system property.  There must be a
+                // permission failure.
+                sysCache.invalidateCache();
+                fail("expected permission failure");
+            } catch (RuntimeException e) {
+                // The expected exception is a bare RuntimeException.  The test does not attempt
+                // to validate the text of the exception message.
+            }
+        } finally {
+            IpcDataCache.setTestMode(true);
         }
     }
 
@@ -511,7 +518,48 @@ public class IpcDataCacheTest {
         IpcDataCache.setTestMode(true);
     }
 
-    @RequiresFlagsEnabled(FLAG_PIC_CACHE_NULLS)
+    // Verify that test cache mode works properly.  This test is identical to testTestMode except
+    // that it uses the alternative name (the API that is visible to mainline modules).
+    @Test
+    public void testCacheTestMode() {
+        // Create a cache that will write a system nonce.
+        TestCache sysCache = new TestCache(IpcDataCache.MODULE_SYSTEM, "mode1");
+
+        sysCache.testPropertyName();
+        // Invalidate the cache.  This must succeed because the property has been marked for
+        // testing.
+        sysCache.invalidateCache();
+
+        // Create a cache that uses MODULE_TEST.  Invalidation succeeds whether or not the
+        // property is tagged as being tested.
+        TestCache testCache = new TestCache(IpcDataCache.MODULE_TEST, "mode2");
+        testCache.invalidateCache();
+        testCache.testPropertyName();
+        testCache.invalidateCache();
+
+        // Clear test mode.  This fails if test mode is not enabled.
+        IpcDataCache.setCacheTestMode(false);
+        try {
+            IpcDataCache.setCacheTestMode(false);
+            if (android.app.Flags.enforcePicTestmodeProtocol()) {
+                fail("expected an IllegalStateException");
+            }
+        } catch (IllegalStateException e) {
+            // The expected exception.
+        }
+        // Configuring a property for testing must fail if test mode is false.
+        TestCache cache2 = new TestCache(IpcDataCache.MODULE_SYSTEM, "mode3");
+        try {
+            cache2.testPropertyName();
+            fail("expected an IllegalStateException");
+        } catch (IllegalStateException e) {
+            // The expected exception.
+        }
+
+        // Re-enable test mode (so that the cleanup for the test does not throw).
+        IpcDataCache.setCacheTestMode(true);
+    }
+
     @Test
     public void testCachingNulls() {
         IpcDataCache.Config c =

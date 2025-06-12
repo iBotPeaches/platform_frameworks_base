@@ -389,6 +389,44 @@ public final class UserManagerTest {
     }
 
     @Test
+    public void testSupervisingProfile() throws Exception {
+        assumeTrue("Device doesn't support supervising profiles ",
+                mUserManager.isUserTypeEnabled(UserManager.USER_TYPE_PROFILE_SUPERVISING));
+
+        final UserTypeDetails userTypeDetails =
+                UserTypeFactory.getUserTypes().get(UserManager.USER_TYPE_PROFILE_SUPERVISING);
+        assertWithMessage("No supervising user type on device").that(userTypeDetails).isNotNull();
+
+
+        // Create supervising profile if it doesn't exist
+        UserInfo supervisingUser = getSupervisingProfile();
+        if (supervisingUser == null) {
+            supervisingUser = createUser("Supervising",
+                    UserManager.USER_TYPE_PROFILE_SUPERVISING, /*flags*/ 0);
+        }
+        assertWithMessage("Couldn't create supervising profile").that(supervisingUser).isNotNull();
+        UserHandle supervisingHandle = supervisingUser.getUserHandle();
+
+        // Test that only one supervising profile can be created
+        final UserInfo secondSupervisingProfile =
+                createUser("Supervising", UserManager.USER_TYPE_PROFILE_SUPERVISING,
+                        /*flags*/ 0);
+        assertThat(secondSupervisingProfile).isNull();
+
+        // Verify that the supervising profile doesn't have a parent
+        assertThat(mUserManager.getProfileParent(supervisingHandle.getIdentifier())).isNull();
+
+        // Make sure that the supervising profile can be started in the background, and that it
+        // is visible
+        final boolean isStarted = mActivityManager.startProfile(supervisingHandle);
+        assertWithMessage("Unable to start supervising profile").that(isStarted).isTrue();
+        final UserManager umSupervising = (UserManager) mContext.createPackageContextAsUser(
+                "android", 0, supervisingHandle).getSystemService(Context.USER_SERVICE);
+        assertWithMessage("Supervising profile not visible").that(
+                umSupervising.isUserVisible()).isTrue();
+    }
+
+    @Test
     public void testGetProfileAccessibilityString_throwsExceptionForNonProfileUser() {
         UserInfo user1 = createUser("Guest 1", UserInfo.FLAG_GUEST);
         assertThat(user1).isNotNull();
@@ -2198,4 +2236,13 @@ public final class UserManagerTest {
         assertEquals(actual.getLevel(), expected.getLevel());
     }
 
+    @Nullable
+    private UserInfo getSupervisingProfile() {
+        for (UserInfo user : mUserManager.getUsers()) {
+            if (user.userType.equals(UserManager.USER_TYPE_PROFILE_SUPERVISING)) {
+                return user;
+            }
+        }
+        return null;
+    }
 }

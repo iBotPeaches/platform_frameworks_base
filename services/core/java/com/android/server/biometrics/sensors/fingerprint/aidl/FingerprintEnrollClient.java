@@ -30,6 +30,7 @@ import android.hardware.biometrics.BiometricFingerprintConstants;
 import android.hardware.biometrics.BiometricFingerprintConstants.FingerprintAcquired;
 import android.hardware.biometrics.BiometricSourceType;
 import android.hardware.biometrics.BiometricStateListener;
+import android.hardware.biometrics.BiometricsProtoEnums;
 import android.hardware.biometrics.common.ICancellationSignal;
 import android.hardware.biometrics.events.AuthenticationAcquiredInfo;
 import android.hardware.biometrics.events.AuthenticationErrorInfo;
@@ -156,8 +157,8 @@ public class FingerprintEnrollClient extends EnrollClient<AidlSession> implement
                             BiometricSourceType.FINGERPRINT,
                             getRequestReasonFromFingerprintEnrollReason(mEnrollReason)).build()
             );
+            notifyLastEnrollmentTime(BiometricsProtoEnums.MODALITY_FINGERPRINT);
         }
-
     }
 
     @Override

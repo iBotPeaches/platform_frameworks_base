@@ -38,6 +38,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.protolog.ProtoLog;
+import com.android.wm.shell.bubbles.BubbleTaskUnfoldTransitionMerger;
 import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.shared.TransitionUtil;
 import com.android.wm.shell.sysui.ShellInit;
@@ -53,6 +54,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -80,6 +82,7 @@ public class UnfoldTransitionHandler implements TransitionHandler, UnfoldListene
 
     private final ShellUnfoldProgressProvider mUnfoldProgressProvider;
     private final Transitions mTransitions;
+    private final Optional<BubbleTaskUnfoldTransitionMerger> mBubbleTaskUnfoldTransitionMerger;
     private final Executor mExecutor;
     private final TransactionPool mTransactionPool;
     private final Handler mHandler;
@@ -108,12 +111,14 @@ public class UnfoldTransitionHandler implements TransitionHandler, UnfoldListene
             TransactionPool transactionPool,
             Executor executor,
             Handler handler,
-            Transitions transitions) {
+            Transitions transitions,
+            Optional<BubbleTaskUnfoldTransitionMerger> bubbleTaskUnfoldTransitionMerger) {
         mUnfoldProgressProvider = unfoldProgressProvider;
         mTransitions = transitions;
         mTransactionPool = transactionPool;
         mExecutor = executor;
         mHandler = handler;
+        mBubbleTaskUnfoldTransitionMerger = bubbleTaskUnfoldTransitionMerger;
 
         mAnimators.add(splitUnfoldTaskAnimator);
         mAnimators.add(fullscreenUnfoldAnimator);
@@ -225,7 +230,9 @@ public class UnfoldTransitionHandler implements TransitionHandler, UnfoldListene
 
     @Override
     public void mergeAnimation(@NonNull IBinder transition, @NonNull TransitionInfo info,
-            @NonNull SurfaceControl.Transaction t, @NonNull IBinder mergeTarget,
+            @NonNull SurfaceControl.Transaction startT,
+            @NonNull SurfaceControl.Transaction finishT,
+            @NonNull IBinder mergeTarget,
             @NonNull TransitionFinishCallback finishCallback) {
         if (info.getType() != TRANSIT_CHANGE) {
             return;
@@ -235,18 +242,30 @@ public class UnfoldTransitionHandler implements TransitionHandler, UnfoldListene
         }
         // TODO (b/286928742) unfold transition handler should be part of mixed handler to
         //  handle merges better.
+
         for (int i = 0; i < info.getChanges().size(); ++i) {
             final TransitionInfo.Change change = info.getChanges().get(i);
             final ActivityManager.RunningTaskInfo taskInfo = change.getTaskInfo();
             if (taskInfo != null
                     && taskInfo.configuration.windowConfiguration.isAlwaysOnTop()) {
-                // Tasks that are always on top (e.g. bubbles), will handle their own transition
-                // as they are on top of everything else. So skip merging transitions here.
-                return;
+                // Tasks that are always on top, excluding bubbles, will handle their own transition
+                // as they are on top of everything else. If this is a transition for a bubble task,
+                // attempt to merge it. Otherwise skip merging transitions.
+                if (mBubbleTaskUnfoldTransitionMerger.isPresent()) {
+                    boolean merged =
+                            mBubbleTaskUnfoldTransitionMerger
+                                    .get()
+                                    .mergeTaskWithUnfold(taskInfo, change, startT, finishT);
+                    if (!merged) {
+                        return;
+                    }
+                } else {
+                    return;
+                }
             }
         }
         // Apply changes happening during the unfold animation immediately
-        t.apply();
+        startT.apply();
         finishCallback.onTransitionFinished(null);
 
         if (getDefaultDisplayChange(info) == DefaultDisplayChange.DEFAULT_DISPLAY_FOLD) {

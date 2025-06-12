@@ -151,6 +151,10 @@ class AppCompatActivityRobot {
         doReturn(taskBounds).when(mTaskStack.top()).getBounds();
     }
 
+    void configureTaskAppBounds(@NonNull Rect appBounds) {
+        mTaskStack.top().getWindowConfiguration().setAppBounds(appBounds);
+    }
+
     void configureTopActivityBounds(@NonNull Rect activityBounds) {
         doReturn(activityBounds).when(mActivityStack.top()).getBounds();
     }
@@ -180,7 +184,7 @@ class AppCompatActivityRobot {
 
     void setLetterboxedForFixedOrientationAndAspectRatio(boolean enabled) {
         doReturn(enabled).when(mActivityStack.top().mAppCompatController
-                .getAppCompatAspectRatioPolicy()).isLetterboxedForFixedOrientationAndAspectRatio();
+                .getAspectRatioPolicy()).isLetterboxedForFixedOrientationAndAspectRatio();
     }
 
     void enableFullscreenCameraCompatTreatmentForTopActivity(boolean enabled) {
@@ -213,7 +217,7 @@ class AppCompatActivityRobot {
 
     void setShouldApplyUserMinAspectRatioOverride(boolean enabled) {
         doReturn(enabled).when(mActivityStack.top().mAppCompatController
-                .getAppCompatAspectRatioOverrides()).shouldApplyUserMinAspectRatioOverride();
+                .getAspectRatioOverrides()).shouldApplyUserMinAspectRatioOverride();
     }
 
     void setShouldCreateCompatDisplayInsets(boolean enabled) {
@@ -226,17 +230,22 @@ class AppCompatActivityRobot {
 
     void setShouldApplyUserFullscreenOverride(boolean enabled) {
         doReturn(enabled).when(mActivityStack.top().mAppCompatController
-                .getAppCompatAspectRatioOverrides()).shouldApplyUserFullscreenOverride();
+                .getAspectRatioOverrides()).shouldApplyUserFullscreenOverride();
     }
 
     void setGetUserMinAspectRatioOverrideCode(@UserMinAspectRatio int overrideCode) {
         doReturn(overrideCode).when(mActivityStack.top().mAppCompatController
-                .getAppCompatAspectRatioOverrides()).getUserMinAspectRatioOverrideCode();
+                .getAspectRatioOverrides()).getUserMinAspectRatioOverrideCode();
     }
 
     void setGetUserMinAspectRatioOverrideValue(float overrideValue) {
         doReturn(overrideValue).when(mActivityStack.top().mAppCompatController
-                .getAppCompatAspectRatioOverrides()).getUserMinAspectRatio();
+                .getAspectRatioOverrides()).getUserMinAspectRatio();
+    }
+
+    void setShouldRefreshActivityForCameraCompat(boolean enabled) {
+        doReturn(enabled).when(mActivityStack.top().mAppCompatController.getCameraOverrides())
+                .shouldRefreshActivityForCameraCompat();
     }
 
     void setIgnoreOrientationRequest(boolean enabled) {
@@ -245,10 +254,6 @@ class AppCompatActivityRobot {
 
     void setTopActivityOrganizedTask() {
         doReturn(mTaskStack.top()).when(mActivityStack.top()).getOrganizedTask();
-    }
-
-    void setIsInLetterboxAnimation(boolean inAnimation) {
-        doReturn(inAnimation).when(mActivityStack.top()).isInLetterboxAnimation();
     }
 
     void setTopTaskInMultiWindowMode(boolean inMultiWindowMode) {
@@ -525,7 +530,7 @@ class AppCompatActivityRobot {
             activity.setRequestedOrientation(screenOrientation);
         }
         // Make sure to use the provided configuration to construct the size compat fields.
-        activity.mAppCompatController.getAppCompatSizeCompatModePolicy().clearSizeCompatMode();
+        activity.mAppCompatController.getSizeCompatModePolicy().clearSizeCompatMode();
         activity.ensureActivityConfiguration();
         // Make sure the display configuration reflects the change of activity.
         if (activity.mDisplayContent.updateOrientation()) {

@@ -36,7 +36,9 @@ import java.util.Objects;
 /** Plays a {@link HalVibration} in dedicated thread. */
 final class VibrationThread extends Thread {
     static final String TAG = "VibrationThread";
-    static final boolean DEBUG = false;
+    // To enable these logs, run:
+    // 'adb shell setprop persist.log.tag.VibrationThread DEBUG && adb reboot'
+    static final boolean DEBUG = VibratorDebugUtils.isDebuggable(TAG);
 
     /** Calls into VibratorManager functionality needed for playing a {@link HalVibration}. */
     interface VibratorManagerHooks {

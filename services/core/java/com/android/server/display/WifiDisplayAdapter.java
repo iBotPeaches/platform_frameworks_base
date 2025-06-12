@@ -640,7 +640,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         }
 
         @Override
-        public void performTraversalLocked(SurfaceControl.Transaction t) {
+        public void configureSurfaceLocked(SurfaceControl.Transaction t) {
             if (mSurface != null) {
                 setSurfaceLocked(t, mSurface);
             }
@@ -666,6 +666,12 @@ final class WifiDisplayAdapter extends DisplayAdapter {
                 mInfo.setAssumedDensityForExternalDisplay(mWidth, mHeight);
                 // The display is trusted since it is created by system.
                 mInfo.flags |= DisplayDeviceInfo.FLAG_TRUSTED;
+                if (getFeatureFlags().isDisplayContentModeManagementEnabled()) {
+                    // The wifi display is allowed to switch content mode since FLAG_PRIVATE,
+                    // FLAG_OWN_CONTENT_ONLY, and FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS are not
+                    // enabled in WifiDisplayDevice#getDisplayDeviceInfoLocked().
+                    mInfo.flags |= DisplayDeviceInfo.FLAG_ALLOWS_CONTENT_MODE_SWITCH;
+                }
                 mInfo.displayShape =
                         DisplayShape.createDefaultDisplayShape(mInfo.width, mInfo.height, false);
             }

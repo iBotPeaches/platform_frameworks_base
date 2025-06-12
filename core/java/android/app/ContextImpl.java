@@ -22,14 +22,12 @@ import static android.os.StrictMode.vmIncorrectContextUseEnabled;
 import static android.permission.flags.Flags.shouldRegisterAttributionSource;
 import static android.view.WindowManager.LayoutParams.WindowType;
 
-import android.Manifest;
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
 import android.annotation.UiContext;
-import android.companion.virtual.VirtualDevice;
 import android.companion.virtual.VirtualDeviceManager;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.AttributionSource;
@@ -97,6 +95,7 @@ import android.util.Slog;
 import android.view.Display;
 import android.view.DisplayAdjustments;
 import android.view.autofill.AutofillManager.AutofillClient;
+import android.window.SystemUiContext;
 import android.window.WindowContext;
 import android.window.WindowTokenClient;
 import android.window.WindowTokenClientController;
@@ -2366,41 +2365,8 @@ class ContextImpl extends Context {
             Log.v(TAG, "Treating renounced permission " + permission + " as denied");
             return PERMISSION_DENIED;
         }
-
-        // When checking a device-aware permission on a remote device, if the permission is CAMERA
-        // or RECORD_AUDIO we need to check remote device's corresponding capability. If the remote
-        // device doesn't have capability fall back to checking permission on the default device.
-        // Note: we only perform permission check redirection when the device id is not explicitly
-        // set in the context.
-        int deviceId = getDeviceId();
-        if (deviceId != Context.DEVICE_ID_DEFAULT
-                && !mIsExplicitDeviceId
-                && PermissionManager.DEVICE_AWARE_PERMISSIONS.contains(permission)) {
-            VirtualDeviceManager virtualDeviceManager =
-                    getSystemService(VirtualDeviceManager.class);
-            if (virtualDeviceManager == null) {
-                Slog.e(
-                        TAG,
-                        "VDM is not enabled when device id is not default. deviceId = "
-                                + deviceId);
-            } else {
-                VirtualDevice virtualDevice = virtualDeviceManager.getVirtualDevice(deviceId);
-                if (virtualDevice != null) {
-                    if ((Objects.equals(permission, Manifest.permission.RECORD_AUDIO)
-                                    && !virtualDevice.hasCustomAudioInputSupport())
-                            || (Objects.equals(permission, Manifest.permission.CAMERA)
-                                    && !virtualDevice.hasCustomCameraSupport())) {
-                        deviceId = Context.DEVICE_ID_DEFAULT;
-                    }
-                } else {
-                    Slog.e(
-                            TAG,
-                            "virtualDevice is not found when device id is not default. deviceId = "
-                                    + deviceId);
-                }
-            }
-        }
-
+        int deviceId = PermissionManager.resolveDeviceIdForPermissionCheck(this, getDeviceId(),
+                permission);
         return PermissionManager.checkPermission(permission, pid, uid, deviceId);
     }
 
@@ -2501,6 +2467,15 @@ class ContextImpl extends Context {
                 true,
                 Binder.getCallingUid(),
                 message);
+    }
+
+    /** @hide */
+    @Override
+    public int getPermissionRequestState(String permission) {
+        Objects.requireNonNull(permission, "Permission name can't be null");
+        PermissionManager permissionManager = getSystemService(PermissionManager.class);
+        return permissionManager.getPermissionRequestState(getOpPackageName(), permission,
+                getDeviceId());
     }
 
     @Override
@@ -2962,6 +2937,17 @@ class ContextImpl extends Context {
         if (display != null) {
             updateDeviceIdIfChanged(display.getDisplayId());
         }
+        updateResourceOverlayConstraints();
+    }
+
+    private void updateResourceOverlayConstraints() {
+        if (mResources != null) {
+            // Avoid calling getDisplay() here, as it makes a binder call into
+            // DisplayManagerService if the relevant DisplayInfo is not cached in
+            // DisplayManagerGlobal.
+            int displayId = mDisplay != null ? mDisplay.getDisplayId() : Display.DEFAULT_DISPLAY;
+            mResources.getAssets().setOverlayConstraints(displayId, getDeviceId());
+        }
     }
 
     @Override
@@ -2974,9 +2960,11 @@ class ContextImpl extends Context {
             }
         }
 
-        return new ContextImpl(this, mMainThread, mPackageInfo, mParams,
+        final ContextImpl context = new ContextImpl(this, mMainThread, mPackageInfo, mParams,
                 mAttributionSource.getAttributionTag(), mAttributionSource.getNext(), mSplitName,
                 mToken, mUser, mFlags, mClassLoader, null, deviceId, true);
+        context.updateResourceOverlayConstraints();
+        return context;
     }
 
     @NonNull
@@ -3271,6 +3259,7 @@ class ContextImpl extends Context {
             mDeviceId = updatedDeviceId;
             mAttributionSource = createAttributionSourceWithDeviceId(mAttributionSource, mDeviceId);
             notifyOnDeviceChangedListeners(updatedDeviceId);
+            updateResourceOverlayConstraints();
         }
     }
 
@@ -3464,15 +3453,28 @@ class ContextImpl extends Context {
      *                      {@link #createSystemContext(ActivityThread)}.
      * @param displayId The ID of the display where the UI is shown.
      */
-    static ContextImpl createSystemUiContext(ContextImpl systemContext, int displayId) {
+    static Context createSystemUiContext(ContextImpl systemContext, int displayId) {
+        // Step 1. Create a ContextImpl associated with its own resources.
         final WindowTokenClient token = new WindowTokenClient();
         final ContextImpl context = systemContext.createWindowContextBase(token, displayId);
-        token.attachContext(context);
+
+        // Step 2. Create a SystemUiContext to wrap the ContextImpl, which enables to listen to
+        // its config updates.
+        final Context systemUiContext;
+        if (com.android.window.flags.Flags.trackSystemUiContextBeforeWms()) {
+            systemUiContext = new SystemUiContext(context);
+            context.setOuterContext(systemUiContext);
+        } else {
+            systemUiContext = context;
+        }
+        token.attachContext(systemUiContext);
+
+        // Step 3. Associate the SystemUiContext with the display specified with ID.
         WindowTokenClientController.getInstance().attachToDisplayContent(token, displayId);
         context.mContextType = CONTEXT_TYPE_SYSTEM_OR_SYSTEM_UI;
         context.mOwnsToken = true;
 
-        return context;
+        return systemUiContext;
     }
 
     @UnsupportedAppUsage
@@ -3673,6 +3675,7 @@ class ContextImpl extends Context {
                 mResourcesManager.setLocaleConfig(lc);
             }
         }
+        updateResourceOverlayConstraints();
     }
 
     void installSystemApplicationInfo(ApplicationInfo info, ClassLoader classLoader) {

@@ -23,15 +23,15 @@ class NotificationStackScrollLogger @Inject constructor(
     @NotificationRenderLog private val notificationRenderBuffer: LogBuffer,
     @ShadeLog private val shadeLogBuffer: LogBuffer,
 ) {
-    fun hunAnimationSkipped(entry: NotificationEntry, reason: String) {
+    fun hunAnimationSkipped(entry: String, reason: String) {
         buffer.log(TAG, INFO, {
-            str1 = entry.logKey
+            str1 = entry
             str2 = reason
         }, {
             "heads up animation skipped: key: $str1 reason: $str2"
         })
     }
-    fun hunAnimationEventAdded(entry: NotificationEntry, type: Int) {
+    fun hunAnimationEventAdded(entry: String, type: Int) {
         val reason: String
         reason = if (type == ANIMATION_TYPE_HEADS_UP_DISAPPEAR) {
             "HEADS_UP_DISAPPEAR"
@@ -47,16 +47,16 @@ class NotificationStackScrollLogger @Inject constructor(
             type.toString()
         }
         buffer.log(TAG, INFO, {
-            str1 = entry.logKey
+            str1 = entry
             str2 = reason
         }, {
             "heads up animation added: $str1 with type $str2"
         })
     }
 
-    fun hunSkippedForUnexpectedState(entry: NotificationEntry, expected: Boolean, actual: Boolean) {
+    fun hunSkippedForUnexpectedState(entry: String, expected: Boolean, actual: Boolean) {
         buffer.log(TAG, INFO, {
-            str1 = entry.logKey
+            str1 = entry
             bool1 = expected
             bool2 = actual
         }, {
@@ -84,9 +84,9 @@ class NotificationStackScrollLogger @Inject constructor(
         })
     }
 
-    fun transientNotificationRowTraversalCleaned(entry: NotificationEntry, reason: String) {
+    fun transientNotificationRowTraversalCleaned(entry: String, reason: String) {
         notificationRenderBuffer.log(TAG, INFO, {
-            str1 = entry.logKey
+            str1 = entry
             str2 = reason
         }, {
             "transientNotificationRowTraversalCleaned: key: $str1 reason: $str2"
@@ -94,12 +94,12 @@ class NotificationStackScrollLogger @Inject constructor(
     }
 
     fun addTransientChildNotificationToChildContainer(
-            childEntry: NotificationEntry,
-            containerEntry: NotificationEntry,
+            childEntry: String,
+            containerEntry: String,
     ) {
         notificationRenderBuffer.log(TAG, INFO, {
-            str1 = childEntry.logKey
-            str2 = containerEntry.logKey
+            str1 = childEntry
+            str2 = containerEntry
         }, {
             "addTransientChildToContainer from onViewRemovedInternal: childKey: $str1 " +
                     "-- containerKey: $str2"
@@ -107,21 +107,21 @@ class NotificationStackScrollLogger @Inject constructor(
     }
 
     fun addTransientChildNotificationToNssl(
-            childEntry: NotificationEntry,
+            childEntry: String,
     ) {
         notificationRenderBuffer.log(TAG, INFO, {
-            str1 = childEntry.logKey
+            str1 = childEntry
         }, {
             "addTransientRowToNssl from onViewRemovedInternal: childKey: $str1"
         })
     }
 
     fun addTransientChildNotificationToViewGroup(
-            childEntry: NotificationEntry,
+            childEntry: String,
             container: ViewGroup
     ) {
         notificationRenderBuffer.log(TAG, ERROR, {
-            str1 = childEntry.logKey
+            str1 = childEntry
             str2 = container.toString()
         }, {
             "addTransientRowTo unhandled ViewGroup from onViewRemovedInternal: childKey: $str1 " +
@@ -130,14 +130,14 @@ class NotificationStackScrollLogger @Inject constructor(
     }
 
     fun addTransientRow(
-            childEntry: NotificationEntry,
+            childEntry: String,
             index: Int
     ) {
         notificationRenderBuffer.log(
                 TAG,
                 INFO,
                 {
-                    str1 = childEntry.logKey
+                    str1 = childEntry
                     int1 = index
                 },
                 { "addTransientRow to NSSL: childKey: $str1 -- index: $int1" }
@@ -145,15 +145,53 @@ class NotificationStackScrollLogger @Inject constructor(
     }
 
     fun removeTransientRow(
-            childEntry: NotificationEntry,
+            childEntry: String,
     ) {
         notificationRenderBuffer.log(
                 TAG,
                 INFO,
                 {
-                    str1 = childEntry.logKey
+                    str1 = childEntry
                 },
                 { "removeTransientRow from NSSL: childKey: $str1" }
+        )
+    }
+
+    fun logUpdateSensitivenessWithAnimation(
+        shouldAnimate: Boolean,
+        isSensitive: Boolean,
+        isSensitiveContentProtectionActive: Boolean,
+        isAnyProfilePublic: Boolean,
+    ) {
+        notificationRenderBuffer.log(
+            TAG,
+            INFO,
+            {
+                bool1 = shouldAnimate
+                bool2 = isSensitive
+                bool3 = isSensitiveContentProtectionActive
+                bool4 = isAnyProfilePublic
+            },
+            {
+                "updateSensitivenessWithAnimation from NSSL: shouldAnimate=$bool1 " +
+                        "isSensitive(hideSensitive)=$bool2 isSensitiveContentProtectionActive=$bool3 " +
+                        "isAnyProfilePublic=$bool4"
+            },
+        )
+    }
+
+    fun logUpdateSensitivenessWithAnimation(animate: Boolean, anyProfilePublicMode: Boolean) {
+        notificationRenderBuffer.log(
+            TAG,
+            INFO,
+            {
+                bool1 = animate
+                bool2 = anyProfilePublicMode
+            },
+            {
+                "updateSensitivenessWithAnimation from NSSL: animate=$bool1 " +
+                        "anyProfilePublicMode(hideSensitive)=$bool2"
+            },
         )
     }
 }

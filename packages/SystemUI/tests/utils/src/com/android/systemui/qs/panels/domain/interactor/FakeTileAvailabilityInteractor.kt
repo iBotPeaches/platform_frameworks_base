@@ -17,12 +17,11 @@
 package com.android.systemui.qs.panels.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
 import kotlinx.coroutines.flow.Flow
 
-class FakeTileAvailabilityInteractor(
-        private val availabilityFlows: Map<Int, Flow<Boolean>>
-) : QSTileAvailabilityInteractor {
+class FakeTileAvailabilityInteractor(private val availabilityFlows: Map<Int, Flow<Boolean>>) :
+    QSTileAvailabilityInteractor {
     override fun availability(user: UserHandle): Flow<Boolean> {
         return availabilityFlows.getValue(user.identifier)
     }

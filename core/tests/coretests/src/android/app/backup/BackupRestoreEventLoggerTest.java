@@ -23,6 +23,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static junit.framework.Assert.fail;
 
+import static org.junit.Assert.assertThrows;
+
 import android.app.backup.BackupRestoreEventLogger.DataTypeResult;
 import android.os.Parcel;
 import android.platform.test.annotations.Presubmit;
@@ -31,6 +33,8 @@ import android.platform.test.flag.junit.SetFlagsRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.server.backup.Flags;
+
+import com.google.common.truth.Expect;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,6 +46,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Presubmit
@@ -63,6 +68,9 @@ public class BackupRestoreEventLoggerTest {
 
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
+
+    @Rule
+    public final Expect expect = Expect.create();
 
     @Before
     public void setUp() throws Exception {
@@ -364,6 +372,32 @@ public class BackupRestoreEventLoggerTest {
         mLogger.clearData();
 
         assertThat(mLogger.getLoggingResults()).isEmpty();
+    }
+
+    @Test
+    public void testDataTypeResultToString_nullArgs() {
+        assertThrows(NullPointerException.class, () -> BackupRestoreEventLogger.toString(null));
+    }
+
+    @Test
+    public void testDataTypeResultToString_typeOnly() {
+        DataTypeResult result = new DataTypeResult("The Type is Bond, James Bond!");
+
+        expect.withMessage("toString()")
+                .that(BackupRestoreEventLogger.toString(result)).isEqualTo(
+                        "type=The Type is Bond, James Bond!, successCount=0, failCount=0");
+    }
+
+    @Test
+    public void testDataTypeResultToString_allFields() {
+        DataTypeResult result = DataTypeResultTest.createDataTypeResult(
+                "The Type is Bond, James Bond!", /* successCount= */ 42, /* failCount= */ 108,
+                Map.of("D'OH!", 666, "", 0), new byte[] { 4, 8, 15, 16, 23, 42 });
+
+        expect.withMessage("toString()")
+                .that(BackupRestoreEventLogger.toString(result)).isEqualTo(
+                        "type=The Type is Bond, James Bond!, successCount=42, failCount=108, "
+                        + "errors={=0, D'OH!=666}, metadataHash=[4, 8, 15, 16, 23, 42]");
     }
 
     private static DataTypeResult getResultForDataType(

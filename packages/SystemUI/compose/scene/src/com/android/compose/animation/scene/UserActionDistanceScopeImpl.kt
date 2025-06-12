@@ -16,6 +16,8 @@
 
 package com.android.compose.animation.scene
 
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MotionScheme
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -29,6 +31,12 @@ internal class ElementStateScopeImpl(private val layoutImpl: SceneTransitionLayo
         }
     }
 
+    override fun ElementKey.approachSize(content: ContentKey): IntSize? {
+        return layoutImpl.elements[this]?.stateByContent?.get(content)?.approachSize.takeIf {
+            it != Element.SizeUnspecified
+        }
+    }
+
     override fun ElementKey.targetOffset(content: ContentKey): Offset? {
         return layoutImpl.elements[this]?.stateByContent?.get(content)?.targetOffset.takeIf {
             it != Offset.Unspecified
@@ -36,7 +44,7 @@ internal class ElementStateScopeImpl(private val layoutImpl: SceneTransitionLayo
     }
 
     override fun ContentKey.targetSize(): IntSize? {
-        return layoutImpl.contentOrNull(this)?.targetSize.takeIf { it != IntSize.Zero }
+        return layoutImpl.content(this).targetSize.takeIf { it != Element.SizeUnspecified }
     }
 }
 
@@ -59,4 +67,8 @@ internal class PropertyTransformationScopeImpl(private val layoutImpl: SceneTran
 
     override val layoutDirection: LayoutDirection
         get() = layoutImpl.layoutDirection
+
+    @ExperimentalMaterial3ExpressiveApi
+    override val motionScheme: MotionScheme
+        get() = layoutImpl.state.motionScheme
 }

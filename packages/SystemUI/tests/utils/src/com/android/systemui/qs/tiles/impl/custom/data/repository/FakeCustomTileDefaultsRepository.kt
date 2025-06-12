@@ -18,7 +18,7 @@ package com.android.systemui.qs.tiles.impl.custom.data.repository
 
 import android.content.ComponentName
 import android.os.UserHandle
-import com.android.systemui.qs.tiles.impl.custom.data.entity.CustomTileDefaults
+import com.android.systemui.qs.tiles.impl.custom.data.model.CustomTileDefaults
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,7 +31,7 @@ class FakeCustomTileDefaultsRepository : CustomTileDefaultsRepository {
     private val defaultsFlow =
         MutableSharedFlow<DefaultsRequest>(
             replay = 1,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
     private val mutableDefaultsRequests: MutableList<DefaultsRequest> = mutableListOf()
@@ -51,7 +51,7 @@ class FakeCustomTileDefaultsRepository : CustomTileDefaultsRepository {
     override fun requestNewDefaults(
         user: UserHandle,
         componentName: ComponentName,
-        force: Boolean
+        force: Boolean,
     ) {
         val request = DefaultsRequest(user, componentName, force)
         mutableDefaultsRequests.add(request)

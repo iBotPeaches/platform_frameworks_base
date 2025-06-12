@@ -322,11 +322,11 @@ public class StageTaskListener implements ShellTaskOrganizer.TaskListener {
         return mRootTaskInfo != null && mRootTaskInfo.taskId == taskId;
     }
 
-    void onResizing(Rect newBounds, Rect sideBounds, SurfaceControl.Transaction t, int offsetX,
-            int offsetY, boolean immediately) {
+    void onResizing(Rect newBounds, Rect sideBounds, Rect displayBounds,
+            SurfaceControl.Transaction t, int offsetX, int offsetY, boolean immediately) {
         if (mSplitDecorManager != null && mRootTaskInfo != null) {
-            mSplitDecorManager.onResizing(mRootTaskInfo, newBounds, sideBounds, t, offsetX,
-                    offsetY, immediately);
+            mSplitDecorManager.onResizing(mRootTaskInfo, newBounds, sideBounds, displayBounds, t,
+                    offsetX, offsetY, immediately);
         }
     }
 
@@ -376,6 +376,13 @@ public class StageTaskListener implements ShellTaskOrganizer.TaskListener {
         for (int i = mChildrenTaskInfo.size() - 1; i >= 0; i--) {
             final ActivityManager.RunningTaskInfo taskInfo = mChildrenTaskInfo.valueAt(i);
             consumer.accept(taskInfo.taskId);
+        }
+    }
+
+    void doForAllChildTaskInfos(Consumer<ActivityManager.RunningTaskInfo> consumer) {
+        for (int i = mChildrenTaskInfo.size() - 1; i >= 0; i--) {
+            final ActivityManager.RunningTaskInfo taskInfo = mChildrenTaskInfo.valueAt(i);
+            consumer.accept(taskInfo);
         }
     }
 

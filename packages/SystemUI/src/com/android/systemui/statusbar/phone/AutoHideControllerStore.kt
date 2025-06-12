@@ -22,9 +22,9 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.display.data.repository.SingleDisplayStore
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
+import com.android.systemui.statusbar.data.repository.StatusBarPerDisplayStoreImpl
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 
@@ -41,15 +41,18 @@ constructor(
     private val autoHideControllerFactory: AutoHideControllerImpl.Factory,
 ) :
     AutoHideControllerStore,
-    PerDisplayStoreImpl<AutoHideController>(backgroundApplicationScope, displayRepository) {
+    StatusBarPerDisplayStoreImpl<AutoHideController>(
+        backgroundApplicationScope,
+        displayRepository,
+    ) {
 
     init {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
     }
 
-    override fun createInstanceForDisplay(displayId: Int): AutoHideController {
+    override fun createInstanceForDisplay(displayId: Int): AutoHideController? {
         val displayWindowProperties =
-            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR)
+            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR) ?: return null
         return autoHideControllerFactory.create(displayWindowProperties.context)
     }
 

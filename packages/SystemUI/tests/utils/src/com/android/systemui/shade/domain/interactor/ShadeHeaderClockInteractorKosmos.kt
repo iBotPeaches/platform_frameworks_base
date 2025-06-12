@@ -16,14 +16,18 @@
 
 package com.android.systemui.shade.domain.interactor
 
+import com.android.systemui.broadcast.broadcastDispatcher
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.plugins.activityStarter
 import com.android.systemui.shade.data.repository.shadeHeaderClockRepository
+import com.android.systemui.util.time.systemClock
 
 var Kosmos.shadeHeaderClockInteractor: ShadeHeaderClockInteractor by
     Kosmos.Fixture {
         ShadeHeaderClockInteractor(
             repository = shadeHeaderClockRepository,
             activityStarter = activityStarter,
+            broadcastDispatcher = broadcastDispatcher,
+            systemClock = systemClock,
         )
     }

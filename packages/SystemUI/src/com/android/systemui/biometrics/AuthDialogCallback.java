@@ -16,40 +16,20 @@
 
 package com.android.systemui.biometrics;
 
-import android.annotation.IntDef;
 import android.annotation.Nullable;
+import android.hardware.biometrics.BiometricPrompt;
 
 /**
  * Callback interface for dialog views. These should be implemented by the controller (e.g.
  * FingerprintDialogImpl) and passed into their views (e.g. FingerprintDialogView).
  */
 public interface AuthDialogCallback {
-
-    int DISMISSED_USER_CANCELED = 1;
-    int DISMISSED_BUTTON_NEGATIVE = 2;
-    int DISMISSED_BUTTON_POSITIVE = 3;
-    int DISMISSED_BIOMETRIC_AUTHENTICATED = 4;
-    int DISMISSED_ERROR = 5;
-    int DISMISSED_BY_SYSTEM_SERVER = 6;
-    int DISMISSED_CREDENTIAL_AUTHENTICATED = 7;
-    int DISMISSED_BUTTON_CONTENT_VIEW_MORE_OPTIONS = 8;
-
-    @IntDef({DISMISSED_USER_CANCELED,
-            DISMISSED_BUTTON_NEGATIVE,
-            DISMISSED_BUTTON_POSITIVE,
-            DISMISSED_BIOMETRIC_AUTHENTICATED,
-            DISMISSED_ERROR,
-            DISMISSED_BY_SYSTEM_SERVER,
-            DISMISSED_CREDENTIAL_AUTHENTICATED,
-            DISMISSED_BUTTON_CONTENT_VIEW_MORE_OPTIONS})
-    @interface DismissedReason {}
-
     /**
      * Invoked when the dialog is dismissed
-     * @param reason
+     * @param reason - the {@link BiometricPrompt.DismissedReason} for dismissing
      * @param credentialAttestation the HAT received from LockSettingsService upon verification
      */
-    void onDismissed(@DismissedReason int reason,
+    void onDismissed(@BiometricPrompt.DismissedReason int reason,
                      @Nullable byte[] credentialAttestation, long requestId);
 
     /**

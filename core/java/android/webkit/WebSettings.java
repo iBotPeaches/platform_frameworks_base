@@ -1458,13 +1458,14 @@ public abstract class WebSettings {
     public abstract void setNeedInitialFocus(boolean flag);
 
     /**
-     * Sets the priority of the Render thread. Unlike the other settings, this
+     * Sets the CPU scheduling priority of the Render thread. Unlike the other settings, this
      * one only needs to be called once per process. The default value is
      * {@link RenderPriority#NORMAL}.
      *
      * @param priority the priority
-     * @deprecated It is not recommended to adjust thread priorities, and this will
-     *             not be supported in future versions.
+     * @deprecated This is no longer supported. See {@link WebView#setRendererPriorityPolicy} if you
+     *             instead want to control how freely the system should kill the renderer process
+     *             under low memory conditions.
      */
     @Deprecated
     public abstract void setRenderPriority(RenderPriority priority);

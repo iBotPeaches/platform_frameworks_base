@@ -201,7 +201,8 @@ public class MetricUtilities {
                     finalPhaseMetric.getResponseCollective().getUniqueResponseCounts(),
                     /* framework_exception_unique_classtype */
                     finalPhaseMetric.getFrameworkException(),
-                    /* primary_indicated */ finalPhaseMetric.isPrimary()
+                    /* primary_indicated */ finalPhaseMetric.isPrimary(),
+                    /* chosen_classtype */ finalPhaseMetric.getChosenClassType()
             );
         } catch (Exception e) {
             Slog.w(TAG, "Unexpected error during final provider uid emit: " + e);
@@ -383,7 +384,9 @@ public class MetricUtilities {
                     /* api_name */
                     initialPhaseMetric.getApiName(),
                     /* primary_candidates_indicated */
-                    candidatePrimaryProviderList
+                    candidatePrimaryProviderList,
+                    /* api_prepared */
+                    initialPhaseMetric.hasApiUsedPrepareFlow()
             );
         } catch (Exception e) {
             Slog.w(TAG, "Unexpected error during candidate provider uid metric emit: " + e);
@@ -442,7 +445,9 @@ public class MetricUtilities {
                     /* autofill_session_id */
                     initialPhaseMetric.getAutofillSessionId(),
                     /* autofill_request_id */
-                    initialPhaseMetric.getAutofillRequestId()
+                    initialPhaseMetric.getAutofillRequestId(),
+                    /* api_prepared */
+                    initialPhaseMetric.hasApiUsedPrepareFlow()
             );
         } catch (Exception e) {
             Slog.w(TAG, "Unexpected error during initial metric emit: " + e);
@@ -583,7 +588,8 @@ public class MetricUtilities {
                     /* primary_indicated */ finalPhaseMetric.isPrimary(),
                     /* oem_credential_manager_ui_uid */ finalPhaseMetric.getOemUiUid(),
                     /* fallback_credential_manager_ui_uid */ finalPhaseMetric.getFallbackUiUid(),
-                    /* oem_ui_usage_status */ finalPhaseMetric.getOemUiUsageStatus()
+                    /* oem_ui_usage_status */ finalPhaseMetric.getOemUiUsageStatus(),
+                    /* chosen_classtype */ finalPhaseMetric.getChosenClassType()
             );
         } catch (Exception e) {
             Slog.w(TAG, "Unexpected error during final no uid metric logging: " + e);

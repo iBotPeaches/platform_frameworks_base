@@ -16,22 +16,13 @@
 
 package com.android.systemui.plugins.qs
 
-import androidx.compose.runtime.Composable
-
-/**
- * The base view model class for rendering the Tile's TileDetailsView.
- */
-abstract class TileDetailsViewModel {
-
-    // The view content of this tile details view.
-    @Composable
-    abstract fun GetContentView()
-
+/** The view model interface for rendering the Tile's TileDetailsView. */
+interface TileDetailsViewModel {
     // The callback when the settings button is clicked. Currently this is the same as the on tile
     // long press callback
-    abstract fun clickOnSettingsButton()
+    fun clickOnSettingsButton()
 
-    abstract fun getTitle(): String
+    val title: String
 
-    abstract fun getSubTitle(): String
+    val subTitle: String
 }

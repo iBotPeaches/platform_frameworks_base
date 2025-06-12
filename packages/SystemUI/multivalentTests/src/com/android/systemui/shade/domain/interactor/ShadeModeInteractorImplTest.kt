@@ -16,15 +16,12 @@
 
 package com.android.systemui.shade.domain.interactor
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
+import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.shade.data.repository.shadeRepository
-import com.android.systemui.shade.shared.flag.DualShade
 import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
@@ -35,6 +32,7 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
+@EnableSceneContainer
 class ShadeModeInteractorImplTest : SysuiTestCase() {
 
     private val kosmos = testKosmos()
@@ -48,82 +46,79 @@ class ShadeModeInteractorImplTest : SysuiTestCase() {
     }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun legacyShadeMode_narrowScreen_singleShade() =
         testScope.runTest {
             val shadeMode by collectLastValue(underTest.shadeMode)
-            kosmos.shadeRepository.setShadeLayoutWide(false)
+            kosmos.enableSingleShade()
 
             assertThat(shadeMode).isEqualTo(ShadeMode.Single)
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
     fun legacyShadeMode_wideScreen_splitShade() =
         testScope.runTest {
             val shadeMode by collectLastValue(underTest.shadeMode)
-            kosmos.shadeRepository.setShadeLayoutWide(true)
+            kosmos.enableSplitShade()
 
             assertThat(shadeMode).isEqualTo(ShadeMode.Split)
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
     fun shadeMode_wideScreen_isDual() =
         testScope.runTest {
             val shadeMode by collectLastValue(underTest.shadeMode)
-            kosmos.shadeRepository.setShadeLayoutWide(true)
+            kosmos.enableDualShade(wideLayout = true)
 
             assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
     fun shadeMode_narrowScreen_isDual() =
         testScope.runTest {
             val shadeMode by collectLastValue(underTest.shadeMode)
-            kosmos.shadeRepository.setShadeLayoutWide(false)
+            kosmos.enableDualShade(wideLayout = false)
 
             assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
         }
 
     @Test
-    @EnableFlags(DualShade.FLAG_NAME)
-    fun isDualShade_flagEnabled_true() =
+    fun isDualShade_settingEnabledSceneContainerEnabled_returnsTrue() =
         testScope.runTest {
-            // Initiate collection.
+            // TODO(b/391578667): Add a test case for user switching once the bug is fixed.
             val shadeMode by collectLastValue(underTest.shadeMode)
+            kosmos.enableDualShade()
 
+            assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
             assertThat(underTest.isDualShade).isTrue()
         }
 
     @Test
-    @DisableFlags(DualShade.FLAG_NAME)
-    fun isDualShade_flagDisabled_false() =
+    fun isDualShade_settingDisabled_returnsFalse() =
         testScope.runTest {
-            // Initiate collection.
             val shadeMode by collectLastValue(underTest.shadeMode)
+            kosmos.disableDualShade()
 
+            assertThat(shadeMode).isNotEqualTo(ShadeMode.Dual)
             assertThat(underTest.isDualShade).isFalse()
         }
 
     @Test
     fun getTopEdgeSplitFraction_narrowScreen_splitInHalf() =
         testScope.runTest {
-            // Ensure isShadeLayoutWide is collected.
-            val isShadeLayoutWide by collectLastValue(underTest.isShadeLayoutWide)
-            kosmos.shadeRepository.setShadeLayoutWide(false)
+            val shadeMode by collectLastValue(underTest.shadeMode)
+            kosmos.enableDualShade(wideLayout = false)
 
+            assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
             assertThat(underTest.getTopEdgeSplitFraction()).isEqualTo(0.5f)
         }
 
     @Test
-    fun getTopEdgeSplitFraction_wideScreen_leftSideLarger() =
+    fun getTopEdgeSplitFraction_wideScreen_splitInHalf() =
         testScope.runTest {
-            // Ensure isShadeLayoutWide is collected.
-            val isShadeLayoutWide by collectLastValue(underTest.isShadeLayoutWide)
-            kosmos.shadeRepository.setShadeLayoutWide(true)
+            val shadeMode by collectLastValue(underTest.shadeMode)
+            kosmos.enableDualShade(wideLayout = true)
 
-            assertThat(underTest.getTopEdgeSplitFraction()).isGreaterThan(0.5f)
+            assertThat(shadeMode).isEqualTo(ShadeMode.Dual)
+            assertThat(underTest.getTopEdgeSplitFraction()).isEqualTo(0.5f)
         }
 }

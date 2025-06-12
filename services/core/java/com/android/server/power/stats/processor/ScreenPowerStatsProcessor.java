@@ -27,6 +27,7 @@ import static com.android.server.power.stats.processor.AggregatedPowerStatsConfi
 import static com.android.server.power.stats.processor.AggregatedPowerStatsConfig.STATE_SCREEN;
 
 import android.os.BatteryStats;
+import android.util.IntArray;
 import android.util.Slog;
 
 import com.android.internal.os.PowerProfile;
@@ -34,7 +35,6 @@ import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.UsageBasedPowerEstimator;
 import com.android.server.power.stats.format.ScreenPowerStatsLayout;
 
-import java.util.ArrayList;
 import java.util.List;
 
 class ScreenPowerStatsProcessor extends PowerStatsProcessor {
@@ -116,10 +116,8 @@ class ScreenPowerStatsProcessor extends PowerStatsProcessor {
         computeDevicePowerEstimates(stats);
         combineDeviceStateEstimates();
 
-        List<Integer> uids = new ArrayList<>();
-        stats.collectUids(uids);
-
-        if (!uids.isEmpty()) {
+        IntArray uids = stats.getActiveUids();
+        if (uids.size() != 0) {
             computeUidPowerEstimates(stats, uids);
         }
         mPlan.resetIntermediates();
@@ -197,7 +195,7 @@ class ScreenPowerStatsProcessor extends PowerStatsProcessor {
     }
 
     private void computeUidPowerEstimates(PowerComponentAggregatedPowerStats stats,
-            List<Integer> uids) {
+            IntArray uids) {
         int[] uidStateValues = new int[stats.getConfig().getUidStateConfig().length];
         uidStateValues[STATE_SCREEN] = SCREEN_STATE_ON;
         uidStateValues[STATE_PROCESS_STATE] = PROCESS_STATE_UNSPECIFIED;
@@ -232,9 +230,11 @@ class ScreenPowerStatsProcessor extends PowerStatsProcessor {
                 int uid = uids.get(j);
                 if (stats.getUidStats(mTmpUidStatsArray, uid, uidStateValues)) {
                     long duration = mStatsLayout.getUidTopActivityDuration(mTmpUidStatsArray);
-                    double power = intermediates.power * duration / totalTopActivityDuration;
-                    mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
-                    stats.setUidStats(uid, uidStateValues, mTmpUidStatsArray);
+                    if (duration != 0) {
+                        double power = intermediates.power * duration / totalTopActivityDuration;
+                        mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
+                        stats.setUidStats(uid, uidStateValues, mTmpUidStatsArray);
+                    }
                 }
             }
         }

@@ -25,7 +25,11 @@
 #include <mutex>
 #include <vector>
 
-namespace android::uirenderer {
+namespace android {
+
+class SurfaceControl;
+
+namespace uirenderer {
 
 class WebViewFunctorManager;
 
@@ -100,7 +104,9 @@ private:
     bool mHasContext = false;
     bool mCreatedHandle = false;
     int32_t mParentSurfaceControlGenerationId = 0;
-    ASurfaceControl* mSurfaceControl = nullptr;
+#ifdef __ANDROID__
+    sp<SurfaceControl> mSurfaceControl = nullptr;
+#endif
     std::vector<pid_t> mRenderingThreads;
 };
 
@@ -126,4 +132,5 @@ private:
     std::vector<sp<WebViewFunctor::Handle>> mActiveFunctors;
 };
 
-}  // namespace android::uirenderer
+}  // namespace uirenderer
+}  // namespace android

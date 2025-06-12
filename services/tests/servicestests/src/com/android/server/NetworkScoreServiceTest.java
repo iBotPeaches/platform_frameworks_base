@@ -23,10 +23,10 @@ import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 import static junit.framework.Assert.fail;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyListOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -35,7 +35,6 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.Manifest.permission;
@@ -243,7 +242,7 @@ public class NetworkScoreServiceTest {
     @Test
     public void testRequestScores_providerNotConnected() throws Exception {
         assertFalse(mNetworkScoreService.requestScores(new NetworkKey[0]));
-        verifyZeroInteractions(mRecommendationProvider);
+        verifyNoMoreInteractions(mRecommendationProvider);
     }
 
     @Test
@@ -328,8 +327,8 @@ public class NetworkScoreServiceTest {
         // updateScores should update both caches
         mNetworkScoreService.updateScores(new ScoredNetwork[]{SCORED_NETWORK});
 
-        verify(mNetworkScoreCache).updateScores(anyListOf(ScoredNetwork.class));
-        verify(mNetworkScoreCache2).updateScores(anyListOf(ScoredNetwork.class));
+        verify(mNetworkScoreCache).updateScores(anyList());
+        verify(mNetworkScoreCache2).updateScores(anyList());
 
         mNetworkScoreService.unregisterNetworkScoreCache(
                 NetworkKey.TYPE_WIFI, mNetworkScoreCache2);
@@ -337,7 +336,7 @@ public class NetworkScoreServiceTest {
         // updateScores should only update the first cache since the 2nd has been unregistered
         mNetworkScoreService.updateScores(new ScoredNetwork[]{SCORED_NETWORK});
 
-        verify(mNetworkScoreCache, times(2)).updateScores(anyListOf(ScoredNetwork.class));
+        verify(mNetworkScoreCache, times(2)).updateScores(anyList());
 
         mNetworkScoreService.unregisterNetworkScoreCache(
                 NetworkKey.TYPE_WIFI, mNetworkScoreCache);
@@ -604,7 +603,7 @@ public class NetworkScoreServiceTest {
         consumer.accept(mNetworkScoreCache, null /*cookie*/);
 
         verify(mNetworkScoreCache).updateScores(scoredNetworkList);
-        verifyZeroInteractions(mCurrentNetworkFilter, mScanResultsFilter);
+        verifyNoMoreInteractions(mCurrentNetworkFilter, mScanResultsFilter);
     }
 
     @Test
@@ -618,7 +617,7 @@ public class NetworkScoreServiceTest {
         consumer.accept(mNetworkScoreCache, NetworkScoreManager.SCORE_FILTER_NONE);
 
         verify(mNetworkScoreCache).updateScores(scoredNetworkList);
-        verifyZeroInteractions(mCurrentNetworkFilter, mScanResultsFilter);
+        verifyNoMoreInteractions(mCurrentNetworkFilter, mScanResultsFilter);
     }
 
     @Test
@@ -632,7 +631,7 @@ public class NetworkScoreServiceTest {
         consumer.accept(mNetworkScoreCache, -1 /*cookie*/);
 
         verify(mNetworkScoreCache).updateScores(scoredNetworkList);
-        verifyZeroInteractions(mCurrentNetworkFilter, mScanResultsFilter);
+        verifyNoMoreInteractions(mCurrentNetworkFilter, mScanResultsFilter);
     }
 
     @Test
@@ -646,7 +645,7 @@ public class NetworkScoreServiceTest {
         consumer.accept(mNetworkScoreCache, "not an int" /*cookie*/);
 
         verify(mNetworkScoreCache).updateScores(scoredNetworkList);
-        verifyZeroInteractions(mCurrentNetworkFilter, mScanResultsFilter);
+        verifyNoMoreInteractions(mCurrentNetworkFilter, mScanResultsFilter);
     }
 
     @Test
@@ -658,7 +657,7 @@ public class NetworkScoreServiceTest {
 
         consumer.accept(mNetworkScoreCache, NetworkScoreManager.SCORE_FILTER_NONE);
 
-        verifyZeroInteractions(mNetworkScoreCache, mCurrentNetworkFilter, mScanResultsFilter);
+        verifyNoMoreInteractions(mNetworkScoreCache, mCurrentNetworkFilter, mScanResultsFilter);
     }
 
     @Test
@@ -676,7 +675,7 @@ public class NetworkScoreServiceTest {
         consumer.accept(mNetworkScoreCache, NetworkScoreManager.SCORE_FILTER_CURRENT_NETWORK);
 
         verify(mNetworkScoreCache).updateScores(filteredList);
-        verifyZeroInteractions(mScanResultsFilter);
+        verifyNoMoreInteractions(mScanResultsFilter);
     }
 
     @Test
@@ -694,7 +693,7 @@ public class NetworkScoreServiceTest {
         consumer.accept(mNetworkScoreCache, NetworkScoreManager.SCORE_FILTER_SCAN_RESULTS);
 
         verify(mNetworkScoreCache).updateScores(filteredList);
-        verifyZeroInteractions(mCurrentNetworkFilter);
+        verifyNoMoreInteractions(mCurrentNetworkFilter);
     }
 
     @Test

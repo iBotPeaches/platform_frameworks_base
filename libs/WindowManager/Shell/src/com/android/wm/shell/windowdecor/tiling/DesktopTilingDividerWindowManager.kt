@@ -16,6 +16,9 @@
 
 package com.android.wm.shell.windowdecor.tiling
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Path
@@ -34,7 +37,6 @@ import android.view.WindowManager
 import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
 import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
 import android.view.WindowManager.LayoutParams.FLAG_SLIPPERY
-import android.view.WindowManager.LayoutParams.FLAG_SPLIT_TOUCH
 import android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
 import android.view.WindowManager.LayoutParams.PRIVATE_FLAG_NO_MOVE_ANIMATION
 import android.view.WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERLAY
@@ -58,6 +60,7 @@ class DesktopTilingDividerWindowManager(
     private val transactionSupplier: Supplier<SurfaceControl.Transaction>,
     private var dividerBounds: Rect,
     private val displayContext: Context,
+    private val isDarkMode: Boolean,
 ) : WindowlessWindowManager(config, leash, null), DividerMoveCallback, View.OnLayoutChangeListener {
     private lateinit var viewHost: SurfaceControlViewHost
     private var tilingDividerView: TilingDividerView? = null
@@ -144,7 +147,6 @@ class DesktopTilingDividerWindowManager(
      * @param relativeLeash the task leash that the TilingDividerView should be shown on top of.
      */
     fun generateViewHost(relativeLeash: SurfaceControl) {
-        val t = transactionSupplier.get()
         val surfaceControlViewHost =
             SurfaceControlViewHost(context, context.display, this, "DesktopTilingManager")
         val dividerView =
@@ -154,23 +156,51 @@ class DesktopTilingDividerWindowManager(
         surfaceControlViewHost.setView(dividerView, lp)
         val tmpDividerBounds = Rect()
         getDividerBounds(tmpDividerBounds)
-        dividerView.setup(this, tmpDividerBounds, handleRegionSize)
-        t.setRelativeLayer(leash, relativeLeash, 1)
-            .setPosition(
-                leash,
-                dividerBounds.left.toFloat() - maxRoundedCornerRadius,
-                dividerBounds.top.toFloat(),
-            )
-            .show(leash)
-        syncQueue.runInSync { transaction ->
-            transaction.merge(t)
-            t.close()
-        }
-        dividerShown = true
+        dividerView.setup(this, tmpDividerBounds, handleRegionSize, isDarkMode)
+        val dividerAnimatorT = transactionSupplier.get()
+        val dividerAnimator =
+            ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = DIVIDER_FADE_IN_ALPHA_DURATION
+                addUpdateListener {
+                    dividerAnimatorT.setAlpha(leash, animatedValue as Float).apply()
+                }
+                addListener(
+                    object : AnimatorListenerAdapter() {
+                        override fun onAnimationStart(animation: Animator) {
+                            dividerAnimatorT
+                                .setRelativeLayer(leash, relativeLeash, 1)
+                                .setPosition(
+                                    leash,
+                                    dividerBounds.left.toFloat() - maxRoundedCornerRadius,
+                                    dividerBounds.top.toFloat(),
+                                )
+                                .setAlpha(leash, 0f)
+                                .show(leash)
+                                .apply()
+                        }
+
+                        override fun onAnimationEnd(animation: Animator) {
+                            dividerAnimatorT.setAlpha(leash, 1f).apply()
+                            dividerShown = true
+                        }
+                    }
+                )
+            }
+        dividerAnimator.start()
         viewHost = surfaceControlViewHost
-        dividerView.addOnLayoutChangeListener(this)
         tilingDividerView = dividerView
         updateTouchRegion()
+        dividerView.addOnLayoutChangeListener(this)
+    }
+
+    /** Changes divider colour if dark/light mode is toggled. */
+    fun onUiModeChange(isDarkMode: Boolean) {
+        tilingDividerView?.onUiModeChange(isDarkMode)
+    }
+
+    /** Notifies the divider view of task info change and possible color change. */
+    fun onTaskInfoChange() {
+        tilingDividerView?.onTaskInfoChange()
     }
 
     /** Hides the divider bar. */
@@ -240,7 +270,6 @@ class DesktopTilingDividerWindowManager(
                 FLAG_NOT_FOCUSABLE or
                     FLAG_NOT_TOUCH_MODAL or
                     FLAG_WATCH_OUTSIDE_TOUCH or
-                    FLAG_SPLIT_TOUCH or
                     FLAG_SLIPPERY,
                 PixelFormat.TRANSLUCENT,
             )
@@ -306,5 +335,9 @@ class DesktopTilingDividerWindowManager(
                 RoundedCorner.POSITION_BOTTOM_LEFT,
             )
             .maxOf { position -> display.getRoundedCorner(position)?.getRadius() ?: 0 }
+    }
+
+    companion object {
+        private const val DIVIDER_FADE_IN_ALPHA_DURATION = 300L
     }
 }

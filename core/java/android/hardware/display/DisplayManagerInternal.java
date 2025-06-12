@@ -449,6 +449,11 @@ public abstract class DisplayManagerInternal {
     public abstract IntArray getDisplayIds();
 
     /**
+     * Get group id for given display id
+     */
+    public abstract int getGroupIdForDisplay(int displayId);
+
+    /**
      * Called upon presentation started/ended on the display.
      * @param displayId the id of the display where presentation started.
      * @param isShown whether presentation is shown.
@@ -469,6 +474,22 @@ public abstract class DisplayManagerInternal {
      * system property is enabled.
      */
     public abstract boolean isDisplayReadyForMirroring(int displayId);
+
+    /**
+     * Called by {@link com.android.server.wm.WindowManagerService} to notify whether a display
+     * should be in the topology.
+     * @param displayId The logical ID of the display
+     * @param inTopology Whether the display should be in the topology. This being true does not
+     *                   guarantee that the display will be in the topology - Display Manager might
+     *                   also check other parameters.
+     */
+    public abstract void onDisplayBelongToTopologyChanged(int displayId, boolean inTopology);
+
+    /**
+     * Called by {@link  com.android.server.display.DisplayBackupHelper} when backup files were
+     * restored and are ready to be reloaded.
+     */
+    public abstract void reloadTopologies(int userId);
 
 
     /**

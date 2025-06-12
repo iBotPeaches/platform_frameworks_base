@@ -21,39 +21,58 @@ import android.media.session.MediaController.PlaybackInfo
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.Flags
 import com.android.systemui.common.shared.model.Icon
+import com.android.systemui.dagger.qualifiers.UiBackground
+import com.android.systemui.haptics.slider.SliderHapticFeedbackFilter
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.res.R
 import com.android.systemui.volume.panel.component.mediaoutput.domain.interactor.MediaDeviceSessionInteractor
 import com.android.systemui.volume.panel.component.mediaoutput.shared.model.MediaDeviceSession
+import com.android.systemui.volume.panel.shared.VolumePanelLogger
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 
 class CastVolumeSliderViewModel
 @AssistedInject
 constructor(
     @Assisted private val session: MediaDeviceSession,
     @Assisted private val coroutineScope: CoroutineScope,
+    @UiBackground private val uiBackgroundContext: CoroutineContext,
     private val context: Context,
     private val mediaDeviceSessionInteractor: MediaDeviceSessionInteractor,
     private val hapticsViewModelFactory: SliderHapticsViewModel.Factory,
+    private val volumePanelLogger: VolumePanelLogger,
 ) : SliderViewModel {
 
+    private val castLabel = context.getString(R.string.media_device_cast)
+    private val castIcon =
+        Icon.Loaded(
+            drawable = context.getDrawable(R.drawable.ic_cast)!!,
+            contentDescription = null,
+            res = R.drawable.ic_cast,
+        )
     override val slider: StateFlow<SliderState> =
         mediaDeviceSessionInteractor
             .playbackInfo(session)
-            .mapNotNull { it?.getCurrentState() }
+            .mapNotNull {
+                volumePanelLogger.onVolumeUpdateReceived(session.sessionToken, it.currentVolume)
+                withContext(uiBackgroundContext) { it.getCurrentState() }
+            }
             .stateIn(coroutineScope, SharingStarted.Eagerly, SliderState.Empty)
 
     override fun onValueChanged(state: SliderState, newValue: Float) {
         coroutineScope.launch {
-            mediaDeviceSessionInteractor.setSessionVolume(session, newValue.roundToInt())
+            val volume = newValue.roundToInt()
+            volumePanelLogger.onSetVolumeRequested(session.sessionToken, volume)
+            mediaDeviceSessionInteractor.setSessionVolume(session, volume)
         }
     }
 
@@ -75,26 +94,32 @@ constructor(
         return State(
             value = currentVolume.toFloat(),
             valueRange = volumeRange.first.toFloat()..volumeRange.last.toFloat(),
-            icon = Icon.Resource(R.drawable.ic_cast, null),
-            label = context.getString(R.string.media_device_cast),
+            icon = castIcon,
+            label = castLabel,
             isEnabled = true,
-            a11yStep = 1,
+            step = 1f,
         )
     }
 
     private data class State(
         override val value: Float,
         override val valueRange: ClosedFloatingPointRange<Float>,
-        override val icon: Icon,
+        override val icon: Icon.Loaded?,
         override val label: String,
         override val isEnabled: Boolean,
-        override val a11yStep: Int,
+        override val step: Float,
     ) : SliderState {
+        override val hapticFilter: SliderHapticFeedbackFilter
+            get() = SliderHapticFeedbackFilter()
+
         override val disabledMessage: String?
             get() = null
 
         override val isMutable: Boolean
             get() = false
+
+        override val a11yContentDescription: String
+            get() = label
 
         override val a11yClickDescription: String?
             get() = null

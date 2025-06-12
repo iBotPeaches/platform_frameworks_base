@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 
 import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.TouchListener;
@@ -29,6 +30,7 @@ import com.android.internal.widget.remotecompose.core.operations.FloatExpression
 import com.android.internal.widget.remotecompose.core.operations.ShaderData;
 import com.android.internal.widget.remotecompose.core.operations.utilities.ArrayAccess;
 import com.android.internal.widget.remotecompose.core.operations.utilities.DataMap;
+import com.android.internal.widget.remotecompose.core.types.LongConstant;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -40,7 +42,7 @@ import java.util.HashMap;
  *
  * <p>This is used to play the RemoteCompose operations on Android.
  */
-class AndroidRemoteContext extends RemoteContext {
+public class AndroidRemoteContext extends RemoteContext {
 
     public void useCanvas(Canvas canvas) {
         if (mPaintContext == null) {
@@ -121,6 +123,50 @@ class AndroidRemoteContext extends RemoteContext {
         mVarNameHashMap.put(integerName, null);
     }
 
+    @Override
+    public void setNamedFloatOverride(String floatName, float value) {
+        if (mVarNameHashMap.get(floatName) != null) {
+            int id = mVarNameHashMap.get(floatName).mId;
+            overrideFloat(id, value);
+        }
+    }
+
+    @Override
+    public void clearNamedFloatOverride(String floatName) {
+        if (mVarNameHashMap.get(floatName) != null) {
+            int id = mVarNameHashMap.get(floatName).mId;
+            clearFloatOverride(id);
+        }
+        mVarNameHashMap.put(floatName, null);
+    }
+
+    @Override
+    public void setNamedLong(String name, long value) {
+        VarName entry = mVarNameHashMap.get(name);
+        if (entry != null) {
+            int id = entry.mId;
+            LongConstant longConstant = (LongConstant) mRemoteComposeState.getObject(id);
+            longConstant.setValue(value);
+        }
+    }
+
+    @Override
+    public void setNamedDataOverride(String dataName, Object value) {
+        if (mVarNameHashMap.get(dataName) != null) {
+            int id = mVarNameHashMap.get(dataName).mId;
+            overrideData(id, value);
+        }
+    }
+
+    @Override
+    public void clearNamedDataOverride(String dataName) {
+        if (mVarNameHashMap.get(dataName) != null) {
+            int id = mVarNameHashMap.get(dataName).mId;
+            clearDataOverride(id);
+        }
+        mVarNameHashMap.put(dataName, null);
+    }
+
     /**
      * Override a color to force it to be the color provided
      *
@@ -149,7 +195,7 @@ class AndroidRemoteContext extends RemoteContext {
 
     @Override
     public void runAction(int id, @NonNull String metadata) {
-        mDocument.performClick(id);
+        mDocument.performClick(this, id, metadata);
     }
 
     @Override
@@ -178,6 +224,27 @@ class AndroidRemoteContext extends RemoteContext {
                     switch (type) {
                         case BitmapData.TYPE_PNG_8888:
                             image = BitmapFactory.decodeByteArray(data, 0, data.length);
+                            break;
+                        case BitmapData.TYPE_PNG_ALPHA_8:
+                            image = decodePreferringAlpha8(data);
+
+                            // If needed convert to ALPHA_8.
+                            if (!image.getConfig().equals(Bitmap.Config.ALPHA_8)) {
+                                Bitmap alpha8Bitmap =
+                                        Bitmap.createBitmap(
+                                                image.getWidth(),
+                                                image.getHeight(),
+                                                Bitmap.Config.ALPHA_8);
+                                Canvas canvas = new Canvas(alpha8Bitmap);
+                                Paint paint = new Paint();
+                                paint.setXfermode(
+                                        new android.graphics.PorterDuffXfermode(
+                                                android.graphics.PorterDuff.Mode.SRC));
+                                canvas.drawBitmap(image, 0, 0, paint);
+                                image.recycle(); // Release resources
+
+                                image = alpha8Bitmap;
+                            }
                             break;
                         case BitmapData.TYPE_RAW8888:
                             image = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
@@ -219,6 +286,12 @@ class AndroidRemoteContext extends RemoteContext {
         }
     }
 
+    private Bitmap decodePreferringAlpha8(@NonNull byte[] data) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inPreferredConfig = Bitmap.Config.ALPHA_8;
+        return BitmapFactory.decodeByteArray(data, 0, data.length, options);
+    }
+
     @Override
     public void loadText(int id, @NonNull String text) {
         if (!mRemoteComposeState.containsId(id)) {
@@ -236,12 +309,20 @@ class AndroidRemoteContext extends RemoteContext {
         mRemoteComposeState.overrideInteger(id, value);
     }
 
+    public void overrideData(int id, Object value) {
+        mRemoteComposeState.overrideData(id, value);
+    }
+
     public void clearDataOverride(int id) {
         mRemoteComposeState.clearDataOverride(id);
     }
 
     public void clearIntegerOverride(int id) {
         mRemoteComposeState.clearIntegerOverride(id);
+    }
+
+    public void clearFloatOverride(int id) {
+        mRemoteComposeState.clearFloatOverride(id);
     }
 
     @Override
@@ -306,6 +387,11 @@ class AndroidRemoteContext extends RemoteContext {
     @Override
     public int getInteger(int id) {
         return mRemoteComposeState.getInteger(id);
+    }
+
+    @Override
+    public long getLong(int id) {
+        return ((LongConstant) mRemoteComposeState.getObject(id)).getValue();
     }
 
     @Override

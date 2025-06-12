@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include <FrameMetricsObserver.h>
 #include <FrameMetricsReporter.h>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <utils/TimeUtils.h>
+
+#include "FrameInfo.h"
 
 using namespace android;
 using namespace android::uirenderer;
@@ -31,7 +32,7 @@ public:
     explicit TestFrameMetricsObserver(bool waitForPresentTime)
             : FrameMetricsObserver(waitForPresentTime){};
 
-    MOCK_METHOD(void, notify, (const int64_t* buffer), (override));
+    MOCK_METHOD(void, notify, (const FrameInfoBuffer& buffer), (override));
 };
 
 // To make sure it is clear that something went wrong if no from frame is set (to make it easier
@@ -44,7 +45,7 @@ TEST(FrameMetricsReporter, doesNotReportAnyFrameIfNoFromFrameIsSpecified) {
 
     reporter->addObserver(observer.get());
 
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = false;
     uint64_t frameNumber = 1;
     int32_t surfaceControlId = 0;
@@ -64,7 +65,7 @@ TEST(FrameMetricsReporter, doesNotReportAnyFrameIfNoFromFrameIsSpecified) {
 }
 
 TEST(FrameMetricsReporter, respectsWaitForPresentTimeUnset) {
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = false;
     uint64_t frameNumber = 3;
     int32_t surfaceControlId = 0;
@@ -85,7 +86,7 @@ TEST(FrameMetricsReporter, respectsWaitForPresentTimeUnset) {
 }
 
 TEST(FrameMetricsReporter, respectsWaitForPresentTimeSet) {
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = true;
     uint64_t frameNumber = 3;
     int32_t surfaceControlId = 0;
@@ -106,7 +107,7 @@ TEST(FrameMetricsReporter, respectsWaitForPresentTimeSet) {
 }
 
 TEST(FrameMetricsReporter, reportsAllFramesAfterSpecifiedFromFrame) {
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = false;
 
     std::vector<uint64_t> frameNumbers{0, 1, 10};
@@ -138,7 +139,7 @@ TEST(FrameMetricsReporter, reportsAllFramesAfterSpecifiedFromFrame) {
 }
 
 TEST(FrameMetricsReporter, doesNotReportsFramesBeforeSpecifiedFromFrame) {
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = false;
 
     std::vector<uint64_t> frameNumbers{1, 10};
@@ -165,7 +166,7 @@ TEST(FrameMetricsReporter, doesNotReportsFramesBeforeSpecifiedFromFrame) {
 }
 
 TEST(FrameMetricsReporter, canRemoveObservers) {
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = false;
     uint64_t frameNumber = 3;
     int32_t surfaceControlId = 0;
@@ -187,7 +188,7 @@ TEST(FrameMetricsReporter, canRemoveObservers) {
 }
 
 TEST(FrameMetricsReporter, canSupportMultipleObservers) {
-    const int64_t* stats;
+    FrameInfoBuffer stats;
     bool hasPresentTime = false;
     uint64_t frameNumber = 3;
     int32_t surfaceControlId = 0;

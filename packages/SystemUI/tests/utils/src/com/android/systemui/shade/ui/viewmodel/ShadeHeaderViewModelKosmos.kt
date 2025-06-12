@@ -14,29 +14,44 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalKairosApi::class)
+
 package com.android.systemui.shade.ui.viewmodel
 
 import android.content.applicationContext
-import com.android.systemui.broadcast.broadcastDispatcher
+import com.android.systemui.battery.batteryMeterViewControllerFactory
+import com.android.systemui.kairos.ExperimentalKairosApi
+import com.android.systemui.kairos.kairos
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.plugins.activityStarter
+import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.shade.domain.interactor.privacyChipInteractor
 import com.android.systemui.shade.domain.interactor.shadeHeaderClockInteractor
 import com.android.systemui.shade.domain.interactor.shadeInteractor
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
+import com.android.systemui.statusbar.phone.ui.StatusBarIconController
+import com.android.systemui.statusbar.phone.ui.tintedIconManagerFactory
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.mobileIconsInteractor
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.mobileIconsViewModel
+import org.mockito.kotlin.mock
 
 val Kosmos.shadeHeaderViewModel: ShadeHeaderViewModel by
     Kosmos.Fixture {
         ShadeHeaderViewModel(
             context = applicationContext,
             activityStarter = activityStarter,
+            sceneInteractor = sceneInteractor,
             shadeInteractor = shadeInteractor,
+            shadeModeInteractor = shadeModeInteractor,
             mobileIconsInteractor = mobileIconsInteractor,
             mobileIconsViewModel = mobileIconsViewModel,
             privacyChipInteractor = privacyChipInteractor,
             clockInteractor = shadeHeaderClockInteractor,
-            broadcastDispatcher = broadcastDispatcher,
+            tintedIconManagerFactory = tintedIconManagerFactory,
+            batteryMeterViewControllerFactory = batteryMeterViewControllerFactory,
+            statusBarIconController = mock<StatusBarIconController>(),
+            kairosNetwork = kairos,
+            mobileIconsViewModelKairos = mock(),
         )
     }
 

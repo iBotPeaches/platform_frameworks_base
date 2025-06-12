@@ -16,6 +16,9 @@
 
 package com.android.internal.protolog.common;
 
+import android.ravenwood.annotation.RavenwoodKeepWholeClass;
+
+@RavenwoodKeepWholeClass
 public enum LogLevel {
     DEBUG("d", 1),
     VERBOSE("v", 2),

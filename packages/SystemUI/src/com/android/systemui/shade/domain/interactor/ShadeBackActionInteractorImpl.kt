@@ -20,23 +20,25 @@ import com.android.systemui.deviceentry.domain.interactor.DeviceEntryInteractor
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.model.SceneFamilies
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.shade.shared.model.ShadeMode
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 /** Implementation of ShadeBackActionInteractor backed by scenes. */
-@OptIn(ExperimentalCoroutinesApi::class)
 class ShadeBackActionInteractorImpl
 @Inject
 constructor(
     val shadeInteractor: ShadeInteractor,
+    val shadeModeInteractor: ShadeModeInteractor,
     val sceneInteractor: SceneInteractor,
     val deviceEntryInteractor: DeviceEntryInteractor,
 ) : ShadeBackActionInteractor {
     override fun animateCollapseQs(fullyCollapse: Boolean) {
         if (shadeInteractor.isQsExpanded.value) {
             val key =
-                if (fullyCollapse || shadeInteractor.shadeMode.value is ShadeMode.Dual) {
+                if (
+                    fullyCollapse ||
+                        shadeModeInteractor.isDualShade ||
+                        shadeModeInteractor.isSplitShade
+                ) {
                     SceneFamilies.Home
                 } else {
                     Scenes.Shade
@@ -47,11 +49,6 @@ constructor(
 
     override fun canBeCollapsed(): Boolean {
         return shadeInteractor.isAnyExpanded.value && !shadeInteractor.isUserInteracting.value
-    }
-
-    @Deprecated("Only supported by very old devices that will not adopt scenes.")
-    override fun closeUserSwitcherIfOpen(): Boolean {
-        return false
     }
 
     override fun onBackPressed() {

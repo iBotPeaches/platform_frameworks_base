@@ -43,7 +43,6 @@ import androidx.test.filters.SmallTest;
 
 import com.android.server.LocalServices;
 import com.android.server.wm.TransitionController.OnStartCollect;
-import com.android.window.flags.Flags;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -218,7 +217,6 @@ public class DisplayContentDeferredUpdateTests extends WindowTestsBase {
 
     @Test
     public void testWaitForTransition_displaySwitching_waitsForTransitionToBeStarted() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_WAIT_FOR_TRANSITION_ON_DISPLAY_SWITCH);
         mDisplayContent.mDisplayUpdater.onDisplaySwitching(/* switching= */ true);
         boolean willWait = mDisplayContent.mDisplayUpdater.waitForTransition(mScreenUnblocker);
         assertThat(willWait).isTrue();
@@ -241,7 +239,6 @@ public class DisplayContentDeferredUpdateTests extends WindowTestsBase {
 
     @Test
     public void testWaitForTransition_displayNotSwitching_doesNotWait() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_WAIT_FOR_TRANSITION_ON_DISPLAY_SWITCH);
         mDisplayContent.mDisplayUpdater.onDisplaySwitching(/* switching= */ false);
 
         boolean willWait = mDisplayContent.mDisplayUpdater.waitForTransition(mScreenUnblocker);
@@ -251,25 +248,13 @@ public class DisplayContentDeferredUpdateTests extends WindowTestsBase {
     }
 
     @Test
-    public void testWaitForTransition_displayIsSwitchingButFlagDisabled_doesNotWait() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_WAIT_FOR_TRANSITION_ON_DISPLAY_SWITCH);
-        mDisplayContent.mDisplayUpdater.onDisplaySwitching(/* switching= */ true);
-
-        boolean willWait = mDisplayContent.mDisplayUpdater.waitForTransition(mScreenUnblocker);
-
-        assertThat(willWait).isFalse();
-        verify(mScreenUnblocker, never()).sendToTarget();
-    }
-
-    @Test
     public void testTwoDisplayUpdateAtTheSameTime_bothDisplaysAreUnblocked() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_WAIT_FOR_TRANSITION_ON_DISPLAY_SWITCH);
         prepareSecondaryDisplay();
 
-        final WindowState defaultDisplayWindow = createWindow(/* parent= */ null,
-                TYPE_BASE_APPLICATION, mDisplayContent, "DefaultDisplayWindow");
-        final WindowState secondaryDisplayWindow = createWindow(/* parent= */ null,
-                TYPE_BASE_APPLICATION, mSecondaryDisplayContent, "SecondaryDisplayWindow");
+        final WindowState defaultDisplayWindow = newWindowBuilder("DefaultDisplayWindow",
+                TYPE_BASE_APPLICATION).setDisplay(mDisplayContent).build();
+        final WindowState secondaryDisplayWindow = newWindowBuilder("SecondaryDisplayWindow",
+                TYPE_BASE_APPLICATION).setDisplay(mSecondaryDisplayContent).build();
         makeWindowVisibleAndNotDrawn(defaultDisplayWindow, secondaryDisplayWindow);
 
         // Mark as display switching only for the default display as we filter out

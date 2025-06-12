@@ -28,15 +28,21 @@ import com.android.internal.annotations.VisibleForTesting;
 import java.util.NoSuchElementException;
 
 /**
- * HealthServiceWrapper wraps the internal IHealth service and refreshes the service when necessary.
- * This is essentially a wrapper over IHealth that is useful for BatteryService.
+ * HealthServiceWrapper wraps the internal IHealth service and refreshes the
+ * service when necessary.
  *
- * <p>The implementation may be backed by a HIDL or AIDL HAL.
+ * This is essentially a wrapper over IHealth that is useful for BatteryService,
+ * and TradeInModeService.
  *
- * <p>On new registration of IHealth service, the internal service is refreshed. On death of an
- * existing IHealth service, the internal service is NOT cleared to avoid race condition between
- * death notification and new service notification. Hence, a caller must check for transaction
- * errors when calling into the service.
+ * <p>
+ * The implementation may be backed by a HIDL or AIDL HAL.
+ *
+ * <p>
+ * On new registration of IHealth service, the internal service is refreshed. On
+ * death of an existing IHealth service, the internal service is NOT cleared to
+ * avoid race condition between death notification and new service notification.
+ * Hence, a caller must check for transaction errors when calling into the
+ * service.
  *
  * @hide Should only be used internally.
  */
@@ -46,7 +52,8 @@ public abstract class HealthServiceWrapper {
     abstract HandlerThread getHandlerThread();
 
     /**
-     * Calls into get*() functions in the health HAL. This reads into the kernel interfaces
+     * Calls into get*() functions in the health HAL. This reads into the kernel
+     * interfaces
      * directly.
      *
      * @see IBatteryPropertiesRegistrar#getProperty
@@ -61,11 +68,14 @@ public abstract class HealthServiceWrapper {
     public abstract void scheduleUpdate() throws RemoteException;
 
     /**
-     * Calls into getHealthInfo() in the health HAL. This returns a cached value in the health HAL
+     * Calls into getHealthInfo() in the health HAL. This returns a cached value in
+     * the health HAL
      * implementation.
      *
-     * @return health info. {@code null} if no health HAL service. {@code null} if any
-     *     service-specific error when calling {@code getHealthInfo}, e.g. it is unsupported.
+     * @return health info. {@code null} if no health HAL service. {@code null} if
+     *         any
+     *         service-specific error when calling {@code getHealthInfo}, e.g. it is
+     *         unsupported.
      * @throws RemoteException for any transaction-level errors
      */
     public abstract android.hardware.health.HealthInfo getHealthInfo() throws RemoteException;
@@ -77,7 +87,7 @@ public abstract class HealthServiceWrapper {
      * this one.
      *
      * @return battery health data. {@code null} if no health HAL service.
-     *     {@code null} if any service-specific error when calling {@code
+     *         {@code null} if any service-specific error when calling {@code
      *     getBatteryHealthData}, e.g. it is unsupported.
      * @throws RemoteException for any transaction-level errors
      */
@@ -89,31 +99,40 @@ public abstract class HealthServiceWrapper {
      * Create a new HealthServiceWrapper instance.
      *
      * @param healthInfoCallback the callback to call when health info changes
-     * @return the new HealthServiceWrapper instance, which may be backed by HIDL or AIDL service.
-     * @throws RemoteException transaction errors
+     * @return the new HealthServiceWrapper instance, which may be backed by HIDL or
+     *         AIDL service.
+     * @throws RemoteException        transaction errors
      * @throws NoSuchElementException no HIDL or AIDL service is available
      */
     public static HealthServiceWrapper create(@Nullable HealthInfoCallback healthInfoCallback)
             throws RemoteException, NoSuchElementException {
         return create(
                 healthInfoCallback == null ? null : new HealthRegCallbackAidl(healthInfoCallback),
-                new HealthServiceWrapperAidl.ServiceManagerStub() {},
+                new HealthServiceWrapperAidl.ServiceManagerStub() {
+                },
                 healthInfoCallback == null ? null : new HealthHalCallbackHidl(healthInfoCallback),
-                new HealthServiceWrapperHidl.IServiceManagerSupplier() {},
-                new HealthServiceWrapperHidl.IHealthSupplier() {});
+                new HealthServiceWrapperHidl.IServiceManagerSupplier() {
+                },
+                new HealthServiceWrapperHidl.IHealthSupplier() {
+                });
     }
 
     /**
      * Create a new HealthServiceWrapper instance for testing.
      *
-     * @param aidlRegCallback callback for AIDL service registration, or {@code null} if the client
-     *     does not care about AIDL service registration notifications
-     * @param aidlServiceManager Stub for AIDL ServiceManager
-     * @param hidlRegCallback callback for HIDL service registration, or {@code null} if the client
-     *     does not care about HIDL service registration notifications
+     * @param aidlRegCallback            callback for AIDL service registration, or
+     *                                   {@code null} if the client
+     *                                   does not care about AIDL service
+     *                                   registration notifications
+     * @param aidlServiceManager         Stub for AIDL ServiceManager
+     * @param hidlRegCallback            callback for HIDL service registration, or
+     *                                   {@code null} if the client
+     *                                   does not care about HIDL service
+     *                                   registration notifications
      * @param hidlServiceManagerSupplier supplier of HIDL service manager
-     * @param hidlHealthSupplier supplier of HIDL health HAL
-     * @return the new HealthServiceWrapper instance, which may be backed by HIDL or AIDL service.
+     * @param hidlHealthSupplier         supplier of HIDL health HAL
+     * @return the new HealthServiceWrapper instance, which may be backed by HIDL or
+     *         AIDL service.
      */
     @VisibleForTesting
     static @NonNull HealthServiceWrapper create(

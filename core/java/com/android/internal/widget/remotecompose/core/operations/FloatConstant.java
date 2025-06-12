@@ -25,30 +25,41 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
-/** Operation to deal with Text data */
-public class FloatConstant extends Operation {
+/** Used to represent a float */
+public class FloatConstant extends Operation implements Serializable {
     private static final int OP_CODE = Operations.DATA_FLOAT;
     private static final String CLASS_NAME = "FloatConstant";
-    public int mTextId;
+    public int mId;
     public float mValue;
 
-    public FloatConstant(int textId, float value) {
-        this.mTextId = textId;
+    public FloatConstant(int id, float value) {
+        this.mId = id;
         this.mValue = value;
+    }
+
+    /**
+     * Copy the value from another operation
+     *
+     * @param from value to copy from
+     */
+    public void update(FloatConstant from) {
+        mValue = from.mValue;
     }
 
     @Override
     public void write(@NonNull WireBuffer buffer) {
-        apply(buffer, mTextId, mValue);
+        apply(buffer, mId, mValue);
     }
 
     @NonNull
     @Override
     public String toString() {
-        return "FloatConstant[" + mTextId + "] = " + mValue;
+        return "FloatConstant[" + mId + "] = " + mValue;
     }
 
     /**
@@ -90,10 +101,10 @@ public class FloatConstant extends Operation {
      * @param operations the list of operations that will be added to
      */
     public static void read(@NonNull WireBuffer buffer, @NonNull List<Operation> operations) {
-        int textId = buffer.readInt();
+        int id = buffer.readInt();
 
         float value = buffer.readFloat();
-        operations.add(new FloatConstant(textId, value));
+        operations.add(new FloatConstant(id, value));
     }
 
     /**
@@ -110,12 +121,17 @@ public class FloatConstant extends Operation {
 
     @Override
     public void apply(@NonNull RemoteContext context) {
-        context.loadFloat(mTextId, mValue);
+        context.loadFloat(mId, mValue);
     }
 
     @NonNull
     @Override
     public String deepToString(@NonNull String indent) {
         return indent + toString();
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("id", mId).add("value", mValue);
     }
 }

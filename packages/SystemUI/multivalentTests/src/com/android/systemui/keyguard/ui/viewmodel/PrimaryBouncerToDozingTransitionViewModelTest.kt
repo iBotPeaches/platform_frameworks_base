@@ -30,16 +30,15 @@ import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionState.RUNNING
 import com.android.systemui.keyguard.shared.model.TransitionStep
+import com.android.systemui.keyguard.ui.transitions.blurConfig
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@ExperimentalCoroutinesApi
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class PrimaryBouncerToDozingTransitionViewModelTest : SysuiTestCase() {
@@ -122,13 +121,27 @@ class PrimaryBouncerToDozingTransitionViewModelTest : SysuiTestCase() {
             values.forEach { assertThat(it).isEqualTo(0f) }
         }
 
+    @Test
+    fun blurRadiusGoesToMinImmediately() =
+        testScope.runTest {
+            val values by collectValues(underTest.windowBlurRadius)
+
+            kosmos.keyguardWindowBlurTestUtil.assertTransitionToBlurRadius(
+                transitionProgress = listOf(0.0f, 0.2f, 0.3f, 0.65f, 0.7f, 1.0f),
+                startValue = kosmos.blurConfig.maxBlurRadiusPx,
+                endValue = kosmos.blurConfig.minBlurRadiusPx,
+                actualValuesProvider = { values },
+                transitionFactory = ::step,
+            )
+        }
+
     private fun step(value: Float, state: TransitionState = RUNNING): TransitionStep {
         return TransitionStep(
             from = KeyguardState.PRIMARY_BOUNCER,
             to = KeyguardState.DOZING,
             value = value,
             transitionState = state,
-            ownerName = "PrimaryBouncerToDozingTransitionViewModelTest"
+            ownerName = "PrimaryBouncerToDozingTransitionViewModelTest",
         )
     }
 }

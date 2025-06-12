@@ -58,7 +58,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 import android.app.Activity;
-import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -70,7 +69,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.platform.test.annotations.Presubmit;
-import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.Size;
 import android.window.TaskFragmentAnimationParams;
 import android.window.TaskFragmentInfo;
@@ -84,8 +82,6 @@ import androidx.test.filters.SmallTest;
 import androidx.window.common.DeviceStateManagerFoldingFeatureProducer;
 import androidx.window.extensions.layout.WindowLayoutComponentImpl;
 import androidx.window.extensions.layout.WindowLayoutInfo;
-
-import com.android.window.flags.Flags;
 
 import com.google.testing.junit.testparameterinjector.TestParameter;
 import com.google.testing.junit.testparameterinjector.TestParameterInjector;
@@ -120,9 +116,6 @@ public class OverlayPresentationTest {
 
     private static final Intent PLACEHOLDER_INTENT = new Intent().setComponent(
             new ComponentName("test", "placeholder"));
-
-    @Rule
-    public final SetFlagsRule mSetFlagRule = new SetFlagsRule();
 
     private SplitController.ActivityStartMonitor mMonitor;
 
@@ -168,8 +161,6 @@ public class OverlayPresentationTest {
         doReturn(activityConfig).when(mActivityResources).getConfiguration();
         doReturn(mHandler).when(mSplitController).getHandler();
         mActivity = createMockActivity();
-
-        mSetFlagRule.enableFlags(Flags.FLAG_ACTIVITY_EMBEDDING_OVERLAY_PRESENTATION_FLAG);
     }
 
     /** Creates a mock activity in the organizer process. */
@@ -184,44 +175,6 @@ public class OverlayPresentationTest {
         doReturn(new ActivityInfo()).when(activity).getActivityInfo();
         doReturn(DEFAULT_DISPLAY).when(activity).getDisplayId();
         return activity;
-    }
-
-    @Test
-    public void testStartActivity_overlayFeatureDisabled_notInvokeCreateOverlayContainer() {
-        mSetFlagRule.disableFlags(Flags.FLAG_ACTIVITY_EMBEDDING_OVERLAY_PRESENTATION_FLAG);
-
-        final Bundle optionsBundle = ActivityOptions.makeBasic().toBundle();
-        optionsBundle.putString(KEY_OVERLAY_TAG, "test");
-        mMonitor.onStartActivity(mActivity, mIntent, optionsBundle);
-
-        verify(mSplitController, never()).createOrUpdateOverlayTaskFragmentIfNeeded(any(), any(),
-                any(), any());
-    }
-
-    @Test
-    public void testSetIsolatedNavigation_overlayFeatureDisabled_earlyReturn() {
-        mSetFlagRule.disableFlags(Flags.FLAG_ACTIVITY_EMBEDDING_OVERLAY_PRESENTATION_FLAG);
-
-        final TaskFragmentContainer container = createTestOverlayContainer(TASK_ID, "test");
-
-        mSplitPresenter.setTaskFragmentIsolatedNavigation(mTransaction, container,
-                !container.isIsolatedNavigationEnabled());
-
-        verify(mSplitPresenter, never()).setTaskFragmentIsolatedNavigation(any(),
-                any(IBinder.class), anyBoolean());
-    }
-
-    @Test
-    public void testSetPinned_overlayFeatureDisabled_earlyReturn() {
-        mSetFlagRule.disableFlags(Flags.FLAG_ACTIVITY_EMBEDDING_OVERLAY_PRESENTATION_FLAG);
-
-        final TaskFragmentContainer container = createTestOverlayContainer(TASK_ID, "test");
-
-        mSplitPresenter.setTaskFragmentPinned(mTransaction, container,
-                !container.isPinned());
-
-        verify(mSplitPresenter, never()).setTaskFragmentPinned(any(), any(IBinder.class),
-                anyBoolean());
     }
 
     @Test

@@ -41,11 +41,6 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class SensorPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
 
     private static final int SENSOR_HANDLE_1 = 1;
@@ -53,7 +48,7 @@ public class SensorPowerCalculatorTest {
 
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule();
 
     @Test
@@ -93,7 +88,7 @@ public class SensorPowerCalculatorTest {
     }
 
     private Sensor createSensor(int handle, int type, float power) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             Sensor sensor = mock(Sensor.class);
 
             when(sensor.getHandle()).thenReturn(handle);

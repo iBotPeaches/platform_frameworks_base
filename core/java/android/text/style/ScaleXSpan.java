@@ -36,6 +36,7 @@ import android.text.TextUtils;
  * <img src="{@docRoot}reference/android/images/text/style/scalexspan.png" />
  * <figcaption>Text scaled by 100% with <code>ScaleXSpan</code>.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class ScaleXSpan extends MetricAffectingSpan implements ParcelableSpan {
 
     private final float mProportion;

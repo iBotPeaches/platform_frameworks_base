@@ -15,6 +15,7 @@ filegroup {
     ],
     exclude_srcs: [
         ":framework-media-tv-tunerresourcemanager-sources-aidl",
+        ":framework-media-quality-sources-aidl",
     ],
     visibility: [
         "//frameworks/base",

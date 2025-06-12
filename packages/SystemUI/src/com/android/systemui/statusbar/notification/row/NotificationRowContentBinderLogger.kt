@@ -35,66 +35,66 @@ import javax.inject.Inject
 class NotificationRowContentBinderLogger
 @Inject
 constructor(@NotifInflationLog private val buffer: LogBuffer) {
-    fun logNotBindingRowWasRemoved(entry: NotificationEntry) {
+    fun logNotBindingRowWasRemoved(entry: String) {
         buffer.log(
             TAG,
             LogLevel.INFO,
-            { str1 = entry.logKey },
+            { str1 = entry },
             { "not inflating $str1: row was removed" }
         )
     }
 
-    fun logBinding(entry: NotificationEntry, @InflationFlag flag: Int) {
+    fun logBinding(entry: String, @InflationFlag flag: Int) {
         buffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 int1 = flag
             },
             { "binding views ${flagToString(int1)} for $str1" }
         )
     }
 
-    fun logCancelBindAbortedTask(entry: NotificationEntry) {
+    fun logCancelBindAbortedTask(entry: String) {
         buffer.log(
             TAG,
             LogLevel.INFO,
-            { str1 = entry.logKey },
+            { str1 = entry },
             { "aborted task to cancel binding $str1" }
         )
     }
 
-    fun logUnbinding(entry: NotificationEntry, @InflationFlag flag: Int) {
+    fun logUnbinding(entry: String, @InflationFlag flag: Int) {
         buffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 int1 = flag
             },
             { "unbinding views ${flagToString(int1)} for $str1" }
         )
     }
 
-    fun logAsyncTaskProgress(entry: NotificationEntry, progress: String) {
+    fun logAsyncTaskProgress(entry: String?, progress: String) {
         buffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 str2 = progress
             },
             { "async task for $str1: $str2" }
         )
     }
 
-    fun logAsyncTaskException(entry: NotificationEntry, logContext: String, exception: Throwable) {
+    fun logAsyncTaskException(entry: String?, logContext: String, exception: Throwable) {
         buffer.log(
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 str2 = logContext
                 str3 = exception.stackTraceToString()
             },
@@ -103,7 +103,7 @@ constructor(@NotifInflationLog private val buffer: LogBuffer) {
     }
 
     fun logInflateSingleLine(
-        entry: NotificationEntry,
+        entry: String?,
         @InflationFlag inflationFlags: Int,
         isConversation: Boolean
     ) {
@@ -111,7 +111,7 @@ constructor(@NotifInflationLog private val buffer: LogBuffer) {
             TAG,
             LogLevel.DEBUG,
             {
-                str1 = entry.logKey
+                str1 = entry
                 int1 = inflationFlags
                 bool1 = isConversation
             },

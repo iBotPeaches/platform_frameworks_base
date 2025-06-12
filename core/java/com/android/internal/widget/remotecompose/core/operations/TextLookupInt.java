@@ -26,11 +26,13 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Operation convert int index of a list to text */
-public class TextLookupInt extends Operation implements VariableSupport {
+public class TextLookupInt extends Operation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.TEXT_LOOKUP_INT;
     private static final String CLASS_NAME = "TextFromINT";
     public int mTextId;
@@ -142,5 +144,14 @@ public class TextLookupInt extends Operation implements VariableSupport {
     @Override
     public String deepToString(@NonNull String indent) {
         return indent + toString();
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("textId", mTextId)
+                .add("dataSetId", mDataSetId)
+                .add("indexId", mIndex, mOutIndex);
     }
 }

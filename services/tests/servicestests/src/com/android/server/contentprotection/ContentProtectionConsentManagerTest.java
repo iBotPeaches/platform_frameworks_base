@@ -27,7 +27,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.admin.DevicePolicyCache;
@@ -112,8 +112,8 @@ public class ContentProtectionConsentManagerTest {
         boolean actual = manager.isConsentGranted(TEST_USER_ID);
 
         assertThat(actual).isFalse();
-        verifyZeroInteractions(mMockDevicePolicyManagerInternal);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyManagerInternal);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -125,8 +125,8 @@ public class ContentProtectionConsentManagerTest {
         boolean actual = manager.isConsentGranted(TEST_USER_ID);
 
         assertThat(actual).isFalse();
-        verifyZeroInteractions(mMockDevicePolicyManagerInternal);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyManagerInternal);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -138,8 +138,8 @@ public class ContentProtectionConsentManagerTest {
         boolean actual = manager.isConsentGranted(TEST_USER_ID);
 
         assertThat(actual).isFalse();
-        verifyZeroInteractions(mMockDevicePolicyManagerInternal);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyManagerInternal);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -152,7 +152,7 @@ public class ContentProtectionConsentManagerTest {
 
         assertThat(actual).isTrue();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -166,7 +166,7 @@ public class ContentProtectionConsentManagerTest {
         boolean actual = manager.isConsentGranted(TEST_USER_ID);
 
         assertThat(actual).isFalse();
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -179,7 +179,7 @@ public class ContentProtectionConsentManagerTest {
 
         assertThat(actual).isFalse();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -192,7 +192,7 @@ public class ContentProtectionConsentManagerTest {
 
         assertThat(actual).isTrue();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -289,8 +289,8 @@ public class ContentProtectionConsentManagerTest {
         boolean actual = manager.isConsentGranted(TEST_USER_ID);
 
         assertThat(actual).isFalse();
-        verifyZeroInteractions(mMockDevicePolicyManagerInternal);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyManagerInternal);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -302,8 +302,8 @@ public class ContentProtectionConsentManagerTest {
         boolean actual = manager.isConsentGranted(TEST_USER_ID);
 
         assertThat(actual).isFalse();
-        verifyZeroInteractions(mMockDevicePolicyManagerInternal);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyManagerInternal);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -316,7 +316,7 @@ public class ContentProtectionConsentManagerTest {
 
         assertThat(actual).isTrue();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -339,7 +339,7 @@ public class ContentProtectionConsentManagerTest {
         assertThat(thirdActual).isTrue();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
 
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -362,7 +362,7 @@ public class ContentProtectionConsentManagerTest {
         assertThat(thirdActual).isTrue();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
 
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -385,7 +385,7 @@ public class ContentProtectionConsentManagerTest {
         assertThat(thirdActual).isTrue();
         verify(mMockDevicePolicyManagerInternal).isUserOrganizationManaged(TEST_USER_ID);
 
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     @Test
@@ -408,7 +408,7 @@ public class ContentProtectionConsentManagerTest {
         assertThat(thirdActual).isTrue();
         verify(mMockDevicePolicyManagerInternal, times(3)).isUserOrganizationManaged(TEST_USER_ID);
 
-        verifyZeroInteractions(mMockDevicePolicyCache);
+        verifyNoMoreInteractions(mMockDevicePolicyCache);
     }
 
     private void putGlobalSettings(String key, int value) {

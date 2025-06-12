@@ -28,7 +28,6 @@ import com.android.systemui.util.RingerModeTracker
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.whenever
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -43,20 +42,15 @@ import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class MuteQuickAffordanceConfigTest : SysuiTestCase() {
 
     private lateinit var underTest: MuteQuickAffordanceConfig
-    @Mock
-    private lateinit var ringerModeTracker: RingerModeTracker
-    @Mock
-    private lateinit var audioManager: AudioManager
-    @Mock
-    private lateinit var userTracker: UserTracker
-    @Mock
-    private lateinit var userFileManager: UserFileManager
+    @Mock private lateinit var ringerModeTracker: RingerModeTracker
+    @Mock private lateinit var audioManager: AudioManager
+    @Mock private lateinit var userTracker: UserTracker
+    @Mock private lateinit var userFileManager: UserFileManager
 
     private lateinit var testDispatcher: TestDispatcher
     private lateinit var testScope: TestScope
@@ -70,9 +64,12 @@ class MuteQuickAffordanceConfigTest : SysuiTestCase() {
 
         whenever(userTracker.userContext).thenReturn(context)
         whenever(userFileManager.getSharedPreferences(any(), any(), any()))
-                .thenReturn(context.getSharedPreferences("mutequickaffordancetest", Context.MODE_PRIVATE))
+            .thenReturn(
+                context.getSharedPreferences("mutequickaffordancetest", Context.MODE_PRIVATE)
+            )
 
-        underTest = MuteQuickAffordanceConfig(
+        underTest =
+            MuteQuickAffordanceConfig(
                 context,
                 userTracker,
                 userFileManager,
@@ -81,64 +78,71 @@ class MuteQuickAffordanceConfigTest : SysuiTestCase() {
                 testScope.backgroundScope,
                 testDispatcher,
                 testDispatcher,
-        )
+            )
     }
 
     @Test
-    fun pickerState_volumeFixed_notAvailable() = testScope.runTest {
-        //given
-        whenever(audioManager.isVolumeFixed).thenReturn(true)
+    fun pickerState_volumeFixed_notAvailable() =
+        testScope.runTest {
+            // given
+            whenever(audioManager.isVolumeFixed).thenReturn(true)
 
-        //when
-        val result = underTest.getPickerScreenState()
+            // when
+            val result = underTest.getPickerScreenState()
 
-        //then
-        assertEquals(KeyguardQuickAffordanceConfig.PickerScreenState.UnavailableOnDevice, result)
-    }
-
-    @Test
-    fun pickerState_volumeNotFixed_available() = testScope.runTest {
-        //given
-        whenever(audioManager.isVolumeFixed).thenReturn(false)
-
-        //when
-        val result = underTest.getPickerScreenState()
-
-        //then
-        assertEquals(KeyguardQuickAffordanceConfig.PickerScreenState.Default(), result)
-    }
+            // then
+            assertEquals(
+                KeyguardQuickAffordanceConfig.PickerScreenState.UnavailableOnDevice,
+                result,
+            )
+        }
 
     @Test
-    fun triggered_stateWasPreviouslyNORMAL_currentlySILENT_moveToPreviousState() = testScope.runTest {
-        //given
-        val ringerModeCapture = argumentCaptor<Int>()
-        whenever(audioManager.ringerModeInternal).thenReturn(AudioManager.RINGER_MODE_NORMAL)
-        underTest.onTriggered(null)
-        whenever(audioManager.ringerModeInternal).thenReturn(AudioManager.RINGER_MODE_SILENT)
+    fun pickerState_volumeNotFixed_available() =
+        testScope.runTest {
+            // given
+            whenever(audioManager.isVolumeFixed).thenReturn(false)
 
-        //when
-        val result = underTest.onTriggered(null)
-        runCurrent()
-        verify(audioManager, times(2)).ringerModeInternal = ringerModeCapture.capture()
+            // when
+            val result = underTest.getPickerScreenState()
 
-        //then
-        assertEquals(KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled, result)
-        assertEquals(AudioManager.RINGER_MODE_NORMAL, ringerModeCapture.value)
-    }
+            // then
+            assertEquals(KeyguardQuickAffordanceConfig.PickerScreenState.Default(), result)
+        }
 
     @Test
-    fun triggered_stateIsNotSILENT_moveToSILENTringer() = testScope.runTest {
-        //given
-        val ringerModeCapture = argumentCaptor<Int>()
-        whenever(audioManager.ringerModeInternal).thenReturn(AudioManager.RINGER_MODE_NORMAL)
+    fun triggered_stateWasPreviouslyNORMAL_currentlySILENT_moveToPreviousState() =
+        testScope.runTest {
+            // given
+            val ringerModeCapture = argumentCaptor<Int>()
+            whenever(audioManager.ringerModeInternal).thenReturn(AudioManager.RINGER_MODE_NORMAL)
+            underTest.onTriggered(null)
+            whenever(audioManager.ringerModeInternal).thenReturn(AudioManager.RINGER_MODE_SILENT)
 
-        //when
-        val result = underTest.onTriggered(null)
-        runCurrent()
-        verify(audioManager).ringerModeInternal = ringerModeCapture.capture()
+            // when
+            val result = underTest.onTriggered(null)
+            runCurrent()
+            verify(audioManager, times(2)).ringerModeInternal = ringerModeCapture.capture()
 
-        //then
-        assertEquals(KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled, result)
-        assertEquals(AudioManager.RINGER_MODE_SILENT, ringerModeCapture.value)
-    }
+            // then
+            assertEquals(KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false), result)
+            assertEquals(AudioManager.RINGER_MODE_NORMAL, ringerModeCapture.value)
+        }
+
+    @Test
+    fun triggered_stateIsNotSILENT_moveToSILENTringer() =
+        testScope.runTest {
+            // given
+            val ringerModeCapture = argumentCaptor<Int>()
+            whenever(audioManager.ringerModeInternal).thenReturn(AudioManager.RINGER_MODE_NORMAL)
+
+            // when
+            val result = underTest.onTriggered(null)
+            runCurrent()
+            verify(audioManager).ringerModeInternal = ringerModeCapture.capture()
+
+            // then
+            assertEquals(KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false), result)
+            assertEquals(AudioManager.RINGER_MODE_SILENT, ringerModeCapture.value)
+        }
 }

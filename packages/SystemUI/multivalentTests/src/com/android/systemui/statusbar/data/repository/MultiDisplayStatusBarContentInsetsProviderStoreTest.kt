@@ -51,7 +51,7 @@ class MultiDisplayStatusBarContentInsetsProviderStoreTest : SysuiTestCase() {
     @Test
     fun forDisplay_startsInstances() =
         testScope.runTest {
-            val instance = underTest.forDisplay(DEFAULT_DISPLAY)
+            val instance = underTest.forDisplay(DEFAULT_DISPLAY)!!
 
             verify(instance).start()
         }
@@ -59,17 +59,17 @@ class MultiDisplayStatusBarContentInsetsProviderStoreTest : SysuiTestCase() {
     @Test
     fun beforeDisplayRemoved_doesNotStopInstances() =
         testScope.runTest {
-            val instance = underTest.forDisplay(DEFAULT_DISPLAY)
+            val instance = underTest.forDisplay(DEFAULT_DISPLAY)!!
 
             verify(instance, never()).stop()
         }
 
     @Test
-    fun displayRemoved_stopsInstance() =
+    fun systemDecorationRemovedEvent_stopsInstance() =
         testScope.runTest {
-            val instance = underTest.forDisplay(DEFAULT_DISPLAY)
+            val instance = underTest.forDisplay(DEFAULT_DISPLAY)!!
 
-            fakeDisplayRepository.removeDisplay(DEFAULT_DISPLAY)
+            fakeDisplayRepository.triggerRemoveSystemDecorationEvent(DEFAULT_DISPLAY)
 
             verify(instance).stop()
         }

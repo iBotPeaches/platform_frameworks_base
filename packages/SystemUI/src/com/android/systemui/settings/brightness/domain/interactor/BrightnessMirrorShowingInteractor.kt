@@ -19,19 +19,28 @@ package com.android.systemui.settings.brightness.domain.interactor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.settings.brightness.data.repository.BrightnessMirrorShowingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.flow.StateFlow
 
+interface BrightnessMirrorShowingInteractor {
+    val isShowing: StateFlow<Boolean>
+
+    fun setMirrorShowing(showing: Boolean)
+}
+
+/** This interactor is just a passthrough of the [BrightnessMirrorShowingRepository]. */
 @SysUISingleton
-class BrightnessMirrorShowingInteractor
+class BrightnessMirrorShowingInteractorPassThrough
 @Inject
-constructor(private val brightnessMirrorShowingRepository: BrightnessMirrorShowingRepository) {
+constructor(private val brightnessMirrorShowingRepository: BrightnessMirrorShowingRepository) :
+    BrightnessMirrorShowingInteractor {
     /**
      * Whether a brightness mirror is showing (either as a compose overlay or as a separate mirror).
      *
      * This can be used to determine whether other views/composables have to be hidden.
      */
-    val isShowing = brightnessMirrorShowingRepository.isShowing
+    override val isShowing = brightnessMirrorShowingRepository.isShowing
 
-    fun setMirrorShowing(showing: Boolean) {
+    override fun setMirrorShowing(showing: Boolean) {
         brightnessMirrorShowingRepository.setMirrorShowing(showing)
     }
 }

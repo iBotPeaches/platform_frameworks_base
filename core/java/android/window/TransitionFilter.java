@@ -31,8 +31,6 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.view.WindowManager;
 
-import com.android.window.flags.Flags;
-
 /**
  * A parcelable filter that can be used for rerouting transitions to a remote. This is a local
  * representation so that the transition system doesn't need to make blocking queries over
@@ -261,9 +259,7 @@ public final class TransitionFilter implements Parcelable {
                         // only applies to activity/task
                         && (change.getTaskInfo() != null
                                 || change.getActivityComponent() != null)) {
-                    final TransitionInfo.AnimationOptions opts =
-                            Flags.moveAnimationOptionsToChange() ? change.getAnimationOptions()
-                                    : info.getAnimationOptions();
+                    final TransitionInfo.AnimationOptions opts = change.getAnimationOptions();
                     if (opts != null) {
                         boolean canActuallyOverride = change.getTaskInfo() == null
                                 || opts.getOverrideTaskTransition();

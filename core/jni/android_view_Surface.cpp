@@ -139,7 +139,7 @@ jobject android_view_Surface_createFromIGraphicBufferProducer(JNIEnv* env,
         return NULL;
     }
 
-    sp<Surface> surface(new Surface(bufferProducer, true));
+    sp<Surface> surface = sp<Surface>::make(bufferProducer, true);
     return android_view_Surface_createFromSurface(env, surface);
 }
 
@@ -161,7 +161,7 @@ static jlong nativeCreateFromSurfaceTexture(JNIEnv* env, jclass clazz,
         return 0;
     }
 
-    sp<Surface> surface(new Surface(producer, true));
+    sp<Surface> surface = sp<Surface>::make(producer, true);
     if (surface == NULL) {
         jniThrowException(env, OutOfResourcesException, NULL);
         return 0;
@@ -358,8 +358,8 @@ static jlong nativeReadFromParcel(JNIEnv* env, jclass clazz,
     sp<Surface> sur;
     if (surfaceShim.graphicBufferProducer != nullptr) {
         // we have a new IGraphicBufferProducer, create a new Surface for it
-        sur = new Surface(surfaceShim.graphicBufferProducer, true,
-                          surfaceShim.surfaceControlHandle);
+        sur = sp<Surface>::make(surfaceShim.graphicBufferProducer, true,
+                                surfaceShim.surfaceControlHandle);
         // and keep a reference before passing to java
         sur->incStrong(&sRefBaseOwner);
     }

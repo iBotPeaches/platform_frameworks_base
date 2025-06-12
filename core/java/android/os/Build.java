@@ -431,13 +431,8 @@ public class Build {
          * android.os.Build.VERSION_CODES_FULL}.
          */
         @FlaggedApi(Flags.FLAG_MAJOR_MINOR_VERSIONING_SCHEME)
-        public static final int SDK_INT_FULL;
-
-        static {
-            SDK_INT_FULL = VERSION_CODES_FULL.SDK_INT_MULTIPLIER
-                * SystemProperties.getInt("ro.build.version.sdk", 0)
-                + SystemProperties.getInt("ro.build.version.sdk_minor", 0);
-        }
+        public static final int SDK_INT_FULL = parseFullVersion(SystemProperties.get(
+                    "ro.build.version.sdk_full", ""));
 
         /**
          * The SDK version of the software that <em>initially</em> shipped on
@@ -1276,7 +1271,7 @@ public class Build {
          * Baklava.
          */
         @FlaggedApi(Flags.FLAG_MAJOR_MINOR_VERSIONING_SCHEME)
-        public static final int BAKLAVA = CUR_DEVELOPMENT;
+        public static final int BAKLAVA = 36;
     }
 
     /** @hide */
@@ -1520,7 +1515,7 @@ public class Build {
                 VERSION_CODES.VANILLA_ICE_CREAM * SDK_INT_MULTIPLIER;
 
         /**
-         * The upcoming, not yet finalized, version of Android.
+         * Android 36.0.
          */
         public static final int BAKLAVA = VERSION_CODES.BAKLAVA * SDK_INT_MULTIPLIER;
     }
@@ -1558,6 +1553,7 @@ public class Build {
      * @hide
      */
     @SuppressWarnings("FlaggedApi") // SDK_INT_MULTIPLIER is defined in this file
+    @SuppressLint("InlinedApi")
     public static @SdkIntFull int parseFullVersion(@NonNull String version) {
         int index = version.indexOf('.');
         int major;
@@ -1569,12 +1565,22 @@ public class Build {
                 major = Integer.parseInt(version.substring(0, index));
                 minor = Integer.parseInt(version.substring(index + 1));
             }
-            if (major < 0 || minor < 0) {
-                throw new NumberFormatException();
+            if (major < 0) {
+                throw new NumberFormatException("negative major version");
+            }
+            if (major >= 21474) {
+                throw new NumberFormatException("major version too large, must be less than 21474");
+            }
+            if (minor < 0) {
+                throw new NumberFormatException("negative minor version");
+            }
+            if (minor >= VERSION_CODES_FULL.SDK_INT_MULTIPLIER) {
+                throw new NumberFormatException("minor version too large, must be less than "
+                        + VERSION_CODES_FULL.SDK_INT_MULTIPLIER);
             }
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("failed to parse '" + version
-                    + "' as a major.minor version code");
+                    + "' as a major.minor version code", e);
         }
         return major * VERSION_CODES_FULL.SDK_INT_MULTIPLIER + minor;
     }

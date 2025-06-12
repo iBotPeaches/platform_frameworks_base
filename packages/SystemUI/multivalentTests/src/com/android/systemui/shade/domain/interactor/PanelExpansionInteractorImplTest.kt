@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.shade.domain.interactor
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -39,7 +37,6 @@ import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.shared.model.fakeSceneDataSource
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
@@ -81,7 +78,7 @@ class PanelExpansionInteractorImplTest : SysuiTestCase() {
             changeScene(Scenes.Lockscreen) { assertThat(panelExpansion).isEqualTo(1f) }
             assertThat(panelExpansion).isEqualTo(1f)
 
-            changeScene(Scenes.Bouncer) { assertThat(panelExpansion).isEqualTo(1f) }
+            showOverlay(Overlays.Bouncer) { assertThat(panelExpansion).isEqualTo(1f) }
             assertThat(panelExpansion).isEqualTo(1f)
 
             changeScene(Scenes.Shade) { assertThat(panelExpansion).isEqualTo(1f) }
@@ -136,7 +133,7 @@ class PanelExpansionInteractorImplTest : SysuiTestCase() {
             changeScene(Scenes.Lockscreen) { assertThat(panelExpansion).isEqualTo(1f) }
             assertThat(panelExpansion).isEqualTo(1f)
 
-            changeScene(Scenes.Bouncer) { assertThat(panelExpansion).isEqualTo(1f) }
+            showOverlay(Overlays.Bouncer) { assertThat(panelExpansion).isEqualTo(1f) }
             assertThat(panelExpansion).isEqualTo(1f)
 
             showOverlay(Overlays.NotificationsShade) { assertThat(panelExpansion).isEqualTo(1f) }

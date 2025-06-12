@@ -19,7 +19,6 @@ package android.hardware.input;
 import static com.android.input.flags.Flags.FLAG_INPUT_DEVICE_VIEW_BEHAVIOR_API;
 import static com.android.input.flags.Flags.FLAG_DEVICE_ASSOCIATIONS;
 import static com.android.hardware.input.Flags.enableCustomizableInputGestures;
-import static com.android.hardware.input.Flags.keyboardLayoutPreviewFlag;
 import static com.android.hardware.input.Flags.keyboardGlyphMap;
 
 import android.Manifest;
@@ -966,9 +965,6 @@ public final class InputManager {
     @Nullable
     public Drawable getKeyboardLayoutPreview(@Nullable KeyboardLayout keyboardLayout, int width,
             int height) {
-        if (!keyboardLayoutPreviewFlag()) {
-            return null;
-        }
         PhysicalKeyLayout keyLayout = new PhysicalKeyLayout(
                 mGlobal.getKeyCharacterMap(keyboardLayout), keyboardLayout);
         return new KeyboardLayoutPreviewDrawable(mContext, keyLayout, width, height);
@@ -1403,9 +1399,6 @@ public final class InputManager {
     @RequiresPermission(Manifest.permission.MONITOR_STICKY_MODIFIER_STATE)
     public void registerStickyModifierStateListener(@NonNull Executor executor,
             @NonNull StickyModifierStateListener listener) throws IllegalArgumentException {
-        if (!InputSettings.isAccessibilityStickyKeysFeatureEnabled()) {
-            return;
-        }
         mGlobal.registerStickyModifierStateListener(executor, listener);
     }
 
@@ -1419,9 +1412,6 @@ public final class InputManager {
     @RequiresPermission(Manifest.permission.MONITOR_STICKY_MODIFIER_STATE)
     public void unregisterStickyModifierStateListener(
             @NonNull StickyModifierStateListener listener) {
-        if (!InputSettings.isAccessibilityStickyKeysFeatureEnabled()) {
-            return;
-        }
         mGlobal.unregisterStickyModifierStateListener(listener);
     }
 
@@ -1456,16 +1446,18 @@ public final class InputManager {
     /**
      * Registers a key gesture event handler for {@link KeyGestureEvent} handling.
      *
+     * @param keyGesturesToHandle list of KeyGestureTypes to listen to
      * @param handler the {@link KeyGestureEventHandler}
-     * @throws IllegalArgumentException if {@code handler} has already been registered previously.
+     * @throws IllegalArgumentException if {@code handler} has already been registered previously
+     * or key gestures provided are already registered by some other gesture handler.
      * @throws NullPointerException     if {@code handler} or {@code executor} is null.
      * @hide
      * @see #unregisterKeyGestureEventHandler(KeyGestureEventHandler)
      */
     @RequiresPermission(Manifest.permission.MANAGE_KEY_GESTURES)
-    public void registerKeyGestureEventHandler(@NonNull KeyGestureEventHandler handler)
-            throws IllegalArgumentException {
-        mGlobal.registerKeyGestureEventHandler(handler);
+    public void registerKeyGestureEventHandler(List<Integer> keyGesturesToHandle,
+            @NonNull KeyGestureEventHandler handler) throws IllegalArgumentException {
+        mGlobal.registerKeyGestureEventHandler(keyGesturesToHandle, handler);
     }
 
     /**
@@ -1473,11 +1465,35 @@ public final class InputManager {
      *
      * @param handler the {@link KeyGestureEventHandler}
      * @hide
-     * @see #registerKeyGestureEventHandler(KeyGestureEventHandler)
+     * @see #registerKeyGestureEventHandler(List, KeyGestureEventHandler)
      */
     @RequiresPermission(Manifest.permission.MANAGE_KEY_GESTURES)
     public void unregisterKeyGestureEventHandler(@NonNull KeyGestureEventHandler handler) {
         mGlobal.unregisterKeyGestureEventHandler(handler);
+    }
+
+    /**
+     * Find an input gesture mapped to a particular trigger.
+     *
+     * @param trigger to find the input gesture for
+     * @return input gesture mapped to the provided trigger, {@code null} if none found
+     *
+     * @hide
+     */
+    @RequiresPermission(Manifest.permission.MANAGE_KEY_GESTURES)
+    @UserHandleAware
+    @Nullable
+    public InputGestureData getInputGesture(@NonNull InputGestureData.Trigger trigger) {
+        try {
+            AidlInputGestureData result = mIm.getInputGesture(mContext.getUserId(),
+                    trigger.getAidlTrigger());
+            if (result == null) {
+                return null;
+            }
+            return new InputGestureData(result);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
     }
 
     /** Adds a new custom input gesture
@@ -1727,7 +1743,7 @@ public final class InputManager {
      * {@see KeyGestureEventListener} which is to listen to successfully handled key gestures, this
      * interface allows system components to register handler for handling key gestures.
      *
-     * @see #registerKeyGestureEventHandler(KeyGestureEventHandler)
+     * @see #registerKeyGestureEventHandler(List, KeyGestureEventHandler)
      * @see #unregisterKeyGestureEventHandler(KeyGestureEventHandler)
      *
      * <p> NOTE: All callbacks will occur on system main and input threads, so the caller needs
@@ -1736,20 +1752,47 @@ public final class InputManager {
      */
     public interface KeyGestureEventHandler {
         /**
-         * Called when a key gesture event starts, is completed, or is cancelled. If a handler
-         * returns {@code true}, it implies that the handler intends to handle the key gesture and
-         * only this handler will receive the future events for this key gesture.
+         * Called when a key gesture event starts, is completed, or is cancelled.
          *
          * @param event the gesture event
          */
-        boolean handleKeyGestureEvent(@NonNull KeyGestureEvent event,
-                @Nullable IBinder focusedToken);
-
-        /**
-         * Called to identify if a particular gesture is of interest to a handler.
-         *
-         * NOTE: If no active handler supports certain gestures, the gestures will not be captured.
-         */
-        boolean isKeyGestureSupported(@KeyGestureEvent.KeyGestureType int gestureType);
+        void handleKeyGestureEvent(@NonNull KeyGestureEvent event, @Nullable IBinder focusedToken);
     }
+
+    /** @hide */
+    public interface KeyEventActivityListener {
+        /**
+         * Reports a change for user activeness.
+         *
+         * This listener will be triggered any time a user presses a key.
+         */
+        void onKeyEventActivity();
+    }
+
+
+    /**
+     * Registers a listener for updates to key event activeness
+     *
+     * @param listener to be registered
+     * @return true if listener registered successfully
+     * @hide
+     */
+    @RequiresPermission(android.Manifest.permission.LISTEN_FOR_KEY_ACTIVITY)
+    public boolean registerKeyEventActivityListener(@NonNull KeyEventActivityListener listener) {
+        return mGlobal.registerKeyEventActivityListener(listener);
+    }
+
+    /**
+     * Unregisters a listener for updates to key event activeness
+     *
+     * @param listener to be unregistered
+     * @return true if listener unregistered successfully, also returns true if
+     * invoked but listener was not present
+     * @hide
+     */
+    @RequiresPermission(android.Manifest.permission.LISTEN_FOR_KEY_ACTIVITY)
+    public boolean unregisterKeyEventActivityListener(@NonNull KeyEventActivityListener listener) {
+        return mGlobal.unregisterKeyEventActivityListener(listener);
+    }
+
 }

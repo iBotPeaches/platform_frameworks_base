@@ -249,6 +249,8 @@ struct ResourceFile {
 
   // Flag
   std::optional<FeatureFlagAttribute> flag;
+
+  bool uses_readwrite_feature_flags = false;
 };
 
 /**

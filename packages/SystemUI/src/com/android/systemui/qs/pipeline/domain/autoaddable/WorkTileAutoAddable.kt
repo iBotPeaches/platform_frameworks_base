@@ -18,7 +18,7 @@ package com.android.systemui.qs.pipeline.domain.autoaddable
 
 import android.content.pm.UserInfo
 import android.os.UserHandle
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.qs.pipeline.data.restoreprocessors.WorkTileRestoreProcessor
 import com.android.systemui.qs.pipeline.domain.model.AutoAddSignal

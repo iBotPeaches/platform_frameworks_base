@@ -27,18 +27,29 @@ private const val TAG = "BluetoothTileDialogLog"
 enum class BluetoothStateStage {
     USER_TOGGLED,
     BLUETOOTH_STATE_VALUE_SET,
-    BLUETOOTH_STATE_CHANGE_RECEIVED
+    BLUETOOTH_STATE_CHANGE_RECEIVED,
 }
 
 enum class DeviceFetchTrigger {
     FIRST_LOAD,
     BLUETOOTH_STATE_CHANGE_RECEIVED,
-    BLUETOOTH_CALLBACK_RECEIVED
+    BLUETOOTH_CALLBACK_RECEIVED,
+}
+
+enum class AudioSharingButtonClick {
+    PLUS_BUTTON,
+    CHECK_MARK,
+}
+
+enum class AudioSharingRequest {
+    START_BROADCAST,
+    STOP_BROADCAST,
+    ADD_SOURCE,
 }
 
 enum class JobStatus {
     FINISHED,
-    CANCELLED
+    CANCELLED,
 }
 
 class BluetoothTileDialogLogger
@@ -53,7 +64,7 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 str1 = stage.toString()
                 str2 = state
             },
-            { "BluetoothState. stage=$str1 state=$str2" }
+            { "BluetoothState. stage=$str1 state=$str2" },
         )
 
     fun logDeviceClick(address: String, type: DeviceItemType) =
@@ -64,7 +75,7 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 str1 = address
                 str2 = type.toString()
             },
-            { "DeviceClick. address=$str1 type=$str2" }
+            { "DeviceClick. address=$str1 type=$str2" },
         )
 
     fun logActiveDeviceChanged(address: String?, profileId: Int) =
@@ -75,7 +86,7 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 str1 = address
                 int1 = profileId
             },
-            { "ActiveDeviceChanged. address=$str1 profileId=$int1" }
+            { "ActiveDeviceChanged. address=$str1 profileId=$int1" },
         )
 
     fun logProfileConnectionStateChanged(address: String, state: String, profileId: Int) =
@@ -87,7 +98,7 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 str2 = state
                 int1 = profileId
             },
-            { "ProfileConnectionStateChanged. address=$str1 state=$str2 profileId=$int1" }
+            { "ProfileConnectionStateChanged. address=$str1 state=$str2 profileId=$int1" },
         )
 
     fun logBatteryChanged(address: String, key: Int, value: ByteArray?) =
@@ -99,7 +110,7 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 int1 = key
                 str2 = value?.toString() ?: ""
             },
-            { "BatteryChanged. address=$str1 key=$int1 value=$str2" }
+            { "BatteryChanged. address=$str1 key=$int1 value=$str2" },
         )
 
     fun logDeviceFetch(status: JobStatus, trigger: DeviceFetchTrigger, duration: Long) =
@@ -111,18 +122,26 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 str2 = trigger.toString()
                 long1 = duration
             },
-            { "DeviceFetch. status=$str1 trigger=$str2 duration=$long1" }
+            { "DeviceFetch. status=$str1 trigger=$str2 duration=$long1" },
         )
 
-    fun logDeviceUiUpdate(duration: Long) =
-        logBuffer.log(TAG, DEBUG, { long1 = duration }, { "DeviceUiUpdate. duration=$long1" })
+    fun logDeviceUiUpdate(duration: Long, deviceItem: List<DeviceItem>) =
+        logBuffer.log(
+            TAG,
+            DEBUG,
+            {
+                long1 = duration
+                str1 = deviceItem.toString()
+            },
+            { "DeviceUiUpdate. duration=$long1 deviceItem=$str1" },
+        )
 
     fun logDeviceClickInAudioSharingWhenEnabled(inAudioSharing: Boolean) {
         logBuffer.log(
             TAG,
             DEBUG,
             { str1 = inAudioSharing.toString() },
-            { "DeviceClick. in audio sharing=$str1" }
+            { "DeviceClick. in audio sharing=$str1" },
         )
     }
 
@@ -138,7 +157,36 @@ constructor(@BluetoothTileDialogLog private val logBuffer: LogBuffer) {
                 str1 = criteria
                 str2 = deviceItem.toString()
             },
-            { "$str1. deviceItem=$str2" }
+            { "$str1. deviceItem=$str2" },
         )
     }
+
+    fun logAudioSharingStateChanged(stateOn: Boolean) =
+        logBuffer.log(
+            TAG,
+            DEBUG,
+            { str1 = stateOn.toString() },
+            { "AudioSharingStateChanged. state=$str1" },
+        )
+
+    fun logAudioSourceStateUpdate() = logBuffer.log(TAG, DEBUG, {}, { "AudioSourceStateUpdate" })
+
+    fun logAudioSharingButtonClick(click: AudioSharingButtonClick, deviceItem: DeviceItem) =
+        logBuffer.log(
+            TAG,
+            DEBUG,
+            {
+                str1 = click.toString()
+                str2 = deviceItem.toString()
+            },
+            { "AudioSharingButtonClick. click=$str1 deviceItem=$str2" },
+        )
+
+    fun logAudioSharingRequest(apiCall: AudioSharingRequest) =
+        logBuffer.log(
+            TAG,
+            DEBUG,
+            { str1 = apiCall.toString() },
+            { "AudioSharingRequest. apiCall=$str1" },
+        )
 }

@@ -19,6 +19,8 @@ package com.android.systemui.keyguard.ui.view.layout.sections
 
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import androidx.constraintlayout.widget.ConstraintSet
@@ -27,7 +29,6 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.customization.R as customR
-import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
 import com.android.systemui.keyguard.domain.interactor.keyguardBlueprintInteractor
 import com.android.systemui.keyguard.domain.interactor.keyguardClockInteractor
 import com.android.systemui.keyguard.domain.interactor.keyguardSmartspaceInteractor
@@ -48,7 +49,6 @@ import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -59,7 +59,6 @@ import org.mockito.ArgumentMatchers.anyString
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.mock
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 @SmallTest
 class ClockSectionTest : SysuiTestCase() {
@@ -131,6 +130,7 @@ class ClockSectionTest : SysuiTestCase() {
     }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testApplyDefaultConstraints_LargeClock_SplitShade() =
         kosmos.testScope.runTest {
             with(kosmos) {
@@ -147,16 +147,34 @@ class ClockSectionTest : SysuiTestCase() {
         }
 
     @Test
+    @EnableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
+    fun testApplyDefaultConstraints_LargeClock_SplitShade_ReactiveVariantsOn() =
+        kosmos.testScope.runTest {
+            with(kosmos) {
+                shadeRepository.setShadeLayoutWide(true)
+                keyguardClockInteractor.setClockSize(ClockSize.LARGE)
+                advanceUntilIdle()
+            }
+
+            val cs = ConstraintSet()
+            underTest.applyDefaultConstraints(cs)
+
+            assertLargeClockTop(cs, LARGE_CLOCK_TOP_WITHOUT_SMARTSPACE +
+                    ENHANCED_SMART_SPACE_HEIGHT)
+            assertSmallClockTop(cs)
+        }
+
+    @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testApplyDefaultConstraints_LargeClock_NonSplitShade() =
         kosmos.testScope.runTest {
             with(kosmos) {
                 val isShadeLayoutWide by collectLastValue(shadeRepository.isShadeLayoutWide)
                 val isLargeClockVisible by
-                    collectLastValue(keyguardClockViewModel.isLargeClockVisible)
+                collectLastValue(keyguardClockViewModel.isLargeClockVisible)
 
                 shadeRepository.setShadeLayoutWide(false)
                 keyguardClockInteractor.setClockSize(ClockSize.LARGE)
-                fakeKeyguardRepository.setClockShouldBeCentered(true)
                 notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
                 keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
                 fakeConfigurationController.notifyConfigurationChanged()
@@ -166,6 +184,31 @@ class ClockSectionTest : SysuiTestCase() {
                 underTest.applyDefaultConstraints(cs)
 
                 assertLargeClockTop(cs, LARGE_CLOCK_TOP)
+                assertSmallClockTop(cs)
+            }
+        }
+
+    @Test
+    @EnableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
+    fun testApplyDefaultConstraints_LargeClock_NonSplitShade_reactiveVariantsOn() =
+        kosmos.testScope.runTest {
+            with(kosmos) {
+                val isShadeLayoutWide by collectLastValue(shadeRepository.isShadeLayoutWide)
+                val isLargeClockVisible by
+                    collectLastValue(keyguardClockViewModel.isLargeClockVisible)
+
+                shadeRepository.setShadeLayoutWide(false)
+                keyguardClockInteractor.setClockSize(ClockSize.LARGE)
+                notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
+                keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
+                fakeConfigurationController.notifyConfigurationChanged()
+                advanceUntilIdle()
+
+                val cs = ConstraintSet()
+                underTest.applyDefaultConstraints(cs)
+
+                assertLargeClockTop(cs, LARGE_CLOCK_TOP_WITHOUT_SMARTSPACE +
+                        ENHANCED_SMART_SPACE_HEIGHT)
                 assertSmallClockTop(cs)
             }
         }
@@ -181,7 +224,6 @@ class ClockSectionTest : SysuiTestCase() {
 
                 shadeRepository.setShadeLayoutWide(true)
                 keyguardClockInteractor.setClockSize(ClockSize.LARGE)
-                fakeKeyguardRepository.setClockShouldBeCentered(true)
                 notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
                 keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
                 fakeConfigurationController.notifyConfigurationChanged()
@@ -206,7 +248,6 @@ class ClockSectionTest : SysuiTestCase() {
 
                 shadeRepository.setShadeLayoutWide(false)
                 keyguardClockInteractor.setClockSize(ClockSize.LARGE)
-                fakeKeyguardRepository.setClockShouldBeCentered(true)
                 notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
                 keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
                 fakeConfigurationController.notifyConfigurationChanged()
@@ -221,6 +262,7 @@ class ClockSectionTest : SysuiTestCase() {
         }
 
     @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testApplyDefaultConstraints_SmallClock_SplitShade() =
         kosmos.testScope.runTest {
             with(kosmos) {
@@ -230,7 +272,6 @@ class ClockSectionTest : SysuiTestCase() {
 
                 shadeRepository.setShadeLayoutWide(true)
                 keyguardClockInteractor.setClockSize(ClockSize.SMALL)
-                fakeKeyguardRepository.setClockShouldBeCentered(true)
                 notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
                 keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
                 fakeConfigurationController.notifyConfigurationChanged()
@@ -245,6 +286,32 @@ class ClockSectionTest : SysuiTestCase() {
         }
 
     @Test
+    @EnableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
+    fun testApplyDefaultConstraints_SmallClock_SplitShade_ReactiveVariantsOn() =
+        kosmos.testScope.runTest {
+            with(kosmos) {
+                val isShadeLayoutWide by collectLastValue(shadeRepository.isShadeLayoutWide)
+                val isLargeClockVisible by
+                collectLastValue(keyguardClockViewModel.isLargeClockVisible)
+
+                shadeRepository.setShadeLayoutWide(true)
+                keyguardClockInteractor.setClockSize(ClockSize.SMALL)
+                notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
+                keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
+                fakeConfigurationController.notifyConfigurationChanged()
+                advanceUntilIdle()
+
+                val cs = ConstraintSet()
+                underTest.applyDefaultConstraints(cs)
+
+                assertLargeClockTop(cs, LARGE_CLOCK_TOP_WITHOUT_SMARTSPACE +
+                        ENHANCED_SMART_SPACE_HEIGHT)
+                assertSmallClockTop(cs)
+            }
+        }
+
+    @Test
+    @DisableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
     fun testApplyDefaultConstraints_SmallClock_NonSplitShade() =
         kosmos.testScope.runTest {
             with(kosmos) {
@@ -254,7 +321,6 @@ class ClockSectionTest : SysuiTestCase() {
 
                 shadeRepository.setShadeLayoutWide(false)
                 keyguardClockInteractor.setClockSize(ClockSize.SMALL)
-                fakeKeyguardRepository.setClockShouldBeCentered(true)
                 notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
                 keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
                 fakeConfigurationController.notifyConfigurationChanged()
@@ -263,6 +329,30 @@ class ClockSectionTest : SysuiTestCase() {
                 val cs = ConstraintSet()
                 underTest.applyDefaultConstraints(cs)
                 assertLargeClockTop(cs, LARGE_CLOCK_TOP)
+                assertSmallClockTop(cs)
+            }
+        }
+
+    @Test
+    @EnableFlags(com.android.systemui.shared.Flags.FLAG_CLOCK_REACTIVE_SMARTSPACE_LAYOUT)
+    fun testApplyDefaultConstraints_SmallClock_NonSplitShade_ReactiveVariantsOn() =
+        kosmos.testScope.runTest {
+            with(kosmos) {
+                val isShadeLayoutWide by collectLastValue(shadeRepository.isShadeLayoutWide)
+                val isLargeClockVisible by
+                collectLastValue(keyguardClockViewModel.isLargeClockVisible)
+
+                shadeRepository.setShadeLayoutWide(false)
+                keyguardClockInteractor.setClockSize(ClockSize.SMALL)
+                notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
+                keyguardSmartspaceInteractor.setBcSmartspaceVisibility(VISIBLE)
+                fakeConfigurationController.notifyConfigurationChanged()
+                advanceUntilIdle()
+
+                val cs = ConstraintSet()
+                underTest.applyDefaultConstraints(cs)
+                assertLargeClockTop(cs, LARGE_CLOCK_TOP_WITHOUT_SMARTSPACE +
+                        ENHANCED_SMART_SPACE_HEIGHT)
                 assertSmallClockTop(cs)
             }
         }

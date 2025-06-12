@@ -22,6 +22,8 @@ import com.android.app.tracing.FlowTracing.tracedAwaitClose
 import com.android.app.tracing.FlowTracing.tracedConflatedCallbackFlow
 import dagger.Module
 import dagger.Provides
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -32,6 +34,8 @@ interface AccessibilityRepository {
     /** @see [AccessibilityManager.isEnabled] */
     val isEnabled: Flow<Boolean>
 
+    fun getRecommendedTimeout(originalTimeout: Duration, uiFlags: Int): Duration
+
     companion object {
         operator fun invoke(a11yManager: AccessibilityManager): AccessibilityRepository =
             AccessibilityRepositoryImpl(a11yManager)
@@ -40,9 +44,8 @@ interface AccessibilityRepository {
 
 private const val TAG = "AccessibilityRepository"
 
-private class AccessibilityRepositoryImpl(
-    manager: AccessibilityManager,
-) : AccessibilityRepository {
+private class AccessibilityRepositoryImpl(private val manager: AccessibilityManager) :
+    AccessibilityRepository {
     override val isTouchExplorationEnabled: Flow<Boolean> =
         tracedConflatedCallbackFlow(TAG) {
                 val listener = TouchExplorationStateChangeListener(::trySend)
@@ -62,6 +65,12 @@ private class AccessibilityRepositoryImpl(
                 tracedAwaitClose(TAG) { manager.removeAccessibilityStateChangeListener(listener) }
             }
             .distinctUntilChanged()
+
+    override fun getRecommendedTimeout(originalTimeout: Duration, uiFlags: Int): Duration {
+        return manager
+            .getRecommendedTimeoutMillis(originalTimeout.inWholeMilliseconds.toInt(), uiFlags)
+            .milliseconds
+    }
 }
 
 @Module

@@ -70,6 +70,7 @@ import com.android.server.wm.WindowProcessController;
 import com.android.server.wm.WindowProcessListener;
 
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -1005,6 +1006,11 @@ class ProcessRecord implements WindowProcessListener {
     }
 
     @GuardedBy(anyOf = {"mService", "mProcLock"})
+    boolean hasActiveInstrumentation() {
+        return mInstr != null;
+    }
+
+    @GuardedBy(anyOf = {"mService", "mProcLock"})
     boolean isKilledByAm() {
         return mKilledByAm;
     }
@@ -1409,6 +1415,16 @@ class ProcessRecord implements WindowProcessListener {
         return mStringName = sb.toString();
     }
 
+    String toDetailedString() {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(this);
+        final StringWriter sw = new StringWriter();
+        final PrintWriter pw = new PrintWriter(sw);
+        dump(pw, "  ");
+        sb.append(sw);
+        return sb.toString();
+    }
+
     /*
      *  Return true if package has been added false if not
      */
@@ -1438,17 +1454,32 @@ class ProcessRecord implements WindowProcessListener {
 
     void onProcessFrozen() {
         mProfile.onProcessFrozen();
-        if (mThread != null) mThread.onProcessPaused();
+        final ApplicationThreadDeferred t;
+        synchronized (mService) {
+            t = mThread;
+        }
+        // Release the lock before calling the notifier, in case that calls back into AM.
+        if (t != null) t.onProcessPaused();
     }
 
     void onProcessUnfrozen() {
-        if (mThread != null) mThread.onProcessUnpaused();
+        final ApplicationThreadDeferred t;
+        synchronized (mService) {
+            t = mThread;
+        }
+        // Release the lock before calling the notifier, in case that calls back into AM.
+        if (t != null) t.onProcessUnpaused();
         mProfile.onProcessUnfrozen();
         mServices.onProcessUnfrozen();
     }
 
     void onProcessFrozenCancelled() {
-        if (mThread != null) mThread.onProcessPausedCancelled();
+        final ApplicationThreadDeferred t;
+        synchronized (mService) {
+            t = mThread;
+        }
+        // Release the lock before calling the notifier, in case that calls back into AM.
+        if (t != null) t.onProcessPausedCancelled();
         mServices.onProcessFrozenCancelled();
     }
 
@@ -1699,7 +1730,7 @@ class ProcessRecord implements WindowProcessListener {
         return mService.mOomAdjuster.mCachedAppOptimizer.useFreezer()
                 && !mOptRecord.isFreezeExempt()
                 && !mOptRecord.shouldNotFreeze()
-                && mState.getCurAdj() >= ProcessList.FREEZER_CUTOFF_ADJ;
+                && mState.getCurAdj() >= mService.mConstants.FREEZER_CUTOFF_ADJ;
     }
 
     public void forEachConnectionHost(Consumer<ProcessRecord> consumer) {

@@ -67,6 +67,8 @@ import static com.android.server.wm.WindowProcessController.STOPPED_STATE_FORCE_
 import android.Manifest;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeALL;
+import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityManager.ProcessCapability;
 import android.app.ActivityThread;
@@ -381,12 +383,6 @@ public final class ProcessList {
 
     // lmkd reconnect delay in msecs
     private static final long LMKD_RECONNECT_DELAY_MS = 1000;
-
-    /**
-     * The cuttoff adj for the freezer, app processes with adj greater than this value will be
-     * eligible for the freezer.
-     */
-    static final int FREEZER_CUTOFF_ADJ = CACHED_APP_MIN_ADJ;
 
     /**
      * Apps have no access to the private data directories of any other app, even if the other
@@ -797,6 +793,7 @@ public final class ProcessList {
     final ProcessMap<ProcessRecord> mDyingProcesses = new ProcessMap<>();
 
     // Self locked with the inner lock within the RemoteCallbackList
+    @GuardedBy("mProcessObservers")
     private final RemoteCallbackList<IProcessObserver> mProcessObservers =
             new RemoteCallbackList<>();
 
@@ -2559,13 +2556,12 @@ public final class ProcessList {
                 final AppZygote appZygote = createAppZygoteForProcessIfNeeded(app);
 
                 // We can't isolate app data and storage data as parent zygote already did that.
-                startResult = appZygote.getProcess().start(entryPoint,
-                        app.processName, uid, uid, gids, runtimeFlags, mountExternal,
+                startResult = appZygote.startProcess(entryPoint,
+                        app.processName, uid, gids, runtimeFlags, mountExternal,
                         app.info.targetSdkVersion, seInfo, requiredAbi, instructionSet,
-                        app.info.dataDir, null, app.info.packageName,
-                        /*zygotePolicyFlags=*/ ZYGOTE_POLICY_FLAG_EMPTY, isTopApp,
-                        app.getDisabledCompatChanges(), pkgDataInfoMap, allowlistedAppDataInfoMap,
-                        false, false, false,
+                        app.info.dataDir, app.info.packageName, isTopApp,
+                        app.getDisabledCompatChanges(), pkgDataInfoMap,
+                        allowlistedAppDataInfoMap,
                         new String[]{PROC_START_SEQ_IDENT + app.getStartSeq()});
             } else {
                 regularZygote = true;
@@ -2968,8 +2964,8 @@ public final class ProcessList {
     }
 
     @GuardedBy({"mService", "mProcLock"})
-    boolean killPackageProcessesLSP(String packageName, int appId, int userId, int minOomAdj,
-            int reasonCode, int subReason, String reason) {
+    boolean killPackageProcessesLSP(String packageName, int appId, @CanBeALL @UserIdInt int userId,
+            int minOomAdj, int reasonCode, int subReason, String reason) {
         return killPackageProcessesLSP(packageName, appId, userId, minOomAdj,
                 false /* callerWillRestart */, true /* allowRestart */, true /* doit */,
                 false /* evenPersistent */, false /* setRemoved */, false /* uninstalling */,
@@ -2977,7 +2973,8 @@ public final class ProcessList {
     }
 
     @GuardedBy("mService")
-    void killAppZygotesLocked(String packageName, int appId, int userId, boolean force) {
+    void killAppZygotesLocked(String packageName, int appId, @CanBeALL @UserIdInt int userId,
+            boolean force) {
         // See if there are any app zygotes running for this packageName / UID combination,
         // and kill it if so.
         final ArrayList<AppZygote> zygotesToKill = new ArrayList<>();
@@ -3057,9 +3054,9 @@ public final class ProcessList {
 
     @GuardedBy({"mService", "mProcLock"})
     boolean killPackageProcessesLSP(String packageName, int appId,
-            int userId, int minOomAdj, boolean callerWillRestart, boolean allowRestart,
-            boolean doit, boolean evenPersistent, boolean setRemoved, boolean uninstalling,
-            int reasonCode, int subReason, String reason) {
+            @CanBeALL @UserIdInt int userId, int minOomAdj, boolean callerWillRestart,
+            boolean allowRestart, boolean doit, boolean evenPersistent, boolean setRemoved,
+            boolean uninstalling, int reasonCode, int subReason, String reason) {
         final PackageManagerInternal pm = mService.getPackageManagerInternal();
         final ArrayList<Pair<ProcessRecord, Boolean>> procs = new ArrayList<>();
 
@@ -3218,7 +3215,6 @@ public final class ProcessList {
         if ((pid > 0 && pid != ActivityManagerService.MY_PID)
                 || (pid == 0 && app.isPendingStart())) {
             if (pid > 0) {
-                mService.removePidLocked(pid, app);
                 app.setBindMountPending(false);
                 mService.mHandler.removeMessages(PROC_START_TIMEOUT_MSG, app);
                 mService.mBatteryStatsService.noteProcessFinish(app.processName, app.info.uid);
@@ -3236,6 +3232,12 @@ public final class ProcessList {
                 }
             }
             app.killLocked(reason, reasonCode, subReason, true, async);
+            if (pid > 0) {
+                // Remove pid record mapping after killing the process, so there won't be a short
+                // period that the app is still alive but its access to system may be illegal due
+                // to no existing record for its pid.
+                mService.removePidLocked(pid, app);
+            }
             mService.handleAppDiedLocked(app, pid, willRestart, allowRestart,
                     false /* fromBinderDied */);
             if (willRestart) {
@@ -3288,8 +3290,9 @@ public final class ProcessList {
                 uidRec.updateHasInternetPermission();
                 mActiveUids.put(proc.uid, uidRec);
                 EventLogTags.writeAmUidRunning(uidRec.getUid());
-                mService.noteUidProcessState(uidRec.getUid(), uidRec.getCurProcState(),
+                mService.noteUidProcessStateAndCapability(uidRec.getUid(), uidRec.getCurProcState(),
                         uidRec.getCurCapability());
+                mService.noteUidProcessState(uidRec.getUid(), uidRec.getCurProcState());
             }
             proc.setUidRecord(uidRec);
             uidRec.addProcess(proc);
@@ -3491,8 +3494,11 @@ public final class ProcessList {
                         EventLogTags.writeAmUidStopped(uid);
                         mActiveUids.remove(uid);
                         mService.mFgsStartTempAllowList.removeUid(record.info.uid);
-                        mService.noteUidProcessState(uid, ActivityManager.PROCESS_STATE_NONEXISTENT,
+                        mService.noteUidProcessStateAndCapability(uid,
+                                ActivityManager.PROCESS_STATE_NONEXISTENT,
                                 ActivityManager.PROCESS_CAPABILITY_NONE);
+                        mService.noteUidProcessState(uid, ActivityManager.PROCESS_STATE_NONEXISTENT
+                        );
                     }
                     record.setUidRecord(null);
                 }
@@ -4975,11 +4981,15 @@ public final class ProcessList {
     }
 
     void registerProcessObserver(IProcessObserver observer) {
-        mProcessObservers.register(observer);
+        synchronized  (mProcessObservers) {
+            mProcessObservers.register(observer);
+        }
     }
 
     void unregisterProcessObserver(IProcessObserver observer) {
-        mProcessObservers.unregister(observer);
+        synchronized (mProcessObservers) {
+            mProcessObservers.unregister(observer);
+        }
     }
 
     void dispatchProcessesChanged() {
@@ -4997,38 +5007,41 @@ public final class ProcessList {
             }
         }
 
-        int i = mProcessObservers.beginBroadcast();
-        while (i > 0) {
-            i--;
-            final IProcessObserver observer = mProcessObservers.getBroadcastItem(i);
-            if (observer != null) {
-                try {
-                    for (int j = 0; j < numOfChanges; j++) {
-                        ProcessChangeItem item = mActiveProcessChanges[j];
-                        if ((item.changes & ProcessChangeItem.CHANGE_ACTIVITIES) != 0) {
-                            if (DEBUG_PROCESS_OBSERVERS) {
-                                Slog.i(TAG_PROCESS_OBSERVERS,
-                                        "ACTIVITIES CHANGED pid=" + item.pid + " uid="
-                                        + item.uid + ": " + item.foregroundActivities);
+        synchronized (mProcessObservers) {
+            int i = mProcessObservers.beginBroadcast();
+            while (i > 0) {
+                i--;
+                final IProcessObserver observer = mProcessObservers.getBroadcastItem(i);
+                if (observer != null) {
+                    try {
+                        for (int j = 0; j < numOfChanges; j++) {
+                            ProcessChangeItem item = mActiveProcessChanges[j];
+                            if ((item.changes & ProcessChangeItem.CHANGE_ACTIVITIES) != 0) {
+                                if (DEBUG_PROCESS_OBSERVERS) {
+                                    Slog.i(TAG_PROCESS_OBSERVERS,
+                                            "ACTIVITIES CHANGED pid=" + item.pid + " uid="
+                                            + item.uid + ": " + item.foregroundActivities);
+                                }
+                                observer.onForegroundActivitiesChanged(item.pid, item.uid,
+                                        item.foregroundActivities);
                             }
-                            observer.onForegroundActivitiesChanged(item.pid, item.uid,
-                                    item.foregroundActivities);
-                        }
-                        if ((item.changes & ProcessChangeItem.CHANGE_FOREGROUND_SERVICES) != 0) {
-                            if (DEBUG_PROCESS_OBSERVERS) {
-                                Slog.i(TAG_PROCESS_OBSERVERS,
-                                        "FOREGROUND SERVICES CHANGED pid=" + item.pid + " uid="
-                                        + item.uid + ": " + item.foregroundServiceTypes);
+                            if ((item.changes & ProcessChangeItem.CHANGE_FOREGROUND_SERVICES)
+                                    != 0) {
+                                if (DEBUG_PROCESS_OBSERVERS) {
+                                    Slog.i(TAG_PROCESS_OBSERVERS,
+                                            "FOREGROUND SERVICES CHANGED pid=" + item.pid + " uid="
+                                            + item.uid + ": " + item.foregroundServiceTypes);
+                                }
+                                observer.onForegroundServicesChanged(item.pid, item.uid,
+                                        item.foregroundServiceTypes);
                             }
-                            observer.onForegroundServicesChanged(item.pid, item.uid,
-                                    item.foregroundServiceTypes);
                         }
+                    } catch (RemoteException e) {
                     }
-                } catch (RemoteException e) {
                 }
             }
+            mProcessObservers.finishBroadcast();
         }
-        mProcessObservers.finishBroadcast();
 
         synchronized (mProcessChangeLock) {
             for (int j = 0; j < numOfChanges; j++) {
@@ -5117,22 +5130,42 @@ public final class ProcessList {
     }
 
     void dispatchProcessStarted(ProcessRecord app, int pid) {
-        // TODO(b/323959187) Add the implementation.
+        if (!android.app.Flags.enableProcessObserverBroadcastOnProcessStarted()) {
+            Slog.i(TAG, "ProcessObserver broadcast disabled");
+            return;
+        }
+        synchronized (mProcessObservers) {
+            int i = mProcessObservers.beginBroadcast();
+            while (i > 0) {
+                i--;
+                final IProcessObserver observer = mProcessObservers.getBroadcastItem(i);
+                if (observer != null) {
+                    try {
+                        observer.onProcessStarted(pid, app.uid, app.info.uid,
+                                app.info.packageName, app.processName);
+                    } catch (RemoteException e) {
+                    }
+                }
+            }
+            mProcessObservers.finishBroadcast();
+        }
     }
 
     void dispatchProcessDied(int pid, int uid) {
-        int i = mProcessObservers.beginBroadcast();
-        while (i > 0) {
-            i--;
-            final IProcessObserver observer = mProcessObservers.getBroadcastItem(i);
-            if (observer != null) {
-                try {
-                    observer.onProcessDied(pid, uid);
-                } catch (RemoteException e) {
+        synchronized (mProcessObservers) {
+            int i = mProcessObservers.beginBroadcast();
+            while (i > 0) {
+                i--;
+                final IProcessObserver observer = mProcessObservers.getBroadcastItem(i);
+                if (observer != null) {
+                    try {
+                        observer.onProcessDied(pid, uid);
+                    } catch (RemoteException e) {
+                    }
                 }
             }
+            mProcessObservers.finishBroadcast();
         }
-        mProcessObservers.finishBroadcast();
     }
 
     @GuardedBy(anyOf = {"mService", "mProcLock"})
@@ -5218,7 +5251,7 @@ public final class ProcessList {
     }
 
     @GuardedBy("mService")
-    void sendPackageBroadcastLocked(int cmd, String[] packages, int userId) {
+    void sendPackageBroadcastLocked(int cmd, String[] packages, @CanBeALL @UserIdInt int userId) {
         boolean foundProcess = false;
         for (int i = mLruProcesses.size() - 1; i >= 0; i--) {
             ProcessRecord r = mLruProcesses.get(i);

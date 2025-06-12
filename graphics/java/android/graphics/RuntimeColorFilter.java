@@ -37,6 +37,7 @@ import com.android.graphics.hwui.flags.Flags;
  * </pre>
  */
 @FlaggedApi(Flags.FLAG_RUNTIME_COLOR_FILTERS_BLENDERS)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class RuntimeColorFilter extends ColorFilter {
 
     private String mAgsl;

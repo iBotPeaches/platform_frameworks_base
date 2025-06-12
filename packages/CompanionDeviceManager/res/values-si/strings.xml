@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"සහායක උපාංග කළමනාකරු"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; යෙදුමට &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; වෙත ප්‍රවේශ වීමට ඉඩ දෙන්න ද?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"මෙම <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> ක්‍රියාත්මක කර ඇති බවට වග බලා ගන්න, සහ ඔබේ <xliff:g id="PROFILE_NAME">%3$s</xliff:g> ළඟ තබා ගන්න."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"උපාංග හමු නොවිණි. පසුව නැවත උත්සාහ කරන්න."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"බ්ලූටූත්"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"බ්ලූටූත් සහ Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ඔරලෝසුව"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; විසින් කළමනා කරනු ලැබීමට උපාංගයක් තෝරන්න"</string>
     <string name="chooser_title" msgid="2235819929238267637">"සැකසීමට <xliff:g id="PROFILE_NAME">%1$s</xliff:g>ක් තෝරන්න"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"<xliff:g id="PROFILE_NAME">%1$s</xliff:g> සඳහා සොයමින්"</string>
     <string name="summary_watch" msgid="8134580124808507407">"මෙම යෙදුමට අමතන කෙනෙකුගේ නම වැනි, තතු සමමුහුර්ත කිරීමට, සහ ඔබේ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> මත මෙම අවසර වෙත ප්‍රවේශ වීමට ඉඩ දෙනු ඇත"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; හට &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; කළමනා කිරීමට ඉඩ දෙන්න ද?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"උපාංගය"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"ඔබේ <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> හි යෙදුම් &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; වෙත ප්‍රවාහ කිරීමට &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; හට ඉඩ දෙන්න ද?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> හට ශ්‍රව්‍ය, ඡායාරූප, ගෙවීම් තොරතුරු, මුරපද සහ පණිවිඩ ඇතුළුව <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> හි දෘශ්‍යමාන හෝ වාදනය වන ඕනෑම දෙයකට ප්‍රවේශය ඇත.&lt;br/&gt;&lt;br/&gt;ඔබ මෙම අවසරයට ප්‍රවේශය ඉවත් කරන තෙක් <xliff:g id="APP_NAME_2">%1$s</xliff:g> හට <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> වෙත යෙදුම් ප්‍රවාහ කිරීමට හැකි වනු ඇත."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> <xliff:g id="DEVICE_NAME">%2$s</xliff:g> වෙනුවෙන් ඔබේ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> වෙතින් යෙදුම් ප්‍රවාහ කිරීමට අවසර ඉල්ලා සිටියි"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; හට ඔබේ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> සහ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; අතර ශ්‍රව්‍ය සහ පද්ධති විශේෂාංග ප්‍රවාහ කිරීමට ඉඩ දෙන්න ද?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> හට <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> හි වාදනය වන ඕනෑම දෙයකට ප්‍රවේශය ලැබෙනු ඇත.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> හට මෙම අවසරයට ප්‍රවේශය ඉවත් කරන තුරු <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> වෙත ශ්‍රව්‍ය ප්‍රවාහ කිරීමට හැකි වනු ඇත."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"උපාංගය"</string>
     <string name="summary_generic" msgid="1761976003668044801">"මෙම යෙදුමට ඔබේ දුරකථනය සහ තෝරා ගත් උපාංගය අතර, අමතන කෙනෙකුගේ නම වැනි, තතු සමමුහුර්ත කිරීමට හැකි වනු ඇත"</string>
     <string name="consent_yes" msgid="8344487259618762872">"ඉඩ දෙන්න"</string>
     <string name="consent_no" msgid="2640796915611404382">"ඉඩ නොදෙන්න"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"අවලංගු කරන්න"</string>
     <string name="consent_back" msgid="2560683030046918882">"ආපසු"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"ලැයිස්තුව පහළට අනුචලනය කරන්න"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"පහළට ඊතලය"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> විදහන්න"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> හකුළන්න"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"&lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; the හි යෙදුම්වලට &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; හි අවසරම දෙන්නද?"</string>

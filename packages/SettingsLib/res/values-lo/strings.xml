@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"ນຳໃຊ້ຢູ່ (ຊ້າຍເທົ່ານັ້ນ)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"ນຳໃຊ້ຢູ່ (ຂວາເທົ່ານັ້ນ)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"ນຳໃຊ້ຢູ່ (ຊ້າຍ ແລະ ຂວາ)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"ບໍ່ສາມາດອັບເດດສຽງແວດລ້ອມໄດ້"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"ນຳໃຊ້ຢູ່ (ມີເດຍເທົ່ານັ້ນ). ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"ນຳໃຊ້ຢູ່ (ມີເດຍເທົ່ານັ້ນ). ຊ: ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, ຂ: ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"ອຸປະກອນແຂກ. ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"ອຸປະກອນແຂກ. ແບັດເຕີຣີ L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"ອຸປະກອນແຂກ (ສື່ເທົ່ານັ້ນ). ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"ອຸປະກອນແຂກ (ສື່ເທົ່ານັ້ນ). ແບັດເຕີຣີ L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"ເຊື່ອມຕໍ່ແລ້ວ (ຮອງຮັບການແບ່ງປັນສຽງ). ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"ເຊື່ອມຕໍ່ແລ້ວ (ຮອງຮັບການແບ່ງປັນສຽງ). ຊ: ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, ຂ: ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"ເຊື່ອມຕໍ່ແລ້ວ (ຮອງຮັບການແບ່ງປັນສຽງ). ຊ້າຍ: ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"ເຊື່ອມຕໍ່ແລ້ວ (ຮອງຮັບການແບ່ງປັນສຽງ). ຂວາ: ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"ເຊື່ອມຕໍ່ແລ້ວ (ຮອງຮັບການແບ່ງປັນສຽງ)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"ອຸປະກອນແຂກ (ຮອງຮັບການແບ່ງປັນສຽງ). ແບັດເຕີຣີ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"ອຸປະກອນແຂກ (ຮອງຮັບການແບ່ງປັນສຽງ). ແບັດເຕີຣີ L: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"ອຸປະກອນແຂກ (ຮອງຮັບການແບ່ງປັນສຽງ)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"ນຳໃຊ້ຢູ່ (ມີເດຍເທົ່ານັ້ນ)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"ອຸປະກອນແຂກ"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"ອຸປະກອນແຂກ (ສື່ເທົ່ານັ້ນ)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"ຮອງຮັບການແບ່ງປັນສຽງ"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"ອຸປະກອນແຂກ. ຮອງຮັບການແບ່ງປັນສຽງ"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"ນຳໃຊ້ຢູ່ (ມີເດຍເທົ່ານັ້ນ), ຊ້າຍເທົ່ານັ້ນ"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"ນຳໃຊ້ຢູ່ (ມີເດຍເທົ່ານັ້ນ), ຂວາເທົ່ານັ້ນ"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"ນຳໃຊ້ຢູ່ (ມີເດຍເທົ່ານັ້ນ), ຊ້າຍ ແລະ ຂວາ"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"ການສະແດງຜົນໂດຍໃຊ້ຮາດແວຊ່ວຍ"</string>
     <string name="media_category" msgid="8122076702526144053">"ມີເດຍ"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"ກຳລັງກວດສອບ"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"ການຈັດການໜ້າຈໍ"</string>
     <string name="strict_mode" msgid="889864762140862437">"ເປີດໃຊ້ໂໝດເຄັ່ງຄັດ"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"ກະພິບໜ້າຈໍເມື່ອມີແອັບເຮັດວຽກດົນເກີນໄປໃນເທຣດຫຼັກ"</string>
     <string name="pointer_location" msgid="7516929526199520173">"ຕຳແໜ່ງໂຕຊີ້"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"ຂະໜາດສະຫຼັບອະນິເມຊັນ"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"ໄລຍະເວລາອະນິເມຊັນ"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"ຈຳລອງຈໍສະແດງຜົນທີສອງ"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"ຕຳແໜ່ງການສະແດງຜົນຂອງເສດສີ"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"ແອັບ"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"ບໍ່ຕ້ອງຮັກສາການເຄື່ອນ​ໄຫວ"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"ລຶບທຸກການເຄື່ອນໄຫວທັນທີທີ່ຜູ້ໃຊ້ອອກຈາກມັນ"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"ການຈັດຕັ້ງປະຕິບັດ WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"ຕັ້ງການຈັດຕັ້ງປະຕິບັດ WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"ບໍ່ສາມາດໃຊ້ການເລືອກນີ້ໄດ້ອີກຕໍ່ໄປແລ້ວ. ກະລຸນາລອງໃໝ່."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"ບໍ່ພົບແພັກເກດ WebView."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"ບໍ່ສາມາດເປີດໃຊ້ DevTools."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"ໂໝດ​ສີ​ຮູບ"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"ໃຊ້ sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"ປິດນຳໃຊ້ແລ້ວ"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"ກຳລັງສາກໄວ"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"ຄວບຄຸມໂດຍຜູ້ເບິ່ງແຍງ"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"ຄວບຄຸມໂດຍການຕັ້ງຄ່າທີ່ຈຳກັດໄວ້"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"ບໍ່ສາມາດໃຊ້ໄດ້ລະຫວ່າງການໂທ"</string>
     <string name="disabled" msgid="8017887509554714950">"ປິດການນຳໃຊ້"</string>
+    <string name="enabled" msgid="3997122818554810678">"ເປີດການນຳໃຊ້ຢູ່"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"ອະນຸຍາດແລ້ວ"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"ບໍ່ອະນຸຍາດ"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"ຕິດຕັ້ງແອັບທີ່ບໍ່ຮູ້ຈັກ"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"ລຳໂພງທີ່ມີໃນຕົວ"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"ສຽງນີ້"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"ເກີດບັນຫາໃນການເຊື່ອມຕໍ່. ປິດອຸປະກອນແລ້ວເປີດກັບຄືນມາໃໝ່"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"ບໍ່ສາມາດເຊື່ອມຕໍ່ໄດ້"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"ອຸປະກອນສຽງແບບມີສາຍ"</string>
     <string name="help_label" msgid="3528360748637781274">"ຊ່ວຍເຫຼືອ ແລະ ຕິຊົມ"</string>
     <string name="storage_category" msgid="2287342585424631813">"ບ່ອນເກັບຂໍ້ມູນ"</string>

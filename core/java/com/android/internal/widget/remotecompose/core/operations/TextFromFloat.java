@@ -28,6 +28,8 @@ import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringUtils;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
@@ -36,7 +38,7 @@ import java.util.List;
  * [command][textID][before,after][flags] before and after define number of digits before and after
  * the decimal point
  */
-public class TextFromFloat extends Operation implements VariableSupport {
+public class TextFromFloat extends Operation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.TEXT_FROM_FLOAT;
     private static final String CLASS_NAME = "TextFromFloat";
     public int mTextId;
@@ -208,5 +210,16 @@ public class TextFromFloat extends Operation implements VariableSupport {
     @Override
     public String deepToString(@NonNull String indent) {
         return indent + toString();
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("textId", mTextId)
+                .add("value", mValue, mOutValue)
+                .add("digitsBefore", mDigitsBefore)
+                .add("digitsAfter", mDigitsAfter)
+                .add("flags", mFlags);
     }
 }

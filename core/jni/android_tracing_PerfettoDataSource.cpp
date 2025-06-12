@@ -96,6 +96,9 @@ jobject PerfettoDataSource::newInstance(JNIEnv* env, void* ds_config, size_t ds_
 
 bool PerfettoDataSource::TraceIterateBegin() {
     if (gInIteration) {
+        ALOG(LOG_ERROR, LOG_TAG,
+              "Tried calling TraceIterateBegin with an already active iterator for datasource %s.",
+              dataSourceName.c_str());
         return false;
     }
 

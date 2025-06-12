@@ -211,7 +211,6 @@ public final class BatteryStatsService extends IBatteryStats.Stub
     private static final int POWER_STATS_QUERY_TIMEOUT_MILLIS = 2000;
     private static final String DEVICE_CONFIG_NAMESPACE = "backstage_power";
     private static final String MIN_CONSUMED_POWER_THRESHOLD_KEY = "min_consumed_power_threshold";
-    private static final String EMPTY = "Empty";
 
     private final HandlerThread mHandlerThread;
     private final Handler mHandler;
@@ -336,55 +335,6 @@ public final class BatteryStatsService extends IBatteryStats.Stub
         }
     }
 
-    @Override
-    public String getSubsystemLowPowerStats() {
-        synchronized (mPowerStatsLock) {
-            if (mPowerStatsInternal == null || mEntityNames.isEmpty() || mStateNames.isEmpty()) {
-                return EMPTY;
-            }
-        }
-
-        final StateResidencyResult[] results;
-        try {
-            results = mPowerStatsInternal.getStateResidencyAsync(new int[0])
-                    .get(POWER_STATS_QUERY_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            Slog.e(TAG, "Failed to getStateResidencyAsync", e);
-            return EMPTY;
-        }
-
-        if (results == null || results.length == 0) return EMPTY;
-
-        int charsLeft = MAX_LOW_POWER_STATS_SIZE;
-        StringBuilder builder = new StringBuilder("SubsystemPowerState");
-        for (int i = 0; i < results.length; i++) {
-            final StateResidencyResult result = results[i];
-            StringBuilder subsystemBuilder = new StringBuilder();
-            subsystemBuilder.append(" subsystem_" + i);
-            subsystemBuilder.append(" name=" + mEntityNames.get(result.id));
-
-            for (int j = 0; j < result.stateResidencyData.length; j++) {
-                final StateResidency stateResidency = result.stateResidencyData[j];
-                subsystemBuilder.append(" state_" + j);
-                subsystemBuilder.append(" name=" + mStateNames.get(result.id).get(
-                        stateResidency.id));
-                subsystemBuilder.append(" time=" + stateResidency.totalTimeInStateMs);
-                subsystemBuilder.append(" count=" + stateResidency.totalStateEntryCount);
-                subsystemBuilder.append(" last entry=" + stateResidency.lastEntryTimestampMs);
-            }
-
-            if (subsystemBuilder.length() <= charsLeft) {
-                charsLeft -= subsystemBuilder.length();
-                builder.append(subsystemBuilder);
-            } else {
-                Slog.e(TAG, "getSubsystemLowPowerStats: buffer not enough");
-                break;
-            }
-        }
-
-        return builder.toString();
-    }
-
     private ConnectivityManager.NetworkCallback mNetworkCallback =
             new ConnectivityManager.NetworkCallback() {
         @Override
@@ -427,11 +377,14 @@ public final class BatteryStatsService extends IBatteryStats.Stub
                 com.android.internal.R.bool.config_batteryStatsResetOnUnplugHighBatteryLevel);
         final boolean resetOnUnplugAfterSignificantCharge = context.getResources().getBoolean(
                 com.android.internal.R.bool.config_batteryStatsResetOnUnplugAfterSignificantCharge);
+        final int batteryHistoryStorageSize = context.getResources().getInteger(
+                com.android.internal.R.integer.config_batteryHistoryStorageSize);
         BatteryStatsImpl.BatteryStatsConfig.Builder batteryStatsConfigBuilder =
                 new BatteryStatsImpl.BatteryStatsConfig.Builder()
                         .setResetOnUnplugHighBatteryLevel(resetOnUnplugHighBatteryLevel)
                         .setResetOnUnplugAfterSignificantCharge(
-                                resetOnUnplugAfterSignificantCharge);
+                                resetOnUnplugAfterSignificantCharge)
+                        .setMaxHistorySizeBytes(batteryHistoryStorageSize);
         setPowerStatsThrottlePeriods(batteryStatsConfigBuilder, context.getResources().getString(
                 com.android.internal.R.string.config_powerStatsThrottlePeriods));
         mBatteryStatsConfig = batteryStatsConfigBuilder.build();
@@ -523,8 +476,12 @@ public final class BatteryStatsService extends IBatteryStats.Stub
     }
 
     public void systemServicesReady() {
+        mStats.setBatteryHistoryCompressionEnabled(
+                Flags.extendedBatteryHistoryCompressionEnabled());
         mStats.saveBatteryUsageStatsOnReset(mBatteryUsageStatsProvider, mPowerStatsStore,
                 isBatteryUsageStatsAccumulationSupported());
+        mStats.resetBatteryHistoryOnNewSession(
+                !Flags.extendedBatteryHistoryContinuousCollectionEnabled());
 
         MultiStatePowerAttributor attributor = (MultiStatePowerAttributor) mPowerAttributor;
         mStats.setPowerStatsCollectorEnabled(BatteryConsumer.POWER_COMPONENT_CPU,
@@ -1101,6 +1058,9 @@ public final class BatteryStatsService extends IBatteryStats.Stub
 
     /** StatsPullAtomCallback for pulling BatteryUsageStats data. */
     private class StatsPullAtomCallbackImpl implements StatsManager.StatsPullAtomCallback {
+        private static final long BATTERY_USAGE_STATS_PER_UID_MAX_STATS_AGE =
+                TimeUnit.HOURS.toMillis(2);
+
         @Override
         public int onPullAtom(int atomTag, List<StatsEvent> data) {
             final BatteryUsageStats bus;
@@ -1168,7 +1128,8 @@ public final class BatteryStatsService extends IBatteryStats.Stub
                             .setMinConsumedPowerThreshold(minConsumedPowerThreshold);
 
                     if (isBatteryUsageStatsAccumulationSupported()) {
-                        query.accumulated();
+                        query.accumulated()
+                                .setMaxStatsAgeMs(BATTERY_USAGE_STATS_PER_UID_MAX_STATS_AGE);
                     }
 
                     bus = getBatteryUsageStats(List.of(query.build())).get(0);
@@ -3407,6 +3368,14 @@ public final class BatteryStatsService extends IBatteryStats.Stub
                     return;
                 } else if ("-a".equals(arg)) {
                     flags |= BatteryStats.DUMP_VERBOSE;
+                } else if ("--debug".equals(arg)) {
+                    i++;
+                    if (i >= args.length) {
+                        pw.println("Missing time argument for --flags HEX");
+                        dumpHelp(pw);
+                        return;
+                    }
+                    flags |= ParseUtils.parseIntWithBase(args[i], 16, 0);
                 } else if (arg.length() > 0 && arg.charAt(0) == '-'){
                     pw.println("Unknown option: " + arg);
                     dumpHelp(pw);
@@ -3694,8 +3663,14 @@ public final class BatteryStatsService extends IBatteryStats.Stub
     @Override
     public void takeUidSnapshotsAsync(int[] requestUids, ResultReceiver resultReceiver) {
         if (!onlyCaller(requestUids)) {
-            mContext.enforceCallingOrSelfPermission(
-                    android.Manifest.permission.BATTERY_STATS, null);
+            try {
+                mContext.enforceCallingOrSelfPermission(
+                        android.Manifest.permission.BATTERY_STATS, null);
+            } catch (SecurityException ex) {
+                resultReceiver.send(IBatteryStats.RESULT_SECURITY_EXCEPTION,
+                        Bundle.forPair(IBatteryStats.KEY_EXCEPTION_MESSAGE, ex.getMessage()));
+                return;
+            }
         }
 
         if (shouldCollectExternalStats()) {
@@ -3716,13 +3691,14 @@ public final class BatteryStatsService extends IBatteryStats.Stub
                 }
                 Bundle resultData = new Bundle(1);
                 resultData.putParcelableArray(IBatteryStats.KEY_UID_SNAPSHOTS, results);
-                resultReceiver.send(0, resultData);
+                resultReceiver.send(IBatteryStats.RESULT_OK, resultData);
             } catch (Exception ex) {
                 if (DBG) {
                     Slog.d(TAG, "Crashed while returning results for takeUidSnapshots("
                             + Arrays.toString(requestUids) + ") i=" + i, ex);
                 }
-                throw ex;
+                resultReceiver.send(IBatteryStats.RESULT_RUNTIME_EXCEPTION,
+                        Bundle.forPair(IBatteryStats.KEY_EXCEPTION_MESSAGE, ex.getMessage()));
             } finally {
                 Binder.restoreCallingIdentity(ident);
             }

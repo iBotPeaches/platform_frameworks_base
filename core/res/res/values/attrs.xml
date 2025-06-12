@@ -1217,178 +1217,6 @@
              a value of 'true' will not override any 'false' value in its parent chain nor will
              it prevent any 'false' in any of its children. -->
         <attr name="forceDarkAllowed" format="boolean" />
-
-        <!-- Dynamic Tokens -->
-
-        <!-- @hide -->
-        <attr name="materialColorBackground" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorControlActivated" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorControlHighlight" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorControlNormal" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorError" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorErrorContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorInverseOnSurface" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorInversePrimary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorInverseSurface" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnBackground" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnError" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnErrorContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnPrimary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnPrimaryContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnSecondary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnSecondaryContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnSurface" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnSurfaceVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnTertiary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnTertiaryContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOutline" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOutlineVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPaletteKeyColorNeutral" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPaletteKeyColorNeutralVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPaletteKeyColorPrimary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPaletteKeyColorSecondary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPaletteKeyColorTertiary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPrimary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPrimaryContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorScrim" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSecondary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSecondaryContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorShadow" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurface" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceBright" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceContainerHigh" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceContainerHighest" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceContainerLow" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceContainerLowest" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceDim" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceTint" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSurfaceVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTertiary" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTertiaryContainer" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTextHintInverse" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTextPrimaryInverse" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTextPrimaryInverseDisableOnly" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTextSecondaryAndTertiaryInverse" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTextSecondaryAndTertiaryInverseDisabled" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnPrimaryFixed" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnPrimaryFixedVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnSecondaryFixed" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnSecondaryFixedVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnTertiaryFixed" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorOnTertiaryFixedVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPrimaryFixed" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorPrimaryFixedDim" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSecondaryFixed" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorSecondaryFixedDim" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTertiaryFixed" format="color"/>
-        <!-- @hide -->
-        <attr name="materialColorTertiaryFixedDim" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorBrandA" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorBrandB" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorBrandC" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorBrandD" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorClockHour" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorClockMinute" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorClockSecond" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorOnShadeActive" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorOnShadeActiveVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorOnShadeInactive" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorOnShadeInactiveVariant" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorOnThemeApp" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorOverviewBackground" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorShadeActive" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorShadeDisabled" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorShadeInactive" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorThemeApp" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorThemeAppRing" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorThemeNotif" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorUnderSurface" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorWeatherTemp" format="color"/>
-        <!-- @hide -->
-        <attr name="customColorWidgetBackground" format="color"/>
-
     </declare-styleable>
 
     <!-- **************************************************************** -->
@@ -2909,7 +2737,7 @@
              The default is true. -->
         <attr name="windowIsFrameRatePowerSavingsBalanced" format="boolean"/>
 
-        <!-- Flag indicating whether this window would opt-out the edge-to-edge enforcement.
+        <!-- Flag indicating whether this window would opt out the edge-to-edge enforcement.
 
              <p>If this is false, the edge-to-edge enforcement will be applied to the window if it
              belongs to an app targeting
@@ -2929,8 +2757,9 @@
                  The Configuration will be stable regardless of the system insets change.
              </ul>
 
-             <p>If this is true, the edge-to-edge enforcement won't be applied. However, this
-             attribute will be deprecated and disabled in a future SDK level.
+             <p>If this is true, the edge-to-edge enforcement won't be applied. But if the window
+             belongs to an app targeting {@link android.os.Build.VERSION_CODES#BAKLAVA BAKLAVA} or
+             above, this attribute is ignored and the enforcement is applied regardless.
 
              <p>This is false by default. -->
         <attr name="windowOptOutEdgeToEdgeEnforcement" format="boolean"/>
@@ -3484,7 +3313,6 @@
         <!-- Provides brief supplemental information for the view, such as the purpose of
              the view when that purpose is not conveyed within its textual representation.
              This property is used primarily for accessibility. -->
-        <!-- @FlaggedApi("android.view.accessibility.supplemental_description") -->
         <attr name="supplementalDescription" format="string" localization="suggested" />
 
         <!-- Sets the id of a view that screen readers are requested to visit after this view.
@@ -5745,6 +5573,14 @@
 
     <!-- @hide internal use only -->
     <declare-styleable name="NotificationProgressBar">
+        <!-- Minimum required drawing width for segments. The drawing width refers to the width
+             after the original segments have been adjusted for the neighboring Points and gaps.
+             This is enforced by stretching the segments that are too short. -->
+        <attr name="segMinWidth" format="dimension" />
+        <!-- The gap between two segments. -->
+        <attr name="segSegGap" format="dimension" />
+        <!-- The gap between a segment and a point. -->
+        <attr name="segPointGap" format="dimension" />
         <!-- Draws the tracker on a NotificationProgressBar. -->
         <attr name="tracker" format="reference" />
         <!-- Height of the tracker. -->
@@ -7106,6 +6942,8 @@
             <enum name="line" value="2" />
             <!-- Ring shape. -->
             <enum name="ring" value="3" />
+            <!-- ARC shape. -->
+            <enum name="arc" value="4"/>
         </attr>
         <!-- Inner radius of the ring expressed as a ratio of the ring's width. For instance,
              if innerRadiusRatio=9, then the inner radius equals the ring's width divided by 9.
@@ -7138,6 +6976,12 @@
         <attr name="opticalInsetRight" />
         <!-- Bottom optical inset. -->
         <attr name="opticalInsetBottom" />
+        <!-- Attributes that customize the stroke line cap. @hide -->
+        <attr name="strokeCap" format="enum">
+            <enum name="butt" value="0"/>
+            <enum name="round" value="1"/>
+            <enum name="square" value="2"/>
+        </attr>
     </declare-styleable>
 
     <!-- Used to specify the size of the shape for GradientDrawable. -->
@@ -7744,25 +7588,15 @@
     <!-- NotificationProgressDrawable class -->
     <!-- ================================== -->
 
-    <!-- Drawable used to render a segmented bar, with segments and points. -->
-    <!-- @hide internal use only -->
-    <declare-styleable name="NotificationProgressDrawable">
-        <!-- Default color for the parts. -->
-        <attr name="segSegGap" format="dimension" />
-        <attr name="segPointGap" format="dimension" />
-    </declare-styleable>
-
     <!-- Used to config the segments of a NotificationProgressDrawable. -->
     <!-- @hide internal use only -->
     <declare-styleable name="NotificationProgressDrawableSegments">
-        <!-- Height of the solid segments -->
+        <!-- Height of the solid segments. -->
         <attr name="height" />
-        <!-- Height of the faded segments -->
-        <attr name="fadedHeight" format="dimension"/>
+        <!-- Height of the faded segments. -->
+        <attr name="fadedHeight" format="dimension" />
         <!-- Corner radius of the segment rect. -->
         <attr name="cornerRadius" format="dimension" />
-        <!-- Default color of the segment. -->
-        <attr name="color" />
     </declare-styleable>
 
     <!-- Used to config the points of a NotificationProgressDrawable. -->
@@ -7774,8 +7608,6 @@
         <attr name="inset" />
         <!-- Corner radius of the point rect. -->
         <attr name="cornerRadius"/>
-        <!-- Default color of the point rect. -->
-        <attr name="color" />
     </declare-styleable>
 
     <!-- ========================== -->

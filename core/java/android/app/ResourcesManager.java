@@ -77,6 +77,7 @@ import java.util.function.Function;
 public class ResourcesManager {
     static final String TAG = "ResourcesManager";
     private static final boolean DEBUG = false;
+    public static final String RESOURCE_CACHE_DIR = "/data/resource-cache/";
 
     private static volatile ResourcesManager sResourcesManager;
 
@@ -159,7 +160,9 @@ public class ResourcesManager {
             return;
         }
 
-        final var sharedLibAssets = new SharedLibraryAssets(appInfo);
+        final var application = ActivityThread.currentActivityThread().getApplication();
+        final var currentAppInfo = application != null ? application.getApplicationInfo() : null;
+        final var sharedLibAssets = new SharedLibraryAssets(appInfo, currentAppInfo);
         synchronized (mLock) {
             if (mSharedLibAssetsMap.containsKey(uniqueId)) {
                 Slog.v(TAG, "Package resources' paths for uniqueId: " + uniqueId
@@ -190,7 +193,7 @@ public class ResourcesManager {
 
         synchronized (mLock) {
             size = mSharedLibAssetsMap.size();
-            if (assets == AssetManager.getSystem()) {
+            if (size == 0 || assets == AssetManager.getSystem()) {
                 return new Pair<>(assets, size);
             }
             collector = new PathCollector(resourcesKeyFromAssets(assets));
@@ -581,7 +584,7 @@ public class ResourcesManager {
     }
 
     private static String overlayPathToIdmapPath(String path) {
-        return "/data/resource-cache/" + path.substring(1).replace('/', '@') + "@idmap";
+        return RESOURCE_CACHE_DIR + path.substring(1).replace('/', '@') + "@idmap";
     }
 
     /**
@@ -1997,10 +2000,30 @@ public class ResourcesManager {
     public static class SharedLibraryAssets {
         private final ResourcesKey mResourcesKey;
 
-        private SharedLibraryAssets(ApplicationInfo appInfo) {
+        private SharedLibraryAssets(@NonNull ApplicationInfo appInfo,
+                @Nullable ApplicationInfo baseAppInfo) {
             // We're loading all library's files as shared libs, regardless where they are in
             // its own ApplicationInfo.
             final var collector = new PathCollector(null);
+            // Pre-populate the collector's sets with the base app paths so they all get filtered
+            // out if they exist in the info that's being registered as well.
+            // Note: if someone is registering their own appInfo, we can't filter out anything
+            // here and this means any asset path changes are going to be ignored.
+            if (baseAppInfo != null && !baseAppInfo.sourceDir.equals(appInfo.sourceDir)) {
+                collector.libsSet.add(baseAppInfo.sourceDir);
+                if (baseAppInfo.splitSourceDirs != null) {
+                    collector.libsSet.addAll(Arrays.asList(baseAppInfo.splitSourceDirs));
+                }
+                if (baseAppInfo.sharedLibraryFiles != null) {
+                    collector.libsSet.addAll(Arrays.asList(baseAppInfo.sharedLibraryFiles));
+                }
+                if (baseAppInfo.resourceDirs != null) {
+                    collector.overlaysSet.addAll(Arrays.asList(baseAppInfo.resourceDirs));
+                }
+                if (baseAppInfo.overlayPaths != null) {
+                    collector.overlaysSet.addAll(Arrays.asList(baseAppInfo.overlayPaths));
+                }
+            }
             PathCollector.appendNewPath(appInfo.sourceDir, collector.libsSet,
                     collector.orderedLibs);
             PathCollector.appendAllNewPaths(appInfo.splitSourceDirs, collector.libsSet,
@@ -2012,6 +2035,10 @@ public class ResourcesManager {
             PathCollector.appendAllNewPaths(appInfo.overlayPaths, collector.overlaysSet,
                     collector.orderedOverlays);
             mResourcesKey = collector.collectedKey();
+
+            if (DEBUG) {
+                Log.i(TAG, "Created shared library assets: " + mResourcesKey);
+            }
         }
 
         /**

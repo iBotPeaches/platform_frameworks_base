@@ -28,7 +28,9 @@ import android.widget.LinearLayout;
 
 import androidx.core.graphics.drawable.DrawableCompat;
 
-import com.android.settingslib.Utils;
+import com.android.systemui.Flags;
+import com.android.systemui.bouncer.shared.constants.PinBouncerConstants;
+import com.android.systemui.bouncer.shared.constants.PinBouncerConstants.Color;
 import com.android.systemui.res.R;
 
 /**
@@ -39,8 +41,8 @@ public class PinShapeHintingView extends LinearLayout implements PinShapeInput {
 
     private int mPinLength;
     private int mDotDiameter;
-    private int mColor = Utils.getColorAttr(getContext(), PIN_SHAPES)
-            .getDefaultColor();
+    @Deprecated
+    private int mColor = getContext().getColor(PIN_SHAPES);
     private int mPosition = 0;
     private static final int DEFAULT_PIN_LENGTH = 6;
     private PinShapeAdapter mPinShapeAdapter;
@@ -55,10 +57,10 @@ public class PinShapeHintingView extends LinearLayout implements PinShapeInput {
             ImageView pinDot = new ImageView(context, attrs);
             LayoutParams layoutParams = new LayoutParams(mDotDiameter, mDotDiameter);
             pinDot.setLayoutParams(layoutParams);
-            pinDot.setImageResource(R.drawable.pin_dot_avd);
+            pinDot.setImageResource(PinBouncerConstants.pinDotAvd);
             if (pinDot.getDrawable() != null) {
                 Drawable drawable = DrawableCompat.wrap(pinDot.getDrawable());
-                DrawableCompat.setTint(drawable, mColor);
+                DrawableCompat.setTint(drawable, getPinHintDotColor());
             }
             addView(pinDot);
         }
@@ -69,7 +71,8 @@ public class PinShapeHintingView extends LinearLayout implements PinShapeInput {
         if (mPosition == DEFAULT_PIN_LENGTH) {
             return;
         }
-        setAnimatedDrawable(mPosition, mPinShapeAdapter.getShape(mPosition));
+        setAnimatedDrawable((ImageView) getChildAt(mPosition), mPinShapeAdapter.getShape(mPosition),
+                getPinShapeColor());
         mPosition++;
     }
 
@@ -79,7 +82,8 @@ public class PinShapeHintingView extends LinearLayout implements PinShapeInput {
             return;
         }
         mPosition--;
-        setAnimatedDrawable(mPosition, R.drawable.pin_dot_delete_avd);
+        setAnimatedDrawable((ImageView) getChildAt(mPosition), PinBouncerConstants.pinDeleteAvd,
+                getPinHintDotColor());
     }
 
     @Override
@@ -101,15 +105,32 @@ public class PinShapeHintingView extends LinearLayout implements PinShapeInput {
         return this;
     }
 
-    private void setAnimatedDrawable(int position, int drawableResId) {
-        ImageView pinDot = (ImageView) getChildAt(position);
+    private static void setAnimatedDrawable(ImageView pinDot, int drawableResId,
+            int drawableColor) {
         pinDot.setImageResource(drawableResId);
         if (pinDot.getDrawable() != null) {
             Drawable drawable = DrawableCompat.wrap(pinDot.getDrawable());
-            DrawableCompat.setTint(drawable, mColor);
+            DrawableCompat.setTint(drawable, drawableColor);
         }
         if (pinDot.getDrawable() instanceof AnimatedVectorDrawable) {
             ((AnimatedVectorDrawable) pinDot.getDrawable()).start();
         }
     }
+
+    private int getPinHintDotColor() {
+        if (Flags.bouncerUiRevamp2()) {
+            return mContext.getColor(Color.hintDot);
+        } else {
+            return mColor;
+        }
+    }
+
+    private int getPinShapeColor() {
+        if (Flags.bouncerUiRevamp2()) {
+            return mContext.getColor(Color.shape);
+        } else {
+            return mColor;
+        }
+    }
+
 }

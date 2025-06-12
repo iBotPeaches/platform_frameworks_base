@@ -20,6 +20,7 @@ import android.app.trust.TrustManager
 import android.content.Context
 import android.hardware.biometrics.BiometricFaceConstants
 import android.hardware.biometrics.BiometricSourceType
+import android.service.dreams.Flags.dreamsV2
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.biometrics.data.repository.FacePropertyRepository
 import com.android.systemui.biometrics.shared.model.LockoutMode
@@ -40,26 +41,33 @@ import com.android.systemui.keyguard.shared.model.DevicePosture
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState.AOD
 import com.android.systemui.keyguard.shared.model.KeyguardState.DOZING
+import com.android.systemui.keyguard.shared.model.KeyguardState.DREAMING
 import com.android.systemui.keyguard.shared.model.KeyguardState.LOCKSCREEN
 import com.android.systemui.keyguard.shared.model.KeyguardState.OFF
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.log.FaceAuthenticationLogger
+import com.android.systemui.log.table.TableLogBuffer
+import com.android.systemui.log.table.logDiffsForTable
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.user.data.model.SelectionStatus
 import com.android.systemui.user.data.repository.UserRepository
 import com.android.systemui.util.kotlin.pairwise
 import com.android.systemui.util.kotlin.sample
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import dagger.Lazy
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
@@ -130,11 +138,18 @@ constructor(
             }
             .launchIn(applicationScope)
 
-        merge(
-                keyguardTransitionInteractor.transition(Edge.create(AOD, LOCKSCREEN)),
-                keyguardTransitionInteractor.transition(Edge.create(OFF, LOCKSCREEN)),
-                keyguardTransitionInteractor.transition(Edge.create(DOZING, LOCKSCREEN)),
-            )
+        val transitionFlows = buildList {
+            add(keyguardTransitionInteractor.transition(Edge.create(AOD, LOCKSCREEN)))
+            add(keyguardTransitionInteractor.transition(Edge.create(OFF, LOCKSCREEN)))
+            add(keyguardTransitionInteractor.transition(Edge.create(DOZING, LOCKSCREEN)))
+
+            if (dreamsV2()) {
+                add(keyguardTransitionInteractor.transition(Edge.create(DREAMING, LOCKSCREEN)))
+            }
+        }
+
+        transitionFlows
+            .merge()
             .filter { it.transitionState == TransitionState.STARTED }
             .sample(powerInteractor.detailedWakefulness)
             .filter { wakefulnessModel ->
@@ -232,7 +247,7 @@ constructor(
 
     private val isBouncerVisible: Flow<Boolean> by lazy {
         if (SceneContainerFlag.isEnabled) {
-            sceneInteractor.get().transitionState.map { it.isIdle(Scenes.Bouncer) }
+            sceneInteractor.get().transitionState.map { it.isIdle(Overlays.Bouncer) }
         } else {
             primaryBouncerInteractor.get().isShowing
         }
@@ -377,6 +392,27 @@ constructor(
             }
             .flowOn(mainDispatcher)
             .launchIn(applicationScope)
+    }
+
+    override suspend fun hydrateTableLogBuffer(tableLogBuffer: TableLogBuffer) {
+        conflatedCallbackFlow {
+                val listener =
+                    object : FaceAuthenticationListener {
+                        override fun onAuthEnrollmentStateChanged(enrolled: Boolean) {
+                            trySend(isFaceAuthEnabledAndEnrolled())
+                        }
+                    }
+
+                registerListener(listener)
+
+                awaitClose { unregisterListener(listener) }
+            }
+            .logDiffsForTable(
+                tableLogBuffer = tableLogBuffer,
+                columnName = "isFaceAuthEnabledAndEnrolled",
+                initialValue = isFaceAuthEnabledAndEnrolled(),
+            )
+            .collect()
     }
 
     companion object {

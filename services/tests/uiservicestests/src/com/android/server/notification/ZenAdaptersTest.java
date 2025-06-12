@@ -20,10 +20,7 @@ import static android.service.notification.ZenAdapters.notificationPolicyToZenPo
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.app.Flags;
 import android.app.NotificationManager.Policy;
-import android.platform.test.annotations.DisableFlags;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.notification.ZenPolicy;
 
@@ -137,8 +134,7 @@ public class ZenAdaptersTest extends UiServiceTestCase {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
-    public void notificationPolicyToZenPolicy_modesApi_priorityChannels() {
+    public void notificationPolicyToZenPolicy_priorityChannels() {
         Policy policy = new Policy(0, 0, 0, 0,
                 Policy.policyState(false, true), 0);
 
@@ -150,21 +146,5 @@ public class ZenAdaptersTest extends UiServiceTestCase {
         ZenPolicy zenPolicyNotAllowed = notificationPolicyToZenPolicy(notAllowed);
         assertThat(zenPolicyNotAllowed.getPriorityChannelsAllowed()).isEqualTo(
                 ZenPolicy.STATE_DISALLOW);
-    }
-
-    @Test
-    @DisableFlags(Flags.FLAG_MODES_API)
-    public void notificationPolicyToZenPolicy_noModesApi_priorityChannelsUnset() {
-        Policy policy = new Policy(0, 0, 0, 0,
-                Policy.policyState(false, true), 0);
-
-        ZenPolicy zenPolicy = notificationPolicyToZenPolicy(policy);
-        assertThat(zenPolicy.getPriorityChannelsAllowed()).isEqualTo(ZenPolicy.STATE_UNSET);
-
-        Policy notAllowed = new Policy(0, 0, 0, 0,
-                Policy.policyState(false, false), 0);
-        ZenPolicy zenPolicyNotAllowed = notificationPolicyToZenPolicy(notAllowed);
-        assertThat(zenPolicyNotAllowed.getPriorityChannelsAllowed()).isEqualTo(
-                ZenPolicy.STATE_UNSET);
     }
 }

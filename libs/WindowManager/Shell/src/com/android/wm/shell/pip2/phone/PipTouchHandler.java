@@ -54,10 +54,13 @@ import android.view.accessibility.AccessibilityWindowInfo;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.R;
+import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.FloatingContentCoordinator;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.pip.PipBoundsAlgorithm;
 import com.android.wm.shell.common.pip.PipBoundsState;
+import com.android.wm.shell.common.pip.PipDesktopState;
+import com.android.wm.shell.common.pip.PipDisplayLayoutState;
 import com.android.wm.shell.common.pip.PipDoubleTapHelper;
 import com.android.wm.shell.common.pip.PipPerfHintController;
 import com.android.wm.shell.common.pip.PipUiEventLogger;
@@ -91,6 +94,7 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
     @NonNull private final PipTransitionState mPipTransitionState;
     @NonNull private final PipScheduler mPipScheduler;
     @NonNull private final SizeSpecSource mSizeSpecSource;
+    @NonNull private final PipDisplayLayoutState mPipDisplayLayoutState;
     private final PipUiEventLogger mPipUiEventLogger;
     private final PipDismissTargetHandler mPipDismissTargetHandler;
     private final ShellExecutor mMainExecutor;
@@ -183,6 +187,9 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
             @NonNull PipTransitionState pipTransitionState,
             @NonNull PipScheduler pipScheduler,
             @NonNull SizeSpecSource sizeSpecSource,
+            @NonNull PipDisplayLayoutState pipDisplayLayoutState,
+            PipDesktopState pipDesktopState,
+            DisplayController displayController,
             PipMotionHelper pipMotionHelper,
             FloatingContentCoordinator floatingContentCoordinator,
             PipUiEventLogger pipUiEventLogger,
@@ -200,6 +207,7 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
         mPipTransitionState.addPipTransitionStateChangedListener(this::onPipTransitionStateChanged);
         mPipScheduler = pipScheduler;
         mSizeSpecSource = sizeSpecSource;
+        mPipDisplayLayoutState = pipDisplayLayoutState;
         mMenuController = menuController;
         mPipUiEventLogger = pipUiEventLogger;
         mFloatingContentCoordinator = floatingContentCoordinator;
@@ -208,7 +216,7 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
         mMotionHelper = pipMotionHelper;
         mPipScheduler.setUpdateMovementBoundsRunnable(this::updateMovementBounds);
         mPipDismissTargetHandler = new PipDismissTargetHandler(context, pipUiEventLogger,
-                mMotionHelper, mainExecutor);
+                mMotionHelper, mPipDisplayLayoutState, displayController, mainExecutor);
         mTouchState = new PipTouchState(ViewConfiguration.get(context),
                 () -> {
                     mMenuController.showMenuWithPossibleDelay(MENU_STATE_FULL,
@@ -220,12 +228,9 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
                 mainExecutor);
         mPipResizeGestureHandler = new PipResizeGestureHandler(context, pipBoundsAlgorithm,
                 pipBoundsState, mTouchState, mPipScheduler, mPipTransitionState, pipUiEventLogger,
-                menuController, mainExecutor,
-                mPipPerfHintController);
-        mPipBoundsState.addOnAspectRatioChangedCallback(aspectRatio -> {
-            updateMinMaxSize(aspectRatio);
-            onAspectRatioChanged();
-        });
+                menuController, this::getMovementBounds, mPipDisplayLayoutState, pipDesktopState,
+                mainExecutor, mPipPerfHintController);
+        mPipBoundsState.addOnAspectRatioChangedCallback(aspectRatio -> onAspectRatioChanged());
 
         mMoveOnShelVisibilityChanged = () -> {
             if (mIsImeShowing && mImeHeight > mShelfHeight) {
@@ -264,7 +269,7 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
         mPipDismissTargetHandler.init();
 
         mPipInputConsumer = new PipInputConsumer(WindowManagerGlobal.getWindowManagerService(),
-                INPUT_CONSUMER_PIP, mMainExecutor);
+                INPUT_CONSUMER_PIP, mPipDisplayLayoutState, mMainExecutor);
         mPipInputConsumer.setInputListener(this::handleTouchEvent);
         mPipInputConsumer.setRegistrationListener(this::onRegistrationChanged);
 
@@ -410,15 +415,6 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
         mMainExecutor.executeDelayed(mMoveOnShelVisibilityChanged, PIP_KEEP_CLEAR_AREAS_DELAY);
     }
 
-    /**
-     * Called when SysUI state changed.
-     *
-     * @param isSysUiStateValid Is SysUI valid or not.
-     */
-    public void onSystemUiStateChanged(boolean isSysUiStateValid) {
-        mPipResizeGestureHandler.onSystemUiStateChanged(isSysUiStateValid);
-    }
-
     void adjustBoundsForRotation(Rect outBounds, Rect curBounds, Rect insetBounds) {
         final Rect toMovementBounds = new Rect();
         mPipBoundsAlgorithm.getMovementBounds(outBounds, insetBounds, toMovementBounds, 0);
@@ -472,8 +468,6 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
                 mPipBoundsState.getExpandedBounds(), insetBounds, expandedMovementBounds,
                 bottomOffset);
 
-        updatePipSizeConstraints(normalBounds, aspectRatio);
-
         // The extra offset does not really affect the movement bounds, but are applied based on the
         // current state (ime showing, or shelf offset) when we need to actually shift
         int extraOffset = Math.max(
@@ -496,35 +490,6 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
             mSavedSnapFraction = -1f;
             mDeferResizeToNormalBoundsUntilRotation = -1;
         }
-    }
-
-    /**
-     * Update the values for min/max allowed size of picture in picture window based on the aspect
-     * ratio.
-     * @param aspectRatio aspect ratio to use for the calculation of min/max size
-     */
-    public void updateMinMaxSize(float aspectRatio) {
-        updatePipSizeConstraints(mPipBoundsState.getNormalBounds(),
-                aspectRatio);
-    }
-
-    private void updatePipSizeConstraints(Rect normalBounds,
-            float aspectRatio) {
-        if (mPipResizeGestureHandler.isUsingPinchToZoom()) {
-            updatePinchResizeSizeConstraints(aspectRatio);
-        } else {
-            mPipResizeGestureHandler.updateMinSize(normalBounds.width(), normalBounds.height());
-            mPipResizeGestureHandler.updateMaxSize(mPipBoundsState.getExpandedBounds().width(),
-                    mPipBoundsState.getExpandedBounds().height());
-        }
-    }
-
-    private void updatePinchResizeSizeConstraints(float aspectRatio) {
-        mPipBoundsState.updateMinMaxSize(aspectRatio);
-        mPipResizeGestureHandler.updateMinSize(mPipBoundsState.getMinSize().x,
-                mPipBoundsState.getMinSize().y);
-        mPipResizeGestureHandler.updateMaxSize(mPipBoundsState.getMaxSize().x,
-                mPipBoundsState.getMaxSize().y);
     }
 
     /**
@@ -969,6 +934,7 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
                     }
 
                     // the size to toggle to after a double tap
+                    mPipBoundsState.setNormalBounds(getAdjustedNormalBounds());
                     int nextSize = PipDoubleTapHelper
                             .nextSizeSpec(mPipBoundsState, getUserResizeBounds());
 
@@ -982,6 +948,7 @@ public class PipTouchHandler implements PipTransitionState.PipTransitionStateCha
                     } else {
                         animateToUnexpandedState(getUserResizeBounds());
                     }
+                    mPipBoundsState.setHasUserResizedPip(true);
                 } else {
                     // Expand to fullscreen if this is a double tap
                     // the PiP should be frozen until the transition ends

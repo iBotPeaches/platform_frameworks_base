@@ -19,6 +19,7 @@ package com.android.systemui.statusbar.chips.mediaprojection.ui.view
 import android.app.ActivityManager
 import android.content.DialogInterface
 import android.content.pm.PackageManager
+import android.util.Log
 import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.mediaprojection.data.model.MediaProjectionState
@@ -54,10 +55,6 @@ constructor(
             // dialog to animate back into the chip just for the chip to disappear in a few frames.
             dialogTransitionAnimator.disableAllCurrentDialogsExitAnimations()
             stopAction.invoke()
-            // TODO(b/332662551): If the projection is stopped, there's a brief moment where the
-            // dialog closes and the chip re-shows because the system APIs haven't come back and
-            // told SysUI that the projection has officially stopped. It would be great for the chip
-            // to not re-show at all.
         }
     }
 
@@ -85,8 +82,17 @@ constructor(
             val appInfo = packageManager.getApplicationInfo(packageName, 0)
             appInfo.loadLabel(packageManager)
         } catch (e: PackageManager.NameNotFoundException) {
-            // TODO(b/332662551): Log this error.
+            Log.w(
+                TAG,
+                "Failed to find application info for package: $packageName when creating " +
+                    "end media projection dialog",
+                e,
+            )
             null
         }
+    }
+
+    companion object {
+        private const val TAG = "EndMediaProjectionDialogHelper"
     }
 }

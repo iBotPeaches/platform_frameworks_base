@@ -46,6 +46,7 @@ import com.android.internal.annotations.VisibleForTesting;
  * @hide
  */
 @VisibleForTesting(visibility = PACKAGE)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class DateUtilsBridge {
 
     /**

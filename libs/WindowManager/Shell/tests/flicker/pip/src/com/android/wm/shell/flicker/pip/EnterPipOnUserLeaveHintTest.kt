@@ -88,6 +88,7 @@ class EnterPipOnUserLeaveHintTest(flicker: LegacyFlickerTest) : EnterPipTransiti
         super.pipOverlayLayerAppearThenDisappear()
     }
 
+    // TODO(b/385086051): check if we can remove optional = true in the test.
     @Presubmit
     @Test
     fun pipAppWindowVisibleChanges() {

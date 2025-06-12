@@ -16,7 +16,7 @@
 package com.android.server.audio;
 
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -107,13 +107,13 @@ public class MusicFxHelperTest {
             List<ResolveInfo> list, int bind, int broadcast, String packageName, int audioSession,
             int uid) {
         doReturn(mMockPackageManager).when(mMockContext).getPackageManager();
-        doReturn(list).when(mMockPackageManager).queryBroadcastReceivers(anyObject(), anyInt());
+        doReturn(list).when(mMockPackageManager).queryBroadcastReceivers(any(), anyInt());
         if (list != null && list.size() != 0) {
             try {
                 doReturn(uid).when(mMockPackageManager)
-                        .getPackageUidAsUser(eq(packageName), anyObject(), anyInt());
+                        .getPackageUidAsUser(eq(packageName), any(), anyInt());
                 doReturn(mMusicFxUid).when(mMockPackageManager)
-                        .getPackageUidAsUser(eq(mMusicFxPkgName), anyObject(), anyInt());
+                        .getPackageUidAsUser(eq(mMusicFxPkgName), any(), anyInt());
             } catch (PackageManager.NameNotFoundException e) {
                 Log.e(TAG, "NameNotFoundException: " + e);
             }
@@ -123,8 +123,8 @@ public class MusicFxHelperTest {
                 packageName, audioSession);
         mMusicFxHelper.handleAudioEffectBroadcast(mMockContext, intent);
         verify(mMockContext, times(bind))
-                .bindServiceAsUser(anyObject(), anyObject(), anyInt(), anyObject());
-        verify(mMockContext, times(broadcast)).sendBroadcastAsUser(anyObject(), anyObject());
+                .bindServiceAsUser(any(), any(), anyInt(), any());
+        verify(mMockContext, times(broadcast)).sendBroadcastAsUser(any(), any());
     }
 
     /**
@@ -136,13 +136,13 @@ public class MusicFxHelperTest {
                 List<ResolveInfo> list, int unBind, int broadcast, String packageName,
                 int audioSession, int uid) {
         doReturn(mMockPackageManager).when(mMockContext).getPackageManager();
-        doReturn(list).when(mMockPackageManager).queryBroadcastReceivers(anyObject(), anyInt());
+        doReturn(list).when(mMockPackageManager).queryBroadcastReceivers(any(), anyInt());
         if (list != null && list.size() != 0) {
             try {
                 doReturn(uid).when(mMockPackageManager)
-                        .getPackageUidAsUser(eq(packageName), anyObject(), anyInt());
+                        .getPackageUidAsUser(eq(packageName), any(), anyInt());
                 doReturn(mMusicFxUid).when(mMockPackageManager)
-                        .getPackageUidAsUser(eq(mMusicFxPkgName), anyObject(), anyInt());
+                        .getPackageUidAsUser(eq(mMusicFxPkgName), any(), anyInt());
             } catch (PackageManager.NameNotFoundException e) {
                 Log.e(TAG, "NameNotFoundException: " + e);
             }
@@ -151,8 +151,8 @@ public class MusicFxHelperTest {
         Intent intent = newIntent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION,
                                 packageName, audioSession);
         mMusicFxHelper.handleAudioEffectBroadcast(mMockContext, intent);
-        verify(mMockContext, times(unBind)).unbindService(anyObject());
-        verify(mMockContext, times(broadcast)).sendBroadcastAsUser(anyObject(), anyObject());
+        verify(mMockContext, times(unBind)).unbindService(any());
+        verify(mMockContext, times(broadcast)).sendBroadcastAsUser(any(), any());
     }
 
     /**
@@ -160,8 +160,8 @@ public class MusicFxHelperTest {
      */
     private void sendMessage(int msgId, int uid, int unBinds, int broadcasts) {
         mMusicFxHelper.handleMessage(Message.obtain(null, msgId, uid /* arg1 */, 0 /* arg2 */));
-        verify(mMockContext, times(broadcasts)).sendBroadcastAsUser(anyObject(), anyObject());
-        verify(mMockContext, times(unBinds)).unbindService(anyObject());
+        verify(mMockContext, times(broadcasts)).sendBroadcastAsUser(any(), any());
+        verify(mMockContext, times(unBinds)).unbindService(any());
     }
 
     /**
@@ -209,15 +209,15 @@ public class MusicFxHelperTest {
         intent.setPackage(mTestPkg1);
         mMusicFxHelper.handleAudioEffectBroadcast(mMockContext, intent);
         verify(mMockContext, times(0))
-                .bindServiceAsUser(anyObject(), anyObject(), anyInt(), anyObject());
-        verify(mMockContext, times(0)).sendBroadcastAsUser(anyObject(), anyObject());
+                .bindServiceAsUser(any(), any(), anyInt(), any());
+        verify(mMockContext, times(0)).sendBroadcastAsUser(any(), any());
 
         intent = newIntent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION, null, 1);
         intent.setPackage(mTestPkg2);
         mMusicFxHelper.handleAudioEffectBroadcast(mMockContext, intent);
         verify(mMockContext, times(0))
-                .bindServiceAsUser(anyObject(), anyObject(), anyInt(), anyObject());
-        verify(mMockContext, times(0)).sendBroadcastAsUser(anyObject(), anyObject());
+                .bindServiceAsUser(any(), any(), anyInt(), any());
+        verify(mMockContext, times(0)).sendBroadcastAsUser(any(), any());
     }
 
     /**

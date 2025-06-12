@@ -300,7 +300,7 @@ not_valid_surface:
     }
 
     sp<IGraphicBufferProducer> producer(SurfaceTexture_getProducer(_env, native_window));
-    window = new Surface(producer, true);
+    window = sp<Surface>::make(producer, true);
     if (window == NULL)
         goto not_valid_surface;
 

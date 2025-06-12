@@ -32,14 +32,20 @@ public class AuthenticationStats {
     private int mTotalAttempts;
     private int mRejectedAttempts;
     private int mEnrollmentNotifications;
+
+    private long mLastEnrollmentTime;
+    private long mLastFrrNotificationTime;
     private final int mModality;
 
     public AuthenticationStats(final int userId, int totalAttempts, int rejectedAttempts,
-            int enrollmentNotifications, final int modality) {
+            int enrollmentNotifications, long lastEnrollmentTime, long lastFrrNotificationTime,
+            final int modality) {
         mUserId = userId;
         mTotalAttempts = totalAttempts;
         mRejectedAttempts = rejectedAttempts;
         mEnrollmentNotifications = enrollmentNotifications;
+        mLastEnrollmentTime = lastEnrollmentTime;
+        mLastFrrNotificationTime = lastFrrNotificationTime;
         mModality = modality;
     }
 
@@ -48,6 +54,8 @@ public class AuthenticationStats {
         mTotalAttempts = 0;
         mRejectedAttempts = 0;
         mEnrollmentNotifications = 0;
+        mLastEnrollmentTime = 0;
+        mLastFrrNotificationTime = 0;
         mModality = modality;
     }
 
@@ -69,6 +77,14 @@ public class AuthenticationStats {
 
     public int getModality() {
         return mModality;
+    }
+
+    public long getLastEnrollmentTime() {
+        return mLastEnrollmentTime;
+    }
+
+    public long getLastFrrNotificationTime() {
+        return mLastFrrNotificationTime;
     }
 
     /** Calculate FRR. */
@@ -100,6 +116,16 @@ public class AuthenticationStats {
         mEnrollmentNotifications++;
     }
 
+    /** Updates last enrollment time */
+    public void updateLastEnrollmentTime(long lastEnrollmentTime) {
+        mLastEnrollmentTime = lastEnrollmentTime;
+    }
+
+    /** Updates frr notification time */
+    public void updateLastFrrNotificationTime(long lastFrrNotificationTime) {
+        mLastFrrNotificationTime = lastFrrNotificationTime;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -118,6 +144,10 @@ public class AuthenticationStats {
                 == target.getRejectedAttempts()
                 && this.getEnrollmentNotifications()
                 == target.getEnrollmentNotifications()
+                && this.getLastEnrollmentTime()
+                == target.getLastEnrollmentTime()
+                && this.getLastFrrNotificationTime()
+                == target.getLastFrrNotificationTime()
                 && this.getModality() == target.getModality();
     }
 

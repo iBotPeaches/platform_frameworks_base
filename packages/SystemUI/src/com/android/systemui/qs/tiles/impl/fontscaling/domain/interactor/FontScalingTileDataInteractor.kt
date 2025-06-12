@@ -17,8 +17,8 @@
 package com.android.systemui.qs.tiles.impl.fontscaling.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.fontscaling.domain.model.FontScalingTileModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -29,7 +29,7 @@ class FontScalingTileDataInteractor @Inject constructor() :
     QSTileDataInteractor<FontScalingTileModel> {
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<FontScalingTileModel> = flowOf(FontScalingTileModel)
 
     override fun availability(user: UserHandle): Flow<Boolean> = flowOf(true)

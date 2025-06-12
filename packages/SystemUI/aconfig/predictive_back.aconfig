@@ -2,13 +2,6 @@ package: "com.android.systemui"
 container: "system"
 
 flag {
-    name: "predictive_back_sysui"
-    namespace: "systemui"
-    description: "Predictive Back Dispatching for SysUI"
-    bug: "327737297"
-}
-
-flag {
     name: "predictive_back_animate_shade"
     namespace: "systemui"
     description: "Enable Shade Animations"
@@ -16,15 +9,11 @@ flag {
 }
 
 flag {
-    name: "predictive_back_animate_bouncer"
+    name: "predictive_back_delay_wm_transition"
     namespace: "systemui"
-    description: "Enable Predictive Back Animation in Bouncer"
-    bug: "327733487"
-}
-
-flag {
-    name: "predictive_back_animate_dialogs"
-    namespace: "systemui"
-    description: "Enable Predictive Back Animation for SysUI dialogs"
-    bug: "327721544"
+    description: "Slightly delays the back transition start"
+    bug: "301195601"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
 }

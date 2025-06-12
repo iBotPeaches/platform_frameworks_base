@@ -1009,6 +1009,65 @@ public class NotificationRecordTest extends UiServiceTestCase {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_NM_SUMMARIZATION)
+    public void testSummarization_null() {
+        StatusBarNotification sbn = getNotification(PKG_O, true /* noisy */,
+                true /* defaultSound */, false /* buzzy */, false /* defaultBuzz */,
+                false /* lights */, false /* defaultLights */, groupId /* group */);
+        NotificationRecord record = new NotificationRecord(mMockContext, sbn, channel);
+
+        assertThat(record.getSummarization()).isNull();
+
+        Bundle signals = new Bundle();
+        signals.putCharSequence(Adjustment.KEY_SUMMARIZATION, null);
+        record.addAdjustment(new Adjustment(mPkg, record.getKey(), signals, null, sbn.getUserId()));
+
+        record.applyAdjustments();
+
+        assertThat(record.getSummarization()).isNull();
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_NM_SUMMARIZATION)
+    public void testSummarization_charSequence() {
+        CharSequence summary = "hello";
+        StatusBarNotification sbn = getNotification(PKG_O, true /* noisy */,
+                true /* defaultSound */, false /* buzzy */, false /* defaultBuzz */,
+                false /* lights */, false /* defaultLights */, groupId /* group */);
+        NotificationRecord record = new NotificationRecord(mMockContext, sbn, channel);
+
+        assertThat(record.getSummarization()).isNull();
+
+        Bundle signals = new Bundle();
+        signals.putCharSequence(Adjustment.KEY_SUMMARIZATION, summary);
+        record.addAdjustment(new Adjustment(mPkg, record.getKey(), signals, null, sbn.getUserId()));
+
+        record.applyAdjustments();
+
+        assertThat(record.getSummarization()).isEqualTo(summary.toString());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_NM_SUMMARIZATION)
+    public void testSummarization_string() {
+        String summary = "hello";
+        StatusBarNotification sbn = getNotification(PKG_O, true /* noisy */,
+                true /* defaultSound */, false /* buzzy */, false /* defaultBuzz */,
+                false /* lights */, false /* defaultLights */, groupId /* group */);
+        NotificationRecord record = new NotificationRecord(mMockContext, sbn, channel);
+
+        assertThat(record.getSummarization()).isNull();
+
+        Bundle signals = new Bundle();
+        signals.putCharSequence(Adjustment.KEY_SUMMARIZATION, summary);
+        record.addAdjustment(new Adjustment(mPkg, record.getKey(), signals, null, sbn.getUserId()));
+
+        record.applyAdjustments();
+
+        assertThat(record.getSummarization()).isEqualTo(summary);
+    }
+
+    @Test
     public void testSensitiveContent() {
         StatusBarNotification sbn = getNotification(PKG_O, true /* noisy */,
                 true /* defaultSound */, false /* buzzy */, false /* defaultBuzz */,

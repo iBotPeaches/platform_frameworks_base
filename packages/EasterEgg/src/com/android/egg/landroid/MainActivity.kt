@@ -21,12 +21,12 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.forEachGesture
@@ -35,6 +35,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,7 +46,9 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.currentRecomposeScope
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
@@ -89,7 +93,7 @@ import kotlinx.coroutines.launch
 enum class RandomSeedType {
     Fixed,
     Daily,
-    Evergreen
+    Evergreen,
 }
 
 const val TEST_UNIVERSE = false
@@ -138,6 +142,9 @@ fun getDessertCode(): String =
         else -> Build.VERSION.RELEASE_OR_CODENAME.replace(Regex("[a-z]*"), "")
     }
 
+fun getSystemDesignation(universe: Universe): String {
+    return "${getDessertCode()}-${universe.randomSeed % 100_000}"
+}
 
 val DEBUG_TEXT = mutableStateOf("Hello Universe")
 const val SHOW_DEBUG_TEXT = false
@@ -151,13 +158,13 @@ fun DebugText(text: MutableState<String>) {
             fontWeight = FontWeight.Medium,
             fontSize = 9.sp,
             color = Color.Yellow,
-            text = text.value
+            text = text.value,
         )
     }
 }
 
 @Composable
-fun Telemetry(universe: VisibleUniverse) {
+fun Telemetry(universe: Universe, showControls: Boolean) {
     var topVisible by remember { mutableStateOf(false) }
     var bottomVisible by remember { mutableStateOf(false) }
 
@@ -175,17 +182,19 @@ fun Telemetry(universe: VisibleUniverse) {
     LaunchedEffect("blah") {
         delay(1000)
         bottomVisible = true
-        delay(1000)
         topVisible = true
     }
 
-    universe.triggerDraw.value // recompose on every frame
-
     val explored = universe.planets.filter { it.explored }
+
+    // TODO: Narrow the scope of invalidation here to the specific data needed;
+    // the behavior below mimics the previous implementation of a snapshot ticker value
+    val recomposeScope = currentRecomposeScope
+    Telescope(universe) { recomposeScope.invalidate() }
 
     BoxWithConstraints(
         modifier =
-            Modifier.fillMaxSize().padding(6.dp).windowInsetsPadding(WindowInsets.safeContent),
+            Modifier.fillMaxSize().padding(6.dp).windowInsetsPadding(WindowInsets.safeContent)
     ) {
         val wide = maxWidth > maxHeight
         Column(
@@ -193,57 +202,82 @@ fun Telemetry(universe: VisibleUniverse) {
                 Modifier.align(if (wide) Alignment.BottomEnd else Alignment.BottomStart)
                     .fillMaxWidth(if (wide) 0.45f else 1.0f)
         ) {
-            universe.ship.autopilot?.let { autopilot ->
-                if (autopilot.enabled) {
+            val autopilotEnabled = universe.ship.autopilot?.enabled == true
+            if (autopilotEnabled) {
+                universe.ship.autopilot?.let { autopilot ->
                     AnimatedVisibility(
                         modifier = Modifier,
                         visible = bottomVisible,
-                        enter = flickerFadeIn
+                        enter = flickerFadeIn,
                     ) {
                         Text(
                             style = textStyle,
                             color = Colors.Autopilot,
                             modifier = Modifier.align(Left),
-                            text = autopilot.telemetry
+                            text = autopilot.telemetry,
                         )
                     }
                 }
             }
 
-            AnimatedVisibility(
-                modifier = Modifier,
-                visible = bottomVisible,
-                enter = flickerFadeIn
-            ) {
-                Text(
-                    style = textStyle,
-                    color = Colors.Console,
-                    modifier = Modifier.align(Left),
-                    text =
-                        with(universe.ship) {
-                            val closest = universe.closestPlanet()
-                            val distToClosest = ((closest.pos - pos).mag() - closest.radius).toInt()
-                            listOfNotNull(
-                                    landing?.let {
-                                        "LND: ${it.planet.name.uppercase()}\nJOB: ${it.text}"
-                                    }
-                                        ?: if (distToClosest < 10_000) {
-                                            "ALT: $distToClosest"
-                                        } else null,
-                                    "THR: %.0f%%".format(thrust.mag() * 100f),
-                                    "POS: %s".format(pos.str("%+7.0f")),
-                                    "VEL: %.0f".format(velocity.mag())
-                                )
-                                .joinToString("\n")
+            Row(modifier = Modifier.padding(top = 6.dp)) {
+                AnimatedVisibility(
+                    modifier = Modifier.weight(1f),
+                    visible = bottomVisible,
+                    enter = flickerFadeIn,
+                ) {
+                    Text(
+                        style = textStyle,
+                        color = Colors.Console,
+                        text =
+                            with(universe.ship) {
+                                val closest = universe.closestPlanet()
+                                val distToClosest =
+                                    ((closest.pos - pos).mag() - closest.radius).toInt()
+                                listOfNotNull(
+                                        landing?.let {
+                                            "LND: ${it.planet.name.uppercase()}\n" +
+                                                "JOB: ${it.text.uppercase()}"
+                                        }
+                                            ?: if (distToClosest < 10_000) {
+                                                "ALT: $distToClosest"
+                                            } else null,
+                                        "THR: %.0f%%".format(thrust.mag() * 100f),
+                                        "POS: %s".format(pos.str("%+7.0f")),
+                                        "VEL: %.0f".format(velocity.mag()),
+                                    )
+                                    .joinToString("\n")
+                            },
+                    )
+                }
+
+                if (showControls) {
+                    AnimatedVisibility(
+                        visible = bottomVisible,
+                        enter = flickerFadeInAfterDelay(500),
+                    ) {
+                        ConsoleButton(
+                            textStyle = textStyle,
+                            color = Colors.Console,
+                            bgColor = if (autopilotEnabled) Colors.Autopilot else Color.Transparent,
+                            borderColor = Colors.Console,
+                            text = "AUTO",
+                        ) {
+                            universe.ship.autopilot?.let {
+                                it.enabled = !it.enabled
+                                DYNAMIC_ZOOM = it.enabled
+                                if (!it.enabled) universe.ship.thrust = Vec2.Zero
+                            }
                         }
-                )
+                    }
+                }
             }
         }
 
         AnimatedVisibility(
             modifier = Modifier.align(Alignment.TopStart),
             visible = topVisible,
-            enter = flickerFadeIn
+            enter = flickerFadeInAfterDelay(1000),
         ) {
             Text(
                 style = textStyle,
@@ -259,13 +293,12 @@ fun Telemetry(universe: VisibleUniverse) {
                 text =
                     (with(universe.star) {
                             listOf(
-                                "  STAR: $name (${getDessertCode()}-" +
-                                    "${universe.randomSeed % 100_000})",
+                                "  STAR: $name (${getSystemDesignation(universe)})",
                                 " CLASS: ${cls.name}",
                                 "RADIUS: ${radius.toInt()}",
                                 "  MASS: %.3g".format(mass),
                                 "BODIES: ${explored.size} / ${universe.planets.size}",
-                                ""
+                                "",
                             )
                         } +
                             explored
@@ -276,11 +309,11 @@ fun Telemetry(universe: VisibleUniverse) {
                                         "  ATMO: ${it.atmosphere.capitalize()}",
                                         " FAUNA: ${it.fauna.capitalize()}",
                                         " FLORA: ${it.flora.capitalize()}",
-                                        ""
+                                        "",
                                     )
                                 }
                                 .flatten())
-                        .joinToString("\n")
+                        .joinToString("\n"),
 
                 // TODO: different colors, highlight latest discovery
             )
@@ -289,6 +322,7 @@ fun Telemetry(universe: VisibleUniverse) {
 }
 
 class MainActivity : ComponentActivity() {
+    private var notifier: UniverseProgressNotifier? = null
     private var foldState = mutableStateOf<FoldingFeature?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -296,9 +330,9 @@ class MainActivity : ComponentActivity() {
 
         onWindowLayoutInfoChange()
 
-        enableEdgeToEdge()
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.Red.toArgb()))
 
-        val universe = VisibleUniverse(namer = Namer(resources), randomSeed = randomSeed())
+        val universe = Universe(namer = Namer(resources), randomSeed = randomSeed())
 
         if (TEST_UNIVERSE) {
             universe.initTest()
@@ -308,12 +342,13 @@ class MainActivity : ComponentActivity() {
 
         com.android.egg.ComponentActivationActivity.lockUnlockComponents(applicationContext)
 
-        // for autopilot testing in the activity
-        //        val autopilot = Autopilot(universe.ship, universe)
-        //        universe.ship.autopilot = autopilot
-        //        universe.add(autopilot)
-        //        autopilot.enabled = true
-        //        DYNAMIC_ZOOM = autopilot.enabled
+        // set up the autopilot in case we need it
+        val autopilot = Autopilot(universe.ship, universe)
+        universe.ship.autopilot = autopilot
+        universe.add(autopilot)
+        autopilot.enabled = false
+
+        notifier = UniverseProgressNotifier(this, universe)
 
         setContent {
             Spaaaace(modifier = Modifier.fillMaxSize(), u = universe, foldState = foldState)
@@ -325,7 +360,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 minRadius = minRadius,
                 maxRadius = maxRadius,
-                color = Color.Green
+                color = Color.Green,
             ) { vec ->
                 (universe.follow as? Spacecraft)?.let { ship ->
                     if (vec == Vec2.Zero) {
@@ -342,13 +377,13 @@ class MainActivity : ComponentActivity() {
                             ship.thrust =
                                 Vec2.makeWithAngleMag(
                                     a,
-                                    lexp(minRadius, maxRadius, m).coerceIn(0f, 1f)
+                                    lexp(minRadius, maxRadius, m).coerceIn(0f, 1f),
                                 )
                         }
                     }
                 }
             }
-            Telemetry(universe)
+            Telemetry(universe, true)
         }
     }
 
@@ -372,13 +407,13 @@ class MainActivity : ComponentActivity() {
 @Preview(name = "tablet", device = Devices.TABLET)
 @Composable
 fun MainActivityPreview() {
-    val universe = VisibleUniverse(namer = Namer(Resources.getSystem()), randomSeed = randomSeed())
+    val universe = Universe(namer = Namer(Resources.getSystem()), randomSeed = randomSeed())
 
     universe.initTest()
 
     Spaaaace(modifier = Modifier.fillMaxSize(), universe)
     DebugText(DEBUG_TEXT)
-    Telemetry(universe)
+    Telemetry(universe, true)
 }
 
 @Composable
@@ -387,7 +422,7 @@ fun FlightStick(
     minRadius: Float = 0f,
     maxRadius: Float = 1000f,
     color: Color = Color.Green,
-    onStickChanged: (vector: Vec2) -> Unit
+    onStickChanged: (vector: Vec2) -> Unit,
 ) {
     val origin = remember { mutableStateOf(Vec2.Zero) }
     val target = remember { mutableStateOf(Vec2.Zero) }
@@ -440,14 +475,14 @@ fun FlightStick(
                                             PathEffect.dashPathEffect(
                                                 floatArrayOf(this.density * 1f, this.density * 2f)
                                             )
-                                        else null
-                                )
+                                        else null,
+                                ),
                         )
                         drawLine(
                             color = color,
                             start = origin.value,
                             end = origin.value + Vec2.makeWithAngleMag(a, mag),
-                            strokeWidth = 2f
+                            strokeWidth = 2f,
                         )
                     }
                 }
@@ -457,16 +492,14 @@ fun FlightStick(
 @Composable
 fun Spaaaace(
     modifier: Modifier,
-    u: VisibleUniverse,
-    foldState: MutableState<FoldingFeature?> = mutableStateOf(null)
+    u: Universe,
+    foldState: MutableState<FoldingFeature?> = mutableStateOf(null),
 ) {
     LaunchedEffect(u) {
-        while (true) withInfiniteAnimationFrameNanos { frameTimeNanos ->
-            u.simulateAndDrawFrame(frameTimeNanos)
-        }
+        while (true) withInfiniteAnimationFrameNanos { frameTimeNanos -> u.step(frameTimeNanos) }
     }
 
-    var cameraZoom by remember { mutableStateOf(1f) }
+    var cameraZoom by remember { mutableFloatStateOf(DEFAULT_CAMERA_ZOOM) }
     var cameraOffset by remember { mutableStateOf(Offset.Zero) }
 
     val transformableState =
@@ -491,21 +524,22 @@ fun Spaaaace(
     val centerFracY: Float by
         animateFloatAsState(if (halfFolded && horizontalFold) 0.25f else 0.5f, label = "centerY")
 
-    Canvas(modifier = canvasModifier) {
+    UniverseCanvas(u, canvasModifier) { u ->
         drawRect(Colors.Eigengrau, Offset.Zero, size)
 
         val closest = u.closestPlanet()
         val distToNearestSurf = max(0f, (u.ship.pos - closest.pos).mag() - closest.radius * 1.2f)
         //        val normalizedDist = clamp(distToNearestSurf, 50f, 50_000f) / 50_000f
-        if (DYNAMIC_ZOOM) {
-            cameraZoom =
-                expSmooth(
-                    cameraZoom,
-                    clamp(500f / distToNearestSurf, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM),
-                    dt = u.dt,
-                    speed = 1.5f
-                )
-        } else if (!TOUCH_CAMERA_ZOOM) cameraZoom = DEFAULT_CAMERA_ZOOM
+        val targetZoom =
+            if (DYNAMIC_ZOOM) {
+                clamp(500f / distToNearestSurf, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM)
+            } else {
+                DEFAULT_CAMERA_ZOOM
+            }
+        if (!TOUCH_CAMERA_ZOOM) {
+            cameraZoom = expSmooth(cameraZoom, targetZoom, dt = u.dt, speed = 1.5f)
+        }
+
         if (!TOUCH_CAMERA_PAN) cameraOffset = (u.follow?.pos ?: Vec2.Zero) * -1f
 
         // cameraZoom: metersToPixels
@@ -517,9 +551,9 @@ fun Spaaaace(
                 -cameraOffset -
                     Offset(
                         visibleSpaceSizeMeters.width * centerFracX,
-                        visibleSpaceSizeMeters.height * centerFracY
+                        visibleSpaceSizeMeters.height * centerFracY,
                     ),
-                visibleSpaceSizeMeters
+                visibleSpaceSizeMeters,
             )
 
         var gridStep = 1000f
@@ -533,14 +567,14 @@ fun Spaaaace(
                 "fps: ${"%3.0f".format(1f / u.dt)} " +
                 "dt: ${u.dt}\n" +
                 ((u.follow as? Spacecraft)?.let {
-                    "ship: p=%s v=%7.2f a=%6.3f t=%s\n".format(
-                        it.pos.str("%+7.1f"),
-                        it.velocity.mag(),
-                        it.angle,
-                        it.thrust.str("%+5.2f")
-                    )
-                }
-                    ?: "") +
+                    "ship: p=%s v=%7.2f a=%6.3f t=%s\n"
+                        .format(
+                            it.pos.str("%+7.1f"),
+                            it.velocity.mag(),
+                            it.angle,
+                            it.thrust.str("%+5.2f"),
+                        )
+                } ?: "") +
                 "star: '${u.star.name}' designation=UDC-${u.randomSeed % 100_000} " +
                 "class=${u.star.cls.name} r=${u.star.radius.toInt()} m=${u.star.mass}\n" +
                 "planets: ${u.planets.size}\n" +
@@ -570,7 +604,7 @@ fun Spaaaace(
 
             translate(
                 -visibleSpaceRectMeters.center.x + size.width * 0.5f,
-                -visibleSpaceRectMeters.center.y + size.height * 0.5f
+                -visibleSpaceRectMeters.center.y + size.height * 0.5f,
             ) {
                 // debug outer frame
                 // drawRect(
@@ -586,7 +620,7 @@ fun Spaaaace(
                         color = Colors.Eigengrau2,
                         start = Offset(x, visibleSpaceRectMeters.top),
                         end = Offset(x, visibleSpaceRectMeters.bottom),
-                        strokeWidth = (if ((x % (gridStep * 10) == 0f)) 3f else 1.5f) / cameraZoom
+                        strokeWidth = (if ((x % (gridStep * 10) == 0f)) 3f else 1.5f) / cameraZoom,
                     )
                     x += gridStep
                 }
@@ -597,7 +631,7 @@ fun Spaaaace(
                         color = Colors.Eigengrau2,
                         start = Offset(visibleSpaceRectMeters.left, y),
                         end = Offset(visibleSpaceRectMeters.right, y),
-                        strokeWidth = (if ((y % (gridStep * 10) == 0f)) 3f else 1.5f) / cameraZoom
+                        strokeWidth = (if ((y % (gridStep * 10) == 0f)) 3f else 1.5f) / cameraZoom,
                     )
                     y += gridStep
                 }

@@ -17,6 +17,7 @@
 package com.android.internal.accessibility.dialog;
 
 import static com.android.internal.accessibility.AccessibilityShortcutController.ACCESSIBILITY_HEARING_AIDS_COMPONENT_NAME;
+import static com.android.internal.accessibility.AccessibilityShortcutController.AUTOCLICK_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.COLOR_INVERSION_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.DALTONIZER_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.MAGNIFICATION_CONTROLLER_NAME;
@@ -181,7 +182,8 @@ public final class AccessibilityTargetHelper {
         final InvisibleToggleAllowListingFeatureTarget magnification =
                 new InvisibleToggleAllowListingFeatureTarget(context,
                         shortcutType,
-                        isShortcutContained(context, shortcutType, MAGNIFICATION_CONTROLLER_NAME),
+                        isShortcutContained(
+                                context, shortcutType, MAGNIFICATION_CONTROLLER_NAME),
                         MAGNIFICATION_CONTROLLER_NAME,
                         uid,
                         context.getString(R.string.accessibility_magnification_chooser_text),
@@ -212,6 +214,18 @@ public final class AccessibilityTargetHelper {
                         context.getDrawable(R.drawable.ic_accessibility_color_inversion),
                         Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED);
         targets.add(colorInversion);
+
+        final ToggleAllowListingFeatureTarget autoclick =
+                new ToggleAllowListingFeatureTarget(context,
+                        shortcutType,
+                        isShortcutContained(context, shortcutType,
+                                AUTOCLICK_COMPONENT_NAME.flattenToString()),
+                        AUTOCLICK_COMPONENT_NAME.flattenToString(),
+                        uid,
+                        context.getString(R.string.autoclick_feature_name),
+                        context.getDrawable(R.drawable.ic_accessibility_autoclick),
+                        Settings.Secure.ACCESSIBILITY_AUTOCLICK_ENABLED);
+        targets.add(autoclick);
 
         if (SUPPORT_ONE_HANDED_MODE) {
             final ToggleAllowListingFeatureTarget oneHandedMode =

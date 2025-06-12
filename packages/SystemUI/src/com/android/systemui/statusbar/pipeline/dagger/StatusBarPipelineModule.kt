@@ -18,7 +18,9 @@ package com.android.systemui.statusbar.pipeline.dagger
 
 import android.net.wifi.WifiManager
 import com.android.systemui.CoreStartable
+import com.android.systemui.Flags
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.kairos.ExperimentalKairosApi
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.LogBufferFactory
 import com.android.systemui.log.table.TableLogBuffer
@@ -32,12 +34,22 @@ import com.android.systemui.statusbar.pipeline.airplane.ui.viewmodel.AirplaneMod
 import com.android.systemui.statusbar.pipeline.icons.shared.BindableIconsRegistry
 import com.android.systemui.statusbar.pipeline.icons.shared.BindableIconsRegistryImpl
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.CarrierConfigCoreStartable
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.CarrierConfigRepository
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.CarrierConfigRepositoryImpl
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepository
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepositoryKairosAdapter
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileRepositorySwitcher
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileRepositorySwitcherKairos
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.demo.DemoModeMobileConnectionDataSourceKairosImpl
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.prod.MobileConnectionRepositoryKairosFactoryImpl
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.prod.MobileConnectionsRepositoryKairosImpl
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractor
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractorImpl
+import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractorKairosAdapter
+import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractorKairosImpl
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel
+import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModelKairos
 import com.android.systemui.statusbar.pipeline.mobile.util.MobileMappingsProxy
 import com.android.systemui.statusbar.pipeline.mobile.util.MobileMappingsProxyImpl
 import com.android.systemui.statusbar.pipeline.mobile.util.SubscriptionManagerProxy
@@ -48,12 +60,14 @@ import com.android.systemui.statusbar.pipeline.satellite.data.RealDeviceBasedSat
 import com.android.systemui.statusbar.pipeline.satellite.data.prod.DeviceBasedSatelliteRepositoryImpl
 import com.android.systemui.statusbar.pipeline.satellite.ui.viewmodel.DeviceBasedSatelliteViewModel
 import com.android.systemui.statusbar.pipeline.satellite.ui.viewmodel.DeviceBasedSatelliteViewModelImpl
+import com.android.systemui.statusbar.pipeline.shared.ConnectivityConstants
+import com.android.systemui.statusbar.pipeline.shared.ConnectivityConstantsImpl
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepositoryImpl
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.HomeStatusBarViewBinder
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.HomeStatusBarViewBinderImpl
-import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.HomeStatusBarViewModel
-import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.HomeStatusBarViewModelImpl
+import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.HomeStatusBarViewModel.HomeStatusBarViewModelFactory
+import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.HomeStatusBarViewModelImpl.HomeStatusBarViewModelFactoryImpl
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.RealWifiRepository
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepository
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepositorySwitcher
@@ -70,9 +84,23 @@ import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
 import java.util.function.Supplier
 import javax.inject.Named
+import javax.inject.Provider
 import kotlinx.coroutines.flow.Flow
 
-@Module
+@OptIn(ExperimentalKairosApi::class)
+@Module(
+    includes =
+        [
+            DemoModeMobileConnectionDataSourceKairosImpl.Module::class,
+            MobileRepositorySwitcherKairos.Module::class,
+            MobileConnectionsRepositoryKairosImpl.Module::class,
+            MobileIconsInteractorKairosImpl.Module::class,
+            MobileIconsViewModelKairos.Module::class,
+            MobileConnectionRepositoryKairosFactoryImpl.Module::class,
+            MobileConnectionsRepositoryKairosAdapter.Module::class,
+            MobileIconsInteractorKairosAdapter.Module::class,
+        ]
+)
 abstract class StatusBarPipelineModule {
     @Binds
     abstract fun airplaneModeRepository(impl: AirplaneModeRepositoryImpl): AirplaneModeRepository
@@ -106,26 +134,24 @@ abstract class StatusBarPipelineModule {
         impl: DeviceBasedSatelliteViewModelImpl
     ): DeviceBasedSatelliteViewModel
 
+    @Binds
+    abstract fun connectivityConstants(impl: ConnectivityConstantsImpl): ConnectivityConstants
+
     @Binds abstract fun wifiRepository(impl: WifiRepositorySwitcher): WifiRepository
 
     @Binds abstract fun wifiInteractor(impl: WifiInteractorImpl): WifiInteractor
-
-    @Binds
-    abstract fun mobileConnectionsRepository(
-        impl: MobileRepositorySwitcher
-    ): MobileConnectionsRepository
 
     @Binds abstract fun userSetupRepository(impl: UserSetupRepositoryImpl): UserSetupRepository
 
     @Binds abstract fun mobileMappingsProxy(impl: MobileMappingsProxyImpl): MobileMappingsProxy
 
     @Binds
+    abstract fun carrierConfigRepository(impl: CarrierConfigRepositoryImpl): CarrierConfigRepository
+
+    @Binds
     abstract fun subscriptionManagerProxy(
         impl: SubscriptionManagerProxyImpl
     ): SubscriptionManagerProxy
-
-    @Binds
-    abstract fun mobileIconsInteractor(impl: MobileIconsInteractorImpl): MobileIconsInteractor
 
     @Binds
     @IntoMap
@@ -138,12 +164,38 @@ abstract class StatusBarPipelineModule {
     abstract fun bindCarrierConfigStartable(impl: CarrierConfigCoreStartable): CoreStartable
 
     @Binds
-    abstract fun homeStatusBarViewModel(impl: HomeStatusBarViewModelImpl): HomeStatusBarViewModel
+    abstract fun homeStatusBarViewModelFactory(
+        impl: HomeStatusBarViewModelFactoryImpl
+    ): HomeStatusBarViewModelFactory
 
     @Binds
     abstract fun homeStatusBarViewBinder(impl: HomeStatusBarViewBinderImpl): HomeStatusBarViewBinder
 
     companion object {
+
+        @Provides
+        fun mobileIconsInteractor(
+            impl: Provider<MobileIconsInteractorImpl>,
+            kairosImpl: Provider<MobileIconsInteractorKairosAdapter>,
+        ): MobileIconsInteractor {
+            return if (Flags.statusBarMobileIconKairos()) {
+                kairosImpl.get()
+            } else {
+                impl.get()
+            }
+        }
+
+        @Provides
+        fun mobileConnectionsRepository(
+            impl: Provider<MobileRepositorySwitcher>,
+            kairosImpl: Provider<MobileConnectionsRepositoryKairosAdapter>,
+        ): MobileConnectionsRepository {
+            return if (Flags.statusBarMobileIconKairos()) {
+                kairosImpl.get()
+            } else {
+                impl.get()
+            }
+        }
 
         @Provides
         @SysUISingleton
@@ -167,6 +219,7 @@ abstract class StatusBarPipelineModule {
         fun provideFirstMobileSubShowingNetworkTypeIconProvider(
             mobileIconsViewModel: MobileIconsViewModel
         ): Supplier<Flow<Boolean>> {
+            // TODO: kairos-ify
             return Supplier<Flow<Boolean>> {
                 mobileIconsViewModel.firstMobileSubShowingNetworkTypeIcon
             }

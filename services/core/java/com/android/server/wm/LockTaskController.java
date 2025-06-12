@@ -263,10 +263,9 @@ public class LockTaskController {
         // should be finish together in the Task.
         if (activity != taskRoot || activity != taskTop) {
             final TaskFragment taskFragment = activity.getTaskFragment();
-            final TaskFragment adjacentTaskFragment = taskFragment.getAdjacentTaskFragment();
             if (taskFragment.asTask() != null
                     || !taskFragment.isDelayLastActivityRemoval()
-                    || adjacentTaskFragment == null) {
+                    || !taskFragment.hasAdjacentTaskFragment()) {
                 // Don't block activity from finishing if the TaskFragment don't have any adjacent
                 // TaskFragment, or it won't finish together with its adjacent TaskFragment.
                 return false;
@@ -281,7 +280,7 @@ public class LockTaskController {
             }
 
             final boolean hasOtherActivityInTask = task.getActivity(a -> !a.finishing
-                    && a != activity && a.getTaskFragment() != adjacentTaskFragment) != null;
+                    && a != activity && !taskFragment.isAdjacentTo(a.getTaskFragment())) != null;
             if (hasOtherActivityInTask) {
                 // Do not block activity from finishing if there are another running activities
                 // after the current and adjacent TaskFragments are removed. Note that we don't
@@ -610,7 +609,6 @@ public class LockTaskController {
                     statusBarService.showPinningEnterExitToast(false /* entering */);
                 }
             }
-            mWindowManager.onLockTaskStateChanged(mLockTaskModeState);
         } catch (RemoteException ex) {
             throw new RuntimeException(ex);
         }
@@ -653,6 +651,10 @@ public class LockTaskController {
         if (!isSystemCaller) {
             task.mLockTaskUid = callingUid;
             if (task.mLockTaskAuth == LOCK_TASK_AUTH_PINNABLE) {
+                if (mLockTaskModeTasks.contains(task)) {
+                    ProtoLog.w(WM_DEBUG_LOCKTASK, "Already locked.");
+                    return;
+                }
                 // startLockTask() called by app, but app is not part of lock task allowlist. Show
                 // app pinning request. We will come back here with isSystemCaller true.
                 ProtoLog.w(WM_DEBUG_LOCKTASK, "Mode default, asking user");
@@ -742,7 +744,6 @@ public class LockTaskController {
                     statusBarService.showPinningEnterExitToast(true /* entering */);
                 }
             }
-            mWindowManager.onLockTaskStateChanged(lockTaskModeState);
             mLockTaskModeState = lockTaskModeState;
             mTaskChangeNotificationController.notifyLockTaskModeChanged(mLockTaskModeState);
             setStatusBarState(lockTaskModeState, userId);

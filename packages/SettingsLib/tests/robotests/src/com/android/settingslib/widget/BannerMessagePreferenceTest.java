@@ -18,6 +18,7 @@ package com.android.settingslib.widget;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.robolectric.Robolectric.setupActivity;
@@ -25,6 +26,8 @@ import static org.robolectric.Shadows.shadowOf;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.ColorFilter;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -38,24 +41,34 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.ColorRes;
+import androidx.annotation.NonNull;
 import androidx.preference.PreferenceViewHolder;
 
-import com.android.settingslib.testutils.OverpoweredReflectionHelper;
 import com.android.settingslib.widget.preference.banner.R;
+
+import com.google.android.material.button.MaterialButton;
 
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
+import org.robolectric.annotation.Implementation;
+import org.robolectric.annotation.Implements;
 import org.robolectric.shadows.ShadowDrawable;
 import org.robolectric.shadows.ShadowTouchDelegate;
 import org.robolectric.util.ReflectionHelpers;
 
-@Ignore("b/359066481")
+import java.util.List;
+
 @RunWith(RobolectricTestRunner.class)
+@Config(shadows = {BannerMessagePreferenceTest.ShadowSettingsThemeHelper.class})
 public class BannerMessagePreferenceTest {
 
     private Context mContext;
@@ -66,14 +79,23 @@ public class BannerMessagePreferenceTest {
     private boolean mClickListenerCalled = false;
     private final View.OnClickListener mClickListener = v -> mClickListenerCalled = true;
     private final int mMinimumTargetSize =
-            RuntimeEnvironment.application.getResources()
-                    .getDimensionPixelSize(com.android.settingslib.widget.theme.R.dimen.settingslib_preferred_minimum_touch_target);
+            RuntimeEnvironment.application
+                    .getResources()
+                    .getDimensionPixelSize(
+                            com.android.settingslib.widget.theme.R.dimen
+                                    .settingslib_preferred_minimum_touch_target);
 
-    private static final int TEST_STRING_RES_ID =
-            R.string.accessibility_banner_message_dismiss;
+    private static final int TEST_STRING_RES_ID = R.string.accessibility_banner_message_dismiss;
+
+    @Mock private View mMockBackgroundView;
+    @Mock private Drawable mMockCardBackground;
+    @Mock private MaterialButton mMockPositiveBtn;
+    @Mock private MaterialButton mMockNegativeBtn;
 
     @Before
     public void setUp() {
+        MockitoAnnotations.initMocks(this);
+        ShadowSettingsThemeHelper.setExpressiveTheme(false);
         mContext = RuntimeEnvironment.application;
         mClickListenerCalled = false;
         mBannerPreference = new BannerMessagePreference(mContext);
@@ -90,6 +112,7 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo("test");
     }
 
+    @Ignore("b/359066481")
     @Test
     public void onBindViewHolder_andOnLayoutView_dismissButtonTouchDelegate_isCorrectSize() {
         assumeAndroidS();
@@ -155,9 +178,8 @@ public class BannerMessagePreferenceTest {
     @Test
     public void onBindViewHolder_whenAtLeastS_whenSubtitleXmlAttribute_shouldSetSubtitle() {
         assumeAndroidS();
-        AttributeSet mAttributeSet = Robolectric.buildAttributeSet()
-                .addAttribute(R.attr.subtitle, "Test")
-                .build();
+        AttributeSet mAttributeSet =
+                Robolectric.buildAttributeSet().addAttribute(R.attr.subtitle, "Test").build();
         mBannerPreference = new BannerMessagePreference(mContext, mAttributeSet);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -185,8 +207,7 @@ public class BannerMessagePreferenceTest {
 
         ImageView mIcon = mRootView.findViewById(R.id.banner_icon);
         ShadowDrawable shadowDrawable = shadowOf(mIcon.getDrawable());
-        assertThat(shadowDrawable.getCreatedFromResId())
-                .isEqualTo(R.drawable.settingslib_ic_cross);
+        assertThat(shadowDrawable.getCreatedFromResId()).isEqualTo(R.drawable.settingslib_ic_cross);
     }
 
     @Test
@@ -207,6 +228,7 @@ public class BannerMessagePreferenceTest {
 
         Button mPositiveButton = mRootView.findViewById(R.id.banner_positive_btn);
         assertThat(mPositiveButton.getVisibility()).isEqualTo(View.VISIBLE);
+
         assertThat(mPositiveButton.getText()).isEqualTo(mContext.getString(TEST_STRING_RES_ID));
     }
 
@@ -218,6 +240,7 @@ public class BannerMessagePreferenceTest {
 
         Button mNegativeButton = mRootView.findViewById(R.id.banner_negative_btn);
         assertThat(mNegativeButton.getVisibility()).isEqualTo(View.VISIBLE);
+
         assertThat(mNegativeButton.getText()).isEqualTo(mContext.getString(TEST_STRING_RES_ID));
     }
 
@@ -359,8 +382,6 @@ public class BannerMessagePreferenceTest {
     @Test
     public void onBindViewHolder_whenAtLeastS_whenAttentionUnset_setsHighTheme() {
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
 
         mBannerPreference.onBindViewHolder(mHolder);
 
@@ -370,17 +391,15 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_high));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_high));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_high));
+
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_high));
     }
 
     @Test
     public void onBindViewHolder_whenAtLeastS_whenAttentionHighByXML_setsHighTheme() {
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
-        AttributeSet mAttributeSet = Robolectric.buildAttributeSet()
-                .addAttribute(R.attr.attentionLevel, "high")
-                .build();
+        AttributeSet mAttributeSet =
+                Robolectric.buildAttributeSet().addAttribute(R.attr.attentionLevel, "high").build();
         mBannerPreference = new BannerMessagePreference(mContext, mAttributeSet);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -391,17 +410,17 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_high));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_high));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_high));
+
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_high));
     }
 
     @Test
     public void onBindViewHolder_whenAtLeastS_whenAttentionMediumByXML_setsMediumTheme() {
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
-        AttributeSet mAttributeSet = Robolectric.buildAttributeSet()
-                .addAttribute(R.attr.attentionLevel, "medium")
-                .build();
+        AttributeSet mAttributeSet =
+                Robolectric.buildAttributeSet()
+                        .addAttribute(R.attr.attentionLevel, "medium")
+                        .build();
         mBannerPreference = new BannerMessagePreference(mContext, mAttributeSet);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -412,17 +431,15 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_medium));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_medium));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_medium));
+
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_medium));
     }
 
     @Test
     public void onBindViewHolder_whenAtLeastS_whenAttentionLowByXML_setsLowTheme() {
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
-        AttributeSet mAttributeSet = Robolectric.buildAttributeSet()
-                .addAttribute(R.attr.attentionLevel, "low")
-                .build();
+        AttributeSet mAttributeSet =
+                Robolectric.buildAttributeSet().addAttribute(R.attr.attentionLevel, "low").build();
         mBannerPreference = new BannerMessagePreference(mContext, mAttributeSet);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -433,14 +450,13 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_low));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_low));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_low));
+
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_low));
     }
 
     @Test
     public void setAttentionLevel_whenAtLeastS_whenHighAttention_setsHighTheme() {
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
         mBannerPreference.setAttentionLevel(BannerMessagePreference.AttentionLevel.HIGH);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -451,14 +467,44 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_high));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_high));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_high));
+
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_high));
     }
 
     @Test
-    public void setAttentionLevel_whenAtLeastS_whenMedAttention_setsMediumTheme() {
+    public void setAttentionLevel_whenAtLeastS_whenHighAttentionAndExpressiveTheme_setsBtnTheme() {
+        setExpressiveTheme(true);
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
+        assertThat(SettingsThemeHelper.isExpressiveTheme(mContext)).isTrue();
+        assertThat(SettingsThemeHelper.isExpressiveTheme(mContext)).isTrue();
+        doReturn(mMockPositiveBtn).when(mHolder).findViewById(R.id.banner_positive_btn);
+        doReturn(mMockNegativeBtn).when(mHolder).findViewById(R.id.banner_negative_btn);
+        assertThat(SettingsThemeHelper.isExpressiveTheme(mContext)).isTrue();
+        mBannerPreference.setAttentionLevel(BannerMessagePreference.AttentionLevel.HIGH);
+        final ArgumentCaptor<ColorStateList> captor = ArgumentCaptor.forClass(ColorStateList.class);
+        ColorStateList filledBtnBackground =
+                getColorStateList(R.color.settingslib_banner_button_background_high);
+        ColorStateList filledBtnTextColor =
+                getColorStateList(R.color.settingslib_banner_filled_button_content_high);
+        ColorStateList outlineBtnTextColor =
+                getColorStateList(R.color.settingslib_banner_outline_button_content);
+
+        mBannerPreference.onBindViewHolder(mHolder);
+
+        verify(mMockPositiveBtn).setBackgroundTintList(captor.capture());
+        verify(mMockPositiveBtn).setTextColor(captor.capture());
+        verify(mMockNegativeBtn).setStrokeColor(captor.capture());
+        verify(mMockNegativeBtn).setTextColor(captor.capture());
+        List<ColorStateList> colors = captor.getAllValues();
+        assertThat(colors.get(0).getColors()).isEqualTo(filledBtnBackground.getColors());
+        assertThat(colors.get(1).getColors()).isEqualTo(filledBtnTextColor.getColors());
+        assertThat(colors.get(2).getColors()).isEqualTo(filledBtnBackground.getColors());
+        assertThat(colors.get(3).getColors()).isEqualTo(outlineBtnTextColor.getColors());
+    }
+
+    @Test
+    public void setAttentionLevel_whenAtLeastS_whenMedAttention_setsBtnMediumTheme() {
+        assumeAndroidS();
         mBannerPreference.setAttentionLevel(BannerMessagePreference.AttentionLevel.MEDIUM);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -469,14 +515,42 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_medium));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_medium));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_medium));
+
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_medium));
+    }
+
+    @Test
+    public void setAttentionLevel_whenAtLeastS_whenMedAttentionAndExpressiveTheme_setsBtnTheme() {
+        setExpressiveTheme(true);
+        mContext.getResources().getConfiguration().uiMode = Configuration.UI_MODE_NIGHT_NO;
+        assumeAndroidS();
+        doReturn(mMockPositiveBtn).when(mHolder).findViewById(R.id.banner_positive_btn);
+        doReturn(mMockNegativeBtn).when(mHolder).findViewById(R.id.banner_negative_btn);
+        mBannerPreference.setAttentionLevel(BannerMessagePreference.AttentionLevel.MEDIUM);
+        final ArgumentCaptor<ColorStateList> captor = ArgumentCaptor.forClass(ColorStateList.class);
+        ColorStateList filledBtnBackground =
+                getColorStateList(R.color.settingslib_banner_button_background_medium);
+        ColorStateList filledBtnTextColor =
+                getColorStateList(R.color.settingslib_banner_filled_button_content_medium);
+        ColorStateList outlineBtnTextColor =
+                getColorStateList(R.color.settingslib_banner_outline_button_content);
+
+        mBannerPreference.onBindViewHolder(mHolder);
+
+        verify(mMockPositiveBtn).setBackgroundTintList(captor.capture());
+        verify(mMockPositiveBtn).setTextColor(captor.capture());
+        verify(mMockNegativeBtn).setStrokeColor(captor.capture());
+        verify(mMockNegativeBtn).setTextColor(captor.capture());
+        List<ColorStateList> colors = captor.getAllValues();
+        assertThat(colors.get(0).getColors()).isEqualTo(filledBtnBackground.getColors());
+        assertThat(colors.get(1).getColors()).isEqualTo(filledBtnTextColor.getColors());
+        assertThat(colors.get(2).getColors()).isEqualTo(filledBtnBackground.getColors());
+        assertThat(colors.get(3).getColors()).isEqualTo(outlineBtnTextColor.getColors());
     }
 
     @Test
     public void setAttentionLevel_whenAtLeastS_whenLowAttention_setsLowTheme() {
         assumeAndroidS();
-        Drawable mCardBackgroundSpy = spy(mRootView.getBackground());
-        mRootView.setBackground(mCardBackgroundSpy);
         mBannerPreference.setAttentionLevel(BannerMessagePreference.AttentionLevel.LOW);
 
         mBannerPreference.onBindViewHolder(mHolder);
@@ -487,12 +561,47 @@ public class BannerMessagePreferenceTest {
                 .isEqualTo(getColorId(R.color.banner_accent_attention_low));
         assertThat(getButtonColor(R.id.banner_negative_btn))
                 .isEqualTo(getColorId(R.color.banner_accent_attention_low));
-        verify(mCardBackgroundSpy).setTint(getColorId(R.color.banner_background_attention_low));
+        verify(mMockCardBackground).setTint(getColorId(R.color.banner_background_attention_low));
+    }
+
+    @Test
+    public void
+            setAttentionLevel_whenAtLeastS_whenNormalAttentionAndExpressiveTheme_setsBtnTheme() {
+        setExpressiveTheme(true);
+        mContext.getResources().getConfiguration().uiMode = Configuration.UI_MODE_NIGHT_NO;
+        assumeAndroidS();
+        doReturn(mMockPositiveBtn).when(mHolder).findViewById(R.id.banner_positive_btn);
+        doReturn(mMockNegativeBtn).when(mHolder).findViewById(R.id.banner_negative_btn);
+        mBannerPreference.setAttentionLevel(BannerMessagePreference.AttentionLevel.NORMAL);
+        final ArgumentCaptor<ColorStateList> captor = ArgumentCaptor.forClass(ColorStateList.class);
+        ColorStateList filledBtnBackground =
+                getColorStateList(R.color.settingslib_banner_button_background_normal);
+        ColorStateList filledBtnTextColor =
+                getColorStateList(R.color.settingslib_banner_filled_button_content_normal);
+        ColorStateList outlineBtnStrokeColor =
+                getColorStateList(R.color.settingslib_banner_outline_button_stroke_normal);
+
+        mBannerPreference.onBindViewHolder(mHolder);
+
+        verify(mMockPositiveBtn).setBackgroundTintList(captor.capture());
+        verify(mMockPositiveBtn).setTextColor(captor.capture());
+        verify(mMockNegativeBtn).setStrokeColor(captor.capture());
+        verify(mMockNegativeBtn).setTextColor(captor.capture());
+        List<ColorStateList> colors = captor.getAllValues();
+        assertThat(colors.get(0).getColors()).isEqualTo(filledBtnBackground.getColors());
+        assertThat(colors.get(1).getColors()).isEqualTo(filledBtnTextColor.getColors());
+        assertThat(colors.get(2).getColors()).isEqualTo(outlineBtnStrokeColor.getColors());
+        assertThat(colors.get(3).getColors()).isEqualTo(filledBtnBackground.getColors());
     }
 
     private int getButtonColor(int buttonResId) {
         Button mButton = mRootView.findViewById(buttonResId);
         return mButton.getTextColors().getDefaultColor();
+    }
+
+    private ColorStateList getButtonTextColor(int buttonResId) {
+        Button mButton = mRootView.findViewById(buttonResId);
+        return mButton.getTextColors();
     }
 
     private ColorFilter getColorFilter(@ColorRes int colorResId) {
@@ -503,28 +612,57 @@ public class BannerMessagePreferenceTest {
         return mContext.getResources().getColor(colorResId, mContext.getTheme());
     }
 
+    private ColorStateList getColorStateList(@ColorRes int colorResId) {
+        return mContext.getResources().getColorStateList(colorResId, mContext.getTheme());
+    }
+
     private void assumeAndroidR() {
         ReflectionHelpers.setStaticField(Build.VERSION.class, "SDK_INT", 30);
         ReflectionHelpers.setStaticField(Build.VERSION.class, "CODENAME", "R");
-        OverpoweredReflectionHelper
-                .setStaticField(BannerMessagePreference.class, "IS_AT_LEAST_S", false);
-        // Reset view holder to use correct layout.
+
+        // Refresh the static final field IS_AT_LEAST_S
+        mBannerPreference = new BannerMessagePreference(mContext);
+        setUpViewHolder();
     }
-
-
 
     private void assumeAndroidS() {
         ReflectionHelpers.setStaticField(Build.VERSION.class, "SDK_INT", 31);
         ReflectionHelpers.setStaticField(Build.VERSION.class, "CODENAME", "S");
-        OverpoweredReflectionHelper
-                .setStaticField(BannerMessagePreference.class, "IS_AT_LEAST_S", true);
-        // Re-inflate view to update layout.
+
+        // Refresh the static final field IS_AT_LEAST_S
+        mBannerPreference = new BannerMessagePreference(mContext);
         setUpViewHolder();
+    }
+
+    private void setExpressiveTheme(boolean isExpressiveTheme) {
+        ShadowSettingsThemeHelper.setExpressiveTheme(isExpressiveTheme);
+        assertThat(SettingsThemeHelper.isExpressiveTheme(mContext)).isEqualTo(isExpressiveTheme);
+        if (isExpressiveTheme) {
+            doReturn(mContext).when(mMockPositiveBtn).getContext();
+            doReturn(mContext).when(mMockNegativeBtn).getContext();
+        }
     }
 
     private void setUpViewHolder() {
         mRootView =
                 View.inflate(mContext, mBannerPreference.getLayoutResource(), null /* parent */);
-        mHolder = PreferenceViewHolder.createInstanceForTests(mRootView);
+        mHolder = spy(PreferenceViewHolder.createInstanceForTests(mRootView));
+        doReturn(mMockBackgroundView).when(mHolder).findViewById(R.id.banner_background);
+        doReturn(mMockCardBackground).when(mMockBackgroundView).getBackground();
+    }
+
+    @Implements(SettingsThemeHelper.class)
+    public static class ShadowSettingsThemeHelper {
+        private static boolean sIsExpressiveTheme;
+
+        /** Shadow implementation of isExpressiveTheme */
+        @Implementation
+        public static boolean isExpressiveTheme(@NonNull Context context) {
+            return sIsExpressiveTheme;
+        }
+
+        static void setExpressiveTheme(boolean isExpressiveTheme) {
+            sIsExpressiveTheme = isExpressiveTheme;
+        }
     }
 }

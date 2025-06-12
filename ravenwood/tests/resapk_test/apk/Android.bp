@@ -8,7 +8,13 @@ package {
 }
 
 android_app {
-    name: "RavenwoodResApkTest-apk",
+    name: "RavenwoodResApkTest-res",
 
     sdk_version: "current",
+
+    use_resource_processor: false,
+
+    flags_packages: [
+        "com.android.internal.os.flags-aconfig",
+    ],
 }

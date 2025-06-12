@@ -27,6 +27,7 @@ import com.android.systemui.common.shared.model.Text
 import com.android.systemui.common.shared.model.Text.Companion.loadText
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.qs.tileimpl.QSTileImpl
+import com.android.systemui.qs.tileimpl.QSTileImpl.ResourceIcon
 
 /** Model describing the state that the QS Internet tile should be in. */
 sealed interface InternetTileModel {
@@ -49,11 +50,14 @@ sealed interface InternetTileModel {
         state.contentDescription = contentDescription.loadContentDescription(context)
 
         // To support both SignalDrawable and other icons, give priority to icons over IDs
-        if (icon != null) {
-            state.icon = icon
-        } else if (iconId != null) {
-            state.icon = QSTileImpl.maybeLoadResourceIcon(iconId!!, context)
-        }
+        state.icon =
+            when {
+                icon is ResourceIcon ->
+                    QSTileImpl.maybeLoadResourceIcon((icon as ResourceIcon).resId, context)
+                icon != null -> icon
+                iconId != null -> QSTileImpl.maybeLoadResourceIcon(iconId!!, context)
+                else -> null
+            }
 
         state.state =
             if (this is Active) {

@@ -20,7 +20,7 @@ import static com.android.shell.BugreportProgressService.findSendToAccount;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNull;
 
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import android.accounts.Account;

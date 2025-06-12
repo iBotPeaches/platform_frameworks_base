@@ -16,6 +16,7 @@
 
 package android.animation
 
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.platform.test.annotations.MotionTest
 import android.view.ViewGroup
@@ -23,11 +24,14 @@ import android.widget.FrameLayout
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.android.internal.dynamicanimation.animation.DynamicAnimation
 import com.android.internal.dynamicanimation.animation.SpringAnimation
 import com.android.internal.dynamicanimation.animation.SpringForce
 import kotlinx.coroutines.test.TestScope
+import org.junit.Assume.assumeFalse
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,6 +68,16 @@ class AnimatorTestRuleToolkitTest {
             GOLDEN_PATH_MANAGER,
             bitmapDiffer = screenshotRule,
         )
+
+    @Before
+    fun setUp() {
+        // Do not run on Automotive.
+        assumeFalse(
+            InstrumentationRegistry.getInstrumentation().context.packageManager.hasSystemFeature(
+                PackageManager.FEATURE_AUTOMOTIVE
+            )
+        )
+    }
 
     @Test
     fun recordFilmstrip_withAnimator() {
@@ -188,12 +202,7 @@ class AnimatorTestRuleToolkitTest {
                 null
             }
         return motionRule.recordMotion(
-            AnimatorRuleRecordingSpec(
-                container,
-                motionControl,
-                sampleIntervalMs,
-                visualCapture,
-            ) {
+            AnimatorRuleRecordingSpec(container, motionControl, sampleIntervalMs, visualCapture) {
                 feature(ViewFeatureCaptures.alpha, "alpha")
             }
         )

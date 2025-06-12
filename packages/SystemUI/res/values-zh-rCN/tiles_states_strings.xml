@@ -56,6 +56,11 @@
     <item msgid="5376619709702103243">"已关闭"</item>
     <item msgid="4875147066469902392">"已开启"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"不可用"</item>
+    <item msgid="8589336868985358191">"关"</item>
+    <item msgid="726072717827778234">"开"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"不可用"</item>
     <item msgid="5044688398303285224">"已关闭"</item>
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"不可用"</item>
     <item msgid="6419996398343291862">"关闭"</item>
     <item msgid="5908720590832378783">"开启"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"不可用"</item>
+    <item msgid="6641673879029894995">"已关闭"</item>
+    <item msgid="5806682401126108403">"已开启"</item>
   </string-array>
 </resources>

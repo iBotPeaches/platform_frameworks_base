@@ -25,7 +25,6 @@ import com.android.internal.statusbar.IStatusBarService
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.assist.AssistManager
 import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.plugins.statusbar.StatusBarStateController
@@ -43,6 +42,7 @@ import com.android.systemui.statusbar.policy.DeviceProvisionedController
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.statusbar.window.StatusBarWindowController
 import com.android.systemui.statusbar.window.StatusBarWindowControllerStore
+import com.android.systemui.testKosmos
 import com.android.systemui.util.concurrency.FakeExecutor
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
@@ -63,7 +63,7 @@ import org.mockito.MockitoAnnotations
 @SmallTest
 class ShadeControllerImplTest : SysuiTestCase() {
     private val executor = FakeExecutor(FakeSystemClock())
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
 
     @Mock private lateinit var commandQueue: CommandQueue

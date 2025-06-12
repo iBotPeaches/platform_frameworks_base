@@ -174,12 +174,14 @@ android_app {
         "android.media.tv.flags-aconfig",
         "android.security.flags-aconfig",
         "device_policy_aconfig_flags",
+        "android.xr.flags-aconfig",
         "com.android.hardware.input.input-aconfig",
         "aconfig_trade_in_mode_flags",
         "art-aconfig-flags",
         "ranging_aconfig_flags",
         "aconfig_settingslib_flags",
         "telephony_flags",
+        "update_engine_aconfig_declarations",
     ],
 }
 

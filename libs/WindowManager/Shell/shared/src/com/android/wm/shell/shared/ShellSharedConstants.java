@@ -22,4 +22,11 @@ package com.android.wm.shell.shared;
 public class ShellSharedConstants {
     public static final String KEY_EXTRA_SHELL_CAN_HAND_OFF_ANIMATION =
             "extra_shell_can_hand_off_animation";
+
+    /**
+     * Defines the max screen width or height in dp for a device to be considered a small tablet.
+     *
+     * @see android.view.WindowManager#LARGE_SCREEN_SMALLEST_SCREEN_WIDTH_DP
+     */
+    public static final int SMALL_TABLET_MAX_EDGE_DP = 960;
 }

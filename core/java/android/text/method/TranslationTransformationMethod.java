@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TranslationTransformationMethod implements TransformationMethod2 {
 
     private static final String TAG = "TranslationTransformationMethod";

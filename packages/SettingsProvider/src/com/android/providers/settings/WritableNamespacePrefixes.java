@@ -124,6 +124,7 @@ final class WritableNamespacePrefixes {
                 "privacy",
                 "private_compute_services",
                 "profcollect_native_boot",
+                "profiling_testing",
                 "remote_auth",
                 "remote_key_provisioning_native",
                 "rollback",

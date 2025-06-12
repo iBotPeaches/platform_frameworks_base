@@ -320,6 +320,9 @@ LIBANDROID {
     ASystemFontIterator_open; # introduced=29
     ASystemFontIterator_close; # introduced=29
     ASystemFontIterator_next; # introduced=29
+    ASystemHealth_getMaxCpuHeadroomTidsSize; # introduced=36
+    ASystemHealth_getCpuHeadroomCalculationWindowRange; # introduced=36
+    ASystemHealth_getGpuHeadroomCalculationWindowRange; # introduced=36
     ASystemHealth_getCpuHeadroom; # introduced=36
     ASystemHealth_getGpuHeadroom; # introduced=36
     ASystemHealth_getCpuHeadroomMinIntervalMillis; # introduced=36
@@ -396,6 +399,7 @@ LIBANDROID {
     APerformanceHint_notifyWorkloadSpike; # introduced=36
     APerformanceHint_borrowSessionFromJava; # introduced=36
     APerformanceHint_setNativeSurfaces; # introduced=36
+    APerformanceHint_isFeatureSupported; # introduced=36
     AWorkDuration_create; # introduced=VanillaIceCream
     AWorkDuration_release; # introduced=VanillaIceCream
     AWorkDuration_setWorkPeriodStartTimestampNanos; # introduced=VanillaIceCream
@@ -417,9 +421,9 @@ LIBANDROID {
 LIBANDROID_PLATFORM {
   global:
     AThermal_setIThermalServiceForTesting;
+    ASystemHealth_setIHintManagerForTesting;
     APerformanceHint_setIHintManagerForTesting;
     APerformanceHint_sendHint;
-    APerformanceHint_setUseGraphicsPipelineForTesting;
     APerformanceHint_getThreadIds;
     APerformanceHint_createSessionInternal;
     APerformanceHint_createSessionUsingConfigInternal;

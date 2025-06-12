@@ -16,6 +16,8 @@
 
 package com.android.systemui.statusbar.notification.stack.shared.model
 
+import androidx.compose.ui.geometry.Rect
+
 /** Models the bounds of the notification stack. */
 data class ShadeScrimBounds(
     /** The position of the left of the stack in its window coordinate system, in pixels. */
@@ -27,6 +29,10 @@ data class ShadeScrimBounds(
     /** The position of the bottom of the stack in its window coordinate system, in pixels. */
     val bottom: Float = 0f,
 ) {
+    constructor(
+        bounds: Rect
+    ) : this(left = bounds.left, top = bounds.top, right = bounds.right, bottom = bounds.bottom)
+
     /** The current height of the notification container. */
     val height: Float = bottom - top
 

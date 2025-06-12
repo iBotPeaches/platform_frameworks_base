@@ -27,14 +27,15 @@ import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.graphics.Point;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.systemui.SysuiTestCase;
 
 import org.junit.Before;
@@ -48,7 +49,7 @@ import org.mockito.MockitoAnnotations;
 @RunWith(AndroidJUnit4.class)
 public class MirrorWindowControlTest extends SysuiTestCase {
 
-    @Mock ViewCaptureAwareWindowManager mWindowManager;
+    @Mock WindowManager mWindowManager;
     View mView;
     int mViewWidth;
     int mViewHeight;
@@ -69,8 +70,12 @@ public class MirrorWindowControlTest extends SysuiTestCase {
             return null;
         }).when(mWindowManager).addView(any(View.class), any(LayoutParams.class));
 
+        if (Looper.myLooper() == null) {
+            Looper.prepare();
+        }
+
         mStubMirrorWindowControl = new StubMirrorWindowControl(getContext(), mView, mViewWidth,
-                mViewHeight);
+                mViewHeight, mWindowManager);
     }
 
     @Test
@@ -122,8 +127,9 @@ public class MirrorWindowControlTest extends SysuiTestCase {
 
         boolean mInvokeOnCreateView = false;
 
-        StubMirrorWindowControl(Context context, View view, int width, int height) {
-            super(context);
+        StubMirrorWindowControl(Context context, View view, int width, int height,
+                WindowManager windowManager) {
+            super(context, windowManager);
             mView = view;
             mWidth = width;
             mHeight = height;

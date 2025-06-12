@@ -39,8 +39,8 @@ class NotificationDismissibilityProviderImpl @Inject constructor(dumpManager: Du
     var nonDismissableEntryKeys = setOf<String>()
         private set
 
-    override fun isDismissable(entry: NotificationEntry): Boolean {
-        return entry.key !in nonDismissableEntryKeys
+    override fun isDismissable(entryKey: String): Boolean {
+        return entryKey !in nonDismissableEntryKeys
     }
 
     @Synchronized

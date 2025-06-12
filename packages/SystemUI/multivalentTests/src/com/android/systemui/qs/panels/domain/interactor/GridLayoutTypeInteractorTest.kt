@@ -16,18 +16,18 @@
 
 package com.android.systemui.qs.panels.domain.interactor
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.collectLastValue
 import com.android.systemui.kosmos.runTest
 import com.android.systemui.qs.panels.shared.model.InfiniteGridLayoutType
 import com.android.systemui.qs.panels.shared.model.PaginatedGridLayoutType
-import com.android.systemui.shade.data.repository.fakeShadeRepository
-import com.android.systemui.shade.shared.flag.DualShade
+import com.android.systemui.shade.domain.interactor.enableDualShade
+import com.android.systemui.shade.domain.interactor.enableSingleShade
+import com.android.systemui.shade.domain.interactor.enableSplitShade
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
@@ -35,34 +35,33 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
+@EnableSceneContainer
 class GridLayoutTypeInteractorTest : SysuiTestCase() {
     val kosmos = testKosmos()
 
     val Kosmos.underTest by Kosmos.Fixture { kosmos.gridLayoutTypeInteractor }
 
-    @DisableFlags(DualShade.FLAG_NAME)
     @Test
     fun noDualShade_gridAlwaysPaginated() =
         kosmos.runTest {
             val type by collectLastValue(underTest.layout)
 
-            fakeShadeRepository.setShadeLayoutWide(false)
+            kosmos.enableSingleShade()
             assertThat(type).isEqualTo(PaginatedGridLayoutType)
 
-            fakeShadeRepository.setShadeLayoutWide(true)
+            kosmos.enableSplitShade()
             assertThat(type).isEqualTo(PaginatedGridLayoutType)
         }
 
-    @EnableFlags(DualShade.FLAG_NAME)
     @Test
     fun dualShade_gridAlwaysInfinite() =
         kosmos.runTest {
             val type by collectLastValue(underTest.layout)
 
-            fakeShadeRepository.setShadeLayoutWide(false)
+            kosmos.enableDualShade(wideLayout = false)
             assertThat(type).isEqualTo(InfiniteGridLayoutType)
 
-            fakeShadeRepository.setShadeLayoutWide(true)
+            kosmos.enableDualShade(wideLayout = true)
             assertThat(type).isEqualTo(InfiniteGridLayoutType)
         }
 }

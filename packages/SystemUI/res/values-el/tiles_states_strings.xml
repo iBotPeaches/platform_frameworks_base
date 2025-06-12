@@ -47,7 +47,7 @@
     <item msgid="287997784730044767">"Ενεργό"</item>
   </string-array>
   <string-array name="tile_states_battery">
-    <item msgid="6311253873330062961">"Μη διαθέσιμο"</item>
+    <item msgid="6311253873330062961">"Μη διαθέσιμη"</item>
     <item msgid="7838121007534579872">"Ανενεργό"</item>
     <item msgid="1578872232501319194">"Ενεργό"</item>
   </string-array>
@@ -55,6 +55,11 @@
     <item msgid="467587075903158357">"Μη διαθέσιμο"</item>
     <item msgid="5376619709702103243">"Ανενεργό"</item>
     <item msgid="4875147066469902392">"Ενεργό"</item>
+  </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"Μη διαθέσιμο"</item>
+    <item msgid="8589336868985358191">"Ανενεργό"</item>
+    <item msgid="726072717827778234">"Ενεργό"</item>
   </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"Μη διαθέσιμο"</item>
@@ -64,7 +69,7 @@
   <string-array name="tile_states_rotation">
     <item msgid="4578491772376121579">"Μη διαθέσιμο"</item>
     <item msgid="5776427577477729185">"Ανενεργό"</item>
-    <item msgid="7105052717007227415">"Ενεργό"</item>
+    <item msgid="7105052717007227415">"Ενεργή"</item>
   </string-array>
   <string-array name="tile_states_bt">
     <item msgid="5330252067413512277">"Μη διαθέσιμο"</item>
@@ -118,7 +123,7 @@
   </string-array>
   <string-array name="tile_states_night">
     <item msgid="7857498964264855466">"Μη διαθέσιμο"</item>
-    <item msgid="2744885441164350155">"Ανενεργό"</item>
+    <item msgid="2744885441164350155">"Ανενεργός"</item>
     <item msgid="151121227514952197">"Ενεργό"</item>
   </string-array>
   <string-array name="tile_states_screenrecord">
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"Μη διαθέσιμο"</item>
     <item msgid="6419996398343291862">"Ανενεργό"</item>
     <item msgid="5908720590832378783">"Ενεργό"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"Μη διαθέσιμο"</item>
+    <item msgid="6641673879029894995">"Ανενεργό"</item>
+    <item msgid="5806682401126108403">"Ενεργό"</item>
   </string-array>
 </resources>

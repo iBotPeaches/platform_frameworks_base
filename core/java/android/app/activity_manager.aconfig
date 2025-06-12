@@ -163,3 +163,37 @@ flag {
     description: "Narrow the scope of Jank Perceptible"
     bug: "304837972"
 }
+
+flag {
+    name: "jank_perceptible_narrow_holdback"
+    namespace: "system_performance"
+    description: "Holdback study for jank_perceptible_narrow"
+    bug: "304837972"
+}
+
+flag {
+     namespace: "system_performance"
+     name: "app_start_info_cleanup_old_records"
+     description: "Cleanup old records to reduce size of in memory store."
+     bug: "384539178"
+     metadata {
+         purpose: PURPOSE_BUGFIX
+     }
+}
+
+flag {
+     namespace: "system_performance"
+     name: "app_start_info_keep_records_sorted"
+     description: "Ensure records are kept sorted to avoid extra work"
+     bug: "384539178"
+     metadata {
+         purpose: PURPOSE_BUGFIX
+     }
+}
+
+flag {
+     name: "enable_process_observer_broadcast_on_process_started"
+     namespace: "system_performance"
+     description: "Enable ProcessObserver's onProcessStarted callbacks."
+     bug: "323959187"
+}

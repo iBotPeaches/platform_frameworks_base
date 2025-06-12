@@ -26,6 +26,7 @@ import com.android.settingslib.flags.Flags.newStatusBarIcons
 import com.android.systemui.battery.BatteryMeterView
 import com.android.systemui.battery.unified.BatteryColors
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.events.BackgroundAnimatableView
 
 class BatteryStatusChip @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
@@ -37,6 +38,8 @@ class BatteryStatusChip @JvmOverloads constructor(context: Context, attrs: Attri
         get() = batteryMeterView
 
     init {
+        NewStatusBarIcons.assertInLegacyMode()
+
         inflate(context, R.layout.battery_status_chip, this)
         roundedContainer = requireViewById(R.id.rounded_container)
         batteryMeterView = requireViewById(R.id.battery_meter_view)

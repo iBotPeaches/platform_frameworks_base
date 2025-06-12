@@ -33,6 +33,7 @@ import com.android.systemui.plugins.qs.QSTile.Icon;
 import com.android.systemui.plugins.qs.QSTile.State;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @ProvidesInterface(version = QSTile.VERSION)
@@ -41,7 +42,7 @@ import java.util.function.Supplier;
 @DependsOn(target = Icon.class)
 @DependsOn(target = State.class)
 public interface QSTile {
-    int VERSION = 4;
+    int VERSION = 5;
 
     String getTileSpec();
 
@@ -77,6 +78,7 @@ public interface QSTile {
     void longClick(@Nullable Expandable expandable);
 
     void userSwitch(int currentUser);
+    int getCurrentTileUser();
 
     /**
      * @deprecated not needed as {@link com.android.internal.logging.UiEvent} will use
@@ -122,9 +124,34 @@ public interface QSTile {
     boolean isListening();
 
     /**
-     * Return this tile's {@link TileDetailsViewModel} to be used to render the TileDetailsView.
+     * Get this tile's {@link TileDetailsViewModel} through a callback.
+     *
+     * Please only override this method if the tile can't get its {@link TileDetailsViewModel}
+     * synchronously and thus need a callback to defer it.
+     *
+     * @return a boolean indicating whether this tile has a {@link TileDetailsViewModel}. The tile's
+     * {@link TileDetailsViewModel} will be passed to the callback. Please always return true when
+     * overriding this method. Return false will make the tile display its dialog instead of details
+     * view, and it will not wait for the callback to be returned before proceeding to show the
+     * dialog.
      */
-    default TileDetailsViewModel getDetailsViewModel() { return null; }
+    default boolean getDetailsViewModel(Consumer<TileDetailsViewModel> callback) {
+        TileDetailsViewModel tileDetailsViewModel = getDetailsViewModel();
+        callback.accept(tileDetailsViewModel);
+        return tileDetailsViewModel != null;
+    }
+
+    /**
+     * Return this tile's {@link TileDetailsViewModel} to be used to render the TileDetailsView.
+     *
+     * Please only override this method if the tile doesn't need a callback to set its
+     * {@link TileDetailsViewModel}.
+     */
+    default TileDetailsViewModel getDetailsViewModel() {
+        return null;
+    }
+
+    boolean isDestroyed();
 
     @ProvidesInterface(version = Callback.VERSION)
     interface Callback {

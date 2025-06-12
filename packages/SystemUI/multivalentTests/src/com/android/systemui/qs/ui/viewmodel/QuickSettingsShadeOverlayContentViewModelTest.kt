@@ -16,7 +16,6 @@
 
 package com.android.systemui.qs.ui.viewmodel
 
-import android.platform.test.annotations.EnableFlags
 import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
@@ -26,6 +25,7 @@ import com.android.systemui.authentication.domain.interactor.AuthenticationResul
 import com.android.systemui.authentication.domain.interactor.authenticationInteractor
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.EnableSceneContainer
+import com.android.systemui.kosmos.runCurrent
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
@@ -36,11 +36,13 @@ import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.domain.startable.sceneContainerStartable
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.shade.domain.interactor.enableDualShade
 import com.android.systemui.shade.domain.interactor.shadeInteractor
-import com.android.systemui.shade.shared.flag.DualShade
+import com.android.systemui.statusbar.notification.stack.shared.model.ShadeScrimBounds
+import com.android.systemui.statusbar.notification.stack.shared.model.ShadeScrimShape
+import com.android.systemui.statusbar.notification.stack.ui.viewmodel.notificationScrollViewModel
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -48,12 +50,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper
 @EnableSceneContainer
-@EnableFlags(DualShade.FLAG_NAME)
 class QuickSettingsShadeOverlayContentViewModelTest : SysuiTestCase() {
 
     private val kosmos =
@@ -61,13 +61,14 @@ class QuickSettingsShadeOverlayContentViewModelTest : SysuiTestCase() {
             usingMediaInComposeFragment = false // This is not for the compose fragment
         }
     private val testScope = kosmos.testScope
-    private val sceneInteractor = kosmos.sceneInteractor
-
+    private val sceneInteractor by lazy { kosmos.sceneInteractor }
     private val underTest by lazy { kosmos.quickSettingsShadeOverlayContentViewModel }
 
     @Before
     fun setUp() {
         kosmos.sceneContainerStartable.start()
+        kosmos.enableDualShade()
+        kosmos.runCurrent()
         underTest.activateIn(testScope)
     }
 
@@ -97,20 +98,6 @@ class QuickSettingsShadeOverlayContentViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    fun bouncerShown_hidesShade() =
-        testScope.runTest {
-            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
-            lockDevice()
-            sceneInteractor.showOverlay(Overlays.QuickSettingsShade, "test")
-            assertThat(currentOverlays).contains(Overlays.QuickSettingsShade)
-
-            sceneInteractor.changeScene(Scenes.Bouncer, "test")
-            runCurrent()
-
-            assertThat(currentOverlays).doesNotContain(Overlays.QuickSettingsShade)
-        }
-
-    @Test
     fun shadeNotTouchable_hidesShade() =
         testScope.runTest {
             val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
@@ -122,6 +109,24 @@ class QuickSettingsShadeOverlayContentViewModelTest : SysuiTestCase() {
             lockDevice()
             assertThat(isShadeTouchable).isFalse()
             assertThat(currentOverlays).doesNotContain(Overlays.QuickSettingsShade)
+        }
+
+    @Test
+    fun onPanelShapeChanged() =
+        testScope.runTest {
+            var actual: ShadeScrimShape? = null
+            kosmos.notificationScrollViewModel.setQsScrimShapeConsumer { shape -> actual = shape }
+
+            val expected =
+                ShadeScrimShape(
+                    bounds = ShadeScrimBounds(left = 10f, top = 0f, right = 710f, bottom = 600f),
+                    topRadius = 0,
+                    bottomRadius = 100,
+                )
+
+            underTest.onPanelShapeChanged(expected)
+
+            assertThat(actual).isEqualTo(expected)
         }
 
     private fun TestScope.lockDevice() {

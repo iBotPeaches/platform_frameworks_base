@@ -20,6 +20,7 @@ import android.annotation.IntDef;
 import android.os.BatteryStats;
 import android.os.PersistableBundle;
 import android.os.Process;
+import android.util.IntArray;
 
 import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.UsageBasedPowerEstimator;
@@ -27,7 +28,6 @@ import com.android.server.power.stats.format.BinaryStatePowerStatsLayout;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -190,13 +190,13 @@ abstract class BinaryStatePowerStatsProcessor extends PowerStatsProcessor {
         }
 
         computeDevicePowerEstimates(stats, mPlan, mEnergyConsumerSupported);
-        combineDevicePowerEstimates(stats);
 
-        List<Integer> uids = new ArrayList<>();
-        stats.collectUids(uids);
-
-        computeUidActivityTotals(stats, uids);
-        computeUidPowerEstimates(stats, uids);
+        IntArray uids = stats.getActiveUids();
+        if (uids.size() != 0) {
+            combineDevicePowerEstimates(stats);
+            computeUidActivityTotals(stats, uids);
+            computeUidPowerEstimates(stats, uids);
+        }
     }
 
     protected void computeDevicePowerEstimates(PowerComponentAggregatedPowerStats stats,
@@ -239,8 +239,7 @@ abstract class BinaryStatePowerStatsProcessor extends PowerStatsProcessor {
         }
     }
 
-    private void computeUidActivityTotals(PowerComponentAggregatedPowerStats stats,
-            List<Integer> uids) {
+    private void computeUidActivityTotals(PowerComponentAggregatedPowerStats stats, IntArray uids) {
         for (int i = mPlan.uidStateEstimates.size() - 1; i >= 0; i--) {
             UidStateEstimate uidStateEstimate = mPlan.uidStateEstimates.get(i);
             Intermediates intermediates =
@@ -259,8 +258,7 @@ abstract class BinaryStatePowerStatsProcessor extends PowerStatsProcessor {
         }
     }
 
-    private void computeUidPowerEstimates(PowerComponentAggregatedPowerStats stats,
-            List<Integer> uids) {
+    private void computeUidPowerEstimates(PowerComponentAggregatedPowerStats stats, IntArray uids) {
         for (int i = mPlan.uidStateEstimates.size() - 1; i >= 0; i--) {
             UidStateEstimate uidStateEstimate = mPlan.uidStateEstimates.get(i);
             Intermediates intermediates =
@@ -276,12 +274,13 @@ abstract class BinaryStatePowerStatsProcessor extends PowerStatsProcessor {
                     int uid = uids.get(k);
                     if (stats.getUidStats(mTmpUidStatsArray, uid,
                             proportionalEstimate.stateValues)) {
-                        double power = intermediates.power
-                                * mStatsLayout.getUidUsageDuration(mTmpUidStatsArray)
-                                / intermediates.duration;
-                        mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
-                        stats.setUidStats(uid, proportionalEstimate.stateValues,
-                                mTmpUidStatsArray);
+                        long duration = mStatsLayout.getUidUsageDuration(mTmpUidStatsArray);
+                        if (duration != 0) {
+                            double power = intermediates.power * duration / intermediates.duration;
+                            mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
+                            stats.setUidStats(uid, proportionalEstimate.stateValues,
+                                    mTmpUidStatsArray);
+                        }
                     }
                 }
             }

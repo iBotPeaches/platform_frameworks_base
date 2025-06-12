@@ -62,6 +62,10 @@ constructor(
         userTracker.removeCallback(this)
     }
 
+    override fun alertUnstableService(unstableService: String?) {
+        // Unused. Do nothing.
+    }
+
     override fun onBeforeUserSwitching(newUser: Int) {
         userAboutToSwitch = true
         listener?.onServiceChanged()

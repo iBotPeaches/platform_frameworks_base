@@ -18,14 +18,22 @@ package com.android.systemui.shade.display
 
 import android.util.Log
 import android.view.Display
+import android.view.MotionEvent
 import com.android.app.tracing.coroutines.launchTraced
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
+import com.android.systemui.shade.domain.interactor.NotificationShadeElement
+import com.android.systemui.shade.domain.interactor.QSShadeElement
+import com.android.systemui.shade.domain.interactor.ShadeExpandedStateInteractor.ShadeElement
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround
+import dagger.Lazy
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -35,27 +43,54 @@ import kotlinx.coroutines.flow.map
 /**
  * Moves the shade on the last display that received a status bar touch.
  *
- * If the display is removed, falls back to the default one.
+ * If the display is removed, falls back to the default one. When [shadeOnDefaultDisplayWhenLocked]
+ * is true, the shade falls back to the default display when the keyguard is visible.
  */
 @SysUISingleton
 class StatusBarTouchShadeDisplayPolicy
 @Inject
-constructor(displayRepository: DisplayRepository, @Background val backgroundScope: CoroutineScope) :
-    ShadeDisplayPolicy {
-    override val name: String
-        get() = "status_bar_latest_touch"
+constructor(
+    displayRepository: DisplayRepository,
+    @Background private val backgroundScope: CoroutineScope,
+    private val qsShadeElement: Lazy<QSShadeElement>,
+    private val notificationElement: Lazy<NotificationShadeElement>,
+) : ShadeDisplayPolicy, ShadeExpansionIntent {
+    override val name: String = "status_bar_latest_touch"
 
     private val currentDisplayId = MutableStateFlow(Display.DEFAULT_DISPLAY)
     private val availableDisplayIds: StateFlow<Set<Int>> = displayRepository.displayIds
 
-    override val displayId: StateFlow<Int>
-        get() = currentDisplayId
+    private var latestIntent = AtomicReference<ShadeElement?>()
+    private var timeoutJob: Job? = null
+
+    override val displayId: StateFlow<Int> = currentDisplayId
 
     private var removalListener: Job? = null
 
     /** Called when the status bar on the given display is touched. */
-    fun onStatusBarTouched(statusBarDisplayId: Int) {
+    fun onStatusBarTouched(event: MotionEvent, statusBarWidth: Int) {
         ShadeWindowGoesAround.isUnexpectedlyInLegacyMode()
+        updateShadeDisplayIfNeeded(event)
+        updateExpansionIntent(event, statusBarWidth)
+    }
+
+    override fun consumeExpansionIntent(): ShadeElement? {
+        return latestIntent.getAndSet(null)
+    }
+
+    private fun updateExpansionIntent(event: MotionEvent, statusBarWidth: Int) {
+        val element = classifyStatusBarEvent(event, statusBarWidth)
+        latestIntent.set(element)
+        timeoutJob?.cancel()
+        timeoutJob =
+            backgroundScope.launchTraced("StatusBarTouchDisplayPolicy#intentTimeout") {
+                delay(EXPANSION_INTENT_EXPIRY)
+                latestIntent.set(null)
+            }
+    }
+
+    private fun updateShadeDisplayIfNeeded(event: MotionEvent) {
+        val statusBarDisplayId = event.displayId
         if (statusBarDisplayId !in availableDisplayIds.value) {
             Log.e(TAG, "Got touch on unknown display $statusBarDisplayId")
             return
@@ -67,6 +102,14 @@ constructor(displayRepository: DisplayRepository, @Background val backgroundScop
             // displayId.
             removalListener = monitorDisplayRemovals()
         }
+    }
+
+    private fun classifyStatusBarEvent(
+        motionEvent: MotionEvent,
+        statusbarWidth: Int,
+    ): ShadeElement {
+        val xPercentage = motionEvent.x / statusbarWidth
+        return if (xPercentage < 0.5f) notificationElement.get() else qsShadeElement.get()
     }
 
     private fun monitorDisplayRemovals(): Job {
@@ -91,5 +134,6 @@ constructor(displayRepository: DisplayRepository, @Background val backgroundScop
 
     private companion object {
         const val TAG = "StatusBarTouchDisplayPolicy"
+        val EXPANSION_INTENT_EXPIRY = 2.seconds
     }
 }

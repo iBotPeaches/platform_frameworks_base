@@ -37,15 +37,19 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.Optional;
+
 @RunWith(AndroidJUnit4.class)
 @TestableLooper.RunWithLooper
 @SmallTest
 public class RotationLockControllerImplTest extends SysuiTestCase {
 
-    private static final String[] DEFAULT_SETTINGS = new String[] {"0:0", "1:2"};
+    private static final String[] DEFAULT_SETTINGS = new String[]{"0:0", "1:2"};
 
-    @Mock RotationPolicyWrapper mRotationPolicyWrapper;
-    @Mock DeviceStateRotationLockSettingController mDeviceStateRotationLockSettingController;
+    @Mock
+    RotationPolicyWrapper mRotationPolicyWrapper;
+    @Mock
+    DeviceStateRotationLockSettingController mDeviceStateRotationLockSettingController;
 
     private ArgumentCaptor<RotationPolicy.RotationPolicyListener> mRotationPolicyListenerCaptor;
 
@@ -93,7 +97,7 @@ public class RotationLockControllerImplTest extends SysuiTestCase {
     private void createRotationLockController(String[] deviceStateRotationLockDefaults) {
         new RotationLockControllerImpl(
                 mRotationPolicyWrapper,
-                mDeviceStateRotationLockSettingController,
+                Optional.of(mDeviceStateRotationLockSettingController),
                 deviceStateRotationLockDefaults);
     }
 }

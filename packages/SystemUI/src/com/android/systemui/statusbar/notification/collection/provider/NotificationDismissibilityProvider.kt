@@ -20,6 +20,6 @@ import com.android.systemui.statusbar.notification.collection.NotificationEntry
 
 /** Keeps track of the dismissibility of Notifications currently handed over to the view layer. */
 interface NotificationDismissibilityProvider {
-    /** @return true if the given {NotificationEntry} can currently be dismissed by the user */
-    fun isDismissable(entry: NotificationEntry): Boolean
+    /** @return true if the given entry's key can currently be dismissed by the user */
+    fun isDismissable(entryKey: String): Boolean
 }

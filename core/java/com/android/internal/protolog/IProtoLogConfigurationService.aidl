@@ -41,11 +41,11 @@ import com.android.internal.protolog.IProtoLogClient;
  * {@hide}
  */
 interface IProtoLogConfigurationService {
-    interface IRegisterClientArgs {
-        String[] getGroups();
-        boolean[] getGroupsDefaultLogcatStatus();
-        String getViewerConfigFile();
+    parcelable RegisterClientArgs {
+        String[] groups;
+        boolean[] groupsDefaultLogcatStatus;
+        String viewerConfigFile;
     }
 
-    void registerClient(IProtoLogClient client, IRegisterClientArgs args);
+    oneway void registerClient(IProtoLogClient client, in RegisterClientArgs args);
 }

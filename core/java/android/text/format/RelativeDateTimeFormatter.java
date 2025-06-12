@@ -42,6 +42,7 @@ import java.util.Locale;
  * @hide
  */
 @VisibleForTesting(visibility = PACKAGE)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class RelativeDateTimeFormatter {
 
     public static final long SECOND_IN_MILLIS = 1000;

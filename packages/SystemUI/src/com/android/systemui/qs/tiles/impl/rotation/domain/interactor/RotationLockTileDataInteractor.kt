@@ -22,8 +22,8 @@ import android.content.res.Resources
 import android.os.UserHandle
 import com.android.systemui.camera.data.repository.CameraAutoRotateRepository
 import com.android.systemui.camera.data.repository.CameraSensorPrivacyRepository
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.rotation.domain.model.RotationLockTileModel
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.policy.BatteryController

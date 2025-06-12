@@ -67,7 +67,7 @@ class CommunalTransitionViewModelTest(flags: FlagsParameterization) : SysuiTestC
 
     private val keyguardTransitionRepository = kosmos.fakeKeyguardTransitionRepository
     private val communalSceneRepository = kosmos.fakeCommunalSceneRepository
-    private val sceneInteractor = kosmos.sceneInteractor
+    private val sceneInteractor by lazy { kosmos.sceneInteractor }
 
     private val underTest: CommunalTransitionViewModel by lazy {
         kosmos.communalTransitionViewModel

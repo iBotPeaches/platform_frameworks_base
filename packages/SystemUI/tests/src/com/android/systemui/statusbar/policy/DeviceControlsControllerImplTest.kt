@@ -57,7 +57,7 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.ArgumentMatchers.anyInt
-import org.mockito.ArgumentMatchers.anyObject
+import org.mockito.ArgumentMatchers.any
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -138,7 +138,7 @@ class DeviceControlsControllerImplTest : SysuiTestCase() {
         `when`(secureSettings.getInt(Settings.Secure.CONTROLS_ENABLED, 1)).thenReturn(0)
         controller.setCallback(callback)
 
-        verify(controlsListingController, never()).addCallback(anyObject())
+        verify(controlsListingController, never()).addCallback(any())
         verify(callback).onControlsUpdate(null)
     }
 

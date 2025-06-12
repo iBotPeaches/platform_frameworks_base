@@ -26,7 +26,7 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.accessibility.data.repository.NightDisplayRepository
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.dagger.NightDisplayListenerModule
-import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.testKosmos
 import com.android.systemui.user.utils.UserScopedService
 import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.mock
@@ -47,7 +47,7 @@ import org.mockito.ArgumentMatchers.anyInt
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class NightDisplayTileDataInteractorTest : SysuiTestCase() {
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testUser = UserHandle.of(1)!!
     private val testStartTime = LocalTime.MIDNIGHT
     private val testEndTime = LocalTime.NOON

@@ -49,6 +49,20 @@ class InstallViewModel(application: Application, val repository: InstallReposito
                 _currentInstallStage.value = installStage
             }
         }
+
+        // Since staging is an async operation, we will get the staging result later in time.
+        // Result of the file staging will be set in InstallRepository#mStagingResult.
+        // As such, mCurrentInstallStage will need to add another MutableLiveData
+        // as a data source
+        _currentInstallStage.addSource(
+            repository.stagingResult.distinctUntilChanged()
+        ) { installStage: InstallStage ->
+            if (installStage.stageCode != InstallStage.STAGE_READY) {
+                _currentInstallStage.value = installStage
+            } else {
+                checkIfAllowedAndInitiateInstall()
+            }
+        }
     }
 
     fun preprocessIntent(intent: Intent, callerInfo: InstallRepository.CallerInfo) {
@@ -56,18 +70,7 @@ class InstallViewModel(application: Application, val repository: InstallReposito
         if (stage.stageCode == InstallStage.STAGE_ABORTED) {
             _currentInstallStage.value = stage
         } else {
-            // Since staging is an async operation, we will get the staging result later in time.
-            // Result of the file staging will be set in InstallRepository#mStagingResult.
-            // As such, mCurrentInstallStage will need to add another MutableLiveData
-            // as a data source
             repository.stageForInstall()
-            _currentInstallStage.addSource(repository.stagingResult) { installStage: InstallStage ->
-                if (installStage.stageCode != InstallStage.STAGE_READY) {
-                    _currentInstallStage.value = installStage
-                } else {
-                    checkIfAllowedAndInitiateInstall()
-                }
-            }
         }
     }
 

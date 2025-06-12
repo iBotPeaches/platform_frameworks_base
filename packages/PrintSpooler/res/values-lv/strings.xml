@@ -66,7 +66,7 @@
     <string name="notification_channel_failure" msgid="9042250774797916414">"Neizdevās veikt drukas darbus"</string>
     <string name="could_not_create_file" msgid="3425025039427448443">"Nevarēja izveidot failu."</string>
     <string name="print_services_disabled_toast" msgid="9089060734685174685">"Daži drukas pakalpojumi ir atspējoti."</string>
-    <string name="print_searching_for_printers" msgid="6550424555079932867">"Printeru meklēšana"</string>
+    <string name="print_searching_for_printers" msgid="6550424555079932867">"Notiek printeru meklēšana"</string>
     <string name="print_no_print_services" msgid="8561247706423327966">"Nav iespējots neviens drukas pakalpojums"</string>
     <string name="print_no_printers" msgid="4869403323900054866">"Netika atrasts neviens printeris."</string>
     <string name="cannot_add_printer" msgid="7840348733668023106">"Nevar pievienot printerus"</string>

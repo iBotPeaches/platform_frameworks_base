@@ -23,33 +23,31 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.accessibility.reduceBrightColorsController
 import com.android.systemui.coroutines.collectValues
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.reducebrightness.domain.model.ReduceBrightColorsTileModel
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @EnabledOnRavenwood
 @RunWith(AndroidJUnit4::class)
 class ReduceBrightColorsTileDataInteractorTest : SysuiTestCase() {
 
     private val isAvailable = true
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val reduceBrightColorsController = kosmos.reduceBrightColorsController
     private val underTest: ReduceBrightColorsTileDataInteractor =
         ReduceBrightColorsTileDataInteractor(
             testScope.testScheduler,
             isAvailable,
-            reduceBrightColorsController
+            reduceBrightColorsController,
         )
 
     @Test

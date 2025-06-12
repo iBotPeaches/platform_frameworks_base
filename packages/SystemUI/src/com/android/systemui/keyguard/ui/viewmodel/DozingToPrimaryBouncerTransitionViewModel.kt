@@ -16,40 +16,61 @@
 
 package com.android.systemui.keyguard.ui.viewmodel
 
+import com.android.systemui.Flags
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.FromDozingTransitionInteractor.Companion.TO_PRIMARY_BOUNCER_DURATION
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState.DOZING
 import com.android.systemui.keyguard.shared.model.KeyguardState.PRIMARY_BOUNCER
 import com.android.systemui.keyguard.ui.KeyguardTransitionAnimationFlow
+import com.android.systemui.keyguard.ui.transitions.BlurConfig
 import com.android.systemui.keyguard.ui.transitions.DeviceEntryIconTransition
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.keyguard.ui.transitions.PrimaryBouncerTransition
+import com.android.systemui.scene.shared.model.Overlays
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Breaks down DOZING->PRIMARY BOUNCER transition into discrete steps for corresponding views to
  * consume.
  */
-@ExperimentalCoroutinesApi
 @SysUISingleton
 class DozingToPrimaryBouncerTransitionViewModel
 @Inject
-constructor(
-    animationFlow: KeyguardTransitionAnimationFlow,
-) : DeviceEntryIconTransition {
+constructor(private val blurConfig: BlurConfig, animationFlow: KeyguardTransitionAnimationFlow) :
+    DeviceEntryIconTransition, PrimaryBouncerTransition {
 
     private val transitionAnimation =
         animationFlow
             .setup(
                 duration = TO_PRIMARY_BOUNCER_DURATION,
-                edge = Edge.create(from = DOZING, to = Scenes.Bouncer),
+                edge = Edge.create(from = DOZING, to = Overlays.Bouncer),
             )
-            .setupWithoutSceneContainer(
-                edge = Edge.create(from = DOZING, to = PRIMARY_BOUNCER),
-            )
+            .setupWithoutSceneContainer(edge = Edge.create(from = DOZING, to = PRIMARY_BOUNCER))
 
     override val deviceEntryParentViewAlpha: Flow<Float> =
+        transitionAnimation.immediatelyTransitionTo(0f)
+
+    override val windowBlurRadius: Flow<Float> =
+        transitionAnimation.sharedFlow(
+            TO_PRIMARY_BOUNCER_DURATION,
+            onStep = { step ->
+                transitionProgressToBlurRadius(
+                    starBlurRadius = blurConfig.minBlurRadiusPx,
+                    endBlurRadius = blurConfig.maxBlurRadiusPx,
+                    transitionProgress = step,
+                )
+            },
+            onFinish = { blurConfig.maxBlurRadiusPx },
+        )
+
+    val lockscreenAlpha: Flow<Float> =
+        if (Flags.bouncerUiRevamp()) transitionAnimation.immediatelyTransitionTo(0.0f)
+        else emptyFlow()
+
+    val notificationAlpha: Flow<Float> = lockscreenAlpha
+
+    override val notificationBlurRadius: Flow<Float> =
         transitionAnimation.immediatelyTransitionTo(0f)
 }

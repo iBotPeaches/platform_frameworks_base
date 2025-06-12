@@ -24,7 +24,7 @@ import android.os.Bundle;
  */
 interface IScanInterface {
     IBinder createSession(int broadcastType, String countryCode, String operator,
-        in IScanListener listener);
+        in IScanListener listener, in Bundle optionalParams);
     Bundle getParameters(int broadcastType, String countryCode, String operator,
         in Bundle params);
 }

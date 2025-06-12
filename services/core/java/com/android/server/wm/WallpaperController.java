@@ -21,7 +21,6 @@ import static android.app.WallpaperManager.COMMAND_UNFREEZE;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
-import static android.view.WindowManager.TRANSIT_FLAG_KEYGUARD_GOING_AWAY_WITH_WALLPAPER;
 
 import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_WALLPAPER;
 import static com.android.server.policy.WindowManagerPolicy.FINISH_LAYOUT_REDO_WALLPAPER;
@@ -58,7 +57,8 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ToBooleanFunction;
-import com.android.server.wallpaper.WallpaperCropper.WallpaperCropUtils;
+import com.android.server.wallpaper.WallpaperCropper;
+import com.android.server.wallpaper.WallpaperDefaultDisplayInfo;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -72,7 +72,6 @@ import java.util.function.Consumer;
 class WallpaperController {
     private static final String TAG = TAG_WITH_CLASS_NAME ? "WallpaperController" : TAG_WM;
     private WindowManagerService mService;
-    private WallpaperCropUtils mWallpaperCropUtils = null;
     private DisplayContent mDisplayContent;
 
     // Larger index has higher z-order.
@@ -117,43 +116,28 @@ class WallpaperController {
 
     private boolean mShouldOffsetWallpaperCenter;
 
+    // This is for WallpaperCropper, which has cropping logic for the default display only.
+    // This is lazily initialization by getOrCreateDefaultDisplayInfo. DO NOT use this member
+    // variable directly.
+    // TODO(b/400685784) make the WallpaperCropper operate on every display independently
+    @Nullable
+    private WallpaperDefaultDisplayInfo mDefaultDisplayInfo = null;
+
     private final ToBooleanFunction<WindowState> mFindWallpaperTargetFunction = w -> {
-        final boolean useShellTransition = w.mTransitionController.isShellTransitionsEnabled();
-        if (!useShellTransition) {
-            if (w.mActivityRecord != null && !w.mActivityRecord.isVisible()
-                    && !w.mActivityRecord.isAnimating(TRANSITION | PARENTS)) {
-                // If this window's app token is hidden and not animating, it is of no interest.
-                if (DEBUG_WALLPAPER) Slog.v(TAG, "Skipping hidden and not animating token: " + w);
-                return false;
-            }
-        } else {
-            final ActivityRecord ar = w.mActivityRecord;
-            // The animating window can still be visible on screen if it is in transition, so we
-            // should check whether this window can be wallpaper target even when visibleRequested
-            // is false.
-            if (ar != null && !ar.isVisibleRequested() && !ar.isVisible()) {
-                // An activity that is not going to remain visible shouldn't be the target.
-                return false;
-            }
+        final ActivityRecord ar = w.mActivityRecord;
+        // The animating window can still be visible on screen if it is in transition, so we
+        // should check whether this window can be wallpaper target even when visibleRequested
+        // is false.
+        if (ar != null && !ar.isVisibleRequested() && !ar.isVisible()) {
+            // An activity that is not going to remain visible shouldn't be the target.
+            return false;
         }
         if (DEBUG_WALLPAPER) Slog.v(TAG, "Win " + w + ": isOnScreen=" + w.isOnScreen()
                 + " mDrawState=" + w.mWinAnimator.mDrawState);
 
-        final WindowContainer animatingContainer = w.mActivityRecord != null
-                ? w.mActivityRecord.getAnimatingContainer() : null;
-        if (!useShellTransition && animatingContainer != null
-                && animatingContainer.isAnimating(TRANSITION | PARENTS)
-                && AppTransition.isKeyguardGoingAwayTransitOld(animatingContainer.mTransit)
-                && (animatingContainer.mTransitFlags
-                & TRANSIT_FLAG_KEYGUARD_GOING_AWAY_WITH_WALLPAPER) != 0) {
-            // Keep the wallpaper visible when Keyguard is going away.
-            mFindResults.setUseTopWallpaperAsTarget(true);
-        }
-
         if (mService.mPolicy.isKeyguardLocked()) {
             if (w.canShowWhenLocked()) {
-                if (mService.mPolicy.isKeyguardOccluded() || (useShellTransition
-                        ? w.inTransition() : mService.mPolicy.isKeyguardUnoccluding())) {
+                if (mService.mPolicy.isKeyguardOccluded() || w.inTransition()) {
                     // The lowest show-when-locked window decides whether to show wallpaper.
                     mFindResults.mNeedsShowWhenLockedWallpaper = !isFullscreen(w.mAttrs)
                             || (w.mActivityRecord != null && !w.mActivityRecord.fillsParent());
@@ -166,17 +150,21 @@ class WallpaperController {
                 mFindResults.setWallpaperTarget(w);
                 return false;
             }
+        } else if (mService.mFlags.mAodTransition
+                && mDisplayContent.isKeyguardLockedOrAodShowing()) {
+            if (mService.mPolicy.isKeyguardHostWindow(w.mAttrs)
+                    && w.mTransitionController.isInAodAppearTransition()) {
+                if (DEBUG_WALLPAPER) Slog.v(TAG, "Found aod transition wallpaper target: " + w);
+                mFindResults.setWallpaperTarget(w);
+                return true;
+            }
         }
 
-        final boolean animationWallpaper = animatingContainer != null
-                && animatingContainer.getAnimation() != null
-                && animatingContainer.getAnimation().getShowWallpaper();
-        final boolean hasWallpaper = w.hasWallpaper() || animationWallpaper;
         if (isBackNavigationTarget(w)) {
             if (DEBUG_WALLPAPER) Slog.v(TAG, "Found back animation wallpaper target: " + w);
             mFindResults.setWallpaperTarget(w);
             return true;
-        } else if (hasWallpaper
+        } else if (w.hasWallpaper()
                 && (w.mActivityRecord != null ? w.isOnScreen() : w.isReadyForDisplay())) {
             if (DEBUG_WALLPAPER) Slog.v(TAG, "Found wallpaper target: " + w);
             mFindResults.setWallpaperTarget(w);
@@ -265,10 +253,6 @@ class WallpaperController {
         return largestDisplaySize;
     }
 
-    void setWallpaperCropUtils(WallpaperCropUtils wallpaperCropUtils) {
-        mWallpaperCropUtils = wallpaperCropUtils;
-    }
-
     WindowState getWallpaperTarget() {
         return mWallpaperTarget;
     }
@@ -290,12 +274,6 @@ class WallpaperController {
             if (mWallpaperTokens.get(i).isVisible()) return true;
         }
         return false;
-    }
-
-    boolean isWallpaperTargetAnimating() {
-        return mWallpaperTarget != null && mWallpaperTarget.isAnimating(TRANSITION | PARENTS)
-                && (mWallpaperTarget.mActivityRecord == null
-                        || !mWallpaperTarget.mActivityRecord.isWaitingForTransitionStart());
     }
 
     void hideDeferredWallpapersIfNeededLegacy() {
@@ -377,16 +355,12 @@ class WallpaperController {
         int offsetY;
 
         if (multiCrop()) {
-            if (mWallpaperCropUtils == null) {
-                Slog.e(TAG, "Update wallpaper offsets before the system is ready. Aborting");
-                return false;
-            }
             Point bitmapSize = new Point(
                     wallpaperWin.mRequestedWidth, wallpaperWin.mRequestedHeight);
             SparseArray<Rect> cropHints = token.getCropHints();
             wallpaperFrame = bitmapSize.x <= 0 || bitmapSize.y <= 0 ? wallpaperWin.getFrame()
-                    : mWallpaperCropUtils.getCrop(screenSize, bitmapSize, cropHints,
-                            wallpaperWin.isRtl());
+                    : WallpaperCropper.getCrop(screenSize, getOrCreateDefaultDisplayInfo(),
+                            bitmapSize, cropHints, wallpaperWin.isRtl());
             int frameWidth = wallpaperFrame.width();
             int frameHeight = wallpaperFrame.height();
             float frameRatio = (float) frameWidth / frameHeight;
@@ -531,6 +505,16 @@ class WallpaperController {
         }
 
         return changed;
+    }
+
+    private WallpaperDefaultDisplayInfo getOrCreateDefaultDisplayInfo() {
+        if (mDefaultDisplayInfo != null) {
+            return mDefaultDisplayInfo;
+        }
+        WindowManager windowManager = mService.mContext.getSystemService(WindowManager.class);
+        Resources resources = mService.mContext.getResources();
+        mDefaultDisplayInfo = new WallpaperDefaultDisplayInfo(windowManager, resources);
+        return mDefaultDisplayInfo;
     }
 
     /**
@@ -684,7 +668,8 @@ class WallpaperController {
     private WallpaperWindowToken getTokenForTarget(WindowState target) {
         if (target == null) return null;
         WindowState window = mFindResults.getTopWallpaper(
-                target.canShowWhenLocked() && mService.isKeyguardLocked());
+                (target.canShowWhenLocked() && mService.isKeyguardLocked())
+                        || (mService.mFlags.mAodTransition && mDisplayContent.isAodShowing()));
         return window == null ? null : window.mToken.asWallpaperToken();
     }
 
@@ -727,7 +712,9 @@ class WallpaperController {
 
         if (mFindResults.wallpaperTarget == null && mFindResults.useTopWallpaperAsTarget) {
             mFindResults.setWallpaperTarget(
-                    mFindResults.getTopWallpaper(mDisplayContent.isKeyguardLocked()));
+                    mFindResults.getTopWallpaper(mService.mFlags.mAodTransition
+                            ? mDisplayContent.isKeyguardLockedOrAodShowing()
+                            : mDisplayContent.isKeyguardLocked()));
         }
     }
 
@@ -837,14 +824,6 @@ class WallpaperController {
             // Use the old target if new target is hidden but old target
             // is not. If they're both hidden, still use the new target.
             mWallpaperTarget = prevWallpaperTarget;
-        } else if (newTargetHidden == oldTargetHidden
-                && !mDisplayContent.mOpeningApps.contains(wallpaperTarget.mActivityRecord)
-                && (mDisplayContent.mOpeningApps.contains(prevWallpaperTarget.mActivityRecord)
-                || mDisplayContent.mClosingApps.contains(prevWallpaperTarget.mActivityRecord))) {
-            // If they're both hidden (or both not hidden), prefer the one that's currently in
-            // opening or closing app list, this allows transition selection logic to better
-            // determine the wallpaper status of opening/closing apps.
-            mWallpaperTarget = prevWallpaperTarget;
         }
 
         result.setWallpaperTarget(wallpaperTarget);
@@ -895,11 +874,21 @@ class WallpaperController {
             }
         }
 
-        updateWallpaperTokens(visible, mDisplayContent.isKeyguardLocked());
+        boolean visibleRequested = visible;
+        if (mDisplayContent.mWmService.mFlags.mEnsureWallpaperInTransitions) {
+            visibleRequested = mWallpaperTarget != null && mWallpaperTarget.isVisibleRequested();
+        }
+        updateWallpaperTokens(visibleRequested,
+                mService.mFlags.mAodTransition
+                        ? mDisplayContent.isKeyguardLockedOrAodShowing()
+                        : mDisplayContent.isKeyguardLocked());
 
         ProtoLog.v(WM_DEBUG_WALLPAPER,
                 "Wallpaper at display %d - visibility: %b, keyguardLocked: %b",
-                mDisplayContent.getDisplayId(), visible, mDisplayContent.isKeyguardLocked());
+                mDisplayContent.getDisplayId(), visible,
+                mService.mFlags.mAodTransition
+                        ? mDisplayContent.isKeyguardLockedOrAodShowing()
+                        : mDisplayContent.isKeyguardLocked());
 
         if (visible && mLastFrozen != mFindResults.isWallpaperTargetForLetterbox) {
             mLastFrozen = mFindResults.isWallpaperTargetForLetterbox;
@@ -1104,7 +1093,6 @@ class WallpaperController {
         for (int i = mWallpaperTokens.size() - 1; i >= 0; i--) {
             final WallpaperWindowToken t = mWallpaperTokens.get(i);
             pw.print(prefix); pw.println("token " + t + ":");
-            pw.print(prefix); pw.print("  canShowWhenLocked="); pw.println(t.canShowWhenLocked());
             dumpValue(pw, prefix, "mWallpaperX", t.mWallpaperX);
             dumpValue(pw, prefix, "mWallpaperY", t.mWallpaperY);
             dumpValue(pw, prefix, "mWallpaperXStep", t.mWallpaperXStep);

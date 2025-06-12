@@ -191,7 +191,7 @@ static void BM_AssetManagerGetResourceLocales(benchmark::State& state) {
   assets.SetApkAssets({apk});
 
   for (auto&& _ : state) {
-    std::set<std::string> locales =
+    auto locales =
         assets.GetResourceLocales(false /*exclude_system*/, true /*merge_equivalent_languages*/);
     benchmark::DoNotOptimize(locales);
   }

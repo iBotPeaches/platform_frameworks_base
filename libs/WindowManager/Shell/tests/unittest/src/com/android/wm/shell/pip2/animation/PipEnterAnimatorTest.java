@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -117,7 +117,7 @@ public class PipEnterAnimatorTest {
         });
 
         verify(mMockStartCallback).run();
-        verifyZeroInteractions(mMockEndCallback);
+        verifyNoMoreInteractions(mMockEndCallback);
 
         // Check corner and shadow radii were set
         verify(mMockAnimateTransaction, atLeastOnce())

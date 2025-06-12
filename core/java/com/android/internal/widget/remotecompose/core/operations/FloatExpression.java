@@ -34,6 +34,9 @@ import com.android.internal.widget.remotecompose.core.operations.utilities.Anima
 import com.android.internal.widget.remotecompose.core.operations.utilities.NanMap;
 import com.android.internal.widget.remotecompose.core.operations.utilities.easing.FloatAnimation;
 import com.android.internal.widget.remotecompose.core.operations.utilities.easing.SpringStopEngine;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
+import com.android.internal.widget.remotecompose.core.serialize.SerializeTags;
 
 import java.util.List;
 
@@ -42,7 +45,8 @@ import java.util.List;
  * like injecting the width of the component int draw rect As well as supporting generalized
  * animation floats. The floats represent a RPN style calculator
  */
-public class FloatExpression extends Operation implements VariableSupport {
+public class FloatExpression extends Operation
+        implements ComponentData, VariableSupport, Serializable {
     private static final int OP_CODE = Operations.ANIMATED_FLOAT;
     private static final String CLASS_NAME = "FloatExpression";
     public int mId;
@@ -146,33 +150,47 @@ public class FloatExpression extends Operation implements VariableSupport {
 
     @Override
     public void apply(@NonNull RemoteContext context) {
-        updateVariables(context);
         float t = context.getAnimationTime();
         if (Float.isNaN(mLastChange)) {
             mLastChange = t;
         }
-        float lastComputedValue;
-        if (mFloatAnimation != null && !Float.isNaN(mLastCalculatedValue)) {
-            float f = mFloatAnimation.get(t - mLastChange);
-            context.loadFloat(mId, f);
-            lastComputedValue = f;
+        if (mFloatAnimation != null) { // support animations
+            if (Float.isNaN(mLastCalculatedValue)) { // startup
+                try {
+                    mLastCalculatedValue =
+                            mExp.eval(
+                                    context.getCollectionsAccess(),
+                                    mPreCalcValue,
+                                    mPreCalcValue.length);
+                    mFloatAnimation.setTargetValue(mLastCalculatedValue);
+                    if (Float.isNaN(mFloatAnimation.getInitialValue())) {
+                        mFloatAnimation.setInitialValue(mLastCalculatedValue);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(
+                            this.toString() + " len = " + mPreCalcValue.length, e);
+                }
+            }
+            float lastComputedValue = mFloatAnimation.get(t - mLastChange);
             if (lastComputedValue != mLastAnimatedValue) {
                 mLastAnimatedValue = lastComputedValue;
+                context.loadFloat(mId, lastComputedValue);
                 context.needsRepaint();
+                markDirty();
             }
-        } else if (mSpring != null) {
-            float f = mSpring.get(t - mLastChange);
-            context.loadFloat(mId, f);
-            lastComputedValue = f;
+        } else if (mSpring != null) { // support damped spring animation
+            float lastComputedValue = mSpring.get(t - mLastChange);
             if (lastComputedValue != mLastAnimatedValue) {
                 mLastAnimatedValue = lastComputedValue;
+                context.loadFloat(mId, lastComputedValue);
                 context.needsRepaint();
             }
-        } else {
-            float v =
-                    mExp.eval(context.getCollectionsAccess(), mPreCalcValue, mPreCalcValue.length);
-            if (mFloatAnimation != null) {
-                mFloatAnimation.setTargetValue(v);
+        } else { // no animation
+            float v = 0;
+            try {
+                v = mExp.eval(context.getCollectionsAccess(), mPreCalcValue, mPreCalcValue.length);
+            } catch (Exception e) {
+                throw new RuntimeException(this.toString() + " len = " + mPreCalcValue.length, e);
             }
             context.loadFloat(mId, v);
         }
@@ -338,5 +356,15 @@ public class FloatExpression extends Operation implements VariableSupport {
     @Override
     public String deepToString(@NonNull String indent) {
         return indent + toString();
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addTags(SerializeTags.EXPRESSION)
+                .addType(CLASS_NAME)
+                .add("id", mId)
+                .addFloatExpressionSrc("srcValues", mSrcValue)
+                .add("animation", mFloatAnimation);
     }
 }

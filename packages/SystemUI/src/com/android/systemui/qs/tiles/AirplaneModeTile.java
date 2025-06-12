@@ -38,7 +38,6 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
-import com.android.internal.telephony.flags.Flags;
 import com.android.settingslib.satellite.SatelliteDialogUtils;
 import com.android.systemui.animation.Expandable;
 import com.android.systemui.broadcast.BroadcastDispatcher;
@@ -122,21 +121,16 @@ public class AirplaneModeTile extends QSTileImpl<BooleanState> {
             return;
         }
 
-        if (Flags.oemEnabledSatelliteFlag()) {
-            if (mClickJob != null && !mClickJob.isCompleted()) {
-                return;
-            }
-            mClickJob = SatelliteDialogUtils.mayStartSatelliteWarningDialog(
-                    mContext, this, TYPE_IS_AIRPLANE_MODE, isAllowClick -> {
-                        if (isAllowClick) {
-                            setEnabled(!airplaneModeEnabled);
-                        }
-                        return null;
-                    });
+        if (mClickJob != null && !mClickJob.isCompleted()) {
             return;
         }
-
-        setEnabled(!airplaneModeEnabled);
+        mClickJob = SatelliteDialogUtils.mayStartSatelliteWarningDialog(
+                mContext, this, TYPE_IS_AIRPLANE_MODE, isAllowClick -> {
+                    if (isAllowClick) {
+                        setEnabled(!airplaneModeEnabled);
+                    }
+                    return null;
+                });
     }
 
     private void setEnabled(boolean enabled) {

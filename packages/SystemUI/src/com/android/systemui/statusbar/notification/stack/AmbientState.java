@@ -35,12 +35,15 @@ import com.android.systemui.shade.transition.LargeScreenShadeInterpolator;
 import com.android.systemui.statusbar.NotificationShelf;
 import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
+import com.android.systemui.statusbar.notification.data.repository.HeadsUpRepository;
+import com.android.systemui.statusbar.notification.headsup.AvalancheController;
+import com.android.systemui.statusbar.notification.headsup.NotificationsHunSharedAnimationValues;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.ExpandableView;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 import com.android.systemui.statusbar.notification.stack.StackScrollAlgorithm.BypassController;
 import com.android.systemui.statusbar.notification.stack.StackScrollAlgorithm.SectionProvider;
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager;
-import com.android.systemui.statusbar.notification.headsup.AvalancheController;
 
 import java.io.PrintWriter;
 
@@ -60,6 +63,7 @@ public class AmbientState implements Dumpable {
     private final BypassController mBypassController;
     private final LargeScreenShadeInterpolator mLargeScreenShadeInterpolator;
     private final AvalancheController mAvalancheController;
+    private final HeadsUpRepository mHeadsUpRepository;
 
     /**
      *  Used to read bouncer states.
@@ -304,6 +308,7 @@ public class AmbientState implements Dumpable {
             @NonNull BypassController bypassController,
             @Nullable StatusBarKeyguardViewManager statusBarKeyguardViewManager,
             @NonNull LargeScreenShadeInterpolator largeScreenShadeInterpolator,
+            @NonNull HeadsUpRepository headsUpRepository,
             AvalancheController avalancheController
     ) {
         mSectionProvider = sectionProvider;
@@ -311,6 +316,7 @@ public class AmbientState implements Dumpable {
         mStatusBarKeyguardViewManager = statusBarKeyguardViewManager;
         mLargeScreenShadeInterpolator = largeScreenShadeInterpolator;
         mAvalancheController = avalancheController;
+        mHeadsUpRepository = headsUpRepository;
         reload(context);
         dumpManager.registerDumpable(this);
     }
@@ -419,6 +425,7 @@ public class AmbientState implements Dumpable {
     /** the bottom-most y position where we can draw pinned HUNs  */
     public float getHeadsUpBottom() {
         if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) return 0f;
+        NotificationsHunSharedAnimationValues.assertInLegacyMode();
         return mHeadsUpBottom;
     }
 
@@ -689,8 +696,14 @@ public class AmbientState implements Dumpable {
         return mPulsing;
     }
 
+    public boolean isPulsing(String entryKey) {
+        boolean isHeadsUp = mHeadsUpRepository.isHeadsUpEntry(entryKey);
+        return mPulsing && isHeadsUp;
+    }
+
     public boolean isPulsing(NotificationEntry entry) {
-        return mPulsing && entry.isHeadsUpEntry();
+        boolean isHeadsUp = entry.isHeadsUpEntry();
+        return mPulsing && isHeadsUp;
     }
 
     public void setPulsingRow(ExpandableNotificationRow row) {
@@ -740,7 +753,10 @@ public class AmbientState implements Dumpable {
      * @return whether a row is dozing and not pulsing right now
      */
     public boolean isDozingAndNotPulsing(ExpandableNotificationRow row) {
-        return isDozing() && !isPulsing(row.getEntry());
+        boolean isPulsing = NotificationBundleUi.isEnabled()
+                ? isPulsing(row.getKey())
+                : isPulsing(row.getEntryLegacy());
+        return isDozing() && !isPulsing;
     }
 
     /**

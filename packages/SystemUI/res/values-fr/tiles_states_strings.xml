@@ -56,6 +56,11 @@
     <item msgid="5376619709702103243">"Désactivé"</item>
     <item msgid="4875147066469902392">"Activé"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"Indisponible"</item>
+    <item msgid="8589336868985358191">"Désactivé"</item>
+    <item msgid="726072717827778234">"Activé"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"Indisponible"</item>
     <item msgid="5044688398303285224">"Désactivé"</item>
@@ -63,7 +68,7 @@
   </string-array>
   <string-array name="tile_states_rotation">
     <item msgid="4578491772376121579">"Indisponible"</item>
-    <item msgid="5776427577477729185">"Désactivée"</item>
+    <item msgid="5776427577477729185">"Désactivé"</item>
     <item msgid="7105052717007227415">"Activé"</item>
   </string-array>
   <string-array name="tile_states_bt">
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"Indisponible"</item>
     <item msgid="6419996398343291862">"Désactivé"</item>
     <item msgid="5908720590832378783">"Activé"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"Indisponible"</item>
+    <item msgid="6641673879029894995">"Désactivé"</item>
+    <item msgid="5806682401126108403">"Activé"</item>
   </string-array>
 </resources>

@@ -29,14 +29,12 @@ import com.android.internal.telephony.flags.Flags;
  * @hide
  */
 @SystemApi
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public interface SatelliteTransmissionUpdateCallback {
     /**
      * Called when the satellite position changed.
      *
      * @param pointingInfo The pointing info containing the satellite location.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     void onSatellitePositionChanged(@NonNull PointingInfo pointingInfo);
 
     /**
@@ -46,7 +44,6 @@ public interface SatelliteTransmissionUpdateCallback {
      * @param sendPendingCount The number of datagrams that are currently being sent.
      * @param errorCode If datagram transfer failed, the reason for failure.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     void onSendDatagramStateChanged(
             @SatelliteManager.SatelliteDatagramTransferState int state, int sendPendingCount,
             @SatelliteManager.SatelliteResult int errorCode);
@@ -70,13 +67,15 @@ public interface SatelliteTransmissionUpdateCallback {
      * @param receivePendingCount The number of datagrams that are currently pending to be received.
      * @param errorCode If datagram transfer failed, the reason for failure.
      */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     void onReceiveDatagramStateChanged(
             @SatelliteManager.SatelliteDatagramTransferState int state, int receivePendingCount,
             @SatelliteManager.SatelliteResult int errorCode);
 
     /**
      * Called when framework receives a request to send a datagram.
+     *
+     * Informs external apps that device is working on sending a datagram out and is in the process
+     * of checking if all the conditions required to send datagrams are met.
      *
      * @param datagramType The type of the requested datagram.
      */

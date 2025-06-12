@@ -30,8 +30,6 @@ public class ImeEditorPopupDialogActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         WindowManager.LayoutParams p = getWindow().getAttributes();
-        p.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         p.softInputMode = SOFT_INPUT_STATE_ALWAYS_HIDDEN;
         getWindow().setAttributes(p);
         LinearLayout layout = new LinearLayout(this);

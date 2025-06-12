@@ -17,8 +17,8 @@
 package com.android.systemui.qs.tiles.impl.location.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.location.domain.model.LocationTileModel
 import com.android.systemui.statusbar.policy.LocationController
 import com.android.systemui.util.kotlin.isLocationEnabledFlow
@@ -30,13 +30,12 @@ import kotlinx.coroutines.flow.map
 /** Observes location state changes providing the [LocationTileModel]. */
 class LocationTileDataInteractor
 @Inject
-constructor(
-    private val locationController: LocationController,
-) : QSTileDataInteractor<LocationTileModel> {
+constructor(private val locationController: LocationController) :
+    QSTileDataInteractor<LocationTileModel> {
 
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<LocationTileModel> =
         locationController.isLocationEnabledFlow().map { LocationTileModel(it) }
 

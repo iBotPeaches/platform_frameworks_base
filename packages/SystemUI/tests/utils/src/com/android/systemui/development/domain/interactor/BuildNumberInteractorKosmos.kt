@@ -20,6 +20,7 @@ import android.content.clipboardManager
 import android.content.res.mainResources
 import com.android.systemui.development.data.repository.developmentSettingRepository
 import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.user.data.repository.userRepository
 
@@ -31,5 +32,6 @@ val Kosmos.buildNumberInteractor by
             userRepository,
             { clipboardManager },
             testDispatcher,
+            applicationCoroutineScope,
         )
     }

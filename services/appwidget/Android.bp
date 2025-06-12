@@ -17,6 +17,12 @@ filegroup {
 java_library_static {
     name: "services.appwidget",
     defaults: ["platform_service_defaults"],
-    srcs: [":services.appwidget-sources"],
-    libs: ["services.core"],
+    srcs: [
+        ":services.appwidget-sources",
+        ":statslog-framework-java-gen",
+    ],
+    libs: [
+        "androidx.annotation_annotation",
+        "services.core",
+    ],
 }

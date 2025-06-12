@@ -128,12 +128,20 @@ public class SignalDrawable extends DrawableWrapper {
 
     @Override
     public int getIntrinsicWidth() {
-        return mIntrinsicSize;
+        if (newStatusBarIcons()) {
+            return super.getIntrinsicWidth();
+        } else {
+            return mIntrinsicSize;
+        }
     }
 
     @Override
     public int getIntrinsicHeight() {
-        return mIntrinsicSize;
+        if (newStatusBarIcons()) {
+            return super.getIntrinsicHeight();
+        } else {
+            return mIntrinsicSize;
+        }
     }
 
     private void updateAnimation() {

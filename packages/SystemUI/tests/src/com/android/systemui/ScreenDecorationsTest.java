@@ -80,8 +80,6 @@ import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCapture;
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.data.repository.FakeFacePropertyRepository;
@@ -104,15 +102,12 @@ import com.android.systemui.settings.FakeDisplayTracker;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.commandline.CommandRegistry;
 import com.android.systemui.statusbar.events.PrivacyDotViewController;
-import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.concurrency.FakeExecutor;
 import com.android.systemui.util.concurrency.FakeThreadFactory;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.settings.FakeSettings;
 import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.time.FakeSystemClock;
-
-import kotlin.Lazy;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -132,7 +127,6 @@ public class ScreenDecorationsTest extends SysuiTestCase {
 
     private ScreenDecorations mScreenDecorations;
     private WindowManager mWindowManager;
-    private ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
     private DisplayManager mDisplayManager;
     private SecureSettings mSecureSettings;
     private FakeExecutor mExecutor;
@@ -179,8 +173,6 @@ public class ScreenDecorationsTest extends SysuiTestCase {
     private CutoutDecorProviderFactory mCutoutFactory;
     @Mock
     private JavaAdapter mJavaAdapter;
-    @Mock
-    private Lazy<ViewCapture> mLazyViewCapture;
 
     private FakeFacePropertyRepository mFakeFacePropertyRepository =
             new FakeFacePropertyRepository();
@@ -254,14 +246,12 @@ public class ScreenDecorationsTest extends SysuiTestCase {
                 new ScreenDecorationsLogger(logcatLogBuffer("TestLogBuffer")),
                 mFakeFacePropertyRepository));
 
-        mViewCaptureAwareWindowManager = new ViewCaptureAwareWindowManager(mWindowManager,
-                mLazyViewCapture, false);
         mScreenDecorations = spy(new ScreenDecorations(mContext, mSecureSettings,
                 mCommandRegistry, mUserTracker, mDisplayTracker, mDotViewController,
                 mPrivacyDotDecorProviderFactory, mFaceScanningProviderFactory,
                 new ScreenDecorationsLogger(logcatLogBuffer("TestLogBuffer")),
                 mFakeFacePropertyRepository, mJavaAdapter, mCameraProtectionLoader,
-                mViewCaptureAwareWindowManager, mMainHandler, mExecutor) {
+                mWindowManager, mMainHandler, mExecutor) {
             @Override
             public void start() {
                 super.start();
@@ -1276,7 +1266,7 @@ public class ScreenDecorationsTest extends SysuiTestCase {
                 mPrivacyDotDecorProviderFactory, mFaceScanningProviderFactory,
                 new ScreenDecorationsLogger(logcatLogBuffer("TestLogBuffer")),
                 mFakeFacePropertyRepository, mJavaAdapter, mCameraProtectionLoader,
-                mViewCaptureAwareWindowManager, mMainHandler, mExecutor);
+                mWindowManager, mMainHandler, mExecutor);
         screenDecorations.start();
         when(mContext.getDisplay()).thenReturn(mDisplay);
         when(mDisplay.getDisplayInfo(any())).thenAnswer(new Answer<Boolean>() {

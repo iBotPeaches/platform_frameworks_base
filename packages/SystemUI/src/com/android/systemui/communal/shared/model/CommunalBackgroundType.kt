@@ -17,9 +17,11 @@
 package com.android.systemui.communal.shared.model
 
 /** Models the types of background that can be shown on the hub. */
-enum class CommunalBackgroundType(val value: Int) {
-    STATIC(0),
-    STATIC_GRADIENT(1),
-    ANIMATED(2),
-    NONE(3),
+enum class CommunalBackgroundType(val value: Int, val opaque: Boolean) {
+    STATIC(value = 0, opaque = true),
+    STATIC_GRADIENT(value = 1, opaque = true),
+    ANIMATED(value = 2, opaque = true),
+    NONE(value = 3, opaque = false),
+    BLUR(value = 4, opaque = false),
+    SCRIM(value = 5, opaque = false),
 }

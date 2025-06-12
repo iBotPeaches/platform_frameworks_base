@@ -20,6 +20,8 @@ import static android.view.WindowManager.LayoutParams.INVALID_WINDOW_TYPE;
 import static android.view.WindowManager.LayoutParams.TYPE_PRESENTATION;
 import static android.view.WindowManager.LayoutParams.TYPE_PRIVATE_PRESENTATION;
 
+import static com.android.window.flags.Flags.enablePresentationForConnectedDisplays;
+
 import android.annotation.NonNull;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
@@ -34,6 +36,8 @@ import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams.WindowType;
 
@@ -277,6 +281,11 @@ public class Presentation extends Dialog {
     @Override
     public void show() {
         super.show();
+
+        WindowInsetsController controller = getWindow().getInsetsController();
+        if (controller != null && enablePresentationForConnectedDisplays()) {
+            controller.hide(WindowInsets.Type.systemBars());
+        }
     }
 
     /**

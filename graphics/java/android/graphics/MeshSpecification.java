@@ -72,6 +72,7 @@ import java.lang.annotation.RetentionPolicy;
  * These should be kept in mind when generating a mesh specification, as exceeding them will
  * lead to errors.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class MeshSpecification {
     long mNativeMeshSpec;
 

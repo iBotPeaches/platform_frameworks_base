@@ -18,7 +18,6 @@ package android.app;
 
 
 import static android.location.flags.Flags.FLAG_LOCATION_BYPASS;
-import static android.media.audio.Flags.roForegroundAudioControl;
 import static android.permission.flags.Flags.FLAG_OP_ENABLE_MOBILE_DATA_BY_USER;
 import static android.service.notification.Flags.FLAG_REDACT_SENSITIVE_NOTIFICATIONS_FROM_UNTRUSTED_LISTENERS;
 import static android.view.contentprotection.flags.Flags.FLAG_CREATE_ACCESSIBILITY_OVERLAY_APP_OP_ENABLED;
@@ -261,6 +260,23 @@ public class AppOpsManager {
             new ArrayMap<>();
 
     private static final Object sLock = new Object();
+
+    // A map that records noted times for each op.
+    private static ArrayMap<NotedOp, Integer> sPendingNotedOps = new ArrayMap<>();
+    private static HandlerThread sHandlerThread;
+    private static final int NOTE_OP_BATCHING_DELAY_MILLIS = 1000;
+
+    private boolean isNoteOpBatchingSupported() {
+        // If noteOp is called from system server no IPC is made, hence we don't need batching.
+        if (Process.myUid() == Process.SYSTEM_UID) {
+            return false;
+        }
+        return Flags.noteOpBatchingEnabled();
+    }
+
+    private static final Object sBatchedNoteOpLock = new Object();
+    @GuardedBy("sBatchedNoteOpLock")
+    private static boolean sIsBatchedNoteOpCallScheduled = false;
 
     /** Current {@link OnOpNotedCallback}. Change via {@link #setOnOpNotedCallback} */
     @GuardedBy("sLock")
@@ -1634,9 +1650,65 @@ public class AppOpsManager {
     /** @hide Similar to {@link OP_CONTROL_AUDIO}, but doesn't require capabilities. */
     public static final int OP_CONTROL_AUDIO_PARTIAL = AppOpEnums.APP_OP_CONTROL_AUDIO_PARTIAL;
 
+    /**
+     * Access coarse eye tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_EYE_TRACKING_COARSE =
+            AppOpEnums.APP_OP_EYE_TRACKING_COARSE;
+
+    /**
+     * Access fine eye tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_EYE_TRACKING_FINE =
+            AppOpEnums.APP_OP_EYE_TRACKING_FINE;
+
+    /**
+     * Access face tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_FACE_TRACKING =
+            AppOpEnums.APP_OP_FACE_TRACKING;
+
+    /**
+     * Access hand tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_HAND_TRACKING =
+            AppOpEnums.APP_OP_HAND_TRACKING;
+
+    /**
+     * Access head tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_HEAD_TRACKING =
+            AppOpEnums.APP_OP_HEAD_TRACKING;
+
+    /**
+     * Access coarse scene tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_SCENE_UNDERSTANDING_COARSE =
+            AppOpEnums.APP_OP_SCENE_UNDERSTANDING_COARSE;
+
+    /**
+     * Access fine scene tracking data.
+     *
+     * @hide
+     */
+    public static final int OP_SCENE_UNDERSTANDING_FINE =
+            AppOpEnums.APP_OP_SCENE_UNDERSTANDING_FINE;
+
     /** @hide */
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
-    public static final int _NUM_OP = 156;
+    public static final int _NUM_OP = 163;
 
     /**
      * All app ops represented as strings.
@@ -1796,6 +1868,13 @@ public class AppOpsManager {
             OPSTR_WRITE_SYSTEM_PREFERENCES,
             OPSTR_CONTROL_AUDIO,
             OPSTR_CONTROL_AUDIO_PARTIAL,
+            OPSTR_EYE_TRACKING_COARSE,
+            OPSTR_EYE_TRACKING_FINE,
+            OPSTR_FACE_TRACKING,
+            OPSTR_HAND_TRACKING,
+            OPSTR_HEAD_TRACKING,
+            OPSTR_SCENE_UNDERSTANDING_COARSE,
+            OPSTR_SCENE_UNDERSTANDING_FINE,
     })
     public @interface AppOpString {}
 
@@ -2562,6 +2641,36 @@ public class AppOpsManager {
     /** @hide Access to a audio playback and control APIs without capability requirements */
     public static final String OPSTR_CONTROL_AUDIO_PARTIAL = "android:control_audio_partial";
 
+    /** @hide Access coarse eye tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_EYE_TRACKING_COARSE = "android:eye_tracking_coarse";
+
+    /** @hide Access fine eye tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_EYE_TRACKING_FINE = "android:eye_tracking_fine";
+
+    /** @hide Access face tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_FACE_TRACKING = "android:face_tracking";
+
+    /** @hide Access hand tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_HAND_TRACKING = "android:hand_tracking";
+
+    /** @hide Access head tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_HEAD_TRACKING = "android:head_tracking";
+
+    /** @hide Access coarse scene tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_SCENE_UNDERSTANDING_COARSE =
+            "android:scene_understanding_coarse";
+
+    /** @hide Access fine scene tracking data. */
+    @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
+    public static final String OPSTR_SCENE_UNDERSTANDING_FINE =
+            "android:scene_understanding_fine";
+
     /** {@link #sAppOpsToNote} not initialized yet for this op */
     private static final byte SHOULD_COLLECT_NOTE_OP_NOT_INITIALIZED = 0;
     /** Should not collect noting of this app-op in {@link #sAppOpsToNote} */
@@ -2640,6 +2749,14 @@ public class AppOpsManager {
             Flags.replaceBodySensorPermissionEnabled() ? OP_READ_HEART_RATE : OP_NONE,
             Flags.replaceBodySensorPermissionEnabled() ? OP_READ_SKIN_TEMPERATURE : OP_NONE,
             Flags.replaceBodySensorPermissionEnabled() ? OP_READ_OXYGEN_SATURATION : OP_NONE,
+            // Android XR
+            android.xr.Flags.xrManifestEntries() ? OP_EYE_TRACKING_COARSE : OP_NONE,
+            android.xr.Flags.xrManifestEntries() ? OP_EYE_TRACKING_FINE : OP_NONE,
+            android.xr.Flags.xrManifestEntries() ? OP_FACE_TRACKING : OP_NONE,
+            android.xr.Flags.xrManifestEntries() ? OP_HAND_TRACKING : OP_NONE,
+            android.xr.Flags.xrManifestEntries() ? OP_HEAD_TRACKING : OP_NONE,
+            android.xr.Flags.xrManifestEntries() ? OP_SCENE_UNDERSTANDING_COARSE : OP_NONE,
+            android.xr.Flags.xrManifestEntries() ? OP_SCENE_UNDERSTANDING_FINE : OP_NONE,
     };
 
     /**
@@ -2797,7 +2914,7 @@ public class AppOpsManager {
             .setDefaultMode(AppOpsManager.MODE_ALLOWED)
             .build(),
         new AppOpInfo.Builder(OP_TAKE_AUDIO_FOCUS, OPSTR_TAKE_AUDIO_FOCUS, "TAKE_AUDIO_FOCUS")
-            .setDefaultMode(AppOpsManager.MODE_ALLOWED).build(),
+            .setDefaultMode(AppOpsManager.MODE_FOREGROUND).build(),
         new AppOpInfo.Builder(OP_AUDIO_MASTER_VOLUME, OPSTR_AUDIO_MASTER_VOLUME,
                 "AUDIO_MASTER_VOLUME").setSwitchCode(OP_AUDIO_MASTER_VOLUME)
             .setRestriction(UserManager.DISALLOW_ADJUST_VOLUME)
@@ -3050,7 +3167,7 @@ public class AppOpsManager {
         new AppOpInfo.Builder(OP_ESTABLISH_VPN_MANAGER, OPSTR_ESTABLISH_VPN_MANAGER,
                 "ESTABLISH_VPN_MANAGER").setDefaultMode(AppOpsManager.MODE_ALLOWED).build(),
         new AppOpInfo.Builder(OP_ACCESS_RESTRICTED_SETTINGS, OPSTR_ACCESS_RESTRICTED_SETTINGS,
-                "ACCESS_RESTRICTED_SETTINGS").setDefaultMode(AppOpsManager.MODE_ALLOWED)
+                "ACCESS_RESTRICTED_SETTINGS").setDefaultMode(AppOpsManager.MODE_DEFAULT)
             .setDisableReset(true).setRestrictRead(true).build(),
         new AppOpInfo.Builder(OP_RECEIVE_AMBIENT_TRIGGER_AUDIO, OPSTR_RECEIVE_AMBIENT_TRIGGER_AUDIO,
                 "RECEIVE_SOUNDTRIGGER_AUDIO").setDefaultMode(AppOpsManager.MODE_ALLOWED)
@@ -3175,6 +3292,41 @@ public class AppOpsManager {
                 "CONTROL_AUDIO").setDefaultMode(AppOpsManager.MODE_FOREGROUND).build(),
         new AppOpInfo.Builder(OP_CONTROL_AUDIO_PARTIAL, OPSTR_CONTROL_AUDIO_PARTIAL,
                 "CONTROL_AUDIO_PARTIAL").setDefaultMode(AppOpsManager.MODE_FOREGROUND).build(),
+        new AppOpInfo.Builder(OP_EYE_TRACKING_COARSE, OPSTR_EYE_TRACKING_COARSE,
+                "EYE_TRACKING_COARSE")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.EYE_TRACKING_COARSE : null)
+                .build(),
+        new AppOpInfo.Builder(OP_EYE_TRACKING_FINE, OPSTR_EYE_TRACKING_FINE,
+                "EYE_TRACKING_FINE")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.EYE_TRACKING_FINE : null)
+                .build(),
+        new AppOpInfo.Builder(OP_FACE_TRACKING, OPSTR_FACE_TRACKING,
+                "FACE_TRACKING")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.FACE_TRACKING : null)
+                .build(),
+        new AppOpInfo.Builder(OP_HAND_TRACKING, OPSTR_HAND_TRACKING,
+                "HAND_TRACKING")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.HAND_TRACKING : null)
+                .build(),
+        new AppOpInfo.Builder(OP_HEAD_TRACKING, OPSTR_HEAD_TRACKING,
+                "HEAD_TRACKING")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.HEAD_TRACKING : null)
+                .build(),
+        new AppOpInfo.Builder(OP_SCENE_UNDERSTANDING_COARSE, OPSTR_SCENE_UNDERSTANDING_COARSE,
+                "SCENE_UNDERSTANDING_COARSE")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.SCENE_UNDERSTANDING_COARSE : null)
+                .build(),
+        new AppOpInfo.Builder(OP_SCENE_UNDERSTANDING_FINE, OPSTR_SCENE_UNDERSTANDING_FINE,
+                "SCENE_UNDERSTANDING_FINE")
+                .setPermission(android.xr.Flags.xrManifestEntries()
+                    ? Manifest.permission.SCENE_UNDERSTANDING_FINE : null)
+                .build(),
     };
 
     // The number of longs needed to form a full bitmask of app ops
@@ -3284,6 +3436,15 @@ public class AppOpsManager {
     }
 
     /**
+     * Returns whether the provided {@code op} is a valid op code or not.
+     *
+     * @hide
+     */
+    public static boolean isValidOp(int op) {
+        return op >= 0 && op < sAppOpInfos.length;
+    }
+
+    /**
      * @hide
      */
     public static int strDebugOpToOp(String op) {
@@ -3316,6 +3477,16 @@ public class AppOpsManager {
     @SystemApi
     public static String opToPermission(@NonNull String op) {
         return opToPermission(strOpToOp(op));
+    }
+
+    /**
+     * Whether an app op is backed by a runtime permission or not.
+     * @hide
+     */
+    public static boolean opIsRuntimePermission(int op) {
+        if (op == OP_NONE) return false;
+
+        return ArrayUtils.contains(RUNTIME_PERMISSION_OPS, op);
     }
 
     /**
@@ -3360,10 +3531,6 @@ public class AppOpsManager {
      * @hide
      */
     public static @Mode int opToDefaultMode(int op) {
-        if (op == OP_TAKE_AUDIO_FOCUS && roForegroundAudioControl()) {
-            // when removing the flag, change the entry in sAppOpInfos for OP_TAKE_AUDIO_FOCUS
-            return AppOpsManager.MODE_FOREGROUND;
-        }
         return sAppOpInfos[op].defaultMode;
     }
 
@@ -7466,6 +7633,141 @@ public class AppOpsManager {
     }
 
     /**
+     * A NotedOp is an app op grouped in noteOp API and sent to the system server in a batch
+     *
+     * @hide
+     */
+    public static final class NotedOp implements Parcelable {
+        private final @IntRange(from = 0, to = _NUM_OP - 1) int mOp;
+        private final @IntRange(from = 0) int mUid;
+        private final @Nullable String mPackageName;
+        private final @Nullable String mAttributionTag;
+        private final int mVirtualDeviceId;
+        private final @Nullable String mMessage;
+        private final boolean mShouldCollectAsyncNotedOp;
+        private final boolean mShouldCollectMessage;
+
+        public NotedOp(int op, int uid, @Nullable String packageName,
+                @Nullable String attributionTag, int virtualDeviceId, @Nullable String message,
+                boolean shouldCollectAsyncNotedOp, boolean shouldCollectMessage) {
+            mOp = op;
+            mUid = uid;
+            mPackageName = packageName;
+            mAttributionTag = attributionTag;
+            mVirtualDeviceId = virtualDeviceId;
+            mMessage = message;
+            mShouldCollectAsyncNotedOp = shouldCollectAsyncNotedOp;
+            mShouldCollectMessage = shouldCollectMessage;
+        }
+
+        NotedOp(Parcel source) {
+            mOp = source.readInt();
+            mUid = source.readInt();
+            mPackageName = source.readString();
+            mAttributionTag = source.readString();
+            mVirtualDeviceId = source.readInt();
+            mMessage = source.readString();
+            mShouldCollectAsyncNotedOp = source.readBoolean();
+            mShouldCollectMessage = source.readBoolean();
+        }
+
+        public int getOp() {
+            return mOp;
+        }
+
+        public int getUid() {
+            return mUid;
+        }
+
+        public @Nullable String getPackageName() {
+            return mPackageName;
+        }
+
+        public @Nullable String getAttributionTag() {
+            return mAttributionTag;
+        }
+
+        public int getVirtualDeviceId() {
+            return mVirtualDeviceId;
+        }
+
+        public @Nullable String getMessage() {
+            return mMessage;
+        }
+
+        public boolean getShouldCollectAsyncNotedOp() {
+            return mShouldCollectAsyncNotedOp;
+        }
+
+        public boolean getShouldCollectMessage() {
+            return mShouldCollectMessage;
+        }
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        @Override
+        public void writeToParcel(@NonNull Parcel dest, int flags) {
+            dest.writeInt(mOp);
+            dest.writeInt(mUid);
+            dest.writeString(mPackageName);
+            dest.writeString(mAttributionTag);
+            dest.writeInt(mVirtualDeviceId);
+            dest.writeString(mMessage);
+            dest.writeBoolean(mShouldCollectAsyncNotedOp);
+            dest.writeBoolean(mShouldCollectMessage);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NotedOp that = (NotedOp) o;
+            return mOp == that.mOp
+                    && mUid == that.mUid
+                    && Objects.equals(mPackageName, that.mPackageName)
+                    && Objects.equals(mAttributionTag, that.mAttributionTag)
+                    && mVirtualDeviceId == that.mVirtualDeviceId
+                    && Objects.equals(mMessage, that.mMessage)
+                    && Objects.equals(mShouldCollectAsyncNotedOp, that.mShouldCollectAsyncNotedOp)
+                    && Objects.equals(mShouldCollectMessage, that.mShouldCollectMessage);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mOp, mUid, mPackageName, mAttributionTag, mVirtualDeviceId,
+                    mMessage, mShouldCollectAsyncNotedOp, mShouldCollectMessage);
+        }
+
+        @Override
+        public String toString() {
+            return "NotedOp{"
+                    + "mOp=" + mOp
+                    + ", mUid=" + mUid
+                    + ", mPackageName=" + mPackageName
+                    + ", mAttributionTag=" + mAttributionTag
+                    + ", mVirtualDeviceId=" + mVirtualDeviceId
+                    + ", mMessage=" + mMessage
+                    + ", mShouldCollectAsyncNotedOp=" + mShouldCollectAsyncNotedOp
+                    + ", mShouldCollectMessage=" + mShouldCollectMessage
+                    + "}";
+        }
+
+        public static final @NonNull Creator<NotedOp> CREATOR =
+                new Creator<>() {
+                    @Override public NotedOp createFromParcel(Parcel source) {
+                        return new NotedOp(source);
+                    }
+
+                    @Override public NotedOp[] newArray(int size) {
+                        return new NotedOp[size];
+                    }
+                };
+    }
+
+    /**
      * Computes the sum of the counts for the given flags in between the begin and
      * end UID states.
      *
@@ -9301,6 +9603,65 @@ public class AppOpsManager {
                 message);
     }
 
+    /**
+     * Create a new NotedOp object to represent the note operation. If the note operation is
+     * a duplicate in the buffer, put it in a batch for an async binder call to the system server.
+     *
+     * @return whether this note operation is a duplicate in the buffer. If it's the
+     * first, the noteOp is not batched, the caller should manually call noteOperation.
+     */
+    private boolean batchDuplicateNoteOps(int op, int uid, @Nullable String packageName,
+            @Nullable String attributionTag, int virtualDeviceId, @Nullable String message,
+            boolean collectAsync, boolean shouldCollectMessage) {
+        synchronized (sBatchedNoteOpLock) {
+            NotedOp notedOp = new NotedOp(op, uid, packageName, attributionTag,
+                    virtualDeviceId, message, collectAsync, shouldCollectMessage);
+
+            // Batch same noteOp calls and send them with their counters to the system
+            // service asynchronously. The time window for batching is specified in
+            // NOTE_OP_BATCHING_DELAY_MILLIS. Always allow the first noteOp call to go
+            // through binder API. Accumulate subsequent same noteOp calls during the
+            // time window in sPendingNotedOps.
+            boolean isDuplicated = sPendingNotedOps.containsKey(notedOp);
+            if (!isDuplicated) {
+                sPendingNotedOps.put(notedOp, 0);
+            } else {
+                sPendingNotedOps.merge(notedOp, 1, Integer::sum);
+            }
+
+            if (!sIsBatchedNoteOpCallScheduled) {
+                if (sHandlerThread == null) {
+                    sHandlerThread = new HandlerThread("AppOpsManagerNoteOpBatching");
+                    sHandlerThread.start();
+                }
+
+                sHandlerThread.getThreadHandler().postDelayed(() -> {
+                    ArrayMap<NotedOp, Integer> pendingNotedOpsCopy;
+                    synchronized(sBatchedNoteOpLock) {
+                        sIsBatchedNoteOpCallScheduled = false;
+                        pendingNotedOpsCopy = sPendingNotedOps;
+                        sPendingNotedOps = new ArrayMap<>();
+                    }
+                    for (int i = pendingNotedOpsCopy.size() - 1; i >= 0; i--) {
+                        if (pendingNotedOpsCopy.valueAt(i) == 0) {
+                            pendingNotedOpsCopy.removeAt(i);
+                        }
+                    }
+                    if (!pendingNotedOpsCopy.isEmpty()) {
+                        try {
+                            mService.noteOperationsInBatch(pendingNotedOpsCopy);
+                        } catch (RemoteException e) {
+                            throw e.rethrowFromSystemServer();
+                        }
+                    }
+                }, NOTE_OP_BATCHING_DELAY_MILLIS);
+
+                sIsBatchedNoteOpCallScheduled = true;
+            }
+            return isDuplicated;
+        }
+    }
+
     private int noteOpNoThrow(int op, int uid, @Nullable String packageName,
             @Nullable String attributionTag, int virtualDeviceId, @Nullable String message) {
         try {
@@ -9315,15 +9676,34 @@ public class AppOpsManager {
                 }
             }
 
-            SyncNotedAppOp syncOp;
-            if (virtualDeviceId == Context.DEVICE_ID_DEFAULT) {
-                syncOp = mService.noteOperation(op, uid, packageName, attributionTag,
-                        collectionMode == COLLECT_ASYNC, message, shouldCollectMessage);
-            } else {
-                syncOp = mService.noteOperationForDevice(op, uid, packageName, attributionTag,
-                    virtualDeviceId, collectionMode == COLLECT_ASYNC, message,
-                    shouldCollectMessage);
+            SyncNotedAppOp syncOp = null;
+            boolean isNoteOpDuplicated = false;
+            if (isNoteOpBatchingSupported()) {
+                int mode = sAppOpModeCache.query(
+                        new AppOpModeQuery(op, uid, packageName, virtualDeviceId, attributionTag,
+                                "noteOpNoThrow"));
+                // For FOREGROUND mode, we still need to make a binder call to the system service
+                // to translate it to ALLOWED or IGNORED. So no batching is needed.
+                if (mode != MODE_FOREGROUND) {
+                    isNoteOpDuplicated = batchDuplicateNoteOps(op, uid, packageName, attributionTag,
+                            virtualDeviceId, message,
+                            collectionMode == COLLECT_ASYNC, shouldCollectMessage);
+
+                    syncOp = new SyncNotedAppOp(mode, op, attributionTag, packageName);
+                }
             }
+
+            if (!isNoteOpDuplicated) {
+                if (virtualDeviceId == Context.DEVICE_ID_DEFAULT) {
+                    syncOp = mService.noteOperation(op, uid, packageName, attributionTag,
+                            collectionMode == COLLECT_ASYNC, message, shouldCollectMessage);
+                } else {
+                    syncOp = mService.noteOperationForDevice(op, uid, packageName, attributionTag,
+                            virtualDeviceId, collectionMode == COLLECT_ASYNC, message,
+                            shouldCollectMessage);
+                }
+            }
+
             if (syncOp.getOpMode() == MODE_ALLOWED) {
                 if (collectionMode == COLLECT_SELF) {
                     collectNotedOpForSelf(syncOp);

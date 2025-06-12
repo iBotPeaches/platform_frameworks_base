@@ -16,7 +16,7 @@
 
 package com.android.systemui.compose.modifiers
 
-import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -26,7 +26,11 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
  * Set a test tag on this node so that it is associated with [resId]. This node will then be
  * accessible by integration tests using `sysuiResSelector(resId)`.
  */
-@OptIn(ExperimentalComposeUiApi::class)
+@Stable
 fun Modifier.sysuiResTag(resId: String): Modifier {
-    return this.semantics { testTagsAsResourceId = true }.testTag("com.android.systemui:id/$resId")
+    // TODO(b/372412931): Only compose the semantics modifier once, at the root of the SystemUI
+    // window.
+    return this.then(TestTagAsResourceIdModifier).testTag("com.android.systemui:id/$resId")
 }
+
+private val TestTagAsResourceIdModifier = Modifier.semantics { testTagsAsResourceId = true }

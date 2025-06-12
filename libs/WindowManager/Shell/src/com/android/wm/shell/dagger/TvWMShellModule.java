@@ -92,7 +92,7 @@ public class TvWMShellModule {
             MultiInstanceHelper multiInstanceHelper,
             SplitState splitState,
             @ShellMainThread ShellExecutor mainExecutor,
-            Handler mainHandler,
+            @ShellMainThread Handler mainHandler,
             SystemWindows systemWindows) {
         return new TvSplitScreenController(context, shellInit, shellCommandHandler, shellController,
                 shellTaskOrganizer, syncQueue, rootTDAOrganizer, displayController,

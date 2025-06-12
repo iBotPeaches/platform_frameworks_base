@@ -23,9 +23,13 @@ import android.content.applicationContext
 import android.content.packageManager
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
+import android.view.View
+import android.view.Window
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testCase
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.mediaprojection.data.model.MediaProjectionState
@@ -36,22 +40,24 @@ import com.android.systemui.statusbar.chips.mediaprojection.domain.interactor.me
 import com.android.systemui.statusbar.chips.mediaprojection.domain.model.ProjectionChipModel
 import com.android.systemui.statusbar.chips.mediaprojection.ui.view.endMediaProjectionDialogHelper
 import com.android.systemui.statusbar.phone.SystemUIDialog
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @SmallTest
-@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(AndroidJUnit4::class)
 class EndShareScreenToAppDialogDelegateTest : SysuiTestCase() {
-    private val kosmos = Kosmos().also { it.testCase = this }
+    private val kosmos = testKosmos().also { it.testCase = this }
     private val sysuiDialog = mock<SystemUIDialog>()
     private lateinit var underTest: EndShareScreenToAppDialogDelegate
 
@@ -192,6 +198,40 @@ class EndShareScreenToAppDialogDelegateTest : SysuiTestCase() {
 
             assertThat(kosmos.fakeMediaProjectionRepository.stopProjectingInvoked).isTrue()
         }
+
+    @Test
+    @EnableFlags(com.android.media.projection.flags.Flags.FLAG_SHOW_STOP_DIALOG_POST_CALL_END)
+    fun accessibilityDataSensitive_flagEnabled_appliesSetting() {
+        createAndSetDelegate(ENTIRE_SCREEN)
+        whenever(kosmos.packageManager.getApplicationInfo(eq(HOST_PACKAGE), any<Int>()))
+            .thenThrow(PackageManager.NameNotFoundException())
+
+        val window = mock<Window>()
+        val decorView = mock<View>()
+        whenever(sysuiDialog.window).thenReturn(window)
+        whenever(window.decorView).thenReturn(decorView)
+
+        underTest.beforeCreate(sysuiDialog, /* savedInstanceState= */ null)
+
+        verify(decorView).setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
+    }
+
+    @Test
+    @DisableFlags(com.android.media.projection.flags.Flags.FLAG_SHOW_STOP_DIALOG_POST_CALL_END)
+    fun accessibilityDataSensitive_flagDisabled_doesNotApplySetting() {
+        createAndSetDelegate(ENTIRE_SCREEN)
+        whenever(kosmos.packageManager.getApplicationInfo(eq(HOST_PACKAGE), any<Int>()))
+            .thenThrow(PackageManager.NameNotFoundException())
+
+        val window = mock<Window>()
+        val decorView = mock<View>()
+        whenever(sysuiDialog.window).thenReturn(window)
+        whenever(window.decorView).thenReturn(decorView)
+
+        underTest.beforeCreate(sysuiDialog, /* savedInstanceState= */ null)
+
+        verify(decorView, never()).setAccessibilityDataSensitive(any())
+    }
 
     private fun createAndSetDelegate(state: MediaProjectionState.Projecting) {
         underTest =

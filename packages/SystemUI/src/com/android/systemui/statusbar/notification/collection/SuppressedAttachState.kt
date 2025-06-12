@@ -19,7 +19,7 @@ package com.android.systemui.statusbar.notification.collection
 import com.android.systemui.statusbar.notification.collection.listbuilder.NotifSection
 
 /**
- * Stores the suppressed state that [ShadeListBuilder] assigned to this [ListEntry] before the
+ * Stores the suppressed state that [ShadeListBuilder] assigned to this [PipelineEntry] before the
  * VisualStabilityManager suppressed group and section changes.
  */
 data class SuppressedAttachState private constructor(
@@ -35,7 +35,7 @@ data class SuppressedAttachState private constructor(
      *  - Root if suppressing group change to top-level
      *  - GroupEntry if suppressing group change to a different group
      */
-    var parent: GroupEntry?,
+    var parent: PipelineEntry?,
 
     /**
      * Whether the ListEntry would have been pruned had its group change not been suppressed.

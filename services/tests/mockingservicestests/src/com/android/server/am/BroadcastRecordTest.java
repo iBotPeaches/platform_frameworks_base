@@ -30,14 +30,20 @@ import static com.android.server.am.BroadcastRecord.calculateDeferUntilActive;
 import static com.android.server.am.BroadcastRecord.calculateUrgent;
 import static com.android.server.am.BroadcastRecord.isReceiverEquals;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import android.app.BackgroundStartPrivileges;
 import android.app.BroadcastOptions;
@@ -66,6 +72,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -92,6 +99,9 @@ public class BroadcastRecordTest {
     private static final String PACKAGE1 = "pkg1";
     private static final String PACKAGE2 = "pkg2";
     private static final String PACKAGE3 = "pkg3";
+
+    private static final String PROCESS1 = "process1";
+    private static final String PROCESS2 = "process2";
 
     private static final int SYSTEM_UID = android.os.Process.SYSTEM_UID;
     private static final int APP_UID = android.os.Process.FIRST_APPLICATION_UID;
@@ -1005,6 +1015,142 @@ public class BroadcastRecordTest {
                                 createResolveInfo(PACKAGE3, getAppId(3)))));
     }
 
+
+    @Test
+    @DisableFlags(Flags.FLAG_LOG_BROADCAST_PROCESSED_EVENT)
+    public void testUpdateBroadcastProcessedEventRecord_flagDisabled() {
+        final ResolveInfo receiver = createResolveInfo(PACKAGE1, getAppId(1));
+        final BroadcastRecord record = createBroadcastRecord(
+                new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED),
+                List.of(receiver));
+
+        record.updateBroadcastProcessedEventRecord(receiver, 10);
+
+        assertThat(record.getBroadcastProcessedRecordsForTest()).isEmpty();
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_LOG_BROADCAST_PROCESSED_EVENT)
+    public void testUpdateBroadcastProcessedEventRecord_withNewReceiver_newBroadcastProcessedEventRecordCreated() {
+        final ResolveInfo receiver =
+                createResolveInfoWithProcessName(PACKAGE1, getAppId(1), PROCESS1);
+        final BroadcastRecord record = createBroadcastRecord(
+                new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED),
+                List.of(receiver));
+
+        record.updateBroadcastProcessedEventRecord(receiver, 10);
+
+        assertThat(record.getBroadcastProcessedRecordsForTest()).isNotEmpty();
+        final BroadcastProcessedEventRecord broadcastProcessedEventRecord =
+                record.getBroadcastProcessedRecordsForTest().get(
+                        BroadcastRecord.getReceiverProcessName(receiver));
+
+        assertBroadcastProcessedEvent(
+                broadcastProcessedEventRecord,
+                10001,
+                PROCESS1,
+                1,
+                2,
+                10,
+                10);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_LOG_BROADCAST_PROCESSED_EVENT)
+    public void testUpdateBroadcastProcessedEventRecord_withNewAndExistingReceiver_multipleBroadcastProcessedEventRecordCreated() {
+        final ResolveInfo receiver1 =
+                createResolveInfoWithProcessName(PACKAGE1, getAppId(1), PROCESS1);
+
+        final ResolveInfo receiver2 =
+                createResolveInfoWithProcessName(PACKAGE2, getAppId(2), PROCESS2);
+
+        final BroadcastRecord record = createBroadcastRecord(
+                new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED),
+                List.of(receiver1, receiver2));
+
+        record.updateBroadcastProcessedEventRecord(receiver1, 11);
+        record.updateBroadcastProcessedEventRecord(receiver2, 11);
+        record.updateBroadcastProcessedEventRecord(receiver1, 20);
+
+        assertThat(record.getBroadcastProcessedRecordsForTest().size()).isEqualTo(2);
+        final BroadcastProcessedEventRecord broadcastProcessedEventRecord1 =
+                record.getBroadcastProcessedRecordsForTest().get(
+                        BroadcastRecord.getReceiverProcessName(receiver1));
+        final BroadcastProcessedEventRecord broadcastProcessedEventRecord2 =
+                record.getBroadcastProcessedRecordsForTest().get(
+                        BroadcastRecord.getReceiverProcessName(receiver2));
+
+        assertBroadcastProcessedEvent(
+                broadcastProcessedEventRecord1,
+                10001,
+                PROCESS1,
+                2,
+                1,
+                31,
+                20);
+        assertBroadcastProcessedEvent(
+                broadcastProcessedEventRecord2,
+                10002,
+                PROCESS2,
+                1,
+                1,
+                11,
+                11);
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_LOG_BROADCAST_PROCESSED_EVENT)
+    public void testLogBroadcastProcessedEventRecord_flagDisabled() {
+        testLogBroadcastProcessedEventRecord(0);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_LOG_BROADCAST_PROCESSED_EVENT)
+    public void testLogBroadcastProcessedEventRecord_flagEnabled_allBroadcastProcessedEventLogged() {
+        testLogBroadcastProcessedEventRecord(1);
+    }
+
+    private void testLogBroadcastProcessedEventRecord(int times) {
+        final ResolveInfo receiver = createResolveInfo(PACKAGE1, getAppId(1));
+        final BroadcastRecord record = createBroadcastRecord(
+                new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED),
+                List.of(receiver));
+
+        final BroadcastProcessedEventRecord broadcastProcessedEventRecord = Mockito.mock(
+                BroadcastProcessedEventRecord.class);
+        record.getBroadcastProcessedRecordsForTest()
+                .put("process", broadcastProcessedEventRecord);
+        record.logBroadcastProcessedEventRecord();
+        doNothing().when(broadcastProcessedEventRecord).logToStatsD();
+
+        verify(broadcastProcessedEventRecord, times(times)).logToStatsD();
+    }
+
+    private void assertBroadcastProcessedEvent(
+            BroadcastProcessedEventRecord broadcastProcessedEventRecord,
+            int receiverUid,
+            String processName,
+            int numberOfReceivers,
+            int broadcastTypeLength,
+            long totalBroadcastFinishTimeMillis,
+            long maxReceiverFinishTimeMillis) {
+        assertNotNull(broadcastProcessedEventRecord);
+        assertThat(broadcastProcessedEventRecord.getReceiverUidForTest()).isEqualTo(receiverUid);
+        assertThat(broadcastProcessedEventRecord.getSenderUidForTest()).isEqualTo(0);
+        assertThat(broadcastProcessedEventRecord.getIntentActionForTest())
+                .isEqualTo(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        assertThat(broadcastProcessedEventRecord.getReceiverProcessNameForTest())
+                .isEqualTo(processName);
+        assertThat(broadcastProcessedEventRecord.getBroadcastTypesForTest().length)
+                .isEqualTo(broadcastTypeLength);
+        assertThat(broadcastProcessedEventRecord.getNumberOfReceiversForTest())
+                .isEqualTo(numberOfReceivers);
+        assertThat(broadcastProcessedEventRecord.getTotalBroadcastFinishTimeMillisForTest())
+                .isEqualTo(totalBroadcastFinishTimeMillis);
+        assertThat(broadcastProcessedEventRecord.getMaxReceiverFinishTimeMillisForTest())
+                .isEqualTo(maxReceiverFinishTimeMillis);
+    }
+
     private boolean[] calculateChangeState(List<Object> receivers) {
         return BroadcastRecord.calculateChangeStateForReceivers(receivers,
                 LIMIT_PRIORITY_SCOPE, mPlatformCompat);
@@ -1047,6 +1193,16 @@ public class BroadcastRecordTest {
 
     private static ResolveInfo createResolveInfoWithPriority(int priority) {
         return createResolveInfo(PACKAGE1, getAppId(1), priority);
+    }
+
+    private static ResolveInfo createResolveInfoWithProcessName(
+            String packageName,
+            int uid,
+            String processName) {
+        final ResolveInfo resolveInfo = createResolveInfo(packageName, uid);
+        resolveInfo.activityInfo.processName = processName;
+
+        return resolveInfo;
     }
 
     private static ResolveInfo createResolveInfo(String packageName, int uid) {

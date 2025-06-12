@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">
+    <View android:id="@+id/view1" text="no-flags" />
+    <View android:id="@+id/view2" text="ro-enabled" android:featureFlag="com.android.internal.os.ravenwood_flag_ro_2"/>
+    <View android:id="@+id/view3" text="ro-disabled" android:featureFlag="com.android.internal.os.ravenwood_flag_ro_1"/>
+    <View android:id="@+id/view2" text="rw-enabled" android:featureFlag="com.android.internal.os.ravenwood_flag_rw_2"/>
+    <View android:id="@+id/view3" text="rw-disabled" android:featureFlag="com.android.internal.os.ravenwood_flag_rw_1"/>
+</LinearLayout>

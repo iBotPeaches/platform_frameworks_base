@@ -29,12 +29,12 @@ import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
-import android.companion.virtual.flags.Flags;
 import android.companion.virtual.sensor.IVirtualSensorCallback;
 import android.companion.virtual.sensor.VirtualSensor;
 import android.companion.virtual.sensor.VirtualSensorCallback;
 import android.companion.virtual.sensor.VirtualSensorConfig;
 import android.companion.virtual.sensor.VirtualSensorDirectChannelCallback;
+import android.companion.virtualdevice.flags.Flags;
 import android.content.ComponentName;
 import android.content.Context;
 import android.hardware.display.VirtualDisplayConfig;
@@ -248,7 +248,6 @@ public final class VirtualDeviceParams implements Parcelable {
      */
     // TODO(b/333443509): Update the documentation of custom policy and link to the new policy
     // POLICY_TYPE_BLOCKED_ACTIVITY
-    @FlaggedApi(Flags.FLAG_DYNAMIC_POLICY)
     public static final int POLICY_TYPE_ACTIVITY = 3;
 
     /**
@@ -264,7 +263,6 @@ public final class VirtualDeviceParams implements Parcelable {
      *
      * @see android.hardware.display.DisplayManager#VIRTUAL_DISPLAY_FLAG_TRUSTED
      */
-    @FlaggedApi(Flags.FLAG_CROSS_DEVICE_CLIPBOARD)
     public static final int POLICY_TYPE_CLIPBOARD = 4;
 
     /**
@@ -281,7 +279,6 @@ public final class VirtualDeviceParams implements Parcelable {
      *
      * @see Context#getDeviceId
      */
-    @FlaggedApi(Flags.FLAG_VIRTUAL_CAMERA)
     public static final int POLICY_TYPE_CAMERA = 5;
 
     /**
@@ -298,7 +295,7 @@ public final class VirtualDeviceParams implements Parcelable {
      * </ul>
      */
     // TODO(b/333443509): Link to POLICY_TYPE_ACTIVITY
-    @FlaggedApi(android.companion.virtualdevice.flags.Flags.FLAG_ACTIVITY_CONTROL_API)
+    @FlaggedApi(Flags.FLAG_ACTIVITY_CONTROL_API)
     public static final int POLICY_TYPE_BLOCKED_ACTIVITY = 6;
 
     /**
@@ -312,8 +309,7 @@ public final class VirtualDeviceParams implements Parcelable {
      *
      * @see Context#DEVICE_ID_DEFAULT
      */
-    @FlaggedApi(android.companion.virtualdevice.flags.Flags
-            .FLAG_DEFAULT_DEVICE_CAMERA_ACCESS_POLICY)
+    @FlaggedApi(Flags.FLAG_DEFAULT_DEVICE_CAMERA_ACCESS_POLICY)
     public static final int POLICY_TYPE_DEFAULT_DEVICE_CAMERA_ACCESS = 7;
 
     private final int mLockState;
@@ -409,7 +405,7 @@ public final class VirtualDeviceParams implements Parcelable {
      *
      * @see Builder#setDimDuration(Duration)
      */
-    @FlaggedApi(android.companion.virtualdevice.flags.Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
+    @FlaggedApi(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
     public @NonNull Duration getDimDuration() {
         return Duration.ofMillis(mDimDuration);
     }
@@ -419,7 +415,7 @@ public final class VirtualDeviceParams implements Parcelable {
      *
      * @see Builder#setDimDuration(Duration)
      */
-    @FlaggedApi(android.companion.virtualdevice.flags.Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
+    @FlaggedApi(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
     public @NonNull Duration getScreenOffTimeout() {
         return Duration.ofMillis(mScreenOffTimeout);
     }
@@ -431,7 +427,6 @@ public final class VirtualDeviceParams implements Parcelable {
      * @see Builder#setHomeComponent
      * @see VirtualDisplayConfig#isHomeSupported()
      */
-    @FlaggedApi(Flags.FLAG_VDM_CUSTOM_HOME)
     @Nullable
     public ComponentName getHomeComponent() {
         return mHomeComponent;
@@ -443,7 +438,6 @@ public final class VirtualDeviceParams implements Parcelable {
      *
      * @see Builder#setInputMethodComponent
      */
-    @FlaggedApi(Flags.FLAG_VDM_CUSTOM_IME)
     @Nullable
     public ComponentName getInputMethodComponent() {
         return mInputMethodComponent;
@@ -880,7 +874,7 @@ public final class VirtualDeviceParams implements Parcelable {
          * @see android.hardware.display.DisplayManager#VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
          * @see #setScreenOffTimeout
          */
-        @FlaggedApi(android.companion.virtualdevice.flags.Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
+        @FlaggedApi(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
         @NonNull
         public Builder setDimDuration(@NonNull Duration dimDuration) {
             if (Objects.requireNonNull(dimDuration).compareTo(Duration.ZERO) < 0) {
@@ -905,7 +899,7 @@ public final class VirtualDeviceParams implements Parcelable {
          * @see #setDimDuration
          * @see VirtualDeviceManager.VirtualDevice#goToSleep()
          */
-        @FlaggedApi(android.companion.virtualdevice.flags.Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
+        @FlaggedApi(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
         @NonNull
         public Builder setScreenOffTimeout(@NonNull Duration screenOffTimeout) {
             if (Objects.requireNonNull(screenOffTimeout).compareTo(Duration.ZERO) < 0) {
@@ -926,7 +920,6 @@ public final class VirtualDeviceParams implements Parcelable {
          *
          * @see VirtualDisplayConfig#isHomeSupported()
          */
-        @FlaggedApi(Flags.FLAG_VDM_CUSTOM_HOME)
         @NonNull
         public Builder setHomeComponent(@Nullable ComponentName homeComponent) {
             mHomeComponent = homeComponent;
@@ -949,7 +942,6 @@ public final class VirtualDeviceParams implements Parcelable {
          * @attr ref android.R.styleable#InputMethod_isVirtualDeviceOnly
          * @attr ref android.R.styleable#InputMethod_showInInputMethodPicker
          */
-        @FlaggedApi(Flags.FLAG_VDM_CUSTOM_IME)
         @NonNull
         public Builder setInputMethodComponent(@Nullable ComponentName inputMethodComponent) {
             mInputMethodComponent = inputMethodComponent;
@@ -1282,33 +1274,31 @@ public final class VirtualDeviceParams implements Parcelable {
                         mVirtualSensorDirectChannelCallback);
             }
 
-            if (Flags.dynamicPolicy()) {
-                switch (mDevicePolicies.get(POLICY_TYPE_ACTIVITY, -1)) {
-                    case DEVICE_POLICY_DEFAULT:
-                        if (mDefaultActivityPolicyConfigured
-                                && mDefaultActivityPolicy == ACTIVITY_POLICY_DEFAULT_BLOCKED) {
-                            throw new IllegalArgumentException(
-                                    "DEVICE_POLICY_DEFAULT is explicitly configured for "
-                                            + "POLICY_TYPE_ACTIVITY, which is exclusive with "
-                                            + "setAllowedActivities.");
-                        }
-                        break;
-                    case DEVICE_POLICY_CUSTOM:
-                        if (mDefaultActivityPolicyConfigured
-                                && mDefaultActivityPolicy == ACTIVITY_POLICY_DEFAULT_ALLOWED) {
-                            throw new IllegalArgumentException(
-                                    "DEVICE_POLICY_CUSTOM is explicitly configured for "
-                                            + "POLICY_TYPE_ACTIVITY, which is exclusive with "
-                                            + "setBlockedActivities.");
-                        }
-                        break;
-                    default:
-                        if (mDefaultActivityPolicyConfigured
-                                && mDefaultActivityPolicy == ACTIVITY_POLICY_DEFAULT_BLOCKED) {
-                            mDevicePolicies.put(POLICY_TYPE_ACTIVITY, DEVICE_POLICY_CUSTOM);
-                        }
-                        break;
-                }
+            switch (mDevicePolicies.get(POLICY_TYPE_ACTIVITY, -1)) {
+                case DEVICE_POLICY_DEFAULT:
+                    if (mDefaultActivityPolicyConfigured
+                            && mDefaultActivityPolicy == ACTIVITY_POLICY_DEFAULT_BLOCKED) {
+                        throw new IllegalArgumentException(
+                                "DEVICE_POLICY_DEFAULT is explicitly configured for "
+                                        + "POLICY_TYPE_ACTIVITY, which is exclusive with "
+                                        + "setAllowedActivities.");
+                    }
+                    break;
+                case DEVICE_POLICY_CUSTOM:
+                    if (mDefaultActivityPolicyConfigured
+                            && mDefaultActivityPolicy == ACTIVITY_POLICY_DEFAULT_ALLOWED) {
+                        throw new IllegalArgumentException(
+                                "DEVICE_POLICY_CUSTOM is explicitly configured for "
+                                        + "POLICY_TYPE_ACTIVITY, which is exclusive with "
+                                        + "setBlockedActivities.");
+                    }
+                    break;
+                default:
+                    if (mDefaultActivityPolicyConfigured
+                            && mDefaultActivityPolicy == ACTIVITY_POLICY_DEFAULT_BLOCKED) {
+                        mDevicePolicies.put(POLICY_TYPE_ACTIVITY, DEVICE_POLICY_CUSTOM);
+                    }
+                    break;
             }
 
             if (mDimDuration.compareTo(mScreenOffTimeout) > 0) {
@@ -1319,19 +1309,11 @@ public final class VirtualDeviceParams implements Parcelable {
                 mScreenOffTimeout = INFINITE_TIMEOUT;
             }
 
-            if (!Flags.crossDeviceClipboard()) {
-                mDevicePolicies.delete(POLICY_TYPE_CLIPBOARD);
-            }
-
-            if (!Flags.virtualCamera()) {
-                mDevicePolicies.delete(POLICY_TYPE_CAMERA);
-            }
-
-            if (!android.companion.virtualdevice.flags.Flags.defaultDeviceCameraAccessPolicy()) {
+            if (!Flags.defaultDeviceCameraAccessPolicy()) {
                 mDevicePolicies.delete(POLICY_TYPE_DEFAULT_DEVICE_CAMERA_ACCESS);
             }
 
-            if (!android.companion.virtualdevice.flags.Flags.activityControlApi()) {
+            if (!Flags.activityControlApi()) {
                 mDevicePolicies.delete(POLICY_TYPE_BLOCKED_ACTIVITY);
             }
 

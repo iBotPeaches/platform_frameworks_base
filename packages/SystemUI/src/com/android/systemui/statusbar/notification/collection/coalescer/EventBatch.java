@@ -25,7 +25,7 @@ import java.util.List;
  * Represents a set of notification post events for a particular notification group.
  */
 public class EventBatch {
-    /** SystemClock.uptimeMillis() */
+    /** SystemClock.elapsedRealtime() */
     final long mCreatedTimestamp;
 
     /** SBN.getGroupKey -- same for all members */

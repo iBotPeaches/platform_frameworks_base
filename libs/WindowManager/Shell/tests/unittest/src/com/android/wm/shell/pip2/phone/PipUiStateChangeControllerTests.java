@@ -20,7 +20,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.Flags;
@@ -82,7 +82,7 @@ public class PipUiStateChangeControllerTests {
         mPipUiStateChangeController.onPipTransitionStateChanged(
                 PipTransitionState.SWIPING_TO_PIP, PipTransitionState.ENTERING_PIP, Bundle.EMPTY);
 
-        verifyZeroInteractions(mPictureInPictureUiStateConsumer);
+        verifyNoMoreInteractions(mPictureInPictureUiStateConsumer);
     }
 
     @Test

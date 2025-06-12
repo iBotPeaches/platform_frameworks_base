@@ -21,7 +21,7 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 import static org.junit.Assert.assertEquals;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -42,6 +42,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
 import android.platform.test.annotations.EnableFlags;
+import android.platform.test.annotations.Presubmit;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
@@ -64,7 +65,7 @@ import java.util.Collections;
  * Build/Install/Run:
  *  atest ModifierShortcutManagerTests
  */
-
+@Presubmit
 @SmallTest
 @EnableFlags(com.android.hardware.input.Flags.FLAG_MODIFIER_SHORTCUT_MANAGER_REFACTOR)
 public class ModifierShortcutManagerTests {
@@ -89,7 +90,7 @@ public class ModifierShortcutManagerTests {
         XmlResourceParser testBookmarks = mResources.getXml(
                 com.android.frameworks.wmtests.R.xml.bookmarks);
 
-        doReturn(mContext).when(mContext).createContextAsUser(anyObject(), anyInt());
+        doReturn(mContext).when(mContext).createContextAsUser(any(), anyInt());
         when(mContext.getResources()).thenReturn(mResources);
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mResources.getXml(R.xml.bookmarks)).thenReturn(testBookmarks);
@@ -105,7 +106,7 @@ public class ModifierShortcutManagerTests {
 
             doReturn(testActivityInfo).when(mPackageManager).getActivityInfo(
                     eq(new ComponentName("com.test", "com.test.BookmarkTest")), anyInt());
-            doReturn(testResolveInfo).when(mPackageManager).resolveActivity(anyObject(), anyInt());
+            doReturn(testResolveInfo).when(mPackageManager).resolveActivity(any(), anyInt());
             doThrow(new PackageManager.NameNotFoundException("com.test3")).when(mPackageManager)
                     .getActivityInfo(eq(new ComponentName("com.test3", "com.test.BookmarkTest")),
                         anyInt());
@@ -127,7 +128,7 @@ public class ModifierShortcutManagerTests {
         // Total valid shortcuts.
         KeyboardShortcutGroup group =
                 mModifierShortcutManager.getApplicationLaunchKeyboardShortcuts(-1);
-        assertEquals(13, group.getItems().size());
+        assertEquals(11, group.getItems().size());
 
         // Total valid shift shortcuts.
         assertEquals(3, group.getItems().stream()
@@ -139,10 +140,10 @@ public class ModifierShortcutManagerTests {
     public void test_shortcutInfoFromIntent_appIntent() {
         Intent mockIntent = mock(Intent.class);
         ActivityInfo mockActivityInfo = mock(ActivityInfo.class);
-        when(mockActivityInfo.loadLabel(anyObject())).thenReturn("label");
+        when(mockActivityInfo.loadLabel(any())).thenReturn("label");
         mockActivityInfo.packageName = "android";
         when(mockActivityInfo.getIconResource()).thenReturn(R.drawable.sym_def_app_icon);
-        when(mockIntent.resolveActivityInfo(anyObject(), anyInt())).thenReturn(mockActivityInfo);
+        when(mockIntent.resolveActivityInfo(any(), anyInt())).thenReturn(mockActivityInfo);
 
         KeyboardShortcutInfo info = mModifierShortcutManager.shortcutInfoFromIntent(
                 'a', mockIntent, true);
@@ -160,7 +161,7 @@ public class ModifierShortcutManagerTests {
         Intent mockSelector = mock(Intent.class);
         ActivityInfo mockActivityInfo = mock(ActivityInfo.class);
         mockActivityInfo.name = com.android.internal.app.ResolverActivity.class.getName();
-        when(mockIntent.resolveActivityInfo(anyObject(), anyInt())).thenReturn(mockActivityInfo);
+        when(mockIntent.resolveActivityInfo(any(), anyInt())).thenReturn(mockActivityInfo);
         when(mockIntent.getSelector()).thenReturn(mockSelector);
         when(mockSelector.getCategories()).thenReturn(
                 Collections.singleton(Intent.CATEGORY_APP_BROWSER));

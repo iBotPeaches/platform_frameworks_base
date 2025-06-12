@@ -50,15 +50,10 @@ import java.util.List;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class BluetoothPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setAveragePower(PowerProfile.POWER_BLUETOOTH_CONTROLLER_IDLE, 10.0)
             .setAveragePower(PowerProfile.POWER_BLUETOOTH_CONTROLLER_RX, 50.0)
@@ -335,7 +330,7 @@ public class BluetoothPowerCalculatorTest {
     }
 
     private UidTraffic createUidTraffic(int appUid, long rxBytes, long txBytes) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             UidTraffic uidTraffic = mock(UidTraffic.class);
             when(uidTraffic.getUid()).thenReturn(appUid);
             when(uidTraffic.getRxBytes()).thenReturn(rxBytes);
@@ -356,7 +351,7 @@ public class BluetoothPowerCalculatorTest {
 
     private BluetoothActivityEnergyInfo createBtEnergyInfo(long timestamp, int stackState,
             long txTime, long rxTime, long idleTime, long energyUsed, List<UidTraffic> traffic) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             BluetoothActivityEnergyInfo info = mock(BluetoothActivityEnergyInfo.class);
             when(info.getTimestampMillis()).thenReturn(timestamp);
             when(info.getBluetoothStackState()).thenReturn(stackState);

@@ -80,9 +80,6 @@ import static android.view.WindowLayoutParamsProto.WINDOW_ANIMATIONS;
 import static android.view.WindowLayoutParamsProto.X;
 import static android.view.WindowLayoutParamsProto.Y;
 
-import static com.android.hardware.input.Flags.FLAG_OVERRIDE_POWER_KEY_BEHAVIOR_IN_FOCUSED_WINDOW;
-import static com.android.hardware.input.Flags.overridePowerKeyBehaviorInFocusedWindow;
-
 import android.Manifest.permission;
 import android.annotation.CallbackExecutor;
 import android.annotation.FlaggedApi;
@@ -625,6 +622,18 @@ public interface WindowManager extends ViewManager {
     int TRANSIT_FLAG_PHYSICAL_DISPLAY_SWITCH = (1 << 14); // 0x4000
 
     /**
+     * Transition flag: Indicates that aod is showing hidden by entering doze
+     * @hide
+     */
+    int TRANSIT_FLAG_AOD_APPEARING = (1 << 15); // 0x8000
+
+    /**
+     * Transition flag: Indicates that the task shouldn't move to front when launching the activity.
+     * @hide
+     */
+    int TRANSIT_FLAG_AVOID_MOVE_TO_FRONT = (1 << 16); // 0x10000
+
+    /**
      * @hide
      */
     @IntDef(flag = true, prefix = { "TRANSIT_FLAG_" }, value = {
@@ -643,6 +652,8 @@ public interface WindowManager extends ViewManager {
             TRANSIT_FLAG_KEYGUARD_OCCLUDING,
             TRANSIT_FLAG_KEYGUARD_UNOCCLUDING,
             TRANSIT_FLAG_PHYSICAL_DISPLAY_SWITCH,
+            TRANSIT_FLAG_AOD_APPEARING,
+            TRANSIT_FLAG_AVOID_MOVE_TO_FRONT,
     })
     @Retention(RetentionPolicy.SOURCE)
     @interface TransitionFlags {}
@@ -659,7 +670,8 @@ public interface WindowManager extends ViewManager {
             (TRANSIT_FLAG_KEYGUARD_GOING_AWAY
             | TRANSIT_FLAG_KEYGUARD_APPEARING
             | TRANSIT_FLAG_KEYGUARD_OCCLUDING
-            | TRANSIT_FLAG_KEYGUARD_UNOCCLUDING);
+            | TRANSIT_FLAG_KEYGUARD_UNOCCLUDING
+            | TRANSIT_FLAG_AOD_APPEARING);
 
     /**
      * Remove content mode: Indicates remove content mode is currently not defined.
@@ -1199,6 +1211,43 @@ public interface WindowManager extends ViewManager {
             "android.window.PROPERTY_CAMERA_COMPAT_ENABLE_REFRESH_VIA_PAUSE";
 
     /**
+     * Application-level [PackageManager][android.content.pm.PackageManager.Property] tag that (when
+     * set to false) informs the system the app has opted out of the camera compatibility treatment
+     * for fixed-orientation apps, which simulates running on a portrait device, in the orientation
+     * requested by the app.
+     *
+     * <p>This treatment aims to mitigate camera issues on large screens, like stretched or sideways
+     * previews. It simulates running on a portrait device by:
+     * <ul>
+     *   <li>Letterboxing the app window,
+     *   <li>Cropping the camera buffer to match the app's requested orientation,
+     *   <li>Setting the camera sensor orientation to portrait.
+     *   <li>Setting the display rotation to match the app's requested orientation, given portrait
+     *       natural orientation,
+     *   <li>Refreshes the activity to trigger new camera setup, with sandboxed values.
+     * </ul>
+     *
+     * <p>To opt out of the camera compatibility treatment, add this property to your app manifest
+     * and set the value to {@code false}.
+     *
+     * <p>Not setting this property at all, or setting this property to {@code true} has no effect.
+     *
+     * <p><b>Syntax:</b>
+     * <pre>
+     * &lt;application&gt;
+     *   &lt;property
+     *     android:name="android.window.PROPERTY_CAMERA_COMPAT_ALLOW_SIMULATE_REQUESTED_ORIENTATION"
+     *     android:value="true|false"/&gt;
+     * &lt;/application&gt;
+     * </pre>
+     *
+     * @hide
+     */
+    //TODO(b/394590412): Make this property public.
+    String PROPERTY_CAMERA_COMPAT_ALLOW_SIMULATE_REQUESTED_ORIENTATION =
+            "android.window.PROPERTY_CAMERA_COMPAT_ALLOW_SIMULATE_REQUESTED_ORIENTATION";
+
+    /**
      * Application level {@link android.content.pm.PackageManager.Property PackageManager.Property}
      * for an app to inform the system that the app should be excluded from the compatibility
      * override for orientation set by the device manufacturer. When the orientation override is
@@ -1462,6 +1511,44 @@ public interface WindowManager extends ViewManager {
             "android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY";
 
     /**
+     * Application or Activity level
+     * {@link android.content.pm.PackageManager.Property PackageManager.Property} that specifies
+     * whether this package or activity wants to allow safe region letterboxing. A safe
+     * region policy may be applied by the system to improve the user experience by ensuring that
+     * the activity does not have any content that is occluded and has the correct current
+     * window metrics.
+     *
+     * <p>Not setting the property at all defaults it to {@code true}. In such a case, the activity
+     * will be letterboxed in the safe region.
+     *
+     * <p>To not allow the safe region letterboxing, add this property to your app
+     * manifest and set the value to {@code false}. An app should ignore safe region
+     * letterboxing if it can handle bounds and insets from all four directions correctly when a
+     * request to go immersive is denied by the system. If the application does not allow safe
+     * region letterboxing, the system will not override this behavior.
+     *
+     * <p><b>Syntax:</b>
+     * <pre>
+     * &lt;application&gt;
+     *   &lt;property
+     *     android:name="android.window.PROPERTY_COMPAT_ALLOW_SAFE_REGION_LETTERBOXING"
+     *     android:value="false"/&gt;
+     * &lt;/application&gt;
+     * </pre>or
+     * <pre>
+     * &lt;activity&gt;
+     *   &lt;property
+     *     android:name="android.window.PROPERTY_COMPAT_ALLOW_SAFE_REGION_LETTERBOXING"
+     *     android:value="false"/&gt;
+     * &lt;/activity&gt;
+     * </pre>
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    String PROPERTY_COMPAT_ALLOW_SAFE_REGION_LETTERBOXING =
+            "android.window.PROPERTY_COMPAT_ALLOW_SAFE_REGION_LETTERBOXING";
+
+    /**
      * @hide
      */
     public static final String PARCEL_KEY_SHORTCUTS_ARRAY = "shortcuts_array";
@@ -1523,15 +1610,6 @@ public interface WindowManager extends ViewManager {
      */
     @TestApi
     static boolean hasWindowExtensionsEnabled() {
-        if (!Flags.enableWmExtensionsForAllFlag() && ACTIVITY_EMBEDDING_GUARD_WITH_ANDROID_15) {
-            // Since enableWmExtensionsForAllFlag, HAS_WINDOW_EXTENSIONS_ON_DEVICE is now true
-            // on all devices by default as a build file property.
-            // Until finishing flag ramp up, only return true when
-            // ACTIVITY_EMBEDDING_GUARD_WITH_ANDROID_15 is false, which is set per device by
-            // OEMs.
-            return false;
-        }
-
         if (!HAS_WINDOW_EXTENSIONS_ON_DEVICE) {
             return false;
         }
@@ -4468,29 +4546,6 @@ public interface WindowManager extends ViewManager {
         public static final int INPUT_FEATURE_SENSITIVE_FOR_PRIVACY = 1 << 3;
 
         /**
-         * Input feature used to indicate that the system should send power key events to this
-         * window when it's in the foreground. The window can override the double press power key
-         * gesture behavior.
-         *
-         * A double press gesture is defined as two
-         * {@link KeyEvent.Callback#onKeyDown(int, KeyEvent)} events within a time span defined by
-         *  {@link ViewConfiguration#getMultiPressTimeout()}.
-         *
-         * Note: While the window may receive all power key {@link KeyEvent}s, it can only
-         * override the double press gesture behavior. The system will perform default behavior for
-         * single, long-press and other multi-press gestures, regardless of if the app handles the
-         * key or not.
-         *
-         * To override the default behavior for double press, the app must return true for the
-         * second {@link KeyEvent.Callback#onKeyDown(int, KeyEvent)}. If the app returns false, the
-         * system behavior will be performed for double press.
-         * @hide
-         */
-        @RequiresPermission(permission.OVERRIDE_SYSTEM_KEY_BEHAVIOR_IN_FOCUSED_WINDOW)
-        public static final int
-                INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS = 1 << 4;
-
-        /**
          * An internal annotation for flags that can be specified to {@link #inputFeatures}.
          *
          * NOTE: These are not the same as {@link android.os.InputConfig} flags.
@@ -4502,8 +4557,7 @@ public interface WindowManager extends ViewManager {
                 INPUT_FEATURE_NO_INPUT_CHANNEL,
                 INPUT_FEATURE_DISABLE_USER_ACTIVITY,
                 INPUT_FEATURE_SPY,
-                INPUT_FEATURE_SENSITIVE_FOR_PRIVACY,
-                INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS
+                INPUT_FEATURE_SENSITIVE_FOR_PRIVACY
         })
         public @interface InputFeatureFlags {
         }
@@ -4793,44 +4847,6 @@ public interface WindowManager extends ViewManager {
         }
 
         /**
-         * Specifies if the system should send power key events to this window when it's in the
-         * foreground, with only the double tap gesture behavior being overrideable.
-         *
-         * @param enabled if true, the system should send power key events to this window when it's
-         *              in the foreground, with only the power key double tap gesture being
-         *              overrideable.
-         * @hide
-         */
-        @SystemApi
-        @RequiresPermission(permission.OVERRIDE_SYSTEM_KEY_BEHAVIOR_IN_FOCUSED_WINDOW)
-        @FlaggedApi(FLAG_OVERRIDE_POWER_KEY_BEHAVIOR_IN_FOCUSED_WINDOW)
-        public void setReceivePowerKeyDoublePressEnabled(boolean enabled) {
-            if (enabled) {
-                inputFeatures
-                        |= INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS;
-            } else {
-                inputFeatures
-                        &= ~INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS;
-            }
-        }
-
-        /**
-         * Returns whether or not the system should send power key events to this window when it's
-         * in the foreground, with only the double tap gesture being overrideable.
-         *
-         * @return if the system should send power key events to this window when it's in the
-         * foreground, with only the double tap gesture being overrideable.
-         * @hide
-         */
-        @SystemApi
-        @RequiresPermission(permission.OVERRIDE_SYSTEM_KEY_BEHAVIOR_IN_FOCUSED_WINDOW)
-        @FlaggedApi(FLAG_OVERRIDE_POWER_KEY_BEHAVIOR_IN_FOCUSED_WINDOW)
-        public boolean isReceivePowerKeyDoublePressEnabled() {
-            return (inputFeatures
-                    & INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS) != 0;
-        }
-
-        /**
          * Specifies that the window should be considered a trusted system overlay. Trusted system
          * overlays are ignored when considering whether windows are obscured during input
          * dispatch. Requires the {@link android.Manifest.permission#INTERNAL_SYSTEM_WINDOW}
@@ -5014,6 +5030,15 @@ public interface WindowManager extends ViewManager {
             format = _format;
         }
 
+        /**
+         * Sets a title for the window.
+         * <p>
+         * This title will be used primarily for debugging, and may be exposed via {@link
+         * android.view.accessibility.AccessibilityWindowInfo#getTitle} if no {@link Window#setTitle
+         * user-facing title} has been set.
+         *
+         * @see Window#setTitle
+         */
         public final void setTitle(CharSequence title) {
             if (null == title)
                 title = "";
@@ -6221,16 +6246,6 @@ public interface WindowManager extends ViewManager {
             if ((inputFeatures & INPUT_FEATURE_SPY) != 0) {
                 inputFeatures &= ~INPUT_FEATURE_SPY;
                 features.add("INPUT_FEATURE_SPY");
-            }
-            if (overridePowerKeyBehaviorInFocusedWindow()) {
-                if ((inputFeatures
-                        & INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS)
-                        != 0) {
-                    inputFeatures
-                            &=
-                            ~INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS;
-                    features.add("INPUT_FEATURE_RECEIVE_POWER_KEY_DOUBLE_PRESS");
-                }
             }
             if (inputFeatures != 0) {
                 features.add(Integer.toHexString(inputFeatures));

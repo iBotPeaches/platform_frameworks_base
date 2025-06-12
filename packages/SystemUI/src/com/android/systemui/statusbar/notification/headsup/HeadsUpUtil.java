@@ -76,12 +76,7 @@ public final class HeadsUpUtil {
         }
 
         final ExpandableNotificationRow row = (ExpandableNotificationRow) view;
-        final NotificationEntry entry = row.getEntry();
-        if (entry == null) {
-            return "(null entry)";
-        }
-
-        final String key = entry.getKey();
+        final String key = row.getKey();
         if (key == null) {
             return "(null key)";
         }

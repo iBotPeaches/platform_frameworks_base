@@ -41,12 +41,14 @@ import android.util.Slog;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public final class TradeInModeService extends SystemService {
     private static final String TAG = "TradeInModeService";
 
     private static final String TIM_PROP = "persist.adb.tradeinmode";
+    private static final String TIM_TEST_PROP = "persist.adb.test_tradeinmode";
 
     private static final int TIM_STATE_UNSET = 0;
 
@@ -108,6 +110,10 @@ public final class TradeInModeService extends SystemService {
                 // setup completion observer.
                 if (isDeviceSetup()) {
                     stopTradeInMode();
+                } else if (isDebuggable() && !isForceEnabledForTesting()) {
+                    // The device was made debuggable after entering TIM. This
+                    // can happen while flashing. For convenience, leave test mode.
+                    leaveTestMode();
                 } else {
                     watchForSetupCompletion();
                     watchForNetworkChange();
@@ -122,7 +128,7 @@ public final class TradeInModeService extends SystemService {
         @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
         public boolean start() {
             mContext.enforceCallingOrSelfPermission("android.permission.ENTER_TRADE_IN_MODE",
-                                                    "Cannot enter trade-in mode foyer");
+                    "Cannot enter trade-in mode foyer");
             final int state = getTradeInModeState();
             if (state == TIM_STATE_FOYER) {
                 return true;
@@ -137,12 +143,13 @@ public final class TradeInModeService extends SystemService {
                 Slog.i(TAG, "Not starting trade-in mode, device is setup.");
                 return false;
             }
-            if (SystemProperties.getInt("ro.debuggable", 0) == 1) {
-                // We don't want to force adbd into TIM on debug builds.
-                Slog.e(TAG, "Not starting trade-in mode, device is debuggable.");
-                return false;
-            }
-            if (isAdbEnabled()) {
+            if (isDebuggable()) {
+                if (!isForceEnabledForTesting()) {
+                    // We don't want to force adbd into TIM on debug builds.
+                    Slog.e(TAG, "Not starting trade-in mode, device is debuggable.");
+                    return false;
+                }
+            } else if (isAdbEnabled()) {
                 Slog.e(TAG, "Not starting trade-in mode, adb is already enabled.");
                 return false;
             }
@@ -160,7 +167,7 @@ public final class TradeInModeService extends SystemService {
         @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
         public boolean enterEvaluationMode() {
             mContext.enforceCallingOrSelfPermission("android.permission.ENTER_TRADE_IN_MODE",
-                                                    "Cannot enter trade-in evaluation mode");
+                    "Cannot enter trade-in evaluation mode");
             final int state = getTradeInModeState();
             if (state != TIM_STATE_FOYER) {
                 Slog.e(TAG, "Cannot enter evaluation mode in state: " + state);
@@ -170,12 +177,7 @@ public final class TradeInModeService extends SystemService {
                 Slog.e(TAG, "Cannot enter evaluation mode, FRP lock is present.");
                 return false;
             }
-
-            try (FileWriter fw = new FileWriter(WIPE_INDICATOR_FILE,
-                                                StandardCharsets.US_ASCII)) {
-                fw.write("0");
-            } catch (IOException e) {
-                Slog.e(TAG, "Failed to write " + WIPE_INDICATOR_FILE, e);
+            if (!scheduleTradeInModeWipe()) {
                 return false;
             }
 
@@ -188,7 +190,7 @@ public final class TradeInModeService extends SystemService {
             }
 
             SystemProperties.set(TIM_PROP, Integer.toString(TIM_STATE_EVALUATION_MODE));
-            SystemProperties.set("ctl.restart", "adbd");
+            restartAdbd();
             return true;
         }
 
@@ -196,8 +198,57 @@ public final class TradeInModeService extends SystemService {
         @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
         public boolean isEvaluationModeAllowed() {
             mContext.enforceCallingOrSelfPermission("android.permission.ENTER_TRADE_IN_MODE",
-                                        "Cannot test for trade-in evaluation mode allowed");
+                    "Cannot test for trade-in evaluation mode allowed");
             return !isFrpActive();
+        }
+
+        @Override
+        @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
+        public void scheduleWipeForTesting() {
+            enforceTestingPermissions();
+
+            scheduleTradeInModeWipe();
+        }
+
+        @Override
+        @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
+        public void startTesting() {
+            enforceTestingPermissions();
+
+            enterTestMode();
+        }
+
+        @Override
+        @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
+        public void stopTesting() {
+            enforceTestingPermissions();
+
+            if (!isForceEnabledForTesting()) {
+                throw new IllegalStateException("testing must have been started");
+            }
+
+            final long callingId = Binder.clearCallingIdentity();
+            try {
+                leaveTestMode();
+            } finally {
+                Binder.restoreCallingIdentity(callingId);
+            }
+        }
+
+        @Override
+        @RequiresPermission(android.Manifest.permission.ENTER_TRADE_IN_MODE)
+        public boolean isTesting() {
+            enforceTestingPermissions();
+
+            return isForceEnabledForTesting();
+        }
+
+        private void enforceTestingPermissions() {
+            mContext.enforceCallingOrSelfPermission("android.permission.ENTER_TRADE_IN_MODE",
+                    "Caller must have ENTER_TRADE_IN_MODE permission");
+            if (!isDebuggable()) {
+                throw new SecurityException("ro.debuggable must be set to 1");
+            }
         }
     }
 
@@ -206,8 +257,7 @@ public final class TradeInModeService extends SystemService {
 
         SystemProperties.set(TIM_PROP, Integer.toString(TIM_STATE_FOYER));
 
-        final ContentResolver cr = mContext.getContentResolver();
-        Settings.Global.putInt(cr, Settings.Global.ADB_ENABLED, 1);
+        setAdbEnabled(true);
 
         watchForSetupCompletion();
         watchForNetworkChange();
@@ -222,8 +272,52 @@ public final class TradeInModeService extends SystemService {
         removeNetworkWatch();
         removeAccountsWatch();
 
+        if (isForceEnabledForTesting()) {
+            // If testing in a debug build, we need to re-enable ADB.
+            restartAdbd();
+        } else {
+            // Otherwise, ADB must not be enabled.
+            setAdbEnabled(false);
+        }
+    }
+
+    private void enterTestMode() {
+        SystemProperties.set(TIM_TEST_PROP, "1");
+        SystemProperties.set(TIM_PROP, Integer.toString(TIM_STATE_FOYER));
+    }
+
+    private void leaveTestMode() {
+        if (getTradeInModeState() == TIM_STATE_FOYER) {
+            stopTradeInMode();
+        }
+
+        SystemProperties.set(TIM_TEST_PROP, "");
+        SystemProperties.set(TIM_PROP, "");
+        try {
+            Files.deleteIfExists(Paths.get(WIPE_INDICATOR_FILE));
+        } catch (IOException e) {
+            Slog.e(TAG, "Failed to remove wipe indicator", e);
+        }
+    }
+
+    private boolean scheduleTradeInModeWipe() {
+        try (FileWriter fw = new FileWriter(WIPE_INDICATOR_FILE,
+                StandardCharsets.US_ASCII)) {
+            fw.write("0");
+        } catch (IOException e) {
+            Slog.e(TAG, "Failed to write " + WIPE_INDICATOR_FILE, e);
+            return false;
+        }
+        return true;
+    }
+
+    private void restartAdbd() {
+        SystemProperties.set("ctl.restart", "adbd");
+    }
+
+    private void setAdbEnabled(boolean enabled) {
         final ContentResolver cr = mContext.getContentResolver();
-        Settings.Global.putInt(cr, Settings.Global.ADB_ENABLED, 0);
+        Settings.Global.putInt(cr, Settings.Global.ADB_ENABLED, enabled ? 1 : 0);
     }
 
     private int getTradeInModeState() {
@@ -234,6 +328,10 @@ public final class TradeInModeService extends SystemService {
         return SystemProperties.getInt("ro.debuggable", 0) == 1;
     }
 
+    private boolean isForceEnabledForTesting() {
+        return isDebuggable() && SystemProperties.getInt(TIM_TEST_PROP, 0) == 1;
+    }
+
     private boolean isAdbEnabled() {
         final ContentResolver cr = mContext.getContentResolver();
         return Settings.Global.getInt(cr, Settings.Global.ADB_ENABLED, 0) == 1;
@@ -241,8 +339,7 @@ public final class TradeInModeService extends SystemService {
 
     private boolean isFrpActive() {
         try {
-            PersistentDataBlockManager pdb =
-                    mContext.getSystemService(PersistentDataBlockManager.class);
+            PersistentDataBlockManager pdb = mContext.getSystemService(PersistentDataBlockManager.class);
             if (pdb == null) {
                 return false;
             }
@@ -253,9 +350,9 @@ public final class TradeInModeService extends SystemService {
         }
     }
 
-    // This returns true if the device has progressed far enough into Setup Wizard that it no
-    // longer makes sense to enable trade-in mode. As a last stop, we check the SUW completion
-    // bits.
+    // This returns true if the device has progressed far enough into Setup Wizard
+    // that it no longer makes sense to enable trade-in mode. As a last stop, we
+    // check the SUW completion bits.
     private boolean isDeviceSetup() {
         final ContentResolver cr = mContext.getContentResolver();
         try {
@@ -297,14 +394,13 @@ public final class TradeInModeService extends SystemService {
         cr.registerContentObserver(deviceProvisioned, false, observer);
     }
 
-
     private void watchForNetworkChange() {
         mConnectivityManager = mContext.getSystemService(ConnectivityManager.class);
         NetworkRequest networkRequest = new NetworkRequest.Builder()
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                    .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
-                    .build();
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+                .build();
 
         mNetworkCallback = new ConnectivityManager.NetworkCallback() {
             @Override

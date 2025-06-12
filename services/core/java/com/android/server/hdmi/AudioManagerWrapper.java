@@ -85,18 +85,6 @@ public interface AudioManagerWrapper {
     void setWiredDeviceConnectionState(int device, int state, String address, String name);
 
     /**
-     * Wraps {@link AudioManager#getDeviceVolumeBehavior(AudioDeviceAttributes)}
-     */
-    @AudioManager.DeviceVolumeBehavior
-    int getDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device);
-
-    /**
-     * Wraps {@link AudioManager#setDeviceVolumeBehavior(AudioDeviceAttributes, int)}
-     */
-    void setDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device,
-            @AudioManager.DeviceVolumeBehavior int deviceVolumeBehavior);
-
-    /**
      * Wraps {@link AudioManager#getDevicesForAttributes(AudioAttributes)}
      */
     @NonNull

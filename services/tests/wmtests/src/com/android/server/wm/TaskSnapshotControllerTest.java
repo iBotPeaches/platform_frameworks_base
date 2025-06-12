@@ -33,6 +33,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,11 +46,14 @@ import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.hardware.HardwareBuffer;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.util.ArraySet;
 import android.window.TaskSnapshot;
 
 import androidx.test.filters.SmallTest;
+
+import com.android.window.flags.Flags;
 
 import com.google.android.collect.Sets;
 
@@ -70,8 +74,8 @@ public class TaskSnapshotControllerTest extends WindowTestsBase {
 
     @Test
     public void testGetClosingApps_closing() {
-        final WindowState closingWindow = createWindow(null, FIRST_APPLICATION_WINDOW,
-                "closingWindow");
+        final WindowState closingWindow = newWindowBuilder("closingWindow",
+                FIRST_APPLICATION_WINDOW).build();
         closingWindow.mActivityRecord.commitVisibility(
                 false /* visible */, true /* performLayout */);
         final ArraySet<ActivityRecord> closingApps = new ArraySet<>();
@@ -84,8 +88,8 @@ public class TaskSnapshotControllerTest extends WindowTestsBase {
 
     @Test
     public void testGetClosingApps_notClosing() {
-        final WindowState closingWindow = createWindow(null, FIRST_APPLICATION_WINDOW,
-                "closingWindow");
+        final WindowState closingWindow = newWindowBuilder("closingWindow",
+                FIRST_APPLICATION_WINDOW).build();
         final WindowState openingWindow = createAppWindow(closingWindow.getTask(),
                 FIRST_APPLICATION_WINDOW, "openingWindow");
         closingWindow.mActivityRecord.commitVisibility(
@@ -101,8 +105,8 @@ public class TaskSnapshotControllerTest extends WindowTestsBase {
 
     @Test
     public void testGetClosingApps_skipClosingAppsSnapshotTasks() {
-        final WindowState closingWindow = createWindow(null, FIRST_APPLICATION_WINDOW,
-                "closingWindow");
+        final WindowState closingWindow = newWindowBuilder("closingWindow",
+                FIRST_APPLICATION_WINDOW).build();
         closingWindow.mActivityRecord.commitVisibility(
                 false /* visible */, true /* performLayout */);
         final ArraySet<ActivityRecord> closingApps = new ArraySet<>();
@@ -129,19 +133,19 @@ public class TaskSnapshotControllerTest extends WindowTestsBase {
 
     @Test
     public void testGetSnapshotMode() {
-        final WindowState disabledWindow = createWindow(null,
-                FIRST_APPLICATION_WINDOW, mDisplayContent, "disabledWindow");
+        final WindowState disabledWindow = newWindowBuilder("disabledWindow",
+                FIRST_APPLICATION_WINDOW).setDisplay(mDisplayContent).build();
         disabledWindow.mActivityRecord.setRecentsScreenshotEnabled(false);
         assertEquals(SNAPSHOT_MODE_APP_THEME,
                 mWm.mTaskSnapshotController.getSnapshotMode(disabledWindow.getTask()));
 
-        final WindowState normalWindow = createWindow(null,
-                FIRST_APPLICATION_WINDOW, mDisplayContent, "normalWindow");
+        final WindowState normalWindow = newWindowBuilder("normalWindow",
+                FIRST_APPLICATION_WINDOW).setDisplay(mDisplayContent).build();
         assertEquals(SNAPSHOT_MODE_REAL,
                 mWm.mTaskSnapshotController.getSnapshotMode(normalWindow.getTask()));
 
-        final WindowState secureWindow = createWindow(null,
-                FIRST_APPLICATION_WINDOW, mDisplayContent, "secureWindow");
+        final WindowState secureWindow = newWindowBuilder("secureWindow",
+                FIRST_APPLICATION_WINDOW).setDisplay(mDisplayContent).build();
         secureWindow.mAttrs.flags |= FLAG_SECURE;
         assertEquals(SNAPSHOT_MODE_APP_THEME,
                 mWm.mTaskSnapshotController.getSnapshotMode(secureWindow.getTask()));
@@ -284,5 +288,28 @@ public class TaskSnapshotControllerTest extends WindowTestsBase {
                 mAppWindow.mActivityRecord.getTask(), builder) != null;
 
         assertFalse(success);
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_EXCLUDE_DRAWING_APP_THEME_SNAPSHOT_FROM_LOCK)
+    public void testRecordTaskSnapshot() {
+        spyOn(mWm.mTaskSnapshotController.mCache);
+        spyOn(mWm.mTaskSnapshotController);
+        doReturn(false).when(mWm.mTaskSnapshotController).shouldDisableSnapshots();
+
+        final WindowState normalWindow = newWindowBuilder("normalWindow",
+                FIRST_APPLICATION_WINDOW).setDisplay(mDisplayContent).build();
+        final TaskSnapshot snapshot = new TaskSnapshotPersisterTestBase.TaskSnapshotBuilder()
+                .setTopActivityComponent(normalWindow.mActivityRecord.mActivityComponent).build();
+        doReturn(snapshot).when(mWm.mTaskSnapshotController).snapshot(any());
+        final Task task = normalWindow.mActivityRecord.getTask();
+        mWm.mTaskSnapshotController.recordSnapshot(task);
+        verify(mWm.mTaskSnapshotController.mCache).putSnapshot(eq(task), any());
+        clearInvocations(mWm.mTaskSnapshotController.mCache);
+
+        normalWindow.mAttrs.flags |= FLAG_SECURE;
+        mWm.mTaskSnapshotController.recordSnapshot(task);
+        waitHandlerIdle(mWm.mH);
+        verify(mWm.mTaskSnapshotController.mCache).putSnapshot(eq(task), any());
     }
 }

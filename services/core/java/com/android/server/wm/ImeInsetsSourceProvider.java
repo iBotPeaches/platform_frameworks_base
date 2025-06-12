@@ -22,7 +22,7 @@ import static android.view.InsetsSource.ID_IME;
 import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_IME;
 import static com.android.server.wm.DisplayContent.IME_TARGET_CONTROL;
 import static com.android.server.wm.DisplayContent.IME_TARGET_LAYERING;
-import static com.android.server.wm.ImeInsetsSourceProviderProto.IME_TARGET_FROM_IME;
+import static com.android.server.wm.ImeInsetsSourceProviderProto.IME_TARGET_FROM_IME_IDENTIFIER;
 import static com.android.server.wm.ImeInsetsSourceProviderProto.INSETS_SOURCE_PROVIDER;
 import static com.android.server.wm.WindowManagerService.H.UPDATE_MULTI_WINDOW_STACKS;
 
@@ -82,6 +82,13 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
      */
     private boolean mGivenInsetsReady = false;
 
+    /**
+     * The last state of the windowContainer. This is used to reset server visibility, in case of
+     * the IME (temporarily) redrawing  (e.g. during a rotation), to dispatch the control with
+     * leash again after it has finished drawing.
+     */
+    private boolean mLastDrawn = false;
+
     ImeInsetsSourceProvider(@NonNull InsetsSource source,
             @NonNull InsetsStateController stateController,
             @NonNull DisplayContent displayContent) {
@@ -97,12 +104,16 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
             final WindowState ws =
                     mWindowContainer != null ? mWindowContainer.asWindowState() : null;
             final boolean givenInsetsPending = ws != null && ws.mGivenInsetsPending;
+            mLastDrawn = ws != null && ws.isDrawn();
 
             // isLeashReadyForDispatching (used to dispatch the leash of the control) is
             // depending on mGivenInsetsReady. Therefore, triggering notifyControlChanged here
             // again, so that the control with leash can be eventually dispatched
             if (!mGivenInsetsReady && isServerVisible() && !givenInsetsPending
                     && mControlTarget != null) {
+                ProtoLog.d(WM_DEBUG_IME,
+                        "onPostLayout: IME control ready to be dispatched, controlTarget=%s",
+                        mControlTarget);
                 mGivenInsetsReady = true;
                 ImeTracker.forLogging().onProgress(mStatsToken,
                         ImeTracker.PHASE_WM_POST_LAYOUT_NOTIFY_CONTROLS_CHANGED);
@@ -113,11 +124,15 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
                 // If the server visibility didn't change (still visible), and mGivenInsetsReady
                 // is set, we won't call into notifyControlChanged. Therefore, we can reset the
                 // statsToken, if available.
-                ProtoLog.d(WM_DEBUG_IME, "onPostLayout cancel statsToken, ws=%s", ws);
+                ProtoLog.w(WM_DEBUG_IME, "onPostLayout cancel statsToken, controlTarget=%s",
+                        mControlTarget);
                 ImeTracker.forLogging().onCancelled(mStatsToken,
                         ImeTracker.PHASE_WM_POST_LAYOUT_NOTIFY_CONTROLS_CHANGED);
                 mStatsToken = null;
             } else if (wasServerVisible && !isServerVisible()) {
+                ProtoLog.d(WM_DEBUG_IME,
+                        "onPostLayout: setImeShowing(false) was: %s, controlTarget=%s",
+                        isImeShowing(), mControlTarget);
                 setImeShowing(false);
             }
         }
@@ -151,6 +166,35 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
         }
     }
 
+    /**
+     * This is used to determine the desired serverVisibility state. For the IME, just having a
+     * window state that would be visible by policy is not enough.
+     */
+    @Override
+    protected boolean isSurfaceVisible() {
+        final boolean isSurfaceVisible = super.isSurfaceVisible();
+        if (android.view.inputmethod.Flags.refactorInsetsController()) {
+            final WindowState windowState = mWindowContainer.asWindowState();
+            if (mControl != null && windowState != null) {
+                final boolean isDrawn = windowState.isDrawn();
+                if (!isServerVisible() && isSurfaceVisible) {
+                    // In case the IME becomes visible, we need to check if it is already drawn and
+                    // does not have given insets pending. If it's not yet drawn, we do not set
+                    // server visibility
+                    return isDrawn && !windowState.mGivenInsetsPending;
+                } else if (mLastDrawn && !isDrawn) {
+                    // If the IME was drawn before, but is not drawn anymore, we need to reset
+                    // server visibility, which will also reset {@link
+                    // ImeInsetsSourceProvider#mGivenInsetsReady}. Otherwise, the new control
+                    // with leash won't be dispatched after the surface has redrawn.
+                    return false;
+                }
+            }
+        }
+        return isSurfaceVisible;
+    }
+
+
     @Nullable
     @Override
     InsetsSourceControl getControl(InsetsControlTarget target) {
@@ -178,12 +222,18 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
             if (control != null && control.getLeash() != null) {
                 ImeTracker.Token statsToken = getAndClearStatsToken();
                 if (statsToken == null) {
-                    ProtoLog.d(WM_DEBUG_IME, "IME getControl without statsToken");
-                } else {
-                    ImeTracker.forLogging().onProgress(statsToken,
-                            ImeTracker.PHASE_WM_GET_CONTROL_WITH_LEASH);
-                    control.setImeStatsToken(statsToken);
+                    ProtoLog.w(WM_DEBUG_IME,
+                            "IME getControl without statsToken (check previous request!). "
+                                    + "Start new request");
+                    // TODO(b/353463205) remove this later after fixing the race of two requests
+                    //  that cancel each other (cf. b/383466954#comment19).
+                    statsToken = ImeTracker.forLogging().onStart(ImeTracker.TYPE_SHOW,
+                            ImeTracker.ORIGIN_SERVER, SoftInputShowHideReason.CONTROLS_CHANGED,
+                            false /* fromUser */);
                 }
+                ImeTracker.forLogging().onProgress(statsToken,
+                        ImeTracker.PHASE_WM_GET_CONTROL_WITH_LEASH);
+                control.setImeStatsToken(statsToken);
             }
         }
         return control;
@@ -250,8 +300,8 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
         boolean oldVisibility = mSource.isVisible();
         super.updateVisibility();
         if (Flags.refactorInsetsController()) {
-            if (mSource.isVisible() && !oldVisibility && mImeRequester != null) {
-                reportImeDrawnForOrganizerIfNeeded(mImeRequester);
+            if (mSource.isVisible() && !oldVisibility && mControlTarget != null) {
+                reportImeDrawnForOrganizerIfNeeded(mControlTarget);
             }
         }
         onSourceChanged();
@@ -271,8 +321,27 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
         if (Flags.refactorInsetsController()) {
             // TODO(b/353463205) investigate if we should fail the statsToken, or if it's only
             //  temporary null.
-            if (target != null) {
-                invokeOnImeRequestedChangedListener(target.getWindow(), statsToken);
+            if (target != null && target == mControlTarget) {
+                // If insets target is not available (e.g. RemoteInsetsControlTarget), use current
+                // IME input target to update IME request state. For example, switch from a task
+                // with showing IME to a split-screen task without showing IME.
+                InputTarget imeInputTarget = mDisplayContent.getImeInputTarget();
+                if (imeInputTarget != target && imeInputTarget != null
+                        && imeInputTarget.isRequestedVisible(WindowInsets.Type.ime())
+                        != target.isRequestedVisible(WindowInsets.Type.ime())) {
+                    // Only update the controlTarget, if it has a different requested visibility
+                    // than the imeInputTarget. Otherwise, updateClientVisibility won't invoke
+                    // the listener, as nothing changed.
+                    reportImeInputTargetStateToControlTarget(imeInputTarget, target,
+                            statsToken);
+                } else {
+                    invokeOnImeRequestedChangedListener(target, statsToken);
+                }
+            } else {
+                ProtoLog.w(WM_DEBUG_IME,
+                        "Not invoking onImeRequestedChangedListener, target=%s, current "
+                                + "controlTarget=%s",
+                        target, mControlTarget);
             }
         }
     }
@@ -289,8 +358,9 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
                 } else {
                     ProtoLog.w(WM_DEBUG_IME,
                             "Tried to update client visibility for non-IME input target %s "
-                                    + "(current target: %s)",
-                            caller, mDisplayContent.getImeInputTarget());
+                                    + "(current target: %s, IME requested: %s)", caller,
+                            mDisplayContent.getImeInputTarget(),
+                            caller.isRequestedVisible(WindowInsets.Type.ime()));
                     ImeTracker.forLogging().onFailed(statsToken,
                             ImeTracker.PHASE_SERVER_UPDATE_CLIENT_VISIBILITY);
                 }
@@ -303,13 +373,11 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
                 reportImeDrawnForOrganizerIfNeeded((InsetsControlTarget) caller);
             }
         }
-        changed |= mDisplayContent.onImeInsetsClientVisibilityUpdate();
         if (Flags.refactorInsetsController()) {
             if (changed) {
                 ImeTracker.forLogging().onProgress(statsToken,
                         ImeTracker.PHASE_SERVER_UPDATE_CLIENT_VISIBILITY);
-                invokeOnImeRequestedChangedListener(mDisplayContent.getImeInputTarget(),
-                        statsToken);
+                invokeOnImeRequestedChangedListener(controlTarget, statsToken);
             } else {
                 // TODO(b/353463205) check cancelled / failed
                 ImeTracker.forLogging().onCancelled(statsToken,
@@ -356,14 +424,15 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
             controlTarget = mDisplayContent.getImeHostOrFallback(
                     ((InsetsControlTarget) imeInsetsTarget).getWindow());
 
-            if (controlTarget != imeInsetsTarget) {
+            if (controlTarget != null && controlTarget != imeInsetsTarget) {
                 ImeTracker.forLogging().onProgress(statsToken,
                         ImeTracker.PHASE_WM_SET_REMOTE_TARGET_IME_VISIBILITY);
                 controlTarget.setImeInputTargetRequestedVisibility(imeVisible, statsToken);
                 // not all virtual displays have an ImeInsetsSourceProvider, so it is not
                 // guaranteed that the IME will be started when the control target reports its
                 // requested visibility back. Thus, invoking the listener here.
-                invokeOnImeRequestedChangedListener(imeInsetsTarget, statsToken);
+                invokeOnImeRequestedChangedListener((InsetsControlTarget) imeInsetsTarget,
+                        statsToken);
             } else {
                 ImeTracker.forLogging().onFailed(statsToken,
                         ImeTracker.PHASE_WM_SET_REMOTE_TARGET_IME_VISIBILITY);
@@ -372,18 +441,28 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
     }
 
     // TODO(b/353463205) check callers to see if we can make statsToken @NonNull
-    private void invokeOnImeRequestedChangedListener(InsetsTarget insetsTarget,
+    private void invokeOnImeRequestedChangedListener(InsetsControlTarget controlTarget,
             @Nullable ImeTracker.Token statsToken) {
         final var imeListener = mDisplayContent.mWmService.mOnImeRequestedChangedListener;
         if (imeListener != null) {
-            if (insetsTarget != null) {
-                ImeTracker.forLogging().onProgress(statsToken,
+            if (controlTarget != null) {
+                final boolean imeAnimating = Flags.reportAnimatingInsetsTypes()
+                        && (controlTarget.getAnimatingTypes() & WindowInsets.Type.ime()) != 0;
+                final boolean imeVisible =
+                        controlTarget.isRequestedVisible(WindowInsets.Type.ime()) || imeAnimating;
+                final var finalStatsToken = statsToken != null ? statsToken
+                        : ImeTracker.forLogging().onStart(
+                                imeVisible ? ImeTracker.TYPE_SHOW : ImeTracker.TYPE_HIDE,
+                                ImeTracker.ORIGIN_SERVER,
+                                SoftInputShowHideReason.IME_REQUESTED_CHANGED_LISTENER,
+                                false /* fromUser */);
+                ImeTracker.forLogging().onProgress(finalStatsToken,
                         ImeTracker.PHASE_WM_POSTING_CHANGED_IME_VISIBILITY);
                 mDisplayContent.mWmService.mH.post(() -> {
-                    ImeTracker.forLogging().onProgress(statsToken,
+                    ImeTracker.forLogging().onProgress(finalStatsToken,
                             ImeTracker.PHASE_WM_INVOKING_IME_REQUESTED_LISTENER);
-                    imeListener.onImeRequestedChanged(insetsTarget.getWindowToken(),
-                            insetsTarget.isRequestedVisible(WindowInsets.Type.ime()), statsToken);
+                    imeListener.onImeRequestedChanged(controlTarget.getWindowToken(), imeVisible,
+                            finalStatsToken);
                 });
             } else {
                 ImeTracker.forLogging().onFailed(statsToken,
@@ -393,6 +472,26 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
             // TODO(b/353463205) We could combine the upper if's and remove the additional phase.
             ImeTracker.forLogging().onFailed(statsToken,
                     ImeTracker.PHASE_WM_DISPATCH_IME_REQUESTED_CHANGED);
+        }
+    }
+
+    @Override
+    void onAnimatingTypesChanged(InsetsControlTarget caller,
+            @Nullable ImeTracker.Token statsToken) {
+        if (Flags.reportAnimatingInsetsTypes()) {
+            final InsetsControlTarget controlTarget = getControlTarget();
+            // If the IME is not being requested anymore and the animation is finished, we need to
+            // invoke the listener, to let IMS eventually know
+            if (caller != null && caller == controlTarget && !caller.isRequestedVisible(
+                    WindowInsets.Type.ime())
+                    && (caller.getAnimatingTypes() & WindowInsets.Type.ime()) == 0) {
+                ImeTracker.forLogging().onFailed(statsToken,
+                        ImeTracker.PHASE_WM_NOTIFY_HIDE_ANIMATION_FINISHED);
+                invokeOnImeRequestedChangedListener(caller, statsToken);
+            } else {
+                ImeTracker.forLogging().onCancelled(statsToken,
+                        ImeTracker.PHASE_WM_NOTIFY_HIDE_ANIMATION_FINISHED);
+            }
         }
     }
 
@@ -621,6 +720,7 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
             // request (cancelling the initial show) or hide request (aborting the initial show).
             logIsScheduledAndReadyToShowIme(!visible /* aborted */);
         }
+        ProtoLog.d(WM_DEBUG_IME, "receiveImeStatsToken: visible=%s", visible);
         if (visible) {
             ImeTracker.forLogging().onCancelled(
                     mStatsToken, ImeTracker.PHASE_WM_ABORT_SHOW_IME_POST_LAYOUT);
@@ -736,6 +836,8 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
         pw.print(prefix);
         pw.print("mImeShowing=");
         pw.print(mImeShowing);
+        pw.print(" mLastDrawn=");
+        pw.print(mLastDrawn);
         if (mImeRequester != null) {
             pw.print(prefix);
             pw.print("showImePostLayout pending for mImeRequester=");
@@ -756,7 +858,7 @@ final class ImeInsetsSourceProvider extends InsetsSourceProvider {
         final WindowState imeRequesterWindow =
                 mImeRequester != null ? mImeRequester.getWindow() : null;
         if (imeRequesterWindow != null) {
-            imeRequesterWindow.dumpDebug(proto, IME_TARGET_FROM_IME, logLevel);
+            imeRequesterWindow.writeIdentifierToProto(proto, IME_TARGET_FROM_IME_IDENTIFIER);
         }
         proto.end(token);
     }

@@ -27,7 +27,6 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.policy.PhoneWindow;
 import com.android.systemui.clipboardoverlay.dagger.ClipboardOverlayModule.OverlayWindowContext;
 import com.android.systemui.screenshot.FloatingWindowUtil;
@@ -45,7 +44,6 @@ public class ClipboardOverlayWindow extends PhoneWindow
 
     private final Context mContext;
     private final WindowManager mWindowManager;
-    private final ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
     private final WindowManager.LayoutParams mWindowLayoutParams;
 
     private boolean mKeyboardVisible;
@@ -55,7 +53,6 @@ public class ClipboardOverlayWindow extends PhoneWindow
 
     @Inject
     ClipboardOverlayWindow(@OverlayWindowContext Context context,
-            @OverlayWindowContext ViewCaptureAwareWindowManager viewCaptureAwareWindowManager,
             @OverlayWindowContext WindowManager windowManager) {
         super(context);
         mContext = context;
@@ -66,10 +63,9 @@ public class ClipboardOverlayWindow extends PhoneWindow
         requestFeature(Window.FEATURE_ACTIVITY_TRANSITIONS);
         setBackgroundDrawableResource(android.R.color.transparent);
         mWindowManager = windowManager;
-        mViewCaptureAwareWindowManager = viewCaptureAwareWindowManager;
         mWindowLayoutParams = FloatingWindowUtil.getFloatingWindowParams();
         mWindowLayoutParams.setTitle("ClipboardOverlay");
-        setWindowManager(windowManager, null, null);
+        setWindowManager(mWindowManager, null, null);
         setWindowFocusable(false);
     }
 
@@ -86,12 +82,10 @@ public class ClipboardOverlayWindow extends PhoneWindow
 
         attach();
         withWindowAttached(() -> {
-            WindowInsets currentInsets = mWindowManager.getCurrentWindowMetrics()
-                    .getWindowInsets();
+            WindowInsets currentInsets = mWindowManager.getCurrentWindowMetrics().getWindowInsets();
             mKeyboardVisible = currentInsets.isVisible(WindowInsets.Type.ime());
             peekDecorView().getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-                WindowInsets insets = mWindowManager.getCurrentWindowMetrics()
-                        .getWindowInsets();
+                WindowInsets insets = mWindowManager.getCurrentWindowMetrics().getWindowInsets();
                 boolean keyboardVisible = insets.isVisible(WindowInsets.Type.ime());
                 if (keyboardVisible != mKeyboardVisible) {
                     mKeyboardVisible = keyboardVisible;
@@ -112,7 +106,7 @@ public class ClipboardOverlayWindow extends PhoneWindow
     void remove() {
         final View decorView = peekDecorView();
         if (decorView != null && decorView.isAttachedToWindow()) {
-            mViewCaptureAwareWindowManager.removeViewImmediate(decorView);
+            mWindowManager.removeViewImmediate(decorView);
         }
     }
 
@@ -146,7 +140,7 @@ public class ClipboardOverlayWindow extends PhoneWindow
         if (decorView.isAttachedToWindow()) {
             return;
         }
-        mViewCaptureAwareWindowManager.addView(decorView, mWindowLayoutParams);
+        mWindowManager.addView(decorView, mWindowLayoutParams);
         decorView.requestApplyInsets();
     }
 
@@ -167,7 +161,7 @@ public class ClipboardOverlayWindow extends PhoneWindow
         }
         final View decorView = peekDecorView();
         if (decorView != null && decorView.isAttachedToWindow()) {
-            mViewCaptureAwareWindowManager.updateViewLayout(decorView, mWindowLayoutParams);
+            mWindowManager.updateViewLayout(decorView, mWindowLayoutParams);
         }
     }
 }

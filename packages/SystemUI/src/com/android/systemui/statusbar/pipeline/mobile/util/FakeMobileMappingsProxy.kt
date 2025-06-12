@@ -33,17 +33,20 @@ class FakeMobileMappingsProxy : MobileMappingsProxy {
     fun setIconMap(map: Map<String, MobileIconGroup>) {
         iconMap = map
     }
+
     override fun mapIconSets(config: Config): Map<String, MobileIconGroup> {
         if (useRealImpl) {
             return realImpl.mapIconSets(config)
         }
         return iconMap
     }
+
     fun getIconMap() = iconMap
 
     fun setDefaultIcons(group: MobileIconGroup) {
         defaultIcons = group
     }
+
     override fun getDefaultIcons(config: Config): MobileIconGroup {
         if (useRealImpl) {
             return realImpl.getDefaultIcons(config)
@@ -72,3 +75,6 @@ class FakeMobileMappingsProxy : MobileMappingsProxy {
         return toIconKey(networkType) + "_override"
     }
 }
+
+val MobileMappingsProxy.fake
+    get() = this as FakeMobileMappingsProxy

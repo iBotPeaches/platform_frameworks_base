@@ -29,6 +29,7 @@ import android.view.View
 import android.view.View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE
 import android.view.View.ACCESSIBILITY_LIVE_REGION_NONE
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.ImageView
@@ -37,7 +38,6 @@ import androidx.annotation.DimenRes
 import androidx.annotation.IdRes
 import androidx.annotation.VisibleForTesting
 import com.android.app.animation.Interpolators
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.widget.CachingIconView
 import com.android.systemui.Gefingerpoken
 import com.android.systemui.classifier.FalsingCollector
@@ -81,7 +81,7 @@ open class ChipbarCoordinator
 constructor(
     context: Context,
     logger: ChipbarLogger,
-    viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
+    windowManager: WindowManager,
     @Main mainExecutor: DelayableExecutor,
     accessibilityManager: AccessibilityManager,
     configurationController: ConfigurationController,
@@ -100,7 +100,7 @@ constructor(
     TemporaryViewDisplayController<ChipbarInfo, ChipbarLogger>(
         context,
         logger,
-        viewCaptureAwareWindowManager,
+        windowManager,
         mainExecutor,
         accessibilityManager,
         configurationController,

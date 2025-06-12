@@ -722,10 +722,15 @@ void RecyclingClippingPixelAllocator::copyIfNecessary() {
 
             auto canvas = SkCanvas(recycledPixels->getSkBitmap());
             SkRect destination = SkRect::Make(recycledPixels->info().bounds());
-            destination.intersect(SkRect::Make(mSkiaBitmap->info().bounds()));
-            canvas.drawImageRect(mSkiaBitmap->asImage(), *mDesiredSubset, destination,
-                                 SkSamplingOptions(SkFilterMode::kLinear), nullptr,
-                                 SkCanvas::kFast_SrcRectConstraint);
+            if (destination.intersect(SkRect::Make(mSkiaBitmap->info().bounds()))) {
+                canvas.drawImageRect(mSkiaBitmap->asImage(), *mDesiredSubset, destination,
+                                     SkSamplingOptions(SkFilterMode::kLinear), nullptr,
+                                     SkCanvas::kFast_SrcRectConstraint);
+            } else {
+                // The canvas would have discarded the draw operation automatically, but
+                // this case should have been detected before getting to this point.
+                ALOGE("Copy destination does not intersect image bounds");
+            }
         } else {
             void* dst = recycledPixels->pixels();
             const size_t dstRowBytes = mRecycledBitmap->rowBytes();

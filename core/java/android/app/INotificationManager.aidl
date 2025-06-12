@@ -121,10 +121,12 @@ interface INotificationManager
     void deleteNotificationChannelGroup(String pkg, String channelGroupId);
     NotificationChannelGroup getNotificationChannelGroup(String pkg, String channelGroupId);
     ParceledListSlice getNotificationChannelGroups(String pkg);
+    ParceledListSlice getNotificationChannelGroupsWithoutChannels(String pkg);
     boolean onlyHasDefaultChannel(String pkg, int uid);
     boolean areChannelsBypassingDnd();
     ParceledListSlice getNotificationChannelsBypassingDnd(String pkg, int uid);
     ParceledListSlice getPackagesBypassingDnd(int userId);
+    List<String> getPackagesWithAnyChannels(int userId);
     boolean isPackagePaused(String pkg);
     void deleteNotificationHistoryItem(String pkg, int uid, long postedTime);
     boolean isPermissionFixed(String pkg, int userId);
@@ -222,9 +224,7 @@ interface INotificationManager
     void setNotificationPolicyAccessGrantedForUser(String pkg, int userId, boolean granted);
     ZenPolicy getDefaultZenPolicy();
     AutomaticZenRule getAutomaticZenRule(String id);
-    Map<String, AutomaticZenRule> getAutomaticZenRules();
-    // TODO: b/310620812 - Remove getZenRules() when MODES_API is inlined.
-    List<ZenModeConfig.ZenRule> getZenRules();
+    ParceledListSlice getAutomaticZenRules();
     String addAutomaticZenRule(in AutomaticZenRule automaticZenRule, String pkg, boolean fromUser);
     boolean updateAutomaticZenRule(String id, in AutomaticZenRule automaticZenRule, boolean fromUser);
     boolean removeAutomaticZenRule(String id, boolean fromUser);
@@ -270,6 +270,10 @@ interface INotificationManager
 
     int[] getAllowedAdjustmentKeyTypes();
     void setAssistantAdjustmentKeyTypeState(int type, boolean enabled);
-    String[] getTypeAdjustmentDeniedPackages();
-    void setTypeAdjustmentForPackageState(String pkg, boolean enabled);
+    String[] getAdjustmentDeniedPackages(String key);
+    boolean isAdjustmentSupportedForPackage(String key, String pkg);
+    void setAdjustmentSupportedForPackage(String key, String pkg, boolean enabled);
+
+    // TODO: b/389918945 - Remove once nm_binder_perf flags are going to Nextfood.
+    void incrementCounter(String metricId);
 }

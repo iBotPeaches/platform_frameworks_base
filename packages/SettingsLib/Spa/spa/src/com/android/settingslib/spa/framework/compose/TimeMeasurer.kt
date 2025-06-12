@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalTime::class)
-
 package com.android.settingslib.spa.framework.compose
 
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
 const val ENABLE_MEASURE_TIME = false

@@ -26,6 +26,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 
+import android.app.PropertyInvalidatedCache;
 import android.content.Context;
 import android.multiuser.Flags;
 import android.os.UserManager;
@@ -75,6 +76,8 @@ public class StorageManagerServiceTest {
 
     @Before
     public void setFixtures() {
+        PropertyInvalidatedCache.disableForTestMode();
+
         // Called when WatchedUserStates is constructed
         doNothing().when(() -> UserManager.invalidateIsUserUnlockedCache());
 

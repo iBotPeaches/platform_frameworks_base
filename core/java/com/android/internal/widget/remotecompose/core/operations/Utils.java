@@ -41,6 +41,16 @@ public class Utils {
     }
 
     /**
+     * Converts an id encoded in a float to the corresponding long id.
+     *
+     * @param value the float if to convert
+     * @return the float id converted to a long id
+     */
+    public static long longIdFromNan(float value) {
+        return ((long) idFromNan(value)) + 0x100000000L;
+    }
+
+    /**
      * convert a long into an ID
      *
      * @param v the long to convert
@@ -278,5 +288,108 @@ public class Utils {
                 return 0XFF000000 | (v << 16) + (p << 8) + q;
         }
         return 0;
+    }
+
+    /**
+     * Convert float alpha, red,g reen, blue to ARGB int
+     *
+     * @param alpha alpha value
+     * @param red red value
+     * @param green green value
+     * @param blue blue value
+     * @return ARGB int
+     */
+    public static int toARGB(float alpha, float red, float green, float blue) {
+        int a = (int) (alpha * 255.0f + 0.5f);
+        int r = (int) (red * 255.0f + 0.5f);
+        int g = (int) (green * 255.0f + 0.5f);
+        int b = (int) (blue * 255.0f + 0.5f);
+        return (a << 24 | r << 16 | g << 8 | b);
+    }
+
+    /**
+     * Returns the hue of an ARGB int
+     *
+     * @param argb the color int
+     * @return
+     */
+    public static float getHue(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        float hsl1, hsl2, hsl3;
+        final float rf = r / 255f;
+        final float gf = g / 255f;
+        final float bf = b / 255f;
+        final float max = Math.max(rf, Math.max(gf, bf));
+        final float min = Math.min(rf, Math.min(gf, bf));
+        final float deltaMaxMin = max - min;
+        float h;
+        if (max == min) {
+            // Monochromatic
+            h = 0f;
+        } else {
+            if (max == rf) {
+                h = ((gf - bf) / deltaMaxMin) % 6f;
+            } else if (max == gf) {
+                h = ((bf - rf) / deltaMaxMin) + 2f;
+            } else {
+                h = ((rf - gf) / deltaMaxMin) + 4f;
+            }
+        }
+        h = (h * 60f) % 360f;
+        if (h < 0) {
+            h += 360f;
+        }
+        return h / 360f;
+    }
+
+    /**
+     * Get the saturation of an ARGB int
+     *
+     * @param argb the color int
+     * @return
+     */
+    public static float getSaturation(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+
+        final float rf = r / 255f;
+        final float gf = g / 255f;
+        final float bf = b / 255f;
+        final float max = Math.max(rf, Math.max(gf, bf));
+        final float min = Math.min(rf, Math.min(gf, bf));
+        final float deltaMaxMin = max - min;
+        float s;
+        float l = (max + min) / 2f;
+        if (max == min) {
+            // Monochromatic
+            s = 0f;
+        } else {
+
+            s = deltaMaxMin / (1f - Math.abs(2f * l - 1f));
+        }
+
+        return s;
+    }
+
+    /**
+     * Get the brightness of an ARGB int
+     *
+     * @param argb the color int
+     * @return
+     */
+    public static float getBrightness(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        final float rf = r / 255f;
+        final float gf = g / 255f;
+        final float bf = b / 255f;
+        final float max = Math.max(rf, Math.max(gf, bf));
+        final float min = Math.min(rf, Math.min(gf, bf));
+
+        return (max + min) / 2f;
     }
 }

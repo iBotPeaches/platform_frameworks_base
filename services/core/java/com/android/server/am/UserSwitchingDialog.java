@@ -16,6 +16,8 @@
 
 package com.android.server.am;
 
+import static com.android.server.am.UserController.USER_SWITCHING_DIALOG_ANIMATION_TIMEOUT_MSG;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -34,12 +36,10 @@ import android.graphics.drawable.Animatable2;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.util.Slog;
 import android.util.TypedValue;
 import android.view.View;
@@ -53,8 +53,8 @@ import android.widget.TextView;
 import com.android.internal.R;
 import com.android.internal.util.ObjectUtils;
 import com.android.internal.util.UserIcons;
-import com.android.server.wm.WindowManagerService;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -74,31 +74,29 @@ class UserSwitchingDialog extends Dialog {
 
     // Time to wait for the onAnimationEnd() callbacks before moving on
     private static final int ANIMATION_TIMEOUT_MS = 1000;
-    private final Handler mHandler = new Handler(Looper.myLooper());
+    private final Handler mHandler;
 
     protected final UserInfo mOldUser;
     protected final UserInfo mNewUser;
-    private final String mSwitchingFromSystemUserMessage;
-    private final String mSwitchingToSystemUserMessage;
-    private final WindowManagerService mWindowManager;
+    @Nullable
+    private final String mSwitchingFromUserMessage;
+    @Nullable
+    private final String mSwitchingToUserMessage;
     protected final Context mContext;
     private final int mTraceCookie;
-    private final boolean mNeedToFreezeScreen;
 
-    UserSwitchingDialog(Context context, UserInfo oldUser, UserInfo newUser,
-            String switchingFromSystemUserMessage, String switchingToSystemUserMessage,
-            WindowManagerService windowManager) {
+    UserSwitchingDialog(Context context, UserInfo oldUser, UserInfo newUser, Handler handler,
+            @Nullable String switchingFromUserMessage, @Nullable String switchingToUserMessage) {
         super(context, R.style.Theme_Material_NoActionBar_Fullscreen);
 
         mContext = context;
         mOldUser = oldUser;
         mNewUser = newUser;
-        mSwitchingFromSystemUserMessage = switchingFromSystemUserMessage;
-        mSwitchingToSystemUserMessage = switchingToSystemUserMessage;
+        mHandler = handler;
+        mSwitchingFromUserMessage = switchingFromUserMessage;
+        mSwitchingToUserMessage = switchingToUserMessage;
         mDisableAnimations = SystemProperties.getBoolean(
                 "debug.usercontroller.disable_user_switching_dialog_animations", false);
-        mWindowManager = windowManager;
-        mNeedToFreezeScreen = !mDisableAnimations && !isUserSetupComplete(newUser);
         mTraceCookie = UserHandle.MAX_SECONDARY_USER_ID * oldUser.id + newUser.id;
 
         inflateContent();
@@ -173,19 +171,14 @@ class UserSwitchingDialog extends Dialog {
                     : R.string.demo_starting_message);
         }
 
-        final String message =
-                mOldUser.id == UserHandle.USER_SYSTEM ? mSwitchingFromSystemUserMessage
-                : mNewUser.id == UserHandle.USER_SYSTEM ? mSwitchingToSystemUserMessage : null;
+        if (mSwitchingFromUserMessage != null || mSwitchingToUserMessage != null) {
+            if (mSwitchingFromUserMessage != null && mSwitchingToUserMessage != null) {
+                return mSwitchingFromUserMessage + " " + mSwitchingToUserMessage;
+            }
+            return Objects.requireNonNullElse(mSwitchingFromUserMessage, mSwitchingToUserMessage);
+        }
 
-        return message != null ? message
-                // If switchingFromSystemUserMessage or switchingToSystemUserMessage is null,
-                // fallback to system message.
-                : res.getString(R.string.user_switching_message, mNewUser.name);
-    }
-
-    private boolean isUserSetupComplete(UserInfo user) {
-        return Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                Settings.Secure.USER_SETUP_COMPLETE, /* default= */ 0, user.id) == 1;
+        return res.getString(R.string.user_switching_message, mNewUser.name);
     }
 
     @Override
@@ -197,7 +190,6 @@ class UserSwitchingDialog extends Dialog {
     @Override
     public void dismiss() {
         super.dismiss();
-        stopFreezingScreen();
         asyncTraceEnd("dialog", 0);
     }
 
@@ -205,7 +197,6 @@ class UserSwitchingDialog extends Dialog {
         if (DEBUG) Slog.d(TAG, "show called");
         show();
         startShowAnimation(() -> {
-            startFreezingScreen();
             onShown.run();
         });
     }
@@ -221,24 +212,6 @@ class UserSwitchingDialog extends Dialog {
                 onDismissed.run();
             });
         }
-    }
-
-    private void startFreezingScreen() {
-        if (!mNeedToFreezeScreen) {
-            return;
-        }
-        traceBegin("startFreezingScreen");
-        mWindowManager.startFreezingScreen(0, 0);
-        traceEnd("startFreezingScreen");
-    }
-
-    private void stopFreezingScreen() {
-        if (!mNeedToFreezeScreen) {
-            return;
-        }
-        traceBegin("stopFreezingScreen");
-        mWindowManager.stopFreezingScreen();
-        traceEnd("stopFreezingScreen");
     }
 
     private void startShowAnimation(Runnable onAnimationEnd) {
@@ -260,7 +233,7 @@ class UserSwitchingDialog extends Dialog {
     }
 
     private void startDismissAnimation(Runnable onAnimationEnd) {
-        if (mDisableAnimations || mNeedToFreezeScreen) {
+        if (mDisableAnimations) {
             // animations are disabled or screen is frozen, no need to play an animation
             onAnimationEnd.run();
             return;
@@ -331,14 +304,14 @@ class UserSwitchingDialog extends Dialog {
         final AtomicBoolean isFirst = new AtomicBoolean(true);
         final Runnable onAnimationEndOrTimeout = () -> {
             if (isFirst.getAndSet(false)) {
-                mHandler.removeCallbacksAndMessages(null);
+                mHandler.removeMessages(USER_SWITCHING_DIALOG_ANIMATION_TIMEOUT_MSG);
                 onAnimationEnd.run();
             }
         };
         mHandler.postDelayed(() -> {
             Slog.w(TAG, name + " animation not completed in " + ANIMATION_TIMEOUT_MS + " ms");
             onAnimationEndOrTimeout.run();
-        }, ANIMATION_TIMEOUT_MS);
+        }, USER_SWITCHING_DIALOG_ANIMATION_TIMEOUT_MSG, ANIMATION_TIMEOUT_MS);
 
         return onAnimationEndOrTimeout;
     }
@@ -351,15 +324,5 @@ class UserSwitchingDialog extends Dialog {
     private void asyncTraceEnd(String subTag, int subCookie) {
         Trace.asyncTraceEnd(TRACE_TAG, TAG + subTag, mTraceCookie + subCookie);
         if (DEBUG) Slog.d(TAG, "asyncTraceEnd-" + subTag);
-    }
-
-    private void traceBegin(String msg) {
-        if (DEBUG) Slog.d(TAG, "traceBegin-" + msg);
-        Trace.traceBegin(TRACE_TAG, msg);
-    }
-
-    private void traceEnd(String msg) {
-        Trace.traceEnd(TRACE_TAG);
-        if (DEBUG) Slog.d(TAG, "traceEnd-" + msg);
     }
 }

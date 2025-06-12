@@ -18,13 +18,12 @@ package com.android.systemui.statusbar.data.repository
 
 import android.view.WindowManager.LayoutParams.TYPE_STATUS_BAR
 import com.android.systemui.CoreStartable
-import com.android.systemui.common.ui.GlobalConfig
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.display.data.repository.SingleDisplayStore
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.phone.ConfigurationControllerImpl
@@ -53,18 +52,18 @@ constructor(
     private val configurationControllerFactory: ConfigurationControllerImpl.Factory,
 ) :
     StatusBarConfigurationControllerStore,
-    PerDisplayStoreImpl<StatusBarConfigurationController>(
+    StatusBarPerDisplayStoreImpl<StatusBarConfigurationController>(
         backgroundApplicationScope,
         displayRepository,
     ) {
 
     init {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
     }
 
-    override fun createInstanceForDisplay(displayId: Int): StatusBarConfigurationController {
+    override fun createInstanceForDisplay(displayId: Int): StatusBarConfigurationController? {
         val displayWindowProperties =
-            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR)
+            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR) ?: return null
         return configurationControllerFactory.create(displayWindowProperties.context)
     }
 
@@ -74,7 +73,7 @@ constructor(
 @SysUISingleton
 class SingleDisplayStatusBarConfigurationControllerStore
 @Inject
-constructor(@GlobalConfig globalConfigurationController: ConfigurationController) :
+constructor(@Main globalConfigurationController: ConfigurationController) :
     StatusBarConfigurationControllerStore,
     PerDisplayStore<StatusBarConfigurationController> by SingleDisplayStore(
         globalConfigurationController as StatusBarConfigurationController

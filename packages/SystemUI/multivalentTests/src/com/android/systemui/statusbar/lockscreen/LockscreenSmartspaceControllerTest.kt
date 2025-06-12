@@ -846,7 +846,7 @@ class LockscreenSmartspaceControllerTest : SysuiTestCase() {
     }
 
     private fun connectSession() {
-        val dateView = controller.buildAndConnectDateView(fakeParent)
+        val dateView = controller.buildAndConnectDateView(fakeParent, false)
         dateSmartspaceView = dateView as SmartspaceView
         fakeParent.addView(dateView)
         controller.stateChangeListener.onViewAttachedToWindow(dateView)
@@ -860,7 +860,7 @@ class LockscreenSmartspaceControllerTest : SysuiTestCase() {
         verify(dateSmartspaceView).setPrimaryTextColor(anyInt())
         verify(dateSmartspaceView).setDozeAmount(0.5f)
 
-        val weatherView = controller.buildAndConnectWeatherView(fakeParent)
+        val weatherView = controller.buildAndConnectWeatherView(fakeParent, false)
         weatherSmartspaceView = weatherView as SmartspaceView
         fakeParent.addView(weatherView)
         controller.stateChangeListener.onViewAttachedToWindow(weatherView)

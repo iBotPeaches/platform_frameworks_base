@@ -31,7 +31,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.app.ActivityManagerInternal;
 import android.content.Context;
@@ -226,7 +226,7 @@ public class SystemAppUpdateTrackerTest {
 
         assertTrue(!mSystemAppUpdateTracker.getUpdatedApps().contains(DEFAULT_PACKAGE_NAME_2));
         // getApplicationLocales should be never be invoked if not a system app.
-        verifyZeroInteractions(mMockActivityTaskManager);
+        verifyNoMoreInteractions(mMockActivityTaskManager);
         // Broadcast should be never sent if not a system app.
         verify(mMockContext, never()).sendBroadcastAsUser(any(), any());
         // It shouldn't write to the file if not a system app.
@@ -244,7 +244,7 @@ public class SystemAppUpdateTrackerTest {
                 Binder.getCallingUid());
 
         // getApplicationLocales should be never be invoked if not installer is not present.
-        verifyZeroInteractions(mMockActivityTaskManager);
+        verifyNoMoreInteractions(mMockActivityTaskManager);
         // Broadcast should be never sent if installer is not present.
         verify(mMockContext, never()).sendBroadcastAsUser(any(), any());
         // It shouldn't write to file if no installer present.

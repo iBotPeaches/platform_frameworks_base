@@ -92,7 +92,6 @@ import java.util.List;
 public class BatteryStatsImplTest {
     @Rule(order = 0)
     public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
             .setSystemPropertyImmutable("persist.sys.com.android.server.power.feature.flags."
                 + "framework_wakelock_info-override", null)
             .build();
@@ -141,8 +140,7 @@ public class BatteryStatsImplTest {
         HandlerThread bgThread = new HandlerThread("bg thread");
         bgThread.start();
         mHandler = new Handler(bgThread.getLooper());
-        mBatteryStatsImpl = new MockBatteryStatsImpl(mMockClock, null, mHandler)
-                .setPowerProfile(mPowerProfile)
+        mBatteryStatsImpl = new MockBatteryStatsImpl(mMockClock, null, mHandler, mPowerProfile)
                 .setCpuScalingPolicies(mCpuScalingPolicies)
                 .setKernelCpuUidFreqTimeReader(mKernelUidCpuFreqTimeReader)
                 .setKernelSingleUidTimeReader(mKernelSingleUidTimeReader)
@@ -151,7 +149,7 @@ public class BatteryStatsImplTest {
         File systemDir = Files.createTempDirectory("BatteryStatsHistoryTest").toFile();
 
         Context context;
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             context = mock(Context.class);
             SensorManager sensorManager = mock(SensorManager.class);
             when(sensorManager.getSensorList(anyInt())).thenReturn(List.of());
@@ -857,7 +855,7 @@ public class BatteryStatsImplTest {
     }
 
     private UidTraffic createUidTraffic(int appUid, long rxBytes, long txBytes) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             UidTraffic uidTraffic = mock(UidTraffic.class);
             when(uidTraffic.getUid()).thenReturn(appUid);
             when(uidTraffic.getRxBytes()).thenReturn(rxBytes);
@@ -882,7 +880,7 @@ public class BatteryStatsImplTest {
             long controllerIdleTimeMs,
             long controllerEnergyUsed,
             UidTraffic... uidTraffic) {
-        if (RavenwoodRule.isUnderRavenwood()) {
+        if (RavenwoodRule.isOnRavenwood()) {
             BluetoothActivityEnergyInfo info = mock(BluetoothActivityEnergyInfo.class);
             when(info.getTimestampMillis()).thenReturn(timestamp);
             when(info.getControllerTxTimeMillis()).thenReturn(controllerTxTimeMs);
@@ -919,11 +917,11 @@ public class BatteryStatsImplTest {
         synchronized (mBatteryStatsImpl) {
             mBatteryStatsImpl.setOnBatteryLocked(mMockClock.realtime, mMockClock.uptime, true,
                     BatteryManager.BATTERY_STATUS_DISCHARGING, 50, 0);
-            // Will not save to PowerStatsStore because "saveBatteryUsageStatsOnReset" has not
-            // been called yet.
-            mBatteryStatsImpl.resetAllStatsAndHistoryLocked(
-                    BatteryStatsImpl.RESET_REASON_ADB_COMMAND);
         }
+        // Will not save to PowerStatsStore because "saveBatteryUsageStatsOnReset" has not
+        // been called yet.
+        mBatteryStatsImpl.startNewSession(BatteryStatsImpl.RESET_REASON_ADB_COMMAND);
+        awaitCompletion();
 
         assertThat(mPowerStatsStore.getTableOfContents()).isEmpty();
 
@@ -945,15 +943,8 @@ public class BatteryStatsImplTest {
         mMockClock.currentTime += 60000;
 
         // Battery stats reset should have the side-effect of saving accumulated battery usage stats
-        synchronized (mBatteryStatsImpl) {
-            mBatteryStatsImpl.resetAllStatsAndHistoryLocked(
-                    BatteryStatsImpl.RESET_REASON_ADB_COMMAND);
-        }
-
-        // Await completion
-        ConditionVariable done = new ConditionVariable();
-        mHandler.post(done::open);
-        done.block();
+        mBatteryStatsImpl.startNewSession(BatteryStatsImpl.RESET_REASON_ADB_COMMAND);
+        awaitCompletion();
 
         List<PowerStatsSpan.Metadata> contents = mPowerStatsStore.getTableOfContents();
         assertThat(contents).hasSize(1);
@@ -981,5 +972,12 @@ public class BatteryStatsImplTest {
                 .isEqualTo(60000);
 
         span.close();
+    }
+
+    private void awaitCompletion() {
+        // Await completion
+        ConditionVariable done = new ConditionVariable();
+        mHandler.post(done::open);
+        done.block();
     }
 }

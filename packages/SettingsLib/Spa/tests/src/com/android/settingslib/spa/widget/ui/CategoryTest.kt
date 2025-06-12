@@ -71,10 +71,17 @@ class CategoryTest {
     }
 
     @Test
-    fun lazyCategory_content_displayed() {
+    fun lazyCategory_headerDisplayed() {
         composeTestRule.setContent { TestLazyCategory() }
 
-        composeTestRule.onNodeWithText("text").assertExists()
+        composeTestRule.onNodeWithText("Header").assertExists()
+    }
+
+    @Test
+    fun lazyCategory_footerDisplayed() {
+        composeTestRule.setContent { TestLazyCategory() }
+
+        composeTestRule.onNodeWithText("Footer").assertExists()
     }
 
     @Test
@@ -102,8 +109,8 @@ private fun TestLazyCategory() {
             list = list,
             entry = { index: Int -> @Composable { Preference(list[index]) } },
             title = { index: Int -> if (index == 0) "LazyCategory $index" else null },
-        ) {
-            Text("text")
-        }
+            footer = @Composable { Footer("Footer") },
+            header = @Composable { Text("Header") },
+        )
     }
 }

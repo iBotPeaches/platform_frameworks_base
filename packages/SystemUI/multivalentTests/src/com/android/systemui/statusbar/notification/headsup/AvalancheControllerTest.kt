@@ -17,9 +17,10 @@ package com.android.systemui.statusbar.notification.headsup
 
 import android.app.Notification
 import android.os.Handler
+import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
+import android.platform.test.flag.junit.FlagsParameterization
 import android.testing.TestableLooper.RunWithLooper
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.internal.logging.testing.UiEventLoggerFake
 import com.android.systemui.SysuiTestCase
@@ -28,6 +29,7 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.plugins.statusbar.statusBarStateController
 import com.android.systemui.shade.domain.interactor.shadeInteractor
+import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips
 import com.android.systemui.statusbar.notification.collection.NotificationEntryBuilder
 import com.android.systemui.statusbar.notification.collection.provider.visualStabilityProvider
 import com.android.systemui.statusbar.notification.collection.render.GroupMembershipManagerImpl
@@ -53,12 +55,18 @@ import org.mockito.Mockito
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.junit.MockitoJUnit
 import org.mockito.junit.MockitoRule
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4
+import platform.test.runner.parameterized.Parameters
 
 @SmallTest
 @RunWithLooper
-@RunWith(AndroidJUnit4::class)
+@RunWith(ParameterizedAndroidJunit4::class)
 @EnableFlags(NotificationThrottleHun.FLAG_NAME)
-class AvalancheControllerTest : SysuiTestCase() {
+class AvalancheControllerTest(val flags: FlagsParameterization) : SysuiTestCase() {
+    init {
+        mSetFlagsRule.setFlagsParameterization(flags)
+    }
+
     private val kosmos = testKosmos()
 
     // For creating mocks
@@ -72,10 +80,10 @@ class AvalancheControllerTest : SysuiTestCase() {
     // For creating TestableHeadsUpManager
     @Mock private val mAccessibilityMgr: AccessibilityManagerWrapper? = null
     private val mUiEventLoggerFake = UiEventLoggerFake()
-    @Mock private lateinit var mHeadsUpManagerLogger: HeadsUpManagerLogger
+    private val headsUpManagerLogger = HeadsUpManagerLogger(logcatLogBuffer())
     @Mock private lateinit var mBgHandler: Handler
 
-    private val mLogger = Mockito.spy(HeadsUpManagerLogger(logcatLogBuffer()))
+    private val mLogger = Mockito.spy(headsUpManagerLogger)
     private val mGlobalSettings = FakeGlobalSettings()
     private val mSystemClock = FakeSystemClock()
     private val mExecutor = FakeExecutor(mSystemClock)
@@ -95,7 +103,7 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Initialize AvalancheController and TestableHeadsUpManager during setUp instead of
         // declaration, where mocks are null
         mAvalancheController =
-            AvalancheController(dumpManager, mUiEventLoggerFake, mHeadsUpManagerLogger, mBgHandler)
+            AvalancheController(dumpManager, mUiEventLoggerFake, headsUpManagerLogger, mBgHandler)
 
         testableHeadsUpManager =
             HeadsUpManagerImpl(
@@ -234,32 +242,6 @@ class AvalancheControllerTest : SysuiTestCase() {
     }
 
     @Test
-    fun testDelete_wasDropped_removedFromDropSet() {
-        // Entry was dropped
-        val headsUpEntry = createHeadsUpEntry(id = 0)
-        mAvalancheController.debugDropSet.add(headsUpEntry)
-
-        // Delete
-        mAvalancheController.delete(headsUpEntry, runnableMock!!, "testLabel")
-
-        // Entry was removed from dropSet
-        assertThat(mAvalancheController.debugDropSet.contains(headsUpEntry)).isFalse()
-    }
-
-    @Test
-    fun testDelete_wasDropped_runnableNotRun() {
-        // Entry was dropped
-        val headsUpEntry = createHeadsUpEntry(id = 0)
-        mAvalancheController.debugDropSet.add(headsUpEntry)
-
-        // Delete
-        mAvalancheController.delete(headsUpEntry, runnableMock!!, "testLabel")
-
-        // Runnable was not run
-        Mockito.verify(runnableMock, Mockito.times(0)).run()
-    }
-
-    @Test
     fun testDelete_isShowing_runnableRun() {
         // Entry is showing
         val headsUpEntry = createHeadsUpEntry(id = 0)
@@ -304,7 +286,7 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Delete
         mAvalancheController.delete(firstEntry, runnableMock, "testLabel")
 
-        // Next entry is shown
+        // Showing entry becomes previous
         assertThat(mAvalancheController.previousHunKey).isEqualTo(firstEntry.mEntry!!.key)
     }
 
@@ -322,12 +304,12 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Delete
         mAvalancheController.delete(showingEntry, runnableMock!!, "testLabel")
 
-        // Next entry is shown
+        // Previous key not filled in
         assertThat(mAvalancheController.previousHunKey).isEqualTo("")
     }
 
     @Test
-    fun testGetDurationMs_untrackedEntryEmptyAvalanche_useAutoDismissTime() {
+    fun testGetDuration_untrackedEntryEmptyAvalanche_useAutoDismissTime() {
         val givenEntry = createHeadsUpEntry(id = 0)
 
         // Nothing is showing
@@ -336,12 +318,12 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Nothing is next
         mAvalancheController.clearNext()
 
-        val durationMs = mAvalancheController.getDurationMs(givenEntry, autoDismissMs = 5000)
-        assertThat(durationMs).isEqualTo(5000)
+        val durationMs = mAvalancheController.getDuration(givenEntry, autoDismissMsValue = 5000)
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(5000)
     }
 
     @Test
-    fun testGetDurationMs_untrackedEntryNonEmptyAvalanche_useAutoDismissTime() {
+    fun testGetDuration_untrackedEntryNonEmptyAvalanche_useAutoDismissTime() {
         val givenEntry = createHeadsUpEntry(id = 0)
 
         // Given entry not tracked
@@ -351,12 +333,12 @@ class AvalancheControllerTest : SysuiTestCase() {
         val nextEntry = createHeadsUpEntry(id = 2)
         mAvalancheController.addToNext(nextEntry, runnableMock!!)
 
-        val durationMs = mAvalancheController.getDurationMs(givenEntry, autoDismissMs = 5000)
-        assertThat(durationMs).isEqualTo(5000)
+        val durationMs = mAvalancheController.getDuration(givenEntry, autoDismissMsValue = 5000)
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(5000)
     }
 
     @Test
-    fun testGetDurationMs_lastEntry_useAutoDismissTime() {
+    fun testGetDuration_lastEntry_useAutoDismissTime() {
         // Entry is showing
         val showingEntry = createHeadsUpEntry(id = 0)
         mAvalancheController.headsUpEntryShowing = showingEntry
@@ -364,12 +346,12 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Nothing is next
         mAvalancheController.clearNext()
 
-        val durationMs = mAvalancheController.getDurationMs(showingEntry, autoDismissMs = 5000)
-        assertThat(durationMs).isEqualTo(5000)
+        val durationMs = mAvalancheController.getDuration(showingEntry, autoDismissMsValue = 5000)
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(5000)
     }
 
     @Test
-    fun testGetDurationMs_nextEntryLowerPriority_5000() {
+    fun testGetDuration_nextEntryLowerPriority_5000() {
         // Entry is showing
         val showingEntry = createFsiHeadsUpEntry(id = 1)
         mAvalancheController.headsUpEntryShowing = showingEntry
@@ -381,12 +363,12 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Next entry has lower priority
         assertThat(nextEntry.compareNonTimeFields(showingEntry)).isEqualTo(1)
 
-        val durationMs = mAvalancheController.getDurationMs(showingEntry, autoDismissMs = 5000)
-        assertThat(durationMs).isEqualTo(5000)
+        val durationMs = mAvalancheController.getDuration(showingEntry, autoDismissMsValue = 5000)
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(5000)
     }
 
     @Test
-    fun testGetDurationMs_nextEntrySamePriority_1000() {
+    fun testGetDuration_nextEntrySamePriority_1000() {
         // Entry is showing
         val showingEntry = createHeadsUpEntry(id = 0)
         mAvalancheController.headsUpEntryShowing = showingEntry
@@ -398,12 +380,12 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Same priority
         assertThat(nextEntry.compareNonTimeFields(showingEntry)).isEqualTo(0)
 
-        val durationMs = mAvalancheController.getDurationMs(showingEntry, autoDismissMs = 5000)
-        assertThat(durationMs).isEqualTo(1000)
+        val durationMs = mAvalancheController.getDuration(showingEntry, autoDismissMsValue = 5000)
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(1000)
     }
 
     @Test
-    fun testGetDurationMs_nextEntryHigherPriority_500() {
+    fun testGetDuration_nextEntryHigherPriority_500() {
         // Entry is showing
         val showingEntry = createHeadsUpEntry(id = 0)
         mAvalancheController.headsUpEntryShowing = showingEntry
@@ -415,7 +397,51 @@ class AvalancheControllerTest : SysuiTestCase() {
         // Next entry has higher priority
         assertThat(nextEntry.compareNonTimeFields(showingEntry)).isEqualTo(-1)
 
-        val durationMs = mAvalancheController.getDurationMs(showingEntry, autoDismissMs = 5000)
-        assertThat(durationMs).isEqualTo(500)
+        val durationMs = mAvalancheController.getDuration(showingEntry, autoDismissMsValue = 5000)
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(500)
+    }
+
+    @Test
+    @DisableFlags(StatusBarNotifChips.FLAG_NAME)
+    fun testGetDuration_nextEntryIsPinnedByUser_flagOff_1000() {
+        // Entry is showing
+        val showingEntry = createHeadsUpEntry(id = 0)
+        mAvalancheController.headsUpEntryShowing = showingEntry
+
+        // There's another entry waiting to show next and it's PinnedByUser
+        val nextEntry = createHeadsUpEntry(id = 1)
+        nextEntry.requestedPinnedStatus = PinnedStatus.PinnedByUser
+        mAvalancheController.addToNext(nextEntry, runnableMock!!)
+
+        val durationMs = mAvalancheController.getDuration(showingEntry, autoDismissMsValue = 5000)
+
+        // BUT PinnedByUser is ignored because flag is off, so the duration for a SAME priority next
+        // is used
+        assertThat((durationMs as RemainingDuration.UpdatedDuration).duration).isEqualTo(1000)
+    }
+
+    @Test
+    @EnableFlags(StatusBarNotifChips.FLAG_NAME)
+    fun testGetDuration_nextEntryIsPinnedByUser_flagOn_hideImmediately() {
+        // Entry is showing
+        val showingEntry = createHeadsUpEntry(id = 0)
+        mAvalancheController.headsUpEntryShowing = showingEntry
+
+        // There's another entry waiting to show next and it's PinnedByUser
+        val nextEntry = createHeadsUpEntry(id = 1)
+        nextEntry.requestedPinnedStatus = PinnedStatus.PinnedByUser
+        mAvalancheController.addToNext(nextEntry, runnableMock!!)
+
+        val duration = mAvalancheController.getDuration(showingEntry, autoDismissMsValue = 5000)
+
+        assertThat(duration).isEqualTo(RemainingDuration.HideImmediately)
+    }
+
+    companion object {
+        @JvmStatic
+        @Parameters(name = "{0}")
+        fun getParams(): List<FlagsParameterization> {
+            return FlagsParameterization.allCombinationsOf(StatusBarNotifChips.FLAG_NAME)
+        }
     }
 }

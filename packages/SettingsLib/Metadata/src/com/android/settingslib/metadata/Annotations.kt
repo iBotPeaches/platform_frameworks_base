@@ -16,23 +16,32 @@
 
 package com.android.settingslib.metadata
 
-import kotlin.reflect.KClass
-
 /**
  * Annotation to provide preference screen.
  *
  * The annotated class must satisfy either condition:
  * - the primary constructor has no parameter
  * - the primary constructor has a single [android.content.Context] parameter
- * - it is a Kotlin object class
+ * - (parameterized) the primary constructor has a single [android.os.Bundle] parameter to override
+ *   [PreferenceScreenMetadata.arguments]
+ * - (parameterized) the primary constructor has a [android.content.Context] and a
+ *   [android.os.Bundle] parameter to override [PreferenceScreenMetadata.arguments]
  *
- * @param overlay if specified, current annotated screen will overlay the given screen
+ * @param value unique preference screen key
+ * @param overlay if true, current annotated screen will overlay the screen that has identical key
+ * @param parameterized if true, the screen relies on additional arguments to build its content
+ * @param parameterizedMigration whether the parameterized screen was a normal screen, in which case
+ *   `Bundle.EMPTY` will be passed as arguments to take care of backward compatibility
+ * @see PreferenceScreenMetadata
  */
 @Retention(AnnotationRetention.SOURCE)
 @Target(AnnotationTarget.CLASS)
 @MustBeDocumented
 annotation class ProvidePreferenceScreen(
-    val overlay: KClass<out PreferenceScreenMetadata> = PreferenceScreenMetadata::class,
+    val value: String,
+    val overlay: Boolean = false,
+    val parameterized: Boolean = false,
+    val parameterizedMigration: Boolean = false, // effective only when parameterized is true
 )
 
 /**

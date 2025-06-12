@@ -25,8 +25,6 @@ import android.app.ActivityManager;
 import android.app.TaskInfo;
 import android.content.res.Configuration;
 import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.testing.AndroidTestingRunner;
 
 import androidx.test.filters.SmallTest;
@@ -40,7 +38,6 @@ import com.android.wm.shell.common.SyncTransactionQueue;
 import junit.framework.Assert;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -70,10 +67,6 @@ public class ReachabilityEduWindowManagerTest extends ShellTestCase {
     private TestShellExecutor mExecutor;
     private TaskInfo mTaskInfo;
     private ReachabilityEduWindowManager mWindowManager;
-
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule =
-            DeviceFlagsValueProvider.createCheckFlagsRule();
 
     @Before
     public void setUp() {

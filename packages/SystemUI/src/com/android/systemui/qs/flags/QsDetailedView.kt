@@ -20,7 +20,6 @@ import com.android.systemui.Flags
 import com.android.systemui.flags.FlagToken
 import com.android.systemui.flags.RefactorFlagUtils
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
-import com.android.systemui.shade.shared.flag.DualShade
 
 /** Helper for reading or using the QS Detailed View flag state. */
 @Suppress("NOTHING_TO_INLINE")
@@ -37,7 +36,6 @@ object QsDetailedView {
     inline val isEnabled
         get() =
             Flags.qsTileDetailedView() && // mainAconfigFlag
-                DualShade.isEnabled &&
                 SceneContainerFlag.isEnabled
 
     // NOTE: Changes should also be made in getSecondaryFlags
@@ -47,10 +45,8 @@ object QsDetailedView {
 
     /** The set of secondary flags which must be enabled for qs detailed view to work properly */
     inline fun getSecondaryFlags(): Sequence<FlagToken> =
-        sequenceOf(
-            DualShade.token
-            // NOTE: Changes should also be made in isEnabled
-        ) + SceneContainerFlag.getAllRequirements()
+        // NOTE: Changes should also be made in isEnabled
+        SceneContainerFlag.getAllRequirements()
 
     /** The full set of requirements for QsDetailedView */
     inline fun getAllRequirements(): Sequence<FlagToken> {
@@ -78,6 +74,16 @@ object QsDetailedView {
      */
     @JvmStatic
     inline fun assertInLegacyMode() = RefactorFlagUtils.assertInLegacyMode(isEnabled, FLAG_NAME)
+
+    /**
+     * Called to ensure code is only run when the flag is enabled. This will throw an exception if
+     * the flag is not enabled to ensure that the refactor author catches issues in testing.
+     * Caution!! Using this check incorrectly will cause crashes in nextfood builds!
+     */
+    @JvmStatic
+    @Deprecated("Avoid crashing.", ReplaceWith("if (this.isUnexpectedlyInLegacyMode()) return"))
+    inline fun unsafeAssertInNewMode() =
+        RefactorFlagUtils.unsafeAssertInNewMode(isEnabled, FLAG_NAME)
 
     /** Returns a developer-readable string that describes the current requirement list. */
     @JvmStatic

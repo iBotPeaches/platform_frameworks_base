@@ -21,6 +21,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.Flags.FLAG_COMMUNAL_HUB
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.communal.data.repository.communalMediaRepository
+import com.android.systemui.communal.data.repository.communalSmartspaceRepository
 import com.android.systemui.communal.data.repository.fakeCommunalMediaRepository
 import com.android.systemui.communal.data.repository.fakeCommunalSmartspaceRepository
 import com.android.systemui.communal.domain.interactor.communalInteractor
@@ -28,62 +30,78 @@ import com.android.systemui.communal.domain.interactor.communalSettingsInteracto
 import com.android.systemui.communal.domain.interactor.setCommunalEnabled
 import com.android.systemui.flags.Flags
 import com.android.systemui.flags.fakeFeatureFlagsClassic
+import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
-import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.runTest
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @EnableFlags(FLAG_COMMUNAL_HUB)
 @RunWith(AndroidJUnit4::class)
 class CommunalOngoingContentStartableTest : SysuiTestCase() {
-    private val kosmos = testKosmos()
-    private val testScope = kosmos.testScope
+    private val kosmos = testKosmos().useUnconfinedTestDispatcher()
 
-    private val mediaRepository = kosmos.fakeCommunalMediaRepository
-    private val smartspaceRepository = kosmos.fakeCommunalSmartspaceRepository
+    private var showUmoOnHub = true
 
-    private lateinit var underTest: CommunalOngoingContentStartable
+    private val Kosmos.underTest by
+        Kosmos.Fixture {
+            CommunalOngoingContentStartable(
+                bgScope = applicationCoroutineScope,
+                communalInteractor = communalInteractor,
+                communalMediaRepository = communalMediaRepository,
+                communalSettingsInteractor = communalSettingsInteractor,
+                communalSmartspaceRepository = communalSmartspaceRepository,
+                showUmoOnHub = showUmoOnHub,
+            )
+        }
 
     @Before
     fun setUp() {
         kosmos.fakeFeatureFlagsClassic.set(Flags.COMMUNAL_SERVICE_ENABLED, true)
-        underTest =
-            CommunalOngoingContentStartable(
-                bgScope = kosmos.applicationCoroutineScope,
-                communalInteractor = kosmos.communalInteractor,
-                communalMediaRepository = mediaRepository,
-                communalSettingsInteractor = kosmos.communalSettingsInteractor,
-                communalSmartspaceRepository = smartspaceRepository,
-            )
     }
 
     @Test
-    fun testListenForOngoingContentWhenCommunalIsEnabled() =
-        testScope.runTest {
+    fun testListenForOngoingContent() =
+        kosmos.runTest {
             underTest.start()
-            runCurrent()
 
-            assertThat(mediaRepository.isListening()).isFalse()
-            assertThat(smartspaceRepository.isListening()).isFalse()
+            assertThat(fakeCommunalMediaRepository.isListening()).isFalse()
+            assertThat(fakeCommunalSmartspaceRepository.isListening()).isFalse()
 
-            kosmos.setCommunalEnabled(true)
-            runCurrent()
+            setCommunalEnabled(true)
 
-            assertThat(mediaRepository.isListening()).isTrue()
-            assertThat(smartspaceRepository.isListening()).isTrue()
+            assertThat(fakeCommunalMediaRepository.isListening()).isTrue()
+            assertThat(fakeCommunalSmartspaceRepository.isListening()).isTrue()
 
-            kosmos.setCommunalEnabled(false)
-            runCurrent()
+            setCommunalEnabled(false)
 
-            assertThat(mediaRepository.isListening()).isFalse()
-            assertThat(smartspaceRepository.isListening()).isFalse()
+            assertThat(fakeCommunalMediaRepository.isListening()).isFalse()
+            assertThat(fakeCommunalSmartspaceRepository.isListening()).isFalse()
+        }
+
+    @Test
+    fun testListenForOngoingContent_showUmoFalse() =
+        kosmos.runTest {
+            showUmoOnHub = false
+            underTest.start()
+
+            assertThat(fakeCommunalMediaRepository.isListening()).isFalse()
+            assertThat(fakeCommunalSmartspaceRepository.isListening()).isFalse()
+
+            setCommunalEnabled(true)
+
+            // Media listening does not start when UMO is disabled.
+            assertThat(fakeCommunalMediaRepository.isListening()).isFalse()
+            assertThat(fakeCommunalSmartspaceRepository.isListening()).isTrue()
+
+            setCommunalEnabled(false)
+
+            assertThat(fakeCommunalMediaRepository.isListening()).isFalse()
+            assertThat(fakeCommunalSmartspaceRepository.isListening()).isFalse()
         }
 }

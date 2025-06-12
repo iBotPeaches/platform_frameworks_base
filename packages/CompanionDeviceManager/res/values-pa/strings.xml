@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"ਸੰਬੰਧੀ ਡੀਵਾਈਸ ਪ੍ਰਬੰਧਕ"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"ਕੀ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ਐਪ ਨੂੰ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ਤੱਕ ਪਹੁੰਚ ਕਰਨ ਦੀ ਆਗਿਆ ਦੇਣੀ ਹੈ?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"ਪੱਕਾ ਕਰੋ ਕਿ ਇਸ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> ਦਾ <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> ਚਾਲੂ ਹੋਵੇ ਅਤੇ <xliff:g id="PROFILE_NAME">%3$s</xliff:g> ਨੂੰ ਆਪਣੇ ਨਜ਼ਦੀਕ ਰੱਖੋ।"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"ਕੋਈ ਡੀਵਾਈਸ ਨਹੀਂ ਮਿਲਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਬਾਅਦ ਵਿੱਚ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"ਬਲੂਟੁੱਥ"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"ਵਾਈ-ਫਾਈ"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"ਬਲੂਟੁੱਥ ਅਤੇ ਵਾਈ-ਫਾਈ"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ਸਮਾਰਟ-ਵਾਚ"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ਵੱਲੋਂ ਪ੍ਰਬੰਧਿਤ ਕੀਤੇ ਜਾਣ ਲਈ ਕੋਈ ਡੀਵਾਈਸ ਚੁਣੋ"</string>
     <string name="chooser_title" msgid="2235819929238267637">"ਸੈੱਟਅੱਪ ਕਰਨ ਲਈ <xliff:g id="PROFILE_NAME">%1$s</xliff:g> ਚੁਣੋ"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"<xliff:g id="PROFILE_NAME">%1$s</xliff:g> ਨੂੰ ਲੱਭਿਆ ਜਾ ਰਿਹਾ ਹੈ"</string>
     <string name="summary_watch" msgid="8134580124808507407">"ਇਸ ਐਪ ਨੂੰ ਤੁਹਾਡੇ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> \'ਤੇ ਕਾਲਰ ਦੇ ਨਾਮ ਵਰਗੀ ਜਾਣਕਾਰੀ ਨੂੰ ਸਿੰਕ ਕਰਨ ਅਤੇ ਇਨ੍ਹਾਂ ਇਜਾਜ਼ਤਾਂ ਤੱਕ ਪਹੁੰਚ ਕਰਨ ਦੀ ਆਗਿਆ ਹੋਵੇਗੀ"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"ਕੀ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ਨੂੰ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ਦਾ ਪ੍ਰਬੰਧਨ ਕਰਨ ਦੀ ਆਗਿਆ ਦੇਣੀ ਹੈ?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"ਡੀਵਾਈਸ"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"ਕੀ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ਨੂੰ ਤੁਹਾਡੇ <xliff:g id="DEVICE_TYPE">%2$s</xliff:g>ਦੀਆਂ ਐਪਾਂ ਨੂੰ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; \'ਤੇ ਸਟ੍ਰੀਮ ਕਰਨ ਦੀ ਆਗਿਆ ਦੇਣੀ ਹੈ?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> ਕੋਲ ਆਡੀਓ, ਫ਼ੋਟੋਆਂ, ਭੁਗਤਾਨ ਜਾਣਕਾਰੀ, ਪਾਸਵਰਡਾਂ ਅਤੇ ਸੁਨੇਹਿਆਂ ਸਮੇਤ, <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> \'ਤੇ ਦਿਖਾਈ ਦੇਣ ਵਾਲੀ ਜਾਂ ਚਲਾਈ ਜਾਣ ਵਾਲੀ ਕਿਸੇ ਵੀ ਚੀਜ਼ ਤੱਕ ਪਹੁੰਚ ਹੋਵੇਗੀ।&lt;br/&gt;&lt;br/&gt;ਜਦੋਂ ਤੱਕ ਤੁਸੀਂ ਇਸ ਇਜਾਜ਼ਤ ਤੱਕ ਪਹੁੰਚ ਨੂੰ ਹਟਾ ਨਹੀਂ ਦਿੰਦੇ, ਉਦੋਂ ਤੱਕ <xliff:g id="APP_NAME_2">%1$s</xliff:g>, <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> \'ਤੇ ਐਪਾਂ ਨੂੰ ਸਟ੍ਰੀਮ ਕਰ ਸਕੇਗੀ।"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g>, <xliff:g id="DEVICE_NAME">%2$s</xliff:g> ਦੀ ਤਰਫ਼ੋਂ ਤੁਹਾਡੇ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> ਤੋਂ ਐਪਾਂ ਨੂੰ ਸਟ੍ਰੀਮ ਕਰਨ ਦੀ ਇਜਾਜ਼ਤ ਮੰਗ ਰਹੀ ਹੈ"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"ਕੀ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ਨੂੰ ਆਪਣੇ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> ਅਤੇ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; \'ਤੇ ਆਡੀਓ ਅਤੇ ਸਿਸਟਮ ਸੰਬੰਧੀ ਵਿਸ਼ੇਸ਼ਤਾਵਾਂ ਨੂੰ ਸਟ੍ਰੀਮ ਕਰਨ ਦੀ ਆਗਿਆ ਦੇਣੀ ਹੈ?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> ਕੋਲ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> \'ਤੇ ਚਲਾਈ ਜਾਣ ਵਾਲੀ ਹਰੇਕ ਚੀਜ਼ ਤੱਕ ਪਹੁੰਚ ਹੋਵੇਗੀ।&lt;br/&gt;&lt;br/&gt;ਜਦੋਂ ਤੱਕ ਤੁਸੀਂ ਇਸ ਇਜਾਜ਼ਤ ਤੱਕ ਪਹੁੰਚ ਨੂੰ ਹਟਾ ਨਹੀਂ ਦਿੰਦੇ, ਉਦੋਂ ਤੱਕ <xliff:g id="APP_NAME_2">%2$s</xliff:g> <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> \'ਤੇ ਆਡੀਓ ਨੂੰ ਸਟ੍ਰੀਮ ਕਰ ਸਕੇਗੀ।"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"ਡੀਵਾਈਸ"</string>
     <string name="summary_generic" msgid="1761976003668044801">"ਇਹ ਐਪ ਤੁਹਾਡੇ ਫ਼ੋਨ ਅਤੇ ਚੁਣੇ ਗਏ ਡੀਵਾਈਸ ਵਿਚਕਾਰ ਕਾਲਰ ਦੇ ਨਾਮ ਵਰਗੀ ਜਾਣਕਾਰੀ ਨੂੰ ਸਿੰਕ ਕਰ ਸਕੇਗੀ"</string>
     <string name="consent_yes" msgid="8344487259618762872">"ਆਗਿਆ ਦਿਓ"</string>
     <string name="consent_no" msgid="2640796915611404382">"ਆਗਿਆ ਨਾ ਦਿਓ"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"ਰੱਦ ਕਰੋ"</string>
     <string name="consent_back" msgid="2560683030046918882">"ਪਿੱਛੇ"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"ਸੂਚੀ ਨੂੰ ਹੇਠਾਂ ਵੱਲ ਸਕ੍ਰੋਲ ਕਰੋ"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"ਹੇਠਾਂ ਤੀਰ"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> ਦਾ ਵਿਸਤਾਰ ਕਰੋ"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> ਨੂੰ ਸਮੇਟੋ"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"ਕੀ &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; \'ਤੇ ਮੌਜੂਦ ਐਪਾਂ ਨੂੰ &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; \'ਤੇ ਮੌਜੂਦ ਐਪਾਂ ਵਾਂਗ ਇਜਾਜ਼ਤਾਂ ਦੇਣੀਆਂ ਹਨ?"</string>

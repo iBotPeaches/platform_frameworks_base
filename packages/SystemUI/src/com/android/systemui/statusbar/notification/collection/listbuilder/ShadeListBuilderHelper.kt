@@ -16,10 +16,10 @@
 
 package com.android.systemui.statusbar.notification.collection.listbuilder
 
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 
 object ShadeListBuilderHelper {
-    fun getSectionSubLists(entries: List<ListEntry>): Iterable<List<ListEntry>> =
+    fun getSectionSubLists(entries: List<PipelineEntry>): Iterable<List<PipelineEntry>> =
         getContiguousSubLists(entries, minLength = 1) { it.sectionIndex }
 
     inline fun <T : Any, K : Any> getContiguousSubLists(

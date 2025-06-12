@@ -20,7 +20,6 @@ package com.android.systemui.keyguard.domain.interactor
 import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.os.UserHandle
-import androidx.test.filters.FlakyTest
 import androidx.test.filters.SmallTest
 import com.android.internal.widget.LockPatternUtils
 import com.android.keyguard.logging.KeyguardQuickAffordancesLogger
@@ -59,11 +58,11 @@ import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.settings.FakeSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyInt
@@ -78,11 +77,10 @@ import platform.test.runner.parameterized.Parameter
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
 @DisableSceneContainer
-@FlakyTest(bugId = 292574995, detail = "NullPointer on MockMakerTypeMockability.mockable()")
+@Ignore("b/292574995 NullPointer on MockMakerTypeMockability.mockable()")
 class KeyguardQuickAffordanceInteractorParameterizedTest : SysuiTestCase() {
 
     companion object {
@@ -302,9 +300,7 @@ class KeyguardQuickAffordanceInteractorParameterizedTest : SysuiTestCase() {
         testScope = TestScope(testDispatcher)
         underTest =
             KeyguardQuickAffordanceInteractor(
-                keyguardInteractor =
-                    KeyguardInteractorFactory.create(featureFlags = featureFlags)
-                        .keyguardInteractor,
+                keyguardInteractor = kosmos.keyguardInteractor,
                 shadeInteractor = kosmos.shadeInteractor,
                 lockPatternUtils = lockPatternUtils,
                 keyguardStateController = keyguardStateController,
@@ -320,6 +316,7 @@ class KeyguardQuickAffordanceInteractorParameterizedTest : SysuiTestCase() {
                 biometricSettingsRepository = biometricSettingsRepository,
                 backgroundDispatcher = testDispatcher,
                 appContext = mContext,
+                accessibilityManager = mock(),
                 sceneInteractor = { kosmos.sceneInteractor },
             )
     }
@@ -344,7 +341,7 @@ class KeyguardQuickAffordanceInteractorParameterizedTest : SysuiTestCase() {
                         canShowWhileLocked = canShowWhileLocked,
                     )
                 } else {
-                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled
+                    KeyguardQuickAffordanceConfig.OnTriggeredResult.Handled(false)
                 }
 
             underTest.onQuickAffordanceTriggered(

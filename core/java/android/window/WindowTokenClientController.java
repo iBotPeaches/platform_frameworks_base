@@ -25,7 +25,9 @@ import android.app.IApplicationThread;
 import android.app.servertransaction.WindowContextInfoChangeItem;
 import android.app.servertransaction.WindowContextWindowRemovalItem;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArraySet;
@@ -50,6 +52,7 @@ public class WindowTokenClientController {
     private final Object mLock = new Object();
     private final IApplicationThread mAppThread = ActivityThread.currentActivityThread()
             .getApplicationThread();
+    private final Handler mHandler = ActivityThread.currentActivityThread().getHandler();
 
     /** Attached {@link WindowTokenClient}. */
     @GuardedBy("mLock")
@@ -148,6 +151,9 @@ public class WindowTokenClientController {
             info = wms.attachWindowContextToDisplayContent(mAppThread, client, displayId);
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed attachToDisplayContent", e);
+            return false;
         }
         if (info == null) {
             return false;
@@ -251,6 +257,20 @@ public class WindowTokenClientController {
         final WindowTokenClient windowTokenClient = getWindowTokenClientIfAttached(clientToken);
         if (windowTokenClient != null) {
             windowTokenClient.onWindowTokenRemoved();
+        }
+    }
+
+    /** Propagates the configuration change to the client token. */
+    public void onWindowConfigurationChanged(@NonNull IBinder clientToken,
+            @NonNull Configuration config, int displayId) {
+        final WindowTokenClient windowTokenClient = getWindowTokenClientIfAttached(clientToken);
+        if (windowTokenClient != null) {
+            // Let's make sure it's called on the main thread!
+            if (mHandler.getLooper().isCurrentThread()) {
+                windowTokenClient.onConfigurationChanged(config, displayId);
+            } else {
+                windowTokenClient.postOnConfigurationChanged(config, displayId);
+            }
         }
     }
 

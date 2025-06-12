@@ -33,6 +33,7 @@ import android.text.method.WordIterator;
  * @see <a href="https://unicode.org/reports/tr29/#Word_Boundaries">Unicode Text Segmentation - Word
  *     Boundaries</a>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class WordSegmentFinder extends SegmentFinder {
     private final CharSequence mText;
     private final WordIterator mWordIterator;

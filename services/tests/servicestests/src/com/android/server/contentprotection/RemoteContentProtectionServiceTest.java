@@ -20,7 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.annotation.NonNull;
@@ -87,7 +87,7 @@ public class RemoteContentProtectionServiceTest {
     @Test
     public void doesNotAutoConnect() {
         assertThat(mConnectCallCount).isEqualTo(0);
-        verifyZeroInteractions(mMockContentProtectionService);
+        verifyNoMoreInteractions(mMockContentProtectionService);
     }
 
     @Test
@@ -124,7 +124,7 @@ public class RemoteContentProtectionServiceTest {
         mRemoteContentProtectionService.onServiceConnectionStatusChanged(
                 mMockContentProtectionService, /* isConnected= */ true);
 
-        verifyZeroInteractions(mMockContentProtectionService);
+        verifyNoMoreInteractions(mMockContentProtectionService);
         assertThat(mConnectCallCount).isEqualTo(0);
     }
 
@@ -133,7 +133,7 @@ public class RemoteContentProtectionServiceTest {
         mRemoteContentProtectionService.onServiceConnectionStatusChanged(
                 mMockContentProtectionService, /* isConnected= */ false);
 
-        verifyZeroInteractions(mMockContentProtectionService);
+        verifyNoMoreInteractions(mMockContentProtectionService);
         assertThat(mConnectCallCount).isEqualTo(0);
     }
 

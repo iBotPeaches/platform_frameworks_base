@@ -17,6 +17,7 @@ package com.android.server.location.contexthub;
 
 import android.hardware.contexthub.EndpointId;
 import android.hardware.contexthub.HubEndpointInfo;
+import android.hardware.contexthub.HubMessage;
 import android.hardware.contexthub.IEndpointCallback;
 import android.hardware.contexthub.Message;
 import android.hardware.contexthub.MessageDeliveryStatus;
@@ -51,6 +52,12 @@ public class ContextHubHalEndpointCallback
 
         /** Called when a requested endpoint open session is completed */
         void onEndpointSessionOpenComplete(int sessionId);
+
+        /** Called when a message is received for the session */
+        void onMessageReceived(int sessionId, HubMessage message);
+
+        /** Called when a message delivery status is received for the session */
+        void onMessageDeliveryStatusReceived(int sessionId, int sequenceNumber, byte errorCode);
     }
 
     ContextHubHalEndpointCallback(
@@ -84,30 +91,40 @@ public class ContextHubHalEndpointCallback
     }
 
     @Override
-    public void onMessageReceived(int i, Message message) throws RemoteException {}
-
-    @Override
-    public void onMessageDeliveryStatusReceived(int i, MessageDeliveryStatus messageDeliveryStatus)
-            throws RemoteException {}
-
-    @Override
     public void onEndpointSessionOpenRequest(
-            int i, EndpointId destination, EndpointId initiator, String s) throws RemoteException {
+            int sessionId, EndpointId destination, EndpointId initiator, String serviceDescriptor)
+            throws RemoteException {
         HubEndpointInfo.HubEndpointIdentifier destinationId =
                 new HubEndpointInfo.HubEndpointIdentifier(destination.hubId, destination.id);
         HubEndpointInfo.HubEndpointIdentifier initiatorId =
                 new HubEndpointInfo.HubEndpointIdentifier(initiator.hubId, initiator.id);
-        mEndpointSessionCallback.onEndpointSessionOpenRequest(i, destinationId, initiatorId, s);
+        mEndpointSessionCallback.onEndpointSessionOpenRequest(
+                sessionId, destinationId, initiatorId, serviceDescriptor);
     }
 
     @Override
-    public void onCloseEndpointSession(int i, byte b) throws RemoteException {
-        mEndpointSessionCallback.onCloseEndpointSession(i, b);
+    public void onCloseEndpointSession(int sessionId, byte reason) throws RemoteException {
+        mEndpointSessionCallback.onCloseEndpointSession(sessionId, reason);
     }
 
     @Override
-    public void onEndpointSessionOpenComplete(int i) throws RemoteException {
-        mEndpointSessionCallback.onEndpointSessionOpenComplete(i);
+    public void onEndpointSessionOpenComplete(int sessionId) throws RemoteException {
+        mEndpointSessionCallback.onEndpointSessionOpenComplete(sessionId);
+    }
+
+    @Override
+    public void onMessageReceived(int sessionId, Message message) throws RemoteException {
+        HubMessage hubMessage = ContextHubServiceUtil.createHubMessage(message);
+        mEndpointSessionCallback.onMessageReceived(sessionId, hubMessage);
+    }
+
+    @Override
+    public void onMessageDeliveryStatusReceived(
+            int sessionId, MessageDeliveryStatus messageDeliveryStatus) throws RemoteException {
+        mEndpointSessionCallback.onMessageDeliveryStatusReceived(
+                sessionId,
+                messageDeliveryStatus.messageSequenceNumber,
+                messageDeliveryStatus.errorCode);
     }
 
     @Override

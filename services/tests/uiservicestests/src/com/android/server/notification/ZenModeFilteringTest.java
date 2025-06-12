@@ -37,7 +37,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import android.app.Flags;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager.Policy;
@@ -492,8 +491,6 @@ public class ZenModeFilteringTest extends UiServiceTestCase {
 
     @Test
     public void testAllowChannels_priorityPackage() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         // Notification with package priority = PRIORITY_MAX (assigned to indicate canBypassDnd)
         NotificationRecord r = getNotificationRecord();
         r.setPackagePriority(Notification.PRIORITY_MAX);

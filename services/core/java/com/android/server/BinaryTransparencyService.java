@@ -85,6 +85,8 @@ import com.android.internal.os.IBinaryTransparencyService;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.modules.expresslog.Histogram;
 import com.android.server.pm.ApexManager;
+import com.android.server.pm.BackgroundInstallControlCallbackHelper;
+import com.android.server.pm.BackgroundInstallControlService;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -100,9 +102,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-
-import com.android.server.pm.BackgroundInstallControlService;
-import com.android.server.pm.BackgroundInstallControlCallbackHelper;
 
 /**
  * @hide
@@ -228,20 +227,31 @@ public class BinaryTransparencyService extends SystemService {
                     computePackageSignerSha256Digests(packageState.getSigningInfo());
 
             AndroidPackage pkg = packageState.getAndroidPackage();
-            for (AndroidPackageSplit split : pkg.getSplits()) {
+            if(pkg != null) {
+                for (AndroidPackageSplit split : pkg.getSplits()) {
+                    var appInfo = new IBinaryTransparencyService.AppInfo();
+                    appInfo.packageName = packageName;
+                    appInfo.longVersion = versionCode;
+                    appInfo.splitName = split.getName();  // base's split name is null
+                    // Signer digests are consistent between splits, guaranteed by Package Manager.
+                    appInfo.signerDigests = signerDigests;
+                    appInfo.mbaStatus = mbaStatus;
+
+                    // Only digest and split name are different between splits.
+                    Digest digest = measureApk(split.getPath());
+                    appInfo.digest = digest.value();
+                    appInfo.digestAlgorithm = digest.algorithm();
+
+                    results.add(appInfo);
+                }
+            } else {
+                Slog.w(TAG, packageName + " APK file is not physically present,"
+                    + " skipping split and digest measurement");
                 var appInfo = new IBinaryTransparencyService.AppInfo();
                 appInfo.packageName = packageName;
                 appInfo.longVersion = versionCode;
-                appInfo.splitName = split.getName();  // base's split name is null
-                // Signer digests are consistent between splits, guaranteed by Package Manager.
                 appInfo.signerDigests = signerDigests;
                 appInfo.mbaStatus = mbaStatus;
-
-                // Only digest and split name are different between splits.
-                Digest digest = measureApk(split.getPath());
-                appInfo.digest = digest.value();
-                appInfo.digestAlgorithm = digest.algorithm();
-
                 results.add(appInfo);
             }
 
@@ -718,8 +728,10 @@ public class BinaryTransparencyService extends SystemService {
                 private void printModuleDetails(ModuleInfo moduleInfo, final PrintWriter pw) {
                     pw.println("--- Module Details ---");
                     pw.println("Module name: " + moduleInfo.getName());
-                    pw.println("Module visibility: "
-                            + (moduleInfo.isHidden() ? "hidden" : "visible"));
+                    if (!android.content.pm.Flags.removeHiddenModuleUsage()) {
+                        pw.println("Module visibility: "
+                        + (moduleInfo.isHidden() ? "hidden" : "visible"));
+                    }
                 }
 
                 private void printAppDetails(PackageInfo packageInfo,
@@ -1564,19 +1576,17 @@ public class BinaryTransparencyService extends SystemService {
         Slog.d(TAG, String.format("VBMeta Digest: %s", mVbmetaDigest));
         FrameworkStatsLog.write(FrameworkStatsLog.VBMETA_DIGEST_REPORTED, mVbmetaDigest);
 
-        if (android.security.Flags.binaryTransparencySepolicyHash()) {
-            IoThread.getExecutor().execute(() -> {
-                byte[] sepolicyHash = PackageUtils.computeSha256DigestForLargeFileAsBytes(
-                        "/sys/fs/selinux/policy", PackageUtils.createLargeFileBuffer());
-                String sepolicyHashEncoded = null;
-                if (sepolicyHash != null) {
-                    sepolicyHashEncoded = HexEncoding.encodeToString(sepolicyHash, false);
-                    Slog.d(TAG, "sepolicy hash: " + sepolicyHashEncoded);
-                }
-                FrameworkStatsLog.write(FrameworkStatsLog.BOOT_INTEGRITY_INFO_REPORTED,
-                        sepolicyHashEncoded, mVbmetaDigest);
-            });
-        }
+        IoThread.getExecutor().execute(() -> {
+            byte[] sepolicyHash = PackageUtils.computeSha256DigestForLargeFileAsBytes(
+                    "/sys/fs/selinux/policy", PackageUtils.createLargeFileBuffer());
+            String sepolicyHashEncoded = null;
+            if (sepolicyHash != null) {
+                sepolicyHashEncoded = HexEncoding.encodeToString(sepolicyHash, false);
+                Slog.d(TAG, "sepolicy hash: " + sepolicyHashEncoded);
+            }
+            FrameworkStatsLog.write(FrameworkStatsLog.BOOT_INTEGRITY_INFO_REPORTED,
+                    sepolicyHashEncoded, mVbmetaDigest);
+        });
     }
 
     /**

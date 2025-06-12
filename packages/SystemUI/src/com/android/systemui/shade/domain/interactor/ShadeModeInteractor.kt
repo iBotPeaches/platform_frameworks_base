@@ -16,17 +16,24 @@
 
 package com.android.systemui.shade.domain.interactor
 
+import android.provider.Settings
 import androidx.annotation.FloatRange
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.log.table.TableLogBuffer
+import com.android.systemui.log.table.logDiffsForTable
+import com.android.systemui.scene.domain.SceneFrameworkTableLog
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.data.repository.ShadeRepository
-import com.android.systemui.shade.shared.flag.DualShade
 import com.android.systemui.shade.shared.model.ShadeMode
+import com.android.systemui.shared.settings.data.repository.SecureSettingsRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -79,35 +86,50 @@ class ShadeModeInteractorImpl
 constructor(
     @Application applicationScope: CoroutineScope,
     private val repository: ShadeRepository,
+    secureSettingsRepository: SecureSettingsRepository,
+    @SceneFrameworkTableLog private val tableLogBuffer: TableLogBuffer,
 ) : ShadeModeInteractor {
+
+    private val isDualShadeEnabled: Flow<Boolean> =
+        if (SceneContainerFlag.isEnabled) {
+            secureSettingsRepository.boolSetting(
+                Settings.Secure.DUAL_SHADE,
+                defaultValue = DUAL_SHADE_ENABLED_DEFAULT,
+            )
+        } else {
+            flowOf(false)
+        }
 
     override val isShadeLayoutWide: StateFlow<Boolean> = repository.isShadeLayoutWide
 
-    override val shadeMode: StateFlow<ShadeMode> =
-        isShadeLayoutWide
-            .map(this::determineShadeMode)
-            .stateIn(
-                applicationScope,
-                SharingStarted.Eagerly,
-                initialValue = determineShadeMode(isShadeLayoutWide.value),
+    private val shadeModeInitialValue: ShadeMode
+        get() =
+            determineShadeMode(
+                isDualShadeEnabled = DUAL_SHADE_ENABLED_DEFAULT,
+                isShadeLayoutWide = repository.isShadeLayoutWide.value,
             )
 
-    @FloatRange(from = 0.0, to = 1.0)
-    override fun getTopEdgeSplitFraction(): Float {
-        // Note: this implicitly relies on isShadeLayoutWide being hot (i.e. collected). This
-        // assumption allows us to query its value on demand (during swipe source detection) instead
-        // of running another infinite coroutine.
-        // TODO(b/338577208): Instead of being fixed at 0.8f, this should dynamically updated based
-        //  on the position of system-status icons in the status bar.
-        return if (repository.isShadeLayoutWide.value) 0.8f else 0.5f
-    }
+    override val shadeMode: StateFlow<ShadeMode> =
+        combine(isDualShadeEnabled, repository.isShadeLayoutWide, ::determineShadeMode)
+            .logDiffsForTable(tableLogBuffer = tableLogBuffer, initialValue = shadeModeInitialValue)
+            .stateIn(applicationScope, SharingStarted.Eagerly, initialValue = shadeModeInitialValue)
 
-    private fun determineShadeMode(isShadeLayoutWide: Boolean): ShadeMode {
+    @FloatRange(from = 0.0, to = 1.0) override fun getTopEdgeSplitFraction(): Float = 0.5f
+
+    private fun determineShadeMode(
+        isDualShadeEnabled: Boolean,
+        isShadeLayoutWide: Boolean,
+    ): ShadeMode {
         return when {
-            DualShade.isEnabled -> ShadeMode.Dual
+            isDualShadeEnabled -> ShadeMode.Dual
             isShadeLayoutWide -> ShadeMode.Split
             else -> ShadeMode.Single
         }
+    }
+
+    companion object {
+        /* Whether the Dual Shade setting is enabled by default. */
+        private const val DUAL_SHADE_ENABLED_DEFAULT = false
     }
 }
 

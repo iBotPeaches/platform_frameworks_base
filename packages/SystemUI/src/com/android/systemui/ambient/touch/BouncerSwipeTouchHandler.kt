@@ -18,6 +18,7 @@ package com.android.systemui.ambient.touch
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.graphics.Region
 import android.util.Log
@@ -36,6 +37,7 @@ import com.android.systemui.ambient.touch.dagger.BouncerSwipeModule
 import com.android.systemui.ambient.touch.scrim.ScrimController
 import com.android.systemui.ambient.touch.scrim.ScrimManager
 import com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants
+import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
 import com.android.systemui.communal.ui.viewmodel.CommunalViewModel
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.plugins.ActivityStarter
@@ -43,8 +45,10 @@ import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.ui.view.WindowRootView
 import com.android.systemui.shade.ShadeExpansionChangeEvent
+import com.android.systemui.shade.data.repository.ShadeRepository
 import com.android.systemui.statusbar.NotificationShadeWindowController
 import com.android.systemui.statusbar.phone.CentralSurfaces
+import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.wm.shell.animation.FlingAnimationUtils
 import java.util.Optional
 import javax.inject.Inject
@@ -79,7 +83,10 @@ constructor(
     private val activityStarter: ActivityStarter,
     private val keyguardInteractor: KeyguardInteractor,
     private val sceneInteractor: SceneInteractor,
+    private val shadeRepository: ShadeRepository,
     private val windowRootViewProvider: Optional<Provider<WindowRootView>>,
+    private val keyguardStateController: KeyguardStateController,
+    communalSettingsInteractor: CommunalSettingsInteractor,
 ) : TouchHandler {
     /** An interface for creating ValueAnimators. */
     interface ValueAnimatorCreator {
@@ -99,6 +106,8 @@ constructor(
     private var capture: Boolean? = null
     private var expanded: Boolean = false
     private var touchSession: TouchSession? = null
+    private var isUserTrackingExpansionDisabled: Boolean = false
+    private var isKeyguardScreenRotationAllowed: Boolean = false
     private val scrimManagerCallback =
         ScrimManager.Callback { controller ->
             currentScrimController?.reset()
@@ -119,6 +128,9 @@ constructor(
                 distanceX: Float,
                 distanceY: Float,
             ): Boolean {
+                val isLandscape =
+                    windowRootView.resources.configuration.orientation ==
+                        Configuration.ORIENTATION_LANDSCAPE
                 if (capture == null) {
                     capture =
                         if (Flags.dreamOverlayBouncerSwipeDirectionFiltering()) {
@@ -135,7 +147,9 @@ constructor(
                         // reset expanding
                         expanded = false
                         // Since the user is dragging the bouncer up, set scrimmed to false.
-                        currentScrimController?.show()
+                        if (isKeyguardScreenRotationAllowed || !isLandscape) {
+                            currentScrimController?.show(false)
+                        }
 
                         if (SceneContainerFlag.isEnabled) {
                             sceneInteractor.onRemoteUserInputStarted("bouncer touch handler")
@@ -170,6 +184,37 @@ constructor(
                         return true
                     }
 
+                    if (touchSession == null) {
+                        return true
+                    }
+                    val screenTravelPercentage =
+                        (abs((y - e2.y).toDouble()) / touchSession!!.bounds.height()).toFloat()
+
+                    if (communalSettingsInteractor.isV2FlagEnabled()) {
+                        if (isUserTrackingExpansionDisabled) return true
+                        // scrolling up in landscape orientation but device doesn't allow keyguard
+                        // screen rotation
+                        if (y > e2.y && !isKeyguardScreenRotationAllowed && isLandscape) {
+                            velocityTracker!!.computeCurrentVelocity(1000)
+                            currentExpansion = 1 - screenTravelPercentage
+                            expanded =
+                                shouldExpandBouncer(
+                                    velocityTracker!!.yVelocity,
+                                    velocityTracker!!.xVelocity,
+                                    EXPANSION_FROM_LANDSCAPE_THRESHOLD,
+                                    currentExpansion,
+                                )
+                            if (expanded) {
+                                // Once scroll past the percentage threshold, show bouncer scrimmed,
+                                // so that user won't be required to drag up and then right to keep
+                                // bouncer open after screen rotates to portrait.
+                                currentScrimController?.show(true)
+                                isUserTrackingExpansionDisabled = true
+                            }
+                            return true
+                        }
+                    }
+
                     if (SceneContainerFlag.isEnabled) {
                         windowRootView.dispatchTouchEvent(e2)
                     } else {
@@ -180,12 +225,7 @@ constructor(
                         // is fully hidden at full expansion (1) and fully visible when fully
                         // collapsed
                         // (0).
-                        touchSession?.apply {
-                            val screenTravelPercentage =
-                                (abs((this@outer.y - e2.y).toDouble()) / getBounds().height())
-                                    .toFloat()
-                            setPanelExpansion(1 - screenTravelPercentage)
-                        }
+                        touchSession?.apply { setPanelExpansion(1 - screenTravelPercentage) }
                     }
                 }
 
@@ -260,6 +300,9 @@ constructor(
         }
         scrimManager.addCallback(scrimManagerCallback)
         currentScrimController = scrimManager.currentController
+        isKeyguardScreenRotationAllowed = keyguardStateController.isKeyguardScreenRotationAllowed()
+
+        shadeRepository.setLegacyShadeTracking(true)
         session.registerCallback {
             velocityTracker?.apply { recycle() }
             velocityTracker = null
@@ -267,9 +310,11 @@ constructor(
             scrimManager.removeCallback(scrimManagerCallback)
             capture = null
             touchSession = null
+            isUserTrackingExpansionDisabled = false
             if (!Flags.communalBouncerDoNotModifyPluginOpen()) {
                 notificationShadeWindowController.setForcePluginOpen(false, this)
             }
+            shadeRepository.setLegacyShadeTracking(false)
         }
         session.registerGestureListener(onGestureListener)
         session.registerInputListener { ev: InputEvent -> onMotionEvent(ev) }
@@ -294,14 +339,25 @@ constructor(
                     return
                 }
 
+                // We are already in progress of opening bouncer scrimmed
+                if (isUserTrackingExpansionDisabled) {
+                    // User is done scrolling, reset
+                    isUserTrackingExpansionDisabled = false
+                    return
+                }
+
                 // We must capture the resulting velocities as resetMonitor() will clear these
                 // values.
                 velocityTracker!!.computeCurrentVelocity(1000)
                 val verticalVelocity = velocityTracker!!.yVelocity
-                val horizontalVelocity = velocityTracker!!.xVelocity
-                val velocityVector =
-                    hypot(horizontalVelocity.toDouble(), verticalVelocity.toDouble()).toFloat()
-                expanded = !flingRevealsOverlay(verticalVelocity, velocityVector)
+                expanded =
+                    shouldExpandBouncer(
+                        verticalVelocity,
+                        velocityTracker!!.xVelocity,
+                        FLING_PERCENTAGE_THRESHOLD,
+                        currentExpansion,
+                    )
+
                 val expansion =
                     if (expanded!!) KeyguardBouncerConstants.EXPANSION_VISIBLE
                     else KeyguardBouncerConstants.EXPANSION_HIDDEN
@@ -334,11 +390,27 @@ constructor(
         return animator
     }
 
-    protected fun flingRevealsOverlay(velocity: Float, velocityVector: Float): Boolean {
+    private fun shouldExpandBouncer(
+        verticalVelocity: Float,
+        horizontalVelocity: Float,
+        threshold: Float,
+        expansion: Float,
+    ): Boolean {
+        val velocityVector =
+            hypot(horizontalVelocity.toDouble(), verticalVelocity.toDouble()).toFloat()
+        return !flingRevealsOverlay(verticalVelocity, velocityVector, threshold, expansion)
+    }
+
+    protected fun flingRevealsOverlay(
+        velocity: Float,
+        velocityVector: Float,
+        threshold: Float,
+        expansion: Float,
+    ): Boolean {
         // Fully expand the space above the bouncer, if the user has expanded the bouncer less
         // than halfway or final velocity was positive, indicating a downward direction.
         return if (abs(velocityVector.toDouble()) < flingAnimationUtils.minVelocityPxPerSecond) {
-            currentExpansion > FLING_PERCENTAGE_THRESHOLD
+            expansion > threshold
         } else {
             velocity > 0
         }
@@ -385,6 +457,7 @@ constructor(
 
     companion object {
         const val FLING_PERCENTAGE_THRESHOLD = 0.5f
+        const val EXPANSION_FROM_LANDSCAPE_THRESHOLD = 0.95f
         private const val TAG = "BouncerSwipeTouchHandler"
     }
 }

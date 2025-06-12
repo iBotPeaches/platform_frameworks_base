@@ -29,10 +29,14 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.operations.paint.PaintBundle;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
-public class PaintData extends PaintOperation implements VariableSupport {
+/** Paint data operation */
+public class PaintData extends PaintOperation
+        implements ComponentData, VariableSupport, Serializable {
     private static final int OP_CODE = Operations.PAINT_VALUES;
     private static final String CLASS_NAME = "PaintData";
     @NonNull public PaintBundle mPaintData = new PaintBundle();
@@ -80,6 +84,12 @@ public class PaintData extends PaintOperation implements VariableSupport {
         return OP_CODE;
     }
 
+    /**
+     * add a paint data to the buffer
+     *
+     * @param buffer the buffer to add to
+     * @param paintBundle the paint bundle
+     */
     public static void apply(@NonNull WireBuffer buffer, @NonNull PaintBundle paintBundle) {
         buffer.start(Operations.PAINT_VALUES);
         paintBundle.writeBundle(buffer);
@@ -118,5 +128,10 @@ public class PaintData extends PaintOperation implements VariableSupport {
     @Override
     public void paint(@NonNull PaintContext context) {
         context.applyPaint(mPaintData);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("paintBundle", mPaintData);
     }
 }

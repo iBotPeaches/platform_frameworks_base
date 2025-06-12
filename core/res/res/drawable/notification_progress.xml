@@ -19,9 +19,7 @@
           android:gravity="center_vertical|fill_horizontal">
         <com.android.internal.widget.NotificationProgressDrawable
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:segSegGap="@dimen/notification_progress_segSeg_gap"
-            android:segPointGap="@dimen/notification_progress_segPoint_gap">
+            android:layout_height="wrap_content">
             <segments
                 android:color="?attr/colorProgressBackgroundNormal"
                 android:height="@dimen/notification_progress_segments_height"

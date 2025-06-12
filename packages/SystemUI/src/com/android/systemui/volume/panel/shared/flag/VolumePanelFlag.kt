@@ -29,6 +29,6 @@ class VolumePanelFlag @Inject constructor() {
     }
 
     fun assertNewVolumePanel() {
-        RefactorFlagUtils.assertInNewMode(Flags.newVolumePanel(), Flags.FLAG_NEW_VOLUME_PANEL)
+        RefactorFlagUtils.unsafeAssertInNewMode(Flags.newVolumePanel(), Flags.FLAG_NEW_VOLUME_PANEL)
     }
 }

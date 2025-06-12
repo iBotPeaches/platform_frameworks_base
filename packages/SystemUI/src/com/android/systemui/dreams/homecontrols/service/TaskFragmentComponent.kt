@@ -83,7 +83,8 @@ constructor(
                             resultT.addTaskFragmentOperation(
                                 fragmentToken,
                                 TaskFragmentOperation.Builder(
-                                        TaskFragmentOperation.OP_TYPE_REORDER_TO_TOP_OF_TASK
+                                        TaskFragmentOperation
+                                            .OP_TYPE_PRIVILEGED_REORDER_TO_TOP_OF_TASK
                                     )
                                     .build(),
                             )

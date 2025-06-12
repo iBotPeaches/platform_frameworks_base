@@ -19,13 +19,16 @@ package com.android.server.display.color;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import android.annotation.NonNull;
 import android.app.ActivityManager;
@@ -89,6 +92,7 @@ public class ColorDisplayServiceTest {
     private ColorDisplayService.BinderService mBinderService;
 
     private Resources mResourcesSpy;
+    private ReduceBrightColorsTintController mRbcSpy;
 
     private static final int[] MINIMAL_COLOR_MODES = new int[] {
         ColorDisplayManager.COLOR_MODE_NATURAL,
@@ -108,10 +112,10 @@ public class ColorDisplayServiceTest {
         doReturn(mContext).when(mContext).getApplicationContext();
 
         final Resources res = Mockito.spy(mContext.getResources());
+        doReturn(res).when(mContext).getResources();
         doReturn(MINIMAL_COLOR_MODES).when(res).getIntArray(R.array.config_availableColorModes);
         doReturn(true).when(res).getBoolean(R.bool.config_nightDisplayAvailable);
         doReturn(true).when(res).getBoolean(R.bool.config_displayWhiteBalanceAvailable);
-        when(mContext.getResources()).thenReturn(res);
         mResourcesSpy = res;
 
         mUserId = ActivityManager.getCurrentUser();
@@ -135,7 +139,8 @@ public class ColorDisplayServiceTest {
         mLocalServiceKeeperRule.overrideLocalService(
                 DisplayManagerInternal.class, mDisplayManagerInternal);
 
-        mCds = new ColorDisplayService(mContext);
+        mRbcSpy = Mockito.spy(new ReduceBrightColorsTintController());
+        mCds = new ColorDisplayService(mContext, mRbcSpy);
         mBinderService = mCds.new BinderService();
         mLocalServiceKeeperRule.overrideLocalService(
                 ColorDisplayService.ColorDisplayServiceInternal.class,
@@ -1099,73 +1104,152 @@ public class ColorDisplayServiceTest {
 
     @Test
     public void compositionColorSpaces_noResources() {
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorModes))
-            .thenReturn(new int[] {});
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorSpaces))
-            .thenReturn(new int[] {});
+        doReturn(new int[] {}).when(mResourcesSpy)
+                .getIntArray(R.array.config_displayCompositionColorModes);
+        doReturn(new int[] {}).when(mResourcesSpy)
+                .getIntArray(R.array.config_displayCompositionColorSpaces);
+
         setColorMode(ColorDisplayManager.COLOR_MODE_NATURAL);
         startService();
         verify(mDisplayTransformManager).setColorMode(
-                eq(ColorDisplayManager.COLOR_MODE_NATURAL), any(), eq(Display.COLOR_MODE_INVALID));
+                eq(ColorDisplayManager.COLOR_MODE_NATURAL), any(), any(),
+                eq(Display.COLOR_MODE_INVALID));
     }
 
     @Test
     public void compositionColorSpaces_invalidResources() {
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorModes))
-                .thenReturn(new int[] {
-                        ColorDisplayManager.COLOR_MODE_NATURAL,
-                        // Missing second color mode
-                });
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorSpaces))
-                .thenReturn(new int[] {
-                        Display.COLOR_MODE_SRGB,
-                        Display.COLOR_MODE_DISPLAY_P3
-                });
+        doReturn(new int[] {
+                ColorDisplayManager.COLOR_MODE_NATURAL,
+                // Missing second color mode
+        }).when(mResourcesSpy).getIntArray(R.array.config_displayCompositionColorModes);
+        doReturn(new int[] {
+                Display.COLOR_MODE_SRGB,
+                Display.COLOR_MODE_DISPLAY_P3
+        }).when(mResourcesSpy).getIntArray(R.array.config_displayCompositionColorSpaces);
+
         setColorMode(ColorDisplayManager.COLOR_MODE_NATURAL);
         startService();
         verify(mDisplayTransformManager).setColorMode(
-                eq(ColorDisplayManager.COLOR_MODE_NATURAL), any(), eq(Display.COLOR_MODE_INVALID));
+                eq(ColorDisplayManager.COLOR_MODE_NATURAL), any(), any(),
+                eq(Display.COLOR_MODE_INVALID));
     }
 
     @Test
     public void compositionColorSpaces_validResources_validColorMode() {
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorModes))
-                .thenReturn(new int[] {
-                        ColorDisplayManager.COLOR_MODE_NATURAL
-                });
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorSpaces))
-                .thenReturn(new int[] {
-                        Display.COLOR_MODE_SRGB,
-                });
+        doReturn(new int[] {
+                ColorDisplayManager.COLOR_MODE_NATURAL
+        }).when(mResourcesSpy).getIntArray(R.array.config_displayCompositionColorModes);
+        doReturn(new int[] {
+                Display.COLOR_MODE_SRGB,
+        }).when(mResourcesSpy).getIntArray(R.array.config_displayCompositionColorSpaces);
+
         setColorMode(ColorDisplayManager.COLOR_MODE_NATURAL);
         startService();
         verify(mDisplayTransformManager).setColorMode(
-                eq(ColorDisplayManager.COLOR_MODE_NATURAL), any(), eq(Display.COLOR_MODE_SRGB));
+                eq(ColorDisplayManager.COLOR_MODE_NATURAL), any(), any(),
+                eq(Display.COLOR_MODE_SRGB));
     }
 
     @Test
     public void compositionColorSpaces_validResources_invalidColorMode() {
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorModes))
-                .thenReturn(new int[] {
-                        ColorDisplayManager.COLOR_MODE_NATURAL
-                });
-        when(mResourcesSpy.getIntArray(R.array.config_displayCompositionColorSpaces))
-                .thenReturn(new int[] {
-                        Display.COLOR_MODE_SRGB,
-                });
+        doReturn(new int[] {
+                ColorDisplayManager.COLOR_MODE_NATURAL
+        }).when(mResourcesSpy).getIntArray(R.array.config_displayCompositionColorModes);
+        doReturn(new int[] {
+                Display.COLOR_MODE_SRGB,
+        }).when(mResourcesSpy).getIntArray(R.array.config_displayCompositionColorSpaces);
+
         setColorMode(ColorDisplayManager.COLOR_MODE_BOOSTED);
         startService();
         verify(mDisplayTransformManager).setColorMode(
-                eq(ColorDisplayManager.COLOR_MODE_BOOSTED), any(), eq(Display.COLOR_MODE_INVALID));
+                eq(ColorDisplayManager.COLOR_MODE_BOOSTED), any(), any(),
+                eq(Display.COLOR_MODE_INVALID));
     }
 
     @Test
     public void getColorMode_noAvailableModes_returnsNotSet() {
-        when(mResourcesSpy.getIntArray(R.array.config_availableColorModes))
-                    .thenReturn(new int[] {});
+        doReturn(new int[] {}).when(mResourcesSpy).getIntArray(R.array.config_availableColorModes);
         startService();
-        verify(mDisplayTransformManager, never()).setColorMode(anyInt(), any(), anyInt());
+        verify(mDisplayTransformManager, never()).setColorMode(anyInt(), any(), any(), anyInt());
         assertThat(mBinderService.getColorMode()).isEqualTo(-1);
+    }
+
+    @Test
+    public void ensureColorModeChangeTriggersRbcReload() {
+        // should set up RBC once at startup
+        startService();
+        reset(mRbcSpy);
+
+        // Make sure RBC is enabled and available for this test
+        doReturn(true).when(mRbcSpy).isAvailable(mContext);
+
+        // When Color Mode changes, RBC needs to re-setup
+        // onDisplayColorModeChanged cancels animations, and should be called in handler thread
+        mCds.mHandler.runWithScissors(
+                () -> mCds.onDisplayColorModeChanged(ColorDisplayManager.COLOR_MODE_NATURAL),
+                1000);
+        verify(mRbcSpy, times(1)).setUp(eq(mContext), anyBoolean());
+    }
+
+    @Test
+    public void sliderScalesWithinRange() {
+        doReturn(true).when(mRbcSpy).isAvailable(mContext);
+
+        doReturn(85).when(mResourcesSpy).getInteger(
+                R.integer.config_reduceBrightColorsStrengthMax);
+        doReturn(10).when(mResourcesSpy).getInteger(
+                R.integer.config_reduceBrightColorsStrengthMin);
+        doReturn(44).when(mResourcesSpy).getInteger(
+                R.integer.config_reduceBrightColorsStrengthDefault);
+
+        // setup
+        startService();
+
+        // Valid value test //
+        // set on, and to 90% of range
+        Settings.Secure.putInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_ACTIVATED, 1);
+        Settings.Secure.putInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_LEVEL, 90);
+        // update
+        mCds.mHandler.runWithScissors(
+                () -> mCds.onDisplayColorModeChanged(ColorDisplayManager.COLOR_MODE_NATURAL),
+                1000);
+        // verify this:
+        assertEquals(90, Settings.Secure.getInt(mContext.getContentResolver(),
+                        Settings.Secure.REDUCE_BRIGHT_COLORS_LEVEL, 0));
+        assertEquals(/* 85 - 10 * 0.90f + 10 = */ 77, mRbcSpy.getStrength());
+
+        // Out of range test //
+        // set on, and to 101% of range
+        Settings.Secure.putInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_ACTIVATED, 1);
+        Settings.Secure.putInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_LEVEL, 101);
+        // update
+        mCds.mHandler.runWithScissors(
+                () -> mCds.onDisplayColorModeChanged(ColorDisplayManager.COLOR_MODE_NATURAL),
+                1000);
+        // verify this:
+        assertEquals(101, Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_LEVEL, 0));
+        assertEquals(/* 85 - 10 * 1.0f + 10 = */ 85, mRbcSpy.getStrength());
+
+        // Invalid value test //
+        // set on, and to an invalid value
+        Settings.Secure.putInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_ACTIVATED, 1);
+        Settings.Secure.putInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_LEVEL, -1);
+        // update
+        mCds.mHandler.runWithScissors(
+                () -> mCds.onDisplayColorModeChanged(ColorDisplayManager.COLOR_MODE_NATURAL),
+                1000);
+        // verify this, setting will stay the same, strength should set to default?:
+        assertEquals(-1, Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.REDUCE_BRIGHT_COLORS_LEVEL, 0));
+        // default value is set instead!
+        assertEquals(/* default = */ 44, mRbcSpy.getStrength());
     }
 
     /**

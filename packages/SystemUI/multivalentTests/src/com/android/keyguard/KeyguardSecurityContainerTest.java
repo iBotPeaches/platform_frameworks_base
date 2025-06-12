@@ -452,6 +452,14 @@ public class KeyguardSecurityContainerTest extends SysuiTestCase {
         verify(keyguardPasswordView).setDisappearAnimationListener(any());
     }
 
+    @Test
+    public void setupForDelayedAppear() {
+        mKeyguardSecurityContainer.setupForDelayedAppear();
+        assertThat(mKeyguardSecurityContainer.getTranslationY()).isEqualTo(0f);
+        assertThat(mKeyguardSecurityContainer.getAlpha()).isEqualTo(0f);
+        assertThat(mKeyguardSecurityContainer.isAppearAnimationDelayed()).isTrue();
+    }
+
     private BackEvent createBackEvent(float touchX, float progress) {
         return new BackEvent(0, 0, progress, BackEvent.EDGE_LEFT);
     }
@@ -499,8 +507,8 @@ public class KeyguardSecurityContainerTest extends SysuiTestCase {
                     0 /* flags */);
             users.add(new UserRecord(info, null, false /* isGuest */, false /* isCurrent */,
                     false /* isAddUser */, false /* isRestricted */, true /* isSwitchToEnabled */,
-                    false /* isAddSupervisedUser */, null /* enforcedAdmin */,
-                    false /* isManageUsers */));
+                    false /* isAddSupervisedUser */, false /* isSignOut */,
+                    null /* enforcedAdmin */, false /* isManageUsers */));
         }
         return users;
     }

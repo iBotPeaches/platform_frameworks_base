@@ -29,8 +29,6 @@ import com.android.systemui.authentication.shared.model.AuthenticationMethodMode
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.deviceentry.data.repository.fakeDeviceEntryRepository
 import com.android.systemui.flags.EnableSceneContainer
-import com.android.systemui.flags.Flags
-import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.keyguard.data.repository.fakeDeviceEntryFingerprintAuthRepository
 import com.android.systemui.keyguard.domain.interactor.keyguardEnabledInteractor
 import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticationStatus
@@ -68,8 +66,6 @@ class QuickSettingsUserActionsViewModelTest : SysuiTestCase() {
 
     @Before
     fun setUp() {
-        kosmos.fakeFeatureFlagsClassic.set(Flags.NEW_NETWORK_SLICE_UI, false)
-
         sceneContainerStartable.start()
         underTest =
             QuickSettingsUserActionsViewModel(

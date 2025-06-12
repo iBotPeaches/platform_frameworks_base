@@ -387,6 +387,15 @@ public final class ActiveServices {
     @Overridable
     public static final long FGS_SAW_RESTRICTIONS = 319471980L;
 
+    /**
+     * Allows system to manage foreground state of service with type
+     * <li>{@link android.content.pm.ServiceInfo#FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK}</li>
+     */
+    @ChangeId
+    @EnabledSince(targetSdkVersion = VERSION_CODES.VANILLA_ICE_CREAM)
+    @Overridable
+    public static final long MEDIA_FGS_STATE_TRANSITION = 281762171L;
+
     final ActivityManagerService mAm;
 
     // Maximum number of services that we allow to start in the background
@@ -618,7 +627,7 @@ public final class ActiveServices {
                 Slog.i(TAG, "  Stopping fg for service " + r);
             }
             setServiceForegroundInnerLocked(r, 0, null, 0, 0,
-                    0);
+                    0,  /* systemRequestedTransition= */ true);
         }
     }
 
@@ -757,9 +766,6 @@ public final class ActiveServices {
                 Message msg = obtainMessage(MSG_BG_START_TIMEOUT);
                 sendMessageAtTime(msg, when);
             }
-            if (mStartingBackground.size() < mMaxStartingBackground) {
-                mAm.backgroundServicesFinishedLocked(mUserId);
-            }
         }
     }
 
@@ -784,7 +790,7 @@ public final class ActiveServices {
                 "SHORT_FGS_TIMEOUT");
         this.mServiceFGAnrTimer = new ServiceAnrTimer(service,
                 ActivityManagerService.SERVICE_FOREGROUND_TIMEOUT_MSG,
-                "SERVICE_FOREGROUND_TIMEOUT");
+                "SERVICE_FOREGROUND_TIMEOUT", new AnrTimer.Args().extend(true));
     }
 
     void systemServicesReady() {
@@ -1842,7 +1848,7 @@ public final class ActiveServices {
             ServiceRecord r = findServiceLocked(className, token, userId);
             if (r != null) {
                 setServiceForegroundInnerLocked(r, id, notification, flags, foregroundServiceType,
-                        callingUid);
+                        callingUid, /* systemRequestedTransition= */ false);
             }
         } finally {
             mAm.mInjector.restoreCallingIdentity(origId);
@@ -2158,7 +2164,7 @@ public final class ActiveServices {
     @GuardedBy("mAm")
     private void setServiceForegroundInnerLocked(final ServiceRecord r, int id,
             Notification notification, int flags, int foregroundServiceType,
-            int callingUidIfStart) {
+            int callingUidIfStart, boolean systemRequestedTransition) {
         if (id != 0) {
             if (notification == null) {
                 throw new IllegalArgumentException("null notification");
@@ -2619,6 +2625,13 @@ public final class ActiveServices {
                     }
                     notification.flags |= Notification.FLAG_FOREGROUND_SERVICE;
                     r.foregroundNoti = notification;
+                    if (r.isForeground && foregroundServiceType != previousFgsType) {
+                        // An already foreground service is being started with a different fgs type
+                        // which results in the type changing without typical startForeground
+                        // logging.
+                        Slog.w(TAG_SERVICE, "FGS type change for " + r.shortInstanceName
+                                + " from " + previousFgsType + " to " + foregroundServiceType);
+                    }
                     mAm.mProcessStateController.setForegroundServiceType(r, foregroundServiceType);
                     if (!r.isForeground) {
                         final ServiceMap smap = getServiceMapLocked(r.userId);
@@ -2803,6 +2816,7 @@ public final class ActiveServices {
                 // earlier.
                 r.foregroundServiceType = 0;
                 r.mFgsNotificationWasDeferred = false;
+                r.systemRequestedFgToBg = systemRequestedTransition;
                 signalForegroundServiceObserversLocked(r);
                 resetFgsRestrictionLocked(r);
                 mAm.updateForegroundServiceUsageStats(r.name, r.userId, false);
@@ -7688,6 +7702,11 @@ public final class ActiveServices {
             super(Objects.requireNonNull(am).mHandler, msg, label);
         }
 
+        ServiceAnrTimer(ActivityManagerService am, int msg, String label,
+                @NonNull AnrTimer.Args args) {
+            super(Objects.requireNonNull(am).mHandler, msg, label, args);
+        }
+
         @Override
         public int getPid(@NonNull ServiceRecord service) {
             return (service.app != null) ? service.app.getPid() : 0;
@@ -8305,8 +8324,6 @@ public final class ActiveServices {
         if ((allowWiu == REASON_DENIED) || (allowStart == REASON_DENIED)) {
             @ReasonCode final int allowWhileInUse = shouldAllowFgsWhileInUsePermissionLocked(
                     callingPackage, callingPid, callingUid, r.app, backgroundStartPrivileges);
-            // We store them to compare the old and new while-in-use logics to each other.
-            // (They're not used for any other purposes.)
             if (allowWiu == REASON_DENIED) {
                 allowWiu = allowWhileInUse;
             }
@@ -8709,6 +8726,7 @@ public final class ActiveServices {
                                         + ",duration:" + tempAllowListReason.mDuration
                                         + ",callingUid:" + tempAllowListReason.mCallingUid))
                         + ">"
+                        + "; allowWiu:" + allowWhileInUse
                         + "; targetSdkVersion:" + r.appInfo.targetSdkVersion
                         + "; callerTargetSdkVersion:" + callerTargetSdkVersion
                         + "; startForegroundCount:" + r.mStartForegroundCount
@@ -8953,18 +8971,12 @@ public final class ActiveServices {
         if (!mAm.mConstants.mFgsStartRestrictionCheckCallerTargetSdk) {
             return true; // In this case, we only check the service's target SDK level.
         }
-        final int callingUid;
-        if (Flags.newFgsRestrictionLogic()) {
-            // We always consider SYSTEM_UID to target S+, so just enable the restrictions.
-            if (actualCallingUid == Process.SYSTEM_UID) {
-                return true;
-            }
-            callingUid = actualCallingUid;
-        } else {
-            // Legacy logic used mRecentCallingUid.
-            callingUid = r.mRecentCallingUid;
+        // We always consider SYSTEM_UID to target S+, so just enable the restrictions.
+        if (actualCallingUid == Process.SYSTEM_UID) {
+            return true;
         }
-        if (!CompatChanges.isChangeEnabled(FGS_BG_START_RESTRICTION_CHANGE_ID, callingUid)) {
+        if (!CompatChanges.isChangeEnabled(FGS_BG_START_RESTRICTION_CHANGE_ID,
+                actualCallingUid)) {
             return false; // If the caller targets < S, then we still disable the restrictions.
         }
 
@@ -9191,7 +9203,9 @@ public final class ActiveServices {
         } else {
             synchronized (mAm.mPidsSelfLocked) {
                 callerApp = mAm.mPidsSelfLocked.get(callingPid);
-                caller = callerApp.getThread();
+                if (callerApp != null) {
+                    caller = callerApp.getThread();
+                }
             }
         }
         if (callerApp == null) {
@@ -9349,14 +9363,34 @@ public final class ActiveServices {
                 if (sr.foregroundServiceType
                         == ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE
                         && sr.foregroundId == notificationId) {
-                    if (DEBUG_FOREGROUND_SERVICE) {
-                        Slog.d(TAG, "Moving media service to foreground for package "
-                                + packageName);
+                    // check if service is explicitly requested by app to not be in foreground.
+                    if (sr.systemRequestedFgToBg && CompatChanges.isChangeEnabled(
+                            MEDIA_FGS_STATE_TRANSITION, sr.appInfo.uid)) {
+                        if (DEBUG_FOREGROUND_SERVICE) {
+                            Slog.d(TAG,
+                                    "System initiated service transition to foreground "
+                                            + "for package "
+                                            + packageName);
+                        }
+                        try {
+                            setServiceForegroundInnerLocked(sr, sr.foregroundId,
+                                    sr.foregroundNoti, /* flags */ 0,
+                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+                                    /* callingUidStart */ 0, /* systemRequestedTransition */ true);
+                        } catch (Exception e) {
+                            Slog.w(TAG,
+                                    "Exception in system initiated foreground service transition "
+                                            + "for package " + packageName
+                                            + ":" + e.toString());
+                        }
+                    } else {
+                        if (DEBUG_FOREGROUND_SERVICE) {
+                            Slog.d(TAG,
+                                    "Ignoring system initiated foreground service transition for "
+                                            + "package "
+                                            + packageName);
+                        }
                     }
-                    setServiceForegroundInnerLocked(sr, sr.foregroundId,
-                             sr.foregroundNoti, /* flags */ 0,
-                             ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-                             /* callingUidStart */ 0);
                 }
             }
         }
@@ -9389,13 +9423,32 @@ public final class ActiveServices {
                 if (sr.foregroundServiceType
                         == ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                         && sr.foregroundId == notificationId) {
-                    if (DEBUG_FOREGROUND_SERVICE) {
-                        Slog.d(TAG, "Forcing media foreground service to background for package "
-                                + packageName);
+                    if (CompatChanges.isChangeEnabled(MEDIA_FGS_STATE_TRANSITION, sr.appInfo.uid)) {
+                        if (DEBUG_FOREGROUND_SERVICE) {
+                            Slog.d(TAG,
+                                    "System initiated transition of foreground service"
+                                            + "(type:media) to"
+                                            + " bg "
+                                            + "for package "
+                                            + packageName);
+                        }
+                        try {
+                            setServiceForegroundInnerLocked(sr, /* id */ 0,
+                                    /* notification */ null, /* flags */ 0,
+                                    /* foregroundServiceType */ 0, /* callingUidStart */ 0,
+                                    /* systemRequestedTransition */ true);
+                        } catch (Exception e) {
+                            Slog.wtf(TAG,
+                                    "Exception in system initiated background service transition "
+                                            + "for package " + packageName
+                                            + ":" + e.toString());
+                        }
+                    } else {
+                        if (DEBUG_FOREGROUND_SERVICE) {
+                            Slog.d(TAG, "Ignoring system initiated transition of foreground"
+                                    + " service(type:media)to bg for package " + packageName);
+                        }
                     }
-                    setServiceForegroundInnerLocked(sr, /* id */ 0,
-                            /* notification */ null, /* flags */ 0,
-                            /* foregroundServiceType */ 0, /* callingUidStart */ 0);
                 }
             }
         }

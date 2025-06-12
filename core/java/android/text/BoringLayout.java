@@ -45,6 +45,7 @@ import com.android.text.flags.Flags;
  * {@link android.graphics.Canvas#drawText(java.lang.CharSequence, int, int, float, float, android.graphics.Paint)
  *  Canvas.drawText()} directly.</p>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class BoringLayout extends Layout implements TextUtils.EllipsizeCallback {
 
     /**

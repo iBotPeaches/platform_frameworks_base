@@ -39,14 +39,14 @@ public class ListDumper {
      *                             entry to be in its current state (ie: filter, lifeExtender)
      */
     public static String dumpTree(
-            List<ListEntry> entries,
+            List<PipelineEntry> entries,
             NotificationInteractionTracker interactionTracker,
             boolean includeRecordKeeping,
             String indent) {
         StringBuilder sb = new StringBuilder();
         final String childEntryIndent = indent + INDENT;
         for (int topEntryIndex = 0; topEntryIndex < entries.size(); topEntryIndex++) {
-            ListEntry entry = entries.get(topEntryIndex);
+            PipelineEntry entry = entries.get(topEntryIndex);
             dumpEntry(entry,
                     Integer.toString(topEntryIndex),
                     indent,
@@ -106,7 +106,7 @@ public class ListDumper {
     }
 
     private static void dumpEntry(
-            ListEntry entry,
+            PipelineEntry entry,
             String index,
             String indent,
             StringBuilder sb,

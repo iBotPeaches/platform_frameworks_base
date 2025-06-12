@@ -28,7 +28,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -78,7 +77,7 @@ public class UnderlyingNetworkEvaluatorTest extends NetworkEvaluationTestBase {
                 .thenReturn(mIpSecPacketLossDetector);
 
         when(mCarrierConfig.getIntArray(
-                        eq(VCN_NETWORK_SELECTION_PENALTY_TIMEOUT_MINUTES_LIST_KEY), anyObject()))
+                        eq(VCN_NETWORK_SELECTION_PENALTY_TIMEOUT_MINUTES_LIST_KEY), any()))
                 .thenReturn(new int[] {PENALTY_TIMEOUT_MIN});
 
         mNetworkEvaluator = newValidUnderlyingNetworkEvaluator();
@@ -304,7 +303,7 @@ public class UnderlyingNetworkEvaluatorTest extends NetworkEvaluationTestBase {
     public void testSetCarrierConfig() throws Exception {
         final int additionalTimeoutMin = 10;
         when(mCarrierConfig.getIntArray(
-                        eq(VCN_NETWORK_SELECTION_PENALTY_TIMEOUT_MINUTES_LIST_KEY), anyObject()))
+                        eq(VCN_NETWORK_SELECTION_PENALTY_TIMEOUT_MINUTES_LIST_KEY), any()))
                 .thenReturn(new int[] {PENALTY_TIMEOUT_MIN + additionalTimeoutMin});
 
         // Update evaluator and penalize the network

@@ -18,6 +18,7 @@ package com.android.server.biometrics.sensors;
 
 import android.annotation.NonNull;
 import android.content.Context;
+import android.content.Intent;
 import android.hardware.biometrics.BiometricAuthenticator;
 import android.hardware.biometrics.BiometricRequestConstants;
 import android.hardware.face.FaceEnrollOptions;
@@ -26,6 +27,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Slog;
 
+import com.android.server.biometrics.AuthenticationStatsCollector;
 import com.android.server.biometrics.BiometricsProto;
 import com.android.server.biometrics.log.BiometricContext;
 import com.android.server.biometrics.log.BiometricLogger;
@@ -158,5 +160,14 @@ public abstract class EnrollClient<T> extends AcquisitionClient<T> implements En
                     BiometricRequestConstants.REASON_ENROLL_ENROLLING;
             default -> BiometricRequestConstants.REASON_UNKNOWN;
         };
+    }
+
+    protected void notifyLastEnrollmentTime(int modality) {
+        // Notify the last enrollment time to re-count authentication stats for frr.
+        final Intent intent = new Intent(
+                AuthenticationStatsCollector.ACTION_LAST_ENROLL_TIME_CHANGED);
+        intent.putExtra(Intent.EXTRA_USER_HANDLE, getTargetUserId());
+        intent.putExtra(AuthenticationStatsCollector.EXTRA_MODALITY, modality);
+        getContext().sendBroadcast(intent);
     }
 }

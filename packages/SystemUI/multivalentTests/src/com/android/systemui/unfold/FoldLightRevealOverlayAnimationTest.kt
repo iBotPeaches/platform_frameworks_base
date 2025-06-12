@@ -28,7 +28,6 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.AnimatorTestRule
 import com.android.systemui.display.data.repository.DeviceStateRepository.DeviceState
 import com.android.systemui.display.data.repository.fakeDeviceStateRepository
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAsleepForTest
@@ -36,8 +35,8 @@ import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.se
 import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.power.shared.model.ScreenPowerState
 import com.android.systemui.statusbar.LightRevealScrim
+import com.android.systemui.testKosmos
 import com.android.systemui.util.animation.data.repository.fakeAnimationStatusRepository
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -59,11 +58,10 @@ import org.mockito.kotlin.whenever
 @SmallTest
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class FoldLightRevealOverlayAnimationTest : SysuiTestCase() {
     @get:Rule val animatorTestRule = AnimatorTestRule(this)
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope: TestScope = kosmos.testScope
     private val fakeDeviceStateRepository = kosmos.fakeDeviceStateRepository
     private val powerInteractor = kosmos.powerInteractor
@@ -95,7 +93,7 @@ class FoldLightRevealOverlayAnimationTest : SysuiTestCase() {
                 fakeAnimationStatusRepository,
                 mockControllerFactory,
                 mockFoldLockSettingAvailabilityProvider,
-                mockJankMonitor
+                mockJankMonitor,
             )
         foldLightRevealAnimation.init()
     }

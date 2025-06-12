@@ -22,15 +22,10 @@ import android.app.Notification.FLAG_NO_CLEAR
 import android.app.Notification.MediaStyle
 import android.app.PendingIntent
 import android.app.UriGrantsManager
-import android.app.smartspace.SmartspaceAction
-import android.app.smartspace.SmartspaceConfig
-import android.app.smartspace.SmartspaceManager
-import android.app.smartspace.SmartspaceTarget
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.graphics.drawable.Icon
 import android.media.MediaDescription
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -42,13 +37,11 @@ import android.os.UserHandle
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
-import android.provider.Settings
 import android.service.notification.StatusBarNotification
 import android.testing.TestableLooper.RunWithLooper
 import androidx.media.utils.MediaConstants
 import androidx.test.filters.SmallTest
 import com.android.dx.mockito.inline.extended.ExtendedMockito
-import com.android.internal.logging.InstanceId
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.Flags
 import com.android.systemui.InstanceIdSequenceFake
@@ -57,9 +50,6 @@ import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.flags.EnableSceneContainer
-import com.android.systemui.flags.Flags.MEDIA_REMOTE_RESUME
-import com.android.systemui.flags.Flags.MEDIA_RESUME_PROGRESS
-import com.android.systemui.flags.Flags.MEDIA_RETAIN_RECOMMENDATIONS
 import com.android.systemui.flags.Flags.MEDIA_RETAIN_SESSIONS
 import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.kosmos.testDispatcher
@@ -71,24 +61,17 @@ import com.android.systemui.media.controls.domain.resume.MediaResumeListener
 import com.android.systemui.media.controls.domain.resume.ResumeMediaBrowser
 import com.android.systemui.media.controls.shared.mediaLogger
 import com.android.systemui.media.controls.shared.mockMediaLogger
-import com.android.systemui.media.controls.shared.model.EXTRA_KEY_TRIGGER_SOURCE
-import com.android.systemui.media.controls.shared.model.EXTRA_VALUE_TRIGGER_PERIODIC
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.shared.model.SmartspaceMediaData
-import com.android.systemui.media.controls.shared.model.SmartspaceMediaDataProvider
 import com.android.systemui.media.controls.util.MediaUiEventLogger
 import com.android.systemui.media.controls.util.fakeMediaControllerFactory
 import com.android.systemui.media.controls.util.mediaFlags
-import com.android.systemui.plugins.activityStarter
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.SbnBuilder
 import com.android.systemui.statusbar.notificationLockscreenUserManager
 import com.android.systemui.testKosmos
 import com.android.systemui.util.concurrency.FakeExecutor
-import com.android.systemui.util.settings.fakeSettings
 import com.android.systemui.util.time.FakeSystemClock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -102,11 +85,9 @@ import org.mockito.ArgumentMatchers.anyBoolean
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.Captor
 import org.mockito.Mock
-import org.mockito.Mockito
 import org.mockito.Mockito.never
 import org.mockito.Mockito.reset
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.MockitoSession
 import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
@@ -120,9 +101,6 @@ import platform.test.runner.parameterized.Parameters
 
 private const val KEY = "KEY"
 private const val KEY_2 = "KEY_2"
-private const val KEY_MEDIA_SMARTSPACE = "MEDIA_SMARTSPACE_ID"
-private const val SMARTSPACE_CREATION_TIME = 1234L
-private const val SMARTSPACE_EXPIRY_TIME = 5678L
 private const val PACKAGE_NAME = "com.example.app"
 private const val SYSTEM_PACKAGE_NAME = "com.android.systemui"
 private const val APP_NAME = "SystemUI"
@@ -133,11 +111,6 @@ private const val SESSION_EMPTY_TITLE = ""
 private const val USER_ID = 0
 private val DISMISS_INTENT = Intent().apply { action = "dismiss" }
 
-private fun <T> anyObject(): T {
-    return Mockito.anyObject<T>()
-}
-
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWithLooper(setAsMainLooper = true)
 @RunWith(ParameterizedAndroidJunit4::class)
@@ -146,7 +119,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     private val kosmos = testKosmos().apply { mediaLogger = mockMediaLogger }
     private val testDispatcher = kosmos.testDispatcher
     private val testScope = kosmos.testScope
-    private val settings = kosmos.fakeSettings
 
     @JvmField @Rule val mockito = MockitoJUnit.rule()
     @Mock lateinit var controller: MediaController
@@ -166,13 +138,7 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Mock lateinit var mediaDataCombineLatest: MediaDataCombineLatest
     @Mock lateinit var listener: MediaDataManager.Listener
     @Mock lateinit var pendingIntent: PendingIntent
-    @Mock lateinit var smartspaceManager: SmartspaceManager
     @Mock lateinit var keyguardUpdateMonitor: KeyguardUpdateMonitor
-    private lateinit var smartspaceMediaDataProvider: SmartspaceMediaDataProvider
-    @Mock lateinit var mediaSmartspaceTarget: SmartspaceTarget
-    @Mock private lateinit var mediaRecommendationItem: SmartspaceAction
-    private lateinit var validRecommendationList: List<SmartspaceAction>
-    @Mock private lateinit var mediaSmartspaceBaseAction: SmartspaceAction
     @Mock private lateinit var logger: MediaUiEventLogger
     private lateinit var mediaCarouselInteractor: MediaCarouselInteractor
     private lateinit var mediaDataProcessor: MediaDataProcessor
@@ -182,7 +148,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     private val clock = FakeSystemClock()
     @Captor lateinit var stateCallbackCaptor: ArgumentCaptor<(String, PlaybackState) -> Unit>
     @Captor lateinit var sessionCallbackCaptor: ArgumentCaptor<(String) -> Unit>
-    @Captor lateinit var smartSpaceConfigBuilderCaptor: ArgumentCaptor<SmartspaceConfig>
     @Mock private lateinit var ugm: IUriGrantsManager
     @Mock private lateinit var imageSource: ImageDecoder.Source
 
@@ -201,7 +166,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     private val fakeFeatureFlags = kosmos.fakeFeatureFlagsClassic
-    private val activityStarter = kosmos.activityStarter
     private val mediaControllerFactory = kosmos.fakeMediaControllerFactory
     private val notificationLockscreenUserManager = kosmos.notificationLockscreenUserManager
     private val mediaFilterRepository = kosmos.mediaFilterRepository
@@ -209,33 +173,20 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     private val instanceIdSequence = InstanceIdSequenceFake(1 shl 20)
 
-    private val originalSmartspaceSetting =
-        Settings.Secure.getInt(
-            context.contentResolver,
-            Settings.Secure.MEDIA_CONTROLS_RECOMMENDATION,
-            1,
-        )
-
     private lateinit var staticMockSession: MockitoSession
 
     @Before
     fun setup() {
         staticMockSession =
             ExtendedMockito.mockitoSession()
-                .mockStatic<UriGrantsManager>(UriGrantsManager::class.java)
-                .mockStatic<ImageDecoder>(ImageDecoder::class.java)
+                .mockStatic(UriGrantsManager::class.java)
+                .mockStatic(ImageDecoder::class.java)
                 .strictness(Strictness.LENIENT)
                 .startMocking()
         whenever(UriGrantsManager.getService()).thenReturn(ugm)
         foregroundExecutor = FakeExecutor(clock)
         backgroundExecutor = FakeExecutor(clock)
         uiExecutor = FakeExecutor(clock)
-        smartspaceMediaDataProvider = SmartspaceMediaDataProvider()
-        Settings.Secure.putInt(
-            context.contentResolver,
-            Settings.Secure.MEDIA_CONTROLS_RECOMMENDATION,
-            1,
-        )
         mediaDataProcessor =
             MediaDataProcessor(
                 context = context,
@@ -248,15 +199,11 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 mediaControllerFactory = mediaControllerFactory,
                 broadcastDispatcher = broadcastDispatcher,
                 dumpManager = dumpManager,
-                activityStarter = activityStarter,
-                smartspaceMediaDataProvider = smartspaceMediaDataProvider,
                 useMediaResumption = true,
                 useQsMediaPlayer = true,
                 systemClock = clock,
-                secureSettings = settings,
                 mediaFlags = kosmos.mediaFlags,
                 logger = logger,
-                smartspaceManager = smartspaceManager,
                 keyguardUpdateMonitor = keyguardUpdateMonitor,
                 mediaDataRepository = kosmos.mediaDataRepository,
                 mediaDataLoader = { kosmos.mediaDataLoader },
@@ -275,12 +222,12 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 mediaDataCombineLatest = mediaDataCombineLatest,
                 mediaDataFilter = mediaDataFilter,
                 mediaFilterRepository = mediaFilterRepository,
-                mediaFlags = kosmos.mediaFlags,
             )
         mediaCarouselInteractor.start()
         verify(mediaTimeoutListener).stateCallback = capture(stateCallbackCaptor)
         verify(mediaTimeoutListener).sessionCallback = capture(sessionCallbackCaptor)
         session = MediaSession(context, "MediaDataProcessorTestSession")
+
         mediaNotification =
             SbnBuilder().run {
                 setUser(UserHandle(USER_ID))
@@ -288,6 +235,7 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 modifyNotification(context).also {
                     it.setSmallIcon(android.R.drawable.ic_media_pause)
                     it.setStyle(MediaStyle().apply { setMediaSession(session.sessionToken) })
+                    it.setContentIntent(getNewPendingIntent())
                 }
                 build()
             }
@@ -310,7 +258,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 putString(MediaMetadata.METADATA_KEY_ARTIST, SESSION_ARTIST)
                 putString(MediaMetadata.METADATA_KEY_TITLE, SESSION_TITLE)
             }
-        verify(smartspaceManager).createSmartspaceSession(capture(smartSpaceConfigBuilderCaptor))
         mediaControllerFactory.setControllerForToken(session.sessionToken, controller)
         whenever(controller.sessionToken).thenReturn(session.sessionToken)
         whenever(controller.transportControls).thenReturn(transportControls)
@@ -320,32 +267,12 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
             .thenReturn(MediaController.PlaybackInfo.PLAYBACK_TYPE_LOCAL)
 
         // This is an ugly hack for now. The mediaSessionBasedFilter is one of the internal
-        // listeners in the internal processing pipeline. It receives events, but ince it is a
+        // listeners in the internal processing pipeline. It receives events, but since it is a
         // mock, it doesn't pass those events along the chain to the external listeners. So, just
         // treat mediaSessionBasedFilter as a listener for testing.
         listener = mediaSessionBasedFilter
 
-        val recommendationExtras =
-            Bundle().apply {
-                putString("package_name", PACKAGE_NAME)
-                putParcelable("dismiss_intent", DISMISS_INTENT)
-            }
-        val icon = Icon.createWithResource(context, android.R.drawable.ic_media_play)
-        whenever(mediaSmartspaceBaseAction.extras).thenReturn(recommendationExtras)
-        whenever(mediaSmartspaceTarget.baseAction).thenReturn(mediaSmartspaceBaseAction)
-        whenever(mediaRecommendationItem.extras).thenReturn(recommendationExtras)
-        whenever(mediaRecommendationItem.icon).thenReturn(icon)
-        validRecommendationList =
-            listOf(mediaRecommendationItem, mediaRecommendationItem, mediaRecommendationItem)
-        whenever(mediaSmartspaceTarget.smartspaceTargetId).thenReturn(KEY_MEDIA_SMARTSPACE)
-        whenever(mediaSmartspaceTarget.featureType).thenReturn(SmartspaceTarget.FEATURE_MEDIA)
-        whenever(mediaSmartspaceTarget.iconGrid).thenReturn(validRecommendationList)
-        whenever(mediaSmartspaceTarget.creationTimeMillis).thenReturn(SMARTSPACE_CREATION_TIME)
-        whenever(mediaSmartspaceTarget.expiryTimeMillis).thenReturn(SMARTSPACE_EXPIRY_TIME)
         fakeFeatureFlags.set(MEDIA_RETAIN_SESSIONS, false)
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, false)
-        fakeFeatureFlags.set(MEDIA_REMOTE_RESUME, false)
-        fakeFeatureFlags.set(MEDIA_RETAIN_RECOMMENDATIONS, false)
         whenever(logger.getNewInstanceId()).thenReturn(instanceIdSequence.newInstanceId())
         whenever(keyguardUpdateMonitor.isUserInLockdown(any())).thenReturn(false)
     }
@@ -355,11 +282,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
         staticMockSession.finishMocking()
         session.release()
         mediaDataProcessor.destroy()
-        Settings.Secure.putInt(
-            context.contentResolver,
-            Settings.Secure.MEDIA_CONTROLS_RECOMMENDATION,
-            originalSmartspaceSetting,
-        )
     }
 
     @Test
@@ -873,56 +795,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    fun testOnNotificationRemoved_withResumption_isRemoteAndRemoteAllowed() {
-        // With the flag enabled to allow remote media to resume
-        fakeFeatureFlags.set(MEDIA_REMOTE_RESUME, true)
-
-        // GIVEN that the manager has a notification with a resume action, but is not local
-        whenever(controller.metadata).thenReturn(metadataBuilder.build())
-        whenever(playbackInfo.playbackType)
-            .thenReturn(MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE)
-        addNotificationAndLoad()
-        val data = mediaDataCaptor.value
-        val dataRemoteWithResume =
-            data.copy(resumeAction = Runnable {}, playbackLocation = MediaData.PLAYBACK_CAST_LOCAL)
-        mediaDataProcessor.onMediaDataLoaded(KEY, null, dataRemoteWithResume)
-
-        // WHEN the notification is removed
-        mediaDataProcessor.onNotificationRemoved(KEY)
-
-        // THEN the media data is converted to a resume state
-        verify(listener)
-            .onMediaDataLoaded(
-                eq(PACKAGE_NAME),
-                eq(KEY),
-                capture(mediaDataCaptor),
-                eq(true),
-                eq(0),
-                eq(false),
-            )
-        assertThat(mediaDataCaptor.value.resumption).isTrue()
-    }
-
-    @Test
-    fun testOnNotificationRemoved_withResumption_isRcnAndRemoteAllowed() {
-        // With the flag enabled to allow remote media to resume
-        fakeFeatureFlags.set(MEDIA_REMOTE_RESUME, true)
-
-        // GIVEN that the manager has a remote cast notification
-        addNotificationAndLoad(remoteCastNotification)
-        val data = mediaDataCaptor.value
-        assertThat(data.playbackLocation).isEqualTo(MediaData.PLAYBACK_CAST_REMOTE)
-        val dataRemoteWithResume = data.copy(resumeAction = Runnable {})
-        mediaDataProcessor.onMediaDataLoaded(KEY, null, dataRemoteWithResume)
-
-        // WHEN the RCN is removed
-        mediaDataProcessor.onNotificationRemoved(KEY)
-
-        // THEN the media data is removed
-        verify(listener).onMediaDataRemoved(eq(KEY), eq(false))
-    }
-
-    @Test
     fun testOnNotificationRemoved_withResumption_tooManyPlayers() {
         // Given the maximum number of resume controls already
         val desc =
@@ -1027,8 +899,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testAddResumptionControls_hasPartialProgress() {
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, true)
-
         // WHEN resumption controls are added with partial progress
         val progress = 0.5
         val extras =
@@ -1054,8 +924,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testAddResumptionControls_hasNotPlayedProgress() {
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, true)
-
         // WHEN resumption controls are added that have not been played
         val extras =
             Bundle().apply {
@@ -1079,8 +947,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testAddResumptionControls_hasFullProgress() {
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, true)
-
         // WHEN resumption controls are added with progress info
         val extras =
             Bundle().apply {
@@ -1105,8 +971,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testAddResumptionControls_hasNoExtras() {
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, true)
-
         // WHEN resumption controls are added that do not have any extras
         val desc =
             MediaDescription.Builder().run {
@@ -1123,8 +987,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testAddResumptionControls_hasEmptyTitle() {
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, true)
-
         // WHEN resumption controls are added that have empty title
         val desc =
             MediaDescription.Builder().run {
@@ -1156,8 +1018,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
 
     @Test
     fun testAddResumptionControls_hasBlankTitle() {
-        fakeFeatureFlags.set(MEDIA_RESUME_PROGRESS, true)
-
         // WHEN resumption controls are added that have a blank title
         val desc =
             MediaDescription.Builder().run {
@@ -1252,264 +1112,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
                 eq(0),
                 eq(false),
             )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_hasNewValidMediaTarget_callsListener() {
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        verify(logger).getNewInstanceId()
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = true,
-                        packageName = PACKAGE_NAME,
-                        cardAction = mediaSmartspaceBaseAction,
-                        recommendations = validRecommendationList,
-                        dismissIntent = DISMISS_INTENT,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_hasNewInvalidMediaTarget_callsListener() {
-        whenever(mediaSmartspaceTarget.iconGrid).thenReturn(listOf())
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        verify(logger).getNewInstanceId()
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = true,
-                        dismissIntent = DISMISS_INTENT,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_hasNullIntent_callsListener() {
-        val recommendationExtras =
-            Bundle().apply {
-                putString("package_name", PACKAGE_NAME)
-                putParcelable("dismiss_intent", null)
-            }
-        whenever(mediaSmartspaceBaseAction.extras).thenReturn(recommendationExtras)
-        whenever(mediaSmartspaceTarget.baseAction).thenReturn(mediaSmartspaceBaseAction)
-        whenever(mediaSmartspaceTarget.iconGrid).thenReturn(listOf())
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        verify(logger).getNewInstanceId()
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = true,
-                        dismissIntent = null,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_hasNoneMediaTarget_notCallsListener() {
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf())
-        verify(logger, never()).getNewInstanceId()
-        verify(listener, never())
-            .onSmartspaceMediaDataLoaded(anyObject(), anyObject(), anyBoolean())
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_hasNoneMediaTarget_callsRemoveListener() {
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        verify(logger).getNewInstanceId()
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf())
-        uiExecutor.advanceClockToLast()
-        uiExecutor.runAllReady()
-
-        verify(listener).onSmartspaceMediaDataRemoved(eq(KEY_MEDIA_SMARTSPACE), eq(false))
-        verifyNoMoreInteractions(logger)
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_persistentEnabled_headphoneTrigger_isActive() {
-        fakeFeatureFlags.set(MEDIA_RETAIN_RECOMMENDATIONS, true)
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = true,
-                        packageName = PACKAGE_NAME,
-                        cardAction = mediaSmartspaceBaseAction,
-                        recommendations = validRecommendationList,
-                        dismissIntent = DISMISS_INTENT,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_persistentEnabled_periodicTrigger_notActive() {
-        fakeFeatureFlags.set(MEDIA_RETAIN_RECOMMENDATIONS, true)
-        val extras =
-            Bundle().apply {
-                putString("package_name", PACKAGE_NAME)
-                putParcelable("dismiss_intent", DISMISS_INTENT)
-                putString(EXTRA_KEY_TRIGGER_SOURCE, EXTRA_VALUE_TRIGGER_PERIODIC)
-            }
-        whenever(mediaSmartspaceBaseAction.extras).thenReturn(extras)
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = false,
-                        packageName = PACKAGE_NAME,
-                        cardAction = mediaSmartspaceBaseAction,
-                        recommendations = validRecommendationList,
-                        dismissIntent = DISMISS_INTENT,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_persistentEnabled_noTargets_inactive() {
-        fakeFeatureFlags.set(MEDIA_RETAIN_RECOMMENDATIONS, true)
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf())
-        uiExecutor.advanceClockToLast()
-        uiExecutor.runAllReady()
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = false,
-                        packageName = PACKAGE_NAME,
-                        cardAction = mediaSmartspaceBaseAction,
-                        recommendations = validRecommendationList,
-                        dismissIntent = DISMISS_INTENT,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-        verify(listener, never()).onSmartspaceMediaDataRemoved(eq(KEY_MEDIA_SMARTSPACE), eq(false))
-    }
-
-    @Test
-    fun testSetRecommendationInactive_notifiesListeners() {
-        fakeFeatureFlags.set(MEDIA_RETAIN_RECOMMENDATIONS, true)
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        val instanceId = instanceIdSequence.lastInstanceId
-
-        mediaDataProcessor.setRecommendationInactive(KEY_MEDIA_SMARTSPACE)
-        uiExecutor.advanceClockToLast()
-        uiExecutor.runAllReady()
-
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(
-                eq(KEY_MEDIA_SMARTSPACE),
-                eq(
-                    SmartspaceMediaData(
-                        targetId = KEY_MEDIA_SMARTSPACE,
-                        isActive = false,
-                        packageName = PACKAGE_NAME,
-                        cardAction = mediaSmartspaceBaseAction,
-                        recommendations = validRecommendationList,
-                        dismissIntent = DISMISS_INTENT,
-                        headphoneConnectionTimeMillis = SMARTSPACE_CREATION_TIME,
-                        instanceId = InstanceId.fakeInstanceId(instanceId),
-                        expiryTimeMs = SMARTSPACE_EXPIRY_TIME,
-                    )
-                ),
-                eq(false),
-            )
-    }
-
-    @Test
-    fun testOnSmartspaceMediaDataLoaded_settingDisabled_doesNothing() {
-        // WHEN media recommendation setting is off
-        settings.putInt(Settings.Secure.MEDIA_CONTROLS_RECOMMENDATION, 0)
-        testScope.runCurrent()
-
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-
-        // THEN smartspace signal is ignored
-        verify(listener, never())
-            .onSmartspaceMediaDataLoaded(anyObject(), anyObject(), anyBoolean())
-    }
-
-    @Test
-    fun testMediaRecommendationDisabled_removesSmartspaceData() {
-        // GIVEN a media recommendation card is present
-        smartspaceMediaDataProvider.onTargetsAvailable(listOf(mediaSmartspaceTarget))
-        verify(listener)
-            .onSmartspaceMediaDataLoaded(eq(KEY_MEDIA_SMARTSPACE), anyObject(), anyBoolean())
-
-        // WHEN the media recommendation setting is turned off
-        settings.putInt(Settings.Secure.MEDIA_CONTROLS_RECOMMENDATION, 0)
-        testScope.runCurrent()
-
-        // THEN listeners are notified
-        uiExecutor.advanceClockToLast()
-        foregroundExecutor.advanceClockToLast()
-        uiExecutor.runAllReady()
-        foregroundExecutor.runAllReady()
-        verify(listener).onSmartspaceMediaDataRemoved(eq(KEY_MEDIA_SMARTSPACE), eq(true))
     }
 
     @Test
@@ -1816,7 +1418,7 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MEDIA_CONTROLS_DRAWABLES_REUSE)
+    @EnableFlags(Flags.FLAG_MEDIA_CONTROLS_DRAWABLES_REUSE_BUGFIX)
     fun postWithPlaybackActions_drawablesReused() {
         whenever(notificationLockscreenUserManager.isCurrentProfile(USER_ID)).thenReturn(true)
         whenever(notificationLockscreenUserManager.isProfileAvailable(USER_ID)).thenReturn(true)
@@ -1849,7 +1451,7 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_MEDIA_CONTROLS_DRAWABLES_REUSE)
+    @DisableFlags(Flags.FLAG_MEDIA_CONTROLS_DRAWABLES_REUSE_BUGFIX)
     fun postWithPlaybackActions_drawablesNotReused() {
         whenever(notificationLockscreenUserManager.isCurrentProfile(USER_ID)).thenReturn(true)
         whenever(notificationLockscreenUserManager.isProfileAvailable(USER_ID)).thenReturn(true)
@@ -2496,7 +2098,6 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MEDIA_CONTROLS_POSTS_OPTIMIZATION)
     fun postDuplicateNotification_doesNotCallListeners() {
         whenever(notificationLockscreenUserManager.isCurrentProfile(USER_ID)).thenReturn(true)
         whenever(notificationLockscreenUserManager.isProfileAvailable(USER_ID)).thenReturn(true)
@@ -2521,8 +2122,7 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_MEDIA_CONTROLS_POSTS_OPTIMIZATION)
-    fun postDuplicateNotification_callsListeners() {
+    fun postDifferentIntentNotifications_CallsListeners() {
         whenever(notificationLockscreenUserManager.isCurrentProfile(USER_ID)).thenReturn(true)
         whenever(notificationLockscreenUserManager.isProfileAvailable(USER_ID)).thenReturn(true)
 
@@ -2530,7 +2130,10 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
         mediaDataFilter.mediaDataProcessor = mediaDataProcessor
         addNotificationAndLoad()
         reset(listener)
+        mediaNotification =
+            mediaNotification.also { it.notification.contentIntent = getNewPendingIntent() }
         mediaDataProcessor.onNotificationAdded(KEY, mediaNotification)
+
         testScope.assertRunAllReady(foreground = 1, background = 1)
         verify(listener)
             .onMediaDataLoaded(
@@ -2622,5 +2225,15 @@ class MediaDataProcessorTest(flags: FlagsParameterization) : SysuiTestCase() {
         stateCallbackCaptor.value.invoke(key, state)
         runCurrent()
         advanceUntilIdle()
+    }
+
+    private fun getNewPendingIntent(): PendingIntent {
+        val intent = Intent().setAction(null)
+        return PendingIntent.getBroadcast(
+            mContext,
+            1,
+            intent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 }

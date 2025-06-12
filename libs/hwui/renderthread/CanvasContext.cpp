@@ -18,6 +18,12 @@
 
 #include <apex/window.h>
 #include <fcntl.h>
+
+#ifdef __ANDROID__
+#include <gui/ITransactionCompletedListener.h>
+#include <gui/SurfaceComposerClient.h>
+#endif
+
 #include <gui/TraceUtils.h>
 #include <strings.h>
 #include <sys/stat.h>
@@ -165,7 +171,9 @@ void CanvasContext::destroy() {
     stopDrawing();
     setHardwareBuffer(nullptr);
     setSurface(nullptr);
+#ifdef __ANDROID__
     setSurfaceControl(nullptr);
+#endif
     freePrefetchedLayers();
     destroyHardwareResources();
     mAnimationContext->destroy();
@@ -220,10 +228,15 @@ void CanvasContext::setSurface(ANativeWindow* window, bool enableTimeout) {
     setupPipelineSurface();
 }
 
-void CanvasContext::setSurfaceControl(ASurfaceControl* surfaceControl) {
-    if (surfaceControl == mSurfaceControl) return;
+#ifdef __ANDROID__
+sp<SurfaceControl> CanvasContext::getSurfaceControl() const {
+    return mSurfaceControl;
+}
+#endif
 
-    auto funcs = mRenderThread.getASurfaceControlFunctions();
+void CanvasContext::setSurfaceControl(sp<SurfaceControl> surfaceControl) {
+#ifdef __ANDROID__
+    if (surfaceControl == mSurfaceControl) return;
 
     if (surfaceControl == nullptr) {
         setASurfaceTransactionCallback(nullptr);
@@ -231,17 +244,23 @@ void CanvasContext::setSurfaceControl(ASurfaceControl* surfaceControl) {
     }
 
     if (mSurfaceControl != nullptr) {
-        funcs.unregisterListenerFunc(this, &onSurfaceStatsAvailable);
-        funcs.releaseFunc(mSurfaceControl);
+        TransactionCompletedListener::getInstance()->removeSurfaceStatsListener(
+                this, reinterpret_cast<void*>(onSurfaceStatsAvailable));
     }
-    mSurfaceControl = surfaceControl;
+
+    mSurfaceControl = std::move(surfaceControl);
     mSurfaceControlGenerationId++;
-    mExpectSurfaceStats = surfaceControl != nullptr;
+    mExpectSurfaceStats = mSurfaceControl != nullptr;
     if (mExpectSurfaceStats) {
-        funcs.acquireFunc(mSurfaceControl);
-        funcs.registerListenerFunc(surfaceControl, mSurfaceControlGenerationId, this,
-                                   &onSurfaceStatsAvailable);
+        SurfaceStatsCallback callback = [generationId = mSurfaceControlGenerationId](
+                                                void* callback_context, nsecs_t, const sp<Fence>&,
+                                                const SurfaceStats& surfaceStats) {
+            onSurfaceStatsAvailable(callback_context, generationId, surfaceStats);
+        };
+        TransactionCompletedListener::getInstance()->addSurfaceStatsListener(
+                this, reinterpret_cast<void*>(onSurfaceStatsAvailable), mSurfaceControl, callback);
     }
+#endif
 }
 
 void CanvasContext::setupPipelineSurface() {
@@ -789,7 +808,13 @@ void CanvasContext::draw(bool solelyTextureViewUpdates) {
     int64_t frameDeadline = mCurrentFrameInfo->get(FrameInfoIndex::FrameDeadline);
     int64_t dequeueBufferDuration = mCurrentFrameInfo->get(FrameInfoIndex::DequeueBufferDuration);
 
-    mHintSessionWrapper->updateTargetWorkDuration(frameDeadline - intendedVsync);
+    if (Properties::calcWorkloadOrigDeadline()) {
+        // Uses the unmodified frame deadline in calculating workload target duration
+        mHintSessionWrapper->updateTargetWorkDuration(
+                mCurrentFrameInfo->get(FrameInfoIndex::WorkloadTarget));
+    } else {
+        mHintSessionWrapper->updateTargetWorkDuration(frameDeadline - intendedVsync);
+    }
 
     if (didDraw) {
         int64_t frameStartTime = mCurrentFrameInfo->get(FrameInfoIndex::FrameStartTime);
@@ -853,7 +878,7 @@ void CanvasContext::reportMetricsWithPresentTime() {
     }  // release lock
 }
 
-void CanvasContext::addFrameMetricsObserver(FrameMetricsObserver* observer) {
+void CanvasContext::addFrameMetricsObserver(sp<FrameMetricsObserver>&& observer) {
     std::scoped_lock lock(mFrameInfoMutex);
     if (mFrameMetricsReporter.get() == nullptr) {
         mFrameMetricsReporter.reset(new FrameMetricsReporter());
@@ -864,10 +889,10 @@ void CanvasContext::addFrameMetricsObserver(FrameMetricsObserver* observer) {
     // their frame metrics.
     uint64_t nextFrameNumber = getFrameNumber();
     observer->reportMetricsFrom(nextFrameNumber, mSurfaceControlGenerationId);
-    mFrameMetricsReporter->addObserver(observer);
+    mFrameMetricsReporter->addObserver(std::move(observer));
 }
 
-void CanvasContext::removeFrameMetricsObserver(FrameMetricsObserver* observer) {
+void CanvasContext::removeFrameMetricsObserver(const sp<FrameMetricsObserver>& observer) {
     std::scoped_lock lock(mFrameInfoMutex);
     if (mFrameMetricsReporter.get() != nullptr) {
         mFrameMetricsReporter->removeObserver(observer);
@@ -890,17 +915,26 @@ FrameInfo* CanvasContext::getFrameInfoFromLastFew(uint64_t frameNumber, uint32_t
 }
 
 void CanvasContext::onSurfaceStatsAvailable(void* context, int32_t surfaceControlId,
-                                            ASurfaceControlStats* stats) {
+                                            const SurfaceStats& stats) {
+#ifdef __ANDROID__
     auto* instance = static_cast<CanvasContext*>(context);
 
-    const ASurfaceControlFunctions& functions =
-            instance->mRenderThread.getASurfaceControlFunctions();
+    nsecs_t gpuCompleteTime = -1L;
+    if (const auto* fence = std::get_if<sp<Fence>>(&stats.acquireTimeOrFence)) {
+        // We got a fence instead of the acquire time due to latching unsignaled.
+        // Ideally the client could just get the acquire time directly from
+        // the fence instead of calling this function which needs to block.
+        (*fence)->waitForever("acquireFence");
+        gpuCompleteTime = (*fence)->getSignalTime();
+    } else {
+        gpuCompleteTime = std::get<int64_t>(stats.acquireTimeOrFence);
+    }
 
-    nsecs_t gpuCompleteTime = functions.getAcquireTimeFunc(stats);
     if (gpuCompleteTime == Fence::SIGNAL_TIME_PENDING) {
         gpuCompleteTime = -1;
     }
-    uint64_t frameNumber = functions.getFrameNumberFunc(stats);
+
+    uint64_t frameNumber = stats.eventStats.frameNumber;
 
     FrameInfo* frameInfo = instance->getFrameInfoFromLastFew(frameNumber, surfaceControlId);
 
@@ -913,6 +947,7 @@ void CanvasContext::onSurfaceStatsAvailable(void* context, int32_t surfaceContro
         instance->mJankTracker.finishFrame(*frameInfo, instance->mFrameMetricsReporter, frameNumber,
                                            surfaceControlId);
     }
+#endif
 }
 
 // Called by choreographer to do an RT-driven animation
@@ -1134,10 +1169,11 @@ CanvasContext* CanvasContext::getActiveContext() {
     return ScopedActiveContext::getActiveContext();
 }
 
-bool CanvasContext::mergeTransaction(ASurfaceTransaction* transaction, ASurfaceControl* control) {
+bool CanvasContext::mergeTransaction(ASurfaceTransaction* transaction,
+                                     const sp<SurfaceControl>& control) {
     if (!mASurfaceTransactionCallback) return false;
     return std::invoke(mASurfaceTransactionCallback, reinterpret_cast<int64_t>(transaction),
-                       reinterpret_cast<int64_t>(control), getFrameNumber());
+                       reinterpret_cast<int64_t>(control.get()), getFrameNumber());
 }
 
 void CanvasContext::prepareSurfaceControlForWebview() {

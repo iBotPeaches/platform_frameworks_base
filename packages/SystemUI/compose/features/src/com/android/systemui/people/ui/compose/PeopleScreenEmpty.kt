@@ -25,12 +25,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,13 +41,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.android.compose.theme.colorAttr
 import com.android.systemui.res.R
 
 @Composable
-internal fun PeopleScreenEmpty(onGotItClicked: () -> Unit) {
+internal fun PeopleScreenEmpty(onGotItClicked: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        Modifier.fillMaxSize().safeContentPadding().padding(PeopleSpacePadding),
+        modifier.fillMaxSize().safeDrawingPadding().padding(PeopleSpacePadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -69,26 +67,18 @@ internal fun PeopleScreenEmpty(onGotItClicked: () -> Unit) {
         ExampleTile()
         Spacer(Modifier.weight(1f))
 
-        Button(
-            onGotItClicked,
-            Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = colorAttr(com.android.internal.R.attr.colorAccentPrimary),
-                    contentColor = colorAttr(com.android.internal.R.attr.textColorOnAccent),
-                ),
-        ) {
+        Button(onGotItClicked, Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp)) {
             Text(stringResource(R.string.got_it))
         }
     }
 }
 
 @Composable
-private fun ExampleTile() {
+private fun ExampleTile(modifier: Modifier = Modifier) {
     Surface(
+        modifier,
         shape = RoundedCornerShape(28.dp),
-        color = colorAttr(com.android.internal.R.attr.colorSurface),
-        contentColor = colorAttr(com.android.internal.R.attr.textColorPrimary),
+        color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         Row(
             Modifier.padding(vertical = 20.dp, horizontal = 16.dp),

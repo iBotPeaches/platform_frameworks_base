@@ -16,6 +16,7 @@
 
 package com.android.systemui.communal.widgets
 
+import android.appwidget.AppWidgetProviderInfo
 import com.android.systemui.CoreStartable
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
 import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
@@ -26,6 +27,7 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.settings.UserTracker
+import com.android.systemui.user.domain.interactor.UserLockedInteractor
 import com.android.systemui.util.kotlin.BooleanFlowOperators.allOf
 import com.android.systemui.util.kotlin.BooleanFlowOperators.anyOf
 import com.android.systemui.util.kotlin.BooleanFlowOperators.not
@@ -58,6 +60,7 @@ constructor(
     @Main private val uiDispatcher: CoroutineDispatcher,
     private val glanceableHubWidgetManagerLazy: Lazy<GlanceableHubWidgetManager>,
     private val glanceableHubMultiUserHelper: GlanceableHubMultiUserHelper,
+    private val userLockedInteractor: UserLockedInteractor,
 ) : CoreStartable {
 
     private val appWidgetHost by lazy { appWidgetHostLazy.get() }
@@ -89,7 +92,17 @@ constructor(
             !glanceableHubMultiUserHelper.glanceableHubHsumFlagEnabled ||
                 !glanceableHubMultiUserHelper.isHeadlessSystemUserMode()
         ) {
-            anyOf(communalInteractor.isCommunalAvailable, communalInteractor.editModeOpen)
+            val isAvailable =
+                if (communalSettingsInteractor.isV2FlagEnabled()) {
+                    allOf(
+                        communalInteractor.isCommunalEnabled,
+                        keyguardInteractor.isKeyguardShowing,
+                    )
+                } else {
+                    communalInteractor.isCommunalAvailable
+                }
+
+            anyOf(isAvailable, communalInteractor.editModeOpen)
                 // Only trigger updates on state changes, ignoring the initial false value.
                 .pairwise(false)
                 .filter { (previous, new) -> previous != new }
@@ -99,6 +112,7 @@ constructor(
                     val (_, isActive) = withPrev
                     // The validation is performed once the hub becomes active.
                     if (isActive) {
+                        removeNotLockscreenWidgets(widgets)
                         validateWidgetsAndDeleteOrphaned(widgets)
                     }
                 }
@@ -142,6 +156,20 @@ constructor(
             }
         }
 
+    private fun removeNotLockscreenWidgets(widgets: List<CommunalWidgetContentModel>) {
+        widgets
+            .filter { widget ->
+                when (widget) {
+                    is CommunalWidgetContentModel.Available ->
+                        widget.providerInfo.widgetCategory and
+                            AppWidgetProviderInfo.WIDGET_CATEGORY_NOT_KEYGUARD != 0
+
+                    else -> false
+                }
+            }
+            .onEach { widget -> communalInteractor.deleteWidget(id = widget.appWidgetId) }
+    }
+
     /**
      * Ensure the existence of all associated users for widgets, and remove widgets belonging to
      * users who have been deleted.
@@ -154,6 +182,7 @@ constructor(
                     when (widget) {
                         is CommunalWidgetContentModel.Available ->
                             widget.providerInfo.profile?.identifier
+
                         is CommunalWidgetContentModel.Pending -> widget.user.identifier
                     }
                 !currentUserIds.contains(uid)

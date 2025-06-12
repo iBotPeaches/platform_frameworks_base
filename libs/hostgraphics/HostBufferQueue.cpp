@@ -29,6 +29,7 @@ public:
     }
 
     virtual status_t detachBuffer(int slot) {
+        mBuffer.clear();
         return OK;
     }
 

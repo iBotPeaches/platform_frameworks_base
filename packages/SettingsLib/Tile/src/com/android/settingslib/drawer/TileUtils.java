@@ -135,6 +135,13 @@ public class TileUtils {
     public static final String META_DATA_PREFERENCE_ICON = "com.android.settings.icon";
 
     /**
+     * Name of the meta-data item that should be set in the AndroidManifest.xml to specify the icon
+     * color scheme. Only available for preferences on the homepage.
+     */
+    public static final String META_DATA_PREFERENCE_ICON_COLOR_SCHEME =
+            "com.android.settings.icon_color_scheme";
+
+    /**
      * Name of the meta-data item that should be set in the AndroidManifest.xml
      * to specify the icon background color. The value may or may not be used by Settings app.
      */

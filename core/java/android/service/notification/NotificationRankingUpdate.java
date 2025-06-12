@@ -219,7 +219,7 @@ public class NotificationRankingUpdate implements Parcelable {
                 // Gets a read/write buffer mapping the entire shared memory region.
                 buffer = mRankingMapFd.mapReadWrite();
                 // Puts the ranking map into the shared memory region buffer.
-                buffer.put(mapParcel.marshall(), 0, mapSize);
+                mapParcel.marshall(buffer);
                 // Protects the region from being written to, by setting it to be read-only.
                 mRankingMapFd.setProtect(OsConstants.PROT_READ);
                 // Puts the SharedMemory object in the parcel.

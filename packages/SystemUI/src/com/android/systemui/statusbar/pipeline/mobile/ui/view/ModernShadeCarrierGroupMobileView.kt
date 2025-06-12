@@ -20,22 +20,30 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.LinearLayout
+import com.android.systemui.kairos.BuildSpec
+import com.android.systemui.kairos.ExperimentalKairosApi
+import com.android.systemui.kairos.KairosNetwork
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView.STATE_ICON
+import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
 import com.android.systemui.statusbar.pipeline.mobile.ui.binder.MobileIconBinder
+import com.android.systemui.statusbar.pipeline.mobile.ui.binder.MobileIconBinderKairos
 import com.android.systemui.statusbar.pipeline.mobile.ui.binder.ShadeCarrierBinder
+import com.android.systemui.statusbar.pipeline.mobile.ui.binder.ShadeCarrierBinderKairos
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.ShadeCarrierGroupMobileIconViewModel
+import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.ShadeCarrierGroupMobileIconViewModelKairos
 import com.android.systemui.util.AutoMarqueeTextView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * ViewGroup containing a mobile carrier name and icon in the Shade Header. Can be multiple
  * instances as children under [ShadeCarrierGroup]
  */
-class ModernShadeCarrierGroupMobileView(
-    context: Context,
-    attrs: AttributeSet?,
-) : LinearLayout(context, attrs) {
+class ModernShadeCarrierGroupMobileView(context: Context, attrs: AttributeSet?) :
+    LinearLayout(context, attrs) {
 
     var subId: Int = -1
 
@@ -71,6 +79,50 @@ class ModernShadeCarrierGroupMobileView(
 
                     val textView = it.requireViewById<AutoMarqueeTextView>(R.id.mobile_carrier_text)
                     ShadeCarrierBinder.bind(textView, viewModel)
+                }
+        }
+
+        /**
+         * Inflates a new instance of [ModernShadeCarrierGroupMobileView], binds it to [viewModel],
+         * and returns it.
+         */
+        @ExperimentalKairosApi
+        @JvmStatic
+        fun constructAndBind(
+            context: Context,
+            logger: MobileViewLogger,
+            slot: String,
+            viewModel: BuildSpec<ShadeCarrierGroupMobileIconViewModelKairos>,
+            scope: CoroutineScope,
+            subscriptionId: Int,
+            location: StatusBarLocation,
+            kairosNetwork: KairosNetwork,
+        ): Pair<ModernShadeCarrierGroupMobileView, Job> {
+            val view =
+                (LayoutInflater.from(context).inflate(R.layout.shade_carrier_new, null)
+                        as ModernShadeCarrierGroupMobileView)
+                    .apply { subId = subscriptionId }
+            return view to
+                scope.launch {
+                    val iconView =
+                        view.requireViewById<ModernStatusBarMobileView>(R.id.mobile_combo)
+                    iconView.initView(slot) {
+                        val (binding, _) =
+                            MobileIconBinderKairos.bind(
+                                view = iconView,
+                                viewModel = viewModel,
+                                initialVisibilityState = STATE_ICON,
+                                logger = logger,
+                                scope = this,
+                                kairosNetwork = kairosNetwork,
+                            )
+                        binding
+                    }
+                    logger.logNewViewBinding(view, viewModel, location.name)
+
+                    val textView =
+                        view.requireViewById<AutoMarqueeTextView>(R.id.mobile_carrier_text)
+                    launch { ShadeCarrierBinderKairos.bind(textView, viewModel, kairosNetwork) }
                 }
         }
     }

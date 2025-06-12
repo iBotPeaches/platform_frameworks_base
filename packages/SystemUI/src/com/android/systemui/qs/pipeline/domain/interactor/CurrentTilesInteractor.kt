@@ -20,6 +20,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.UserHandle
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.Dumpable
 import com.android.systemui.ProtoDumpable
 import com.android.systemui.dagger.SysUISingleton
@@ -41,7 +42,7 @@ import com.android.systemui.qs.pipeline.domain.model.TileModel
 import com.android.systemui.qs.pipeline.shared.QSPipelineFlagsRepository
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.pipeline.shared.logging.QSPipelineLogger
-import com.android.systemui.qs.tiles.di.NewQSTileFactory
+import com.android.systemui.qs.tiles.base.ui.model.NewQSTileFactory
 import com.android.systemui.qs.toProto
 import com.android.systemui.retail.data.repository.RetailModeRepository
 import com.android.systemui.settings.UserTracker
@@ -52,7 +53,6 @@ import java.io.PrintWriter
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,7 +63,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
-import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -133,7 +132,6 @@ interface CurrentTilesInteractor : ProtoDumpable {
  * * Platform tiles will be kept between users, with a call to [QSTile.userSwitch]
  * * [CustomTile]s will only be destroyed if the user changes.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class CurrentTilesInteractorImpl
 @Inject
@@ -247,7 +245,6 @@ constructor(
                                         processExistingTile(
                                             tileSpec,
                                             specsToTiles.getValue(tileSpec),
-                                            userChanged,
                                             newUser,
                                         ) ?: createTile(tileSpec)
                                     } else {
@@ -380,7 +377,6 @@ constructor(
     private fun processExistingTile(
         tileSpec: TileSpec,
         tileOrNotInstalled: TileOrNotInstalled,
-        userChanged: Boolean,
         user: Int,
     ): QSTile? {
         return when (tileOrNotInstalled) {
@@ -388,6 +384,10 @@ constructor(
             is TileOrNotInstalled.Tile -> {
                 val qsTile = tileOrNotInstalled.tile
                 when {
+                    qsTile.isDestroyed -> {
+                        logger.logTileDestroyedIgnored(tileSpec)
+                        null
+                    }
                     !qsTile.isAvailable -> {
                         logger.logTileDestroyed(
                             tileSpec,
@@ -401,10 +401,11 @@ constructor(
                     qsTile !is CustomTile -> {
                         // The tile is not a custom tile. Make sure they are reset to the correct
                         // user
-                        if (userChanged) {
+                        if (qsTile.currentTileUser != user) {
                             qsTile.userSwitch(user)
                             logger.logTileUserChanged(tileSpec, user)
                         }
+
                         qsTile
                     }
                     qsTile.user == user -> {

@@ -60,7 +60,7 @@ constructor(
                 bool1 = usesDefault
                 int1 = user
             },
-            { "Parsed tiles (default=$bool1, user=$int1): $str1" }
+            { "Parsed tiles (default=$bool1, user=$int1): $str1" },
         )
     }
 
@@ -77,7 +77,7 @@ constructor(
                 str2 = reconciledTiles.toString()
                 int1 = user
             },
-            { "Tiles restored and reconciled for user: $int1\nWas: $str1\nSet to: $str2" }
+            { "Tiles restored and reconciled for user: $int1\nWas: $str1\nSet to: $str2" },
         )
     }
 
@@ -94,7 +94,7 @@ constructor(
                 str2 = newList.toString()
                 int1 = userId
             },
-            { "Processing $str1 for user $int1\nNew list: $str2" }
+            { "Processing $str1 for user $int1\nNew list: $str2" },
         )
     }
 
@@ -107,7 +107,16 @@ constructor(
                 str1 = spec.toString()
                 str2 = reason.readable
             },
-            { "Tile $str1 destroyed. Reason: $str2" }
+            { "Tile $str1 destroyed. Reason: $str2" },
+        )
+    }
+
+    fun logTileDestroyedIgnored(spec: TileSpec) {
+        tileListLogBuffer.log(
+            TILE_LIST_TAG,
+            LogLevel.DEBUG,
+            { str1 = spec.toString() },
+            { "Tile $str1 ignored as it was already destroyed." },
         )
     }
 
@@ -117,7 +126,7 @@ constructor(
             TILE_LIST_TAG,
             LogLevel.DEBUG,
             { str1 = spec.toString() },
-            { "Tile $str1 created" }
+            { "Tile $str1 created" },
         )
     }
 
@@ -127,7 +136,7 @@ constructor(
             TILE_LIST_TAG,
             LogLevel.VERBOSE,
             { str1 = spec.toString() },
-            { "Tile $str1 not found in factory" }
+            { "Tile $str1 not found in factory" },
         )
     }
 
@@ -140,7 +149,7 @@ constructor(
                 str1 = spec.toString()
                 int1 = user
             },
-            { "User changed to $int1 for tile $str1" }
+            { "User changed to $int1 for tile $str1" },
         )
     }
 
@@ -156,7 +165,7 @@ constructor(
                 str1 = tiles.toString()
                 int1 = user
             },
-            { "Tiles kept for not installed packages for user $int1: $str1" }
+            { "Tiles kept for not installed packages for user $int1: $str1" },
         )
     }
 
@@ -168,7 +177,7 @@ constructor(
                 str1 = tiles.toString()
                 int1 = userId
             },
-            { "Auto add tiles parsed for user $int1: $str1" }
+            { "Auto add tiles parsed for user $int1: $str1" },
         )
     }
 
@@ -180,7 +189,7 @@ constructor(
                 str1 = tiles.toString()
                 int1 = userId
             },
-            { "Auto-add tiles reconciled for user $int1: $str1" }
+            { "Auto-add tiles reconciled for user $int1: $str1" },
         )
     }
 
@@ -193,7 +202,7 @@ constructor(
                 int2 = position
                 str1 = spec.toString()
             },
-            { "Tile $str1 auto added for user $int1 at position $int2" }
+            { "Tile $str1 auto added for user $int1 at position $int2" },
         )
     }
 
@@ -205,7 +214,7 @@ constructor(
                 int1 = userId
                 str1 = spec.toString()
             },
-            { "Tile $str1 auto removed for user $int1" }
+            { "Tile $str1 auto removed for user $int1" },
         )
     }
 
@@ -217,7 +226,7 @@ constructor(
                 int1 = userId
                 str1 = spec.toString()
             },
-            { "Tile $str1 unmarked as auto-added for user $int1" }
+            { "Tile $str1 unmarked as auto-added for user $int1" },
         )
     }
 
@@ -226,7 +235,7 @@ constructor(
             RESTORE_TAG,
             LogLevel.DEBUG,
             { int1 = userId },
-            { "Restored from single intent after user setup complete for user $int1" }
+            { "Restored from single intent after user setup complete for user $int1" },
         )
     }
 
@@ -243,7 +252,7 @@ constructor(
                 "Restored settings data for user $int1\n" +
                     "\tRestored tiles: $str1\n" +
                     "\tRestored auto added tiles: $str2"
-            }
+            },
         )
     }
 
@@ -258,7 +267,7 @@ constructor(
                 str1 = restoreProcessorClassName
                 str2 = step.name
             },
-            { "Restore $str2 processed by $str1" }
+            { "Restore $str2 processed by $str1" },
         )
     }
 
@@ -273,6 +282,6 @@ constructor(
 
     enum class RestorePreprocessorStep {
         PREPROCESSING,
-        POSTPROCESSING
+        POSTPROCESSING,
     }
 }

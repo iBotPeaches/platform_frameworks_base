@@ -36,7 +36,6 @@ import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.whenever
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -49,7 +48,6 @@ import org.mockito.Mockito.verify
 import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.isNull
 
-@ExperimentalCoroutinesApi
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class KeyguardKeyEventInteractorTest : SysuiTestCase() {
@@ -269,12 +267,20 @@ class KeyguardKeyEventInteractorTest : SysuiTestCase() {
         // action down: does NOT collapse the shade
         val actionDownMenuKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, keycode)
         assertThat(underTest.dispatchKeyEvent(actionDownMenuKeyEvent)).isFalse()
-        verify(statusBarKeyguardViewManager, never()).showPrimaryBouncer(any())
+        verify(statusBarKeyguardViewManager, never())
+            .showPrimaryBouncer(
+                any(),
+                eq("KeyguardKeyEventInteractor#collapseShadeLockedOrShowPrimaryBouncer"),
+            )
 
         // action up: collapses the shade
         val actionUpMenuKeyEvent = KeyEvent(KeyEvent.ACTION_UP, keycode)
         assertThat(underTest.dispatchKeyEvent(actionUpMenuKeyEvent)).isTrue()
-        verify(statusBarKeyguardViewManager).showPrimaryBouncer(eq(true))
+        verify(statusBarKeyguardViewManager)
+            .showPrimaryBouncer(
+                eq(true),
+                eq("KeyguardKeyEventInteractor#collapseShadeLockedOrShowPrimaryBouncer"),
+            )
     }
 
     private fun verifyActionsDoNothing(keycode: Int) {
@@ -282,12 +288,20 @@ class KeyguardKeyEventInteractorTest : SysuiTestCase() {
         val actionDownMenuKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, keycode)
         assertThat(underTest.dispatchKeyEvent(actionDownMenuKeyEvent)).isFalse()
         verify(shadeController, never()).animateCollapseShadeForced()
-        verify(statusBarKeyguardViewManager, never()).showPrimaryBouncer(any())
+        verify(statusBarKeyguardViewManager, never())
+            .showPrimaryBouncer(
+                any(),
+                eq("KeyguardKeyEventInteractor#collapseShadeLockedOrShowPrimaryBouncer"),
+            )
 
         // action up: doesNothing
         val actionUpMenuKeyEvent = KeyEvent(KeyEvent.ACTION_UP, keycode)
         assertThat(underTest.dispatchKeyEvent(actionUpMenuKeyEvent)).isFalse()
         verify(shadeController, never()).animateCollapseShadeForced()
-        verify(statusBarKeyguardViewManager, never()).showPrimaryBouncer(any())
+        verify(statusBarKeyguardViewManager, never())
+            .showPrimaryBouncer(
+                any(),
+                eq("KeyguardKeyEventInteractor#collapseShadeLockedOrShowPrimaryBouncer"),
+            )
     }
 }

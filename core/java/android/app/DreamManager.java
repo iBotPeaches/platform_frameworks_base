@@ -71,8 +71,11 @@ public class DreamManager {
     @TestApi
     @RequiresPermission(WRITE_SECURE_SETTINGS)
     public void setScreensaverEnabled(boolean enabled) {
-        Settings.Secure.putIntForUser(mContext.getContentResolver(),
-                Settings.Secure.SCREENSAVER_ENABLED, enabled ? 1 : 0, UserHandle.USER_CURRENT);
+        try {
+            mService.setScreensaverEnabled(enabled);
+        } catch (RemoteException e) {
+            e.rethrowFromSystemServer();
+        }
     }
 
     /**
@@ -230,6 +233,21 @@ public class DreamManager {
     public void setDreamIsObscured(boolean isObscured) {
         try {
             mService.setDreamIsObscured(isObscured);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * Notifies dream manager of device postured state, which may affect dream enablement.
+     *
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_ALLOW_DREAM_WHEN_POSTURED)
+    @RequiresPermission(android.Manifest.permission.WRITE_DREAM_STATE)
+    public void setDevicePostured(boolean isPostured) {
+        try {
+            mService.setDevicePostured(isPostured);
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }

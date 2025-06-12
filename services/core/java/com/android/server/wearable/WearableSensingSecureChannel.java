@@ -156,6 +156,7 @@ final class WearableSensingSecureChannel {
                     new AssociationRequest.Builder()
                             .setDisplayName(CDM_ASSOCIATION_DISPLAY_NAME)
                             .setSelfManaged(true)
+                            .setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WEARABLE_SENSING)
                             .build(),
                     mLightWeightExecutor,
                     new CompanionDeviceManager.Callback() {
@@ -195,7 +196,8 @@ final class WearableSensingSecureChannel {
             mCompanionDeviceManager.attachSystemDataTransport(
                     associationId,
                     new AutoCloseInputStream(mUnderlyingTransport),
-                    new AutoCloseOutputStream(mUnderlyingTransport));
+                    new AutoCloseOutputStream(mUnderlyingTransport),
+                    CompanionDeviceManager.TRANSPORT_FLAG_EXTEND_PATCH_DIFF);
         }
     }
 

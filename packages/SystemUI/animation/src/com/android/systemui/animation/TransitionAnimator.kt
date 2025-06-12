@@ -39,6 +39,8 @@ import com.android.app.animation.Interpolators.LINEAR
 import com.android.internal.annotations.VisibleForTesting
 import com.android.internal.dynamicanimation.animation.SpringAnimation
 import com.android.internal.dynamicanimation.animation.SpringForce
+import com.android.systemui.Flags
+import com.android.systemui.Flags.moveTransitionAnimationLayer
 import com.android.systemui.shared.Flags.returnAnimationFrameworkLibrary
 import com.android.systemui.shared.Flags.returnAnimationFrameworkLongLived
 import java.util.concurrent.Executor
@@ -508,6 +510,8 @@ class TransitionAnimator(
      * the animation (if ![Controller.isLaunching]), and will have SRC blending mode (ultimately
      * punching a hole in the [transition container][Controller.transitionContainer]) iff [drawHole]
      * is true.
+     *
+     * TODO(b/397646693): remove drawHole altogether.
      *
      * If [startVelocity] (expressed in pixels per second) is not null, a multi-spring animation
      * using it for the initial momentum will be used instead of the default interpolators. In this
@@ -1003,13 +1007,30 @@ class TransitionAnimator(
             Log.d(TAG, "Animation ended")
         }
 
-        // TODO(b/330672236): Post this to the main thread instead so that it does not
-        // flicker with Flexiglass enabled.
-        controller.onTransitionAnimationEnd(isExpandingFullyAbove)
-        transitionContainerOverlay.remove(windowBackgroundLayer)
+        val onEnd = {
+            controller.onTransitionAnimationEnd(isExpandingFullyAbove)
+            transitionContainerOverlay.remove(windowBackgroundLayer)
 
-        if (moveBackgroundLayerWhenAppVisibilityChanges && controller.isLaunching) {
-            openingWindowSyncViewOverlay?.remove(windowBackgroundLayer)
+            if (moveBackgroundLayerWhenAppVisibilityChanges && controller.isLaunching) {
+                openingWindowSyncViewOverlay?.remove(windowBackgroundLayer)
+            }
+        }
+        if (Flags.sceneContainer() || !controller.isLaunching) {
+            // onAnimationEnd is called at the end of the animation, on a Choreographer animation
+            // tick. During dialog launches, the following calls will move the animated content from
+            // the dialog overlay back to its original position, and this change must be reflected
+            // in the next frame given that we then sync the next frame of both the content and
+            // dialog ViewRoots. During SysUI activity launches, we will instantly collapse the
+            // shade at the end of the transition. However, if those are rendered by Compose, whose
+            // compositions are also scheduled on a Choreographer frame, any state change made
+            // *right now* won't be reflected in the next frame given that a Choreographer frame
+            // can't schedule another and have it happen in the same frame. So we post the forwarded
+            // calls to [Controller.onLaunchAnimationEnd] in the main executor, leaving this
+            // Choreographer frame, ensuring that any state change applied by
+            // onTransitionAnimationEnd() will be reflected in the same frame.
+            mainExecutor.execute { onEnd() }
+        } else {
+            onEnd()
         }
     }
 
@@ -1183,6 +1204,10 @@ class TransitionAnimator(
                 if (drawHole) {
                     drawable.setXfermode(SRC_MODE)
                 }
+            } else if (moveTransitionAnimationLayer() && fadeOutProgress >= 1 && drawHole) {
+                // If [drawHole] is true, draw it once the opening content is done fading in.
+                drawable.alpha = 0x00
+                drawable.setXfermode(SRC_MODE)
             } else {
                 drawable.alpha = 0xFF
             }

@@ -77,8 +77,7 @@ framework_connectivity_b_defaults_soong_config {
     ],
     soong_config_variables: {
         is_vcn_in_mainline: {
-            //TODO: b/380155299 Make it Baklava when aidl tool can understand it
-            min_sdk_version: "current",
+            min_sdk_version: "36",
             static_libs: ["android.net.vcn.flags-aconfig-java"],
             apex_available: ["com.android.tethering"],
 

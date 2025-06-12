@@ -23,7 +23,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.annotation.NonNull;
@@ -132,8 +132,8 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionAllowlistManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionConsentManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
-        verifyZeroInteractions(mMockContentProtectionAllowlistManager);
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionAllowlistManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -147,7 +147,7 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         verify(mMockContentProtectionAllowlistManager).start(anyLong());
         verify(mMockContentProtectionAllowlistManager, never()).stop();
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -157,8 +157,8 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionAllowlistManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionConsentManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
-        verifyZeroInteractions(mMockContentProtectionAllowlistManager);
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionAllowlistManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -172,7 +172,7 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         verify(mMockContentProtectionAllowlistManager).start(anyLong());
         verify(mMockContentProtectionAllowlistManager, never()).stop();
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -187,7 +187,7 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         verify(mMockContentProtectionAllowlistManager).start(anyLong());
         verify(mMockContentProtectionAllowlistManager, never()).stop();
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -203,7 +203,7 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         verify(mMockContentProtectionAllowlistManager).start(anyLong());
         verify(mMockContentProtectionAllowlistManager).stop();
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -216,8 +216,8 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionAllowlistManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionConsentManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
-        verifyZeroInteractions(mMockContentProtectionAllowlistManager);
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionAllowlistManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -230,8 +230,8 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionAllowlistManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionConsentManagersCreated).isEqualTo(0);
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
-        verifyZeroInteractions(mMockContentProtectionAllowlistManager);
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionAllowlistManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -248,7 +248,7 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         verify(mMockContentProtectionAllowlistManager).start(anyLong());
         verify(mMockContentProtectionAllowlistManager).stop();
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -265,7 +265,7 @@ public class ContentCaptureManagerServiceTest {
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         verify(mMockContentProtectionAllowlistManager).start(anyLong());
         verify(mMockContentProtectionAllowlistManager).stop();
-        verifyZeroInteractions(mMockContentProtectionConsentManager);
+        verifyNoMoreInteractions(mMockContentProtectionConsentManager);
     }
 
     @Test
@@ -513,7 +513,7 @@ public class ContentCaptureManagerServiceTest {
 
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(0);
         assertThat(mRemoteContentProtectionServicesCreated).isEqualTo(0);
-        verifyZeroInteractions(mMockRemoteContentProtectionService);
+        verifyNoMoreInteractions(mMockRemoteContentProtectionService);
     }
 
     @Test
@@ -528,7 +528,7 @@ public class ContentCaptureManagerServiceTest {
 
         assertThat(mContentProtectionServiceInfosCreated).isEqualTo(1);
         assertThat(mRemoteContentProtectionServicesCreated).isEqualTo(0);
-        verifyZeroInteractions(mMockRemoteContentProtectionService);
+        verifyNoMoreInteractions(mMockRemoteContentProtectionService);
     }
 
     @Test

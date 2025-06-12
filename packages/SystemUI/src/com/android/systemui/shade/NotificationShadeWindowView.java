@@ -17,6 +17,7 @@
 package com.android.systemui.shade;
 
 import static android.os.Trace.TRACE_TAG_APP;
+import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED;
 
 import static com.android.systemui.Flags.enableViewCaptureTracing;
 import static com.android.systemui.statusbar.phone.CentralSurfaces.DEBUG;
@@ -49,10 +50,12 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowInsetsController;
+import android.view.accessibility.AccessibilityEvent;
 
 import com.android.app.viewcapture.ViewCaptureFactory;
 import com.android.internal.view.FloatingActionMode;
 import com.android.internal.widget.floatingtoolbar.FloatingToolbar;
+import com.android.systemui.Flags;
 import com.android.systemui.scene.ui.view.WindowRootView;
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround;
 import com.android.systemui.statusbar.phone.ConfigurationForwarder;
@@ -77,6 +80,8 @@ public class NotificationShadeWindowView extends WindowRootView {
 
     private SafeCloseable mViewCaptureCloseable;
 
+    private boolean mAnimatingContentLaunch = false;
+
     public NotificationShadeWindowView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setMotionEventSplittingEnabled(false);
@@ -98,26 +103,6 @@ public class NotificationShadeWindowView extends WindowRootView {
         if (mViewCaptureCloseable != null) {
             mViewCaptureCloseable.close();
         }
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        mInteractionEventHandler.collectKeyEvent(event);
-
-        if (mInteractionEventHandler.interceptMediaKey(event)) {
-            return true;
-        }
-
-        if (super.dispatchKeyEvent(event)) {
-            return true;
-        }
-
-        return mInteractionEventHandler.dispatchKeyEvent(event);
-    }
-
-    @Override
-    public boolean dispatchKeyEventPreIme(KeyEvent event) {
-        return mInteractionEventHandler.dispatchKeyEventPreIme(event);
     }
 
     protected void setInteractionEventHandler(InteractionEventHandler listener) {
@@ -169,6 +154,10 @@ public class NotificationShadeWindowView extends WindowRootView {
     public void onMovedToDisplay(int displayId, Configuration config) {
         super.onMovedToDisplay(displayId, config);
         ShadeWindowGoesAround.isUnexpectedlyInLegacyMode();
+        ShadeTraceLogger.logOnMovedToDisplay(displayId, config);
+        if (mConfigurationForwarder != null) {
+            mConfigurationForwarder.dispatchOnMovedToDisplay(displayId, config);
+        }
         // When the window is moved we're only receiving a call to this method instead of the
         // onConfigurationChange itself. Let's just trigegr a normal config change.
         onConfigurationChanged(config);
@@ -177,10 +166,23 @@ public class NotificationShadeWindowView extends WindowRootView {
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if (mConfigurationForwarder != null) {
-            ShadeWindowGoesAround.isUnexpectedlyInLegacyMode();
-            mConfigurationForwarder.onConfigurationChanged(newConfig);
+        ShadeTraceLogger.logOnConfigChanged(newConfig);
+    }
+
+    @Override
+    public boolean requestSendAccessibilityEvent(View child, AccessibilityEvent event) {
+        if (Flags.shadeLaunchAccessibility() && mAnimatingContentLaunch
+                && event.getEventType() == TYPE_VIEW_ACCESSIBILITY_FOCUSED) {
+            // Block accessibility focus events during launch animations to avoid stray TalkBack
+            // announcements.
+            return false;
         }
+
+        return super.requestSendAccessibilityEvent(child, event);
+    }
+
+    public void setAnimatingContentLaunch(boolean animating) {
+        mAnimatingContentLaunch = animating;
     }
 
     public void setConfigurationForwarder(ConfigurationForwarder configurationForwarder) {
@@ -341,17 +343,6 @@ public class NotificationShadeWindowView extends WindowRootView {
         boolean handleTouchEvent(MotionEvent ev);
 
         void didNotHandleTouchEvent(MotionEvent ev);
-
-        boolean interceptMediaKey(KeyEvent event);
-
-        boolean dispatchKeyEvent(KeyEvent event);
-
-        boolean dispatchKeyEventPreIme(KeyEvent event);
-
-        /**
-         * Collects the KeyEvent without intercepting it
-         */
-        void collectKeyEvent(KeyEvent event);
     }
 
     /**

@@ -35,5 +35,6 @@ android_library {
         "com.android.extservices",
         "com.android.permission",
         "com.android.healthfitness",
+        "com.android.mediaprovider",
     ],
 }

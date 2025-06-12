@@ -47,19 +47,21 @@ android_app {
     sdk_version: "system_current",
     rename_resources_package: false,
     static_libs: [
-        "androidx.leanback_leanback",
+        "android.content.pm.flags-aconfig-java",
+        "android.multiuser.flags-aconfig-java",
+        "android.os.flags-aconfig-java",
         "androidx.annotation_annotation",
         "androidx.fragment_fragment",
-        "androidx.lifecycle_lifecycle-livedata",
+        "androidx.leanback_leanback",
         "androidx.lifecycle_lifecycle-extensions",
-        "android.content.pm.flags-aconfig-java",
-        "android.os.flags-aconfig-java",
-        "android.multiuser.flags-aconfig-java",
+        "androidx.lifecycle_lifecycle-livedata",
+        "kotlin-parcelize-runtime",
     ],
 
     lint: {
         error_checks: ["Recycle"],
     },
+    kotlin_plugins: ["kotlin-parcelize-compiler-plugin"],
 }
 
 android_app {
@@ -79,19 +81,22 @@ android_app {
     overrides: ["PackageInstaller"],
 
     static_libs: [
-        "androidx.leanback_leanback",
-        "androidx.fragment_fragment",
-        "androidx.lifecycle_lifecycle-livedata",
-        "androidx.lifecycle_lifecycle-extensions",
         "android.content.pm.flags-aconfig-java",
-        "android.os.flags-aconfig-java",
         "android.multiuser.flags-aconfig-java",
+        "android.os.flags-aconfig-java",
+        "androidx.annotation_annotation",
+        "androidx.fragment_fragment",
+        "androidx.leanback_leanback",
+        "androidx.lifecycle_lifecycle-extensions",
+        "androidx.lifecycle_lifecycle-livedata",
+        "kotlin-parcelize-runtime",
     ],
     aaptflags: ["--product tablet"],
 
     lint: {
         error_checks: ["Recycle"],
     },
+    kotlin_plugins: ["kotlin-parcelize-compiler-plugin"],
 }
 
 android_app {
@@ -111,18 +116,20 @@ android_app {
     overrides: ["PackageInstaller"],
 
     static_libs: [
-        "androidx.leanback_leanback",
+        "android.content.pm.flags-aconfig-java",
+        "android.multiuser.flags-aconfig-java",
+        "android.os.flags-aconfig-java",
         "androidx.annotation_annotation",
         "androidx.fragment_fragment",
-        "androidx.lifecycle_lifecycle-livedata",
+        "androidx.leanback_leanback",
         "androidx.lifecycle_lifecycle-extensions",
-        "android.content.pm.flags-aconfig-java",
-        "android.os.flags-aconfig-java",
-        "android.multiuser.flags-aconfig-java",
+        "androidx.lifecycle_lifecycle-livedata",
+        "kotlin-parcelize-runtime",
     ],
     aaptflags: ["--product tv"],
 
     lint: {
         error_checks: ["Recycle"],
     },
+    kotlin_plugins: ["kotlin-parcelize-compiler-plugin"],
 }

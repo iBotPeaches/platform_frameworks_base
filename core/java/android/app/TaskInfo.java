@@ -376,6 +376,14 @@ public class TaskInfo {
     }
 
     /**
+     * Returns the task id.
+     * @hide
+     */
+    public int getTaskId() {
+        return taskId;
+    }
+
+    /**
      * Whether this task is visible.
      */
     public boolean isVisible() {
@@ -647,8 +655,10 @@ public class TaskInfo {
                 + " effectiveUid=" + effectiveUid
                 + " displayId=" + displayId
                 + " isRunning=" + isRunning
-                + " baseIntent=" + baseIntent + " baseActivity=" + baseActivity
-                + " topActivity=" + topActivity + " origActivity=" + origActivity
+                + " baseIntent=" + baseIntent
+                + " baseActivity=" + baseActivity
+                + " topActivity=" + topActivity
+                + " origActivity=" + origActivity
                 + " realActivity=" + realActivity
                 + " numActivities=" + numActivities
                 + " lastActiveTime=" + lastActiveTime

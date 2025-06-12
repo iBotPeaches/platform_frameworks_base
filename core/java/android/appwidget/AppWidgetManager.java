@@ -515,12 +515,13 @@ public class AppWidgetManager {
 
     /**
      * This bundle extra describes which views have been clicked during a single impression of the
-     * widget. It is an integer array of view IDs of the clicked views.
+     * widget. It is an integer array of view IDs of the clicked views. The array may contain up to
+     * 10 distinct IDs per event.
      *
-     * Widget providers may set a different ID for event purposes by setting the
-     * {@link android.R.id.remoteViewsMetricsId} int tag on the view.
+     * Widget providers may set a different ID for event logging by setting the usage event tag on
+     * the view with {@link RemoteViews#setUsageEventTag}.
      *
-     * @see android.views.RemoteViews.setIntTag
+     * @see android.widget.RemoteViews#setUsageEventTag
      */
     @FlaggedApi(Flags.FLAG_ENGAGEMENT_METRICS)
     public static final String EXTRA_EVENT_CLICKED_VIEWS =
@@ -528,12 +529,13 @@ public class AppWidgetManager {
 
     /**
      * This bundle extra describes which views have been scrolled during a single impression of the
-     * widget. It is an integer array of view IDs of the scrolled views.
+     * widget. It is an integer array of view IDs of the scrolled views. The array may contain up to
+     * 10 distinct IDs per event.
      *
-     * Widget providers may set a different ID for event purposes by setting the
-     * {@link android.R.id.remoteViewsMetricsId} int tag on the view.
+     * Widget providers may set a different ID for event logging by setting the usage event tag on
+     * the view with {@link RemoteViews#setUsageEventTag}.
      *
-     * @see android.views.RemoteViews.setIntTag
+     * @see android.widget.RemoteViews#setUsageEventTag
      */
     @FlaggedApi(Flags.FLAG_ENGAGEMENT_METRICS)
     public static final String EXTRA_EVENT_SCROLLED_VIEWS =
@@ -1684,10 +1686,14 @@ public class AppWidgetManager {
             private IBinder mIBinder;
 
             ConnectionTask(@NonNull FilterComparison filter) {
-                mContext.bindService(filter.getIntent(),
-                        Context.BindServiceFlags.of(Context.BIND_AUTO_CREATE),
-                        mHandler::post,
-                        this);
+                try {
+                    mContext.bindService(filter.getIntent(),
+                            Context.BindServiceFlags.of(Context.BIND_AUTO_CREATE),
+                            mHandler::post,
+                            this);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error connecting to service in connection cache", e);
+                }
             }
 
             @Override
@@ -1737,7 +1743,11 @@ public class AppWidgetManager {
                     handleNext();
                     return;
                 }
-                mContext.unbindService(this);
+                try {
+                    mContext.unbindService(this);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error unbinding the cached connection", e);
+                }
                 mActiveConnections.values().remove(this);
             }
         }

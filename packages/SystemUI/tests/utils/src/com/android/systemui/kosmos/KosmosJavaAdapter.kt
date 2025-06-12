@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.kosmos
 
 import android.content.applicationContext
@@ -31,6 +29,7 @@ import com.android.systemui.common.ui.domain.interactor.configurationInteractor
 import com.android.systemui.communal.data.repository.fakeCommunalSceneRepository
 import com.android.systemui.communal.domain.interactor.communalInteractor
 import com.android.systemui.communal.domain.interactor.communalSceneInteractor
+import com.android.systemui.communal.domain.interactor.communalSettingsInteractor
 import com.android.systemui.communal.ui.viewmodel.communalTransitionViewModel
 import com.android.systemui.concurrency.fakeExecutor
 import com.android.systemui.deviceentry.domain.interactor.deviceEntryInteractor
@@ -54,6 +53,8 @@ import com.android.systemui.keyguard.domain.interactor.pulseExpansionInteractor
 import com.android.systemui.keyguard.ui.viewmodel.glanceableHubToLockscreenTransitionViewModel
 import com.android.systemui.keyguard.ui.viewmodel.lockscreenToGlanceableHubTransitionViewModel
 import com.android.systemui.model.sceneContainerPlugin
+import com.android.systemui.model.sysUIStateDispatcher
+import com.android.systemui.model.sysUiState
 import com.android.systemui.plugins.statusbar.statusBarStateController
 import com.android.systemui.power.data.repository.fakePowerRepository
 import com.android.systemui.power.domain.interactor.powerInteractor
@@ -63,7 +64,10 @@ import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.domain.startable.scrimStartable
 import com.android.systemui.scene.sceneContainerConfig
 import com.android.systemui.scene.shared.model.sceneDataSource
-import com.android.systemui.settings.brightness.domain.interactor.brightnessMirrorShowingInteractor
+import com.android.systemui.scene.ui.view.mockWindowRootViewProvider
+import com.android.systemui.settings.brightness.data.repository.brightnessMirrorShowingRepository
+import com.android.systemui.settings.displayTracker
+import com.android.systemui.shade.data.repository.fakeShadeDisplaysRepository
 import com.android.systemui.shade.data.repository.shadeRepository
 import com.android.systemui.shade.domain.interactor.shadeInteractor
 import com.android.systemui.shade.domain.interactor.shadeLayoutParams
@@ -77,6 +81,7 @@ import com.android.systemui.statusbar.disableflags.domain.interactor.disableFlag
 import com.android.systemui.statusbar.notification.collection.provider.visualStabilityProvider
 import com.android.systemui.statusbar.notification.domain.interactor.activeNotificationsInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.seenNotificationsInteractor
+import com.android.systemui.statusbar.notification.row.entryAdapterFactory
 import com.android.systemui.statusbar.notification.stack.domain.interactor.headsUpNotificationInteractor
 import com.android.systemui.statusbar.notification.stack.domain.interactor.sharedNotificationContainerInteractor
 import com.android.systemui.statusbar.phone.fakeAutoHideControllerStore
@@ -88,10 +93,11 @@ import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.wifiIntera
 import com.android.systemui.statusbar.policy.configurationController
 import com.android.systemui.statusbar.policy.data.repository.fakeDeviceProvisioningRepository
 import com.android.systemui.statusbar.policy.domain.interactor.deviceProvisioningInteractor
+import com.android.systemui.statusbar.policy.keyguardStateController
 import com.android.systemui.statusbar.ui.viewmodel.keyguardStatusBarViewModel
 import com.android.systemui.util.time.systemClock
 import com.android.systemui.volume.domain.interactor.volumeDialogInteractor
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.android.systemui.window.domain.interactor.windowRootViewBlurInteractor
 
 /**
  * Helper for using [Kosmos] from Java.
@@ -127,6 +133,7 @@ class KosmosJavaAdapter() {
     val keyguardInteractor by lazy { kosmos.keyguardInteractor }
     val keyguardTransitionRepository by lazy { kosmos.fakeKeyguardTransitionRepository }
     val keyguardTransitionInteractor by lazy { kosmos.keyguardTransitionInteractor }
+    val keyguardStateController by lazy { kosmos.keyguardStateController }
     val keyguardStatusBarViewModel by lazy { kosmos.keyguardStatusBarViewModel }
     val powerRepository by lazy { kosmos.fakePowerRepository }
     val clock by lazy { kosmos.systemClock }
@@ -148,6 +155,7 @@ class KosmosJavaAdapter() {
     val deviceUnlockedInteractor by lazy { kosmos.deviceUnlockedInteractor }
     val communalInteractor by lazy { kosmos.communalInteractor }
     val communalSceneInteractor by lazy { kosmos.communalSceneInteractor }
+    val communalSettingsInteractor by lazy { kosmos.communalSettingsInteractor }
     val sceneContainerPlugin by lazy { kosmos.sceneContainerPlugin }
     val deviceProvisioningInteractor by lazy { kosmos.deviceProvisioningInteractor }
     val fakeDeviceProvisioningRepository by lazy { kosmos.fakeDeviceProvisioningRepository }
@@ -163,7 +171,7 @@ class KosmosJavaAdapter() {
     val sharedNotificationContainerInteractor by lazy {
         kosmos.sharedNotificationContainerInteractor
     }
-    val brightnessMirrorShowingInteractor by lazy { kosmos.brightnessMirrorShowingInteractor }
+    val brightnessMirrorShowingRepository by lazy { kosmos.brightnessMirrorShowingRepository }
     val qsLongPressEffect by lazy { kosmos.qsLongPressEffect }
     val shadeController by lazy { kosmos.shadeController }
     val shadeRepository by lazy { kosmos.shadeRepository }
@@ -180,7 +188,9 @@ class KosmosJavaAdapter() {
     val scrimStartable by lazy { kosmos.scrimStartable }
     val sceneContainerOcclusionInteractor by lazy { kosmos.sceneContainerOcclusionInteractor }
     val msdlPlayer by lazy { kosmos.fakeMSDLPlayer }
+
     val shadeModeInteractor by lazy { kosmos.shadeModeInteractor }
+
     val bouncerHapticHelper by lazy { kosmos.bouncerHapticPlayer }
 
     val glanceableHubToLockscreenTransitionViewModel by lazy {
@@ -191,4 +201,11 @@ class KosmosJavaAdapter() {
     }
     val disableFlagsInteractor by lazy { kosmos.disableFlagsInteractor }
     val fakeDisableFlagsRepository by lazy { kosmos.fakeDisableFlagsRepository }
+    val mockWindowRootViewProvider by lazy { kosmos.mockWindowRootViewProvider }
+    val windowRootViewBlurInteractor by lazy { kosmos.windowRootViewBlurInteractor }
+    val sysuiState by lazy { kosmos.sysUiState }
+    val displayTracker by lazy { kosmos.displayTracker }
+    val fakeShadeDisplaysRepository by lazy { kosmos.fakeShadeDisplaysRepository }
+    val sysUIStateDispatcher by lazy { kosmos.sysUIStateDispatcher }
+    val entryAdapterFactory by lazy { kosmos.entryAdapterFactory }
 }

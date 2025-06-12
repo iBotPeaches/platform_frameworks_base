@@ -78,4 +78,11 @@ interface IServiceListEdit {
     int addPredefinedChannelList(String serviceListId, in Bundle[] predefinedListBundle);
     // Add predefined satellite info of Hotbird 13E in scan two satellite scene EU region.
     int addPredefinedSatInfo(String serviceListId, in Bundle predefinedSatInfoBundle);
+
+    // Get the logo URI for a specific service - DVB-I only.
+    String getServiceLogoUri(int serviceRecordId);
+    // Get the installed service list information for a specific channel list id - DVB-I only.
+    Bundle getInstalledServiceListInfo(String channelListId);
+    // Get all installed service list information - DVB-I only.
+    Bundle[] getAllInstalledServiceListInfo();
 }

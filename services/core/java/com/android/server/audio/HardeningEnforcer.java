@@ -37,6 +37,7 @@ import com.android.modules.expresslog.Counter;
 import com.android.server.utils.EventLogger;
 
 import java.io.PrintWriter;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Class to encapsulate all audio API hardening operations
@@ -49,13 +50,13 @@ public class HardeningEnforcer {
 
     final Context mContext;
     final AppOpsManager mAppOps;
+    final AtomicBoolean mShouldEnableAllHardening;
     final boolean mIsAutomotive;
 
     final ActivityManager mActivityManager;
     final PackageManager mPackageManager;
 
-    final EventLogger mEventLogger = new EventLogger(LOG_NB_EVENTS,
-            "Hardening enforcement");
+    final EventLogger mEventLogger;
 
     // capacity = 4 for each of the focus request types
     static final SparseArray<String> METRIC_COUNTERS_FOCUS_DENIAL = new SparseArray<>(4);
@@ -107,18 +108,20 @@ public class HardeningEnforcer {
      */
     public static final int METHOD_AUDIO_MANAGER_REQUEST_AUDIO_FOCUS = 300;
 
-    public HardeningEnforcer(Context ctxt, boolean isAutomotive, AppOpsManager appOps,
-            PackageManager pm) {
+    private static final int ALLOWED = 0;
+    private static final int DENIED_IF_PARTIAL = 1;
+    private static final int DENIED_IF_FULL = 2;
+
+    public HardeningEnforcer(Context ctxt, boolean isAutomotive,
+            AtomicBoolean shouldEnableHardening, AppOpsManager appOps, PackageManager pm,
+            EventLogger logger) {
         mContext = ctxt;
         mIsAutomotive = isAutomotive;
+        mShouldEnableAllHardening = shouldEnableHardening;
         mAppOps = appOps;
         mActivityManager = ctxt.getSystemService(ActivityManager.class);
         mPackageManager = pm;
-    }
-
-    protected void dump(PrintWriter pw) {
-        // log
-        mEventLogger.dump(pw);
+        mEventLogger = logger;
     }
 
     /**
@@ -126,29 +129,59 @@ public class HardeningEnforcer {
      * @param volumeMethod name of the method to check, for logging purposes
      * @return false if the method call is allowed, true if it should be a no-op
      */
-    protected boolean blockVolumeMethod(int volumeMethod) {
+    protected boolean blockVolumeMethod(int volumeMethod, String packageName, int uid) {
+        // Regardless of flag state, always permit callers with MODIFY_AUDIO_SETTINGS_PRIVILEGED
+        // Prevent them from showing up in metrics as well
+        if (mContext.checkCallingOrSelfPermission(
+                Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED)
+                == PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
         // for Auto, volume methods require MODIFY_AUDIO_SETTINGS_PRIVILEGED
         if (mIsAutomotive) {
             if (!autoPublicVolumeApiHardening()) {
                 // automotive hardening flag disabled, no blocking on auto
                 return false;
             }
-            if (mContext.checkCallingOrSelfPermission(
-                    Manifest.permission.MODIFY_AUDIO_SETTINGS_PRIVILEGED)
-                    == PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-            if (Binder.getCallingUid() < UserHandle.AID_APP_START) {
+            if (uid < UserHandle.AID_APP_START) {
                 return false;
             }
             // TODO metrics?
             // TODO log for audio dumpsys?
             Slog.e(TAG, "Preventing volume method " + volumeMethod + " for "
-                    + getPackNameForUid(Binder.getCallingUid()));
+                    + packageName);
             return true;
+        } else {
+            int allowed;
+            // No flags controlling restriction yet
+            boolean enforced = mShouldEnableAllHardening.get();
+            if (!noteOp(AppOpsManager.OP_CONTROL_AUDIO_PARTIAL, uid, packageName, null)) {
+                // blocked by partial
+                Counter.logIncrementWithUid(
+                        "media_audio.value_audio_volume_hardening_partial_restriction", uid);
+                allowed = DENIED_IF_PARTIAL;
+            } else if (!noteOp(AppOpsManager.OP_CONTROL_AUDIO, uid, packageName, null)) {
+                // blocked by full, permitted by partial
+                Counter.logIncrementWithUid(
+                        "media_audio.value_audio_volume_hardening_strict_restriction", uid);
+                allowed = DENIED_IF_FULL;
+            } else {
+                // permitted with strict hardening, log anyway for API metrics
+                Counter.logIncrementWithUid(
+                        "media_audio.value_audio_volume_hardening_allowed", uid);
+                allowed = ALLOWED;
+            }
+            if (allowed != ALLOWED) {
+                String msg = "AudioHardening volume control for api "
+                        + volumeMethod
+                        + (!enforced ? " would be " : " ")
+                        + "ignored for "
+                        + getPackNameForUid(uid) + " (" + uid + "), "
+                        + "level: " + (allowed == DENIED_IF_PARTIAL ? "partial" : "full");
+                mEventLogger.enqueueAndSlog(msg, EventLogger.Event.ALOGW, TAG);
+            }
+            return enforced && allowed != ALLOWED;
         }
-        // not blocking
-        return false;
     }
 
     /**
@@ -166,7 +199,9 @@ public class HardeningEnforcer {
         if (packageName.isEmpty()) {
             packageName = getPackNameForUid(callingUid);
         }
-
+        // indicates would be blocked if audio capabilities were required
+        boolean blockedIfFull = !noteOp(AppOpsManager.OP_CONTROL_AUDIO,
+                                        callingUid, packageName, attributionTag);
         boolean blocked = true;
         // indicates the focus request was not blocked because of the SDK version
         boolean unblockedBySdk = false;
@@ -180,22 +215,35 @@ public class HardeningEnforcer {
                 Slog.i(TAG, "blockFocusMethod pack:" + packageName + " NOT blocking due to sdk="
                         + targetSdk);
             }
-            blocked = false;
             unblockedBySdk = true;
         }
 
-        metricsLogFocusReq(blocked, focusReqType, callingUid, unblockedBySdk);
+        boolean enforced = mShouldEnableAllHardening.get() || !unblockedBySdk;
+        boolean enforcedFull = mShouldEnableAllHardening.get();
 
-        if (!blocked) {
-            return false;
+        metricsLogFocusReq(blocked && enforced, focusReqType, callingUid, unblockedBySdk);
+
+        if (blocked) {
+            String msg = "AudioHardening focus request for req "
+                    + focusReqType
+                    + (!enforced ? " would be " : " ")
+                    + "ignored for "
+                    + packageName + " (" + callingUid + "), "
+                    + clientId
+                    + ", level: partial";
+            mEventLogger.enqueueAndSlog(msg, EventLogger.Event.ALOGW, TAG);
+        } else if (blockedIfFull) {
+            String msg = "AudioHardening focus request for req "
+                    + focusReqType
+                    + (!enforcedFull ? " would be " : " ")
+                    + "ignored for "
+                    + packageName + " (" + callingUid + "), "
+                    + clientId
+                    + ", level: full";
+            mEventLogger.enqueueAndSlog(msg, EventLogger.Event.ALOGW, TAG);
         }
 
-        String errorMssg = "Focus request DENIED for uid:" + callingUid
-                + " clientId:" + clientId + " req:" + focusReqType
-                + " procState:" + mActivityManager.getUidProcessState(callingUid);
-        mEventLogger.enqueueAndSlog(errorMssg, EventLogger.Event.ALOGI, TAG);
-
-        return true;
+        return blocked && enforced || (blockedIfFull && enforcedFull);
     }
 
     /**

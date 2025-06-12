@@ -17,10 +17,9 @@
 package com.android.test.input
 
 import android.view.InputDevice.SOURCE_MOUSE
-import android.view.InputDevice.SOURCE_TOUCHSCREEN
 import android.view.InputDevice.SOURCE_STYLUS
 import android.view.InputDevice.SOURCE_TOUCHPAD
-
+import android.view.InputDevice.SOURCE_TOUCHSCREEN
 import android.view.InputEventAssigner
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -28,13 +27,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 sealed class StreamEvent
+
 private data object Vsync : StreamEvent()
+
 data class MotionEventData(val action: Int, val source: Int, val id: Int, val expectedId: Int) :
     StreamEvent()
 
-/**
- * Create a MotionEvent with the provided action, eventTime, and source
- */
+/** Create a MotionEvent with the provided action, eventTime, and source */
 fun createMotionEvent(action: Int, eventTime: Long, source: Int): MotionEvent {
     val downTime: Long = 10
     val x = 1f
@@ -47,8 +46,22 @@ fun createMotionEvent(action: Int, eventTime: Long, source: Int): MotionEvent {
     val deviceId = 1
     val edgeFlags = 0
     val displayId = 0
-    return MotionEvent.obtain(downTime, eventTime, action, x, y, pressure, size, metaState,
-            xPrecision, yPrecision, deviceId, edgeFlags, source, displayId)
+    return MotionEvent.obtain(
+        downTime,
+        eventTime,
+        action,
+        x,
+        y,
+        pressure,
+        size,
+        metaState,
+        xPrecision,
+        yPrecision,
+        deviceId,
+        edgeFlags,
+        source,
+        displayId,
+    )
 }
 
 private fun createKeyEvent(action: Int, eventTime: Long): KeyEvent {
@@ -58,11 +71,10 @@ private fun createKeyEvent(action: Int, eventTime: Long): KeyEvent {
 }
 
 /**
- * Check that the correct eventIds are assigned in a stream. The stream consists of motion
- * events or vsync (processed frame)
- * Each streamEvent should have unique ids when writing tests
- * The test passes even if two events get assigned the same eventId, since the mapping is
- * streamEventId -> motionEventId and streamEvents have unique ids
+ * Check that the correct eventIds are assigned in a stream. The stream consists of motion events or
+ * vsync (processed frame) Each streamEvent should have unique ids when writing tests The test
+ * passes even if two events get assigned the same eventId, since the mapping is streamEventId ->
+ * motionEventId and streamEvents have unique ids
  */
 private fun checkEventStream(vararg streamEvents: StreamEvent) {
     val assigner = InputEventAssigner()
@@ -90,9 +102,7 @@ class InputEventAssignerTest {
         private const val TAG = "InputEventAssignerTest"
     }
 
-    /**
-     * A single event should be assigned to the next available frame.
-     */
+    /** A single event should be assigned to the next available frame. */
     @Test
     fun testTouchMove() {
         checkEventStream(
@@ -145,7 +155,7 @@ class InputEventAssignerTest {
             MotionEventData(MotionEvent.ACTION_DOWN, source, id = 1, expectedId = 1),
             MotionEventData(MotionEvent.ACTION_MOVE, source, id = 2, expectedId = 1),
             Vsync,
-            MotionEventData(MotionEvent.ACTION_MOVE, source, id = 4, expectedId = 4)
+            MotionEventData(MotionEvent.ACTION_MOVE, source, id = 4, expectedId = 4),
         )
     }
 
@@ -169,57 +179,47 @@ class InputEventAssignerTest {
         testDownAndMove(SOURCE_TOUCHPAD)
     }
 
-    /**
-     * After an up event, motion events should be assigned their own event id
-     */
+    /** After an up event, motion events should be assigned their own event id */
     @Test
     fun testMouseDownUpAndScroll() {
         checkEventStream(
             MotionEventData(MotionEvent.ACTION_DOWN, SOURCE_MOUSE, id = 1, expectedId = 1),
             MotionEventData(MotionEvent.ACTION_UP, SOURCE_MOUSE, id = 2, expectedId = 2),
-            MotionEventData(MotionEvent.ACTION_SCROLL, SOURCE_MOUSE, id = 3, expectedId = 3)
+            MotionEventData(MotionEvent.ACTION_SCROLL, SOURCE_MOUSE, id = 3, expectedId = 3),
         )
     }
 
-    /**
-     * After an up event, motion events should be assigned their own event id
-     */
+    /** After an up event, motion events should be assigned their own event id */
     @Test
     fun testStylusDownUpAndHover() {
         checkEventStream(
             MotionEventData(MotionEvent.ACTION_DOWN, SOURCE_STYLUS, id = 1, expectedId = 1),
             MotionEventData(MotionEvent.ACTION_UP, SOURCE_STYLUS, id = 2, expectedId = 2),
-            MotionEventData(MotionEvent.ACTION_HOVER_ENTER, SOURCE_STYLUS, id = 3, expectedId = 3)
+            MotionEventData(MotionEvent.ACTION_HOVER_ENTER, SOURCE_STYLUS, id = 3, expectedId = 3),
         )
     }
 
-    /**
-     * After a cancel event, motion events should be assigned their own event id
-     */
+    /** After a cancel event, motion events should be assigned their own event id */
     @Test
     fun testMouseDownCancelAndScroll() {
         checkEventStream(
             MotionEventData(MotionEvent.ACTION_DOWN, SOURCE_MOUSE, id = 1, expectedId = 1),
             MotionEventData(MotionEvent.ACTION_CANCEL, SOURCE_MOUSE, id = 2, expectedId = 2),
-            MotionEventData(MotionEvent.ACTION_SCROLL, SOURCE_MOUSE, id = 3, expectedId = 3)
+            MotionEventData(MotionEvent.ACTION_SCROLL, SOURCE_MOUSE, id = 3, expectedId = 3),
         )
     }
 
-    /**
-     * After a cancel event, motion events should be assigned their own event id
-     */
+    /** After a cancel event, motion events should be assigned their own event id */
     @Test
     fun testStylusDownCancelAndHover() {
         checkEventStream(
             MotionEventData(MotionEvent.ACTION_DOWN, SOURCE_STYLUS, id = 1, expectedId = 1),
             MotionEventData(MotionEvent.ACTION_CANCEL, SOURCE_STYLUS, id = 2, expectedId = 2),
-            MotionEventData(MotionEvent.ACTION_HOVER_ENTER, SOURCE_STYLUS, id = 3, expectedId = 3)
+            MotionEventData(MotionEvent.ACTION_HOVER_ENTER, SOURCE_STYLUS, id = 3, expectedId = 3),
         )
     }
 
-    /**
-     * KeyEvents are processed immediately, so the latest event should be returned.
-     */
+    /** KeyEvents are processed immediately, so the latest event should be returned. */
     @Test
     fun testKeyEvent() {
         val assigner = InputEventAssigner()

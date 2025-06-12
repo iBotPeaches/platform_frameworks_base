@@ -27,8 +27,10 @@ import java.util.Map;
 
 public class SensorPowerStatsLayout extends PowerStatsLayout {
     private static final String TAG = "SensorPowerStatsLayout";
-    private static final String EXTRA_DEVICE_SENSOR_HANDLES = "dsh";
+    private static final String EXTRA_DEVICE_SENSOR_HANDLES = "dshs";
+    private static final String EXTRA_DEVICE_SENSOR_HANDLES_COMPAT = "dsh";
     private static final String EXTRA_UID_SENSOR_POSITIONS = "usp";
+    private static final String EXTRA_UID_SENSOR_POSITIONS_COMPAT = "usps";
 
     private final SparseIntArray mSensorPositions = new SparseIntArray();
 
@@ -47,8 +49,14 @@ public class SensorPowerStatsLayout extends PowerStatsLayout {
         super(descriptor);
 
         PersistableBundle extras = descriptor.extras;
-        int[] handlers = extras.getIntArray(EXTRA_DEVICE_SENSOR_HANDLES);
-        int[] uidDurationPositions = extras.getIntArray(EXTRA_UID_SENSOR_POSITIONS);
+        int[] handlers = getIntArray(extras, EXTRA_DEVICE_SENSOR_HANDLES);
+        if (handlers == null) {
+            handlers = extras.getIntArray(EXTRA_DEVICE_SENSOR_HANDLES_COMPAT);
+        }
+        int[] uidDurationPositions = getIntArray(extras, EXTRA_UID_SENSOR_POSITIONS);
+        if (uidDurationPositions == null) {
+            uidDurationPositions = extras.getIntArray(EXTRA_UID_SENSOR_POSITIONS_COMPAT);
+        }
 
         if (handlers != null && uidDurationPositions != null) {
             for (int i = 0; i < handlers.length; i++) {
@@ -69,8 +77,8 @@ public class SensorPowerStatsLayout extends PowerStatsLayout {
             uidDurationPositions[i] = mSensorPositions.valueAt(i);
         }
 
-        extras.putIntArray(EXTRA_DEVICE_SENSOR_HANDLES, handlers);
-        extras.putIntArray(EXTRA_UID_SENSOR_POSITIONS, uidDurationPositions);
+        putIntArray(extras, EXTRA_DEVICE_SENSOR_HANDLES, handlers);
+        putIntArray(extras, EXTRA_UID_SENSOR_POSITIONS, uidDurationPositions);
     }
 
     private void addUidSensorSection(int handle, String label) {

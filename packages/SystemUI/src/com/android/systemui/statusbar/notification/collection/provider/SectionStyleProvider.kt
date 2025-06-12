@@ -17,7 +17,7 @@
 package com.android.systemui.statusbar.notification.collection.provider
 
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.SortBySectionTimeFlag
 import com.android.systemui.statusbar.notification.collection.listbuilder.NotifSection
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifSectioner
@@ -53,7 +53,7 @@ class SectionStyleProvider @Inject constructor(
      * Determine if the given entry is minimized.
      */
     @JvmOverloads
-    fun isMinimized(entry: ListEntry, ifNotInSection: Boolean = true): Boolean {
+    fun isMinimized(entry: PipelineEntry, ifNotInSection: Boolean = true): Boolean {
         val section = entry.section ?: return ifNotInSection
         return isMinimizedSection(section)
     }
@@ -77,7 +77,7 @@ class SectionStyleProvider @Inject constructor(
      * Determine if the given entry is silent.
      */
     @JvmOverloads
-    fun isSilent(entry: ListEntry, ifNotInSection: Boolean = true): Boolean {
+    fun isSilent(entry: PipelineEntry, ifNotInSection: Boolean = true): Boolean {
         val section = entry.section ?: return ifNotInSection
         if (SortBySectionTimeFlag.isEnabled) {
             if (entry.section?.bucket == BUCKET_PEOPLE) {

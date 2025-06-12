@@ -25,6 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -39,6 +40,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.systemui.SysuiTestCase;
+import com.android.systemui.shade.domain.interactor.FakeShadeDialogContextInteractor;
 import com.android.systemui.statusbar.phone.SystemUIDialog;
 
 import org.junit.Before;
@@ -65,22 +67,25 @@ public class BiometricNotificationDialogFactoryTest extends SysuiTestCase {
     @Mock SystemUIDialog.Factory mSystemUIDialogFactory;
     @Mock SystemUIDialog mDialog;
     @Mock BiometricNotificationDialogFactory.ActivityStarter mActivityStarter;
-
     private final ArgumentCaptor<DialogInterface.OnClickListener> mOnClickListenerArgumentCaptor =
             ArgumentCaptor.forClass(DialogInterface.OnClickListener.class);
     private final ArgumentCaptor<Intent> mIntentArgumentCaptor =
             ArgumentCaptor.forClass(Intent.class);
     private BiometricNotificationDialogFactory mDialogFactory;
+    private FakeShadeDialogContextInteractor mDialogContextInteractor;
 
     @Before
     public void setUp() throws ExecutionException, InterruptedException {
         when(mFingerprintManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
         when(mFaceManager.hasEnrolledTemplates(anyInt())).thenReturn(true);
-        when(mSystemUIDialogFactory.create()).thenReturn(mDialog);
+        when(mSystemUIDialogFactory.create(any(Context.class))).thenReturn(mDialog);
+
+        mDialogContextInteractor = new FakeShadeDialogContextInteractor(mContext);
 
         mDialogFactory = new BiometricNotificationDialogFactory(
                 mResources,
                 mSystemUIDialogFactory,
+                mDialogContextInteractor,
                 mFingerprintManager,
                 mFaceManager
         );

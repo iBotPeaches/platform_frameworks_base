@@ -75,7 +75,7 @@ class CompileCommand : public Command {
     AddOptionalSwitch("--preserve-visibility-of-styleables",
                       "If specified, apply the same visibility rules for\n"
                       "styleables as are used for all other resources.\n"
-                      "Otherwise, all stylesables will be made public.",
+                      "Otherwise, all styleables will be made public.",
                       &options_.preserve_visibility_of_styleables);
     AddOptionalFlag("--visibility",
         "Sets the visibility of the compiled resources to the specified\n"

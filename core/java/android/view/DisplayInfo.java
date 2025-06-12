@@ -44,6 +44,7 @@ import android.util.SparseArray;
 import android.util.proto.ProtoOutputStream;
 
 import com.android.internal.display.BrightnessSynchronizer;
+import com.android.server.display.feature.flags.Flags;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -408,6 +409,15 @@ public final class DisplayInfo implements Parcelable {
     @Nullable
     public String thermalBrightnessThrottlingDataId;
 
+    /**
+     * Indicates whether the display is eligible for hosting tasks.
+     *
+     * For example, if the display is used for mirroring, this will be {@code false}.
+     *
+     * @hide
+     */
+    public boolean canHostTasks;
+
     public static final @android.annotation.NonNull Creator<DisplayInfo> CREATOR = new Creator<DisplayInfo>() {
         @Override
         public DisplayInfo createFromParcel(Parcel source) {
@@ -438,7 +448,20 @@ public final class DisplayInfo implements Parcelable {
     }
 
     public boolean equals(DisplayInfo other) {
-        return other != null
+        return equals(other, /* compareOnlyBasicChanges */ false);
+    }
+
+    /**
+     * Compares if the two DisplayInfo objects are equal or not
+     * @param other The other DisplayInfo against which the comparison is to be done
+     * @param compareOnlyBasicChanges Indicates if the changes to be compared are the ones which
+     *                               could lead to an emission of
+     *                    {@link android.hardware.display.DisplayManager.EVENT_TYPE_DISPLAY_CHANGED}
+     *                                event
+     * @return
+     */
+    public boolean equals(DisplayInfo other, boolean compareOnlyBasicChanges) {
+        boolean isEqualWithOnlyBasicChanges =  other != null
                 && layerStack == other.layerStack
                 && flags == other.flags
                 && type == other.type
@@ -457,7 +480,6 @@ public final class DisplayInfo implements Parcelable {
                 && logicalHeight == other.logicalHeight
                 && Objects.equals(displayCutout, other.displayCutout)
                 && rotation == other.rotation
-                && modeId == other.modeId
                 && hasArrSupport == other.hasArrSupport
                 && Objects.equals(frameRateCategoryRate, other.frameRateCategoryRate)
                 && Arrays.equals(supportedRefreshRates, other.supportedRefreshRates)
@@ -474,14 +496,10 @@ public final class DisplayInfo implements Parcelable {
                 && logicalDensityDpi == other.logicalDensityDpi
                 && physicalXDpi == other.physicalXDpi
                 && physicalYDpi == other.physicalYDpi
-                && appVsyncOffsetNanos == other.appVsyncOffsetNanos
-                && presentationDeadlineNanos == other.presentationDeadlineNanos
                 && state == other.state
-                && committedState == other.committedState
                 && ownerUid == other.ownerUid
                 && Objects.equals(ownerPackageName, other.ownerPackageName)
                 && removeMode == other.removeMode
-                && getRefreshRate() == other.getRefreshRate()
                 && brightnessMinimum == other.brightnessMinimum
                 && brightnessMaximum == other.brightnessMaximum
                 && brightnessDefault == other.brightnessDefault
@@ -493,7 +511,22 @@ public final class DisplayInfo implements Parcelable {
                 && BrightnessSynchronizer.floatEquals(hdrSdrRatio, other.hdrSdrRatio)
                 && thermalRefreshRateThrottling.contentEquals(other.thermalRefreshRateThrottling)
                 && Objects.equals(
-                thermalBrightnessThrottlingDataId, other.thermalBrightnessThrottlingDataId);
+                thermalBrightnessThrottlingDataId, other.thermalBrightnessThrottlingDataId)
+                && canHostTasks == other.canHostTasks;
+
+        if (!Flags.committedStateSeparateEvent()) {
+            isEqualWithOnlyBasicChanges = isEqualWithOnlyBasicChanges
+                    && (committedState == other.committedState);
+        }
+        if (!compareOnlyBasicChanges) {
+            return isEqualWithOnlyBasicChanges
+                    && (getRefreshRate() == other.getRefreshRate())
+                    && appVsyncOffsetNanos == other.appVsyncOffsetNanos
+                    && presentationDeadlineNanos == other.presentationDeadlineNanos
+                    && (modeId == other.modeId)
+                    && (committedState == other.committedState);
+        }
+        return isEqualWithOnlyBasicChanges;
     }
 
     @Override
@@ -561,6 +594,7 @@ public final class DisplayInfo implements Parcelable {
         hdrSdrRatio = other.hdrSdrRatio;
         thermalRefreshRateThrottling = other.thermalRefreshRateThrottling;
         thermalBrightnessThrottlingDataId = other.thermalBrightnessThrottlingDataId;
+        canHostTasks = other.canHostTasks;
     }
 
     public void readFromParcel(Parcel source) {
@@ -642,6 +676,7 @@ public final class DisplayInfo implements Parcelable {
         thermalRefreshRateThrottling = source.readSparseArray(null,
                 SurfaceControl.RefreshRateRange.class);
         thermalBrightnessThrottlingDataId = source.readString8();
+        canHostTasks = source.readBoolean();
     }
 
     @Override
@@ -717,6 +752,7 @@ public final class DisplayInfo implements Parcelable {
         dest.writeFloat(hdrSdrRatio);
         dest.writeSparseArray(thermalRefreshRateThrottling);
         dest.writeString8(thermalBrightnessThrottlingDataId);
+        dest.writeBoolean(canHostTasks);
     }
 
     @Override
@@ -1020,6 +1056,8 @@ public final class DisplayInfo implements Parcelable {
         sb.append(thermalRefreshRateThrottling);
         sb.append(", thermalBrightnessThrottlingDataId ");
         sb.append(thermalBrightnessThrottlingDataId);
+        sb.append(", canHostTasks ");
+        sb.append(canHostTasks);
         sb.append("}");
         return sb.toString();
     }
@@ -1086,6 +1124,9 @@ public final class DisplayInfo implements Parcelable {
         }
         if ((flags & Display.FLAG_REAR) != 0) {
             result.append(", FLAG_REAR_DISPLAY");
+        }
+        if ((flags & Display.FLAG_ALLOWS_CONTENT_MODE_SWITCH) != 0) {
+            result.append(", FLAG_ALLOWS_CONTENT_MODE_SWITCH");
         }
         return result.toString();
     }

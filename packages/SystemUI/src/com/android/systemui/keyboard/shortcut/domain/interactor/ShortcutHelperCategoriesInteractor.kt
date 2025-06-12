@@ -17,19 +17,16 @@
 package com.android.systemui.keyboard.shortcut.domain.interactor
 
 import android.content.Context
-import android.view.KeyEvent.META_META_ON
 import com.android.systemui.Flags.keyboardShortcutHelperShortcutCustomizer
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.keyboard.shortcut.data.repository.ShortcutCategoriesRepository
-import com.android.systemui.keyboard.shortcut.data.repository.ShortcutHelperKeys
-import com.android.systemui.keyboard.shortcut.data.repository.ShortcutHelperKeys.metaModifierIconResId
+import com.android.systemui.keyboard.shortcut.extensions.toContentDescription
 import com.android.systemui.keyboard.shortcut.qualifiers.CustomShortcutCategories
 import com.android.systemui.keyboard.shortcut.qualifiers.DefaultShortcutCategories
 import com.android.systemui.keyboard.shortcut.shared.model.Shortcut
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCategory
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutCommand
-import com.android.systemui.keyboard.shortcut.shared.model.ShortcutKey
 import com.android.systemui.keyboard.shortcut.shared.model.ShortcutSubCategory
 import com.android.systemui.res.R
 import dagger.Lazy
@@ -105,8 +102,6 @@ constructor(
             context.getString(R.string.shortcut_helper_key_combinations_and_conjunction)
         val orConjunction =
             context.getString(R.string.shortcut_helper_key_combinations_or_separator)
-        val forwardSlash =
-            context.getString(R.string.shortcut_helper_key_combinations_forward_slash)
         return buildString {
             append("$label, $pressKey")
             commands.forEachIndexed { i, shortcutCommand ->
@@ -117,29 +112,7 @@ constructor(
                     if (j > 0) {
                         append(" $andConjunction")
                     }
-                    if (shortcutKey is ShortcutKey.Text) {
-                        // Special handling for "/" as TalkBack will not read punctuation by
-                        // default.
-                        if (shortcutKey.value.equals("/")) {
-                            append(" $forwardSlash")
-                        } else {
-                            append(" ${shortcutKey.value}")
-                        }
-                    } else if (shortcutKey is ShortcutKey.Icon.ResIdIcon) {
-                        val keyLabel =
-                            if (shortcutKey.drawableResId == metaModifierIconResId) {
-                                ShortcutHelperKeys.modifierLabels[META_META_ON]
-                            } else {
-                                val keyCode =
-                                    ShortcutHelperKeys.keyIcons.entries
-                                        .firstOrNull { it.value == shortcutKey.drawableResId }
-                                        ?.key
-                                ShortcutHelperKeys.specialKeyLabels[keyCode]
-                            }
-                        if (keyLabel != null) {
-                            append(" ${keyLabel.invoke(context)}")
-                        }
-                    } // No-Op when shortcutKey is ShortcutKey.Icon.DrawableIcon
+                    shortcutKey.toContentDescription(context)?.let { append(" $it") }
                 }
             }
         }

@@ -18,6 +18,7 @@ package com.android.settingslib.mobile;
 
 import com.android.settingslib.R;
 import com.android.settingslib.SignalIcon.MobileIconGroup;
+import com.android.settingslib.flags.Flags;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,22 +30,47 @@ public class TelephonyIcons {
     //***** Data connection icons
     public static final int FLIGHT_MODE_ICON = R.drawable.stat_sys_airplane_mode;
 
-    public static final int ICON_LTE = R.drawable.ic_lte_mobiledata;
-    public static final int ICON_LTE_PLUS = R.drawable.ic_lte_plus_mobiledata;
-    public static final int ICON_G = R.drawable.ic_g_mobiledata;
-    public static final int ICON_E = R.drawable.ic_e_mobiledata;
-    public static final int ICON_H = R.drawable.ic_h_mobiledata;
-    public static final int ICON_H_PLUS = R.drawable.ic_h_plus_mobiledata;
-    public static final int ICON_3G = R.drawable.ic_3g_mobiledata;
-    public static final int ICON_4G = R.drawable.ic_4g_mobiledata;
-    public static final int ICON_4G_PLUS = R.drawable.ic_4g_plus_mobiledata;
-    public static final int ICON_4G_LTE = R.drawable.ic_4g_lte_mobiledata;
-    public static final int ICON_4G_LTE_PLUS = R.drawable.ic_4g_lte_plus_mobiledata;
-    public static final int ICON_5G_E = R.drawable.ic_5g_e_mobiledata;
-    public static final int ICON_1X = R.drawable.ic_1x_mobiledata;
-    public static final int ICON_5G = R.drawable.ic_5g_mobiledata;
-    public static final int ICON_5G_PLUS = R.drawable.ic_5g_plus_mobiledata;
-    public static final int ICON_CWF = R.drawable.ic_carrier_wifi;
+    public static final int ICON_LTE =
+            flagged(R.drawable.ic_lte_mobiledata, R.drawable.ic_lte_mobiledata_updated);
+    public static final int ICON_LTE_PLUS =
+            flagged(R.drawable.ic_lte_plus_mobiledata, R.drawable.ic_lte_plus_mobiledata_updated);
+    public static final int ICON_G =
+            flagged(R.drawable.ic_g_mobiledata, R.drawable.ic_g_mobiledata_updated);
+    public static final int ICON_E =
+            flagged(R.drawable.ic_e_mobiledata, R.drawable.ic_e_mobiledata_updated);
+    public static final int ICON_H =
+            flagged(R.drawable.ic_h_mobiledata, R.drawable.ic_h_mobiledata_updated);
+    public static final int ICON_H_PLUS =
+            flagged(R.drawable.ic_h_plus_mobiledata, R.drawable.ic_h_plus_mobiledata_updated);
+    public static final int ICON_3G =
+            flagged(R.drawable.ic_3g_mobiledata, R.drawable.ic_3g_mobiledata_updated);
+    public static final int ICON_4G =
+            flagged(R.drawable.ic_4g_mobiledata, R.drawable.ic_4g_mobiledata_updated);
+    public static final int ICON_4G_PLUS =
+            flagged(R.drawable.ic_4g_plus_mobiledata, R.drawable.ic_4g_plus_mobiledata_updated);
+    public static final int ICON_4G_LTE =
+            flagged(R.drawable.ic_4g_lte_mobiledata, R.drawable.ic_4g_lte_mobiledata_updated);
+    public static final int ICON_4G_LTE_PLUS =
+            flagged(R.drawable.ic_4g_lte_plus_mobiledata,
+                    R.drawable.ic_4g_lte_plus_mobiledata_updated);
+    public static final int ICON_5G_E =
+            flagged(R.drawable.ic_5g_e_mobiledata, R.drawable.ic_5g_e_mobiledata_updated);
+    public static final int ICON_1X =
+            flagged(R.drawable.ic_1x_mobiledata, R.drawable.ic_1x_mobiledata_updated);
+    public static final int ICON_5G =
+            flagged(R.drawable.ic_5g_mobiledata, R.drawable.ic_5g_mobiledata_updated);
+    public static final int ICON_5G_PLUS =
+            flagged(R.drawable.ic_5g_plus_mobiledata, R.drawable.ic_5g_plus_mobiledata_updated);
+    public static final int ICON_CWF =
+            flagged(R.drawable.ic_carrier_wifi, R.drawable.ic_carrier_wifi_updated);
+
+    /** Make it slightly more obvious which resource we are using */
+    private static int flagged(int oldIcon, int newIcon) {
+        if (Flags.newStatusBarIcons()) {
+            return newIcon;
+        }
+        return oldIcon;
+    }
 
     public static final MobileIconGroup CARRIER_NETWORK_CHANGE = new MobileIconGroup(
             "CARRIER_NETWORK_CHANGE",

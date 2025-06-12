@@ -23,6 +23,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.text.TextPaint;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class ReplacementSpan extends MetricAffectingSpan {
 
     private CharSequence mContentDescription = null;

@@ -140,6 +140,11 @@ public interface ServiceWatcher {
          * null if no service currently meets the criteria. Only invoked while registered.
          */
         @Nullable TBoundServiceInfo getServiceInfo();
+
+        /**
+         * Alerts the supplier that the given service is unstable.
+         */
+        void alertUnstableService(String unstableService);
     }
 
     /**
@@ -230,6 +235,19 @@ public interface ServiceWatcher {
     }
 
     /**
+     * Creates a new ServiceWatcher instance.
+     */
+    static <TBoundServiceInfo extends BoundServiceInfo> ServiceWatcher create(
+            Context context,
+            String tag,
+            boolean unstableFallbackEnabled,
+            ServiceSupplier<TBoundServiceInfo> serviceSupplier,
+            @Nullable ServiceListener<? super TBoundServiceInfo> serviceListener) {
+        return create(context, FgThread.getHandler(), tag, unstableFallbackEnabled,
+            serviceSupplier, serviceListener);
+    }
+
+    /**
      * Creates a new ServiceWatcher instance that runs on the given handler.
      */
     static <TBoundServiceInfo extends BoundServiceInfo> ServiceWatcher create(
@@ -239,6 +257,20 @@ public interface ServiceWatcher {
             ServiceSupplier<TBoundServiceInfo> serviceSupplier,
             @Nullable ServiceListener<? super TBoundServiceInfo> serviceListener) {
         return new ServiceWatcherImpl<>(context, handler, tag, serviceSupplier, serviceListener);
+    }
+
+    /**
+     * Creates a new ServiceWatcher instance that runs on the given handler.
+     */
+    static <TBoundServiceInfo extends BoundServiceInfo> ServiceWatcher create(
+            Context context,
+            Handler handler,
+            String tag,
+            boolean unstableFallbackEnabled,
+            ServiceSupplier<TBoundServiceInfo> serviceSupplier,
+            @Nullable ServiceListener<? super TBoundServiceInfo> serviceListener) {
+        return new ServiceWatcherImpl<>(context, handler, tag, unstableFallbackEnabled,
+            serviceSupplier, serviceListener);
     }
 
     /**

@@ -91,7 +91,7 @@ public class NotificationChannelExtractor implements NotificationSignalExtractor
                 updateAttributes = true;
             }
             if (restrictAudioAttributesAlarm()
-                    && record.getNotification().category != CATEGORY_ALARM
+                    && !CATEGORY_ALARM.equals(record.getNotification().category)
                     && attributes.getUsage() == AudioAttributes.USAGE_ALARM) {
                 updateAttributes = true;
             }

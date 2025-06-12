@@ -16,29 +16,43 @@
 
 package com.android.server.am;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import android.annotation.NonNull;
+import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.AppGlobals;
+import android.app.AppOpsManager;
+import android.app.BackgroundStartPrivileges;
+import android.app.BroadcastOptions;
+import android.app.SystemServiceRegistry;
 import android.app.usage.UsageStatsManagerInternal;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.IIntentReceiver;
+import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.IPackageManager;
 import android.content.pm.PackageManagerInternal;
 import android.content.pm.ResolveInfo;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.TestLooperManager;
 import android.os.UserHandle;
+import android.permission.IPermissionManager;
+import android.permission.PermissionManager;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.platform.test.flag.junit.SetFlagsRule;
@@ -47,7 +61,6 @@ import android.util.SparseArray;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.dx.mockito.inline.extended.ExtendedMockito;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.modules.utils.testing.ExtendedMockitoRule;
 import com.android.server.AlarmManagerInternal;
@@ -55,6 +68,7 @@ import com.android.server.DropBoxManagerInternal;
 import com.android.server.LocalServices;
 import com.android.server.appop.AppOpsService;
 import com.android.server.compat.PlatformCompat;
+import com.android.server.firewall.IntentFirewall;
 import com.android.server.wm.ActivityTaskManagerService;
 
 import org.junit.Rule;
@@ -63,8 +77,11 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.File;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 public abstract class BaseBroadcastQueueTest {
 
@@ -97,6 +114,8 @@ public abstract class BaseBroadcastQueueTest {
     public final ExtendedMockitoRule mExtendedMockitoRule = new ExtendedMockitoRule.Builder(this)
             .spyStatic(FrameworkStatsLog.class)
             .spyStatic(ProcessList.class)
+            .spyStatic(SystemServiceRegistry.class)
+            .mockStatic(AppGlobals.class)
             .build();
 
 
@@ -119,6 +138,16 @@ public abstract class BaseBroadcastQueueTest {
     ProcessList mProcessList;
     @Mock
     PlatformCompat mPlatformCompat;
+    @Mock
+    IntentFirewall mIntentFirewall;
+    @Mock
+    IPackageManager mIPackageManager;
+    @Mock
+    AppOpsManager mAppOpsManager;
+    @Mock
+    IPermissionManager mIPermissionManager;
+    @Mock
+    PermissionManager mPermissionManager;
 
     @Mock
     AppStartInfoTracker mAppStartInfoTracker;
@@ -167,22 +196,22 @@ public abstract class BaseBroadcastQueueTest {
             return getUidForPackage(invocation.getArgument(0));
         }).when(mPackageManagerInt).getPackageUid(any(), anyLong(), eq(UserHandle.USER_SYSTEM));
 
+        final Context spyContext = spy(mContext);
+        doReturn(mPermissionManager).when(spyContext).getSystemService(PermissionManager.class);
         final ActivityManagerService realAms = new ActivityManagerService(
-                new TestInjector(mContext), mServiceThreadRule.getThread());
+                new TestInjector(spyContext), mServiceThreadRule.getThread());
         realAms.mActivityTaskManager = new ActivityTaskManagerService(mContext);
         realAms.mActivityTaskManager.initialize(null, null, mContext.getMainLooper());
         realAms.mAtmInternal = spy(realAms.mActivityTaskManager.getAtmInternal());
         realAms.mOomAdjuster.mCachedAppOptimizer = mock(CachedAppOptimizer.class);
         realAms.mOomAdjuster = spy(realAms.mOomAdjuster);
-        ExtendedMockito.doNothing().when(() -> ProcessList.setOomAdj(anyInt(), anyInt(), anyInt()));
+        doNothing().when(() -> ProcessList.setOomAdj(anyInt(), anyInt(), anyInt()));
         realAms.mPackageManagerInt = mPackageManagerInt;
         realAms.mUsageStatsService = mUsageStatsManagerInt;
         realAms.mProcessesReady = true;
         mAms = spy(realAms);
 
-        mSkipPolicy = spy(new BroadcastSkipPolicy(mAms));
-        doReturn(null).when(mSkipPolicy).shouldSkipMessage(any(), any());
-        doReturn(false).when(mSkipPolicy).disallowBackgroundStart(any());
+        mSkipPolicy = createBroadcastSkipPolicy();
 
         doReturn(mAppStartInfoTracker).when(mProcessList).getAppStartInfoTracker();
 
@@ -196,6 +225,14 @@ public abstract class BaseBroadcastQueueTest {
         if (mHandlerThread != null) {
             mHandlerThread.quit();
         }
+    }
+
+    public BroadcastSkipPolicy createBroadcastSkipPolicy() {
+        final BroadcastSkipPolicy skipPolicy = spy(new BroadcastSkipPolicy(mAms));
+        doReturn(null).when(skipPolicy).shouldSkipAtEnqueueMessage(any(), any());
+        doReturn(null).when(skipPolicy).shouldSkipMessage(any(), any());
+        doReturn(false).when(skipPolicy).disallowBackgroundStart(any());
+        return skipPolicy;
     }
 
     static int getUidForPackage(@NonNull String packageName) {
@@ -240,6 +277,11 @@ public abstract class BaseBroadcastQueueTest {
         public BroadcastQueue getBroadcastQueue(ActivityManagerService service) {
             return null;
         }
+
+        @Override
+        public IntentFirewall getIntentFirewall() {
+            return mIntentFirewall;
+        }
     }
 
     abstract String getTag();
@@ -281,8 +323,18 @@ public abstract class BaseBroadcastQueueTest {
         ri.activityInfo.packageName = packageName;
         ri.activityInfo.processName = processName;
         ri.activityInfo.name = name;
+        ri.activityInfo.exported = true;
         ri.activityInfo.applicationInfo = makeApplicationInfo(packageName, processName, userId);
         return ri;
+    }
+
+    // TODO: Reuse BroadcastQueueTest.makeActiveProcessRecord()
+    @SuppressWarnings("GuardedBy")
+    ProcessRecord makeProcessRecord(ApplicationInfo info) {
+        final ProcessRecord r = spy(new ProcessRecord(mAms, info, info.processName, info.uid));
+        r.setPid(mNextPid.incrementAndGet());
+        ProcessRecord.updateProcessRecordNodes(r);
+        return r;
     }
 
     BroadcastFilter makeRegisteredReceiver(ProcessRecord app) {
@@ -291,14 +343,15 @@ public abstract class BaseBroadcastQueueTest {
 
     BroadcastFilter makeRegisteredReceiver(ProcessRecord app, int priority) {
         final ReceiverList receiverList = mRegisteredReceivers.get(app.getPid());
-        return makeRegisteredReceiver(receiverList, priority);
+        return makeRegisteredReceiver(receiverList, priority, null);
     }
 
-    static BroadcastFilter makeRegisteredReceiver(ReceiverList receiverList, int priority) {
+    static BroadcastFilter makeRegisteredReceiver(ReceiverList receiverList, int priority,
+            String requiredPermission) {
         final IntentFilter filter = new IntentFilter();
         filter.setPriority(priority);
         final BroadcastFilter res = new BroadcastFilter(filter, receiverList,
-                receiverList.app.info.packageName, null, null, null, receiverList.uid,
+                receiverList.app.info.packageName, null, null, requiredPermission, receiverList.uid,
                 receiverList.userId, false, false, true, receiverList.app.info,
                 mock(PlatformCompat.class));
         receiverList.add(res);
@@ -312,5 +365,63 @@ public abstract class BaseBroadcastQueueTest {
 
     ArgumentMatcher<ApplicationInfo> appInfoEquals(int uid) {
         return test -> (test.uid == uid);
+    }
+
+    static final class BroadcastRecordBuilder {
+        private BroadcastQueue mQueue = mock(BroadcastQueue.class);
+        private Intent mIntent = mock(Intent.class);
+        private ProcessRecord mProcessRecord = mock(ProcessRecord.class);
+        private String mCallerPackage;
+        private String mCallerFeatureId;
+        private int mCallingPid;
+        private int mCallingUid;
+        private boolean mCallerInstantApp;
+        private String mResolvedType;
+        private String[] mRequiredPermissions;
+        private String[] mExcludedPermissions;
+        private String[] mExcludedPackages;
+        private int mAppOp;
+        private BroadcastOptions mOptions = BroadcastOptions.makeBasic();
+        private List mReceivers = Collections.emptyList();
+        private ProcessRecord mResultToApp;
+        private IIntentReceiver mResultTo;
+        private int mResultCode = Activity.RESULT_OK;
+        private String mResultData;
+        private Bundle mResultExtras;
+        private boolean mSerialized;
+        private boolean mSticky;
+        private boolean mInitialSticky;
+        private int mUserId = UserHandle.USER_SYSTEM;
+        private BackgroundStartPrivileges mBackgroundStartPrivileges =
+                BackgroundStartPrivileges.NONE;
+        private boolean mTimeoutExempt;
+        private BiFunction<Integer, Bundle, Bundle> mFilterExtrasForReceiver;
+        private int mCallerAppProcState = ActivityManager.PROCESS_STATE_UNKNOWN;
+        private PlatformCompat mPlatformCompat = mock(PlatformCompat.class);
+
+        public BroadcastRecordBuilder setIntent(Intent intent) {
+            mIntent = intent;
+            return this;
+        }
+
+        public BroadcastRecordBuilder setRequiredPermissions(String[] requiredPermissions) {
+            mRequiredPermissions = requiredPermissions;
+            return this;
+        }
+
+        public BroadcastRecordBuilder setAppOp(int appOp) {
+            mAppOp = appOp;
+            return this;
+        }
+
+        public BroadcastRecord build() {
+            return new BroadcastRecord(mQueue, mIntent, mProcessRecord, mCallerPackage,
+                    mCallerFeatureId, mCallingPid, mCallingUid, mCallerInstantApp, mResolvedType,
+                    mRequiredPermissions, mExcludedPermissions, mExcludedPackages, mAppOp,
+                    mOptions, mReceivers, mResultToApp, mResultTo, mResultCode, mResultData,
+                    mResultExtras, mSerialized, mSticky, mInitialSticky, mUserId,
+                    mBackgroundStartPrivileges, mTimeoutExempt, mFilterExtrasForReceiver,
+                    mCallerAppProcState, mPlatformCompat);
+        }
     }
 }

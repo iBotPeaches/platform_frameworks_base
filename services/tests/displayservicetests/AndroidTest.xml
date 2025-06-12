@@ -28,6 +28,7 @@
         <option name="cleanup-apks" value="true" />
         <option name="install-arg" value="-t" />
         <option name="test-file-name" value="DisplayManagerTestApp.apk" />
+        <option name="test-file-name" value="TopologyTestApp.apk" />
     </target_preparer>
 
     <option name="test-tag" value="DisplayServiceTests" />

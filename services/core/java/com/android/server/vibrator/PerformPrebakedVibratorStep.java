@@ -64,7 +64,8 @@ final class PerformPrebakedVibratorStep extends AbstractComposedVibratorStep {
             }
 
             VibrationEffect fallback = getVibration().getFallback(prebaked.getEffectId());
-            long vibratorOnResult = controller.on(prebaked, getVibration().id);
+            int stepId = conductor.nextVibratorCallbackStepId(getVibratorId());
+            long vibratorOnResult = controller.on(prebaked, getVibration().id, stepId);
             handleVibratorOnResult(vibratorOnResult);
             getVibration().stats.reportPerformEffect(vibratorOnResult, prebaked);
 

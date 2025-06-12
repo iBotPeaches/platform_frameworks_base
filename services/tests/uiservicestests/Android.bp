@@ -11,15 +11,11 @@ package {
     default_applicable_licenses: ["frameworks_base_license"],
 }
 
-android_test {
-    name: "FrameworksUiServicesTests",
-
-    // Include test java files
-    srcs: [
-        "src/**/*.java",
-    ],
+java_defaults {
+    name: "FrameworksUiServicesTests-defaults",
 
     static_libs: [
+        "compatibility-device-util-axt-minus-dexmaker",
         "frameworks-base-testutils",
         "services.accessibility",
         "services.core",
@@ -31,6 +27,7 @@ android_test {
         "androidx.test.rules",
         "hamcrest-library",
         "mockito-target-inline-minus-junit4",
+        "mockito-target-extended",
         "platform-compat-test-rules",
         "platform-test-annotations",
         "platformprotosnano",
@@ -93,12 +90,72 @@ android_test {
     javacflags: ["-parameters"],
 }
 
-test_module_config {
-    name: "FrameworksUiServicesTests_notification",
-    base: "FrameworksUiServicesTests",
-    test_suites: [
-        "automotive-tests",
-        "device-tests",
+// Utility files used by multiple tests
+filegroup {
+    name: "shared-srcs",
+    srcs: [
+        "src/android/app/ExampleActivity.java",
+        "src/android/app/NotificationSystemUtil.java",
+        "src/com/android/frameworks/tests/uiservices/DummyProvider.java",
+        "src/com/android/internal/logging/InstanceIdSequenceFake.java",
+        "src/com/android/server/UiServiceTestCase.java",
+        "src/com/android/server/notification/ZenChangeOrigin.java",
+        "src/com/android/server/notification/ZenModeEventLoggerFake.java",
     ],
-    exclude_annotations: ["androidx.test.filters.LargeTest"],
+    visibility: ["//visibility:private"],
+}
+
+filegroup {
+    name: "notification-srcs",
+    srcs: [
+        "src/**/Notification*.java",
+        "src/com/android/server/notification/*.java",
+    ],
+    visibility: ["//visibility:private"],
+}
+
+filegroup {
+    name: "notification-zen-srcs",
+    srcs: [
+        "src/android/app/NotificationManagerZenTest.java",
+        "src/com/android/server/notification/Zen*Test.java",
+    ],
+    visibility: ["//visibility:private"],
+}
+
+android_test {
+    name: "FrameworksUiServicesTests",
+
+    // Include test java files but not the notification & zen ones which are separated
+    srcs: [
+        "src/**/*.java",
+    ],
+
+    exclude_srcs: [
+        ":notification-srcs",
+        ":notification-zen-srcs",
+    ],
+
+    defaults: ["FrameworksUiServicesTests-defaults"],
+}
+
+android_test {
+    name: "FrameworksUiServicesNotificationTests",
+    srcs: [
+        ":notification-srcs",
+        ":shared-srcs",
+    ],
+    exclude_srcs: [":notification-zen-srcs"],
+    defaults: ["FrameworksUiServicesTests-defaults"],
+    test_config: "notification-tests.xml",
+}
+
+android_test {
+    name: "FrameworksUiServicesZenTests",
+    srcs: [
+        ":notification-zen-srcs",
+        ":shared-srcs",
+    ],
+    defaults: ["FrameworksUiServicesTests-defaults"],
+    test_config: "notification-zen-tests.xml",
 }

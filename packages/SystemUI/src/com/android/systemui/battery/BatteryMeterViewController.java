@@ -46,7 +46,10 @@ import java.io.PrintWriter;
 
 import javax.inject.Inject;
 
-/** Controller for {@link BatteryMeterView}. **/
+/**
+ * Controller for {@link BatteryMeterView}.
+ * @deprecated once [NewStatusBarIcons] is rolled out, this class is no longer needed
+ */
 public class BatteryMeterViewController extends ViewController<BatteryMeterView> {
     private final ConfigurationController mConfigurationController;
     private final TunerService mTunerService;

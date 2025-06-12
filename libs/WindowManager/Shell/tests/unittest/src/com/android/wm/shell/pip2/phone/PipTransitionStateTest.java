@@ -16,12 +16,15 @@
 
 package com.android.wm.shell.pip2.phone;
 
+import static org.mockito.Mockito.when;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Parcelable;
 import android.testing.AndroidTestingRunner;
 
 import com.android.wm.shell.ShellTestCase;
+import com.android.wm.shell.common.pip.PipDesktopState;
 
 import junit.framework.Assert;
 
@@ -45,9 +48,12 @@ public class PipTransitionStateTest extends ShellTestCase {
     @Mock
     private Handler mMainHandler;
 
+    @Mock
+    private PipDesktopState mMockPipDesktopState;
+
     @Before
     public void setUp() {
-        mPipTransitionState = new PipTransitionState(mMainHandler);
+        mPipTransitionState = new PipTransitionState(mMainHandler, mMockPipDesktopState);
         mPipTransitionState.setState(PipTransitionState.UNDEFINED);
         mEmptyParcelable = new Bundle();
     }
@@ -109,5 +115,48 @@ public class PipTransitionStateTest extends ShellTestCase {
         mPipTransitionState.setState(customState, extra);
         mPipTransitionState.setState(PipTransitionState.ENTERED_PIP);
         mPipTransitionState.removePipTransitionStateChangedListener(mStateChangedListener);
+    }
+
+    @Test
+    public void testBoundsChangeState_notInPip() {
+        Bundle extra = new Bundle();
+        extra.putParcelable(EXTRA_ENTRY_KEY, mEmptyParcelable);
+
+        mPipTransitionState.setState(PipTransitionState.UNDEFINED);
+        mPipTransitionState.setState(PipTransitionState.SCHEDULED_BOUNDS_CHANGE, extra);
+        Assert.assertEquals(PipTransitionState.UNDEFINED, mPipTransitionState.getState());
+
+        mPipTransitionState.setState(PipTransitionState.ENTERING_PIP, extra);
+        mPipTransitionState.setState(PipTransitionState.SCHEDULED_BOUNDS_CHANGE, extra);
+        Assert.assertEquals(PipTransitionState.ENTERING_PIP, mPipTransitionState.getState());
+
+        mPipTransitionState.setState(PipTransitionState.EXITING_PIP);
+        mPipTransitionState.setState(PipTransitionState.SCHEDULED_BOUNDS_CHANGE, extra);
+        Assert.assertEquals(PipTransitionState.EXITING_PIP, mPipTransitionState.getState());
+    }
+
+    @Test
+    public void testShouldTransitionToState_scheduledBoundsChange_inPip_returnsTrue() {
+        mPipTransitionState.setState(PipTransitionState.ENTERED_PIP);
+
+        Assert.assertTrue(mPipTransitionState.shouldTransitionToState(
+                PipTransitionState.SCHEDULED_BOUNDS_CHANGE));
+    }
+
+    @Test
+    public void testShouldTransitionToState_scheduledBoundsChange_notInPip_returnsFalse() {
+        mPipTransitionState.setState(PipTransitionState.EXITED_PIP);
+
+        Assert.assertFalse(mPipTransitionState.shouldTransitionToState(
+                PipTransitionState.SCHEDULED_BOUNDS_CHANGE));
+    }
+
+    @Test
+    public void testShouldTransitionToState_scheduledBoundsChange_dragToDesktop_returnsFalse() {
+        mPipTransitionState.setState(PipTransitionState.ENTERED_PIP);
+        when(mMockPipDesktopState.isDragToDesktopInProgress()).thenReturn(true);
+
+        Assert.assertFalse(mPipTransitionState.shouldTransitionToState(
+                PipTransitionState.SCHEDULED_BOUNDS_CHANGE));
     }
 }

@@ -26,6 +26,7 @@ import com.android.systemui.statusbar.notification.collection.GroupEntryBuilder
 import com.android.systemui.statusbar.notification.collection.ListEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntryBuilder
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.getAttachState
 import com.android.systemui.statusbar.notification.collection.listbuilder.NotifSection
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifSectioner
@@ -409,7 +410,7 @@ private fun buildSection(
 ): NotifSection {
     return NotifSection(object : NotifSectioner("Section $index (bucket=$bucket)", bucket) {
 
-        override fun isInSection(entry: ListEntry?): Boolean {
+        override fun isInSection(entry: PipelineEntry?): Boolean {
             throw NotImplementedError("This should never be called")
         }
 

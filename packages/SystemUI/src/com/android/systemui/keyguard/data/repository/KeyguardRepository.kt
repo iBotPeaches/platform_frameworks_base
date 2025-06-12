@@ -17,13 +17,14 @@
 package com.android.systemui.keyguard.data.repository
 
 import android.graphics.Point
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.internal.widget.LockPatternUtils
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.keyguard.KeyguardUpdateMonitorCallback
 import com.android.systemui.biometrics.AuthController
 import com.android.systemui.biometrics.data.repository.FacePropertyRepository
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Main
@@ -48,7 +49,6 @@ import com.android.systemui.util.time.SystemClock
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,7 +64,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /** Defines interface for classes that encapsulate application state for the keyguard. */
 interface KeyguardRepository {
@@ -75,15 +74,11 @@ interface KeyguardRepository {
      */
     val animateBottomAreaDozingTransitions: StateFlow<Boolean>
 
-    /**
-     * Observable for the current amount of alpha that should be used for rendering the bottom area.
-     * UI.
-     */
-    val bottomAreaAlpha: StateFlow<Float>
-
     val keyguardAlpha: StateFlow<Float>
 
     val panelAlpha: MutableStateFlow<Float>
+
+    val zoomOut: StateFlow<Float>
 
     /**
      * Observable for whether the keyguard is showing.
@@ -254,22 +249,10 @@ interface KeyguardRepository {
     val keyguardDoneAnimationsFinished: Flow<Unit>
 
     /**
-     * Receive whether clock should be centered on lockscreen.
-     *
-     * @deprecated When scene container flag is on use clockShouldBeCentered from domain level.
-     */
-    val clockShouldBeCentered: Flow<Boolean>
-
-    /**
      * Whether the primary authentication is required for the given user due to lockdown or
      * encryption after reboot.
      */
     val isEncryptedOrLockdown: Flow<Boolean>
-
-    /** The top of shortcut in screen, used by wallpaper to find remaining space in lockscreen */
-    val shortcutAbsoluteTop: StateFlow<Float>
-
-    val notificationStackAbsoluteBottom: StateFlow<Float>
 
     /**
      * Returns `true` if the keyguard is showing; `false` otherwise.
@@ -283,14 +266,14 @@ interface KeyguardRepository {
     /** Sets whether the bottom area UI should animate the transition out of doze state. */
     fun setAnimateDozingTransitions(animate: Boolean)
 
-    /** Sets the current amount of alpha that should be used for rendering the bottom area. */
-    @Deprecated("Deprecated as part of b/278057014") fun setBottomAreaAlpha(alpha: Float)
-
     /** Sets the current amount of alpha that should be used for rendering the keyguard. */
     fun setKeyguardAlpha(alpha: Float)
 
     /** Temporary shim for fading out content when the brightness slider is used */
     fun setPanelAlpha(alpha: Float)
+
+    /** Sets the zoom out scale of spatial model pushback from e.g. pulling down the shade. */
+    fun setZoomOut(zoomOutFromShadeRadius: Float)
 
     /** Whether the device is actively dreaming */
     fun setDreaming(isDreaming: Boolean)
@@ -315,8 +298,6 @@ interface KeyguardRepository {
 
     suspend fun setKeyguardDone(keyguardDoneType: KeyguardDone)
 
-    fun setClockShouldBeCentered(shouldBeCentered: Boolean)
-
     /**
      * Updates signal that the keyguard done animations are finished
      *
@@ -339,14 +320,6 @@ interface KeyguardRepository {
      * otherwise.
      */
     fun isShowKeyguardWhenReenabled(): Boolean
-
-    fun setShortcutAbsoluteTop(top: Float)
-
-    /**
-     * Set bottom of notifications from notification stack, and Magic Portrait will layout base on
-     * this value
-     */
-    fun setNotificationStackAbsoluteBottom(bottom: Float)
 }
 
 /** Encapsulates application state for the keyguard. */
@@ -392,19 +365,13 @@ constructor(
     override val animateBottomAreaDozingTransitions =
         _animateBottomAreaDozingTransitions.asStateFlow()
 
-    private val _bottomAreaAlpha = MutableStateFlow(1f)
-    override val bottomAreaAlpha = _bottomAreaAlpha.asStateFlow()
-
     private val _keyguardAlpha = MutableStateFlow(1f)
     override val keyguardAlpha = _keyguardAlpha.asStateFlow()
 
     override val onCameraLaunchDetected = MutableStateFlow(CameraLaunchSourceModel())
 
     override val panelAlpha: MutableStateFlow<Float> = MutableStateFlow(1f)
-
-    private val _clockShouldBeCentered = MutableStateFlow(true)
-    override val clockShouldBeCentered: Flow<Boolean> = _clockShouldBeCentered.asStateFlow()
-
+    override val zoomOut: MutableStateFlow<Float> = MutableStateFlow(0f)
     override val topClippingBounds = MutableStateFlow<Int?>(null)
 
     override val isKeyguardShowing: MutableStateFlow<Boolean> =
@@ -555,7 +522,6 @@ constructor(
         awaitClose { dozeTransitionListener.removeCallback(callback) }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     override val isEncryptedOrLockdown: Flow<Boolean> =
         conflatedCallbackFlow {
                 val callback =
@@ -640,12 +606,6 @@ constructor(
     private val _isQuickSettingsVisible = MutableStateFlow(false)
     override val isQuickSettingsVisible: Flow<Boolean> = _isQuickSettingsVisible.asStateFlow()
 
-    private val _shortcutAbsoluteTop = MutableStateFlow(0F)
-    override val shortcutAbsoluteTop = _shortcutAbsoluteTop.asStateFlow()
-
-    private val _notificationStackAbsoluteBottom = MutableStateFlow(0F)
-    override val notificationStackAbsoluteBottom = _notificationStackAbsoluteBottom.asStateFlow()
-
     init {
         val callback =
             object : KeyguardStateController.Callback {
@@ -675,16 +635,16 @@ constructor(
         _animateBottomAreaDozingTransitions.value = animate
     }
 
-    override fun setBottomAreaAlpha(alpha: Float) {
-        _bottomAreaAlpha.value = alpha
-    }
-
     override fun setKeyguardAlpha(alpha: Float) {
         _keyguardAlpha.value = alpha
     }
 
     override fun setPanelAlpha(alpha: Float) {
         panelAlpha.value = alpha
+    }
+
+    override fun setZoomOut(zoomOutFromShadeRadius: Float) {
+        zoomOut.value = zoomOutFromShadeRadius
     }
 
     override fun setDreaming(isDreaming: Boolean) {
@@ -697,21 +657,17 @@ constructor(
         _isQuickSettingsVisible.value = isVisible
     }
 
-    override fun setClockShouldBeCentered(shouldBeCentered: Boolean) {
-        _clockShouldBeCentered.value = shouldBeCentered
-    }
-
     override fun setKeyguardEnabled(enabled: Boolean) {
         _isKeyguardEnabled.value = enabled
     }
 
     override fun setShowKeyguardWhenReenabled(isShowKeyguardWhenReenabled: Boolean) {
-        SceneContainerFlag.assertInNewMode()
+        SceneContainerFlag.unsafeAssertInNewMode()
         this.isShowKeyguardWhenReenabled = isShowKeyguardWhenReenabled
     }
 
     override fun isShowKeyguardWhenReenabled(): Boolean {
-        SceneContainerFlag.assertInNewMode()
+        SceneContainerFlag.unsafeAssertInNewMode()
         return isShowKeyguardWhenReenabled
     }
 
@@ -722,14 +678,6 @@ constructor(
             2 -> StatusBarState.SHADE_LOCKED
             else -> throw IllegalArgumentException("Invalid StatusBarState value: $value")
         }
-    }
-
-    override fun setShortcutAbsoluteTop(top: Float) {
-        _shortcutAbsoluteTop.value = top
-    }
-
-    override fun setNotificationStackAbsoluteBottom(bottom: Float) {
-        _notificationStackAbsoluteBottom.value = bottom
     }
 
     private fun dozeMachineStateToModel(state: DozeMachine.State): DozeStateModel {

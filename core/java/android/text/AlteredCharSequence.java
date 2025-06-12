@@ -24,6 +24,7 @@ package android.text;
  * @deprecated The functionality this class offers is easily implemented outside the framework.
  */
 @Deprecated
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class AlteredCharSequence
 implements CharSequence, GetChars
 {

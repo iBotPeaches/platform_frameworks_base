@@ -83,7 +83,6 @@ import android.view.WindowManager;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCapture;
 import com.android.internal.R;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.widget.LockPatternUtils;
@@ -100,10 +99,9 @@ import com.android.systemui.util.concurrency.Execution;
 import com.android.systemui.util.concurrency.FakeExecution;
 import com.android.systemui.util.concurrency.FakeExecutor;
 import com.android.systemui.util.time.FakeSystemClock;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import com.google.android.msdl.domain.MSDLPlayer;
-
-import dagger.Lazy;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -138,9 +136,9 @@ public class AuthControllerTest extends SysuiTestCase {
     @Mock
     private IBiometricContextListener mContextListener;
     @Mock
-    private AuthDialog mDialog1;
+    private AuthContainerView mDialog1;
     @Mock
-    private AuthDialog mDialog2;
+    private AuthContainerView mDialog2;
     @Mock
     private CommandQueue mCommandQueue;
     @Mock
@@ -175,8 +173,6 @@ public class AuthControllerTest extends SysuiTestCase {
     private PromptViewModel mPromptViewModel;
     @Mock
     private UdfpsUtils mUdfpsUtils;
-    @Mock
-    private Lazy<ViewCapture> mLazyViewCapture;
 
     @Captor
     private ArgumentCaptor<IFingerprintAuthenticatorsRegisteredCallback> mFpAuthenticatorsRegisteredCaptor;
@@ -198,6 +194,8 @@ public class AuthControllerTest extends SysuiTestCase {
     private KeyguardManager mKeyguardManager;
     @Mock
     private MSDLPlayer mMSDLPlayer;
+    @Mock
+    private WindowManagerProvider mWindowManagerProvider;
 
     private TestableContext mContextSpy;
     private Execution mExecution;
@@ -382,7 +380,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonUserCanceled_whenDismissedByUserCancel() throws Exception {
         showDialog(new int[]{1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_USER_CANCELED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_USER_CANCEL,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -393,7 +391,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonNegative_whenDismissedByButtonNegative() throws Exception {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_BUTTON_NEGATIVE,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_NEGATIVE,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -404,7 +402,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonConfirmed_whenDismissedByButtonPositive() throws Exception {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_BUTTON_POSITIVE,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_BIOMETRIC_CONFIRMED,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -415,7 +413,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonConfirmNotRequired_whenDismissedByAuthenticated() throws Exception {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_BIOMETRIC_AUTHENTICATED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_BIOMETRIC_CONFIRM_NOT_REQUIRED,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -426,7 +424,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonError_whenDismissedByError() throws Exception {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_ERROR,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_ERROR,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -437,7 +435,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonServerRequested_whenDismissedByServer() throws Exception {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_BY_SYSTEM_SERVER,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_SERVER_REQUESTED,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -452,7 +450,7 @@ public class AuthControllerTest extends SysuiTestCase {
 
         final byte[] credentialAttestation = generateRandomHAT();
 
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_CREDENTIAL_AUTHENTICATED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_CREDENTIAL_CONFIRMED,
                 credentialAttestation, mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
                 eq(BiometricPrompt.DISMISSED_REASON_CREDENTIAL_CONFIRMED),
@@ -462,7 +460,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testSendsReasonContentViewMoreOptions_whenButtonPressed() throws Exception {
         showDialog(new int[]{1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_BUTTON_CONTENT_VIEW_MORE_OPTIONS,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_CONTENT_VIEW_MORE_OPTIONS,
                 null, /* credentialAttestation */
                 mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
@@ -696,7 +694,7 @@ public class AuthControllerTest extends SysuiTestCase {
 
         final byte[] credentialAttestation = generateRandomHAT();
 
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_CREDENTIAL_AUTHENTICATED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_CREDENTIAL_CONFIRMED,
                 credentialAttestation, mAuthController.mCurrentDialog.getRequestId());
         verify(mReceiver).onDialogDismissed(
                 eq(BiometricPrompt.DISMISSED_REASON_CREDENTIAL_CONFIRMED),
@@ -755,7 +753,7 @@ public class AuthControllerTest extends SysuiTestCase {
     public void testDoesNotCrash_whenTryAgainPressedAfterDismissal() {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
         final long requestID = mAuthController.mCurrentDialog.getRequestId();
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_USER_CANCELED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_USER_CANCEL,
                 null, /* credentialAttestation */requestID);
         mAuthController.onTryAgainPressed(requestID);
     }
@@ -764,7 +762,7 @@ public class AuthControllerTest extends SysuiTestCase {
     public void testDoesNotCrash_whenDeviceCredentialPressedAfterDismissal() {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
         final long requestID = mAuthController.mCurrentDialog.getRequestId();
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_USER_CANCELED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_USER_CANCEL,
                 null /* credentialAttestation */, requestID);
         mAuthController.onDeviceCredentialPressed(requestID);
     }
@@ -818,7 +816,7 @@ public class AuthControllerTest extends SysuiTestCase {
 
         // WHEN dialog is shown and then dismissed
         showDialog(new int[]{1} /* sensorIds */, false /* credentialAllowed */);
-        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_USER_CANCELED,
+        mAuthController.onDismissed(BiometricPrompt.DISMISSED_REASON_USER_CANCEL,
                 null /* credentialAttestation */,
                 mAuthController.mCurrentDialog.getRequestId());
 
@@ -1198,7 +1196,8 @@ public class AuthControllerTest extends SysuiTestCase {
             when(mDisplayManager.getDisplay(displayId)).thenReturn(mockDisplay);
         }
         doReturn(mockDisplayContext).when(mContextSpy).createDisplayContext(mockDisplay);
-        when(mockDisplayContext.getSystemService(WindowManager.class)).thenReturn(mockDisplayWM);
+        when(mWindowManagerProvider.getWindowManager(mockDisplayContext))
+                .thenReturn(mockDisplayWM);
         return mockDisplayWM;
     }
 
@@ -1214,18 +1213,18 @@ public class AuthControllerTest extends SysuiTestCase {
                     () -> mLogContextInteractor, () -> mPromptSelectionInteractor,
                     () -> mCredentialViewModel, () -> mPromptViewModel, mInteractionJankMonitor,
                     mHandler, mBackgroundExecutor, mUdfpsUtils, mVibratorHelper, mKeyguardManager,
-                    mLazyViewCapture, mMSDLPlayer);
+                    mMSDLPlayer, mWindowManagerProvider);
         }
 
         @Override
-        protected AuthDialog buildDialog(DelayableExecutor bgExecutor, PromptInfo promptInfo,
+        protected AuthContainerView buildDialog(DelayableExecutor bgExecutor, PromptInfo promptInfo,
                 boolean requireConfirmation, int userId, int[] sensorIds,
                 String opPackageName, boolean skipIntro, long operationId, long requestId,
                 WakefulnessLifecycle wakefulnessLifecycle,
                 UserManager userManager,
                 LockPatternUtils lockPatternUtils, PromptViewModel viewModel) {
 
-            AuthDialog dialog;
+            AuthContainerView dialog;
             if (mBuildCount == 0) {
                 dialog = mDialog1;
             } else if (mBuildCount == 1) {

@@ -50,8 +50,8 @@ class FlagsVisitor : public xml::Visitor {
 
  private:
   bool ShouldRemove(std::unique_ptr<xml::Node>& node) {
-    if (const auto* el = NodeCast<Element>(node.get())) {
-      auto* attr = el->FindAttribute(xml::kSchemaAndroid, "featureFlag");
+    if (auto* el = NodeCast<Element>(node.get())) {
+      auto* attr = el->FindAttribute(xml::kSchemaAndroid, xml::kAttrFeatureFlag);
       if (attr == nullptr) {
         return false;
       }
@@ -72,9 +72,13 @@ class FlagsVisitor : public xml::Visitor {
             has_error_ = true;
             return false;
           }
-          if (options_.remove_disabled_elements) {
+          if (options_.remove_disabled_elements && it->second.read_only) {
             // Remove if flag==true && attr=="!flag" (negated) OR flag==false && attr=="flag"
-            return *it->second.enabled == negated;
+            bool remove = *it->second.enabled == negated;
+            if (!remove) {
+              el->RemoveAttribute(xml::kSchemaAndroid, xml::kAttrFeatureFlag);
+            }
+            return remove;
           }
         } else if (options_.flags_must_have_value) {
           diagnostics_->Error(android::DiagMessage(node->line_number)

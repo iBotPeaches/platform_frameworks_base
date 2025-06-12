@@ -17,8 +17,8 @@
 package com.android.systemui.qs.tiles.impl.work.domain.interactor
 
 import android.os.UserHandle
-import com.android.systemui.qs.tiles.base.interactor.DataUpdateTrigger
-import com.android.systemui.qs.tiles.base.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
+import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.work.domain.model.WorkModeTileModel
 import com.android.systemui.statusbar.phone.ManagedProfileController
 import com.android.systemui.util.kotlin.hasActiveWorkProfile
@@ -29,12 +29,11 @@ import kotlinx.coroutines.flow.map
 /** Observes data saver state changes providing the [WorkModeTileModel]. */
 class WorkModeTileDataInteractor
 @Inject
-constructor(
-    private val profileController: ManagedProfileController,
-) : QSTileDataInteractor<WorkModeTileModel> {
+constructor(private val profileController: ManagedProfileController) :
+    QSTileDataInteractor<WorkModeTileModel> {
     override fun tileData(
         user: UserHandle,
-        triggers: Flow<DataUpdateTrigger>
+        triggers: Flow<DataUpdateTrigger>,
     ): Flow<WorkModeTileModel> =
         profileController.hasActiveWorkProfile.map { hasActiveWorkProfile: Boolean ->
             if (hasActiveWorkProfile) {

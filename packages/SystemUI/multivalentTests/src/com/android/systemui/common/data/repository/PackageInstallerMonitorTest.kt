@@ -26,6 +26,9 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.common.shared.model.PackageInstallSession
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.applicationCoroutineScope
+import com.android.systemui.kosmos.backgroundScope
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.testKosmos
@@ -36,7 +39,6 @@ import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.mockito.withArgCaptor
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -48,7 +50,6 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class PackageInstallerMonitorTest : SysuiTestCase() {
@@ -172,6 +173,58 @@ class PackageInstallerMonitorTest : SysuiTestCase() {
             val sessions by
                 testScope.collectLastValue(packageInstallerMonitor.installSessionsForPrimaryUser)
             assertThat(sessions?.size).isEqualTo(1)
+        }
+
+    @Test
+    fun onCreateUpdatedSession_ignoreNullPackageNameSessions() =
+        kosmos.runTest {
+            val nullPackageSession =
+                SessionInfo().apply {
+                    sessionId = 1
+                    appPackageName = null
+                    appIcon = icon1
+                }
+
+            val wellFormedSession =
+                SessionInfo().apply {
+                    sessionId = 2
+                    appPackageName = "pkg_name"
+                    appIcon = icon2
+                }
+
+            defaultSessions = listOf(wellFormedSession)
+
+            whenever(packageInstaller.allSessions).thenReturn(defaultSessions)
+            whenever(packageInstaller.getSessionInfo(1)).thenReturn(nullPackageSession)
+            whenever(packageInstaller.getSessionInfo(2)).thenReturn(wellFormedSession)
+
+            val packageInstallerMonitor =
+                PackageInstallerMonitor(
+                    handler,
+                    backgroundScope,
+                    logcatLogBuffer("PackageInstallerRepositoryImplTest"),
+                    packageInstaller,
+                )
+
+            val sessions by collectLastValue(packageInstallerMonitor.installSessionsForPrimaryUser)
+
+            // Verify flow updated with the new session
+            assertThat(sessions)
+                .comparingElementsUsing(represents)
+                .containsExactlyElementsIn(defaultSessions)
+
+            val callback =
+                withArgCaptor<PackageInstaller.SessionCallback> {
+                    verify(packageInstaller).registerSessionCallback(capture(), eq(handler))
+                }
+
+            // New session added
+            callback.onCreated(nullPackageSession.sessionId)
+
+            // Verify flow updated with the new session
+            assertThat(sessions)
+                .comparingElementsUsing(represents)
+                .containsExactlyElementsIn(defaultSessions)
         }
 
     @Test

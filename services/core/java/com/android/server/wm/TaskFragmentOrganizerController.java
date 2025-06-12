@@ -349,8 +349,10 @@ public class TaskFragmentOrganizerController extends ITaskFragmentOrganizerContr
             // Check if the info is different from the last reported info.
             final TaskFragmentInfo info = tf.getTaskFragmentInfo();
             final TaskFragmentInfo lastInfo = mLastSentTaskFragmentInfos.get(tf);
-            if (info.equalsForTaskFragmentOrganizer(lastInfo) && configurationsAreEqualForOrganizer(
-                    info.getConfiguration(), lastInfo.getConfiguration())) {
+            final int configurationChangeMask = tf.getConfigurationChangeMaskForOrganizer();
+            if (info.equalsForTaskFragmentOrganizer(lastInfo)
+                    && configurationsAreEqualForOrganizer(info.getConfiguration(),
+                            lastInfo.getConfiguration(), configurationChangeMask)) {
                 return null;
             }
 
@@ -570,10 +572,6 @@ public class TaskFragmentOrganizerController extends ITaskFragmentOrganizerContr
 
     private boolean restoreFromCachedStateIfPossible(@NonNull ITaskFragmentOrganizer organizer,
             int pid, int uid, @NonNull Bundle outSavedState) {
-        if (!Flags.aeBackStackRestore()) {
-            return false;
-        }
-
         TaskFragmentOrganizerState cachedState = null;
         int i = mCachedTaskFragmentOrganizerStates.size() - 1;
         for (; i >= 0; i--) {
@@ -842,7 +840,6 @@ public class TaskFragmentOrganizerController extends ITaskFragmentOrganizerContr
             return;
         }
         validateAndGetState(organizer);
-        Slog.w(TAG, "onTaskFragmentError ", exception);
         addPendingEvent(new PendingTaskFragmentEvent.Builder(
                 PendingTaskFragmentEvent.EVENT_ERROR, organizer)
                 .setErrorCallbackToken(errorCallbackToken)

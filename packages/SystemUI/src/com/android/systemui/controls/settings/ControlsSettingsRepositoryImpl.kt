@@ -18,7 +18,7 @@
 package com.android.systemui.controls.settings
 
 import android.provider.Settings
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -28,7 +28,6 @@ import com.android.systemui.util.settings.SecureSettings
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -57,7 +56,6 @@ constructor(
     override val allowActionOnTrivialControlsInLockscreen =
         makeFlowForSetting(Settings.Secure.LOCKSCREEN_ALLOW_TRIVIAL_CONTROLS)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     private fun makeFlowForSetting(setting: String): StateFlow<Boolean> {
         return userRepository.selectedUserInfo
             .distinctUntilChanged()

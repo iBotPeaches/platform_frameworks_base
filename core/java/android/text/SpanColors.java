@@ -27,6 +27,7 @@ import android.text.style.CharacterStyle;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SpanColors {
     public static final @ColorInt int NO_COLOR_FOUND = Color.TRANSPARENT;
 

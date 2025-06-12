@@ -25,6 +25,8 @@ import static android.platform.test.flag.junit.SetFlagsRule.DefaultInitValueType
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
 
+import static com.android.window.flags.Flags.FLAG_SUPPORT_WIDGET_INTENTS_ON_CONNECTED_DISPLAY;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -39,11 +41,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.ActivityThread;
 import android.app.ActivityThread.ActivityClientRecord;
+import android.app.ActivityThread.ReceiverData;
 import android.app.Application;
 import android.app.IApplicationThread;
 import android.app.PictureInPictureParams;
@@ -158,10 +164,7 @@ public class ActivityThreadTest {
 
     @After
     public void tearDown() {
-        if (mCreatedVirtualDisplays != null) {
-            mCreatedVirtualDisplays.forEach(VirtualDisplay::release);
-            mCreatedVirtualDisplays = null;
-        }
+        tearDownVirtualDisplays();
         WindowTokenClientController.overrideForTesting(mOriginalWindowTokenClientController);
         ClientTransactionListenerController.getInstance()
                 .unregisterActivityWindowInfoChangedListener(mActivityWindowInfoListener);
@@ -1007,6 +1010,92 @@ public class ActivityThreadTest {
                 .that(systemContext.getApplicationInfo()).isSameInstanceAs(newAppInfo);
     }
 
+    @Test
+    @RequiresFlagsEnabled(FLAG_SUPPORT_WIDGET_INTENTS_ON_CONNECTED_DISPLAY)
+    public void tesScheduleReceiver_withLaunchDisplayId_receivesDisplayContext() {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final Display virtualDisplay = createVirtualDisplay(context, 100 /* w */, 100 /* h */);
+        final int virtualDisplayId = virtualDisplay.getDisplayId();
+        final ActivityOptions activityOptions =
+                ActivityOptions.makeBasic().setLaunchDisplayId(virtualDisplayId);
+        final ActivityThread activityThread = ActivityThread.currentActivityThread();
+
+        final ReceiverData data = createReceiverData(activityOptions.toBundle());
+        final Context resultContext =
+                activityThread.createDisplayContextIfNeeded(context, data);
+
+        final Display resultDisplay = resultContext.getDisplayNoVerify();
+        assertThat(resultDisplay).isNotNull();
+        assertThat(resultDisplay.getDisplayId()).isEqualTo(virtualDisplayId);
+        assertThat(resultContext.getAssociatedDisplayId()).isEqualTo(virtualDisplayId);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_SUPPORT_WIDGET_INTENTS_ON_CONNECTED_DISPLAY)
+    public void tesScheduleReceiver_withNotExistDisplayId_receivesNoneUiContext() {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final Display virtualDisplay = createVirtualDisplay(context, 100 /* w */, 100 /* h */);
+        final int virtualDisplayId = virtualDisplay.getDisplayId();
+        final ActivityOptions activityOptions =
+                ActivityOptions.makeBasic().setLaunchDisplayId(virtualDisplayId);
+        final ActivityThread activityThread = ActivityThread.currentActivityThread();
+        tearDownVirtualDisplays();
+
+        final ReceiverData data = createReceiverData(activityOptions.toBundle());
+        final Context resultContext = activityThread.createDisplayContextIfNeeded(context, data);
+
+        assertThat(resultContext).isEqualTo(context);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_SUPPORT_WIDGET_INTENTS_ON_CONNECTED_DISPLAY)
+    public void tesScheduleReceiver_withInvalidDisplay_receivesNoneUiContext() {
+        final Context context = mock(Context.class);
+        final ActivityOptions activityOptions =
+                ActivityOptions.makeBasic().setLaunchDisplayId(INVALID_DISPLAY);
+        final ActivityThread activityThread = ActivityThread.currentActivityThread();
+
+        final ReceiverData data = createReceiverData(activityOptions.toBundle());
+        final Context resultContext = activityThread.createDisplayContextIfNeeded(context, data);
+
+        verify(context, never()).createDisplayContext(any());
+        assertThat(resultContext).isEqualTo(context);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(FLAG_SUPPORT_WIDGET_INTENTS_ON_CONNECTED_DISPLAY)
+    public void tesScheduleReceiver_withoutDisplayManagerService_receivesNoneUiContext() {
+        final Context context = mock(Context.class);
+        when(context.getSystemService(DisplayManager.class)).thenReturn(null);
+        final ActivityThread activityThread = ActivityThread.currentActivityThread();
+
+        final ReceiverData data = createReceiverData(null /* resultExtras */);
+        final Context resultContext = activityThread.createDisplayContextIfNeeded(context, data);
+
+        verify(context, never()).createDisplayContext(any());
+        assertThat(resultContext).isEqualTo(context);
+    }
+
+    @Test
+    public void tesScheduleReceiver_withoutActivityOptions_receivesNoneUiContext() {
+        final Context context = mock(Context.class);
+        final ActivityThread activityThread = ActivityThread.currentActivityThread();
+
+        final ReceiverData data = createReceiverData(null /* resultExtras */);
+        final Context resultContext = activityThread.createDisplayContextIfNeeded(context, data);
+
+        verify(context, never()).createDisplayContext(any());
+        assertThat(resultContext).isEqualTo(context);
+    }
+
+    @NonNull
+    private ReceiverData createReceiverData(@Nullable Bundle resultExtras) {
+        return new ReceiverData(new Intent("test.action.WIDGET_ITEM_CLICK"),
+                0 /* resultCode */, null /* resultData */, resultExtras, false /* ordered */,
+                false /* sticky */, false /* assumeDelivered */, null /* token */,
+                0 /* sendingUser */, -1 /* sendingUid */, null /* sendingPackage */);
+    }
+
     /**
      * Calls {@link ActivityThread#handleActivityConfigurationChanged(ActivityClientRecord,
      * Configuration, int, ActivityWindowInfo)} to try to push activity configuration to the
@@ -1054,6 +1143,13 @@ public class ActivityThreadTest {
         }
         mCreatedVirtualDisplays.add(virtualDisplay);
         return virtualDisplay.getDisplay();
+    }
+
+    private void tearDownVirtualDisplays() {
+        if (mCreatedVirtualDisplays != null) {
+            mCreatedVirtualDisplays.forEach(VirtualDisplay::release);
+            mCreatedVirtualDisplays = null;
+        }
     }
 
     private static ActivityClientRecord getActivityClientRecord(Activity activity) {

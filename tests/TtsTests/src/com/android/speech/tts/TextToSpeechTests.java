@@ -110,7 +110,7 @@ public class TextToSpeechTests extends InstrumentationTestCase {
         blockingCallSpeak("foo bar", delegate);
         ArgumentCaptor<SynthesisRequest> req = ArgumentCaptor.forClass(SynthesisRequest.class);
         Mockito.verify(delegate, Mockito.times(1)).onSynthesizeText(req.capture(),
-                Mockito.<SynthesisCallback>anyObject());
+                Mockito.<SynthesisCallback>any());
 
         assertEquals("eng", req.getValue().getLanguage());
         assertEquals("USA", req.getValue().getCountry());
@@ -133,7 +133,7 @@ public class TextToSpeechTests extends InstrumentationTestCase {
         blockingCallSpeak("le fou barre", delegate);
         ArgumentCaptor<SynthesisRequest> req2 = ArgumentCaptor.forClass(SynthesisRequest.class);
         Mockito.verify(delegate, Mockito.times(1)).onSynthesizeText(req2.capture(),
-                        Mockito.<SynthesisCallback>anyObject());
+                        Mockito.<SynthesisCallback>any());
 
         // The params are basically unchanged.
         assertEquals("eng", req2.getValue().getLanguage());
@@ -177,7 +177,7 @@ public class TextToSpeechTests extends InstrumentationTestCase {
         blockingCallSpeak("foo bar", delegate);
         ArgumentCaptor<SynthesisRequest> req = ArgumentCaptor.forClass(SynthesisRequest.class);
         Mockito.verify(delegate, Mockito.times(1)).onSynthesizeText(req.capture(),
-                Mockito.<SynthesisCallback>anyObject());
+                Mockito.<SynthesisCallback>any());
 
         assertEquals(defaultLocale.getISO3Language(), req.getValue().getLanguage());
         assertEquals(defaultLocale.getISO3Country(), req.getValue().getCountry());
@@ -189,8 +189,8 @@ public class TextToSpeechTests extends InstrumentationTestCase {
     private void blockingCallSpeak(String speech, IDelegate mock) throws
             InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        doCountDown(latch).when(mock).onSynthesizeText(Mockito.<SynthesisRequest>anyObject(),
-                Mockito.<SynthesisCallback>anyObject());
+        doCountDown(latch).when(mock).onSynthesizeText(Mockito.<SynthesisRequest>any(),
+                Mockito.<SynthesisCallback>any());
         mTts.speak(speech, TextToSpeech.QUEUE_ADD, null);
 
         awaitCountDown(latch, 5, TimeUnit.SECONDS);

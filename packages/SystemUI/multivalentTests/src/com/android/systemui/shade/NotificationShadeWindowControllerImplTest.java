@@ -40,16 +40,18 @@ import android.app.IActivityManager;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.platform.test.annotations.RequiresFlagsDisabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.platform.test.flag.junit.FlagsParameterization;
-import android.provider.Settings;
 import android.testing.TestableLooper.RunWithLooper;
 import android.view.View;
 import android.view.WindowManager;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.colorextraction.ColorExtractor;
+import com.android.systemui.Flags;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.colorextraction.SysuiColorExtractor;
@@ -71,11 +73,11 @@ import com.android.systemui.statusbar.phone.ScrimController;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
-import com.android.systemui.util.settings.FakeSettings;
 
 import com.google.common.util.concurrent.MoreExecutors;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -84,17 +86,20 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 
-import java.util.List;
-import java.util.concurrent.Executor;
-
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4;
 import platform.test.runner.parameterized.Parameters;
+
+import java.util.List;
+import java.util.concurrent.Executor;
 
 @RunWith(ParameterizedAndroidJunit4.class)
 @RunWithLooper(setAsMainLooper = true)
 @SmallTest
 public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
-    @Mock private ViewCaptureAwareWindowManager mWindowManager;
+    @Rule public final CheckFlagsRule checkFlagsRule =
+        DeviceFlagsValueProvider.createCheckFlagsRule();
+
+    @Mock private WindowManager mWindowManager;
     @Mock private DozeParameters mDozeParameters;
     @Spy private final NotificationShadeWindowView mNotificationShadeWindowView = spy(
             new NotificationShadeWindowView(mContext, null));
@@ -113,7 +118,6 @@ public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
     @Captor private ArgumentCaptor<WindowManager.LayoutParams> mLayoutParameters;
     @Captor private ArgumentCaptor<StatusBarStateController.StateListener> mStateListener;
 
-    private FakeSettings mSecureSettings;
     private final Executor mMainExecutor = MoreExecutors.directExecutor();
     private final Executor mBackgroundExecutor = MoreExecutors.directExecutor();
     private final KosmosJavaAdapter mKosmos = new KosmosJavaAdapter(this);
@@ -134,9 +138,6 @@ public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-
-        mSecureSettings = new FakeSettings();
-        mSecureSettings.putInt(Settings.Secure.DISABLE_SECURE_WINDOWS, 0);
 
         // Preferred refresh rate is equal to the first displayMode's refresh rate
         mPreferredRefreshRate = mContext.getDisplay().getSystemSupportedModes()[0].getRefreshRate();
@@ -171,7 +172,6 @@ public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
                 () -> mSelectedUserInteractor,
                 mUserTracker,
                 mKosmos.getNotificationShadeWindowModel(),
-                mSecureSettings,
                 mKosmos::getCommunalInteractor,
                 mKosmos.getShadeLayoutParams());
         mNotificationShadeWindowController.setScrimsVisibilityListener((visibility) -> {});
@@ -272,6 +272,7 @@ public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
     }
 
     @Test
+    @RequiresFlagsDisabled(Flags.FLAG_DISABLE_BLURRED_SHADE_VISIBLE)
     public void setBackgroundBlurRadius_expandedWithBlurs() {
         mNotificationShadeWindowController.setBackgroundBlurRadius(10);
         verify(mNotificationShadeWindowView).setVisibility(eq(View.VISIBLE));
@@ -355,19 +356,6 @@ public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
     }
 
     @Test
-    public void setKeyguardShowingWithSecureWindowsDisabled_disablesSecureFlag() {
-        mSecureSettings.putInt(Settings.Secure.DISABLE_SECURE_WINDOWS, 1);
-        mNotificationShadeWindowController.setBouncerShowing(true);
-
-        verify(mWindowManager).updateViewLayout(any(), mLayoutParameters.capture());
-        assertThat((mLayoutParameters.getValue().flags & FLAG_SECURE) == 0).isTrue();
-        assertThat(
-                (mLayoutParameters.getValue().inputFeatures & INPUT_FEATURE_SENSITIVE_FOR_PRIVACY)
-                        != 0)
-                .isTrue();
-    }
-
-    @Test
     public void setKeyguardNotShowing_disablesSecureFlag() {
         mNotificationShadeWindowController.setBouncerShowing(false);
 
@@ -407,6 +395,19 @@ public class NotificationShadeWindowControllerImplTest extends SysuiTestCase {
         verify(mWindowManager).updateViewLayout(any(), mLayoutParameters.capture());
         assertThat(mLayoutParameters.getValue().screenOrientation)
                 .isEqualTo(ActivityInfo.SCREEN_ORIENTATION_NOSENSOR);
+    }
+
+    @Test
+    public void hubOrientationAware_layoutParamsUpdated() {
+        mNotificationShadeWindowController.setKeyguardShowing(false);
+        mNotificationShadeWindowController.setBouncerShowing(false);
+        mNotificationShadeWindowController.setGlanceableHubOrientationAware(true);
+        when(mKeyguardStateController.isKeyguardScreenRotationAllowed()).thenReturn(false);
+        mNotificationShadeWindowController.onConfigChanged(new Configuration());
+
+        verify(mWindowManager, atLeastOnce()).updateViewLayout(any(), mLayoutParameters.capture());
+        assertThat(mLayoutParameters.getValue().screenOrientation)
+                .isEqualTo(ActivityInfo.SCREEN_ORIENTATION_USER);
     }
 
     @Test

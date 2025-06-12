@@ -127,10 +127,8 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
         }
 
         holder.seekBar.setMax(data.duration)
-        val totalTimeString =
-            DateUtils.formatElapsedTime(data.duration / DateUtils.SECOND_IN_MILLIS)
         if (data.scrubbing) {
-            holder.scrubbingTotalTimeView.text = totalTimeString
+            holder.scrubbingTotalTimeView.text = formatTimeLabel(data.duration)
         }
 
         data.elapsedTime?.let {
@@ -148,18 +146,28 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
                 }
             }
 
-            val elapsedTimeString = DateUtils.formatElapsedTime(it / DateUtils.SECOND_IN_MILLIS)
             if (data.scrubbing) {
-                holder.scrubbingElapsedTimeView.text = elapsedTimeString
+                holder.scrubbingElapsedTimeView.text = formatTimeLabel(it)
             }
-
-            holder.seekBar.contentDescription =
-                holder.seekBar.context.getString(
-                    R.string.controls_media_seekbar_description,
-                    elapsedTimeString,
-                    totalTimeString
-                )
         }
+    }
+
+    /** Returns a time string suitable for display, e.g. "12:34" */
+    private fun formatTimeLabel(milliseconds: Int): CharSequence {
+        return DateUtils.formatElapsedTime(milliseconds / DateUtils.SECOND_IN_MILLIS)
+    }
+
+    @UiThread
+    fun updateContentDescription(
+        elapsedTimeDescription: CharSequence,
+        durationDescription: CharSequence,
+    ) {
+        holder.seekBar.contentDescription =
+            holder.seekBar.context.getString(
+                R.string.controls_media_seekbar_description,
+                elapsedTimeDescription,
+                durationDescription,
+            )
     }
 
     @VisibleForTesting
@@ -169,7 +177,7 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
                 holder.seekBar,
                 "progress",
                 holder.seekBar.progress,
-                targetTime + RESET_ANIMATION_DURATION_MS
+                targetTime + RESET_ANIMATION_DURATION_MS,
             )
         animator.setAutoCancel(true)
         animator.duration = RESET_ANIMATION_DURATION_MS.toLong()

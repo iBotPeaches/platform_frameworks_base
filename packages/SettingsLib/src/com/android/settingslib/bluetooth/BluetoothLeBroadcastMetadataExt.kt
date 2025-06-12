@@ -37,7 +37,7 @@ object BluetoothLeBroadcastMetadataExt {
     private const val KEY_BT_ADVERTISER_ADDRESS = "AD"
     private const val KEY_BT_BROADCAST_ID = "BI"
     private const val KEY_BT_BROADCAST_CODE = "BC"
-    private const val KEY_BT_STREAM_METADATA = "MD"
+    private const val KEY_BT_PUBLIC_METADATA = "PM"
     private const val KEY_BT_STANDARD_QUALITY = "SQ"
     private const val KEY_BT_HIGH_QUALITY = "HQ"
 
@@ -84,7 +84,7 @@ object BluetoothLeBroadcastMetadataExt {
         }
         if (this.publicBroadcastMetadata != null &&
                 this.publicBroadcastMetadata?.rawMetadata?.size != 0) {
-            entries.add(Pair(KEY_BT_STREAM_METADATA, Base64.encodeToString(
+            entries.add(Pair(KEY_BT_PUBLIC_METADATA, Base64.encodeToString(
                 this.publicBroadcastMetadata?.rawMetadata, Base64.NO_WRAP)))
         }
         if ((this.audioConfigQuality and
@@ -160,7 +160,7 @@ object BluetoothLeBroadcastMetadataExt {
         var sourceAdvertiserSid = -1
         var broadcastId = -1
         var broadcastName: String? = null
-        var streamMetadata: BluetoothLeAudioContentMetadata? = null
+        var publicMetadata: BluetoothLeAudioContentMetadata? = null
         var paSyncInterval = -1
         var broadcastCode: ByteArray? = null
         var audioConfigQualityStandard = -1
@@ -207,11 +207,11 @@ object BluetoothLeBroadcastMetadataExt {
                     broadcastCode = Base64.decode(value.dropLastWhile { it.equals(0.toByte()) }
                             .toByteArray(), Base64.NO_WRAP)
                 }
-                KEY_BT_STREAM_METADATA -> {
-                    require(streamMetadata == null) {
-                        "Duplicate streamMetadata $input"
+                KEY_BT_PUBLIC_METADATA -> {
+                    require(publicMetadata == null) {
+                        "Duplicate publicMetadata $input"
                     }
-                    streamMetadata = BluetoothLeAudioContentMetadata
+                    publicMetadata = BluetoothLeAudioContentMetadata
                         .fromRawBytes(Base64.decode(value, Base64.NO_WRAP))
                 }
                 KEY_BT_STANDARD_QUALITY -> {
@@ -256,7 +256,7 @@ object BluetoothLeBroadcastMetadataExt {
         Log.d(TAG, "parseQrCodeToMetadata: main data elements sourceAddrType=$sourceAddrType, " +
                 "sourceAddr=$sourceAddrString, sourceAdvertiserSid=$sourceAdvertiserSid, " +
                 "broadcastId=$broadcastId, broadcastName=$broadcastName, " +
-                "streamMetadata=${streamMetadata != null}, " +
+                "publicMetadata=${publicMetadata != null}, " +
                 "paSyncInterval=$paSyncInterval, " +
                 "broadcastCode=${broadcastCode?.toString(Charsets.UTF_8)}, " +
                 "audioConfigQualityStandard=$audioConfigQualityStandard, " +
@@ -317,7 +317,7 @@ object BluetoothLeBroadcastMetadataExt {
             setBroadcastName(broadcastName)
             // QR code should set PBP(public broadcast profile) for auracast
             setPublicBroadcast(true)
-            setPublicBroadcastMetadata(streamMetadata)
+            setPublicBroadcastMetadata(publicMetadata)
             setPaSyncInterval(paSyncInterval)
             setEncrypted(broadcastCode != null)
             setBroadcastCode(broadcastCode)

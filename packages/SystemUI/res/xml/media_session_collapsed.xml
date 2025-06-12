@@ -64,6 +64,13 @@
         app:layout_constraintBottom_toBottomOf="@+id/album_art" />
 
     <Constraint
+        android:id="@+id/action_button_guideline"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        app:layout_constraintGuide_end="@dimen/qs_media_session_collapsed_legacy_guideline" />
+
+    <Constraint
         android:id="@+id/header_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"

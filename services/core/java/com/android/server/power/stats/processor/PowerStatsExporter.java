@@ -21,6 +21,7 @@ import android.os.AggregateBatteryConsumer;
 import android.os.BatteryConsumer;
 import android.os.BatteryUsageStats;
 import android.os.UidBatteryConsumer;
+import android.util.IntArray;
 import android.util.Slog;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -31,7 +32,6 @@ import com.android.server.power.stats.PowerStatsStore;
 import com.android.server.power.stats.format.BasePowerStatsLayout;
 import com.android.server.power.stats.format.PowerStatsLayout;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -180,8 +180,7 @@ class PowerStatsExporter {
             }
         }
         if (layout.isUidPowerAttributionSupported()) {
-            populateBatteryConsumers(batteryUsageStatsBuilder,
-                    powerComponentStats, layout);
+            populateBatteryConsumers(batteryUsageStatsBuilder, powerComponentStats, layout);
         }
 
         populateBatteryLevelInfo(batteryUsageStatsBuilder, batteryLevelInfo);
@@ -245,19 +244,24 @@ class PowerStatsExporter {
 
     private void populateBatteryLevelInfo(BatteryUsageStats.Builder builder,
             BatteryLevelInfo batteryLevelInfo) {
-        builder.setDischargePercentage((int) Math.round(batteryLevelInfo.batteryDischargePct))
-                .setDischargedPowerRange(batteryLevelInfo.batteryDischargeMah,
+        builder.addDischargePercentage((int) Math.round(batteryLevelInfo.batteryDischargePct))
+                .addDischargedPowerRange(batteryLevelInfo.batteryDischargeMah,
                         batteryLevelInfo.batteryDischargeMah)
-                .setDischargeDurationMs(batteryLevelInfo.batteryDischargeDurationMs)
+                .addDischargeDurationMs(batteryLevelInfo.batteryDischargeDurationMs)
                 .getAggregateBatteryConsumerBuilder(
                         BatteryUsageStats.AGGREGATE_BATTERY_CONSUMER_SCOPE_DEVICE)
-                .setConsumedPower(batteryLevelInfo.batteryDischargeMah);
+                .addConsumedPower(batteryLevelInfo.batteryDischargeMah);
     }
 
     private void populateBatteryConsumers(
             BatteryUsageStats.Builder batteryUsageStatsBuilder,
             PowerComponentAggregatedPowerStats powerComponentStats,
             PowerStatsLayout layout) {
+        IntArray uids = powerComponentStats.getUids();
+        if (uids.size() == 0) {
+            return;
+        }
+
         AggregatedPowerStatsConfig.PowerComponent powerComponent = powerComponentStats.getConfig();
         PowerStats.Descriptor descriptor = powerComponentStats.getPowerStatsDescriptor();
         long[] uidStats = new long[descriptor.uidStatsArrayLength];
@@ -273,8 +277,6 @@ class PowerStatsExporter {
             breakDownByProcState = false;
         }
 
-        ArrayList<Integer> uids = new ArrayList<>();
-        powerComponentStats.collectUids(uids);
         for (int screenState = 0; screenState < BatteryConsumer.SCREEN_STATE_COUNT; screenState++) {
             if (batteryUsageStatsBuilder.isScreenStateDataNeeded()) {
                 if (screenState == BatteryConsumer.SCREEN_STATE_UNSPECIFIED) {
@@ -303,7 +305,7 @@ class PowerStatsExporter {
     private void populateUidBatteryConsumers(
             BatteryUsageStats.Builder batteryUsageStatsBuilder,
             PowerComponentAggregatedPowerStats powerComponentStats, PowerStatsLayout layout,
-            List<Integer> uids, AggregatedPowerStatsConfig.PowerComponent powerComponent,
+            IntArray uids, AggregatedPowerStatsConfig.PowerComponent powerComponent,
             long[] uidStats, boolean breakDownByProcState,
             @BatteryConsumer.ScreenState int screenState,
             @BatteryConsumer.PowerState int powerState) {
@@ -319,7 +321,8 @@ class PowerStatsExporter {
         long[] durationByProcState =
                 new long[breakDownByProcState ? BatteryConsumer.PROCESS_STATE_COUNT : 1];
         double powerAllApps = 0;
-        for (int uid : uids) {
+        for (int i = uids.size() - 1; i >= 0; i--) {
+            int uid = uids.get(i);
             UidBatteryConsumer.Builder builder =
                     batteryUsageStatsBuilder.getOrCreateUidBatteryConsumerBuilder(uid);
 

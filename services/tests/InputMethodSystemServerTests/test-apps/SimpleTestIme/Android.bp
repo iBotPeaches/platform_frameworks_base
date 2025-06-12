@@ -53,6 +53,9 @@ android_library {
     srcs: [
         "src/com/android/apps/inputmethod/simpleime/ims/*.java",
     ],
+    static_libs: [
+        "androidx.annotation_annotation",
+    ],
     sdk_version: "current",
 }
 

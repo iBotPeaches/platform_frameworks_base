@@ -17,7 +17,7 @@
 package com.android.systemui.qs.tiles.impl.uimodenight
 
 import android.content.res.Configuration
-import com.android.systemui.qs.tiles.impl.uimodenight.domain.model.UiModeNightTileModel
+import com.android.systemui.qs.tiles.impl.uimodenight.domain.interactor.model.UiModeNightTileModel
 import java.time.LocalTime
 
 object UiModeNightTileModelHelper {
@@ -34,7 +34,7 @@ object UiModeNightTileModelHelper {
         nighModeCustomType: Int = DEFAULT_NIGHT_MODE_CUSTOM_TYPE,
         is24HourFormat: Boolean = false,
         customNightModeEnd: LocalTime = defaultCustomNightEnd,
-        customNightModeStart: LocalTime = defaultCustomNightStart
+        customNightModeStart: LocalTime = defaultCustomNightStart,
     ): UiModeNightTileModel {
         return UiModeNightTileModel(
             uiMode,
@@ -44,7 +44,7 @@ object UiModeNightTileModelHelper {
             nighModeCustomType,
             is24HourFormat,
             customNightModeEnd,
-            customNightModeStart
+            customNightModeStart,
         )
     }
 }

@@ -428,8 +428,16 @@ public class InputMethodService extends AbstractInputMethodService {
      */
     @AnyThread
     public static boolean canImeRenderGesturalNavButtons() {
+        if (Flags.disallowDisablingImeNavigationBar()) {
+            return true;
+        }
         return SystemProperties.getBoolean(PROP_CAN_RENDER_GESTURAL_NAV_BUTTONS, true);
     }
+
+    /**
+     * Cached value of {@link #canImeRenderGesturalNavButtons}, as it doesn't change at runtime.
+     */
+    private final boolean mCanImeRenderGesturalNavButtons = canImeRenderGesturalNavButtons();
 
     /**
      * Allows the system to optimize the back button affordance based on the presence of software
@@ -527,20 +535,11 @@ public class InputMethodService extends AbstractInputMethodService {
     public static final int IME_ACTIVE = 1 << 0;
 
     /**
-     * The IME is perceptibly visible to the user.
+     * The IME is visible.
      *
      * @hide
      */
     public static final int IME_VISIBLE = 1 << 1;
-
-    /**
-     * The IME is visible, but not yet perceptible to the user (e.g. fading in)
-     * by {@link android.view.WindowInsetsController}.
-     *
-     * @see InputMethodManager#reportPerceptible
-     * @hide
-     */
-    public static final int IME_VISIBLE_IMPERCEPTIBLE = 1 << 2;
 
     /**
      * The IME window visibility state.
@@ -550,7 +549,6 @@ public class InputMethodService extends AbstractInputMethodService {
     @IntDef(flag = true, prefix = { "IME_" }, value = {
             IME_ACTIVE,
             IME_VISIBLE,
-            IME_VISIBLE_IMPERCEPTIBLE,
     })
     public @interface ImeWindowVisibility {}
 
@@ -570,6 +568,9 @@ public class InputMethodService extends AbstractInputMethodService {
     @NonNull
     private final NavigationBarController mNavigationBarController =
             new NavigationBarController(this);
+
+    /** Whether a custom IME Switcher button was requested to be visible. */
+    private boolean mCustomImeSwitcherButtonRequestedVisible;
 
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P, trackingBug = 115609023)
     int mTheme = 0;
@@ -790,7 +791,7 @@ public class InputMethodService extends AbstractInputMethodService {
             Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMS.initializeInternal");
             mPrivOps.set(params.privilegedOperations);
             InputMethodPrivilegedOperationsRegistry.put(params.token, mPrivOps);
-            mNavigationBarController.onNavButtonFlagsChanged(params.navigationBarFlags);
+            onNavButtonFlagsChanged(params.navigationBarFlags);
             attachToken(params.token);
             Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
         }
@@ -900,7 +901,7 @@ public class InputMethodService extends AbstractInputMethodService {
         public final void dispatchStartInput(@Nullable InputConnection inputConnection,
                 @NonNull IInputMethod.StartInputParams params) {
             mPrivOps.reportStartInputAsync(params.startInputToken);
-            mNavigationBarController.onNavButtonFlagsChanged(params.navigationBarFlags);
+            onNavButtonFlagsChanged(params.navigationBarFlags);
             if (params.restarting) {
                 restartInput(inputConnection, params.editorInfo);
             } else {
@@ -925,6 +926,20 @@ public class InputMethodService extends AbstractInputMethodService {
         @Override
         public void onNavButtonFlagsChanged(@InputMethodNavButtonFlags int navButtonFlags) {
             mNavigationBarController.onNavButtonFlagsChanged(navButtonFlags);
+            if (!mCanImeRenderGesturalNavButtons) {
+                final boolean showImeSwitcher = (navButtonFlags
+                        & InputMethodNavButtonFlags.SHOW_IME_SWITCHER_WHEN_IME_IS_SHOWN) != 0;
+                // The IME cannot draw the IME nav bar, so this will never be visible. In this case
+                // the system nav bar hosts the IME buttons.
+                // The system nav bar will be hidden when the IME is shown and the config is set.
+                final boolean navBarNotVisible = getApplicationContext().getResources()
+                        .getBoolean(com.android.internal.R.bool.config_hideNavBarForKeyboard);
+                final boolean visible = showImeSwitcher && navBarNotVisible;
+                if (visible != mCustomImeSwitcherButtonRequestedVisible) {
+                    mCustomImeSwitcherButtonRequestedVisible = visible;
+                    onCustomImeSwitcherButtonRequestedVisible(visible);
+                }
+            }
         }
 
         /**
@@ -990,6 +1005,8 @@ public class InputMethodService extends AbstractInputMethodService {
             }
             Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
             if (android.view.inputmethod.Flags.refactorInsetsController()) {
+                // After the IME window was hidden, we can remove its surface
+                scheduleImeSurfaceRemoval();
                 // The hide request first finishes the animation and then proceeds to the server
                 // side, finally reaching here, marking this the end state.
                 ImeTracker.forLogging().onHidden(statsToken);
@@ -1725,8 +1742,20 @@ public class InputMethodService extends AbstractInputMethodService {
             return "SettingsObserver{mShowImeWithHardKeyboard=" + mShowImeWithHardKeyboard  + "}";
         }
     }
+
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     private SettingsObserver mSettingsObserver;
+
+    /**
+     * Checks whether the IME should be shown when a hardware keyboard is connected, as configured
+     * through {@link Settings.Secure#SHOW_IME_WITH_HARD_KEYBOARD}, for testing purposes only.
+     *
+     * @hide
+     */
+    @VisibleForTesting
+    public final boolean getShouldShowImeWithHardKeyboardForTesting() {
+        return mSettingsObserver.shouldShowImeWithHardKeyboard();
+    }
 
     /**
      * You can call this to customize the theme used by your IME's window.
@@ -3202,7 +3231,8 @@ public class InputMethodService extends AbstractInputMethodService {
      */
     @FlaggedApi(Flags.FLAG_ADAPTIVE_HANDWRITING_BOUNDS)
     public final void setStylusHandwritingRegion(@NonNull Region handwritingRegion) {
-        if (handwritingRegion.equals(mLastHandwritingRegion)) {
+        final Region immutableHandwritingRegion = new Region(handwritingRegion);
+        if (immutableHandwritingRegion.equals(mLastHandwritingRegion)) {
             Log.v(TAG, "Failed to set setStylusHandwritingRegion():"
                     + " same region set twice.");
             return;
@@ -3210,10 +3240,10 @@ public class InputMethodService extends AbstractInputMethodService {
 
         if (DEBUG) {
             Log.d(TAG, "Setting new handwriting region for stylus handwriting "
-                    + handwritingRegion + " from last " + mLastHandwritingRegion);
+                    + immutableHandwritingRegion + " from last " + mLastHandwritingRegion);
         }
-        mPrivOps.setHandwritingTouchableRegion(handwritingRegion);
-        mLastHandwritingRegion = handwritingRegion;
+        mPrivOps.setHandwritingTouchableRegion(immutableHandwritingRegion);
+        mLastHandwritingRegion = immutableHandwritingRegion;
     }
 
     /**
@@ -3496,6 +3526,10 @@ public class InputMethodService extends AbstractInputMethodService {
                 mInlineSuggestionSessionController.notifyOnStartInputView();
                 onStartInputView(mInputEditorInfo, restarting);
                 startExtractingText(true);
+                // Back callback is typically registered in {@link #showWindow()}, but it's possible
+                // for {@link #doStartInput()} to be called without {@link #showWindow()} so we also
+                // register here.
+                registerDefaultOnBackInvokedCallback();
             } else if (mCandidatesVisibility == View.VISIBLE) {
                 if (DEBUG) Log.v(TAG, "CALL: onStartCandidatesView");
                 mCandidatesViewStarted = true;
@@ -4453,7 +4487,7 @@ public class InputMethodService extends AbstractInputMethodService {
      *
      * @hide
      */
-    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
+    @VisibleForTesting
     public final boolean isImeNavigationBarShownForTesting() {
         return mNavigationBarController.isShown();
     }
@@ -4461,28 +4495,27 @@ public class InputMethodService extends AbstractInputMethodService {
     /**
      * Called when the requested visibility of a custom IME Switcher button changes.
      *
-     * <p>When the system provides an IME navigation bar, it may decide to show an IME Switcher
-     * button inside this bar. However, the IME can request hiding the bar provided by the system
-     * with {@code getWindowInsetsController().hide(captionBar())} (the IME navigation bar provides
-     * {@link Type#captionBar() captionBar} insets to the IME window). If the request is successful,
-     * then it becomes the IME's responsibility to provide a custom IME Switcher button in its
-     * input view, with equivalent functionality.</p>
+     * <p>When this method is called with {@code true} by the system, the IME must show a button
+     * within its UI to switch IMEs. When it is called with {@code false}, it must hide this button.
      *
-     * <p>This custom button is only requested to be visible when the system provides the IME
-     * navigation bar, both the bar and the IME Switcher button inside it should be visible,
-     * but the IME successfully requested to hide the bar. This does not depend on the current
-     * visibility of the IME. It could be called with {@code true} while the IME is hidden, in
-     * which case the IME should prepare to show the button as soon as the IME itself is shown.</p>
+     * <p>Normally, the system provides a button for switching to a different IME when that is
+     * appropriate. Under certain circumstances, namely when the IME successfully asks to hide the
+     * system-provided navigation bar (with {@code getWindowInsetsController().hide(captionBar())}),
+     * providing this button is delegated to the IME through this callback.
+     *
+     * <p>This does not depend on the current visibility of the IME. It could be called with
+     * {@code true} while the IME is hidden, in which case the IME should prepare to show the button
+     * as soon as the IME itself is shown.
      *
      * <p>This is only called when the requested visibility changes. The default value is
      * {@code false} and as such, this will not be called initially if the resulting value is
-     * {@code false}.</p>
+     * {@code false}.
      *
      * <p>This can be called at any time after {@link #onCreate}, even if the IME is not currently
-     * visible. However, this is not guaranteed to be called before the IME is shown, as it depends
-     * on when the IME requested hiding the IME navigation bar. If the request is sent during
-     * the showing flow (e.g. during {@link #onStartInputView}), this will be called shortly after
-     * {@link #onWindowShown}, but before the first IME frame is drawn.</p>
+     * visible. However, this is not guaranteed to be called before the IME is shown, as it may
+     * depend on the IME requesting to hide the system-provided navigation bar. If the request is
+     * sent during the showing flow (e.g. during {@link #onStartInputView}), this will be called
+     * shortly after {@link #onWindowShown}, but before the first IME frame is drawn.
      *
      * @param visible whether the button is requested visible or not.
      */
@@ -4674,6 +4707,8 @@ public class InputMethodService extends AbstractInputMethodService {
                 + " touchableRegion=" + mTmpInsets.touchableRegion);
         p.println("  mSettingsObserver=" + mSettingsObserver);
         p.println("  mNavigationBarController=" + mNavigationBarController.toDebugString());
+        p.println("  mCustomImeSwitcherButtonRequestedVisible="
+                + mCustomImeSwitcherButtonRequestedVisible);
     }
 
     private final ImeTracing.ServiceDumper mDumper = new ImeTracing.ServiceDumper() {

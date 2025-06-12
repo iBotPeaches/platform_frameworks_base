@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Leisti programai &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; pasiekti &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Įsitikinkite, kad šiame įrenginyje (<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>) įjungta <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> ir kad <xliff:g id="PROFILE_NAME">%3$s</xliff:g> yra netoliese."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nerasta jokių įrenginių. Vėliau bandykite dar kartą."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"„Bluetooth“ ir „Wi-Fi“"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"laikrodį"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Įrenginio, kuris bus valdomas naudojant programą &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;, pasirinkimas"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Norimo nustatyti <xliff:g id="PROFILE_NAME">%1$s</xliff:g> pasirinkimas"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Ieškoma: <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Šiai programai bus leidžiama sinchronizuoti tam tikrą informaciją, pvz., skambinančio asmens vardą, ir pasiekti toliau nurodytus <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> leidimus"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Leisti &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; valdyti &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"įrenginio"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Leisti programai &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; srautu perduoti <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> programas į &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"Programa „<xliff:g id="APP_NAME_0">%1$s</xliff:g>“ galės pasiekti visą „<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>“ matomą ar leidžiamą turinį, įskaitant garso įrašus, nuotraukas, mokėjimo informaciją, slaptažodžius ir pranešimus.&lt;br/&gt;&lt;br/&gt;Programa „<xliff:g id="APP_NAME_2">%1$s</xliff:g>“ galės perduoti srautu programas į „<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>“, kol pašalinsite prieigą prie šio leidimo."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"„<xliff:g id="APP_NAME">%1$s</xliff:g>“ prašo leidimo „<xliff:g id="DEVICE_NAME">%2$s</xliff:g>“ vardu, kad galėtų srautu perduoti programas iš jūsų <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Leisti programai &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; srautu perduoti garsą ir sistemos funkcijas iš <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> į &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Programa „<xliff:g id="APP_NAME_0">%2$s</xliff:g>“ galės pasiekti visą jūsų „<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>“ leidžiamą turinį.&lt;br/&gt;&lt;br/&amp;gtPrograma „<xliff:g id="APP_NAME_2">%2$s</xliff:g>“ galės srautu perduoti garsą į „<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>“, kol pašalinsite prieigą prie šio leidimo."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"įrenginys"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Ši programa galės sinchronizuoti tam tikrą informaciją, pvz., skambinančio asmens vardą, su jūsų telefonu ir pasirinktu įrenginiu"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Leisti"</string>
     <string name="consent_no" msgid="2640796915611404382">"Neleisti"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Atšaukti"</string>
     <string name="consent_back" msgid="2560683030046918882">"Atgal"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Slinkti sąrašu žemyn"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Rodyklė žemyn"</string>
     <string name="permission_expand" msgid="893185038020887411">"Išskleisti „<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>“"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Sutraukti „<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>“"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Suteikti &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; esančioms programoms tuos pačius leidimus kaip &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; esančioms programoms?"</string>

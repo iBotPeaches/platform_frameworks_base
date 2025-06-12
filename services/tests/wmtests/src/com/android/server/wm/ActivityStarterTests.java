@@ -361,12 +361,6 @@ public class ActivityStarterTests extends WindowTestsBase {
         return prepareStarter(launchFlags, mockGetRootTask, LAUNCH_MULTIPLE);
     }
 
-    private void setupImeWindow() {
-        final WindowState imeWindow = createWindow(null, W_INPUT_METHOD,
-                "mImeWindow", CURRENT_IME_UID);
-        mDisplayContent.mInputMethodWindow = imeWindow;
-    }
-
     /**
      * Creates a {@link ActivityStarter} with default parameters and necessary mocks.
      *
@@ -803,7 +797,7 @@ public class ActivityStarterTests extends WindowTestsBase {
         // Create adjacent tasks and put one activity under it
         final Task parent = new TaskBuilder(mSupervisor).build();
         final Task adjacentParent = new TaskBuilder(mSupervisor).build();
-        parent.setAdjacentTaskFragment(adjacentParent);
+        parent.setAdjacentTaskFragments(new TaskFragment.AdjacentSet(parent, adjacentParent));
         final ActivityRecord activity = new ActivityBuilder(mAtm)
                 .setParentTask(parent)
                 .setCreateTask(true).build();

@@ -21,7 +21,7 @@ import android.content.res.Configuration
 import com.android.systemui.biometrics.data.repository.DisplayStateRepository
 import com.android.systemui.biometrics.shared.model.DisplayRotation
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.display.data.repository.DisplayRepository

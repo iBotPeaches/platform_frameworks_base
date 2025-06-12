@@ -74,6 +74,7 @@ import java.util.TimeZone;
  *    for the process to use.
  *
  *  @hide */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class GraphicsStatsService extends IGraphicsStats.Stub {
     public static final String GRAPHICS_STATS_SERVICE = "graphicsstats";
 

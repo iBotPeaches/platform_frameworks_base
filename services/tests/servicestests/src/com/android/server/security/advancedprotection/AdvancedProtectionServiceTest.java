@@ -26,15 +26,18 @@ import static org.mockito.Mockito.mock;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.pm.UserInfo;
 import android.os.RemoteException;
 import android.os.test.FakePermissionEnforcer;
 import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.security.advancedprotection.AdvancedProtectionFeature;
+import android.security.advancedprotection.AdvancedProtectionManager;
 import android.security.advancedprotection.IAdvancedProtectionCallback;
 
 import androidx.annotation.NonNull;
 
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.security.advancedprotection.features.AdvancedProtectionHook;
 import com.android.server.security.advancedprotection.features.AdvancedProtectionProvider;
 
@@ -44,57 +47,96 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 @SuppressLint("VisibleForTests")
 @RunWith(JUnit4.class)
 public class AdvancedProtectionServiceTest {
-    private AdvancedProtectionService mService;
     private FakePermissionEnforcer mPermissionEnforcer;
+    private UserManagerInternal mUserManager;
     private Context mContext;
-    private AdvancedProtectionService.AdvancedProtectionStore mStore;
     private TestLooper mLooper;
-    AdvancedProtectionFeature mFeature = new AdvancedProtectionFeature("test-id");
+    AdvancedProtectionFeature mTestFeature2g =
+            new AdvancedProtectionFeature(
+                    AdvancedProtectionManager.FEATURE_ID_DISALLOW_CELLULAR_2G);
 
     @Before
     public void setup() throws Settings.SettingNotFoundException {
         mContext = mock(Context.class);
+        mUserManager = mock(UserManagerInternal.class);
+        mLooper = new TestLooper();
         mPermissionEnforcer = new FakePermissionEnforcer();
         mPermissionEnforcer.grant(Manifest.permission.MANAGE_ADVANCED_PROTECTION_MODE);
         mPermissionEnforcer.grant(Manifest.permission.QUERY_ADVANCED_PROTECTION_MODE);
+        Mockito.when(mUserManager.getUserInfo(ArgumentMatchers.anyInt()))
+                .thenReturn(new UserInfo(0, "user", UserInfo.FLAG_ADMIN));
+    }
 
-        mStore = new AdvancedProtectionService.AdvancedProtectionStore(mContext) {
+    private AdvancedProtectionService createService(
+            AdvancedProtectionHook hook, AdvancedProtectionProvider provider) {
+
+        AdvancedProtectionService.AdvancedProtectionStore
+                store = new AdvancedProtectionService.AdvancedProtectionStore(mContext) {
+            private Map<String, Integer> mStoredValues = new HashMap<>();
             private boolean mEnabled = false;
 
             @Override
-            boolean retrieve() {
+            boolean retrieveAdvancedProtectionModeEnabled() {
                 return mEnabled;
             }
 
             @Override
-            void store(boolean enabled) {
+            void storeAdvancedProtectionModeEnabled(boolean enabled) {
                 this.mEnabled = enabled;
+            }
+
+            @Override
+            void storeInt(String key, int value) {
+                mStoredValues.put(key, value);
+            }
+
+            @Override
+            int retrieveInt(String key, int defaultValue) {
+                return mStoredValues.getOrDefault(key, defaultValue);
             }
         };
 
-        mLooper = new TestLooper();
-
-        mService = new AdvancedProtectionService(mContext, mStore, mLooper.getLooper(),
-                mPermissionEnforcer, null, null);
+        return new AdvancedProtectionService(
+                mContext,
+                store,
+                mUserManager,
+                mLooper.getLooper(),
+                mPermissionEnforcer,
+                hook,
+                provider);
     }
 
     @Test
     public void testToggleProtection() {
-        mService.setAdvancedProtectionEnabled(true);
-        assertTrue(mService.isAdvancedProtectionEnabled());
+        AdvancedProtectionService service = createService(null, null);
+        service.setAdvancedProtectionEnabled(true);
+        assertTrue(service.isAdvancedProtectionEnabled());
 
-        mService.setAdvancedProtectionEnabled(false);
-        assertFalse(mService.isAdvancedProtectionEnabled());
+        service.setAdvancedProtectionEnabled(false);
+        assertFalse(service.isAdvancedProtectionEnabled());
     }
 
     @Test
     public void testDisableProtection_byDefault() {
-        assertFalse(mService.isAdvancedProtectionEnabled());
+        AdvancedProtectionService service = createService(null, null);
+        assertFalse(service.isAdvancedProtectionEnabled());
+    }
+
+    @Test
+    public void testSetProtection_nonAdminUser() {
+        Mockito.when(mUserManager.getUserInfo(ArgumentMatchers.anyInt()))
+                .thenReturn(new UserInfo(1, "user2", UserInfo.FLAG_FULL));
+        AdvancedProtectionService service = createService(null, null);
+        assertThrows(SecurityException.class, () -> service.setAdvancedProtectionEnabled(true));
     }
 
     @Test
@@ -105,7 +147,7 @@ public class AdvancedProtectionServiceTest {
                     @NonNull
                     @Override
                     public AdvancedProtectionFeature getFeature() {
-                        return mFeature;
+                        return mTestFeature2g;
                     }
 
                     @Override
@@ -119,9 +161,8 @@ public class AdvancedProtectionServiceTest {
                     }
                 };
 
-        mService = new AdvancedProtectionService(mContext, mStore, mLooper.getLooper(),
-                mPermissionEnforcer, hook, null);
-        mService.setAdvancedProtectionEnabled(true);
+        AdvancedProtectionService service = createService(hook, null);
+        service.setAdvancedProtectionEnabled(true);
         mLooper.dispatchNext();
 
         assertTrue(callbackCaptor.get());
@@ -135,7 +176,7 @@ public class AdvancedProtectionServiceTest {
                     @NonNull
                     @Override
                     public AdvancedProtectionFeature getFeature() {
-                        return mFeature;
+                        return mTestFeature2g;
                     }
 
                     @Override
@@ -149,10 +190,8 @@ public class AdvancedProtectionServiceTest {
                     }
                 };
 
-        mService = new AdvancedProtectionService(mContext, mStore, mLooper.getLooper(),
-                mPermissionEnforcer, hook, null);
-
-        mService.setAdvancedProtectionEnabled(true);
+        AdvancedProtectionService service = createService(hook, null);
+        service.setAdvancedProtectionEnabled(true);
         mLooper.dispatchNext();
         assertFalse(callbackCalledCaptor.get());
     }
@@ -165,7 +204,7 @@ public class AdvancedProtectionServiceTest {
                     @NonNull
                     @Override
                     public AdvancedProtectionFeature getFeature() {
-                        return mFeature;
+                        return mTestFeature2g;
                     }
 
                     @Override
@@ -179,14 +218,13 @@ public class AdvancedProtectionServiceTest {
                     }
                 };
 
-        mService = new AdvancedProtectionService(mContext, mStore, mLooper.getLooper(),
-                mPermissionEnforcer, hook, null);
-        mService.setAdvancedProtectionEnabled(true);
+        AdvancedProtectionService service = createService(hook, null);
+        service.setAdvancedProtectionEnabled(true);
         mLooper.dispatchNext();
         assertTrue(callbackCalledCaptor.get());
 
         callbackCalledCaptor.set(false);
-        mService.setAdvancedProtectionEnabled(true);
+        service.setAdvancedProtectionEnabled(true);
         mLooper.dispatchAll();
         assertFalse(callbackCalledCaptor.get());
     }
@@ -194,21 +232,24 @@ public class AdvancedProtectionServiceTest {
     @Test
     public void testRegisterCallback() throws RemoteException {
         AtomicBoolean callbackCaptor = new AtomicBoolean(false);
-        IAdvancedProtectionCallback callback = new IAdvancedProtectionCallback.Stub() {
-            @Override
-            public void onAdvancedProtectionChanged(boolean enabled) {
-                callbackCaptor.set(enabled);
-            }
-        };
+        IAdvancedProtectionCallback callback =
+                new IAdvancedProtectionCallback.Stub() {
+                    @Override
+                    public void onAdvancedProtectionChanged(boolean enabled) {
+                        callbackCaptor.set(enabled);
+                    }
+                };
 
-        mService.setAdvancedProtectionEnabled(true);
+        AdvancedProtectionService service = createService(null, null);
+
+        service.setAdvancedProtectionEnabled(true);
         mLooper.dispatchAll();
 
-        mService.registerAdvancedProtectionCallback(callback);
+        service.registerAdvancedProtectionCallback(callback);
         mLooper.dispatchNext();
         assertTrue(callbackCaptor.get());
 
-        mService.setAdvancedProtectionEnabled(false);
+        service.setAdvancedProtectionEnabled(false);
         mLooper.dispatchNext();
 
         assertFalse(callbackCaptor.get());
@@ -217,20 +258,23 @@ public class AdvancedProtectionServiceTest {
     @Test
     public void testUnregisterCallback() throws RemoteException {
         AtomicBoolean callbackCalledCaptor = new AtomicBoolean(false);
-        IAdvancedProtectionCallback callback = new IAdvancedProtectionCallback.Stub() {
-            @Override
-            public void onAdvancedProtectionChanged(boolean enabled) {
-                callbackCalledCaptor.set(true);
-            }
-        };
+        IAdvancedProtectionCallback callback =
+                new IAdvancedProtectionCallback.Stub() {
+                    @Override
+                    public void onAdvancedProtectionChanged(boolean enabled) {
+                        callbackCalledCaptor.set(true);
+                    }
+                };
 
-        mService.setAdvancedProtectionEnabled(true);
-        mService.registerAdvancedProtectionCallback(callback);
+        AdvancedProtectionService service = createService(null, null);
+
+        service.setAdvancedProtectionEnabled(true);
+        service.registerAdvancedProtectionCallback(callback);
         mLooper.dispatchAll();
         callbackCalledCaptor.set(false);
 
-        mService.unregisterAdvancedProtectionCallback(callback);
-        mService.setAdvancedProtectionEnabled(false);
+        service.unregisterAdvancedProtectionCallback(callback);
+        service.setAdvancedProtectionEnabled(false);
 
         mLooper.dispatchNext();
         assertFalse(callbackCalledCaptor.get());
@@ -238,88 +282,107 @@ public class AdvancedProtectionServiceTest {
 
     @Test
     public void testGetFeatures() {
-        AdvancedProtectionFeature feature1 = new AdvancedProtectionFeature("id-1");
-        AdvancedProtectionFeature feature2 = new AdvancedProtectionFeature("id-2");
-        AdvancedProtectionHook hook = new AdvancedProtectionHook(mContext, true) {
-            @NonNull
-            @Override
-            public AdvancedProtectionFeature getFeature() {
-                return feature1;
-            }
+        AdvancedProtectionFeature feature1 =
+                new AdvancedProtectionFeature(
+                        AdvancedProtectionManager.FEATURE_ID_DISALLOW_CELLULAR_2G);
+        AdvancedProtectionFeature feature2 =
+                new AdvancedProtectionFeature(
+                        AdvancedProtectionManager.FEATURE_ID_DISALLOW_INSTALL_UNKNOWN_SOURCES);
+        AdvancedProtectionHook hook =
+                new AdvancedProtectionHook(mContext, true) {
+                    @NonNull
+                    @Override
+                    public AdvancedProtectionFeature getFeature() {
+                        return feature1;
+                    }
 
-            @Override
-            public boolean isAvailable() {
-                return true;
-            }
-        };
+                    @Override
+                    public boolean isAvailable() {
+                        return true;
+                    }
+                };
 
-        AdvancedProtectionProvider provider = new AdvancedProtectionProvider() {
-            @Override
-            public List<AdvancedProtectionFeature> getFeatures() {
-                return List.of(feature2);
-            }
-        };
+        AdvancedProtectionProvider provider =
+                new AdvancedProtectionProvider() {
+                    @Override
+                    public List<AdvancedProtectionFeature> getFeatures(Context context) {
+                        return List.of(feature2);
+                    }
+                };
 
-        mService = new AdvancedProtectionService(mContext, mStore, mLooper.getLooper(),
-                mPermissionEnforcer, hook, provider);
-        List<AdvancedProtectionFeature> features = mService.getAdvancedProtectionFeatures();
+        AdvancedProtectionService service = createService(hook, provider);
+        List<AdvancedProtectionFeature> features = service.getAdvancedProtectionFeatures();
         assertThat(features, containsInAnyOrder(feature1, feature2));
     }
 
     @Test
     public void testGetFeatures_featureNotAvailable() {
-        AdvancedProtectionFeature feature1 = new AdvancedProtectionFeature("id-1");
-        AdvancedProtectionFeature feature2 = new AdvancedProtectionFeature("id-2");
-        AdvancedProtectionHook hook = new AdvancedProtectionHook(mContext, true) {
-            @NonNull
-            @Override
-            public AdvancedProtectionFeature getFeature() {
-                return feature1;
-            }
+        AdvancedProtectionFeature feature1 =
+                new AdvancedProtectionFeature(
+                        AdvancedProtectionManager.FEATURE_ID_DISALLOW_CELLULAR_2G);
+        AdvancedProtectionFeature feature2 =
+                new AdvancedProtectionFeature(
+                        AdvancedProtectionManager.FEATURE_ID_DISALLOW_INSTALL_UNKNOWN_SOURCES);
+        AdvancedProtectionHook hook =
+                new AdvancedProtectionHook(mContext, true) {
+                    @NonNull
+                    @Override
+                    public AdvancedProtectionFeature getFeature() {
+                        return feature1;
+                    }
 
-            @Override
-            public boolean isAvailable() {
-                return false;
-            }
-        };
+                    @Override
+                    public boolean isAvailable() {
+                        return false;
+                    }
+                };
 
-        AdvancedProtectionProvider provider = new AdvancedProtectionProvider() {
-            @Override
-            public List<AdvancedProtectionFeature> getFeatures() {
-                return List.of(feature2);
-            }
-        };
+        AdvancedProtectionProvider provider =
+                new AdvancedProtectionProvider() {
+                    @Override
+                    public List<AdvancedProtectionFeature> getFeatures(Context context) {
+                        return List.of(feature2);
+                    }
+                };
 
-        mService = new AdvancedProtectionService(mContext, mStore, mLooper.getLooper(),
-                mPermissionEnforcer, hook, provider);
-        List<AdvancedProtectionFeature> features = mService.getAdvancedProtectionFeatures();
+        AdvancedProtectionService service = createService(hook, provider);
+        List<AdvancedProtectionFeature> features = service.getAdvancedProtectionFeatures();
         assertThat(features, containsInAnyOrder(feature2));
     }
 
-
     @Test
     public void testSetProtection_withoutPermission() {
+        AdvancedProtectionService service = createService(null, null);
         mPermissionEnforcer.revoke(Manifest.permission.MANAGE_ADVANCED_PROTECTION_MODE);
-        assertThrows(SecurityException.class, () -> mService.setAdvancedProtectionEnabled(true));
+        assertThrows(SecurityException.class, () -> service.setAdvancedProtectionEnabled(true));
     }
 
     @Test
     public void testGetProtection_withoutPermission() {
+        AdvancedProtectionService service = createService(null, null);
         mPermissionEnforcer.revoke(Manifest.permission.QUERY_ADVANCED_PROTECTION_MODE);
-        assertThrows(SecurityException.class, () -> mService.isAdvancedProtectionEnabled());
+        assertThrows(SecurityException.class, () -> service.isAdvancedProtectionEnabled());
     }
 
     @Test
     public void testRegisterCallback_withoutPermission() {
+        AdvancedProtectionService service = createService(null, null);
         mPermissionEnforcer.revoke(Manifest.permission.QUERY_ADVANCED_PROTECTION_MODE);
-        assertThrows(SecurityException.class, () -> mService.registerAdvancedProtectionCallback(
-                new IAdvancedProtectionCallback.Default()));
+        assertThrows(
+                SecurityException.class,
+                () ->
+                        service.registerAdvancedProtectionCallback(
+                                new IAdvancedProtectionCallback.Default()));
     }
 
     @Test
     public void testUnregisterCallback_withoutPermission() {
+        AdvancedProtectionService service = createService(null, null);
         mPermissionEnforcer.revoke(Manifest.permission.QUERY_ADVANCED_PROTECTION_MODE);
-        assertThrows(SecurityException.class, () -> mService.unregisterAdvancedProtectionCallback(
-                new IAdvancedProtectionCallback.Default()));
+        assertThrows(
+                SecurityException.class,
+                () ->
+                        service.unregisterAdvancedProtectionCallback(
+                                new IAdvancedProtectionCallback.Default()));
     }
 }

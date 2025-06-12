@@ -68,14 +68,17 @@
         android:orientation="horizontal"
         >
 
+        <!--
+        We use a smaller vertical margin than usual, to allow the content of custom views to
+        grow up to 48dp height when needed in collapsed notifications.
+        -->
         <LinearLayout
             android:id="@+id/notification_headerless_view_column"
             android:layout_width="0px"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:layout_weight="1"
-            android:layout_marginBottom="@dimen/notification_2025_margin"
-            android:layout_marginTop="@dimen/notification_2025_margin"
+            android:layout_marginVertical="@dimen/notification_2025_reduced_margin"
             android:orientation="vertical"
             >
 
@@ -83,13 +86,14 @@
                 android:id="@+id/notification_top_line"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/notification_2025_additional_margin"
                 android:minHeight="@dimen/notification_headerless_line_height"
                 android:clipChildren="false"
                 android:theme="@style/Theme.DeviceDefault.Notification"
                 >
 
                 <!--
-                NOTE: The notification_top_line_views layout contains the app_name_text.
+                NOTE: The notification_2025_top_line_views layout contains the app_name_text.
                 In order to include the title view at the beginning, the Notification.Builder
                 has logic to hide that view whenever this title view is to be visible.
                 -->
@@ -106,7 +110,7 @@
                     android:textAppearance="@style/TextAppearance.DeviceDefault.Notification.Title"
                     />
 
-                <include layout="@layout/notification_top_line_views" />
+                <include layout="@layout/notification_2025_top_line_views" />
 
             </NotificationTopLineView>
 
@@ -119,17 +123,10 @@
 
                 <com.android.internal.widget.NotificationVanishingFrameLayout
                     android:layout_width="match_parent"
+                    android:layout_marginBottom="@dimen/notification_2025_additional_margin"
                     android:layout_height="@dimen/notification_headerless_line_height"
                     >
-                    <!-- This is the simplest way to keep this text vertically centered without
-                     gravity="center_vertical" which causes jumpiness in expansion animations. -->
-                    <include
-                        layout="@layout/notification_template_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="@dimen/notification_text_height"
-                        android:layout_gravity="center_vertical"
-                        android:layout_marginTop="0dp"
-                        />
+                    <include layout="@layout/notification_2025_text" />
                 </com.android.internal.widget.NotificationVanishingFrameLayout>
 
                 <include
@@ -147,9 +144,8 @@
             android:layout_width="@dimen/notification_right_icon_size"
             android:layout_height="@dimen/notification_right_icon_size"
             android:layout_gravity="center_vertical|end"
-            android:layout_marginTop="@dimen/notification_right_icon_headerless_margin"
-            android:layout_marginBottom="@dimen/notification_right_icon_headerless_margin"
-            android:layout_marginStart="@dimen/notification_right_icon_content_margin"
+            android:layout_marginVertical="@dimen/notification_2025_right_icon_vertical_margin"
+            android:layout_marginStart="@dimen/notification_2025_right_icon_content_margin"
             android:background="@drawable/notification_large_icon_outline"
             android:clipToOutline="true"
             android:importantForAccessibility="no"
@@ -182,16 +178,23 @@
             android:id="@+id/expand_button_touch_container"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:minWidth="@dimen/notification_content_margin_end"
+            android:minWidth="@dimen/notification_2025_margin"
             >
 
-            <include layout="@layout/notification_expand_button"
+            <include layout="@layout/notification_2025_expand_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical|end"
+                android:layout_gravity="top|end"
                 />
 
         </FrameLayout>
 
     </LinearLayout>
+
+    <include layout="@layout/notification_close_button"
+        android:id="@+id/close_button"
+        android:layout_width="@dimen/notification_close_button_size"
+        android:layout_height="@dimen/notification_close_button_size"
+        android:layout_gravity="top|end" />
+
 </com.android.internal.widget.MediaNotificationView>

@@ -16,7 +16,7 @@
 package com.android.systemui.keyguard.shared.model
 
 import android.util.Log
-import com.android.compose.animation.scene.SceneKey
+import com.android.compose.animation.scene.ContentKey
 import com.android.systemui.keyguard.shared.model.KeyguardState.UNDEFINED
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 
@@ -29,8 +29,8 @@ sealed class Edge {
     fun verifyValidKeyguardStates() {
         when (this) {
             is StateToState -> verifyValidKeyguardStates(from, to)
-            is SceneToState -> verifyValidKeyguardStates(null, to)
-            is StateToScene -> verifyValidKeyguardStates(from, null)
+            is ContentToState -> verifyValidKeyguardStates(null, to)
+            is StateToContent -> verifyValidKeyguardStates(from, null)
         }
     }
 
@@ -66,19 +66,16 @@ sealed class Edge {
             }
         } else {
             if (from == UNDEFINED || to == UNDEFINED) {
-                Log.e(
-                    TAG,
-                    "UNDEFINED should not be used when scene container is disabled",
-                )
+                Log.e(TAG, "UNDEFINED should not be used when scene container is disabled")
             }
         }
     }
 
-    fun isSceneWildcardEdge(): Boolean {
+    fun isContentWildcardEdge(): Boolean {
         return when (this) {
             is StateToState -> false
-            is SceneToState -> to == null
-            is StateToScene -> from == null
+            is ContentToState -> to == null
+            is StateToContent -> from == null
         }
     }
 
@@ -89,9 +86,9 @@ sealed class Edge {
         }
     }
 
-    data class StateToScene(val from: KeyguardState? = null, val to: SceneKey) : Edge()
+    data class StateToContent(val from: KeyguardState? = null, val to: ContentKey) : Edge()
 
-    data class SceneToState(val from: SceneKey, val to: KeyguardState? = null) : Edge()
+    data class ContentToState(val from: ContentKey, val to: KeyguardState? = null) : Edge()
 
     companion object {
         private const val TAG = "Edge"
@@ -102,11 +99,11 @@ sealed class Edge {
 
         @JvmStatic
         @JvmOverloads
-        fun create(from: KeyguardState? = null, to: SceneKey) = StateToScene(from, to)
+        fun create(from: KeyguardState? = null, to: ContentKey) = StateToContent(from, to)
 
         @JvmStatic
         @JvmOverloads
-        fun create(from: SceneKey, to: KeyguardState? = null) = SceneToState(from, to)
+        fun create(from: ContentKey, to: KeyguardState? = null) = ContentToState(from, to)
 
         /**
          * This edge is a placeholder for when an edge needs to be passed but there is no edge for

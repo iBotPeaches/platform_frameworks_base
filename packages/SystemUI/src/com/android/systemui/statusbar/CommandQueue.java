@@ -58,13 +58,13 @@ import android.view.KeyEvent;
 import android.view.WindowInsets.Type.InsetsType;
 import android.view.WindowInsetsController.Appearance;
 import android.view.WindowInsetsController.Behavior;
-import android.view.accessibility.Flags;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.annotations.KeepForWeakReference;
 import com.android.internal.os.SomeArgs;
+import com.android.internal.statusbar.DisableStates;
 import com.android.internal.statusbar.IAddTileResultCallback;
 import com.android.internal.statusbar.IStatusBar;
 import com.android.internal.statusbar.IUndoMediaTransferCallback;
@@ -86,6 +86,7 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * This class takes the functions from IStatusBar that come in on
@@ -111,7 +112,7 @@ public class CommandQueue extends IStatusBar.Stub implements
     private static final int MSG_COLLAPSE_PANELS                   = 4 << MSG_SHIFT;
     private static final int MSG_EXPAND_SETTINGS                   = 5 << MSG_SHIFT;
     private static final int MSG_SYSTEM_BAR_CHANGED                = 6 << MSG_SHIFT;
-    private static final int MSG_DISPLAY_READY                     = 7 << MSG_SHIFT;
+    private static final int MSG_DISPLAY_ADD_SYSTEM_DECORATIONS    = 7 << MSG_SHIFT;
     private static final int MSG_SHOW_IME_BUTTON                   = 8 << MSG_SHIFT;
     private static final int MSG_TOGGLE_RECENT_APPS                = 9 << MSG_SHIFT;
     private static final int MSG_PRELOAD_RECENT_APPS               = 10 << MSG_SHIFT;
@@ -183,6 +184,10 @@ public class CommandQueue extends IStatusBar.Stub implements
     private static final int MSG_ENTER_DESKTOP = 80 << MSG_SHIFT;
     private static final int MSG_SET_SPLITSCREEN_FOCUS = 81 << MSG_SHIFT;
     private static final int MSG_TOGGLE_QUICK_SETTINGS_PANEL = 82 << MSG_SHIFT;
+    private static final int MSG_WALLET_ACTION_LAUNCH_GESTURE = 83 << MSG_SHIFT;
+    private static final int MSG_DISPLAY_REMOVE_SYSTEM_DECORATIONS = 85 << MSG_SHIFT;
+    private static final int MSG_DISABLE_ALL  = 86 << MSG_SHIFT;
+
     public static final int FLAG_EXCLUDE_NONE = 0;
     public static final int FLAG_EXCLUDE_SEARCH_PANEL = 1 << 0;
     public static final int FLAG_EXCLUDE_RECENTS_PANEL = 1 << 1;
@@ -270,12 +275,12 @@ public class CommandQueue extends IStatusBar.Stub implements
         default void toggleQuickSettingsPanel() { }
 
         /**
-         * Called to notify IME window status changes.
+         * Sets the new IME window status.
          *
-         * @param displayId The id of the display to notify.
-         * @param vis IME visibility.
-         * @param backDisposition Disposition mode of back button.
-         * @param showImeSwitcher {@code true} to show IME switch button.
+         * @param displayId The id of the display to which the IME is bound.
+         * @param vis The IME window visibility.
+         * @param backDisposition The IME back disposition mode.
+         * @param showImeSwitcher Whether the IME Switcher button should be shown.
          */
         default void setImeWindowStatus(int displayId, @ImeWindowVisibility int vis,
                 @BackDispositionMode int backDisposition, boolean showImeSwitcher) { }
@@ -343,6 +348,11 @@ public class CommandQueue extends IStatusBar.Stub implements
         default void onCameraLaunchGestureDetected(int source) { }
 
         /**
+         * Notifies SysUI that the wallet launch gesture was detected.
+         */
+        default void onWalletLaunchGestureDetected() {}
+
+        /**
          * Notifies SysUI that the emergency action gesture was detected.
          */
         default void onEmergencyActionLaunchGestureDetected() { }
@@ -407,9 +417,15 @@ public class CommandQueue extends IStatusBar.Stub implements
         }
 
         /**
-         * @see IStatusBar#onDisplayReady(int)
+         * @see IStatusBar#onDisplayAddSystemDecorations(int)
          */
-        default void onDisplayReady(int displayId) {
+        default void onDisplayAddSystemDecorations(int displayId) {
+        }
+
+        /**
+         * @see IStatusBar#onDisplayRemoveSystemDecorations(int)
+         */
+        default void onDisplayRemoveSystemDecorations(int displayId) {
         }
 
         /**
@@ -568,7 +584,8 @@ public class CommandQueue extends IStatusBar.Stub implements
         /**
          * @see IStatusBar#immersiveModeChanged
          */
-        default void immersiveModeChanged(int rootDisplayAreaId, boolean isImmersiveMode) {}
+        default void immersiveModeChanged(int rootDisplayAreaId, boolean isImmersiveMode,
+                int windowType) {}
 
         /**
          * @see IStatusBar#moveFocusedTaskToDesktop(int)
@@ -641,7 +658,8 @@ public class CommandQueue extends IStatusBar.Stub implements
 
     /**
      * Called to notify that disable flags are updated.
-     * @see Callbacks#disable(int, int, int, boolean).
+     * @see Callbacks#disable(int, int, int, boolean)
+     * @see Callbacks#disableForAllDisplays(DisableStates)
      */
     public void disable(int displayId, @DisableFlags int state1, @Disable2Flags int state2,
             boolean animate) {
@@ -667,6 +685,27 @@ public class CommandQueue extends IStatusBar.Stub implements
     @Override
     public void disable(int displayId, @DisableFlags int state1, @Disable2Flags int state2) {
         disable(displayId, state1, state2, true);
+    }
+
+    @Override
+    public void disableForAllDisplays(DisableStates disableStates) throws RemoteException {
+        synchronized (mLock) {
+            for (Map.Entry<Integer, Pair<Integer, Integer>> displaysWithStates :
+                    disableStates.displaysWithStates.entrySet()) {
+                int displayId = displaysWithStates.getKey();
+                Pair<Integer, Integer> states = displaysWithStates.getValue();
+                setDisabled(displayId, states.first, states.second);
+            }
+            mHandler.removeMessages(MSG_DISABLE_ALL);
+            Message msg = mHandler.obtainMessage(MSG_DISABLE_ALL, disableStates);
+            if (Looper.myLooper() == mHandler.getLooper()) {
+                // If its the right looper execute immediately so hides can be handled quickly.
+                mHandler.handleMessage(msg);
+                msg.recycle();
+            } else {
+                msg.sendToTarget();
+            }
+        }
     }
 
     /**
@@ -864,11 +903,13 @@ public class CommandQueue extends IStatusBar.Stub implements
     }
 
     @Override
-    public void immersiveModeChanged(int rootDisplayAreaId, boolean isImmersiveMode) {
+    public void immersiveModeChanged(int rootDisplayAreaId, boolean isImmersiveMode,
+            int windowType) {
         synchronized (mLock) {
             final SomeArgs args = SomeArgs.obtain();
             args.argi1 = rootDisplayAreaId;
             args.argi2 = isImmersiveMode ? 1 : 0;
+            args.argi3 = windowType;
             mHandler.obtainMessage(MSG_IMMERSIVE_CHANGED, args).sendToTarget();
         }
     }
@@ -953,6 +994,18 @@ public class CommandQueue extends IStatusBar.Stub implements
     }
 
     @Override
+    public void onWalletLaunchGestureDetected() {
+        synchronized (mLock) {
+            if (mPowerInteractor != null) {
+                mPowerInteractor.get().onWalletLaunchGestureDetected();
+            }
+
+            mHandler.removeMessages(MSG_WALLET_ACTION_LAUNCH_GESTURE);
+            mHandler.obtainMessage(MSG_WALLET_ACTION_LAUNCH_GESTURE).sendToTarget();
+        }
+    }
+
+    @Override
     public void onEmergencyActionLaunchGestureDetected() {
         synchronized (mLock) {
             mHandler.removeMessages(MSG_EMERGENCY_ACTION_LAUNCH_GESTURE);
@@ -962,13 +1015,7 @@ public class CommandQueue extends IStatusBar.Stub implements
 
     @Override
     public void addQsTile(ComponentName tile) {
-        if (Flags.a11yQsShortcut()) {
-            addQsTileToFrontOrEnd(tile, false);
-        } else {
-            synchronized (mLock) {
-                mHandler.obtainMessage(MSG_ADD_QS_TILE, tile).sendToTarget();
-            }
-        }
+        addQsTileToFrontOrEnd(tile, false);
     }
 
     /**
@@ -978,13 +1025,11 @@ public class CommandQueue extends IStatusBar.Stub implements
      */
     @Override
     public void addQsTileToFrontOrEnd(ComponentName tile, boolean end) {
-        if (Flags.a11yQsShortcut()) {
-            synchronized (mLock) {
-                SomeArgs args = SomeArgs.obtain();
-                args.arg1 = tile;
-                args.arg2 = end;
-                mHandler.obtainMessage(MSG_ADD_QS_TILE, args).sendToTarget();
-            }
+        synchronized (mLock) {
+            SomeArgs args = SomeArgs.obtain();
+            args.arg1 = tile;
+            args.arg2 = end;
+            mHandler.obtainMessage(MSG_ADD_QS_TILE, args).sendToTarget();
         }
     }
 
@@ -1173,9 +1218,17 @@ public class CommandQueue extends IStatusBar.Stub implements
     }
 
     @Override
-    public void onDisplayReady(int displayId) {
+    public void onDisplayAddSystemDecorations(int displayId) {
         synchronized (mLock) {
-            mHandler.obtainMessage(MSG_DISPLAY_READY, displayId, 0).sendToTarget();
+            mHandler.obtainMessage(MSG_DISPLAY_ADD_SYSTEM_DECORATIONS, displayId, 0).sendToTarget();
+        }
+    }
+
+    @Override
+    public void onDisplayRemoveSystemDecorations(int displayId) {
+        synchronized (mLock) {
+            mHandler.obtainMessage(MSG_DISPLAY_REMOVE_SYSTEM_DECORATIONS, displayId, 0)
+                    .sendToTarget();
         }
     }
 
@@ -1492,6 +1545,7 @@ public class CommandQueue extends IStatusBar.Stub implements
         mHandler.obtainMessage(MSG_ENTER_DESKTOP, args).sendToTarget();
     }
 
+
     private final class H extends Handler {
         private H(Looper l) {
             super(l);
@@ -1522,6 +1576,21 @@ public class CommandQueue extends IStatusBar.Stub implements
                     for (int i = 0; i < mCallbacks.size(); i++) {
                         mCallbacks.get(i).disable(args.argi1, args.argi2, args.argi3,
                                 args.argi4 != 0 /* animate */);
+                    }
+                    break;
+                case MSG_DISABLE_ALL:
+                    DisableStates disableStates = (DisableStates) msg.obj;
+                    boolean animate = disableStates.animate;
+                    Map<Integer, Pair<Integer, Integer>> displaysWithDisableStates =
+                            disableStates.displaysWithStates;
+                    for (Map.Entry<Integer, Pair<Integer, Integer>> displayWithDisableStates :
+                            displaysWithDisableStates.entrySet()) {
+                        int displayId = displayWithDisableStates.getKey();
+                        Pair<Integer, Integer> states = displayWithDisableStates.getValue();
+                        for (int i = 0; i < mCallbacks.size(); i++) {
+                            mCallbacks.get(i).disable(displayId, states.first, states.second,
+                                    animate);
+                        }
                     }
                     break;
                 case MSG_EXPAND_NOTIFICATIONS:
@@ -1642,6 +1711,11 @@ public class CommandQueue extends IStatusBar.Stub implements
                         mCallbacks.get(i).onCameraLaunchGestureDetected(msg.arg1);
                     }
                     break;
+                case MSG_WALLET_ACTION_LAUNCH_GESTURE:
+                    for (int i = 0; i < mCallbacks.size(); i++) {
+                        mCallbacks.get(i).onWalletLaunchGestureDetected();
+                    }
+                    break;
                 case MSG_EMERGENCY_ACTION_LAUNCH_GESTURE:
                     for (int i = 0; i < mCallbacks.size(); i++) {
                         mCallbacks.get(i).onEmergencyActionLaunchGestureDetected();
@@ -1653,18 +1727,12 @@ public class CommandQueue extends IStatusBar.Stub implements
                     }
                     break;
                 case MSG_ADD_QS_TILE: {
-                    if (Flags.a11yQsShortcut()) {
-                        SomeArgs someArgs = (SomeArgs) msg.obj;
-                        for (int i = 0; i < mCallbacks.size(); i++) {
-                            mCallbacks.get(i).addQsTileToFrontOrEnd(
-                                    (ComponentName) someArgs.arg1, (boolean) someArgs.arg2);
-                        }
-                        someArgs.recycle();
-                    } else {
-                        for (int i = 0; i < mCallbacks.size(); i++) {
-                            mCallbacks.get(i).addQsTile((ComponentName) msg.obj);
-                        }
+                    SomeArgs someArgs = (SomeArgs) msg.obj;
+                    for (int i = 0; i < mCallbacks.size(); i++) {
+                        mCallbacks.get(i).addQsTileToFrontOrEnd(
+                                (ComponentName) someArgs.arg1, (boolean) someArgs.arg2);
                     }
+                    someArgs.recycle();
                     break;
                 }
                 case MSG_REMOVE_QS_TILE:
@@ -1797,9 +1865,14 @@ public class CommandQueue extends IStatusBar.Stub implements
                         mCallbacks.get(i).showPinningEscapeToast();
                     }
                     break;
-                case MSG_DISPLAY_READY:
+                case MSG_DISPLAY_ADD_SYSTEM_DECORATIONS:
                     for (int i = 0; i < mCallbacks.size(); i++) {
-                        mCallbacks.get(i).onDisplayReady(msg.arg1);
+                        mCallbacks.get(i).onDisplayAddSystemDecorations(msg.arg1);
+                    }
+                    break;
+                case MSG_DISPLAY_REMOVE_SYSTEM_DECORATIONS:
+                    for (int i = 0; i < mCallbacks.size(); i++) {
+                        mCallbacks.get(i).onDisplayRemoveSystemDecorations(msg.arg1);
                     }
                     break;
                 case MSG_RECENTS_ANIMATION_STATE_CHANGED:
@@ -2001,8 +2074,10 @@ public class CommandQueue extends IStatusBar.Stub implements
                     args = (SomeArgs) msg.obj;
                     int rootDisplayAreaId = args.argi1;
                     boolean isImmersiveMode = args.argi2 != 0;
+                    int windowType = args.argi3;
                     for (int i = 0; i < mCallbacks.size(); i++) {
-                        mCallbacks.get(i).immersiveModeChanged(rootDisplayAreaId, isImmersiveMode);
+                        mCallbacks.get(i).immersiveModeChanged(rootDisplayAreaId, isImmersiveMode,
+                                windowType);
                     }
                     break;
                 case MSG_ENTER_DESKTOP: {

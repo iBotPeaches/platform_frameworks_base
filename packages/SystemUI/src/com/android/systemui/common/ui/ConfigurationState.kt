@@ -147,7 +147,7 @@ constructor(
          */
         fun create(
             context: Context,
-            configurationController: ConfigurationController
+            configurationController: ConfigurationController,
         ): ConfigurationStateImpl
     }
 }

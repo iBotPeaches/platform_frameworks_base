@@ -20,20 +20,20 @@ import android.graphics.Rect
 import android.icu.text.NumberFormat
 import android.util.TypedValue
 import android.view.LayoutInflater
-import android.view.View
 import android.widget.FrameLayout
 import androidx.annotation.VisibleForTesting
 import com.android.systemui.customization.R
 import com.android.systemui.log.core.MessageBuffer
 import com.android.systemui.plugins.clocks.AlarmData
 import com.android.systemui.plugins.clocks.ClockAnimations
+import com.android.systemui.plugins.clocks.ClockAxisStyle
 import com.android.systemui.plugins.clocks.ClockConfig
 import com.android.systemui.plugins.clocks.ClockController
+import com.android.systemui.plugins.clocks.ClockEventListener
 import com.android.systemui.plugins.clocks.ClockEvents
 import com.android.systemui.plugins.clocks.ClockFaceConfig
 import com.android.systemui.plugins.clocks.ClockFaceController
 import com.android.systemui.plugins.clocks.ClockFaceEvents
-import com.android.systemui.plugins.clocks.ClockFontAxisSetting
 import com.android.systemui.plugins.clocks.ClockMessageBuffers
 import com.android.systemui.plugins.clocks.ClockSettings
 import com.android.systemui.plugins.clocks.DefaultClockFaceLayout
@@ -55,7 +55,6 @@ class DefaultClockController(
     private val layoutInflater: LayoutInflater,
     private val resources: Resources,
     private val settings: ClockSettings?,
-    private val migratedClocks: Boolean = false,
     messageBuffers: ClockMessageBuffers? = null,
 ) : ClockController {
     override val smallClock: DefaultClockFaceController
@@ -67,7 +66,6 @@ class DefaultClockController(
     private val burmeseLineSpacing =
         resources.getFloat(R.dimen.keyguard_clock_line_spacing_scale_burmese)
     private val defaultLineSpacing = resources.getFloat(R.dimen.keyguard_clock_line_spacing_scale)
-    protected var onSecondaryDisplay: Boolean = false
 
     override val events: DefaultClockEvents
     override val config: ClockConfig by lazy {
@@ -100,7 +98,12 @@ class DefaultClockController(
         events.onLocaleChanged(Locale.getDefault())
     }
 
-    override fun initialize(isDarkTheme: Boolean, dozeFraction: Float, foldFraction: Float) {
+    override fun initialize(
+        isDarkTheme: Boolean,
+        dozeFraction: Float,
+        foldFraction: Float,
+        clockListener: ClockEventListener?,
+    ) {
         largeClock.recomputePadding(null)
 
         largeClock.animations = LargeClockAnimations(largeClock.view, dozeFraction, foldFraction)
@@ -146,14 +149,7 @@ class DefaultClockController(
                 override fun onThemeChanged(theme: ThemeConfig) {
                     this@DefaultClockFaceController.theme = theme
 
-                    val color =
-                        when {
-                            theme.seedColor != null -> theme.seedColor!!
-                            theme.isDarkTheme ->
-                                resources.getColor(android.R.color.system_accent1_100)
-                            else -> resources.getColor(android.R.color.system_accent2_600)
-                        }
-
+                    val color = theme.getDefaultColor(ctx)
                     if (currentColor == color) {
                         return
                     }
@@ -175,10 +171,7 @@ class DefaultClockController(
                     recomputePadding(targetRegion)
                 }
 
-                override fun onSecondaryDisplayChanged(onSecondaryDisplay: Boolean) {
-                    this@DefaultClockController.onSecondaryDisplay = onSecondaryDisplay
-                    recomputePadding(null)
-                }
+                override fun onSecondaryDisplayChanged(onSecondaryDisplay: Boolean) {}
             }
 
         open fun recomputePadding(targetRegion: Rect?) {}
@@ -197,32 +190,11 @@ class DefaultClockController(
         override val config = ClockFaceConfig(hasCustomPositionUpdatedAnimation = true)
 
         init {
-            view.migratedClocks = migratedClocks
             view.hasCustomPositionUpdatedAnimation = true
             animations = LargeClockAnimations(view, 0f, 0f)
         }
 
-        override fun recomputePadding(targetRegion: Rect?) {
-            if (migratedClocks) {
-                return
-            }
-            // We center the view within the targetRegion instead of within the parent
-            // view by computing the difference and adding that to the padding.
-            val lp = view.getLayoutParams() as FrameLayout.LayoutParams
-            lp.topMargin =
-                if (onSecondaryDisplay) {
-                    // On the secondary display we don't want any additional top/bottom margin.
-                    0
-                } else {
-                    val parent = view.parent
-                    val yDiff =
-                        if (targetRegion != null && parent is View && parent.isLaidOut())
-                            targetRegion.centerY() - parent.height / 2f
-                        else 0f
-                    (-0.5f * view.bottom + yDiff).toInt()
-                }
-            view.setLayoutParams(lp)
-        }
+        override fun recomputePadding(targetRegion: Rect?) {}
 
         /** See documentation at [AnimatableClockView.offsetGlyphsForStepClockAnimation]. */
         fun offsetGlyphsForStepClockAnimation(fromLeft: Int, direction: Int, fraction: Float) {
@@ -259,8 +231,6 @@ class DefaultClockController(
         override fun onAlarmDataChanged(data: AlarmData) {}
 
         override fun onZenDataChanged(data: ZenData) {}
-
-        override fun onFontAxesChanged(axes: List<ClockFontAxisSetting>) {}
     }
 
     open inner class DefaultClockAnimations(
@@ -311,6 +281,10 @@ class DefaultClockController(
         override fun onPositionUpdated(fromLeft: Int, direction: Int, fraction: Float) {}
 
         override fun onPositionUpdated(distance: Float, fraction: Float) {}
+
+        override fun onFidgetTap(x: Float, y: Float) {}
+
+        override fun onFontAxesChanged(style: ClockAxisStyle) {}
     }
 
     inner class LargeClockAnimations(

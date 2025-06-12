@@ -28,11 +28,12 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.viewinterop.AndroidView
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
-import com.android.compose.animation.scene.SceneScope
 import com.android.systemui.biometrics.AuthController
 import com.android.systemui.customization.R as customR
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.flags.FeatureFlagsClassic
 import com.android.systemui.flags.Flags
 import com.android.systemui.keyguard.ui.binder.DeviceEntryIconViewBinder
@@ -42,19 +43,22 @@ import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryBackgroundViewModel
 import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryForegroundViewModel
 import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryIconViewModel
 import com.android.systemui.log.LogBuffer
-import com.android.systemui.log.LongPressHandlingViewLogger
+import com.android.systemui.log.TouchHandlingViewLogger
 import com.android.systemui.log.dagger.LongPressTouchLog
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.VibratorHelper
+import com.google.android.msdl.domain.MSDLPlayer
 import dagger.Lazy
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 
 class LockSection
 @Inject
 constructor(
     @Application private val applicationScope: CoroutineScope,
+    @Main private val mainDispatcher: CoroutineDispatcher,
     private val windowManager: WindowManager,
     private val authController: AuthController,
     private val featureFlags: FeatureFlagsClassic,
@@ -63,10 +67,11 @@ constructor(
     private val deviceEntryBackgroundViewModel: Lazy<DeviceEntryBackgroundViewModel>,
     private val falsingManager: Lazy<FalsingManager>,
     private val vibratorHelper: Lazy<VibratorHelper>,
+    private val msdlPlayer: Lazy<MSDLPlayer>,
     @LongPressTouchLog private val logBuffer: LogBuffer,
 ) {
     @Composable
-    fun SceneScope.LockIcon(overrideColor: Color? = null, modifier: Modifier = Modifier) {
+    fun ContentScope.LockIcon(overrideColor: Color? = null, modifier: Modifier = Modifier) {
         val context = LocalContext.current
 
         AndroidView(
@@ -74,18 +79,20 @@ constructor(
                 DeviceEntryIconView(
                         context,
                         null,
-                        logger = LongPressHandlingViewLogger(logBuffer, tag = TAG),
+                        logger = TouchHandlingViewLogger(logBuffer, tag = TAG),
                     )
                     .apply {
                         id = R.id.device_entry_icon_view
                         DeviceEntryIconViewBinder.bind(
                             applicationScope,
+                            mainDispatcher,
                             this,
                             deviceEntryIconViewModel.get(),
                             deviceEntryForegroundViewModel.get(),
                             deviceEntryBackgroundViewModel.get(),
                             falsingManager.get(),
                             vibratorHelper.get(),
+                            msdlPlayer.get(),
                             overrideColor,
                         )
                     }

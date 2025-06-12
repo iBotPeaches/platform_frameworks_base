@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktivno (samo levo)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktivno (samo desno)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktivno (levo i desno)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Ažuriranje okruženja nije uspelo"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktivno (samo za medije). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktivno (samo za medije). Levo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, desno: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterije."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Uređaj gosta. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Uređaj gosta. Levo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, desno: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterije."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Uređaj gosta (samo za medije). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Uređaj gosta (samo za medije). Levo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, desno: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterije."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Povezano (podržava deljenje zvuka), <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Povezano (podržava deljenje zvuka), levo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, desno: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterije."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Povezano (podržava deljenje zvuka). Levo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Povezano (podržava deljenje zvuka). Desno: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Povezano (podržava deljenje zvuka)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Uređaj gosta (podržava deljenje zvuka). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterije."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Uređaj gosta (podržava deljenje zvuka). Levo: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, desno: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterije."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Uređaj gosta (podržava deljenje zvuka)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktivan (samo za medije)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Uređaj gosta"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Uređaj gosta (samo za medije)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Podržava deljenje zvuka"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Uređaj gosta. Podržava deljenje zvuka"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktivan (samo za medije), samo levo"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktivan (samo za medije), samo desno"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktivan (samo za medije), levo i desno"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Hardverski ubrzano prikazivanje"</string>
     <string name="media_category" msgid="8122076702526144053">"Mediji"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Nadgledanje"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Upravljanje prozorima"</string>
     <string name="strict_mode" msgid="889864762140862437">"Omogućen je strogi režim"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Ekran treperi kada aplikacije obavljaju duge operacije na glavnoj niti"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Lokacija pokazivača"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Razmera animacije prelaza"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Animatorova razmera trajanja"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simuliraj sekundarne ekrane"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Položaj senke na ekranu"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplikacije"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Ne čuvaj aktivnosti"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Uništava svaku aktivnost čim je korisnik napusti"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Primena WebView-a"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Podesite primenu WebView-a"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Ovaj izbor više nije važeći. Probajte ponovo."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView alatke za programere"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Paket za WebView nije pronađen."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Pokretanje alatki za programere nije uspelo."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Režim boja slika"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Koristi sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Onemogućeno je"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Brzo punjenje"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Kontroliše administrator"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Kontrolišu ograničena podešavanja"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Nedostupno tokom poziva"</string>
     <string name="disabled" msgid="8017887509554714950">"Onemogućeno"</string>
+    <string name="enabled" msgid="3997122818554810678">"Omogućeno"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Dozvoljeno"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Nije dozvoljeno"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instaliranje nepoznatih aplikacija"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Ugrađeni zvučnik"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Zvuk TV-a"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Problem pri povezivanju. Isključite uređaj, pa ga ponovo uključite"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Povezivanje nije uspelo"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Žičani audio uređaj"</string>
     <string name="help_label" msgid="3528360748637781274">"Pomoć i povratne informacije"</string>
     <string name="storage_category" msgid="2287342585424631813">"Memorijski prostor"</string>

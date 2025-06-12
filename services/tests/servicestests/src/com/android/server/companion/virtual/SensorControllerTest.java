@@ -22,18 +22,25 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import android.companion.virtual.IVirtualDevice;
 import android.companion.virtual.sensor.IVirtualSensorCallback;
 import android.companion.virtual.sensor.VirtualSensor;
+import android.companion.virtual.sensor.VirtualSensorAdditionalInfo;
 import android.companion.virtual.sensor.VirtualSensorConfig;
 import android.companion.virtual.sensor.VirtualSensorEvent;
 import android.content.AttributionSource;
 import android.hardware.Sensor;
+import android.hardware.SensorAdditionalInfo;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -49,6 +56,7 @@ import com.google.common.collect.Iterables;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -64,6 +72,9 @@ public class SensorControllerTest {
     private static final int SENSOR_HANDLE = 7;
 
     private static final int VIRTUAL_SENSOR_TYPE = Sensor.TYPE_ACCELEROMETER;
+
+    private static final float[] ADDITIONAL_INFO_VALUES_1 = new float[] {1.2f, 3.4f};
+    private static final float[] ADDITIONAL_INFO_VALUES_2 = new float[] {5.6f, 7.8f};
 
     @Mock
     private SensorManagerInternal mSensorManagerInternalMock;
@@ -152,6 +163,53 @@ public class SensorControllerTest {
         verify(mSensorManagerInternalMock).sendSensorEvent(
                 SENSOR_HANDLE, Sensor.TYPE_ACCELEROMETER, mSensorEvent.getTimestampNanos(),
                 mSensorEvent.getValues());
+    }
+
+    @Test
+    public void sendSensorAdditionalInfo_invalidToken_throwsException() throws Exception {
+        SensorController sensorController = doCreateSensorSuccessfully();
+
+        final VirtualSensorAdditionalInfo info =
+                new VirtualSensorAdditionalInfo.Builder(SensorAdditionalInfo.TYPE_UNTRACKED_DELAY)
+                        .addValues(ADDITIONAL_INFO_VALUES_1)
+                        .addValues(ADDITIONAL_INFO_VALUES_2)
+                        .build();
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> sensorController.sendSensorAdditionalInfo(
+                        new Binder("invalidSensorToken"), info));
+    }
+
+    @Test
+    public void sendSensorAdditionalInfo_success() throws Exception {
+        SensorController sensorController = doCreateSensorSuccessfully();
+
+        clearInvocations(mSensorManagerInternalMock);
+        when(mSensorManagerInternalMock.sendSensorAdditionalInfo(
+                anyInt(), anyInt(), anyInt(), anyLong(), any()))
+                .thenReturn(true);
+        IBinder token = Iterables.getOnlyElement(sensorController.getSensorDescriptors().keySet());
+
+        final VirtualSensorAdditionalInfo info =
+                new VirtualSensorAdditionalInfo.Builder(SensorAdditionalInfo.TYPE_UNTRACKED_DELAY)
+                        .addValues(ADDITIONAL_INFO_VALUES_1)
+                        .addValues(ADDITIONAL_INFO_VALUES_2)
+                        .build();
+        sensorController.sendSensorAdditionalInfo(token, info);
+
+        InOrder inOrder = inOrder(mSensorManagerInternalMock);
+        inOrder.verify(mSensorManagerInternalMock).sendSensorAdditionalInfo(
+                eq(SENSOR_HANDLE), eq(SensorAdditionalInfo.TYPE_FRAME_BEGIN),
+                /*serial=*/ eq(0), /* timestamp= */ anyLong(), /*values=*/ isNull());
+        inOrder.verify(mSensorManagerInternalMock).sendSensorAdditionalInfo(
+                eq(SENSOR_HANDLE), eq(SensorAdditionalInfo.TYPE_UNTRACKED_DELAY),
+                /*serial=*/ eq(0), /* timestamp= */ anyLong(), eq(ADDITIONAL_INFO_VALUES_1));
+        inOrder.verify(mSensorManagerInternalMock).sendSensorAdditionalInfo(
+                eq(SENSOR_HANDLE), eq(SensorAdditionalInfo.TYPE_UNTRACKED_DELAY),
+                /*serial=*/ eq(1), /* timestamp= */ anyLong(), eq(ADDITIONAL_INFO_VALUES_2));
+        inOrder.verify(mSensorManagerInternalMock).sendSensorAdditionalInfo(
+                eq(SENSOR_HANDLE), eq(SensorAdditionalInfo.TYPE_FRAME_END),
+                /*serial=*/ eq(0), /* timestamp= */ anyLong(), /*values=*/ isNull());
     }
 
     @Test

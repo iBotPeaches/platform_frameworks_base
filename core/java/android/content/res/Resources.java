@@ -482,7 +482,6 @@ public class Resources {
      *
      * @return Typeface The Typeface data associated with the resource.
      */
-    @RavenwoodThrow(blockedBy = Typeface.class)
     @NonNull public Typeface getFont(@FontRes int id) throws NotFoundException {
         final TypedValue value = obtainTempTypedValue();
         try {
@@ -507,7 +506,6 @@ public class Resources {
     /**
      * @hide
      */
-    @RavenwoodThrow(blockedBy = Typeface.class)
     public void preloadFonts(@ArrayRes int id) {
         final TypedArray array = obtainTypedArray(id);
         try {
@@ -2570,7 +2568,7 @@ public class Resources {
             impl.getValue(id, value, true);
             if (value.type == TypedValue.TYPE_STRING) {
                 return loadXmlResourceParser(value.string.toString(), id,
-                        value.assetCookie, type);
+                        value.assetCookie, type, value.usesFeatureFlags);
             }
             throw new NotFoundException("Resource ID #0x" + Integer.toHexString(id)
                     + " type #0x" + Integer.toHexString(value.type) + " is not valid");
@@ -2593,7 +2591,26 @@ public class Resources {
     @UnsupportedAppUsage
     XmlResourceParser loadXmlResourceParser(String file, int id, int assetCookie,
                                             String type) throws NotFoundException {
-        return mResourcesImpl.loadXmlResourceParser(file, id, assetCookie, type);
+        return loadXmlResourceParser(file, id, assetCookie, type, true);
+    }
+
+    /**
+     * Loads an XML parser for the specified file.
+     *
+     * @param file the path for the XML file to parse
+     * @param id the resource identifier for the file
+     * @param assetCookie the asset cookie for the file
+     * @param type the type of resource (used for logging)
+     * @param usesFeatureFlags whether the xml has read/write feature flags
+     * @return a parser for the specified XML file
+     * @throws NotFoundException if the file could not be loaded
+     * @hide
+     */
+    @NonNull
+    @VisibleForTesting
+    public XmlResourceParser loadXmlResourceParser(String file, int id, int assetCookie,
+            String type, boolean usesFeatureFlags) throws NotFoundException {
+        return mResourcesImpl.loadXmlResourceParser(file, id, assetCookie, type, usesFeatureFlags);
     }
 
     /**

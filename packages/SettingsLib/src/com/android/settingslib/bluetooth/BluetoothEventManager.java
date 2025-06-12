@@ -29,14 +29,18 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.collection.ArraySet;
 
 import com.android.settingslib.R;
+import com.android.settingslib.flags.Flags;
+import com.android.settingslib.utils.ThreadUtils;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -65,6 +69,7 @@ public class BluetoothEventManager {
     private final android.os.Handler mReceiverHandler;
     private final UserHandle mUserHandle;
     private final Context mContext;
+    private boolean mIsWorkProfile = false;
 
     interface Handler {
         void onReceive(Context context, Intent intent, BluetoothDevice device);
@@ -140,6 +145,9 @@ public class BluetoothEventManager {
         addHandler(BluetoothAdapter.ACTION_AUTO_ON_STATE_CHANGED, new AutoOnStateChangedHandler());
 
         registerAdapterIntentReceiver();
+
+        UserManager userManager = context.getSystemService(UserManager.class);
+        mIsWorkProfile = userManager != null && userManager.isManagedProfile();
     }
 
     /** Register to start receiving callbacks for Bluetooth events. */
@@ -220,20 +228,32 @@ public class BluetoothEventManager {
             callback.onProfileConnectionStateChanged(device, state, bluetoothProfile);
         }
 
+        if (mIsWorkProfile) {
+            Log.d(TAG, "Skip profileConnectionStateChanged for audio sharing, work profile");
+            return;
+        }
+
+        LocalBluetoothLeBroadcast broadcast = mBtManager == null ? null
+                : mBtManager.getProfileManager().getLeAudioBroadcastProfile();
+        LocalBluetoothLeBroadcastAssistant assistant = mBtManager == null ? null
+                : mBtManager.getProfileManager().getLeAudioBroadcastAssistantProfile();
         // Trigger updateFallbackActiveDeviceIfNeeded when ASSISTANT profile disconnected when
         // audio sharing is enabled.
         if (bluetoothProfile == BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT
                 && state == BluetoothAdapter.STATE_DISCONNECTED
-                && BluetoothUtils.isAudioSharingUIAvailable(mContext)) {
-            LocalBluetoothProfileManager profileManager = mBtManager.getProfileManager();
-            if (profileManager != null
-                    && profileManager.getLeAudioBroadcastProfile() != null
-                    && profileManager.getLeAudioBroadcastProfile().isProfileReady()
-                    && profileManager.getLeAudioBroadcastAssistantProfile() != null
-                    && profileManager.getLeAudioBroadcastAssistantProfile().isProfileReady()) {
-                Log.d(TAG, "updateFallbackActiveDeviceIfNeeded, ASSISTANT profile disconnected");
-                profileManager.getLeAudioBroadcastProfile().updateFallbackActiveDeviceIfNeeded();
-            }
+                && BluetoothUtils.isAudioSharingUIAvailable(mContext)
+                && broadcast != null && assistant != null && broadcast.isProfileReady()
+                && assistant.isProfileReady()) {
+            Log.d(TAG, "updateFallbackActiveDeviceIfNeeded, ASSISTANT profile disconnected");
+            broadcast.updateFallbackActiveDeviceIfNeeded();
+        }
+        // Dispatch handleOnProfileStateChanged to local broadcast profile
+        if (Flags.promoteAudioSharingForSecondAutoConnectedLeaDevice()
+                && broadcast != null
+                && state == BluetoothAdapter.STATE_CONNECTED) {
+            Log.d(TAG, "dispatchProfileConnectionStateChanged to local broadcast profile");
+            var unused = ThreadUtils.postOnBackgroundThread(
+                    () -> broadcast.handleProfileConnected(device, bluetoothProfile, mBtManager));
         }
     }
 
@@ -255,29 +275,37 @@ public class BluetoothEventManager {
     @VisibleForTesting
     void dispatchActiveDeviceChanged(
             @Nullable CachedBluetoothDevice activeDevice, int bluetoothProfile) {
-        CachedBluetoothDevice targetDevice = activeDevice;
+        CachedBluetoothDevice mainActiveDevice = activeDevice;
         for (CachedBluetoothDevice cachedDevice : mDeviceManager.getCachedDevicesCopy()) {
-            // should report isActive from main device or it will cause trouble to other callers.
             CachedBluetoothDevice subDevice = cachedDevice.getSubDevice();
-            CachedBluetoothDevice finalTargetDevice = targetDevice;
-            if (targetDevice != null
-                    && ((subDevice != null && subDevice.equals(targetDevice))
-                    || cachedDevice.getMemberDevice().stream().anyMatch(
-                            memberDevice -> memberDevice.equals(finalTargetDevice)))) {
-                Log.d(TAG,
-                        "The active device is the sub/member device "
-                                + targetDevice.getDevice().getAnonymizedAddress()
-                                + ". change targetDevice as main device "
-                                + cachedDevice.getDevice().getAnonymizedAddress());
-                targetDevice = cachedDevice;
+            Set<CachedBluetoothDevice> memberDevices = cachedDevice.getMemberDevice();
+            final Set<CachedBluetoothDevice> cachedDevices = new ArraySet<>();
+            cachedDevices.add(cachedDevice);
+            if (!memberDevices.isEmpty()) {
+                cachedDevices.addAll(memberDevices);
+            } else if (subDevice != null) {
+                cachedDevices.add(subDevice);
             }
-            boolean isActiveDevice = cachedDevice.equals(targetDevice);
-            cachedDevice.onActiveDeviceChanged(isActiveDevice, bluetoothProfile);
+
+            // should report isActive from main device or it will cause trouble to other callers.
+            if (activeDevice != null
+                    && (cachedDevices.stream().anyMatch(
+                            device -> device.equals(activeDevice)))) {
+                Log.d(TAG, "The active device is in the set, report main device as active device:"
+                        + cachedDevice.getDevice() + ", active device:" + activeDevice.getDevice());
+                mainActiveDevice = cachedDevice;
+            }
+            boolean isActiveDevice = cachedDevice.equals(mainActiveDevice);
+            cachedDevices.forEach(
+                    device -> device.onActiveDeviceChanged(isActiveDevice, bluetoothProfile));
+            //TODO: b/400440223 - Check if we can call DeviceManager.onActiveDeviceChanged &
+            // Callback.onActiveDeviceChanged for cachedDevices Set also, so we don't need to report
+            // isActive from main device.
             mDeviceManager.onActiveDeviceChanged(cachedDevice);
         }
 
         for (BluetoothCallback callback : mCallbacks) {
-            callback.onActiveDeviceChanged(targetDevice, bluetoothProfile);
+            callback.onActiveDeviceChanged(mainActiveDevice, bluetoothProfile);
         }
     }
 

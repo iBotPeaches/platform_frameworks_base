@@ -20,10 +20,12 @@ import android.annotation.BroadcastBehavior;
 import android.annotation.NonNull;
 import android.annotation.SdkConstant;
 import android.annotation.TestApi;
+import android.app.admin.flags.Flags;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 
 import java.util.Objects;
@@ -45,6 +47,10 @@ import java.util.Objects;
  */
 public abstract class PolicyUpdateReceiver extends BroadcastReceiver {
     private static String TAG = "PolicyUpdateReceiver";
+
+    //TODO(b/378931989): Switch to android.app.admin.DevicePolicyIdentifiers.MEMORY_TAGGING_POLICY
+    //when the appropriate flag is launched.
+    private static final String MEMORY_TAGGING_POLICY = "memoryTagging";
 
     /**
      * Action for a broadcast sent to admins to communicate back the result of setting a policy in
@@ -156,15 +162,28 @@ public abstract class PolicyUpdateReceiver extends BroadcastReceiver {
     @Override
     public final void onReceive(Context context, Intent intent) {
         Objects.requireNonNull(intent.getAction());
+        String policyKey;
         switch (intent.getAction()) {
             case ACTION_DEVICE_POLICY_SET_RESULT:
                 Log.i(TAG, "Received ACTION_DEVICE_POLICY_SET_RESULT");
-                onPolicySetResult(context, getPolicyKey(intent), getPolicyExtraBundle(intent),
+                policyKey = getPolicyKey(intent);
+                if (!shouldPropagatePolicy(policyKey)) {
+                    Log.d(TAG, TextUtils.formatSimple(
+                            "Skipping propagation of policy %s", policyKey));
+                    break;
+                }
+                onPolicySetResult(context, policyKey, getPolicyExtraBundle(intent),
                         getTargetUser(intent), getPolicyChangedReason(intent));
                 break;
             case ACTION_DEVICE_POLICY_CHANGED:
                 Log.i(TAG, "Received ACTION_DEVICE_POLICY_CHANGED");
-                onPolicyChanged(context, getPolicyKey(intent), getPolicyExtraBundle(intent),
+                policyKey = getPolicyKey(intent);
+                if (!shouldPropagatePolicy(policyKey)) {
+                    Log.d(TAG, TextUtils.formatSimple(
+                            "Skipping propagation of policy %s", policyKey));
+                    break;
+                }
+                onPolicyChanged(context, policyKey, getPolicyExtraBundle(intent),
                         getTargetUser(intent), getPolicyChangedReason(intent));
                 break;
             default:
@@ -216,6 +235,14 @@ public abstract class PolicyUpdateReceiver extends BroadcastReceiver {
                 EXTRA_POLICY_TARGET_USER_ID, TargetUser.LOCAL_USER_ID);
         return new TargetUser(targetUserId);
     }
+
+    /**
+     * @hide
+     */
+    private boolean shouldPropagatePolicy(String policyKey) {
+        return !MEMORY_TAGGING_POLICY.equals(policyKey) || Flags.setMtePolicyCoexistence();
+    }
+
 
     // TODO(b/260847505): Add javadocs to explain which DPM APIs are supported
     /**

@@ -25,8 +25,8 @@ import com.android.systemui.SysuiTestCase
 import com.android.systemui.plugins.PluginLifecycleManager
 import com.android.systemui.plugins.PluginListener
 import com.android.systemui.plugins.PluginManager
+import com.android.systemui.plugins.clocks.ClockAxisStyle
 import com.android.systemui.plugins.clocks.ClockController
-import com.android.systemui.plugins.clocks.ClockFontAxisSetting
 import com.android.systemui.plugins.clocks.ClockId
 import com.android.systemui.plugins.clocks.ClockMessageBuffers
 import com.android.systemui.plugins.clocks.ClockMetadata
@@ -151,9 +151,17 @@ class ClockRegistryTest : SysuiTestCase() {
             create: (ClockId) -> ClockController = ::failFactory,
             getPickerConfig: (ClockSettings) -> ClockPickerConfig = ::failPickerConfig,
         ): FakeClockPlugin {
-            metadata.add(ClockMetadata(id))
-            createCallbacks[id] = create
-            pickerConfigs[id] = getPickerConfig
+            return addClock(ClockMetadata(id), create, getPickerConfig)
+        }
+
+        fun addClock(
+            metadata: ClockMetadata,
+            create: (ClockId) -> ClockController = ::failFactory,
+            getPickerConfig: (ClockSettings) -> ClockPickerConfig = ::failPickerConfig,
+        ): FakeClockPlugin {
+            this.metadata.add(metadata)
+            createCallbacks[metadata.clockId] = create
+            pickerConfigs[metadata.clockId] = getPickerConfig
             return this
         }
     }
@@ -203,28 +211,40 @@ class ClockRegistryTest : SysuiTestCase() {
         val plugin1 = FakeClockPlugin().addClock("clock_1").addClock("clock_2")
         val lifecycle1 = FakeLifecycle("1", plugin1)
 
-        val plugin2 = FakeClockPlugin().addClock("clock_3").addClock("clock_4")
+        val plugin2 =
+            FakeClockPlugin()
+                .addClock(ClockMetadata("clock_3", isDeprecated = false))
+                .addClock(ClockMetadata("clock_4", isDeprecated = true))
         val lifecycle2 = FakeLifecycle("2", plugin2)
 
         pluginListener.onPluginLoaded(plugin1, mockContext, lifecycle1)
         pluginListener.onPluginLoaded(plugin2, mockContext, lifecycle2)
-        val list = registry.getClocks()
         assertEquals(
-            list.toSet(),
             setOf(
                 ClockMetadata(DEFAULT_CLOCK_ID),
                 ClockMetadata("clock_1"),
                 ClockMetadata("clock_2"),
                 ClockMetadata("clock_3"),
-                ClockMetadata("clock_4"),
             ),
+            registry.getClocks().toSet(),
+        )
+
+        assertEquals(
+            setOf(
+                ClockMetadata(DEFAULT_CLOCK_ID),
+                ClockMetadata("clock_1"),
+                ClockMetadata("clock_2"),
+                ClockMetadata("clock_3"),
+                ClockMetadata("clock_4", isDeprecated = true),
+            ),
+            registry.getClocks(includeDeprecated = true).toSet(),
         )
     }
 
     @Test
     fun noPlugins_createDefaultClock() {
         val clock = registry.createCurrentClock()
-        assertEquals(clock, mockDefaultClock)
+        assertEquals(mockDefaultClock, clock)
     }
 
     @Test
@@ -242,18 +262,18 @@ class ClockRegistryTest : SysuiTestCase() {
         pluginListener.onPluginLoaded(plugin2, mockContext, lifecycle2)
         val list = registry.getClocks()
         assertEquals(
-            list.toSet(),
             setOf(
                 ClockMetadata(DEFAULT_CLOCK_ID),
                 ClockMetadata("clock_1"),
                 ClockMetadata("clock_2"),
             ),
+            list.toSet(),
         )
 
-        assertEquals(registry.createExampleClock("clock_1"), mockClock)
-        assertEquals(registry.createExampleClock("clock_2"), mockClock)
-        assertEquals(registry.getClockPickerConfig("clock_1"), pickerConfig)
-        assertEquals(registry.getClockPickerConfig("clock_2"), pickerConfig)
+        assertEquals(mockClock, registry.createExampleClock("clock_1"))
+        assertEquals(mockClock, registry.createExampleClock("clock_2"))
+        assertEquals(pickerConfig, registry.getClockPickerConfig("clock_1"))
+        assertEquals(pickerConfig, registry.getClockPickerConfig("clock_2"))
         verify(lifecycle1, never()).unloadPlugin()
         verify(lifecycle2, times(2)).unloadPlugin()
     }
@@ -305,7 +325,7 @@ class ClockRegistryTest : SysuiTestCase() {
         pluginListener.onPluginUnloaded(plugin2, lifecycle2)
 
         val clock = registry.createCurrentClock()
-        assertEquals(clock, mockDefaultClock)
+        assertEquals(mockDefaultClock, clock)
     }
 
     @Test
@@ -482,13 +502,13 @@ class ClockRegistryTest : SysuiTestCase() {
 
         // Verify all plugins were correctly loaded into the registry
         assertEquals(
-            registry.getClocks().toSet(),
             setOf(
                 ClockMetadata("DEFAULT"),
                 ClockMetadata("clock_2"),
                 ClockMetadata("clock_3"),
                 ClockMetadata("clock_4"),
             ),
+            registry.getClocks().toSet(),
         )
     }
 
@@ -523,7 +543,7 @@ class ClockRegistryTest : SysuiTestCase() {
 
     @Test
     fun jsonDeserialization_fontAxes() {
-        val expected = ClockSettings(axes = listOf(ClockFontAxisSetting("KEY", 10f)))
+        val expected = ClockSettings(axes = ClockAxisStyle("KEY", 10f))
         val json = JSONObject("""{"axes":[{"key":"KEY","value":10}]}""")
         val actual = ClockSettings.fromJson(json)
         assertEquals(expected, actual)
@@ -556,7 +576,7 @@ class ClockRegistryTest : SysuiTestCase() {
 
     @Test
     fun jsonSerialization_axisSettings() {
-        val settings = ClockSettings(axes = listOf(ClockFontAxisSetting("KEY", 10f)))
+        val settings = ClockSettings(axes = ClockAxisStyle("KEY", 10f))
         val actual = ClockSettings.toJson(settings)
         val expected = JSONObject("""{"metadata":{},"axes":[{"key":"KEY","value":10}]}""")
         assertEquals(expected.toString(), actual.toString())

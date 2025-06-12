@@ -105,6 +105,7 @@ TEST_F(Idmap2BinaryTests, Create) {
   fin.close();
 
   ASSERT_TRUE(idmap);
+  ASSERT_EQ((*idmap)->GetConstraints()->constraints.size(), 0);
   ASSERT_IDMAP(**idmap, GetTargetApkPath(), GetOverlayApkPath());
 
   unlink(GetIdmapPath().c_str());

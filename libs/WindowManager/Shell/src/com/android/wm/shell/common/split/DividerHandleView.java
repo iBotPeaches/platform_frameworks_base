@@ -80,7 +80,19 @@ public class DividerHandleView extends View {
     private int mHoveringWidth;
     private int mHoveringHeight;
     private boolean mIsLeftRightSplit;
+    private boolean mIsSplitScreen;
 
+    /**
+     * Notifies the divider of ui mode change.
+     *
+     * @param isDarkMode Whether the mode is ui dark mode.
+     */
+    public void onUiModeChange(boolean isDarkMode) {
+        if (!mIsSplitScreen) {
+            mPaint.setColor(getTilingHandleColor(isDarkMode));
+            invalidate();
+        }
+    }
     public DividerHandleView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         mPaint.setColor(getResources().getColor(R.color.docked_divider_handle, null));
@@ -101,6 +113,27 @@ public class DividerHandleView extends View {
         mTouchingHeight = mHeight > mWidth ? mHeight / 2 : mHeight;
         mHoveringWidth = mWidth > mHeight ? ((int) (mWidth * 1.5f)) : mWidth;
         mHoveringHeight = mHeight > mWidth ? ((int) (mHeight * 1.5f)) : mHeight;
+    }
+
+    /**
+     * Used by tiling infrastructure to specify display light/dark mode and
+     * whether handle colors should be overridden on display mode change in case
+     * of non split screen.
+     * @param isSplitScreen Whether the divider is used by split screen or tiling.
+     * @param isDarkMode Whether the mode is ui dark mode.
+     */
+    public void setup(boolean isSplitScreen, boolean isDarkMode) {
+        mIsSplitScreen = isSplitScreen;
+        if (!mIsSplitScreen) {
+            mPaint.setColor(getTilingHandleColor(isDarkMode));
+            setAlpha(.9f);
+        }
+    }
+
+    private int getTilingHandleColor(Boolean isDarkMode) {
+        return isDarkMode ? getResources().getColor(
+                R.color.tiling_handle_background_dark, null /* theme */) : getResources().getColor(
+                R.color.tiling_handle_background_light, null /* theme */);
     }
 
     /** sets whether it's a left/right or top/bottom split */

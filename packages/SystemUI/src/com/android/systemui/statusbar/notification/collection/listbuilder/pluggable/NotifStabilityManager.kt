@@ -16,7 +16,7 @@
 package com.android.systemui.statusbar.notification.collection.listbuilder.pluggable
 
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 
 /**
@@ -75,7 +75,7 @@ abstract class NotifStabilityManager protected constructor(name: String) :
      * being suppressed. However, if an order change is suppressed, that will be reported to ths
      * implementation by calling [onEntryReorderSuppressed] after ordering is complete.
      */
-    abstract fun isEntryReorderingAllowed(entry: ListEntry): Boolean
+    abstract fun isEntryReorderingAllowed(entry: PipelineEntry): Boolean
 
     /**
      * Called by the pipeline to determine if every call to the other stability methods would
@@ -100,7 +100,7 @@ object DefaultNotifStabilityManager : NotifStabilityManager("DefaultNotifStabili
     override fun isGroupChangeAllowed(entry: NotificationEntry): Boolean = true
     override fun isGroupPruneAllowed(entry: GroupEntry): Boolean = true
     override fun isSectionChangeAllowed(entry: NotificationEntry): Boolean = true
-    override fun isEntryReorderingAllowed(entry: ListEntry): Boolean = true
+    override fun isEntryReorderingAllowed(entry: PipelineEntry): Boolean = true
     override fun isEveryChangeAllowed(): Boolean = true
     override fun onEntryReorderSuppressed() {}
 }

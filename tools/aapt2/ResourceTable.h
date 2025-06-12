@@ -104,6 +104,9 @@ class ResourceConfigValue {
   // The actual Value.
   std::unique_ptr<Value> value;
 
+  // Whether the value uses read/write feature flags
+  bool uses_readwrite_feature_flags = false;
+
   ResourceConfigValue(const android::ConfigDescription& config, android::StringPiece product)
       : config(config), product(product) {
   }
@@ -284,6 +287,7 @@ struct NewResource {
   std::optional<AllowNew> allow_new;
   std::optional<StagedId> staged_id;
   bool allow_mangled = false;
+  bool uses_readwrite_feature_flags = false;
 };
 
 struct NewResourceBuilder {
@@ -297,6 +301,7 @@ struct NewResourceBuilder {
   NewResourceBuilder& SetAllowNew(AllowNew allow_new);
   NewResourceBuilder& SetStagedId(StagedId id);
   NewResourceBuilder& SetAllowMangled(bool allow_mangled);
+  NewResourceBuilder& SetUsesReadWriteFeatureFlags(bool uses_feature_flags);
   NewResource Build();
 
  private:

@@ -32,7 +32,7 @@ public class RavenwoodEnvironmentTest {
 
     @Test
     public void testIsRunningOnRavenwood() {
-        assertEquals(RavenwoodRule.isUnderRavenwood(),
+        assertEquals(RavenwoodRule.isOnRavenwood(),
                 RavenwoodEnvironment.getInstance().isRunningOnRavenwood());
     }
 }

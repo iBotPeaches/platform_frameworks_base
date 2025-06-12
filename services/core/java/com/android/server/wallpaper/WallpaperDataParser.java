@@ -542,9 +542,11 @@ public class WallpaperDataParser {
                 // to support back compatibility in B&R, save the crops for one orientation in the
                 // legacy "cropLeft", "cropTop", "cropRight", "cropBottom" entries
                 int orientationToPutInLegacyCrop = wallpaper.mOrientationWhenSet;
-                if (mWallpaperDisplayHelper.isFoldable()) {
-                    int unfoldedOrientation = mWallpaperDisplayHelper
-                            .getUnfoldedOrientation(orientationToPutInLegacyCrop);
+                WallpaperDefaultDisplayInfo defaultDisplayInfo =
+                        mWallpaperDisplayHelper.getDefaultDisplayInfo();
+                if (defaultDisplayInfo.isFoldable) {
+                    int unfoldedOrientation = defaultDisplayInfo.getUnfoldedOrientation(
+                            orientationToPutInLegacyCrop);
                     if (unfoldedOrientation != ORIENTATION_UNKNOWN) {
                         orientationToPutInLegacyCrop = unfoldedOrientation;
                     }

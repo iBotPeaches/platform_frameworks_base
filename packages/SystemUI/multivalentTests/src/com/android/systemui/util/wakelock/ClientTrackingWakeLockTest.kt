@@ -16,14 +16,13 @@
 
 package com.android.systemui.util.wakelock
 
-import android.os.Build
 import android.os.PowerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.log.assertLogsWtf
 import org.junit.After
 import org.junit.Assert
-import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -82,12 +81,11 @@ class ClientTrackingWakeLockTest : SysuiTestCase() {
 
     @Test
     fun wakeLock_releasedTooManyTimes_stillReleased_noThrow() {
-        Assume.assumeFalse(Build.IS_ENG)
         mWakeLock.acquire(WHY)
         mWakeLock.acquire(WHY_2)
         mWakeLock.release(WHY)
         mWakeLock.release(WHY_2)
-        mWakeLock.release(WHY)
+        assertLogsWtf { mWakeLock.release(WHY) }
         Assert.assertFalse(mInner.isHeld)
     }
 
@@ -104,9 +102,8 @@ class ClientTrackingWakeLockTest : SysuiTestCase() {
 
     @Test
     fun prodBuild_wakeLock_releaseWithoutAcquire_noThrow() {
-        Assume.assumeFalse(Build.IS_ENG)
         // shouldn't throw an exception on production builds
-        mWakeLock.release(WHY)
+        assertLogsWtf { mWakeLock.release(WHY) }
     }
 
     @Test

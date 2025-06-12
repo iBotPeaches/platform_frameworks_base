@@ -20,8 +20,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.android.systemui.volume.panel.domain.availableCriteria
 import com.android.systemui.volume.panel.domain.defaultCriteria
 import com.android.systemui.volume.panel.domain.model.ComponentModel
@@ -39,7 +39,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ComponentsInteractorImplTest : SysuiTestCase() {
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
 
     private lateinit var underTest: ComponentsInteractor
 
@@ -60,12 +60,7 @@ class ComponentsInteractorImplTest : SysuiTestCase() {
     fun componentsAvailability_checked() {
         with(kosmos) {
             testScope.runTest {
-                enabledComponents =
-                    setOf(
-                        BOTTOM_BAR,
-                        COMPONENT_1,
-                        COMPONENT_2,
-                    )
+                enabledComponents = setOf(BOTTOM_BAR, COMPONENT_1, COMPONENT_2)
                 criteriaByKey =
                     mapOf(
                         BOTTOM_BAR to Provider { availableCriteria },
@@ -90,12 +85,7 @@ class ComponentsInteractorImplTest : SysuiTestCase() {
     fun noCriteria_fallbackToDefaultCriteria() {
         with(kosmos) {
             testScope.runTest {
-                enabledComponents =
-                    setOf(
-                        BOTTOM_BAR,
-                        COMPONENT_1,
-                        COMPONENT_2,
-                    )
+                enabledComponents = setOf(BOTTOM_BAR, COMPONENT_1, COMPONENT_2)
                 criteriaByKey =
                     mapOf(
                         BOTTOM_BAR to Provider { availableCriteria },

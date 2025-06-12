@@ -34,7 +34,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
-import org.mockito.Mockito.verifyZeroInteractions
+import org.mockito.Mockito.verifyNoMoreInteractions
 
 /**
  * Test for testing revokeTrust & grantTrust for non-renewable trust.
@@ -120,7 +120,7 @@ class GrantAndRevokeTrustTest {
         trustAgentRule.agent.grantTrust(GRANT_MESSAGE, 0, 0, callback)
         await()
 
-        verifyZeroInteractions(callback)
+        verifyNoMoreInteractions(callback)
     }
 
     companion object {

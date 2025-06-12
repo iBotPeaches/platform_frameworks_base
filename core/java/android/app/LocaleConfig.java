@@ -144,15 +144,12 @@ public class LocaleConfig implements Parcelable {
             }
         }
         Resources res = context.getResources();
-        //Get the resource id
         int resId = context.getApplicationInfo().getLocaleConfigRes();
         if (resId == 0) {
             mStatus = STATUS_NOT_SPECIFIED;
             return;
         }
-        try {
-            //Get the parser to read XML data
-            XmlResourceParser parser = res.getXml(resId);
+        try (XmlResourceParser parser = res.getXml(resId)) {
             parseLocaleConfig(parser, res);
         } catch (Resources.NotFoundException e) {
             Slog.w(TAG, "The resource file pointed to by the given resource ID isn't found.");
@@ -208,22 +205,22 @@ public class LocaleConfig implements Parcelable {
         String defaultLocale = null;
         if (android.content.res.Flags.defaultLocale()) {
             // Read the defaultLocale attribute of the LocaleConfig element
-            TypedArray att = res.obtainAttributes(
-                    attrs, com.android.internal.R.styleable.LocaleConfig);
-            defaultLocale = att.getString(
-                    R.styleable.LocaleConfig_defaultLocale);
-            att.recycle();
+            try (TypedArray att = res.obtainAttributes(
+                    attrs, com.android.internal.R.styleable.LocaleConfig)) {
+                defaultLocale = att.getString(
+                        R.styleable.LocaleConfig_defaultLocale);
+            }
         }
 
         Set<String> localeNames = new HashSet<>();
         while (XmlUtils.nextElementWithin(parser, outerDepth)) {
             if (TAG_LOCALE.equals(parser.getName())) {
-                final TypedArray attributes = res.obtainAttributes(
-                        attrs, com.android.internal.R.styleable.LocaleConfig_Locale);
-                String nameAttr = attributes.getString(
-                        com.android.internal.R.styleable.LocaleConfig_Locale_name);
-                localeNames.add(nameAttr);
-                attributes.recycle();
+                try (TypedArray attributes = res.obtainAttributes(
+                        attrs, com.android.internal.R.styleable.LocaleConfig_Locale)) {
+                    String nameAttr = attributes.getString(
+                            com.android.internal.R.styleable.LocaleConfig_Locale_name);
+                    localeNames.add(nameAttr);
+                }
             } else {
                 XmlUtils.skipCurrentTag(parser);
             }

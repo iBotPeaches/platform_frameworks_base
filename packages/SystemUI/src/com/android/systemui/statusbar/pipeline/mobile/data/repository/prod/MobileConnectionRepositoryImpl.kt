@@ -44,8 +44,6 @@ import android.telephony.TelephonyManager.UNKNOWN_CARRIER_ID
 import android.telephony.satellite.NtnSignalStrength
 import com.android.settingslib.Utils
 import com.android.systemui.broadcast.BroadcastDispatcher
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
-import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.flags.FeatureFlagsClassic
 import com.android.systemui.flags.Flags.ROAMING_INDICATOR_VIA_DISPLAY_INFO
@@ -66,10 +64,10 @@ import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConn
 import com.android.systemui.statusbar.pipeline.mobile.util.MobileMappingsProxy
 import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityModel
 import com.android.systemui.statusbar.pipeline.shared.data.model.toMobileDataActivityModel
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -93,7 +91,6 @@ import kotlinx.coroutines.withContext
  * connection -- see [CarrierMergedConnectionRepository]).
  */
 @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 class MobileConnectionRepositoryImpl(
     override val subId: Int,
     private val context: Context,
@@ -144,7 +141,7 @@ class MobileConnectionRepositoryImpl(
                     object :
                         TelephonyCallback(),
                         TelephonyCallback.CarrierNetworkListener,
-                        TelephonyCallback.CarrierRoamingNtnModeListener,
+                        TelephonyCallback.CarrierRoamingNtnListener,
                         TelephonyCallback.DataActivityListener,
                         TelephonyCallback.DataConnectionStateListener,
                         TelephonyCallback.DataEnabledListener,
@@ -489,7 +486,7 @@ class MobileConnectionRepositoryImpl(
         private val mobileMappingsProxy: MobileMappingsProxy,
         private val flags: FeatureFlagsClassic,
         @Background private val bgDispatcher: CoroutineDispatcher,
-        @Application private val scope: CoroutineScope,
+        @Background private val scope: CoroutineScope,
     ) {
         fun build(
             subId: Int,
@@ -545,6 +542,10 @@ sealed interface CallbackEvent {
 
     data class OnCarrierRoamingNtnSignalStrengthChanged(val signalStrength: NtnSignalStrength) :
         CallbackEvent
+
+    data class OnCallBackModeStarted(val type: Int) : CallbackEvent
+
+    data class OnCallBackModeStopped(val type: Int) : CallbackEvent
 }
 
 /**
@@ -563,6 +564,8 @@ data class TelephonyCallbackState(
     val onCarrierRoamingNtnSignalStrengthChanged:
         CallbackEvent.OnCarrierRoamingNtnSignalStrengthChanged? =
         null,
+    val addedCallbackModes: Set<Int> = emptySet(),
+    val removedCallbackModes: Set<Int> = emptySet(),
 ) {
     fun applyEvent(event: CallbackEvent): TelephonyCallbackState {
         return when (event) {
@@ -581,6 +584,37 @@ data class TelephonyCallbackState(
             is CallbackEvent.OnSignalStrengthChanged -> copy(onSignalStrengthChanged = event)
             is CallbackEvent.OnCarrierRoamingNtnSignalStrengthChanged ->
                 copy(onCarrierRoamingNtnSignalStrengthChanged = event)
+            is CallbackEvent.OnCallBackModeStarted -> {
+                copy(
+                    addedCallbackModes =
+                        if (event.type !in removedCallbackModes) {
+                            addedCallbackModes + event.type
+                        } else {
+                            addedCallbackModes
+                        },
+                    removedCallbackModes =
+                        if (event.type !in addedCallbackModes) {
+                            removedCallbackModes - event.type
+                        } else {
+                            removedCallbackModes
+                        },
+                )
+            }
+            is CallbackEvent.OnCallBackModeStopped ->
+                copy(
+                    addedCallbackModes =
+                        if (event.type !in removedCallbackModes) {
+                            addedCallbackModes - event.type
+                        } else {
+                            addedCallbackModes
+                        },
+                    removedCallbackModes =
+                        if (event.type !in addedCallbackModes) {
+                            removedCallbackModes + event.type
+                        } else {
+                            removedCallbackModes
+                        },
+                )
         }
     }
 }

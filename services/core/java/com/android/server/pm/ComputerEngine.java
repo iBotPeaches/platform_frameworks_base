@@ -1994,6 +1994,9 @@ public class ComputerEngine implements Computer {
         if (Process.isSdkSandboxUid(uid)) {
             uid = getBaseSdkSandboxUid();
         }
+        if(isKnownIsolatedComputeApp(uid)) {
+            uid = getIsolatedOwner(uid);
+        }
         final int appId = UserHandle.getAppId(uid);
         return getPackagesForUidInternalBody(callingUid, userId, appId, isCallerInstantApp);
     }
@@ -4749,6 +4752,38 @@ public class ComputerEngine implements Computer {
 
     @Nullable
     @Override
+    public ProviderInfo resolveContentProviderForUid(@NonNull String name,
+            @PackageManager.ResolveInfoFlagsBits long flags, @UserIdInt int userId,
+            int filterCallingUid) {
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.RESOLVE_COMPONENT_FOR_UID,
+                "resolveContentProviderForUid");
+
+        int callingUid = Binder.getCallingUid();
+        int filterUserId = UserHandle.getUserId(filterCallingUid);
+        enforceCrossUserPermission(callingUid, filterUserId, false, false,
+                "resolveContentProviderForUid");
+
+        // Real callingUid should be able to see filterCallingUid
+        if (filterAppAccess(filterCallingUid, callingUid)) {
+            return null;
+        }
+
+        ProviderInfo pInfo = resolveContentProvider(name, flags, userId, filterCallingUid);
+        if (pInfo == null) {
+            return null;
+        }
+        // Real callingUid should be able to see the ContentProvider accessible to filterCallingUid
+        ProviderInfo pInfo2 = resolveContentProvider(name, flags, userId, callingUid);
+        if (pInfo2 != null
+                && Objects.equals(pInfo.name, pInfo2.name)
+                && Objects.equals(pInfo.authority, pInfo2.authority)) {
+            return pInfo;
+        }
+        return null;
+    }
+
+    @Nullable
+    @Override
     public ProviderInfo resolveContentProvider(@NonNull String name,
             @PackageManager.ResolveInfoFlagsBits long flags, @UserIdInt int userId,
             int callingUid) {
@@ -5354,7 +5389,7 @@ public class ComputerEngine implements Computer {
                     + ", uid:" + callingUid);
             throw new IllegalArgumentException("Unknown package: " + packageName);
         }
-        if (pkg.getUid() != callingUid
+        if (!UserHandle.isSameApp(callingUid, pkg.getUid())
                 && Process.SYSTEM_UID != callingUid) {
             throw new SecurityException("May not access signing KeySet of other apps.");
         }
@@ -5449,6 +5484,9 @@ public class ComputerEngine implements Computer {
         // For update or already installed case, leverage the existing visibility rule.
         if (targetAppId != INVALID_UID) {
             final Object targetSetting = mSettings.getSettingBase(targetAppId);
+            if (targetSetting == null) {
+                return false;
+            }
             if (targetSetting instanceof PackageSetting) {
                 return !shouldFilterApplication(
                         (PackageSetting) targetSetting, callingUid, userId);

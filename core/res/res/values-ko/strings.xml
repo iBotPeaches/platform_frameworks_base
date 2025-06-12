@@ -87,6 +87,7 @@
     <string name="NetworkPreferenceSwitchTitle" msgid="1008329951315753038">"모바일 네트워크에 연결할 수 없습니다."</string>
     <string name="NetworkPreferenceSwitchSummary" msgid="2086506181486324860">"기본 네트워크를 변경해 보세요. 탭하여 변경할 수 있습니다."</string>
     <string name="EmergencyCallWarningTitle" msgid="1615688002899152860">"긴급 전화를 사용할 수 없습니다."</string>
+    <string name="emergency_calling_do_not_show_again" msgid="5034171343309733068">"다시 표시 안 함"</string>
     <string name="EmergencyCallWarningSummary" msgid="9102799172089265268">"긴급 전화를 걸려면 모바일 네트워크 연결이 필요함"</string>
     <string name="notification_channel_network_alert" msgid="4788053066033851841">"알림"</string>
     <string name="notification_channel_call_forward" msgid="8230490317314272406">"착신전환"</string>
@@ -268,6 +269,7 @@
     <string name="global_action_bug_report" msgid="5127867163044170003">"버그 신고"</string>
     <string name="global_action_logout" msgid="6093581310002476511">"세션 끝내기"</string>
     <string name="global_action_screenshot" msgid="2610053466156478564">"스크린샷"</string>
+    <string name="global_action_standby" msgid="6786920589970257642">"대기"</string>
     <string name="bugreport_title" msgid="8549990811777373050">"버그 신고"</string>
     <string name="bugreport_message" msgid="5212529146119624326">"현재 기기 상태에 대한 정보를 수집하여 이메일 메시지로 전송합니다. 버그 신고를 시작하여 전송할 준비가 되려면 약간 시간이 걸립니다."</string>
     <string name="bugreport_option_interactive_title" msgid="7968287837902871289">"대화형 보고서"</string>
@@ -301,6 +303,7 @@
     <string name="notification_channel_network_alerts" msgid="6312366315654526528">"네트워크 알림"</string>
     <string name="notification_channel_network_available" msgid="6083697929214165169">"네트워크 사용 가능"</string>
     <string name="notification_channel_vpn" msgid="1628529026203808999">"VPN 상태"</string>
+    <string name="notification_channel_system_time" msgid="1660313368058030441">"시간 및 시간대"</string>
     <string name="notification_channel_device_admin" msgid="6384932669406095506">"IT 관리자가 보낸 알림"</string>
     <string name="notification_channel_alerts" msgid="5070241039583668427">"알림"</string>
     <string name="notification_channel_retail_mode" msgid="3732239154256431213">"소매 데모"</string>
@@ -308,6 +311,7 @@
     <string name="notification_channel_heavy_weight_app" msgid="17455756500828043">"실행 중인 앱"</string>
     <string name="notification_channel_foreground_service" msgid="7102189948158885178">"배터리를 소모하는 앱"</string>
     <string name="notification_channel_accessibility_magnification" msgid="1707913872219798098">"확대"</string>
+    <string name="notification_channel_accessibility_hearing_device" msgid="7816963856388758952">"청각 보조 기기"</string>
     <string name="notification_channel_accessibility_security_policy" msgid="1727787021725251912">"접근성 사용"</string>
     <string name="notification_channel_display" msgid="6905032605735615090">"디스플레이"</string>
     <string name="foreground_service_app_in_background" msgid="1439289699671273555">"<xliff:g id="APP_NAME">%1$s</xliff:g>에서 배터리 사용 중"</string>
@@ -350,6 +354,10 @@
     <string name="permgroupdesc_sensors" msgid="2610631290633747752">"생체 신호에 관한 센서 데이터에 액세스"</string>
     <string name="permgrouplab_notifications" msgid="5472972361980668884">"알림"</string>
     <string name="permgroupdesc_notifications" msgid="4608679556801506580">"알림 표시"</string>
+    <string name="permgrouplab_xr_tracking" msgid="7418994009794287471">"XR 추적 데이터"</string>
+    <string name="permgroupdesc_xr_tracking" msgid="6777198859446500821">"사용자 및 주변 환경에 대한 XR 데이터에 액세스"</string>
+    <string name="permgrouplab_xr_tracking_sensitive" msgid="1194833982988144536">"민감한 XR 추적 데이터"</string>
+    <string name="permgroupdesc_xr_tracking_sensitive" msgid="9178027369004805829">"시선 추적과 같은 민감한 추적 데이터에 액세스"</string>
     <string name="capability_title_canRetrieveWindowContent" msgid="7554282892101587296">"창 콘텐츠 가져오기"</string>
     <string name="capability_desc_canRetrieveWindowContent" msgid="6195610527625237661">"상호작용 중인 창의 콘텐츠를 검사합니다."</string>
     <string name="capability_title_canRequestTouchExploration" msgid="327598364696316213">"터치하여 탐색 사용"</string>
@@ -645,6 +653,22 @@
     <string name="permdesc_imagesWrite" msgid="5195054463269193317">"앱에서 사진 컬렉션을 수정하도록 허용합니다."</string>
     <string name="permlab_mediaLocation" msgid="7368098373378598066">"미디어 컬렉션에서 위치 읽기"</string>
     <string name="permdesc_mediaLocation" msgid="597912899423578138">"앱에서 미디어 컬렉션의 위치를 읽도록 허용합니다."</string>
+    <string name="permlab_eye_tracking_coarse" msgid="7989596289790269059">"대략적인 시선 추적"</string>
+    <string name="permdesc_eye_tracking_coarse" msgid="870510233930553355">"앱이 대략적인 시선을 추적하도록 허용합니다."</string>
+    <string name="permlab_eye_tracking_fine" msgid="6914457357027049512">"시선 추적"</string>
+    <string name="permdesc_eye_tracking_fine" msgid="5788889152304524730">"앱이 정확한 시선 데이터에 액세스하도록 허용합니다."</string>
+    <string name="permlab_face_tracking" msgid="2272048395128283324">"얼굴 추적"</string>
+    <string name="permdesc_face_tracking" msgid="2622783922311211866">"앱이 얼굴 트래킹 데이터에 액세스하도록 허용합니다."</string>
+    <string name="permlab_hand_tracking" msgid="6478233866595566940">"손 추적"</string>
+    <string name="permdesc_hand_tracking" msgid="8639715900104966456">"앱이 핸드 트래킹 데이터에 액세스하도록 허용합니다."</string>
+    <string name="permlab_head_tracking" msgid="1309731456372087270">"머리 추적"</string>
+    <string name="permdesc_head_tracking" msgid="231597390513699188">"앱이 헤드 트래킹 데이터에 액세스하도록 허용합니다."</string>
+    <string name="permlab_scene_understanding_coarse" msgid="6518646430502858641">"주변 환경 파악"</string>
+    <string name="permdesc_scene_understanding_coarse" msgid="4508880777646198656">"앱이 주변 환경에 대한 추적 데이터에 직접 액세스하도록 허용합니다."</string>
+    <string name="permlab_scene_understanding_fine" msgid="409126403264393251">"주변 환경 상세 파악"</string>
+    <string name="permdesc_scene_understanding_fine" msgid="6223368011593524179">"앱이 주변 환경에 대한 매우 상세한 추적 데이터에 액세스하도록 허용합니다."</string>
+    <string name="permlab_xr_tracking_in_background" msgid="7117098718465619023">"포그라운드에 있지 않을 때 XR 데이터에 액세스"</string>
+    <string name="permdesc_xr_tracking_in_background" msgid="939504041387836853">"앱이 포그라운드에 있지 않을 때 XR 데이터에 액세스하도록 허용합니다."</string>
     <string name="biometric_app_setting_name" msgid="3339209978734534457">"생체 인식 사용"</string>
     <string name="biometric_or_screen_lock_app_setting_name" msgid="5348462421758257752">"생체 인식 또는 화면 잠금을 사용"</string>
     <string name="biometric_dialog_default_title" msgid="55026799173208210">"본인 확인"</string>
@@ -1024,7 +1048,7 @@
     <string name="lockscreen_transport_stop_description" msgid="1449552232598355348">"중지"</string>
     <string name="lockscreen_transport_rew_description" msgid="7680106856221622779">"되감기"</string>
     <string name="lockscreen_transport_ffw_description" msgid="4763794746640196772">"빨리 감기"</string>
-    <string name="emergency_calls_only" msgid="3057351206678279851">"긴급 통화만 허용"</string>
+    <string name="emergency_calls_only" msgid="3057351206678279851">"긴급 전화만 허용"</string>
     <string name="lockscreen_network_locked_message" msgid="2814046965899249635">"네트워크 잠김"</string>
     <string name="lockscreen_sim_puk_locked_message" msgid="2867953953604224166">"SIM이 PUK 잠김 상태입니다."</string>
     <string name="lockscreen_sim_puk_locked_instructions" msgid="5307979043730860995">"사용자 가이드를 참조하거나 고객지원팀에 문의하세요."</string>
@@ -1405,6 +1429,8 @@
     <string name="install_carrier_app_notification_button" msgid="6257740533102594290">"앱 다운로드"</string>
     <string name="carrier_app_notification_title" msgid="5815477368072060250">"새 SIM이 삽입됨"</string>
     <string name="carrier_app_notification_text" msgid="6567057546341958637">"탭하여 설정"</string>
+    <string name="time_zone_change_notification_title" msgid="5232503069219193218">"시간대가 변경되었습니다"</string>
+    <string name="time_zone_change_notification_body" msgid="6135793674904665585">"현재 시간대는 <xliff:g id="TIME_ZONE_DISPLAY_NAME">%1$s</xliff:g>(<xliff:g id="TIME_ZONE_OFFSET">%2$s</xliff:g>)입니다."</string>
     <string name="time_picker_dialog_title" msgid="9053376764985220821">"시간 설정"</string>
     <string name="date_picker_dialog_title" msgid="5030520449243071926">"날짜 설정"</string>
     <string name="date_time_set" msgid="4603445265164486816">"설정"</string>
@@ -1567,7 +1593,7 @@
     <string name="vpn_lockdown_config" msgid="8331697329868252169">"네트워크 또는 VPN 설정 변경"</string>
     <string name="upload_file" msgid="8651942222301634271">"파일 선택"</string>
     <string name="no_file_chosen" msgid="4146295695162318057">"파일을 선택하지 않았습니다."</string>
-    <string name="reset" msgid="3865826612628171429">"초기화"</string>
+    <string name="reset" msgid="3865826612628171429">"재설정"</string>
     <string name="submit" msgid="862795280643405865">"제출"</string>
     <string name="car_mode_disable_notification_title" msgid="8450693275833142896">"운전 앱 실행 중"</string>
     <string name="car_mode_disable_notification_message" msgid="8954550232288567515">"운전 앱을 종료하려면 탭하세요."</string>
@@ -1778,6 +1804,11 @@
     <string name="one_handed_mode_feature_name" msgid="2334330034828094891">"한 손 모드"</string>
     <string name="reduce_bright_colors_feature_name" msgid="3222994553174604132">"더 어둡게"</string>
     <string name="hearing_aids_feature_name" msgid="1125892105105852542">"청각 보조 기기"</string>
+    <string name="autoclick_feature_name" msgid="8149248738736949630">"자동 클릭"</string>
+    <string name="hearing_device_status_disconnected" msgid="497547752953543832">"연결 끊김"</string>
+    <string name="hearing_device_status_connected" msgid="2149385149669918764">"연결됨"</string>
+    <string name="hearing_device_status_active" msgid="4770378695482566032">"활성"</string>
+    <string name="hearing_device_status_loading" msgid="5717083847663109747">"로드 중"</string>
     <string name="accessibility_shortcut_enabling_service" msgid="5473495203759847687">"볼륨 키를 길게 눌렀습니다. <xliff:g id="SERVICE_NAME">%1$s</xliff:g>이(가) 사용 설정되었습니다."</string>
     <string name="accessibility_shortcut_disabling_service" msgid="8675244165062700619">"볼륨 키를 길게 눌렀습니다. <xliff:g id="SERVICE_NAME">%1$s</xliff:g>이(가) 사용 중지되었습니다."</string>
     <string name="accessibility_shortcut_spoken_feedback" msgid="3760999147597564314">"볼륨 키에서 손을 뗍니다. <xliff:g id="SERVICE_NAME">%1$s</xliff:g>을 켜려면 볼륨 키 2개를 3초 동안 길게 누르세요."</string>
@@ -1788,7 +1819,12 @@
     <string name="accessibility_gesture_instructional_text" msgid="4133877896011098550">"다음번에 이 단축키를 사용할 때 이 기능이 열립니다. 화면 하단에서 손가락 두 개를 사용해 위로 스와이프했다가 빠르게 놓습니다."</string>
     <string name="accessibility_gesture_3finger_instructional_text" msgid="1124458279366968154">"다음번에 이 단축키를 사용할 때 이 기능이 열립니다. 화면 하단에서 손가락 세 개를 사용해 위로 스와이프했다가 빠르게 놓습니다."</string>
     <string name="accessibility_magnification_chooser_text" msgid="1502075582164931596">"확대"</string>
-    <string name="user_switched" msgid="7249833311585228097">"현재 사용자는 <xliff:g id="NAME">%1$s</xliff:g>님입니다."</string>
+    <string name="hearing_device_switch_phone_mic_notification_title" msgid="6645178038359708836">"휴대전화 마이크로 전환하시겠습니까?"</string>
+    <string name="hearing_device_switch_hearing_mic_notification_title" msgid="4612074852145289569">"보청기 마이크로 전환하시겠습니까?"</string>
+    <string name="hearing_device_switch_phone_mic_notification_text" msgid="1332426273666077412">"더 나은 음질을 원하거나 보청기 배터리가 부족한 경우 전환할 수 있습니다. 통화 중에만 마이크가 전환됩니다."</string>
+    <string name="hearing_device_switch_hearing_mic_notification_text" msgid="8288368365767284208">"보청기 마이크로 핸즈프리 통화 기능을 이용할 수 있습니다. 통화 중에만 마이크가 전환됩니다."</string>
+    <string name="hearing_device_notification_switch_button" msgid="3619524619430941300">"전환"</string>
+    <string name="hearing_device_notification_settings_button" msgid="6673651052880279178">"설정"</string>
     <string name="user_switching_message" msgid="1912993630661332336">"<xliff:g id="NAME">%1$s</xliff:g>로 전환하는 중…"</string>
     <string name="user_logging_out_message" msgid="7216437629179710359">"<xliff:g id="NAME">%1$s</xliff:g>님을 로그아웃하는 중…"</string>
     <string name="owner_name" msgid="8713560351570795743">"소유자"</string>
@@ -1930,7 +1966,7 @@
     <string name="lock_to_app_unlock_pattern" msgid="2694204070499712503">"고정 해제 시 잠금 해제 패턴 요청"</string>
     <string name="lock_to_app_unlock_password" msgid="9126722403506560473">"고정 해제 이전에 비밀번호 요청"</string>
     <string name="package_installed_device_owner" msgid="8684974629306529138">"관리자에 의해 설치되었습니다.\n부여된 권한을 확인하려면 설정으로 이동하세요."</string>
-    <string name="package_updated_device_owner" msgid="7560272363805506941">"관리자에 의해 업데이트되었습니다."</string>
+    <string name="package_updated_device_owner" msgid="7770195449213776218">"관리자에 의해 업데이트되었습니다.\n부여된 권한을 확인하려면 설정으로 이동하세요."</string>
     <string name="package_deleted_device_owner" msgid="2292335928930293023">"관리자에 의해 삭제되었습니다."</string>
     <string name="confirm_battery_saver" msgid="5247976246208245754">"확인"</string>
     <string name="battery_saver_description_with_learn_more" msgid="5444908404021316250">"절전 모드는 어두운 테마를 사용하고 백그라운드 활동, 일부 시각 효과, 특정 기능 및 일부 네트워크 연결을 제한하거나 사용 중지합니다."</string>
@@ -2073,6 +2109,9 @@
     <string name="unpin_target" msgid="3963318576590204447">"고정 해제"</string>
     <string name="unpin_specific_target" msgid="3859828252160908146">"<xliff:g id="LABEL">%1$s</xliff:g> 고정 해제"</string>
     <string name="app_info" msgid="6113278084877079851">"앱 정보"</string>
+    <string name="shortcut_group_a11y_title" msgid="2992150163811583865">"직접 공유 타겟"</string>
+    <string name="suggested_apps_group_a11y_title" msgid="2804876567839501831">"앱 제안"</string>
+    <string name="all_apps_group_a11y_title" msgid="7020352520224108745">"앱 목록"</string>
     <string name="negative_duration" msgid="1938335096972945232">"−<xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="demo_starting_message" msgid="6577581216125805905">"데모 시작 중..."</string>
     <string name="demo_restarting_message" msgid="1160053183701746766">"기기 초기화 중..."</string>
@@ -2227,6 +2266,20 @@
     <string name="accessibility_system_action_dpad_left_label" msgid="6557647179116479152">"방향 패드 왼쪽"</string>
     <string name="accessibility_system_action_dpad_right_label" msgid="9180196950365804081">"방향 패드 오른쪽"</string>
     <string name="accessibility_system_action_dpad_center_label" msgid="8149791419358224893">"방향 패드 가운데"</string>
+    <string name="accessibility_autoclick_type_settings_panel_title" msgid="7354373370578758696">"자동 클릭 유형 설정 패널"</string>
+    <string name="accessibility_autoclick_left_click" msgid="2301793352260551080">"왼쪽 클릭"</string>
+    <string name="accessibility_autoclick_right_click" msgid="4353495816526181293">"오른쪽 클릭"</string>
+    <string name="accessibility_autoclick_double_click" msgid="2103826849116176478">"더블클릭"</string>
+    <string name="accessibility_autoclick_drag" msgid="1499559489796843224">"드래그"</string>
+    <string name="accessibility_autoclick_scroll" msgid="3499385943728726933">"스크롤"</string>
+    <string name="accessibility_autoclick_pause" msgid="3272200156172573568">"일시중지"</string>
+    <string name="accessibility_autoclick_position" msgid="2933660969907663545">"위치"</string>
+    <string name="accessibility_autoclick_scroll_up" msgid="2044948780797117443">"위로 스크롤"</string>
+    <string name="accessibility_autoclick_scroll_down" msgid="3733401063292018116">"아래로 스크롤"</string>
+    <string name="accessibility_autoclick_scroll_left" msgid="8564421367992824198">"왼쪽으로 스크롤"</string>
+    <string name="accessibility_autoclick_scroll_right" msgid="8932417330753984265">"오른쪽으로 스크롤"</string>
+    <string name="accessibility_autoclick_scroll_exit" msgid="3788610039146769696">"스크롤 모드 종료"</string>
+    <string name="accessibility_autoclick_scroll_panel_title" msgid="7120598166296447036">"스크롤 패널"</string>
     <string name="as_app_forced_to_restricted_bucket" msgid="8233871289353898964">"<xliff:g id="PACKAGE_NAME">%1$s</xliff:g> 항목이 RESTRICTED 버킷으로 이동함"</string>
     <string name="conversation_single_line_name_display" msgid="8958948312915255999">"<xliff:g id="SENDER_NAME">%1$s</xliff:g>:"</string>
     <string name="conversation_single_line_image_placeholder" msgid="6983271082911936900">"이미지 보냄"</string>
@@ -2434,6 +2487,7 @@
     <string name="profile_label_work_3" msgid="4834572253956798917">"직장 3"</string>
     <string name="profile_label_test" msgid="9168641926186071947">"테스트"</string>
     <string name="profile_label_communal" msgid="8743921499944800427">"공동"</string>
+    <string name="profile_label_supervising" msgid="5649312778545745371">"감독 중"</string>
     <string name="accessibility_label_managed_profile" msgid="3366526886209832641">"직장 프로필"</string>
     <string name="accessibility_label_private_profile" msgid="1436459319135548969">"비공개 스페이스"</string>
     <string name="accessibility_label_clone_profile" msgid="7579118375042398784">"클론"</string>
@@ -2444,6 +2498,7 @@
     <string name="screen_not_shared_sensitive_content" msgid="7058419185079565001">"보안을 위해 화면 공유에서 앱 콘텐츠가 숨겨집니다."</string>
     <string name="satellite_notification_title" msgid="4026338973463121526">"위성에 자동 연결됨"</string>
     <string name="satellite_notification_summary" msgid="5207364139430767162">"모바일 또는 Wi-Fi 네트워크 없이 메시지를 주고 받을 수 있습니다"</string>
+    <string name="satellite_notification_summary_with_data" msgid="6486843676720429049">"위성으로 메시지를 주고받을 수 있으며 데이터를 제한적으로 사용할 수도 있습니다."</string>
     <string name="satellite_notification_manual_title" msgid="1097504441849466279">"위성 메시지를 사용하시겠습니까?"</string>
     <string name="satellite_notification_manual_summary" msgid="901206289846283445">"모바일 또는 Wi-Fi 네트워크 없이 메시지 주고받기"</string>
     <string name="satellite_notification_open_message" msgid="4149234979688273729">"메시지 열기"</string>
@@ -2500,4 +2555,10 @@
     <string name="keyboard_shortcut_group_applications_maps" msgid="7950000659522589471">"지도"</string>
     <string name="keyboard_shortcut_group_applications" msgid="3010389163951364798">"애플리케이션"</string>
     <string name="fingerprint_loe_notification_msg" msgid="3927447270148854546">"지문을 더 이상 인식할 수 없습니다. 지문 잠금 해제를 다시 설정하세요."</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_title" msgid="468577168569874967">"잠금 상태에서 USB 기기가 연결됨"</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_text" msgid="6695268246267993166">"Android가 잠겨 있는 상태에서 USB 기기가 연결되었습니다. 기기를 사용하려면 먼저 Android를 잠금 해제한 다음 USB 기기를 다시 삽입하세요."</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_title" msgid="3461195995882871461">"의심스러운 USB 활동"</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_text" msgid="6537085605929303187">"USB 데이터 신호가 사용 중지됨"</string>
+    <string name="fingerprint_frr_notification_title" msgid="3668331918920659093">"지문 잠금 해제에 문제가 있나요?"</string>
+    <string name="fingerprint_frr_notification_msg" msgid="2162966846624639252">"잠금 해제 환경을 개선하기 위한 도움말을 검토하려면 탭하세요."</string>
 </resources>

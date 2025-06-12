@@ -23,6 +23,7 @@ import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.scene.data.repository.sceneContainerRepository
 import com.android.systemui.scene.domain.resolver.sceneFamilyResolvers
 import com.android.systemui.scene.shared.logger.sceneLogger
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
 
 val Kosmos.sceneInteractor: SceneInteractor by
     Kosmos.Fixture {
@@ -34,5 +35,6 @@ val Kosmos.sceneInteractor: SceneInteractor by
             deviceUnlockedInteractor = { deviceUnlockedInteractor },
             keyguardEnabledInteractor = { keyguardEnabledInteractor },
             disabledContentInteractor = disabledContentInteractor,
+            shadeModeInteractor = shadeModeInteractor,
         )
     }

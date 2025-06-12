@@ -42,6 +42,8 @@ data class UserRecord(
     @JvmField val isSwitchToEnabled: Boolean = false,
     /** Whether this record represents an option to add another supervised user to the device. */
     @JvmField val isAddSupervisedUser: Boolean = false,
+    /** Whether this record represents an option to sign out of the current user. */
+    @JvmField val isSignOut: Boolean = false,
     /**
      * An enforcing admin, if the user action represented by this record is disabled by the admin.
      * If not disabled, this is `null`.
@@ -49,7 +51,7 @@ data class UserRecord(
     @JvmField val enforcedAdmin: RestrictedLockUtils.EnforcedAdmin? = null,
 
     /** Whether this record is to go to the Settings page to manage users. */
-    @JvmField val isManageUsers: Boolean = false
+    @JvmField val isManageUsers: Boolean = false,
 ) {
     /** Returns a new instance of [UserRecord] with its [isCurrent] set to the given value. */
     fun copyWithIsCurrent(isCurrent: Boolean): UserRecord {

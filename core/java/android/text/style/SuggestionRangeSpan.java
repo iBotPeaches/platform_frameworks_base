@@ -27,6 +27,7 @@ import android.text.TextUtils;
  * A SuggestionRangeSpan is used to show which part of an EditText is affected by a suggestion
  * popup window.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class SuggestionRangeSpan extends CharacterStyle implements ParcelableSpan {
     private int mBackgroundColor;
 

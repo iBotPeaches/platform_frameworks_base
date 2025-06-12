@@ -107,18 +107,29 @@
     <string name="tv_bluetooth_battery_level_untethered_right" msgid="8610019317279155595">"Destra: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="bluetooth_active_no_battery_level" msgid="4155462233006205630">"Attivo"</string>
     <string name="bluetooth_saved_device" msgid="4895871321722311428">"Dispositivo salvato"</string>
-    <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Attivo (solo sinistro)"</string>
+    <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Attiva (solo sinistra)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Attivo (solo destro)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Attivi (destro e sinistro)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Impossibile aggiornare audio ambientale"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Attivo (solo contenuti multimediali). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Attivo (solo contenuti multimediali). S: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> di batteria. D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> di batteria."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Dispositivo ospite. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Dispositivo ospite. S: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> di batteria. D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> di batteria."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Dispositivo ospite (solo contenuti multimediali). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Dispositivo ospite (solo contenuti multimediali). S: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> di batteria. D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> di batteria."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Connesso (supporta la condivisione audio). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Connesso (supporta la condivisione audio). S: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> di batteria. D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> di batteria."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Connesso (supporta la condivisione audio). Sinistro: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Connesso (supporta la condivisione audio). Destro: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Connesso (supporta la condivisione audio)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Dispositivo ospite (supporta la condivisione audio). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> di batteria."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Dispositivo ospite (supporta la condivisione audio). S: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> di batteria. D: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> di batteria."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Dispositivo ospite (supporta la condivisione audio)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Attivo (solo contenuti multimediali)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Dispositivo ospite"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Dispositivo ospite (solo contenuti multimediali)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Supporta la condivisione audio"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Dispositivo ospite. Supporta la condivisione audio"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Attivo (solo contenuti multimediali), solo sinistro"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Attivo (solo contenuti multimediali), solo destro"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Attivo (solo contenuti multimediali), sinistro e destro"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Rendering con accelerazione hardware"</string>
     <string name="media_category" msgid="8122076702526144053">"Contenuti multimediali"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Monitoraggio"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Gestione delle finestre"</string>
     <string name="strict_mode" msgid="889864762140862437">"Attiva StrictMode"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Fai lampeggiare lo schermo per operazioni lunghe sul thread principale"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Posizione puntatore"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Scala animazione transizione"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Scala durata animatore"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simula display secondari"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Posizione display area delle notifiche"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"App"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Non conservare attività"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Elimina ogni attività appena l\'utente la interrompe"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Implementazione di WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Imposta l\'implementazione di WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"La selezione non è più valida. Riprova."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView di DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Pacchetto WebView non trovato."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Impossibile avviare DevTools."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Modalità colori immagini"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Usa sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Disattivato"</string>
@@ -491,7 +507,7 @@
     <string name="power_discharge_by_only_enhanced" msgid="3268796172652988877">"Ora stimata esaurimento batteria in base al tuo utilizzo: <xliff:g id="TIME">%1$s</xliff:g> circa"</string>
     <string name="power_discharge_by" msgid="4113180890060388350">"Ora stimata esaurimento batteria: <xliff:g id="TIME">%1$s</xliff:g> circa (<xliff:g id="LEVEL">%2$s</xliff:g>)"</string>
     <string name="power_discharge_by_only" msgid="92545648425937000">"Ora stimata esaurimento batteria: <xliff:g id="TIME">%1$s</xliff:g> circa"</string>
-    <string name="power_discharge_by_only_short" msgid="5883041507426914446">"Fino a: <xliff:g id="TIME">%1$s</xliff:g>"</string>
+    <string name="power_discharge_by_only_short" msgid="5883041507426914446">"Fino alle ore: <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="power_suggestion_battery_run_out" msgid="6332089307827787087">"La batteria potrebbe esaurirsi entro le <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="power_remaining_less_than_duration_only" msgid="8956656616031395152">"Carica residua: meno di <xliff:g id="THRESHOLD">%1$s</xliff:g>"</string>
     <string name="power_remaining_less_than_duration" msgid="318215464914990578">"Carica residua: meno di <xliff:g id="THRESHOLD">%1$s</xliff:g> (<xliff:g id="LEVEL">%2$s</xliff:g>)"</string>
@@ -503,8 +519,8 @@
     <string name="power_charging_limited" msgid="4144004473976005214">"<xliff:g id="LEVEL">%1$s</xliff:g> - Ricarica in sospeso per proteggere la batteria"</string>
     <string name="power_charging_future_paused" msgid="1809543660923642799">"<xliff:g id="LEVEL">%1$s</xliff:g> ‑ In carica"</string>
     <string name="power_fast_charging_duration_v2" msgid="3797735998640359490">"<xliff:g id="LEVEL">%1$s</xliff:g> - <xliff:g id="STATUS">%2$s</xliff:g> - Ricarica completa entro <xliff:g id="TIME">%3$s</xliff:g>"</string>
-    <string name="power_charging_duration_v2" msgid="2938998284074003248">"<xliff:g id="LEVEL">%1$s</xliff:g> - Batteria completamente carica entro <xliff:g id="TIME">%2$s</xliff:g>"</string>
-    <string name="power_remaining_charging_duration_only_v2" msgid="5358176435722950193">"Batteria completamente carica entro <xliff:g id="TIME">%1$s</xliff:g>"</string>
+    <string name="power_charging_duration_v2" msgid="2938998284074003248">"<xliff:g id="LEVEL">%1$s</xliff:g> - Batteria completamente carica entro: <xliff:g id="TIME">%2$s</xliff:g>"</string>
+    <string name="power_remaining_charging_duration_only_v2" msgid="5358176435722950193">"Batteria completamente carica entro: <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="power_remaining_fast_charging_duration_only_v2" msgid="6270950195810579563">"Ricarica completa entro le ore <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="battery_info_status_unknown" msgid="268625384868401114">"Sconosciuta"</string>
     <string name="battery_info_status_charging" msgid="4279958015430387405">"In carica"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Ricarica rapida"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Gestita dall\'amministratore"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Gestita tramite impostazioni con restrizioni"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Non disponibile durante le chiamate"</string>
     <string name="disabled" msgid="8017887509554714950">"Disattivato"</string>
+    <string name="enabled" msgid="3997122818554810678">"Attivata"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Autorizzazione concessa"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Autorizzazione non concessa"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Installa app sconosciute"</string>
@@ -592,7 +610,7 @@
     <string name="media_transfer_default_device_name" msgid="4315604017399871828">"Dispositivo connesso"</string>
     <string name="media_transfer_this_phone" msgid="7194341457812151531">"Questo smartphone"</string>
     <string name="media_transfer_digital_line_name" msgid="312091711951124301">"S/PDIF"</string>
-    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Analogico"</string>
+    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"Analogica"</string>
     <string name="media_transfer_aux_line_name" msgid="894135835967856689">"AUX"</string>
     <string name="media_output_status_unknown_error" msgid="5098565887497902222">"Impossibile riprodurre su questo dispositivo"</string>
     <string name="media_output_status_require_premium" msgid="8411255800047014822">"Esegui l\'upgrade dell\'account per cambiare"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Altoparlante integrato"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Audio della TV"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Problema di connessione. Spegni e riaccendi il dispositivo"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Impossibile connettersi"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Dispositivo audio cablato"</string>
     <string name="help_label" msgid="3528360748637781274">"Guida e feedback"</string>
     <string name="storage_category" msgid="2287342585424631813">"Archiviazione"</string>

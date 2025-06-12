@@ -18,11 +18,8 @@ package com.android.server.power.stats;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.platform.test.ravenwood.RavenwoodRule;
-
 import androidx.test.runner.AndroidJUnit4;
 
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -33,11 +30,6 @@ import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class PowerStatsSchedulerTest {
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     @Test
     public void alignToWallClock() {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));

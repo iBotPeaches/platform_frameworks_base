@@ -17,8 +17,6 @@
 
 package com.android.hoststubgen
 
-import java.io.PrintWriter
-
 /**
  * Entry point.
  */
@@ -26,10 +24,10 @@ fun main(args: Array<String>) {
     executableName = "HostStubGen"
     runMainWithBoilerplate {
         // Parse the command line arguments.
-        var clanupOnError = false
+        var cleanupOnError = false
         try {
-            val options = HostStubGenOptions.parseArgs(args)
-            clanupOnError = options.cleanUpOnError.get
+            val options = HostStubGenOptions().apply { parseArgs(args.asList()) }
+            cleanupOnError = options.cleanUpOnError.get
 
             log.v("$executableName started")
             log.v("Options: $options")
@@ -37,30 +35,10 @@ fun main(args: Array<String>) {
             // Run.
             HostStubGen(options).run()
         } catch (e: Throwable) {
-            if (clanupOnError) {
+            if (cleanupOnError) {
                 TODO("Remove output jars here")
             }
             throw e
         }
     }
-}
-
-inline fun runMainWithBoilerplate(realMain: () -> Unit) {
-    var success = false
-
-    try {
-        realMain()
-
-        success = true
-    } catch (e: Throwable) {
-        log.e("$executableName: Error: ${e.message}")
-        if (e !is UserErrorException) {
-            e.printStackTrace(PrintWriter(log.getWriter(LogLevel.Error)))
-        }
-    } finally {
-        log.i("$executableName finished")
-        log.flush()
-    }
-
-    System.exit(if (success) 0 else 1 )
 }

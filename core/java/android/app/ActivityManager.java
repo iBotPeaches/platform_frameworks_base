@@ -55,9 +55,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Point;
-import android.graphics.Rect;
 import android.graphics.drawable.Icon;
-import android.hardware.HardwareBuffer;
 import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.Build;
@@ -86,7 +84,6 @@ import android.util.Log;
 import android.util.Singleton;
 import android.util.Size;
 import android.view.WindowInsetsController.Appearance;
-import android.window.TaskSnapshot;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.LocalePicker;
@@ -1191,7 +1188,7 @@ public class ActivityManager {
 
     /** @hide Should this process state be considered jank perceptible? */
     public static final boolean isProcStateJankPerceptible(int procState) {
-        if (Flags.jankPerceptibleNarrow()) {
+        if (Flags.jankPerceptibleNarrow() && !Flags.jankPerceptibleNarrowHoldback()) {
             return procState == PROCESS_STATE_PERSISTENT_UI
                 || procState == PROCESS_STATE_TOP
                 || procState == PROCESS_STATE_IMPORTANT_FOREGROUND
@@ -3102,7 +3099,8 @@ public class ActivityManager {
     /**
      * Flag for {@link #moveTaskToFront(int, int)}: also move the "home"
      * activity along with the task, so it is positioned immediately behind
-     * the task.
+     * the task. This flag is ignored if the task's windowing mode is
+     * {@link WindowConfiguration#WINDOWING_MODE_MULTI_WINDOW}.
      */
     public static final int MOVE_TASK_WITH_HOME = 0x00000001;
 
@@ -4975,6 +4973,25 @@ public class ActivityManager {
     }
 
     /**
+     * Fully stop the given app's processes without restoring service starts or
+     * bindings, but without the other durable effects of the full-scale
+     * "force stop" intervention.
+     *
+     * @param packageName The name of the package to be stopped.
+     *
+     * @hide This is not available to third party applications due to
+     * it allowing them to break other applications by stopping their
+     * services.
+     */
+    public void stopPackageForUser(String packageName) {
+        try {
+            getService().stopAppForUser(packageName, mContext.getUserId());
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
      * Sets the current locales of the device. Calling app must have the permission
      * {@code android.permission.CHANGE_CONFIGURATION} and
      * {@code android.permission.WRITE_SETTINGS}.
@@ -5401,10 +5418,11 @@ public class ActivityManager {
      *
      * @hide
      */
+    @Nullable
     @RequiresPermission(Manifest.permission.MANAGE_USERS)
-    public @Nullable String getSwitchingFromUserMessage() {
+    public String getSwitchingFromUserMessage(@UserIdInt int userId) {
         try {
-            return getService().getSwitchingFromUserMessage();
+            return getService().getSwitchingFromUserMessage(userId);
         } catch (RemoteException re) {
             throw re.rethrowFromSystemServer();
         }
@@ -5415,10 +5433,11 @@ public class ActivityManager {
      *
      * @hide
      */
+    @Nullable
     @RequiresPermission(Manifest.permission.MANAGE_USERS)
-    public @Nullable String getSwitchingToUserMessage() {
+    public String getSwitchingToUserMessage(@UserIdInt int userId) {
         try {
-            return getService().getSwitchingToUserMessage();
+            return getService().getSwitchingToUserMessage(userId);
         } catch (RemoteException re) {
             throw re.rethrowFromSystemServer();
         }

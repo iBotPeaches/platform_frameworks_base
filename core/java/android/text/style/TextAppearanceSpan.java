@@ -58,6 +58,7 @@ import android.text.TextUtils;
  * @attr ref android.R.styleable#TextAppearance_fontVariationSettings
  *
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TextAppearanceSpan extends MetricAffectingSpan implements ParcelableSpan {
     private final String mFamilyName;
     private final int mStyle;

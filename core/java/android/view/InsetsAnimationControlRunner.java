@@ -55,6 +55,12 @@ public interface InsetsAnimationControlRunner {
     void updateSurfacePosition(SparseArray<InsetsSourceControl> controls);
 
     /**
+     * Returns {@code true} if this runner will keep playing the animation and updating the surface.
+     * {@code false} otherwise.
+     */
+    boolean willUpdateSurface();
+
+    /**
      * Cancels the animation.
      */
     void cancel();

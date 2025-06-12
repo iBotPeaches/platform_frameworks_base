@@ -33,7 +33,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.os.postDelayed
 import androidx.core.view.isVisible
 import androidx.dynamicanimation.animation.DynamicAnimation
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.jank.Cuj
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.util.LatencyTracker
@@ -85,7 +84,7 @@ class BackPanelController
 @AssistedInject
 constructor(
     @Assisted context: Context,
-    private val windowManager: ViewCaptureAwareWindowManager,
+    private val windowManager: WindowManager,
     private val viewConfiguration: ViewConfiguration,
     @Assisted private val mainHandler: Handler,
     private val systemClock: SystemClock,

@@ -27,7 +27,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.WindowInsets
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.widget.ImageView
 import android.widget.TextView
@@ -48,6 +47,7 @@ import com.android.systemui.biometrics.ui.viewmodel.isSmall
 import com.android.systemui.biometrics.ui.viewmodel.isTop
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.res.R
+import com.android.systemui.utils.windowmanager.WindowManagerUtils
 import kotlin.math.abs
 import kotlinx.coroutines.flow.combine
 import com.android.app.tracing.coroutines.launchTraced as launch
@@ -66,7 +66,7 @@ object BiometricViewSizeBinder {
         viewsToHideWhenSmall: List<View>,
         jankListener: BiometricJankListener,
     ) {
-        val windowManager = requireNotNull(view.context.getSystemService(WindowManager::class.java))
+        val windowManager = WindowManagerUtils.getWindowManager(view.context)
         val accessibilityManager =
             requireNotNull(view.context.getSystemService(AccessibilityManager::class.java))
 

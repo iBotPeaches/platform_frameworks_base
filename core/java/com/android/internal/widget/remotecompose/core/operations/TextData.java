@@ -27,20 +27,31 @@ import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Operation to deal with Text data */
-public class TextData extends Operation implements SerializableToString {
+public class TextData extends Operation implements SerializableToString, Serializable {
     private static final int OP_CODE = Operations.DATA_TEXT;
     private static final String CLASS_NAME = "TextData";
     public final int mTextId;
-    @NonNull public final String mText;
+    @NonNull public String mText;
     public static final int MAX_STRING_SIZE = 4000;
 
     public TextData(int textId, @NonNull String text) {
         this.mTextId = textId;
         this.mText = text;
+    }
+
+    /**
+     * Copy the data from another text data
+     *
+     * @param from source to copy from
+     */
+    public void update(TextData from) {
+        mText = from.mText;
     }
 
     @Override
@@ -73,6 +84,13 @@ public class TextData extends Operation implements SerializableToString {
         return OP_CODE;
     }
 
+    /**
+     * add a text data operation
+     *
+     * @param buffer buffer to add to
+     * @param textId the id for the text
+     * @param text the data to encode
+     */
     public static void apply(@NonNull WireBuffer buffer, int textId, @NonNull String text) {
         buffer.start(OP_CODE);
         buffer.writeInt(textId);
@@ -123,5 +141,10 @@ public class TextData extends Operation implements SerializableToString {
     @NonNull
     private String getSerializedName() {
         return "DATA_TEXT";
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("textId", mTextId).add("text", mText);
     }
 }

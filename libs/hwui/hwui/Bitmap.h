@@ -49,6 +49,7 @@ enum class BitmapPalette {
     Unknown,
     Light,
     Dark,
+    Colorful,
 };
 
 namespace uirenderer {
@@ -97,7 +98,7 @@ public:
                                     BitmapPalette palette);
 #endif
     static sk_sp<Bitmap> createFrom(const SkImageInfo& info, size_t rowBytes, int fd, void* addr,
-                                    size_t size, bool readOnly);
+                                    size_t size, bool readOnly, int64_t id);
     static sk_sp<Bitmap> createFrom(const SkImageInfo&, SkPixelRef&);
 
     int rowBytesAsPixels() const { return rowBytes() >> mInfo.shiftPerPixel(); }
@@ -183,15 +184,15 @@ public:
 
   static bool compress(const SkBitmap& bitmap, JavaCompressFormat format,
                        int32_t quality, SkWStream* stream);
-private:
-    static constexpr uint64_t INVALID_BITMAP_ID = 0u;
 
+    static constexpr uint64_t UNDEFINED_BITMAP_ID = 0u;
+private:
     static sk_sp<Bitmap> allocateAshmemBitmap(size_t size, const SkImageInfo& i, size_t rowBytes);
 
     Bitmap(void* address, size_t allocSize, const SkImageInfo& info, size_t rowBytes);
     Bitmap(SkPixelRef& pixelRef, const SkImageInfo& info);
     Bitmap(void* address, int fd, size_t mappedSize, const SkImageInfo& info, size_t rowBytes,
-           uint64_t id = INVALID_BITMAP_ID);
+           uint64_t id = UNDEFINED_BITMAP_ID);
 #ifdef __ANDROID__ // Layoutlib does not support hardware acceleration
     Bitmap(AHardwareBuffer* buffer, const SkImageInfo& info, size_t rowBytes,
            BitmapPalette palette);

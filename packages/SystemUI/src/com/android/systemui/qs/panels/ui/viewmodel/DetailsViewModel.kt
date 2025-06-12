@@ -16,18 +16,22 @@
 
 package com.android.systemui.qs.panels.ui.viewmodel
 
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.plugins.qs.TileDetailsViewModel
 import com.android.systemui.qs.pipeline.domain.interactor.CurrentTilesInteractor
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import javax.inject.Inject
-import kotlinx.coroutines.flow.StateFlow
 
 @SysUISingleton
-class DetailsViewModel
-@Inject constructor(val currentTilesInteractor: CurrentTilesInteractor) {
+@Stable
+class DetailsViewModel @Inject constructor(
+    val currentTilesInteractor: CurrentTilesInteractor,
+    val shadeModeInteractor: ShadeModeInteractor
+) {
 
     /**
      * The current active [TileDetailsViewModel]. If it's `null`, it means the qs overlay is not
@@ -38,6 +42,7 @@ class DetailsViewModel
 
     /**
      * Update the active [TileDetailsViewModel] to `null`.
+     *
      * @see activeTileDetails
      */
     fun closeDetailedView() {
@@ -45,21 +50,26 @@ class DetailsViewModel
     }
 
     /**
-     * Update the active [TileDetailsViewModel] to the `spec`'s corresponding view model.
-     * Return if the [TileDetailsViewModel] is successfully found.
+     * Update the active [TileDetailsViewModel] to the `spec`'s corresponding view model. Return if
+     * the [TileDetailsViewModel] is successfully handled.
+     *
      * @see activeTileDetails
      */
     fun onTileClicked(spec: TileSpec?): Boolean {
+        if (!shadeModeInteractor.isDualShade){
+            return false
+        }
+
         if (spec == null) {
             _activeTileDetails.value = null
             return false
         }
 
-        _activeTileDetails.value = currentTilesInteractor
-            .currentQSTiles
-            .firstOrNull { it.tileSpec == spec.spec }
-            ?.detailsViewModel
+        val currentTile =
+            currentTilesInteractor.currentQSTiles.firstOrNull { it.tileSpec == spec.spec }
 
-        return _activeTileDetails.value != null
+        return currentTile?.getDetailsViewModel { detailsViewModel ->
+            _activeTileDetails.value = detailsViewModel
+        } ?: false
     }
 }

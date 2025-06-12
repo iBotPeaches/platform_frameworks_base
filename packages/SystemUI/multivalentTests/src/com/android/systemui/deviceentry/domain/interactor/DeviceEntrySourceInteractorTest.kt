@@ -45,6 +45,7 @@ import com.android.systemui.keyguard.shared.model.SuccessFingerprintAuthenticati
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.phone.dozeScrimController
 import com.android.systemui.statusbar.phone.screenOffAnimationController
@@ -52,7 +53,6 @@ import com.android.systemui.statusbar.policy.DevicePostureController.DEVICE_POST
 import com.android.systemui.statusbar.policy.devicePostureController
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -62,7 +62,6 @@ import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyBoolean
 import org.mockito.kotlin.whenever
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class DeviceEntrySourceInteractorTest : SysuiTestCase() {
@@ -147,6 +146,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFingerprintAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = false,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -169,7 +169,11 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
 
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(false)
             configureDeviceEntryBiometricAuthSuccessState(isFingerprintAuth = true)
-            configureBiometricUnlockState(alternateBouncerVisible = false, sceneKey = Scenes.Dream)
+            configureBiometricUnlockState(
+                primaryBouncerVisible = false,
+                alternateBouncerVisible = false,
+                sceneKey = Scenes.Dream,
+            )
             runCurrent()
 
             assertThat(deviceEntryFromBiometricSource)
@@ -187,8 +191,9 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFingerprintAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = true,
                 alternateBouncerVisible = false,
-                sceneKey = Scenes.Bouncer,
+                sceneKey = Scenes.Lockscreen,
             )
             runCurrent()
 
@@ -207,6 +212,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFingerprintAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = false,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -227,6 +233,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFingerprintAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = true,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -249,6 +256,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFaceAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = false,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -276,6 +284,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFaceAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = false,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -297,8 +306,9 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFaceAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = true,
                 alternateBouncerVisible = false,
-                sceneKey = Scenes.Bouncer,
+                sceneKey = Scenes.Lockscreen,
             )
             runCurrent()
 
@@ -316,7 +326,11 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
 
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFaceAuth = true)
-            configureBiometricUnlockState(alternateBouncerVisible = false, sceneKey = Scenes.Shade)
+            configureBiometricUnlockState(
+                primaryBouncerVisible = false,
+                alternateBouncerVisible = false,
+                sceneKey = Scenes.Shade,
+            )
             runCurrent()
 
             // MODE_NONE does not dismiss keyguard
@@ -335,6 +349,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             whenever(kosmos.keyguardUpdateMonitor.isDeviceInteractive).thenReturn(true)
             configureDeviceEntryBiometricAuthSuccessState(isFaceAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = false,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -356,6 +371,7 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
             kosmos.keyguardOcclusionRepository.setShowWhenLockedActivityInfo(onTop = true)
             configureDeviceEntryBiometricAuthSuccessState(isFaceAuth = true)
             configureBiometricUnlockState(
+                primaryBouncerVisible = false,
                 alternateBouncerVisible = true,
                 sceneKey = Scenes.Lockscreen,
             )
@@ -383,13 +399,20 @@ class DeviceEntrySourceInteractorTest : SysuiTestCase() {
     }
 
     private fun configureBiometricUnlockState(
+        primaryBouncerVisible: Boolean,
         alternateBouncerVisible: Boolean,
         sceneKey: SceneKey,
     ) {
         kosmos.keyguardBouncerRepository.setAlternateVisible(alternateBouncerVisible)
         kosmos.sceneInteractor.changeScene(sceneKey, "reason")
+        if (primaryBouncerVisible) kosmos.sceneInteractor.showOverlay(Overlays.Bouncer, "reason")
         kosmos.sceneInteractor.setTransitionState(
-            MutableStateFlow<ObservableTransitionState>(ObservableTransitionState.Idle(sceneKey))
+            MutableStateFlow<ObservableTransitionState>(
+                ObservableTransitionState.Idle(
+                    sceneKey,
+                    if (primaryBouncerVisible) setOf(Overlays.Bouncer) else emptySet(),
+                )
+            )
         )
     }
 }

@@ -30,7 +30,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -244,7 +244,7 @@ public class AlarmStoreTest {
         addAlarmsToStore(simpleAlarm, alarmClock);
 
         mAlarmStore.remove(simpleAlarm::equals);
-        verifyZeroInteractions(onRemoved);
+        verifyNoMoreInteractions(onRemoved);
 
         mAlarmStore.remove(alarmClock::equals);
         verify(onRemoved).run();

@@ -23,6 +23,7 @@ import com.android.wm.shell.compatui.api.CompatUIEvent
 import com.android.wm.shell.compatui.api.CompatUIHandler
 import com.android.wm.shell.compatui.api.CompatUIInfo
 import com.android.wm.shell.compatui.api.CompatUIRepository
+import com.android.wm.shell.compatui.api.CompatUIRequest
 import com.android.wm.shell.compatui.api.CompatUIState
 import java.util.function.Consumer
 
@@ -102,4 +103,6 @@ class DefaultCompatUIHandler(
     override fun setCallback(compatUIEventSender: Consumer<CompatUIEvent>?) {
         this.compatUIEventSender = compatUIEventSender
     }
+
+    override fun sendCompatUIRequest(compatUIRequest: CompatUIRequest) {}
 }

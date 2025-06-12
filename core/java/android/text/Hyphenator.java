@@ -21,6 +21,7 @@ package android.text;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Hyphenator {
     private Hyphenator() {}
 

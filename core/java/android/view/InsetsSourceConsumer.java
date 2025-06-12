@@ -17,7 +17,6 @@
 package android.view;
 
 import static android.view.InsetsController.ANIMATION_TYPE_NONE;
-import static android.view.InsetsController.ANIMATION_TYPE_RESIZE;
 import static android.view.InsetsController.AnimationType;
 import static android.view.InsetsController.DEBUG;
 import static android.view.InsetsSourceConsumerProto.ANIMATION_STATE;
@@ -32,6 +31,7 @@ import static com.android.internal.annotations.VisibleForTesting.Visibility.PACK
 
 import android.annotation.IntDef;
 import android.annotation.Nullable;
+import android.graphics.Insets;
 import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -130,7 +130,10 @@ public class InsetsSourceConsumer {
      * @return Whether the control has changed from the server
      */
     public boolean setControl(@Nullable InsetsSourceControl control,
-            @InsetsType int[] showTypes, @InsetsType int[] hideTypes, int[] cancelTypes) {
+            @InsetsType int[] showTypes,
+            @InsetsType int[] hideTypes,
+            @InsetsType int[] cancelTypes,
+            @InsetsType int[] transientTypes) {
         if (Objects.equals(mSourceControl, control)) {
             if (mSourceControl != null && mSourceControl != control) {
                 mSourceControl.release(SurfaceControl::release);
@@ -165,8 +168,9 @@ public class InsetsSourceConsumer {
             // Reset the applier to the default one which has the most lightweight implementation.
             setSurfaceParamsApplier(InsetsAnimationControlRunner.SurfaceParamsApplier.DEFAULT);
         } else {
-            if (lastControl != null && InsetsSource.getInsetSide(lastControl.getInsetsHint())
-                    != InsetsSource.getInsetSide(control.getInsetsHint())) {
+            if (lastControl != null && !Insets.NONE.equals(lastControl.getInsetsHint())
+                    && InsetsSource.getInsetSide(lastControl.getInsetsHint())
+                            != InsetsSource.getInsetSide(control.getInsetsHint())) {
                 // The source has been moved to a different side. The coordinates are stale.
                 // Canceling existing animation if there is any.
                 cancelTypes[0] |= mType;
@@ -185,6 +189,9 @@ public class InsetsSourceConsumer {
                 } else {
                     hideTypes[0] |= mType;
                 }
+                if (lastControl != null && lastControl.isFake()) {
+                    transientTypes[0] |= mType;
+                }
             } else {
                 // We are gaining control, but don't need to run an animation.
                 // However make sure that the leash visibility is still up to date.
@@ -193,9 +200,8 @@ public class InsetsSourceConsumer {
                 }
 
                 // If there is no animation controlling the leash, make sure the visibility and the
-                // position is up-to-date. Note: ANIMATION_TYPE_RESIZE doesn't control the leash.
-                final int animType = mController.getAnimationType(mType);
-                if (animType == ANIMATION_TYPE_NONE || animType == ANIMATION_TYPE_RESIZE) {
+                // position is up-to-date.
+                if (!mController.hasSurfaceAnimation(mType)) {
                     applyRequestedVisibilityAndPositionToControl();
                 }
 

@@ -18,12 +18,15 @@ package com.android.server.pm;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeNULL;
 import android.annotation.UserIdInt;
 import android.content.Context;
 import android.content.pm.LauncherUserInfo;
 import android.content.pm.UserInfo;
 import android.content.pm.UserProperties;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.multiuser.Flags;
 import android.os.Bundle;
 import android.os.UserManager;
 import android.util.DebugUtils;
@@ -351,8 +354,10 @@ public abstract class UserManagerInternal {
             boolean excludePreCreated);
 
     /**
-     * Returns an array of ids for profiles associated with the specified user including the user
-     * itself.
+     * Returns a list of the users that are associated with the specified user, including the user
+     * itself. This includes the user, its profiles, its parent, and its parent's other profiles,
+     * as applicable.
+     *
      * <p>Note that this includes all profile types (not including Restricted profiles).
      *
      * @param userId      id of the user to return profiles for
@@ -361,6 +366,21 @@ public abstract class UserManagerInternal {
      *         exists. Otherwise, an empty array.
      */
     public abstract @NonNull int[] getProfileIds(@UserIdInt int userId, boolean enabledOnly);
+
+    /**
+     * Returns a list of the users that are associated with the specified user, including the user
+     * itself. This includes the user, its profiles, its parent, and its parent's other profiles,
+     * as applicable.
+     *
+     * <p>Note that this includes only profile types that are not hidden.
+     *
+     * @param userId      id of the user to return profiles for
+     * @param enabledOnly whether return only {@link UserInfo#isEnabled() enabled} profiles
+     * @return A non-empty array of ids of profiles associated with the specified user if the user
+     *         exists. Otherwise, an empty array.
+     */
+    public abstract @NonNull int[] getProfileIdsExcludingHidden(@UserIdInt int userId,
+            boolean enabledOnly);
 
     /**
      * Checks if the {@code callingUserId} and {@code targetUserId} are same or in same group
@@ -584,6 +604,12 @@ public abstract class UserManagerInternal {
      * Returns the user id of the main user, or {@link android.os.UserHandle#USER_NULL} if there is
      * no main user.
      *
+     * <p>NB: Features should ideally not limit functionality to the main user. Ideally, they
+     * should either work for all users or for all admin users. If a feature should only work for
+     * select users, its determination of which user should be done intelligently or be
+     * customizable. Not all devices support a main user, and the idea of singling out one user as
+     * special is contrary to overall multiuser goals.
+     *
      * @see UserManager#isMainUser()
      */
     public abstract @UserIdInt int getMainUserId();
@@ -610,5 +636,21 @@ public abstract class UserManagerInternal {
      * Returns the user id of the communal profile, or {@link android.os.UserHandle#USER_NULL}
      * if there is no such user.
      */
-    public abstract @UserIdInt int getCommunalProfileId();
+    public abstract @CanBeNULL @UserIdInt int getCommunalProfileId();
+
+    /**
+     * Returns the user id of the supervising profile, or {@link android.os.UserHandle#USER_NULL} if
+     * there is no such user.
+     */
+    public abstract @CanBeNULL @UserIdInt int getSupervisingProfileId();
+
+    /**
+     * Checks whether to show a notification for sounds (e.g., alarms, timers, etc.) from background
+     * users.
+     */
+    public static boolean shouldShowNotificationForBackgroundUserSounds() {
+        return Flags.addUiForSoundsFromBackgroundUsers() && Resources.getSystem().getBoolean(
+                com.android.internal.R.bool.config_showNotificationForBackgroundUserAlarms)
+                && UserManager.supportsMultipleUsers();
+    }
 }

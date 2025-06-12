@@ -70,5 +70,10 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".hdr.LutTestActivity"
+            android:theme="@style/Theme.LutTestTheme"
+            android:label="Lut Test Examples"
+            android:exported="true"/>
+
     </application>
 </manifest>

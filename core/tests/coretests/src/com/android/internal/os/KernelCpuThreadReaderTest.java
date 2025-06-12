@@ -25,7 +25,7 @@ import static org.testng.Assert.assertThrows;
 
 import android.content.Context;
 import android.os.FileUtils;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.ravenwood.RavenwoodRule;
 
@@ -51,7 +51,7 @@ import java.util.function.Predicate;
 @Presubmit
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(reason = "Needs kernel support")
+@DisabledOnRavenwood(reason = "Needs kernel support")
 public class KernelCpuThreadReaderTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

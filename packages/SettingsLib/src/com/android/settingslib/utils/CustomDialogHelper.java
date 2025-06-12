@@ -34,6 +34,8 @@ import com.android.settingslib.R;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import androidx.annotation.NonNull;
+
 /**
  * This class is used to create custom dialog with icon, title, message and custom view that are
  * horizontally centered.
@@ -173,6 +175,11 @@ public class CustomDialogHelper {
      * //TODO: modify method to allow setting state for any button.
      */
     public CustomDialogHelper setButtonEnabled(boolean enabled) {
+        if (enabled) {
+            mPositiveButton.setAlpha(1f);
+        } else {
+            mPositiveButton.setAlpha(0.5f);
+        }
         mPositiveButton.setEnabled(enabled);
         return this;
     }
@@ -186,18 +193,50 @@ public class CustomDialogHelper {
     }
 
     /**
+     * Sets title of the dialog by string.
+     */
+    @NonNull public CustomDialogHelper setTitle(@NonNull CharSequence title) {
+        mDialogTitle.setText(title);
+        return this;
+    }
+
+    /**
+     * Sets title padding of the dialog.
+     */
+    @NonNull public CustomDialogHelper setTitlePadding(int left, int top, int right, int bottom) {
+        mDialogTitle.setPadding(left, top, right, bottom);
+        return this;
+    }
+
+    /**
      * Sets message of the dialog.
      */
-    public CustomDialogHelper setMessage(@StringRes int resid) {
+   @NonNull public CustomDialogHelper setMessage(@StringRes int resid) {
         mDialogMessage.setText(resid);
+        return this;
+    }
+
+    /**
+     * Sets message of the dialog by string.
+     */
+    @NonNull public CustomDialogHelper setMessage(@NonNull CharSequence message) {
+        mDialogMessage.setText(message);
         return this;
     }
 
     /**
      * Sets message padding of the dialog.
      */
-    public CustomDialogHelper setMessagePadding(int dp) {
+    @NonNull public CustomDialogHelper setMessagePadding(int dp) {
         mDialogMessage.setPadding(dp, dp, dp, dp);
+        return this;
+    }
+    /**
+     * Sets message padding of the dialog.
+     */
+    @NonNull
+    public CustomDialogHelper setMessagePadding(int left, int top, int right, int bottom) {
+        mDialogMessage.setPadding(left, top, right, bottom);
         return this;
     }
 
@@ -206,6 +245,15 @@ public class CustomDialogHelper {
      */
     public CustomDialogHelper setIcon(Drawable icon) {
         mDialogIcon.setImageDrawable(icon);
+        return this;
+    }
+
+    /**
+     * Sets icon padding of the dialog.
+     */
+    @NonNull
+    public CustomDialogHelper setIconPadding(int left, int top, int right, int bottom) {
+        mDialogIcon.setPadding(left, top, right, bottom);
         return this;
     }
 

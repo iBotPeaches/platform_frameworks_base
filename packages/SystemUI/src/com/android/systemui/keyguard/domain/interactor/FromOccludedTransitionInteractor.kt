@@ -18,7 +18,7 @@ package com.android.systemui.keyguard.domain.interactor
 
 import android.animation.ValueAnimator
 import com.android.app.animation.Interpolators
-import com.android.systemui.Flags.communalSceneKtfRefactor
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.Flags.restartDreamOnUnocclude
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
 import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor
@@ -38,7 +38,6 @@ import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 @SysUISingleton
 class FromOccludedTransitionInteractor
@@ -143,15 +142,11 @@ constructor(
             startTransitionTo(KeyguardState.DREAMING)
         } else if (isIdleOnCommunal || showCommunalFromOccluded) {
             if (SceneContainerFlag.isEnabled) return
-            if (communalSceneKtfRefactor()) {
-                communalSceneInteractor.changeScene(
-                    newScene = CommunalScenes.Communal,
-                    loggingReason = "occluded to hub",
-                    transitionKey = CommunalTransitionKeys.SimpleFade,
-                )
-            } else {
-                startTransitionTo(KeyguardState.GLANCEABLE_HUB)
-            }
+            communalSceneInteractor.changeScene(
+                newScene = CommunalScenes.Communal,
+                loggingReason = "occluded to hub",
+                transitionKey = CommunalTransitionKeys.SimpleFade,
+            )
         } else {
             startTransitionTo(KeyguardState.LOCKSCREEN)
         }
@@ -222,6 +217,7 @@ constructor(
         const val TAG = "FromOccludedTransitionInteractor"
         private val DEFAULT_DURATION = 500.milliseconds
         val TO_ALTERNATE_BOUNCER_DURATION = DEFAULT_DURATION
+        val TO_PRIMARY_BOUNCER_DURATION = DEFAULT_DURATION
         val TO_AOD_DURATION = DEFAULT_DURATION
         val TO_DOZING_DURATION = DEFAULT_DURATION
         val TO_GLANCEABLE_HUB_DURATION = 250.milliseconds

@@ -41,7 +41,7 @@ constructor(@NotificationRenderLog val buffer: LogBuffer) {
             TAG_ROUNDNESS,
             INFO,
             {
-                str1 = (view as? ExpandableNotificationRow)?.entry?.key
+                str1 = (view as? ExpandableNotificationRow)?.key
                 bool1 = isFirstInSection
                 bool2 = isLastInSection
                 bool3 = topChanged

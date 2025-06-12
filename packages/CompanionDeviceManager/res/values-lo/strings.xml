@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"ຕົວຈັດການອຸປະກອນປະກອບ"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"ອະນຸຍາດໃຫ້ແອັບ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ເຂົ້າເຖິງ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ບໍ?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"ກວດສອບໃຫ້ໝັ້ນໃຈວ່າ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> ເຄື່ອງນີ້ເປີດ <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> ຢູ່ ແລະ ໃຫ້ຢູ່ໃກ້ກັບ <xliff:g id="PROFILE_NAME">%3$s</xliff:g>."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"ບໍ່ພົບອຸປະກອນ. ກະລຸນາລອງໃໝ່ໃນພາຍຫຼັງ."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth ແລະ Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ໂມງ"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"ເລືອກອຸປະກອນທີ່ຈະໃຫ້ມີການຈັດການໂດຍ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"ເລືອກ <xliff:g id="PROFILE_NAME">%1$s</xliff:g> ທີ່ຈະຕັ້ງຄ່າ"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"ກຳລັງຊອກຫາ <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"ແອັບນີ້ຈະໄດ້ຮັບອະນຸຍາດໃຫ້ຊິ້ງຂໍ້ມູນ ເຊັ່ນ: ຊື່ຂອງຄົນທີ່ໂທເຂົ້າ ແລະ ສິດເຂົ້າເຖິງການອະນຸຍາດເຫຼົ່ານີ້ຢູ່ <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> ຂອງທ່ານ"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"ອະນຸຍາດ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ຈັດການ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ບໍ?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"ອຸປະກອນ"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"ອະນຸຍາດໃຫ້ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ສະຕຣີມແອັບຂອງ <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> ຂອງທ່ານໄປຫາ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; ບໍ?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> ຈະມີສິດເຂົ້າເຖິງທຸກຢ່າງທີ່ປາກົດ ຫຼື ຫຼິ້ນຢູ່ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, ເຊິ່ງຮວມທັງສຽງ, ຮູບພາບ, ຂໍ້ມູນການຈ່າຍເງິນ, ລະຫັດຜ່ານ ແລະ ຂໍ້ຄວາມ.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> ຈະສາມາດສະຕຣີມແອັບໄປຫາ <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> ໄດ້ຈົນກວ່າທ່ານຈະລຶບສິດເຂົ້າເຖິງການອະນຸຍາດນີ້ອອກ."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> ກຳລັງຮ້ອງຂໍການອະນຸຍາດໃນນາມ <xliff:g id="DEVICE_NAME">%2$s</xliff:g> ເພື່ອສະຕຣີມແອັບຈາກ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> ຂອງທ່ານ"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"ອະນຸຍາດໃຫ້ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ສະຕຣີມສຽງ ແລະ ຄຸນສົມບັດຂອງລະບົບລະຫວ່າງ <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> ຂອງທ່ານກັບ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ບໍ?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> ຈະມີສິດເຂົ້າເຖິງທຸກຢ່າງທີ່ຫຼິ້ນຢູ່ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> ຈະສາມາດສະຕຣີມສຽງໄປຫາ <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> ໄດ້ຈົນກວ່າທ່ານຈະລຶບສິດເຂົ້າເຖິງການອະນຸຍາດນີ້ອອກ."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"ອຸປະກອນ"</string>
     <string name="summary_generic" msgid="1761976003668044801">"ແອັບນີ້ຈະສາມາດຊິ້ງຂໍ້ມູນ ເຊັ່ນ: ຊື່ຂອງຄົນທີ່ໂທເຂົ້າ, ລະຫວ່າງໂທລະສັບຂອງທ່ານ ແລະ ອຸປະກອນທີ່ເລືອກໄວ້ໄດ້"</string>
     <string name="consent_yes" msgid="8344487259618762872">"ອະນຸຍາດ"</string>
     <string name="consent_no" msgid="2640796915611404382">"ບໍ່ອະນຸຍາດ"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"ຍົກເລີກ"</string>
     <string name="consent_back" msgid="2560683030046918882">"ກັບຄືນ"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"ເລື່ອນລາຍຊື່ລົງ"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"ລູກສອນຊີ້ລົງ"</string>
     <string name="permission_expand" msgid="893185038020887411">"ຂະຫຍາຍ <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"ຫຍໍ້ <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> ລົງ"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"ໃຫ້ການອະນຸຍາດແອັບຢູ່ &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; ເປັນການອະນຸຍາດດຽວກັນກັບຢູ່ &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ບໍ?"</string>

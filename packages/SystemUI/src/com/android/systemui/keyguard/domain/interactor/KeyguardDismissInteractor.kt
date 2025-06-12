@@ -159,7 +159,10 @@ constructor(
                 if (alternateBouncerInteractor.canShowAlternateBouncer.value) {
                     alternateBouncerInteractor.forceShow()
                 } else {
-                    primaryBouncerInteractor.show(true)
+                    primaryBouncerInteractor.show(
+                        true,
+                        "KeyguardDismissInteractor#dismissKeyguardWithCallback",
+                    )
                 }
             }
         }

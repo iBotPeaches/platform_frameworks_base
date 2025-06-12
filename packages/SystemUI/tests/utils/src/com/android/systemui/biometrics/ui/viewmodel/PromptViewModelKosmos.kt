@@ -17,6 +17,7 @@
 package com.android.systemui.biometrics.ui.viewmodel
 
 import android.content.applicationContext
+import android.view.accessibility.accessibilityManager
 import com.android.app.activityTaskManager
 import com.android.launcher3.icons.IconProvider
 import com.android.systemui.biometrics.domain.interactor.biometricStatusInteractor
@@ -27,7 +28,6 @@ import com.android.systemui.biometrics.udfpsUtils
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
 import com.android.systemui.util.mockito.mock
-import org.mockito.Mockito.mock
 
 val Kosmos.promptViewModel by Fixture {
     PromptViewModel(
@@ -39,6 +39,7 @@ val Kosmos.promptViewModel by Fixture {
         udfpsUtils = udfpsUtils,
         iconProvider = iconProvider,
         activityTaskManager = activityTaskManager,
+        accessibilityManager = accessibilityManager,
     )
 }
 

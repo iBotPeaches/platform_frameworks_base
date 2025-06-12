@@ -423,5 +423,15 @@ public class TileQueryHelperTest extends SysuiTestCase {
 
         @Override
         public void destroy() {}
+
+        @Override
+        public boolean isDestroyed() {
+            return false;
+        }
+
+        @Override
+        public int getCurrentTileUser() {
+            return 0;
+        }
     }
 }

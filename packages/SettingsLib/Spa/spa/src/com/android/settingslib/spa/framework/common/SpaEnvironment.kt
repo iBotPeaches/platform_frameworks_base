@@ -21,6 +21,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.android.settingslib.spa.framework.util.SystemProperties
 
 private const val TAG = "SpaEnvironment"
 
@@ -50,9 +51,7 @@ object SpaEnvironmentFactory {
         Log.d(TAG, "resetForPreview")
     }
 
-    fun isReady(): Boolean {
-        return spaEnvironment != null
-    }
+    fun isReady(): Boolean = spaEnvironment != null
 
     val instance: SpaEnvironment
         get() {
@@ -60,6 +59,14 @@ object SpaEnvironmentFactory {
                 throw UnsupportedOperationException("Spa environment is not set")
             return spaEnvironment!!
         }
+
+    /**
+     * Optional instance of SpaEnvironment.
+     *
+     * Useful when there is fallback logic.
+     */
+    val optionalInstance: SpaEnvironment?
+        get() = spaEnvironment
 }
 
 abstract class SpaEnvironment(context: Context) {
@@ -80,6 +87,11 @@ abstract class SpaEnvironment(context: Context) {
 
     // Specify provider authorities for debugging purpose.
     open val searchProviderAuthorities: String? = null
+
+    /** Specify whether expressive design is enabled. */
+    open val isSpaExpressiveEnabled by lazy {
+        SystemProperties.getBoolean("is_expressive_design_enabled", false)
+    }
 
     // TODO: add other environment setup here.
     companion object {

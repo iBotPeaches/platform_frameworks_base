@@ -17,7 +17,6 @@
 package android.telephony.data;
 
 import android.annotation.CallbackExecutor;
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
 import android.annotation.NonNull;
@@ -40,7 +39,6 @@ import android.util.SparseArray;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.IIntegerConsumer;
-import com.android.internal.telephony.flags.Flags;
 import com.android.internal.util.FunctionalUtils;
 import com.android.telephony.Rlog;
 
@@ -414,7 +412,6 @@ public abstract class DataService extends Service {
          * @param resultCodeCallback Listener for the {@link DataServiceCallback.ResultCode} that
          *     request validation to the DataService and checks if the request has been submitted.
          */
-        @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
         public void requestNetworkValidation(int cid,
                 @NonNull @CallbackExecutor Executor executor,
                 @NonNull @DataServiceCallback.ResultCode Consumer<Integer> resultCodeCallback) {

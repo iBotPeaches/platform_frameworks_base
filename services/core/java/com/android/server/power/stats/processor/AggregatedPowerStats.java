@@ -25,6 +25,7 @@ import android.os.PersistableBundle;
 import android.os.UserHandle;
 import android.text.format.DateFormat;
 import android.util.IndentingPrintWriter;
+import android.util.IntArray;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
@@ -119,16 +120,18 @@ class AggregatedPowerStats {
      *                      {@link com.android.internal.os.MonotonicClock}
      * @param currentTime   current time in milliseconds, see {@link System#currentTimeMillis()}
      */
-    void addClockUpdate(long monotonicTime, @CurrentTimeMillisLong long currentTime) {
+    boolean addClockUpdate(long monotonicTime, @CurrentTimeMillisLong long currentTime) {
         ClockUpdate clockUpdate = new ClockUpdate();
         clockUpdate.monotonicTime = monotonicTime;
         clockUpdate.currentTime = currentTime;
         if (mClockUpdates.size() < MAX_CLOCK_UPDATES) {
             mClockUpdates.add(clockUpdate);
+            return true;
         } else {
             Slog.i(TAG, "Too many clock updates. Replacing the previous update with "
                     + DateFormat.format("yyyy-MM-dd-HH-mm-ss", currentTime));
             mClockUpdates.set(mClockUpdates.size() - 1, clockUpdate);
+            return false;
         }
     }
 
@@ -347,7 +350,10 @@ class AggregatedPowerStats {
 
         Set<Integer> uids = new HashSet<>();
         for (int i = 0; i < mPowerComponentStats.size(); i++) {
-            mPowerComponentStats.valueAt(i).collectUids(uids);
+            IntArray activeUids = mPowerComponentStats.valueAt(i).getActiveUids();
+            for (int j = activeUids.size() - 1; j >= 0; j--) {
+                uids.add(activeUids.get(j));
+            }
         }
 
         Integer[] allUids = uids.toArray(new Integer[uids.size()]);

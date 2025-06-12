@@ -15,7 +15,7 @@
  */
 #include "SkData.h"
 
-#ifdef __ANDROID__  // Layoutlib does not support parcel
+#ifdef __linux__  // Only Linux support parcel
 #include <android-base/unique_fd.h>
 #include <android/binder_parcel.h>
 #include <android/binder_parcel_jni.h>
@@ -35,11 +35,15 @@ public:
 
     uint32_t readUint32();
 
+    int64_t readInt64();
+
     float readFloat();
 
     void writeInt32(int32_t value) { AParcel_writeInt32(mParcel, value); }
 
     void writeUint32(uint32_t value) { AParcel_writeUint32(mParcel, value); }
+
+    void writeInt64(int64_t value) { AParcel_writeInt64(mParcel, value); }
 
     void writeFloat(float value) { AParcel_writeFloat(mParcel, value); }
 
@@ -60,4 +64,4 @@ enum class BlobType : int32_t {
     ASHMEM,
 };
 
-#endif  // __ANDROID__ // Layoutlib does not support parcel
+#endif  // __linux__ // Only Linux support parcel

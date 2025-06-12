@@ -1833,6 +1833,15 @@ static void BindMountSyspropOverride(fail_fn_t fail_fn, JNIEnv* env) {
   ReloadBuildJavaConstants(env);
 }
 
+static void MountInitOverride(fail_fn_t fail_fn, JNIEnv* env) {
+    const char* init_etc_dir = "/system/etc/init";
+
+    if (TEMP_FAILURE_RETRY(mount("tmpfs", init_etc_dir, "tmpfs", MS_NOSUID | MS_NODEV | MS_NOEXEC,
+                                 "uid=0,gid=0,mode=0751")) == -1) {
+        fail_fn(CREATE_ERROR("Failed to mount tmpfs %s: %s", init_etc_dir, strerror(errno)));
+    }
+}
+
 static void BindMountStorageToLowerFs(const userid_t user_id, const uid_t uid,
     const char* dir_name, const char* package, fail_fn_t fail_fn) {
     bool hasSdcardFs = IsSdcardfsUsed();
@@ -1954,6 +1963,7 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids, 
 
     if (mount_sysprop_overrides) {
         BindMountSyspropOverride(fail_fn, env);
+        MountInitOverride(fail_fn, env);
     }
 
     // If this zygote isn't root, it won't be able to create a process group,

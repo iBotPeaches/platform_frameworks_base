@@ -23,24 +23,19 @@ import android.content.pm.PackageManager
 import android.content.pm.UserInfo
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.accessibilityManager
 import android.widget.RemoteViews
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.internal.logging.UiEventLogger
+import com.android.internal.logging.uiEventLogger
+import com.android.internal.logging.uiEventLoggerFake
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.communal.data.model.CommunalSmartspaceTimer
-import com.android.systemui.communal.data.repository.FakeCommunalMediaRepository
-import com.android.systemui.communal.data.repository.FakeCommunalSmartspaceRepository
-import com.android.systemui.communal.data.repository.FakeCommunalTutorialRepository
-import com.android.systemui.communal.data.repository.FakeCommunalWidgetRepository
 import com.android.systemui.communal.data.repository.fakeCommunalMediaRepository
 import com.android.systemui.communal.data.repository.fakeCommunalSmartspaceRepository
 import com.android.systemui.communal.data.repository.fakeCommunalTutorialRepository
 import com.android.systemui.communal.data.repository.fakeCommunalWidgetRepository
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
-import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor
 import com.android.systemui.communal.domain.interactor.communalInteractor
 import com.android.systemui.communal.domain.interactor.communalSceneInteractor
 import com.android.systemui.communal.domain.interactor.communalSettingsInteractor
@@ -49,12 +44,15 @@ import com.android.systemui.communal.shared.log.CommunalMetricsLogger
 import com.android.systemui.communal.shared.log.CommunalUiEvent
 import com.android.systemui.communal.shared.model.EditModeState
 import com.android.systemui.communal.ui.viewmodel.CommunalEditModeViewModel
-import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.Flags
 import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.keyguard.domain.interactor.keyguardTransitionInteractor
+import com.android.systemui.kosmos.Kosmos
+import com.android.systemui.kosmos.collectLastValue
+import com.android.systemui.kosmos.runTest
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.media.controls.ui.controller.mediaCarouselController
 import com.android.systemui.media.controls.ui.view.MediaHost
@@ -62,73 +60,45 @@ import com.android.systemui.settings.fakeUserTracker
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.repository.fakeUserRepository
 import com.google.common.truth.Truth.assertThat
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mock
 import org.mockito.Mockito
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
-import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.spy
 import org.mockito.kotlin.whenever
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class CommunalEditModeViewModelTest : SysuiTestCase() {
-    @Mock private lateinit var mediaHost: MediaHost
-    @Mock private lateinit var uiEventLogger: UiEventLogger
-    @Mock private lateinit var packageManager: PackageManager
-    @Mock private lateinit var metricsLogger: CommunalMetricsLogger
-
-    private val kosmos = testKosmos()
-    private val testScope = kosmos.testScope
-
-    private lateinit var tutorialRepository: FakeCommunalTutorialRepository
-    private lateinit var widgetRepository: FakeCommunalWidgetRepository
-    private lateinit var smartspaceRepository: FakeCommunalSmartspaceRepository
-    private lateinit var mediaRepository: FakeCommunalMediaRepository
-    private lateinit var communalSceneInteractor: CommunalSceneInteractor
-    private lateinit var communalInteractor: CommunalInteractor
-    private lateinit var accessibilityManager: AccessibilityManager
+    private val kosmos = testKosmos().useUnconfinedTestDispatcher()
 
     private val testableResources = context.orCreateTestableResources
 
-    private lateinit var underTest: CommunalEditModeViewModel
+    private val Kosmos.packageManager by Kosmos.Fixture { mock<PackageManager>() }
 
-    @Before
-    fun setUp() {
-        MockitoAnnotations.initMocks(this)
+    private val Kosmos.metricsLogger by Kosmos.Fixture { mock<CommunalMetricsLogger>() }
 
-        tutorialRepository = kosmos.fakeCommunalTutorialRepository
-        widgetRepository = kosmos.fakeCommunalWidgetRepository
-        smartspaceRepository = kosmos.fakeCommunalSmartspaceRepository
-        mediaRepository = kosmos.fakeCommunalMediaRepository
-        communalSceneInteractor = kosmos.communalSceneInteractor
-        communalInteractor = spy(kosmos.communalInteractor)
-        kosmos.fakeUserRepository.setUserInfos(listOf(MAIN_USER_INFO))
-        kosmos.fakeUserTracker.set(userInfos = listOf(MAIN_USER_INFO), selectedUserIndex = 0)
-        kosmos.fakeFeatureFlagsClassic.set(Flags.COMMUNAL_SERVICE_ENABLED, true)
-        accessibilityManager = kosmos.accessibilityManager
-
-        underTest =
+    private val Kosmos.underTest by
+        Kosmos.Fixture {
             CommunalEditModeViewModel(
                 communalSceneInteractor,
                 communalInteractor,
-                kosmos.communalSettingsInteractor,
-                kosmos.keyguardTransitionInteractor,
-                mediaHost,
+                communalSettingsInteractor,
+                keyguardTransitionInteractor,
+                mock<MediaHost>(),
                 uiEventLogger,
                 logcatLogBuffer("CommunalEditModeViewModelTest"),
-                kosmos.testDispatcher,
+                testDispatcher,
                 metricsLogger,
                 context,
                 accessibilityManager,
@@ -136,19 +106,28 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
                 WIDGET_PICKER_PACKAGE_NAME,
                 kosmos.mediaCarouselController,
             )
+        }
+
+    @Before
+    fun setUp() {
+        kosmos.fakeUserRepository.setUserInfos(listOf(MAIN_USER_INFO))
+        kosmos.fakeUserTracker.set(userInfos = listOf(MAIN_USER_INFO), selectedUserIndex = 0)
+        kosmos.fakeFeatureFlagsClassic.set(Flags.COMMUNAL_SERVICE_ENABLED, true)
     }
 
     @Test
     fun communalContent_onlyWidgetsAndCtaTileAreShownInEditMode() =
-        testScope.runTest {
-            tutorialRepository.setTutorialSettingState(Settings.Secure.HUB_MODE_TUTORIAL_COMPLETED)
+        kosmos.runTest {
+            fakeCommunalTutorialRepository.setTutorialSettingState(
+                Settings.Secure.HUB_MODE_TUTORIAL_COMPLETED
+            )
 
             // Widgets available.
-            widgetRepository.addWidget(appWidgetId = 0, rank = 30)
-            widgetRepository.addWidget(appWidgetId = 1, rank = 20)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 0, rank = 30)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, rank = 20)
 
             // Smartspace available.
-            smartspaceRepository.setTimers(
+            fakeCommunalSmartspaceRepository.setTimers(
                 listOf(
                     CommunalSmartspaceTimer(
                         smartspaceTargetId = "target",
@@ -159,7 +138,7 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
             )
 
             // Media playing.
-            mediaRepository.mediaActive()
+            fakeCommunalMediaRepository.mediaActive()
 
             val communalContent by collectLastValue(underTest.communalContent)
 
@@ -172,21 +151,21 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    fun selectedKey_onReorderWidgets_isCleared() =
-        testScope.runTest {
+    fun selectedKey_onReorderWidgets_isSet() =
+        kosmos.runTest {
             val selectedKey by collectLastValue(underTest.selectedKey)
 
-            val key = CommunalContentModel.KEY.widget(123)
-            underTest.setSelectedKey(key)
-            assertThat(selectedKey).isEqualTo(key)
-
-            underTest.onReorderWidgetStart()
+            underTest.setSelectedKey(null)
             assertThat(selectedKey).isNull()
+
+            val key = CommunalContentModel.KEY.widget(123)
+            underTest.onReorderWidgetStart(key)
+            assertThat(selectedKey).isEqualTo(key)
         }
 
     @Test
     fun isCommunalContentVisible_isTrue_whenEditModeShowing() =
-        testScope.runTest {
+        kosmos.runTest {
             val isCommunalContentVisible by collectLastValue(underTest.isCommunalContentVisible)
             communalSceneInteractor.setEditModeState(EditModeState.SHOWING)
             assertThat(isCommunalContentVisible).isEqualTo(true)
@@ -194,7 +173,7 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
     @Test
     fun isCommunalContentVisible_isFalse_whenEditModeNotShowing() =
-        testScope.runTest {
+        kosmos.runTest {
             val isCommunalContentVisible by collectLastValue(underTest.isCommunalContentVisible)
             communalSceneInteractor.setEditModeState(null)
             assertThat(isCommunalContentVisible).isEqualTo(false)
@@ -202,12 +181,14 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
     @Test
     fun deleteWidget() =
-        testScope.runTest {
-            tutorialRepository.setTutorialSettingState(Settings.Secure.HUB_MODE_TUTORIAL_COMPLETED)
+        kosmos.runTest {
+            fakeCommunalTutorialRepository.setTutorialSettingState(
+                Settings.Secure.HUB_MODE_TUTORIAL_COMPLETED
+            )
 
             // Widgets available.
-            widgetRepository.addWidget(appWidgetId = 0, rank = 30)
-            widgetRepository.addWidget(appWidgetId = 1, rank = 20)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 0, rank = 30)
+            fakeCommunalWidgetRepository.addWidget(appWidgetId = 1, rank = 20)
 
             val communalContent by collectLastValue(underTest.communalContent)
 
@@ -220,6 +201,7 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
             underTest.onDeleteWidget(
                 id = 0,
+                key = "key_0",
                 componentName = ComponentName("test_package", "test_class"),
                 rank = 30,
             )
@@ -233,26 +215,56 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    fun reorderWidget_uiEventLogging_start() {
-        underTest.onReorderWidgetStart()
-        verify(uiEventLogger).log(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_START)
-    }
+    fun deleteWidget_clearsSelectedKey() =
+        kosmos.runTest {
+            val selectedKey by collectLastValue(underTest.selectedKey)
+            underTest.setSelectedKey("test_key")
+            assertThat(selectedKey).isEqualTo("test_key")
+
+            // Selected key is deleted.
+            underTest.onDeleteWidget(
+                id = 0,
+                key = "test_key",
+                componentName = ComponentName("test_package", "test_class"),
+                rank = 30,
+            )
+
+            assertThat(selectedKey).isNull()
+        }
 
     @Test
-    fun reorderWidget_uiEventLogging_end() {
-        underTest.onReorderWidgetEnd()
-        verify(uiEventLogger).log(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_FINISH)
-    }
+    fun reorderWidget_uiEventLogging_start() =
+        kosmos.runTest {
+            underTest.onReorderWidgetStart(CommunalContentModel.KEY.widget(123))
+
+            assertThat(uiEventLoggerFake.numLogs()).isEqualTo(1)
+            assertThat(uiEventLoggerFake.logs[0].eventId)
+                .isEqualTo(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_START.id)
+        }
 
     @Test
-    fun reorderWidget_uiEventLogging_cancel() {
-        underTest.onReorderWidgetCancel()
-        verify(uiEventLogger).log(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_CANCEL)
-    }
+    fun reorderWidget_uiEventLogging_end() =
+        kosmos.runTest {
+            underTest.onReorderWidgetEnd()
+
+            assertThat(uiEventLoggerFake.numLogs()).isEqualTo(1)
+            assertThat(uiEventLoggerFake.logs[0].eventId)
+                .isEqualTo(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_FINISH.id)
+        }
+
+    @Test
+    fun reorderWidget_uiEventLogging_cancel() =
+        kosmos.runTest {
+            underTest.onReorderWidgetCancel()
+
+            assertThat(uiEventLoggerFake.numLogs()).isEqualTo(1)
+            assertThat(uiEventLoggerFake.logs[0].eventId)
+                .isEqualTo(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_CANCEL.id)
+        }
 
     @Test
     fun onOpenWidgetPicker_launchesWidgetPickerActivity() {
-        testScope.runTest {
+        kosmos.runTest {
             var activityStarted = false
             val success =
                 underTest.onOpenWidgetPicker(testableResources.resources) { _ ->
@@ -266,7 +278,7 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
     @Test
     fun onOpenWidgetPicker_activityLaunchThrowsException_failure() {
-        testScope.runTest {
+        kosmos.runTest {
             val success =
                 underTest.onOpenWidgetPicker(testableResources.resources) { _ ->
                     run { throw ActivityNotFoundException() }
@@ -278,7 +290,7 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
     @Test
     fun showDisclaimer_trueAfterEditModeShowing() =
-        testScope.runTest {
+        kosmos.runTest {
             val showDisclaimer by collectLastValue(underTest.showDisclaimer)
 
             assertThat(showDisclaimer).isFalse()
@@ -288,9 +300,9 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
     @Test
     fun showDisclaimer_falseWhenDismissed() =
-        testScope.runTest {
+        kosmos.runTest {
             underTest.setEditModeState(EditModeState.SHOWING)
-            kosmos.fakeUserRepository.setSelectedUserInfo(MAIN_USER_INFO)
+            fakeUserRepository.setSelectedUserInfo(MAIN_USER_INFO)
 
             val showDisclaimer by collectLastValue(underTest.showDisclaimer)
 
@@ -301,63 +313,67 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
 
     @Test
     fun showDisclaimer_trueWhenTimeout() =
-        testScope.runTest {
+        kosmos.runTest {
             underTest.setEditModeState(EditModeState.SHOWING)
-            kosmos.fakeUserRepository.setSelectedUserInfo(MAIN_USER_INFO)
+            fakeUserRepository.setSelectedUserInfo(MAIN_USER_INFO)
 
             val showDisclaimer by collectLastValue(underTest.showDisclaimer)
 
             assertThat(showDisclaimer).isTrue()
             underTest.onDisclaimerDismissed()
             assertThat(showDisclaimer).isFalse()
-            advanceTimeBy(CommunalInteractor.DISCLAIMER_RESET_MILLIS)
+            testScope.advanceTimeBy(CommunalInteractor.DISCLAIMER_RESET_MILLIS + 1.milliseconds)
             assertThat(showDisclaimer).isTrue()
         }
 
     @Test
-    fun scrollPosition_persistedOnEditCleanup() {
-        val index = 2
-        val offset = 30
-        underTest.onScrollPositionUpdated(index, offset)
-        underTest.cleanupEditModeState()
+    fun scrollPosition_persistedOnEditCleanup() =
+        kosmos.runTest {
+            val index = 2
+            val offset = 30
+            underTest.onScrollPositionUpdated(index, offset)
+            underTest.cleanupEditModeState()
 
-        verify(communalInteractor).setScrollPosition(eq(index), eq(offset))
-    }
-
-    @Test
-    fun onNewWidgetAdded_accessibilityDisabled_doNothing() {
-        whenever(accessibilityManager.isEnabled).thenReturn(false)
-
-        val provider =
-            mock<AppWidgetProviderInfo> {
-                on { loadLabel(packageManager) }.thenReturn("Test Clock")
-            }
-        underTest.onNewWidgetAdded(provider)
-
-        verify(accessibilityManager, never()).sendAccessibilityEvent(any())
-    }
+            assertThat(communalInteractor.firstVisibleItemIndex).isEqualTo(index)
+            assertThat(communalInteractor.firstVisibleItemOffset).isEqualTo(offset)
+        }
 
     @Test
-    fun onNewWidgetAdded_accessibilityEnabled_sendAccessibilityAnnouncement() {
-        whenever(accessibilityManager.isEnabled).thenReturn(true)
+    fun onNewWidgetAdded_accessibilityDisabled_doNothing() =
+        kosmos.runTest {
+            whenever(accessibilityManager.isEnabled).thenReturn(false)
 
-        val provider =
-            mock<AppWidgetProviderInfo> {
-                on { loadLabel(packageManager) }.thenReturn("Test Clock")
-            }
-        underTest.onNewWidgetAdded(provider)
+            val provider =
+                mock<AppWidgetProviderInfo> {
+                    on { loadLabel(packageManager) }.thenReturn("Test Clock")
+                }
+            underTest.onNewWidgetAdded(provider)
 
-        val captor = argumentCaptor<AccessibilityEvent>()
-        verify(accessibilityManager).sendAccessibilityEvent(captor.capture())
+            verify(accessibilityManager, never()).sendAccessibilityEvent(any())
+        }
 
-        val event = captor.firstValue
-        assertThat(event.eventType).isEqualTo(AccessibilityEvent.TYPE_ANNOUNCEMENT)
-        assertThat(event.contentDescription).isEqualTo("Test Clock widget added to lock screen")
-    }
+    @Test
+    fun onNewWidgetAdded_accessibilityEnabled_sendAccessibilityAnnouncement() =
+        kosmos.runTest {
+            whenever(accessibilityManager.isEnabled).thenReturn(true)
+
+            val provider =
+                mock<AppWidgetProviderInfo> {
+                    on { loadLabel(packageManager) }.thenReturn("Test Clock")
+                }
+            underTest.onNewWidgetAdded(provider)
+
+            val captor = argumentCaptor<AccessibilityEvent>()
+            verify(accessibilityManager).sendAccessibilityEvent(captor.capture())
+
+            val event = captor.firstValue
+            assertThat(event.eventType).isEqualTo(AccessibilityEvent.TYPE_ANNOUNCEMENT)
+            assertThat(event.contentDescription).isEqualTo("Test Clock widget added to lock screen")
+        }
 
     @Test
     fun onResizeWidget_logsMetrics() =
-        testScope.runTest {
+        kosmos.runTest {
             val appWidgetId = 123
             val spanY = 2
             val widgetIdToRankMap = mapOf(appWidgetId to 1)
@@ -372,7 +388,6 @@ class CommunalEditModeViewModelTest : SysuiTestCase() {
                 rank = rank,
             )
 
-            verify(communalInteractor).resizeWidget(appWidgetId, spanY, widgetIdToRankMap)
             verify(metricsLogger)
                 .logResizeWidget(
                     componentName = componentName.flattenToString(),

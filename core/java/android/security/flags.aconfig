@@ -52,55 +52,12 @@ flag {
 }
 
 flag {
-    name: "deprecate_fsv_sig"
-    namespace: "hardware_backed_security"
-    description: "Feature flag for deprecating .fsv_sig"
-    bug: "277916185"
-}
-
-flag {
-    name: "extend_vb_chain_to_updated_apk"
-    namespace: "hardware_backed_security"
-    description: "Use v4 signature and fs-verity to chain verification of allowlisted APKs to Verified Boot"
-    bug: "277916185"
-    is_fixed_read_only: true
-}
-
-flag {
-    name: "binary_transparency_sepolicy_hash"
-    namespace: "hardware_backed_security"
-    description: "Collect sepolicy hash from sysfs"
-    bug: "308471499"
-}
-
-flag {
     name: "frp_enforcement"
     is_exported: true
     namespace: "hardware_backed_security"
     description: "This flag controls whether PDB enforces FRP"
     bug: "290312729"
     is_fixed_read_only: true
-}
-
-flag {
-    name: "significant_places"
-    namespace: "biometrics"
-    description: "Enabled significant place monitoring"
-    bug: "337870680"
-}
-
-flag {
-    name: "report_primary_auth_attempts"
-    namespace: "biometrics"
-    description: "Report primary auth attempts from LockSettingsService"
-    bug: "285053096"
-}
-
-flag {
-    name: "dump_attestation_verifications"
-    namespace: "hardware_backed_security"
-    description: "Add a dump capability for attestation_verification service"
-    bug: "335498868"
 }
 
 flag {
@@ -111,10 +68,13 @@ flag {
 }
 
 flag {
-    name: "clear_strong_auth_on_add_primary_credential"
+    name: "clear_strong_auth_on_adding_primary_credential"
     namespace: "biometrics"
-    description: "Clear StrongAuth on add credential"
+    description: "Clear StrongAuth on adding credential"
     bug: "320817991"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -123,6 +83,16 @@ flag {
     description: "AFL feature"
     bug: "365994454"
     is_exported: true
+}
+
+flag {
+    name: "internal_log_event_listener"
+    namespace: "hardware_backed_security"
+    description: "Use internal callback to gather SecurityMonitor logs."
+    bug: "389732143"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -147,4 +117,19 @@ flag {
     description: "Feature flag for Secure Lockdown feature"
     bug: "373422357"
     is_exported: true
+}
+
+flag {
+    name: "subscribe_to_keyguard_locked_state_perm_priv_flag"
+    namespace: "psap_ai"
+    description: "Feature flag to add the privileged flag to the SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE permission"
+    bug: "380120712"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "disable_adaptive_auth_counter_lock"
+    namespace: "biometrics"
+    description: "Flag to allow an adb secure setting to disable the adaptive auth lock"
+    bug: "371057865"
 }

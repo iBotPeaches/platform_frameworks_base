@@ -24,6 +24,8 @@ import android.accounts.AccountManagerInternal;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
+import android.annotation.SpecialUsers.CanBeALL;
+import android.annotation.SpecialUsers.CanBeCURRENT;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RestrictionLevel;
@@ -361,7 +363,8 @@ public final class ContentService extends IContentService.Stub {
      */
     @Override
     public void registerContentObserver(Uri uri, boolean notifyForDescendants,
-            IContentObserver observer, int userHandle, int targetSdkVersion) {
+            IContentObserver observer, @CanBeALL @CanBeCURRENT @UserIdInt int userHandle,
+            int targetSdkVersion) {
         if (observer == null || uri == null) {
             throw new IllegalArgumentException("You must pass a valid uri and observer");
         }
@@ -1398,8 +1401,8 @@ public final class ContentService extends IContentService.Stub {
         }
     }
 
-    private int handleIncomingUser(Uri uri, int pid, int uid, int modeFlags, boolean allowNonFull,
-            int userId) {
+    private @CanBeALL @UserIdInt int handleIncomingUser(Uri uri, int pid, int uid, int modeFlags,
+            boolean allowNonFull, @CanBeALL @CanBeCURRENT @UserIdInt int userId) {
         if (userId == UserHandle.USER_CURRENT) {
             userId = ActivityManager.getCurrentUser();
         }

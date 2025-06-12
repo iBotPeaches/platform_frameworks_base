@@ -28,8 +28,6 @@ import static com.android.wm.shell.ShellTaskOrganizer.TASK_LISTENER_TYPE_PIP;
 import static com.android.wm.shell.ShellTaskOrganizer.taskListenerTypeToString;
 import static com.android.wm.shell.desktopmode.DesktopModeUtils.calculateInitialBounds;
 import static com.android.wm.shell.desktopmode.DesktopTasksController.DESKTOP_MODE_INITIAL_BOUNDS_SCALE;
-import static com.android.wm.shell.pip.PipAnimationController.ANIM_TYPE_ALPHA;
-import static com.android.wm.shell.pip.PipAnimationController.ANIM_TYPE_BOUNDS;
 import static com.android.wm.shell.pip.PipAnimationController.FRACTION_START;
 import static com.android.wm.shell.pip.PipAnimationController.TRANSITION_DIRECTION_EXPAND_OR_UNEXPAND;
 import static com.android.wm.shell.pip.PipAnimationController.TRANSITION_DIRECTION_LEAVE_PIP;
@@ -43,6 +41,8 @@ import static com.android.wm.shell.pip.PipAnimationController.TRANSITION_DIRECTI
 import static com.android.wm.shell.pip.PipAnimationController.isInPipDirection;
 import static com.android.wm.shell.pip.PipAnimationController.isOutPipDirection;
 import static com.android.wm.shell.pip.PipAnimationController.isRemovePipDirection;
+import static com.android.wm.shell.pip.PipTransitionController.ANIM_TYPE_ALPHA;
+import static com.android.wm.shell.pip.PipTransitionController.ANIM_TYPE_BOUNDS;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SPLIT_POSITION_TOP_OR_LEFT;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SPLIT_POSITION_UNDEFINED;
 import static com.android.wm.shell.transition.Transitions.ENABLE_SHELL_TRANSITIONS;
@@ -70,6 +70,7 @@ import android.view.Choreographer;
 import android.view.Display;
 import android.view.Surface;
 import android.view.SurfaceControl;
+import android.window.DesktopModeFlags;
 import android.window.DisplayAreaInfo;
 import android.window.TaskOrganizer;
 import android.window.TaskSnapshot;
@@ -78,7 +79,6 @@ import android.window.WindowContainerTransaction;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
-import com.android.window.flags.Flags;
 import com.android.wm.shell.R;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
@@ -781,8 +781,8 @@ public class PipTaskOrganizer implements ShellTaskOrganizer.TaskListener,
     // TODO(b/377581840): Update this check to include non-minimized cases, e.g. split to PiP etc.
     private boolean isPipExitingToDesktopMode() {
         DesktopRepository currentRepo = getCurrentRepo();
-        return Flags.enableDesktopWindowingPip() && currentRepo != null
-                && (currentRepo.getVisibleTaskCount(mTaskInfo.displayId) > 0
+        return DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_PIP.isTrue() && currentRepo != null
+                && (currentRepo.isAnyDeskActive(mTaskInfo.displayId)
                     || isDisplayInFreeform());
     }
 
@@ -1716,7 +1716,7 @@ public class PipTaskOrganizer implements ShellTaskOrganizer.TaskListener,
 
     private void finishResize(SurfaceControl.Transaction tx, Rect destinationBounds,
             @PipAnimationController.TransitionDirection int direction,
-            @PipAnimationController.AnimationType int type) {
+            @PipTransitionController.AnimationType int type) {
         final Rect preResizeBounds = new Rect(mPipBoundsState.getBounds());
         mPipBoundsState.setBounds(destinationBounds);
         if (direction == TRANSITION_DIRECTION_REMOVE_STACK) {

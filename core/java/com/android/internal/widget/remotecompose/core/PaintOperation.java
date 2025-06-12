@@ -17,11 +17,13 @@ package com.android.internal.widget.remotecompose.core;
 
 import android.annotation.NonNull;
 
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
+
 /**
  * PaintOperation interface, used for operations aimed at painting (while any operation _can_ paint,
  * this make it a little more explicit)
  */
-public abstract class PaintOperation extends Operation {
+public abstract class PaintOperation extends Operation implements Serializable {
 
     @Override
     public void apply(@NonNull RemoteContext context) {
@@ -39,6 +41,11 @@ public abstract class PaintOperation extends Operation {
         return indent + toString();
     }
 
+    /**
+     * Paint the operation in the context
+     *
+     * @param context painting context
+     */
     public abstract void paint(@NonNull PaintContext context);
 
     /**

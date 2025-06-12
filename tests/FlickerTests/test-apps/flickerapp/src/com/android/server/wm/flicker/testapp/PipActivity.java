@@ -47,8 +47,6 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Rational;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.CheckBox;
 import android.widget.RadioButton;
 
@@ -144,12 +142,6 @@ public class PipActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        final Window window = getWindow();
-        final WindowManager.LayoutParams layoutParams = window.getAttributes();
-        layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        window.setAttributes(layoutParams);
 
         setContentView(R.layout.activity_pip);
 
@@ -350,7 +342,7 @@ public class PipActivity extends Activity {
         mMediaSession.setActive(newState != STATE_STOPPED);
     }
 
-    private void handleIntentExtra(Intent intent) {
+    void handleIntentExtra(Intent intent) {
         // Set the fixed orientation if requested
         if (intent.hasExtra(EXTRA_PIP_ORIENTATION)) {
             final int ori = Integer.parseInt(getIntent().getStringExtra(EXTRA_PIP_ORIENTATION));

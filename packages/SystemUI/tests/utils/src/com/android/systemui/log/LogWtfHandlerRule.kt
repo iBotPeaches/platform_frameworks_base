@@ -24,21 +24,23 @@ import org.junit.runners.model.Statement
 
 class LogWtfHandlerRule : TestRule {
 
-    private var started = false
-    private var handler = ThrowAndFailAtEnd
+    private var failureLogExemptions = mutableListOf<FailureLogExemption>()
 
     override fun apply(base: Statement, description: Description): Statement {
         return object : Statement() {
             override fun evaluate() {
-                started = true
+                val handler = TerribleFailureTestHandler()
                 val originalWtfHandler = Log.setWtfHandler(handler)
                 var failure: Throwable? = null
                 try {
                     base.evaluate()
                 } catch (ex: Throwable) {
-                    failure = ex.runAndAddSuppressed { handler.onTestFailure(ex) }
+                    failure = ex
                 } finally {
-                    failure = failure.runAndAddSuppressed { handler.onTestFinished() }
+                    failure =
+                        runAndAddSuppressed(failure) {
+                            handler.onTestFinished(failureLogExemptions)
+                        }
                     Log.setWtfHandler(originalWtfHandler)
                 }
                 if (failure != null) {
@@ -48,74 +50,52 @@ class LogWtfHandlerRule : TestRule {
         }
     }
 
-    fun Throwable?.runAndAddSuppressed(block: () -> Unit): Throwable? {
+    /** Adds a log failure exemption. Exemptions are evaluated at the end of the test. */
+    fun addFailureLogExemption(exemption: FailureLogExemption) {
+        failureLogExemptions.add(exemption)
+    }
+
+    /** Clears and sets exemptions. Exemptions are evaluated at the end of the test. */
+    fun resetFailureLogExemptions(vararg exemptions: FailureLogExemption) {
+        failureLogExemptions = exemptions.toMutableList()
+    }
+
+    private fun runAndAddSuppressed(currentError: Throwable?, block: () -> Unit): Throwable? {
         try {
             block()
         } catch (t: Throwable) {
-            if (this == null) {
+            if (currentError == null) {
                 return t
             }
-            addSuppressed(t)
+            currentError.addSuppressed(t)
         }
-        return this
+        return currentError
     }
 
-    fun setWtfHandler(handler: TerribleFailureTestHandler) {
-        check(!started) { "Should only be called before the test starts" }
-        this.handler = handler
-    }
+    private class TerribleFailureTestHandler : TerribleFailureHandler {
+        private val failureLogs = mutableListOf<FailureLog>()
 
-    fun interface TerribleFailureTestHandler : TerribleFailureHandler {
-        fun onTestFailure(failure: Throwable) {}
-        fun onTestFinished() {}
-    }
+        override fun onTerribleFailure(tag: String, what: Log.TerribleFailure, system: Boolean) {
+            failureLogs.add(FailureLog(tag = tag, failure = what, system = system))
+        }
 
-    companion object Handlers {
-        val ThrowAndFailAtEnd
-            get() =
-                object : TerribleFailureTestHandler {
-                    val failures = mutableListOf<Log.TerribleFailure>()
-
-                    override fun onTerribleFailure(
-                        tag: String,
-                        what: Log.TerribleFailure,
-                        system: Boolean
-                    ) {
-                        failures.add(what)
-                        throw what
-                    }
-
-                    override fun onTestFailure(failure: Throwable) {
-                        super.onTestFailure(failure)
-                    }
-
-                    override fun onTestFinished() {
-                        if (failures.isNotEmpty()) {
-                            throw AssertionError("Unexpected Log.wtf calls: $failures", failures[0])
-                        }
-                    }
+        fun onTestFinished(exemptions: List<FailureLogExemption>) {
+            val failures =
+                failureLogs.filter { failureLog ->
+                    !exemptions.any { it.isFailureLogExempt(failureLog) }
                 }
+            if (failures.isNotEmpty()) {
+                throw AssertionError("Unexpected Log.wtf calls: $failures", failures[0].failure)
+            }
+        }
+    }
 
-        val JustThrow = TerribleFailureTestHandler { _, what, _ -> throw what }
+    /** All the information from a call to [Log.wtf] that was handed to [TerribleFailureHandler] */
+    data class FailureLog(val tag: String, val failure: Log.TerribleFailure, val system: Boolean)
 
-        val JustFailAtEnd
-            get() =
-                object : TerribleFailureTestHandler {
-                    val failures = mutableListOf<Log.TerribleFailure>()
-
-                    override fun onTerribleFailure(
-                        tag: String,
-                        what: Log.TerribleFailure,
-                        system: Boolean
-                    ) {
-                        failures.add(what)
-                    }
-
-                    override fun onTestFinished() {
-                        if (failures.isNotEmpty()) {
-                            throw AssertionError("Unexpected Log.wtf calls: $failures", failures[0])
-                        }
-                    }
-                }
+    /** An interface for exempting a [FailureLog] from causing a test failure. */
+    fun interface FailureLogExemption {
+        /** Determines whether a log should be except from failing the test. */
+        fun isFailureLogExempt(log: FailureLog): Boolean
     }
 }

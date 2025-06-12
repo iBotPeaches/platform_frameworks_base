@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Palīgierīču pārzinis"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Vai atļaut lietotnei &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; piekļūt lietotnei &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Pārliecinieties, vai <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> var izveidot savienojumu ar citām ierīcēm ar <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>, un gādājiet, lai <xliff:g id="PROFILE_NAME">%3$s</xliff:g> būtu tuvumā."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Nav atrasta neviena ierīce. Lūdzu, vēlāk mēģiniet vēlreiz."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi‑Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth un Wi‑Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"pulkstenis"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Izvēlieties ierīci, ko pārvaldīt lietotnē &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Jāizvēlas <xliff:g id="PROFILE_NAME">%1$s</xliff:g> iestatīšanai"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Tiek meklēts <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Šī lietotne drīkstēs sinhronizēt informāciju, piemēram, zvanītāja vārdu, un piekļūt šīm <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> atļaujām."</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Vai atļaut lietotnei &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; piekļūt ierīcei &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"ierīce"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Vai atļaut lietotnei &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; straumēt <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> lietotnes ierīcē &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> varēs piekļūt visam <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> ekrānā parādītajam vai atskaņotajam saturam, tostarp audio, fotoattēliem, maksājumu informācijai, parolēm un ziņojumiem.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> varēs straumēt lietotnes ierīcē <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>, līdz noņemsiet piekļuvi šai atļaujai."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> pieprasa atļauju <xliff:g id="DEVICE_NAME">%2$s</xliff:g> vārdā straumēt lietotnes no jūsu ierīces <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>."</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Vai atļaut lietotnei &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; straumēt audio un sistēmas funkcijas starp jūsu ierīci (<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>) un ierīci “&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;”?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"Lietotne <xliff:g id="APP_NAME_0">%2$s</xliff:g> varēs piekļūt visam ierīces “<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>” atskaņotajam saturam.&lt;br/&gt;&lt;br/&gt;Lietotne <xliff:g id="APP_NAME_2">%2$s</xliff:g> varēs straumēt audio ierīcē “<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>”, līdz noņemsiet piekļuvi šai atļaujai."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"ierīce"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Šī lietotne varēs sinhronizēt informāciju (piemēram, zvanītāja vārdu) starp jūsu tālruni un izvēlēto ierīci"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Atļaut"</string>
     <string name="consent_no" msgid="2640796915611404382">"Neatļaut"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Atcelt"</string>
     <string name="consent_back" msgid="2560683030046918882">"Atpakaļ"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Ritināt sarakstu lejup"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Lejupvērsta bultiņa"</string>
     <string name="permission_expand" msgid="893185038020887411">"Izvērst: <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Sakļaut: <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Vai lietotnēm ierīcē &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; piešķirt tādas pašas atļaujas kā ierīcē &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

@@ -414,6 +414,8 @@ bool BinaryResourceParser::ParseType(const ResourceTablePackage* package,
         .SetId(res_id, OnIdConflict::CREATE_ENTRY)
         .SetAllowMangled(true);
 
+    res_builder.SetUsesReadWriteFeatureFlags(entry->uses_feature_flags());
+
     if (entry->flags() & ResTable_entry::FLAG_PUBLIC) {
       Visibility visibility{Visibility::Level::kPublic};
 

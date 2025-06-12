@@ -34,7 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.systemui.Flags
-import com.android.systemui.qs.panels.ui.compose.PagerDots
+import com.android.systemui.common.ui.compose.PagerDots
 import com.android.systemui.statusbar.policy.ui.dialog.viewmodel.ModesDialogViewModel
 
 @Composable

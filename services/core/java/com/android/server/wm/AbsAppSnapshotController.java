@@ -51,8 +51,11 @@ import android.window.TaskSnapshot;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.graphics.ColorUtils;
 import com.android.server.wm.utils.InsetUtils;
+import com.android.window.flags.Flags;
 
 import java.io.PrintWriter;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Base class for a Snapshot controller
@@ -79,6 +82,7 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
      */
     @VisibleForTesting
     static final int SNAPSHOT_MODE_NONE = 2;
+    static final float THEME_SNAPSHOT_MIN_Length = 128.0f;
 
     protected final WindowManagerService mService;
     protected final float mHighResSnapshotScale;
@@ -127,6 +131,10 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
         mCache = cache;
     }
 
+    void setSnapshotReleaser(Consumer<HardwareBuffer> releaser) {
+        mCache.setSafeSnapshotReleaser(releaser);
+    }
+
     void setSnapshotEnabled(boolean enabled) {
         mSnapshotEnabled = enabled;
     }
@@ -148,43 +156,60 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
     protected abstract Rect getLetterboxInsets(ActivityRecord topActivity);
 
     /**
-     * This is different than {@link #recordSnapshotInner(TYPE)} because it doesn't store
-     * the snapshot to the cache and returns the TaskSnapshot immediately.
-     *
-     * This is only used for testing so the snapshot content can be verified.
+     * This is different than {@link #recordSnapshotInner(TYPE, boolean, Consumer)}  because it
+     * doesn't store the snapshot to the cache and returns the TaskSnapshot immediately.
      */
     @VisibleForTesting
-    TaskSnapshot captureSnapshot(TYPE source) {
-        final TaskSnapshot snapshot;
+    SnapshotSupplier captureSnapshot(TYPE source, boolean allowAppTheme) {
+        final SnapshotSupplier supplier = new SnapshotSupplier();
         switch (getSnapshotMode(source)) {
-            case SNAPSHOT_MODE_NONE:
-                return null;
             case SNAPSHOT_MODE_APP_THEME:
-                snapshot = drawAppThemeSnapshot(source);
+                Trace.traceBegin(Trace.TRACE_TAG_WINDOW_MANAGER, "drawAppThemeSnapshot");
+                if (Flags.excludeDrawingAppThemeSnapshotFromLock()) {
+                    if (allowAppTheme) {
+                        supplier.setSupplier(drawAppThemeSnapshot(source));
+                    }
+                } else {
+                    final Supplier<TaskSnapshot> original = drawAppThemeSnapshot(source);
+                    final TaskSnapshot snapshot = original != null ? original.get() : null;
+                    supplier.setSnapshot(snapshot);
+                }
+                Trace.traceEnd(Trace.TRACE_TAG_WINDOW_MANAGER);
                 break;
             case SNAPSHOT_MODE_REAL:
-                snapshot = snapshot(source);
+                supplier.setSnapshot(snapshot(source));
                 break;
             default:
-                snapshot = null;
                 break;
         }
-        return snapshot;
+        return supplier;
     }
 
-    final TaskSnapshot recordSnapshotInner(TYPE source) {
+    /**
+     * @param allowAppTheme If true, allows to draw app theme snapshot when it's not allowed to take
+     *                      a real screenshot, but create a fake representation of the app.
+     * @param inLockConsumer Extra task to do in WM lock when first get the snapshot object.
+     */
+    final SnapshotSupplier recordSnapshotInner(TYPE source, boolean allowAppTheme,
+            @Nullable Consumer<TaskSnapshot> inLockConsumer) {
         if (shouldDisableSnapshots()) {
             return null;
         }
-        final TaskSnapshot snapshot = captureSnapshot(source);
-        if (snapshot == null) {
-            return null;
-        }
-        mCache.putSnapshot(source, snapshot);
-        return snapshot;
+        final SnapshotSupplier supplier = captureSnapshot(source, allowAppTheme);
+        supplier.setConsumer(t -> {
+            synchronized (mService.mGlobalLock) {
+                if (!source.isAttached()) {
+                    return;
+                }
+                mCache.putSnapshot(source, t);
+                if (inLockConsumer != null) {
+                    inLockConsumer.accept(t);
+                }
+            }
+        });
+        return supplier;
     }
 
-    @VisibleForTesting
     int getSnapshotMode(TYPE source) {
         final int type = source.getActivityType();
         if (type == ACTIVITY_TYPE_RECENTS || type == ACTIVITY_TYPE_DREAM) {
@@ -314,7 +339,7 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
         builder.setId(System.currentTimeMillis());
         builder.setContentInsets(contentInsets);
         builder.setLetterboxInsets(letterboxInsets);
-        final boolean isWindowTranslucent = mainWindow.getAttrs().format != PixelFormat.OPAQUE;
+        final boolean isWindowTranslucent = mainWindow.mAttrs.format != PixelFormat.OPAQUE;
         final boolean isShowWallpaper = mainWindow.hasWallpaper();
         int pixelFormat = builder.getPixelFormat();
         if (pixelFormat == PixelFormat.UNKNOWN) {
@@ -400,7 +425,7 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
      * If we are not allowed to take a real screenshot, this attempts to represent the app as best
      * as possible by using the theme's window background.
      */
-    private TaskSnapshot drawAppThemeSnapshot(TYPE source) {
+    private Supplier<TaskSnapshot> drawAppThemeSnapshot(TYPE source) {
         final ActivityRecord topActivity = getTopActivity(source);
         if (topActivity == null) {
             return null;
@@ -412,18 +437,25 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
         final ActivityManager.TaskDescription taskDescription = getTaskDescription(source);
         final int color = ColorUtils.setAlphaComponent(
                 taskDescription.getBackgroundColor(), 255);
-        final WindowManager.LayoutParams attrs = mainWindow.getAttrs();
+        final WindowManager.LayoutParams attrs = mainWindow.mAttrs;
         final Rect taskBounds = source.getBounds();
         final InsetsState insetsState = mainWindow.getInsetsStateWithVisibilityOverride();
         final Rect systemBarInsets = getSystemBarInsets(mainWindow.getFrame(), insetsState);
+        final int taskWidth = taskBounds.width();
+        final int taskHeight = taskBounds.height();
+        float scale = mHighResSnapshotScale;
+        if (Flags.reduceTaskSnapshotMemoryUsage()) {
+            final int minLength = Math.min(taskWidth, taskHeight);
+            if (THEME_SNAPSHOT_MIN_Length < minLength) {
+                scale = Math.min(THEME_SNAPSHOT_MIN_Length / minLength, scale);
+            }
+        }
         final SnapshotDrawerUtils.SystemBarBackgroundPainter
                 decorPainter = new SnapshotDrawerUtils.SystemBarBackgroundPainter(attrs.flags,
                 attrs.privateFlags, attrs.insetsFlags.appearance, taskDescription,
-                mHighResSnapshotScale, mainWindow.getRequestedVisibleTypes());
-        final int taskWidth = taskBounds.width();
-        final int taskHeight = taskBounds.height();
-        final int width = (int) (taskWidth * mHighResSnapshotScale);
-        final int height = (int) (taskHeight * mHighResSnapshotScale);
+                scale, mainWindow.getRequestedVisibleTypes());
+        final int width = (int) (taskWidth * scale);
+        final int height = (int) (taskHeight * scale);
         final RenderNode node = RenderNode.create("SnapshotController", null);
         node.setLeftTopRightBottom(0, 0, width, height);
         node.setClipToBounds(false);
@@ -432,26 +464,46 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
         decorPainter.setInsets(systemBarInsets);
         decorPainter.drawDecors(c /* statusBarExcludeFrame */, null /* alreadyDrawFrame */);
         node.end(c);
-        final Bitmap hwBitmap = ThreadedRenderer.createHardwareBitmap(node, width, height);
-        if (hwBitmap == null) {
-            return null;
-        }
+
         final Rect contentInsets = new Rect(systemBarInsets);
         final Rect letterboxInsets = getLetterboxInsets(topActivity);
         InsetUtils.addInsets(contentInsets, letterboxInsets);
-        // Note, the app theme snapshot is never translucent because we enforce a non-translucent
-        // color above
-        final TaskSnapshot taskSnapshot = new TaskSnapshot(
-                System.currentTimeMillis() /* id */,
-                SystemClock.elapsedRealtimeNanos() /* captureTime */,
-                topActivity.mActivityComponent, hwBitmap.getHardwareBuffer(),
-                hwBitmap.getColorSpace(), mainWindow.getConfiguration().orientation,
-                mainWindow.getWindowConfiguration().getRotation(), new Point(taskWidth, taskHeight),
-                contentInsets, letterboxInsets, false /* isLowResolution */,
-                false /* isRealSnapshot */, source.getWindowingMode(),
-                attrs.insetsFlags.appearance, false /* isTranslucent */, false /* hasImeSurface */,
-                topActivity.getConfiguration().uiMode /* uiMode */);
-        return validateSnapshot(taskSnapshot);
+
+        final TaskSnapshot.Builder builder = new TaskSnapshot.Builder();
+        builder.setIsRealSnapshot(false);
+        builder.setId(System.currentTimeMillis());
+        builder.setContentInsets(contentInsets);
+        builder.setLetterboxInsets(letterboxInsets);
+
+        builder.setTopActivityComponent(topActivity.mActivityComponent);
+        // Note, the app theme snapshot is never translucent because we enforce a
+        // non-translucent color above.
+        builder.setIsTranslucent(false);
+        builder.setWindowingMode(source.getWindowingMode());
+        builder.setAppearance(attrs.insetsFlags.appearance);
+        builder.setUiMode(topActivity.getConfiguration().uiMode);
+
+        builder.setRotation(mainWindow.getWindowConfiguration().getRotation());
+        builder.setOrientation(mainWindow.getConfiguration().orientation);
+        builder.setTaskSize(new Point(taskWidth, taskHeight));
+        builder.setCaptureTime(SystemClock.elapsedRealtimeNanos());
+
+        return () -> {
+            try {
+                Trace.traceBegin(Trace.TRACE_TAG_WINDOW_MANAGER, "drawAppThemeSnapshot_acquire");
+                // Do not hold WM lock when calling to render thread.
+                final Bitmap hwBitmap = ThreadedRenderer.createHardwareBitmap(node, width,
+                        height);
+                if (hwBitmap == null) {
+                    return null;
+                }
+                builder.setSnapshot(hwBitmap.getHardwareBuffer());
+                builder.setColorSpace(hwBitmap.getColorSpace());
+                return validateSnapshot(builder.build());
+            } finally {
+                Trace.traceEnd(Trace.TRACE_TAG_WINDOW_MANAGER);
+            }
+        };
     }
 
     static Rect getSystemBarInsets(Rect frame, InsetsState state) {
@@ -481,5 +533,46 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
         pw.println(prefix + "mHighResSnapshotScale=" + mHighResSnapshotScale);
         pw.println(prefix + "mSnapshotEnabled=" + mSnapshotEnabled);
         mCache.dump(pw, prefix);
+    }
+
+    static class SnapshotSupplier implements Supplier<TaskSnapshot> {
+
+        private TaskSnapshot mSnapshot;
+        private boolean mHasSet;
+        private Consumer<TaskSnapshot> mConsumer;
+        private Supplier<TaskSnapshot> mSupplier;
+
+        /** Callback when the snapshot is get for the first time. */
+        void setConsumer(@NonNull Consumer<TaskSnapshot> consumer) {
+            mConsumer = consumer;
+        }
+
+        void setSupplier(@NonNull Supplier<TaskSnapshot> createSupplier) {
+            mSupplier = createSupplier;
+        }
+
+        void setSnapshot(TaskSnapshot snapshot) {
+            mSnapshot = snapshot;
+        }
+
+        void handleSnapshot() {
+            if (mHasSet) {
+                return;
+            }
+            mHasSet = true;
+            if (mSnapshot == null) {
+                mSnapshot = mSupplier != null ? mSupplier.get() : null;
+            }
+            if (mConsumer != null && mSnapshot != null) {
+                mConsumer.accept(mSnapshot);
+            }
+        }
+
+        @Override
+        @Nullable
+        public TaskSnapshot get() {
+            handleSnapshot();
+            return mSnapshot;
+        }
     }
 }

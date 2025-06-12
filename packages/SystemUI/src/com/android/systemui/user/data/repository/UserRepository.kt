@@ -21,6 +21,7 @@ import android.annotation.SuppressLint
 import android.annotation.UserIdInt
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.UserInfo
 import android.content.res.Resources
@@ -32,7 +33,7 @@ import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.internal.statusbar.IStatusBarService
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -83,6 +84,9 @@ interface UserRepository {
 
     /** [UserInfo] of the currently-selected user. */
     val selectedUserInfo: Flow<UserInfo>
+
+    /** Tracks whether the main user is unlocked. */
+    fun isUserUnlocked(userHandle: UserHandle?): Flow<Boolean>
 
     /** User ID of the main user. */
     val mainUserId: Int
@@ -284,6 +288,18 @@ constructor(
             }
             .stateIn(applicationScope, SharingStarted.Eagerly, false)
 
+    override fun isUserUnlocked(userHandle: UserHandle?): Flow<Boolean> =
+        broadcastDispatcher
+            .broadcastFlow(IntentFilter(Intent.ACTION_USER_UNLOCKED))
+            .map { getUnlockedState(userHandle) }
+            .onStart { emit(getUnlockedState(userHandle)) }
+
+    private suspend fun getUnlockedState(userHandle: UserHandle?): Boolean {
+        return withContext(backgroundDispatcher) {
+            userHandle?.let { user -> manager.isUserUnlocked(user) } ?: false
+        }
+    }
+
     @SuppressLint("MissingPermission")
     override val isLogoutToSystemUserEnabled: StateFlow<Boolean> =
         selectedUser
@@ -398,16 +414,15 @@ constructor(
         }
     }
 
+    private suspend fun SelectedUserModel.isEligibleForLogout(): Boolean {
+        return withContext(backgroundDispatcher) {
+            selectionStatus == SelectionStatus.SELECTION_COMPLETE &&
+                devicePolicyManager.logoutUser != null
+        }
+    }
+
     companion object {
         private const val TAG = "UserRepository"
         @VisibleForTesting const val SETTING_SIMPLE_USER_SWITCHER = "lockscreenSimpleUserSwitcher"
     }
-}
-
-fun SelectedUserModel.isEligibleForLogout(): Boolean {
-    // TODO(b/206032495): should call mDevicePolicyManager.getLogoutUserId() instead of
-    // hardcode it to USER_SYSTEM so it properly supports headless system user mode
-    // (and then call mDevicePolicyManager.clearLogoutUser() after switched)
-    return selectionStatus == SelectionStatus.SELECTION_COMPLETE &&
-        userInfo.id != android.os.UserHandle.USER_SYSTEM
 }

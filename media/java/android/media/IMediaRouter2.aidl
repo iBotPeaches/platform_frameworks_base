@@ -18,6 +18,7 @@ package android.media;
 
 import android.media.MediaRoute2Info;
 import android.media.RoutingSessionInfo;
+import android.media.SuggestedDeviceInfo;
 import android.os.Bundle;
 import android.os.UserHandle;
 
@@ -37,4 +38,6 @@ oneway interface IMediaRouter2 {
      */
     void requestCreateSessionByManager(long uniqueRequestId, in RoutingSessionInfo oldSession,
         in MediaRoute2Info route);
+    void notifyDeviceSuggestionsUpdated(String suggestingPackageName,
+        in List<SuggestedDeviceInfo> suggestions);
 }

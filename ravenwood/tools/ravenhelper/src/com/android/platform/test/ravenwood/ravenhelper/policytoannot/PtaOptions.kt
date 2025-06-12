@@ -15,11 +15,11 @@
  */
 package com.android.platform.test.ravenwood.ravenhelper.policytoannot
 
-import com.android.hoststubgen.ArgIterator
 import com.android.hoststubgen.ArgumentsException
-import com.android.hoststubgen.SetOnce
-import com.android.hoststubgen.ensureFileExists
-import com.android.hoststubgen.log
+import com.android.hoststubgen.utils.ArgIterator
+import com.android.hoststubgen.utils.BaseOptions
+import com.android.hoststubgen.utils.SetOnce
+import com.android.hoststubgen.utils.ensureFileExists
 
 /**
  * Options for the "ravenhelper pta" subcommand.
@@ -39,68 +39,48 @@ class PtaOptions(
 
     /** Dump the operations (for debugging) */
     var dumpOperations: SetOnce<Boolean> = SetOnce(false),
-) {
-    companion object {
-        fun parseArgs(args: List<String>): PtaOptions {
-            val ret = PtaOptions()
-            val ai = ArgIterator.withAtFiles(args.toTypedArray())
+) : BaseOptions() {
 
-            while (true) {
-                val arg = ai.nextArgOptional() ?: break
+    override fun parseOption(option: String, args: ArgIterator): Boolean {
+        fun nextArg(): String = args.nextArgRequired(option)
 
-                fun nextArg(): String = ai.nextArgRequired(arg)
+        when (option) {
+            // TODO: Write help
+            "-h", "--help" -> TODO("Help is not implemented yet")
 
-                if (log.maybeHandleCommandLineArg(arg) { nextArg() }) {
-                    continue
-                }
-                try {
-                    when (arg) {
-                        // TODO: Write help
-                        "-h", "--help" -> TODO("Help is not implemented yet")
+            "-p", "--policy-override-file" ->
+                policyOverrideFiles.add(nextArg().ensureFileExists())
 
-                        "-p", "--policy-override-file" ->
-                            ret.policyOverrideFiles.add(nextArg().ensureFileExists())
+            "-a", "--annotation-allowed-classes-file" ->
+                annotationAllowedClassesFile.set(nextArg().ensureFileExists())
 
-                        "-a", "--annotation-allowed-classes-file" ->
-                            ret.annotationAllowedClassesFile.set(nextArg().ensureFileExists())
+            "-s", "--src" -> sourceFilesOrDirectories.add(nextArg().ensureFileExists())
+            "--dump" -> dumpOperations.set(true)
+            "-o", "--output-script" -> outputScriptFile.set(nextArg())
 
-                        "-s", "--src" ->
-                            ret.sourceFilesOrDirectories.add(nextArg().ensureFileExists())
+            else -> return false
+        }
 
-                        "--dump" ->
-                            ret.dumpOperations.set(true)
+        return true
+    }
 
-                        "-o", "--output-script" ->
-                            ret.outputScriptFile.set(nextArg())
+    override fun checkArgs() {
+        if (policyOverrideFiles.size == 0) {
+            throw ArgumentsException("Must specify at least one policy file")
+        }
 
-                        else -> throw ArgumentsException("Unknown option: $arg")
-                    }
-                } catch (e: SetOnce.SetMoreThanOnceException) {
-                    throw ArgumentsException("Duplicate or conflicting argument found: $arg")
-                }
-            }
-
-            if (ret.policyOverrideFiles.size == 0) {
-                throw ArgumentsException("Must specify at least one policy file")
-            }
-
-            if (ret.sourceFilesOrDirectories.size == 0) {
-                throw ArgumentsException("Must specify at least one source path")
-            }
-
-            return ret
+        if (sourceFilesOrDirectories.size == 0) {
+            throw ArgumentsException("Must specify at least one source path")
         }
     }
 
-    override fun toString(): String {
+    override fun dumpFields(): String {
         return """
-            PtaOptions{
-              policyOverrideFiles=$policyOverrideFiles
-              annotationAllowedClassesFile=$annotationAllowedClassesFile
-              sourceFilesOrDirectories=$sourceFilesOrDirectories
-              outputScriptFile=$outputScriptFile
-              dumpOperations=$dumpOperations
-            }
-            """.trimIndent()
+            policyOverrideFiles=$policyOverrideFiles
+            annotationAllowedClassesFile=$annotationAllowedClassesFile
+            sourceFilesOrDirectories=$sourceFilesOrDirectories
+            outputScriptFile=$outputScriptFile
+            dumpOperations=$dumpOperations
+        """.trimIndent()
     }
 }

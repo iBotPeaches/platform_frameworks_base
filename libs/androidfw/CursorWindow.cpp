@@ -55,7 +55,7 @@ status_t CursorWindow::create(const String8 &name, size_t inflatedSize, CursorWi
     window->mName = name;
     window->mSize = std::min(kInlineSize, inflatedSize);
     window->mInflatedSize = inflatedSize;
-    window->mData = malloc(window->mSize);
+    window->mData = calloc(window->mSize, 1);
     if (!window->mData) goto fail;
     window->mReadOnly = false;
 

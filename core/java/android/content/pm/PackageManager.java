@@ -16,6 +16,7 @@
 
 package android.content.pm;
 
+import static android.app.PropertyInvalidatedCache.MODULE_SYSTEM;
 import static android.content.pm.SigningInfo.AppSigningSchemeVersion;
 import static android.media.audio.Flags.FLAG_FEATURE_SPATIAL_AUDIO_HEADTRACKING_LOW_LATENCY;
 
@@ -1618,7 +1619,6 @@ public abstract class PackageManager {
      * @hide
      */
     @SystemApi
-    @FlaggedApi(android.content.pm.Flags.FLAG_RECOVERABILITY_DETECTION)
     public static final int ROLLBACK_USER_IMPACT_LOW = 0;
 
     /**
@@ -1628,7 +1628,6 @@ public abstract class PackageManager {
      * @hide
      */
     @SystemApi
-    @FlaggedApi(android.content.pm.Flags.FLAG_RECOVERABILITY_DETECTION)
     public static final int ROLLBACK_USER_IMPACT_HIGH = 1;
 
     /**
@@ -1637,7 +1636,6 @@ public abstract class PackageManager {
      * @hide
      */
     @SystemApi
-    @FlaggedApi(android.content.pm.Flags.FLAG_RECOVERABILITY_DETECTION)
     public static final int ROLLBACK_USER_IMPACT_ONLY_MANUAL = 2;
 
     /** @hide */
@@ -2040,7 +2038,7 @@ public abstract class PackageManager {
     public static final int INSTALL_SCENARIO_DEFAULT = 0;
 
     /**
-     * Installation scenario providing the fastest “install button to launch" experience possible.
+     * Installation scenario providing the fastest "install button to launch" experience possible.
      */
     public static final int INSTALL_SCENARIO_FAST = 1;
 
@@ -3587,7 +3585,7 @@ public abstract class PackageManager {
 
     /**
      * Feature for {@link #getSystemAvailableFeatures} and {@link #hasSystemFeature}: The device is
-     * compatible with Android’s security model.
+     * compatible with Android's security model.
      *
      * <p>See sections 2 and 9 in the
      * <a href="https://source.android.com/compatibility/android-cdd">Android CDD</a> for more
@@ -5002,10 +5000,9 @@ public abstract class PackageManager {
      * supports the Android XR Spatial APIs. The feature version indicates the highest version of
      * the Android XR Spatial APIs supported by the device.
      *
-     * <p>Also see <a href="https://developer.android.com/xr">Getting started with Spatializing
-     * your app</a>.
+     * <p>Also see <a href="https://developer.android.com/develop/xr">Develop with the Android XR
+     * SDK</a>.
      */
-    // TODO(b/374330735): update public documentation once link content is finalized
     @FlaggedApi(android.xr.Flags.FLAG_XR_MANIFEST_ENTRIES)
     @SdkConstant(SdkConstantType.FEATURE)
     public static final String FEATURE_XR_API_SPATIAL =
@@ -5967,7 +5964,39 @@ public abstract class PackageManager {
      *
      * @see #getLaunchIntentSenderForPackage(String)
      */
-    public abstract @Nullable Intent getLaunchIntentForPackage(@NonNull String packageName);
+     public abstract @Nullable Intent getLaunchIntentForPackage(@NonNull String packageName);
+
+    /**
+     * Returns a "good" intent to launch a front-door activity in a package.
+     * This is used, for example, to implement an "open" button when browsing
+     * through packages.  The current implementation looks first for a main
+     * activity in the category {@link Intent#CATEGORY_INFO}, and next for a
+     * main activity in the category {@link Intent#CATEGORY_LAUNCHER}. Returns
+     * <code>null</code> if neither are found.
+     *
+     * <p>Consider using {@link #getLaunchIntentSenderForPackage(String)} if
+     * the caller is not allowed to query for the <code>packageName</code>.
+     *
+     * @param packageName The name of the package to inspect.
+     * @param includeDirectBootUnaware When {@code true}, activities that are direct-boot-unaware
+     *    will be considered even if the device hasn't been unlocked (i.e. querying will be done
+     *    with {@code MATCH_DIRECT_BOOT_AWARE | MATCH_DIRECT_BOOT_UNAWARE}).
+     *
+     * @return A fully-qualified {@link Intent} that can be used to launch the
+     * main activity in the package. Returns <code>null</code> if the package
+     * does not contain such an activity, or if <em>packageName</em> is not
+     * recognized.
+     *
+     * @see #getLaunchIntentSenderForPackage(String)
+     *
+     * @hide
+     */
+    public @Nullable Intent getLaunchIntentForPackage(@NonNull String packageName,
+            boolean includeDirectBootUnaware) {
+        throw new UnsupportedOperationException(
+                "getLaunchIntentForPackage(packageName, includeDirectBootUnaware) not implemented"
+                        + " in subclass");
+    }
 
     /**
      * Return a "good" intent to launch a front-door Leanback activity in a
@@ -7967,7 +7996,7 @@ public abstract class PackageManager {
      * @param flags Additional option flags to modify the data returned.
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching receiver, ordered from best to worst. If there are
-     *         no matching receivers, an empty list or null is returned.
+     *         no matching receivers, returns an empty list.
      */
     @NonNull
     public abstract List<ResolveInfo> queryBroadcastReceivers(@NonNull Intent intent, int flags);
@@ -7994,7 +8023,7 @@ public abstract class PackageManager {
      * @param userHandle UserHandle of the user being queried.
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching receiver, ordered from best to worst. If there are
-     *         no matching receivers, an empty list or null is returned.
+     *         no matching receivers, returns an empty list.
      * @hide
      */
     @SuppressWarnings("HiddenAbstractMethod")
@@ -8111,8 +8140,8 @@ public abstract class PackageManager {
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching service, ordered from best to worst. In other
      *         words, the first item is what would be returned by
-     *         {@link #resolveService}. If there are no matching services, an
-     *         empty list or null is returned.
+     *         {@link #resolveService}. If there are no matching services,
+     *         returns an empty list.
      */
     @NonNull
     public abstract List<ResolveInfo> queryIntentServices(@NonNull Intent intent,
@@ -8140,8 +8169,8 @@ public abstract class PackageManager {
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching service, ordered from best to worst. In other
      *         words, the first item is what would be returned by
-     *         {@link #resolveService}. If there are no matching services, an
-     *         empty list or null is returned.
+     *         {@link #resolveService}. If there are no matching services,
+     *         returns an empty list.
      * @hide
      */
     @SuppressWarnings("HiddenAbstractMethod")
@@ -8173,8 +8202,8 @@ public abstract class PackageManager {
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching service, ordered from best to worst. In other
      *         words, the first item is what would be returned by
-     *         {@link #resolveService}. If there are no matching services, an
-     *         empty list or null is returned.
+     *         {@link #resolveService}. If there are no matching services,
+     *         returns an empty list.
      * @hide
      */
     @NonNull
@@ -8208,7 +8237,7 @@ public abstract class PackageManager {
      * @param userId The user id.
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching provider, ordered from best to worst. If there are
-     *         no matching services, an empty list or null is returned.
+     *         no matching services, returns an empty list.
      * @hide
      */
     @SuppressWarnings("HiddenAbstractMethod")
@@ -8240,7 +8269,7 @@ public abstract class PackageManager {
      * @param user The user being queried.
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching provider, ordered from best to worst. If there are
-     *         no matching services, an empty list or null is returned.
+     *         no matching services, returns an empty list.
      * @hide
      */
     @NonNull
@@ -8274,7 +8303,7 @@ public abstract class PackageManager {
      * @param flags Additional option flags to modify the data returned.
      * @return Returns a List of ResolveInfo objects containing one entry for
      *         each matching provider, ordered from best to worst. If there are
-     *         no matching services, an empty list or null is returned.
+     *         no matching services, returns an empty list.
      */
     @NonNull
     public abstract List<ResolveInfo> queryIntentContentProviders(@NonNull Intent intent,
@@ -8348,6 +8377,25 @@ public abstract class PackageManager {
             @NonNull ComponentInfoFlags flags, @UserIdInt int userId) {
         throw new UnsupportedOperationException(
                 "resolveContentProviderAsUser not implemented in subclass");
+    }
+
+    /**
+     * Resolve content providers with a given authority, for a specific callingUid.
+     * @param authority Authority of the content provider
+     * @param flags Additional option flags to modify the data returned.
+     * @param callingUid UID of the caller who's access to the content provider is to be checked
+
+     * @return ProviderInfo of the resolved content provider.
+     * @hide
+     */
+    @Nullable
+    @FlaggedApi(android.content.pm.Flags.FLAG_UID_BASED_PROVIDER_LOOKUP)
+    @RequiresPermission(Manifest.permission.RESOLVE_COMPONENT_FOR_UID)
+    @SystemApi
+    public ProviderInfo resolveContentProviderForUid(@NonNull String authority,
+        @NonNull ComponentInfoFlags flags, int callingUid) {
+        throw new UnsupportedOperationException(
+            "resolveContentProviderForUid not implemented in subclass");
     }
 
     /**
@@ -11640,11 +11688,22 @@ public abstract class PackageManager {
         }
     }
 
-    private static final PropertyInvalidatedCache<ApplicationInfoQuery, ApplicationInfo>
-            sApplicationInfoCache =
-            new PropertyInvalidatedCache<ApplicationInfoQuery, ApplicationInfo>(
-                    2048, PermissionManager.CACHE_KEY_PACKAGE_INFO_CACHE,
-                    "getApplicationInfo") {
+    private static String packageInfoApi() {
+        return PropertyInvalidatedCache.apiFromProperty(
+            PermissionManager.CACHE_KEY_PACKAGE_INFO_CACHE);
+    }
+
+    // The maximum number of entries to keep in the packageInfo and applicationInfo caches.
+    private final static int MAX_INFO_CACHE_ENTRIES = 2048;
+
+    /** @hide */
+    @VisibleForTesting
+    public static final PropertyInvalidatedCache<ApplicationInfoQuery, ApplicationInfo>
+            sApplicationInfoCache = new PropertyInvalidatedCache<>(
+                new PropertyInvalidatedCache.Args(MODULE_SYSTEM)
+                .maxEntries(MAX_INFO_CACHE_ENTRIES).api(packageInfoApi()).cacheNulls(true),
+                "getApplicationInfo", null) {
+
                 @Override
                 public ApplicationInfo recompute(ApplicationInfoQuery query) {
                     return getApplicationInfoAsUserUncached(
@@ -11730,10 +11789,11 @@ public abstract class PackageManager {
     }
 
     private static final PropertyInvalidatedCache<PackageInfoQuery, PackageInfo>
-            sPackageInfoCache =
-            new PropertyInvalidatedCache<PackageInfoQuery, PackageInfo>(
-                    2048, PermissionManager.CACHE_KEY_PACKAGE_INFO_CACHE,
-                    "getPackageInfo") {
+            sPackageInfoCache = new PropertyInvalidatedCache<>(
+                new PropertyInvalidatedCache.Args(MODULE_SYSTEM)
+                .maxEntries(MAX_INFO_CACHE_ENTRIES).api(packageInfoApi()).cacheNulls(true),
+                "getPackageInfo", null) {
+
                 @Override
                 public PackageInfo recompute(PackageInfoQuery query) {
                     return getPackageInfoAsUserUncached(

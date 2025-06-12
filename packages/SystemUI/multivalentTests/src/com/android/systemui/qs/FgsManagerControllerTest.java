@@ -56,6 +56,7 @@ import com.android.systemui.animation.DialogTransitionAnimator;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.settings.UserTracker;
+import com.android.systemui.shade.domain.interactor.FakeShadeDialogContextInteractor;
 import com.android.systemui.statusbar.phone.SystemUIDialog;
 import com.android.systemui.util.DeviceConfigProxyFake;
 import com.android.systemui.util.concurrency.FakeExecutor;
@@ -84,6 +85,7 @@ public class FgsManagerControllerTest extends SysuiTestCase {
     FakeExecutor mMainExecutor;
     FakeExecutor mBackgroundExecutor;
     DeviceConfigProxyFake mDeviceConfigProxyFake;
+    FakeShadeDialogContextInteractor mFakeShadeDialogContextInteractor;
 
     @Mock
     IActivityManager mIActivityManager;
@@ -118,11 +120,12 @@ public class FgsManagerControllerTest extends SysuiTestCase {
     public void setUp() throws RemoteException {
         MockitoAnnotations.initMocks(this);
 
+        mFakeShadeDialogContextInteractor = new FakeShadeDialogContextInteractor(mContext);
         mDeviceConfigProxyFake = new DeviceConfigProxyFake();
         mSystemClock = new FakeSystemClock();
         mMainExecutor = new FakeExecutor(mSystemClock);
         mBackgroundExecutor = new FakeExecutor(mSystemClock);
-        when(mSystemUIDialogFactory.create()).thenReturn(mSystemUIDialog);
+        when(mSystemUIDialogFactory.create(eq(mContext))).thenReturn(mSystemUIDialog);
 
         mUserProfiles = new ArrayList<>();
         Mockito.doReturn(mUserProfiles).when(mUserTracker).getUserProfiles();
@@ -358,7 +361,8 @@ public class FgsManagerControllerTest extends SysuiTestCase {
                 mDialogTransitionAnimator,
                 mBroadcastDispatcher,
                 mDumpManager,
-                mSystemUIDialogFactory
+                mSystemUIDialogFactory,
+                mFakeShadeDialogContextInteractor
         );
         fmc.init();
         Assert.assertTrue(fmc.getIncludesUserVisibleJobs());
@@ -385,7 +389,8 @@ public class FgsManagerControllerTest extends SysuiTestCase {
                 mDialogTransitionAnimator,
                 mBroadcastDispatcher,
                 mDumpManager,
-                mSystemUIDialogFactory
+                mSystemUIDialogFactory,
+                mFakeShadeDialogContextInteractor
         );
         fmc.init();
         Assert.assertFalse(fmc.getIncludesUserVisibleJobs());
@@ -497,7 +502,8 @@ public class FgsManagerControllerTest extends SysuiTestCase {
                 mDialogTransitionAnimator,
                 mBroadcastDispatcher,
                 mDumpManager,
-                mSystemUIDialogFactory
+                mSystemUIDialogFactory,
+                mFakeShadeDialogContextInteractor
         );
         result.init();
 

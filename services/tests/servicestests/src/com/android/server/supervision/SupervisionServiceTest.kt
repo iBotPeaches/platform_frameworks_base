@@ -17,6 +17,7 @@
 package com.android.server.supervision
 
 import android.app.Activity
+import android.app.KeyguardManager
 import android.app.admin.DevicePolicyManager
 import android.app.admin.DevicePolicyManagerInternal
 import android.app.supervision.flags.Flags
@@ -28,9 +29,15 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.UserInfo
+import android.content.pm.UserInfo.FLAG_FOR_TESTING
+import android.content.pm.UserInfo.FLAG_FULL
+import android.content.pm.UserInfo.FLAG_MAIN
+import android.content.pm.UserInfo.FLAG_SYSTEM
 import android.os.Handler
 import android.os.PersistableBundle
 import android.os.UserHandle
+import android.os.UserHandle.MIN_SECONDARY_USER_ID
+import android.os.UserHandle.USER_SYSTEM
 import android.platform.test.annotations.RequiresFlagsEnabled
 import android.platform.test.flag.junit.DeviceFlagsValueProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -39,6 +46,7 @@ import com.android.internal.R
 import com.android.server.LocalServices
 import com.android.server.SystemService.TargetUser
 import com.android.server.pm.UserManagerInternal
+import com.android.server.supervision.SupervisionService.ACTION_CONFIRM_SUPERVISION_CREDENTIALS
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Rule
@@ -47,6 +55,7 @@ import org.junit.runner.RunWith
 import org.mockito.Mock
 import org.mockito.junit.MockitoJUnit
 import org.mockito.junit.MockitoRule
+import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 
 /**
@@ -60,6 +69,9 @@ class SupervisionServiceTest {
     @get:Rule val mocks: MockitoRule = MockitoJUnit.rule()
 
     @Mock private lateinit var mockDpmInternal: DevicePolicyManagerInternal
+
+    @Mock
+    private lateinit var mockKeyguardManager: KeyguardManager
     @Mock private lateinit var mockPackageManager: PackageManager
     @Mock private lateinit var mockUserManagerInternal: UserManagerInternal
 
@@ -70,7 +82,7 @@ class SupervisionServiceTest {
     @Before
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().context
-        context = SupervisionContextWrapper(context, mockPackageManager)
+        context = SupervisionContextWrapper(context, mockKeyguardManager, mockPackageManager)
 
         LocalServices.removeServiceForTest(DevicePolicyManagerInternal::class.java)
         LocalServices.addService(DevicePolicyManagerInternal::class.java, mockDpmInternal)
@@ -92,6 +104,21 @@ class SupervisionServiceTest {
         simulateUserStarting(USER_ID)
 
         assertThat(service.isSupervisionEnabledForUser(USER_ID)).isTrue()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID))
+            .isEqualTo(systemSupervisionPackage)
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_SYNC_WITH_DPM)
+    fun onUserStarting_legacyProfileOwnerComponent_enablesSupervision() {
+        whenever(mockDpmInternal.getProfileOwnerAsUser(USER_ID))
+            .thenReturn(supervisionProfileOwnerComponent)
+
+        simulateUserStarting(USER_ID)
+
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isTrue()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID))
+            .isEqualTo(supervisionProfileOwnerComponent.packageName)
     }
 
     @Test
@@ -103,6 +130,7 @@ class SupervisionServiceTest {
         simulateUserStarting(USER_ID, preCreated = true)
 
         assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID)).isNull()
     }
 
     @Test
@@ -114,6 +142,7 @@ class SupervisionServiceTest {
         simulateUserStarting(USER_ID)
 
         assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID)).isNull()
     }
 
     @Test
@@ -121,6 +150,33 @@ class SupervisionServiceTest {
     fun profileOwnerChanged_supervisionAppIsProfileOwner_enablesSupervision() {
         whenever(mockDpmInternal.getProfileOwnerAsUser(USER_ID))
             .thenReturn(ComponentName(systemSupervisionPackage, "MainActivity"))
+
+        broadcastProfileOwnerChanged(USER_ID)
+
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isTrue()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID))
+            .isEqualTo(systemSupervisionPackage)
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_SYNC_WITH_DPM)
+    fun profileOwnerChanged_legacyProfileOwnerComponent_enablesSupervision() {
+        whenever(mockDpmInternal.getProfileOwnerAsUser(USER_ID))
+            .thenReturn(supervisionProfileOwnerComponent)
+
+        broadcastProfileOwnerChanged(USER_ID)
+
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isTrue()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID))
+            .isEqualTo(supervisionProfileOwnerComponent.packageName)
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_SYNC_WITH_DPM)
+    fun profileOwnerChanged_supervisionAppIsNotProfileOwner_doesNotDisableSupervision() {
+        service.mInternal.setSupervisionEnabledForUser(USER_ID, true)
+        whenever(mockDpmInternal.getProfileOwnerAsUser(USER_ID))
+            .thenReturn(ComponentName("other.package", "MainActivity"))
 
         broadcastProfileOwnerChanged(USER_ID)
 
@@ -136,6 +192,7 @@ class SupervisionServiceTest {
         broadcastProfileOwnerChanged(USER_ID)
 
         assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
+        assertThat(service.getActiveSupervisionAppPackage(USER_ID)).isNull()
     }
 
     @Test
@@ -175,7 +232,7 @@ class SupervisionServiceTest {
     }
 
     @Test
-    fun supervisionEnabledForUser_internal() {
+    fun setSupervisionEnabledForUser_internal() {
         assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
 
         service.mInternal.setSupervisionEnabledForUser(USER_ID, true)
@@ -202,8 +259,82 @@ class SupervisionServiceTest {
         assertThat(userData.supervisionLockScreenOptions).isNull()
     }
 
+    @Test
+    fun createConfirmSupervisionCredentialsIntent() {
+        service.mInternal.setSupervisionEnabledForUser(context.getUserId(), true)
+        whenever(mockUserManagerInternal.getSupervisingProfileId()).thenReturn(SUPERVISING_USER_ID)
+        whenever(mockKeyguardManager.isDeviceSecure(SUPERVISING_USER_ID)).thenReturn(true)
+
+        val intent = checkNotNull(service.createConfirmSupervisionCredentialsIntent())
+        assertThat(intent.action).isEqualTo(ACTION_CONFIRM_SUPERVISION_CREDENTIALS)
+        assertThat(intent.getPackage()).isEqualTo("com.android.settings")
+    }
+
+    @Test
+    fun createConfirmSupervisionCredentialsIntent_supervisionNotEnabled_returnsNull() {
+        service.mInternal.setSupervisionEnabledForUser(context.getUserId(), false)
+        whenever(mockUserManagerInternal.getSupervisingProfileId()).thenReturn(SUPERVISING_USER_ID)
+        whenever(mockKeyguardManager.isDeviceSecure(SUPERVISING_USER_ID)).thenReturn(true)
+
+        assertThat(service.createConfirmSupervisionCredentialsIntent()).isNull()
+    }
+
+    @Test
+    fun createConfirmSupervisionCredentialsIntent_noSupervisingUser_returnsNull() {
+        service.mInternal.setSupervisionEnabledForUser(context.getUserId(), true)
+        whenever(mockUserManagerInternal.getSupervisingProfileId()).thenReturn(UserHandle.USER_NULL)
+
+        assertThat(service.createConfirmSupervisionCredentialsIntent()).isNull()
+    }
+
+    @Test
+    fun createConfirmSupervisionCredentialsIntent_supervisingUserMissingSecureLock_returnsNull() {
+        service.mInternal.setSupervisionEnabledForUser(context.getUserId(), true)
+        whenever(mockUserManagerInternal.getSupervisingProfileId()).thenReturn(SUPERVISING_USER_ID)
+        whenever(mockKeyguardManager.isDeviceSecure(SUPERVISING_USER_ID)).thenReturn(false)
+
+        assertThat(service.createConfirmSupervisionCredentialsIntent()).isNull()
+    }
+
+    fun shouldAllowBypassingSupervisionRoleQualification_returnsTrue() {
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
+        assertThat(service.shouldAllowBypassingSupervisionRoleQualification()).isTrue()
+
+        addDefaultAndTestUsers()
+        assertThat(service.shouldAllowBypassingSupervisionRoleQualification()).isTrue()
+    }
+
+    @Test
+    fun shouldAllowBypassingSupervisionRoleQualification_returnsFalse() {
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
+        assertThat(service.shouldAllowBypassingSupervisionRoleQualification()).isTrue()
+
+        addDefaultAndTestUsers()
+        assertThat(service.shouldAllowBypassingSupervisionRoleQualification()).isTrue()
+
+        // Enabling supervision on any user will disallow bypassing
+        service.setSupervisionEnabledForUser(USER_ID, true)
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isTrue()
+        assertThat(service.shouldAllowBypassingSupervisionRoleQualification()).isFalse()
+
+        // Adding non-default users should also disallow bypassing
+        addDefaultAndFullUsers()
+        assertThat(service.shouldAllowBypassingSupervisionRoleQualification()).isFalse()
+
+        // Turning off supervision with non-default users should still disallow bypassing
+        service.setSupervisionEnabledForUser(USER_ID, false)
+        assertThat(service.isSupervisionEnabledForUser(USER_ID)).isFalse()
+    }
+
     private val systemSupervisionPackage: String
         get() = context.getResources().getString(R.string.config_systemSupervision)
+
+    private val supervisionProfileOwnerComponent: ComponentName
+        get() =
+            context
+                .getResources()
+                .getString(R.string.config_defaultSupervisionProfileOwnerComponent)
+                .let(ComponentName::unflattenFromString)!!
 
     private fun simulateUserStarting(userId: Int, preCreated: Boolean = false) {
         val userInfo = UserInfo(userId, /* name= */ "tempUser", /* flags= */ 0)
@@ -216,9 +347,31 @@ class SupervisionServiceTest {
         context.sendBroadcastAsUser(intent, UserHandle.of(userId))
     }
 
+    private fun addDefaultAndTestUsers() {
+        val userInfos = userData.map { (userId, flags) ->
+            UserInfo(userId, "user" + userId, USER_ICON, flags, USER_TYPE)
+        }
+        whenever(mockUserManagerInternal.getUsers(any())).thenReturn(userInfos)
+    }
+
+    private fun addDefaultAndFullUsers() {
+        val userInfos = userData.map { (userId, flags) ->
+            UserInfo(userId, "user" + userId, USER_ICON, flags, USER_TYPE)
+        } + UserInfo(USER_ID, "user" + USER_ID, USER_ICON, FLAG_FULL, USER_TYPE)
+        whenever(mockUserManagerInternal.getUsers(any())).thenReturn(userInfos)
+    }
+
     private companion object {
         const val USER_ID = 100
-        val APP_UID = USER_ID * UserHandle.PER_USER_RANGE
+        const val APP_UID = USER_ID * UserHandle.PER_USER_RANGE
+        const val SUPERVISING_USER_ID = 10
+        const val USER_ICON = "user_icon"
+        const val USER_TYPE = "fake_user_type"
+        val userData: Map<Int, Int> = mapOf(
+            USER_SYSTEM to FLAG_SYSTEM,
+            MIN_SECONDARY_USER_ID to FLAG_MAIN,
+            (MIN_SECONDARY_USER_ID + 1) to (FLAG_FULL or FLAG_FOR_TESTING)
+        )
     }
 }
 
@@ -226,9 +379,18 @@ class SupervisionServiceTest {
  * A context wrapper that allows broadcast intents to immediately invoke the receivers without
  * performing checks on the sending user.
  */
-private class SupervisionContextWrapper(val context: Context, val pkgManager: PackageManager) :
-    ContextWrapper(context) {
+private class SupervisionContextWrapper(
+    val context: Context,
+    val keyguardManager: KeyguardManager,
+    val pkgManager: PackageManager,
+) : ContextWrapper(context) {
     val interceptors = mutableListOf<Pair<BroadcastReceiver, IntentFilter>>()
+
+    override fun getSystemService(name: String): Any =
+        when (name) {
+            Context.KEYGUARD_SERVICE -> keyguardManager
+            else -> super.getSystemService(name)
+        }
 
     override fun getPackageManager() = pkgManager
 

@@ -16,156 +16,258 @@
 
 package com.android.wm.shell.desktopmode
 
-import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
-import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
-import android.content.ContentResolver
-import android.os.Binder
-import android.provider.Settings
-import android.provider.Settings.Global.DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS
+import android.platform.test.annotations.EnableFlags
 import android.testing.AndroidTestingRunner
 import android.view.Display.DEFAULT_DISPLAY
-import android.view.IWindowManager
-import android.view.WindowManager.TRANSIT_CHANGE
-import android.window.DisplayAreaInfo
-import android.window.WindowContainerTransaction
 import androidx.test.filters.SmallTest
+import com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession
 import com.android.dx.mockito.inline.extended.ExtendedMockito.never
-import com.android.wm.shell.MockToken
+import com.android.dx.mockito.inline.extended.StaticMockitoSession
+import com.android.server.display.feature.flags.Flags as DisplayFlags
+import com.android.window.flags.Flags
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer
 import com.android.wm.shell.ShellTestCase
 import com.android.wm.shell.common.DisplayController
 import com.android.wm.shell.common.DisplayController.OnDisplaysChangedListener
 import com.android.wm.shell.common.ShellExecutor
+import com.android.wm.shell.desktopmode.persistence.DesktopRepositoryInitializer
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
+import com.android.wm.shell.sysui.ShellController
 import com.android.wm.shell.sysui.ShellInit
-import com.android.wm.shell.transition.Transitions
-import com.google.common.truth.Truth.assertThat
+import com.android.wm.shell.sysui.UserChangeListener
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentCaptor
-import org.mockito.ArgumentMatchers.isNull
 import org.mockito.Mock
-import org.mockito.Mockito.anyInt
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.eq
+import org.mockito.kotlin.clearInvocations
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.mockito.quality.Strictness
 
 /**
  * Test class for [DesktopDisplayEventHandler]
  *
  * Usage: atest WMShellUnitTests:DesktopDisplayEventHandlerTest
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidTestingRunner::class)
 class DesktopDisplayEventHandlerTest : ShellTestCase() {
+    @Mock lateinit var testExecutor: ShellExecutor
+    @Mock lateinit var displayController: DisplayController
+    @Mock private lateinit var mockShellController: ShellController
+    @Mock private lateinit var mockRootTaskDisplayAreaOrganizer: RootTaskDisplayAreaOrganizer
+    @Mock private lateinit var mockDesktopUserRepositories: DesktopUserRepositories
+    @Mock private lateinit var mockDesktopRepository: DesktopRepository
+    @Mock private lateinit var mockDesktopTasksController: DesktopTasksController
+    @Mock private lateinit var desktopDisplayModeController: DesktopDisplayModeController
+    private val desktopRepositoryInitializer = FakeDesktopRepositoryInitializer()
+    private val testScope = TestScope()
 
-  @Mock lateinit var testExecutor: ShellExecutor
-  @Mock lateinit var transitions: Transitions
-  @Mock lateinit var displayController: DisplayController
-  @Mock lateinit var rootTaskDisplayAreaOrganizer: RootTaskDisplayAreaOrganizer
-  @Mock private lateinit var mockWindowManager: IWindowManager
+    private lateinit var mockitoSession: StaticMockitoSession
+    private lateinit var shellInit: ShellInit
+    private lateinit var handler: DesktopDisplayEventHandler
 
-  private lateinit var shellInit: ShellInit
-  private lateinit var handler: DesktopDisplayEventHandler
+    private val onDisplaysChangedListenerCaptor = argumentCaptor<OnDisplaysChangedListener>()
+    private val externalDisplayId = 100
 
-  @Before
-  fun setUp() {
-    shellInit = spy(ShellInit(testExecutor))
-    whenever(transitions.startTransition(anyInt(), any(), isNull())).thenAnswer { Binder() }
-    val tda = DisplayAreaInfo(MockToken().token(), DEFAULT_DISPLAY, 0)
-    whenever(rootTaskDisplayAreaOrganizer.getDisplayAreaInfo(DEFAULT_DISPLAY)).thenReturn(tda)
-    handler =
-        DesktopDisplayEventHandler(
-            context,
-            shellInit,
-            transitions,
-            displayController,
-            rootTaskDisplayAreaOrganizer,
-            mockWindowManager,
-        )
-    shellInit.init()
-  }
+    @Before
+    fun setUp() {
+        mockitoSession =
+            mockitoSession()
+                .strictness(Strictness.LENIENT)
+                .spyStatic(DesktopModeStatus::class.java)
+                .startMocking()
 
-  private fun testDisplayWindowingModeSwitch(
-    defaultWindowingMode: Int,
-    extendedDisplayEnabled: Boolean,
-    expectTransition: Boolean
-  ) {
-    val externalDisplayId = 100
-    val captor = ArgumentCaptor.forClass(OnDisplaysChangedListener::class.java)
-    verify(displayController).addDisplayWindowListener(captor.capture())
-    val tda = rootTaskDisplayAreaOrganizer.getDisplayAreaInfo(DEFAULT_DISPLAY)!!
-    tda.configuration.windowConfiguration.windowingMode = defaultWindowingMode
-    whenever(mockWindowManager.getWindowingMode(anyInt())).thenAnswer { defaultWindowingMode }
-    val settingsSession = ExtendedDisplaySettingsSession(
-      context.contentResolver, if (extendedDisplayEnabled) 1 else 0)
-
-    settingsSession.use {
-      // The external display connected.
-      whenever(rootTaskDisplayAreaOrganizer.getDisplayIds())
-        .thenReturn(intArrayOf(DEFAULT_DISPLAY, externalDisplayId))
-      captor.value.onDisplayAdded(externalDisplayId)
-      tda.configuration.windowConfiguration.windowingMode = WINDOWING_MODE_FREEFORM
-      // The external display disconnected.
-      whenever(rootTaskDisplayAreaOrganizer.getDisplayIds())
-        .thenReturn(intArrayOf(DEFAULT_DISPLAY))
-      captor.value.onDisplayRemoved(externalDisplayId)
-
-      if (expectTransition) {
-        val arg = argumentCaptor<WindowContainerTransaction>()
-        verify(transitions, times(2)).startTransition(eq(TRANSIT_CHANGE), arg.capture(), isNull())
-        assertThat(arg.firstValue.changes[tda.token.asBinder()]?.windowingMode)
-          .isEqualTo(WINDOWING_MODE_FREEFORM)
-        assertThat(arg.secondValue.changes[tda.token.asBinder()]?.windowingMode)
-          .isEqualTo(defaultWindowingMode)
-      } else {
-        verify(transitions, never()).startTransition(eq(TRANSIT_CHANGE), any(), isNull())
-      }
+        shellInit = spy(ShellInit(testExecutor))
+        whenever(mockDesktopUserRepositories.current).thenReturn(mockDesktopRepository)
+        handler =
+            DesktopDisplayEventHandler(
+                context,
+                shellInit,
+                testScope.backgroundScope,
+                mockShellController,
+                displayController,
+                mockRootTaskDisplayAreaOrganizer,
+                desktopRepositoryInitializer,
+                mockDesktopUserRepositories,
+                mockDesktopTasksController,
+                desktopDisplayModeController,
+            )
+        shellInit.init()
+        verify(displayController)
+            .addDisplayWindowListener(onDisplaysChangedListenerCaptor.capture())
     }
-  }
 
-  @Test
-  fun displayWindowingModeSwitchOnDisplayConnected_extendedDisplayDisabled() {
-    testDisplayWindowingModeSwitch(
-      defaultWindowingMode = WINDOWING_MODE_FULLSCREEN,
-      extendedDisplayEnabled = false,
-      expectTransition = false
-    )
-  }
-
-  @Test
-  fun displayWindowingModeSwitchOnDisplayConnected_fullscreenDisplay() {
-    testDisplayWindowingModeSwitch(
-      defaultWindowingMode = WINDOWING_MODE_FULLSCREEN,
-      extendedDisplayEnabled = true,
-      expectTransition = true
-    )
-  }
-
-  @Test
-  fun displayWindowingModeSwitchOnDisplayConnected_freeformDisplay() {
-    testDisplayWindowingModeSwitch(
-      defaultWindowingMode = WINDOWING_MODE_FREEFORM,
-      extendedDisplayEnabled = true,
-      expectTransition = false
-    )
-  }
-
-  private class ExtendedDisplaySettingsSession(
-    private val contentResolver: ContentResolver,
-      private val overrideValue: Int
-  ) : AutoCloseable {
-    private val settingName = DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS
-    private val initialValue = Settings.Global.getInt(contentResolver, settingName, 0)
-
-    init { Settings.Global.putInt(contentResolver, settingName, overrideValue) }
-
-    override fun close() {
-      Settings.Global.putInt(contentResolver, settingName, initialValue)
+    @After
+    fun tearDown() {
+        testScope.cancel()
+        mockitoSession.finishMocking()
     }
-  }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDisplayAdded_supportsDesks_desktopRepositoryInitialized_createsDesk() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+
+            onDisplaysChangedListenerCaptor.lastValue.onDisplayAdded(DEFAULT_DISPLAY)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+            runCurrent()
+
+            verify(mockDesktopTasksController).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDisplayAdded_supportsDesks_desktopRepositoryNotInitialized_doesNotCreateDesk() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+
+            onDisplaysChangedListenerCaptor.lastValue.onDisplayAdded(DEFAULT_DISPLAY)
+            runCurrent()
+
+            verify(mockDesktopTasksController, never()).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDisplayAdded_supportsDesks_desktopRepositoryInitializedTwice_createsDeskOnce() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+
+            onDisplaysChangedListenerCaptor.lastValue.onDisplayAdded(DEFAULT_DISPLAY)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+            runCurrent()
+
+            verify(mockDesktopTasksController, times(1)).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDisplayAdded_supportsDesks_desktopRepositoryInitialized_deskExists_doesNotCreateDesk() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+            whenever(mockDesktopRepository.getNumberOfDesks(DEFAULT_DISPLAY)).thenReturn(1)
+
+            onDisplaysChangedListenerCaptor.lastValue.onDisplayAdded(DEFAULT_DISPLAY)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+            runCurrent()
+
+            verify(mockDesktopTasksController, never()).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDisplayAdded_cannotEnterDesktopMode_doesNotCreateDesk() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(false)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+
+            onDisplaysChangedListenerCaptor.lastValue.onDisplayAdded(DEFAULT_DISPLAY)
+            runCurrent()
+
+            verify(mockDesktopTasksController, never()).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDeskRemoved_noDesksRemain_createsDesk() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+            whenever(mockDesktopRepository.getNumberOfDesks(DEFAULT_DISPLAY)).thenReturn(0)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+
+            handler.onDeskRemoved(DEFAULT_DISPLAY, deskId = 1)
+            runCurrent()
+
+            verify(mockDesktopTasksController).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testDeskRemoved_desksRemain_doesNotCreateDesk() =
+        testScope.runTest {
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+            whenever(mockDesktopRepository.getNumberOfDesks(DEFAULT_DISPLAY)).thenReturn(1)
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+
+            handler.onDeskRemoved(DEFAULT_DISPLAY, deskId = 1)
+            runCurrent()
+
+            verify(mockDesktopTasksController, never()).createDesk(DEFAULT_DISPLAY)
+        }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    fun testUserChanged_createsDeskWhenNeeded() =
+        testScope.runTest {
+            val userId = 11
+            whenever(DesktopModeStatus.canEnterDesktopMode(context)).thenReturn(true)
+            val userChangeListenerCaptor = argumentCaptor<UserChangeListener>()
+            verify(mockShellController).addUserChangeListener(userChangeListenerCaptor.capture())
+            val mockRepository = mock<DesktopRepository>()
+            whenever(mockDesktopUserRepositories.getProfile(userId)).thenReturn(mockRepository)
+            whenever(mockRepository.getNumberOfDesks(displayId = 2)).thenReturn(0)
+            whenever(mockRepository.getNumberOfDesks(displayId = 3)).thenReturn(0)
+            whenever(mockRepository.getNumberOfDesks(displayId = 4)).thenReturn(1)
+            whenever(mockRootTaskDisplayAreaOrganizer.displayIds).thenReturn(intArrayOf(2, 3, 4))
+            desktopRepositoryInitializer.initialize(mockDesktopUserRepositories)
+            handler.onDisplayAdded(displayId = 2)
+            handler.onDisplayAdded(displayId = 3)
+            handler.onDisplayAdded(displayId = 4)
+            runCurrent()
+
+            clearInvocations(mockDesktopTasksController)
+            userChangeListenerCaptor.lastValue.onUserChanged(userId, context)
+            runCurrent()
+
+            verify(mockDesktopTasksController).createDesk(displayId = 2)
+            verify(mockDesktopTasksController).createDesk(displayId = 3)
+            verify(mockDesktopTasksController, never()).createDesk(displayId = 4)
+        }
+
+    @Test
+    fun testConnectExternalDisplay() {
+        onDisplaysChangedListenerCaptor.lastValue.onDisplayAdded(externalDisplayId)
+        verify(desktopDisplayModeController).updateExternalDisplayWindowingMode(externalDisplayId)
+        verify(desktopDisplayModeController).updateDefaultDisplayWindowingMode()
+    }
+
+    @Test
+    fun testDisconnectExternalDisplay() {
+        onDisplaysChangedListenerCaptor.lastValue.onDisplayRemoved(externalDisplayId)
+        verify(desktopDisplayModeController).updateDefaultDisplayWindowingMode()
+    }
+
+    @Test
+    @EnableFlags(DisplayFlags.FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT)
+    fun testDesktopModeEligibleChanged() {
+        onDisplaysChangedListenerCaptor.lastValue.onDesktopModeEligibleChanged(externalDisplayId)
+        verify(desktopDisplayModeController).updateExternalDisplayWindowingMode(externalDisplayId)
+        verify(desktopDisplayModeController).updateDefaultDisplayWindowingMode()
+    }
+
+    private class FakeDesktopRepositoryInitializer : DesktopRepositoryInitializer {
+        override var deskRecreationFactory: DesktopRepositoryInitializer.DeskRecreationFactory =
+            DesktopRepositoryInitializer.DeskRecreationFactory { _, _, deskId -> deskId }
+
+        override val isInitialized: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+        override fun initialize(userRepositories: DesktopUserRepositories) {
+            isInitialized.value = true
+        }
+    }
 }

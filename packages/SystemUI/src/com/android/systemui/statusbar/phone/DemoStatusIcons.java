@@ -27,13 +27,19 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
+import androidx.collection.MutableIntObjectMap;
+
 import com.android.internal.statusbar.StatusBarIcon;
+import com.android.systemui.Flags;
 import com.android.systemui.demomode.DemoMode;
+import com.android.systemui.kairos.ExperimentalKairosApi;
+import com.android.systemui.kairos.KairosNetwork;
 import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.plugins.DarkIconDispatcher.DarkReceiver;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.StatusBarIconView;
 import com.android.systemui.statusbar.StatusIconDisplayable;
+import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger;
 import com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel;
@@ -41,10 +47,20 @@ import com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarVie
 import com.android.systemui.statusbar.pipeline.wifi.ui.view.ModernStatusBarWifiView;
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel;
 
+import dagger.Lazy;
+
+import kotlin.OptIn;
+import kotlin.Pair;
+
+import kotlinx.coroutines.CoroutineScope;
+import kotlinx.coroutines.Job;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 
 //TODO: This should be a controller, not its own view
+@OptIn(markerClass = ExperimentalKairosApi.class)
 public class DemoStatusIcons extends StatusIconContainer implements DemoMode, DarkReceiver {
     private static final String TAG = "DemoStatusIcons";
 
@@ -60,15 +76,27 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
     private final MobileIconsViewModel mMobileIconsViewModel;
     private final StatusBarLocation mLocation;
 
+    private final Lazy<MobileUiAdapterKairos> mMobileUiAdapterKairos;
+    private final KairosNetwork mKairosNetwork;
+    private final CoroutineScope mAppScope;
+
+    private final MutableIntObjectMap<Job> mBindingJobs = new MutableIntObjectMap<>();
+
     public DemoStatusIcons(
             LinearLayout statusIcons,
             MobileIconsViewModel mobileIconsViewModel,
             StatusBarLocation location,
-            int iconSize
+            int iconSize,
+            Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
+            KairosNetwork kairosNetwork,
+            CoroutineScope appScope
     ) {
         super(statusIcons.getContext());
         mStatusIcons = statusIcons;
         mIconSize = iconSize;
+        mMobileUiAdapterKairos = mobileUiAdapterKairos;
+        mKairosNetwork = kairosNetwork;
+        mAppScope = appScope;
         mColor = DarkIconDispatcher.DEFAULT_ICON_TINT;
         mContrastColor = DarkIconDispatcher.DEFAULT_INVERSE_ICON_TINT;
         mMobileIconsViewModel = mobileIconsViewModel;
@@ -236,24 +264,46 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
 
     /**
      * Add a {@link ModernStatusBarMobileView}
+     *
      * @param mobileContext possibly mcc/mnc overridden mobile context
-     * @param subId the subscriptionId for this mobile view
+     * @param subId         the subscriptionId for this mobile view
      */
     public void addModernMobileView(
             Context mobileContext,
             MobileViewLogger mobileViewLogger,
             int subId) {
         Log.d(TAG, "addModernMobileView (subId=" + subId + ")");
-        ModernStatusBarMobileView view = ModernStatusBarMobileView.constructAndBind(
-                mobileContext,
-                mobileViewLogger,
-                "mobile",
-                mMobileIconsViewModel.viewModelForSub(subId, mLocation)
-        );
+        if (Flags.statusBarMobileIconKairos()) {
+            Pair<ModernStatusBarMobileView, Job> viewAndJob =
+                    ModernStatusBarMobileView.constructAndBind(
+                            mobileContext,
+                            mobileViewLogger,
+                            "mobile",
+                            mMobileUiAdapterKairos.get().getMobileIconsViewModel().viewModelForSub(
+                                    subId, mLocation),
+                            mAppScope,
+                            subId,
+                            mLocation,
+                            mKairosNetwork
+                    );
+            ModernStatusBarMobileView view = viewAndJob.getFirst();
+            mBindingJobs.put(subId, viewAndJob.getSecond());
+            // mobile always goes at the end
+            mModernMobileViews.add(view);
+            addView(view, getChildCount(), createLayoutParams());
+        } else {
+            ModernStatusBarMobileView view =
+                    ModernStatusBarMobileView.constructAndBind(
+                            mobileContext,
+                            mobileViewLogger,
+                            "mobile",
+                            mMobileIconsViewModel.viewModelForSub(subId, mLocation)
+                    );
 
-        // mobile always goes at the end
-        mModernMobileViews.add(view);
-        addView(view, getChildCount(), createLayoutParams());
+            // mobile always goes at the end
+            mModernMobileViews.add(view);
+            addView(view, getChildCount(), createLayoutParams());
+        }
     }
 
     /**
@@ -299,6 +349,12 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
             ModernStatusBarMobileView mobileView = matchingModernMobileView(
                     (ModernStatusBarMobileView) view);
             if (mobileView != null) {
+                if (Flags.statusBarMobileIconKairos()) {
+                    Job job = mBindingJobs.remove(mobileView.getSubId());
+                    if (job != null) {
+                        job.cancel(new CancellationException());
+                    }
+                }
                 removeView(mobileView);
                 mModernMobileViews.remove(mobileView);
             }

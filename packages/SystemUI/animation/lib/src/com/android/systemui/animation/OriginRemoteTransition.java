@@ -43,6 +43,7 @@ import com.android.wm.shell.shared.TransitionUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An implementation of {@link IRemoteTransition} that accepts a {@link UIComponent} as the origin
@@ -52,6 +53,7 @@ import java.util.List;
  */
 public class OriginRemoteTransition extends IRemoteTransition.Stub {
     private static final String TAG = "OriginRemoteTransition";
+    private static final long FINISH_ANIMATION_TIMEOUT_MS = 100;
 
     private final Context mContext;
     private final boolean mIsEntry;
@@ -105,7 +107,7 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
             IBinder mergeTarget,
             IRemoteTransitionFinishedCallback finishCallback) {
         logD("mergeAnimation - " + info);
-        mHandler.post(this::cancel);
+        cancel();
     }
 
     @Override
@@ -127,7 +129,7 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
     @Override
     public void onTransitionConsumed(IBinder transition, boolean aborted) {
         logD("onTransitionConsumed - aborted: " + aborted);
-        mHandler.post(this::cancel);
+        cancel();
     }
 
     private void startAnimationInternal(
@@ -195,7 +197,10 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
         // Create the origin leash and add to the transition root leash.
         mOriginLeash =
                 new SurfaceControl.Builder().setName("OriginTransition-origin-leash").build();
-        mStartTransaction
+
+        // Create temporary transaction to build
+        final SurfaceControl.Transaction tmpTransaction = new SurfaceControl.Transaction();
+        tmpTransaction
                 .reparent(mOriginLeash, rootLeash)
                 .show(mOriginLeash)
                 .setCornerRadius(mOriginLeash, windowRadius)
@@ -208,14 +213,14 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
             int mode = change.getMode();
             SurfaceControl leash = change.getLeash();
             // Reparent leash to the transition root.
-            mStartTransaction.reparent(leash, rootLeash);
+            tmpTransaction.reparent(leash, rootLeash);
             if (TransitionUtil.isOpeningMode(mode)) {
                 openingSurfaces.add(change.getLeash());
                 // For opening surfaces, ending bounds are base bound. Apply corner radius if
                 // it's full screen.
                 Rect bounds = change.getEndAbsBounds();
                 if (displayBounds.equals(bounds)) {
-                    mStartTransaction
+                    tmpTransaction
                             .setCornerRadius(leash, windowRadius)
                             .setWindowCrop(leash, bounds.width(), bounds.height());
                 }
@@ -226,28 +231,50 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
                 // it's full screen.
                 Rect bounds = change.getStartAbsBounds();
                 if (displayBounds.equals(bounds)) {
-                    mStartTransaction
+                    tmpTransaction
                             .setCornerRadius(leash, windowRadius)
                             .setWindowCrop(leash, bounds.width(), bounds.height());
                 }
             }
         }
 
+        if (openingSurfaces.isEmpty() && closingSurfaces.isEmpty()) {
+            logD("prepareUIs: no opening/closing surfaces available, nothing to prepare.");
+            return false;
+        }
+
         // Set relative order:
         // ----  App1  ----
         // ---- origin ----
         // ----  App2  ----
+
         if (mIsEntry) {
-            mStartTransaction
-                    .setRelativeLayer(mOriginLeash, closingSurfaces.get(0), 1)
-                    .setRelativeLayer(
-                            openingSurfaces.get(openingSurfaces.size() - 1), mOriginLeash, 1);
+            if (!closingSurfaces.isEmpty()) {
+                tmpTransaction.setRelativeLayer(mOriginLeash, closingSurfaces.get(0), 1);
+            } else {
+                logW("Missing closing surface is entry transition");
+            }
+            if (!openingSurfaces.isEmpty()) {
+                tmpTransaction.setRelativeLayer(
+                        openingSurfaces.get(openingSurfaces.size() - 1), mOriginLeash, 1);
+            } else {
+                logW("Missing opening surface is entry transition");
+            }
+
         } else {
-            mStartTransaction
-                    .setRelativeLayer(mOriginLeash, openingSurfaces.get(0), 1)
-                    .setRelativeLayer(
-                            closingSurfaces.get(closingSurfaces.size() - 1), mOriginLeash, 1);
+            if (!openingSurfaces.isEmpty()) {
+                tmpTransaction.setRelativeLayer(mOriginLeash, openingSurfaces.get(0), 1);
+            } else {
+                logW("Missing opening surface is exit transition");
+            }
+            if (!closingSurfaces.isEmpty()) {
+                tmpTransaction.setRelativeLayer(
+                        closingSurfaces.get(closingSurfaces.size() - 1), mOriginLeash, 1);
+            } else {
+                logW("Missing closing surface is exit transition");
+            }
         }
+        mStartTransaction.merge(tmpTransaction);
 
         // Attach origin UIComponent to origin leash.
         mOriginTransaction = mOrigin.newTransaction();
@@ -265,12 +292,26 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
 
     private void finishAnimation(boolean finished) {
         logD("finishAnimation: finished=" + finished);
+        OneShotRunnable finishInternalRunnable = new OneShotRunnable(this::finishInternal);
+        Runnable timeoutRunnable =
+                () -> {
+                    Log.w(TAG, "Timeout waiting for surface transaction!");
+                    finishInternalRunnable.run();
+                };
+        Runnable committedRunnable =
+                () -> {
+                    // Remove the timeout runnable.
+                    mHandler.removeCallbacks(timeoutRunnable);
+                    finishInternalRunnable.run();
+                };
         if (mAnimator == null) {
             // The transition didn't start. Ensure we apply the start transaction and report
             // finish afterwards.
             mStartTransaction
-                    .addTransactionCommittedListener(mHandler::post, this::finishInternal)
+                    .addTransactionCommittedListener(mHandler::post, committedRunnable::run)
                     .apply();
+            // Call finishInternal() anyway after the timeout.
+            mHandler.postDelayed(timeoutRunnable, FINISH_ANIMATION_TIMEOUT_MS);
             return;
         }
         mAnimator = null;
@@ -278,8 +319,10 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
         mPlayer.onEnd(finished);
         // Detach the origin from the transition leash and report finish after it's done.
         mOriginTransaction
-                .detachFromTransitionLeash(mOrigin, mHandler::post, this::finishInternal)
+                .detachFromTransitionLeash(mOrigin, mHandler::post, committedRunnable)
                 .commit();
+        // Call finishInternal() anyway after the timeout.
+        mHandler.postDelayed(timeoutRunnable, FINISH_ANIMATION_TIMEOUT_MS);
     }
 
     private void finishInternal() {
@@ -299,16 +342,24 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
         mFinishCallback = null;
     }
 
-    private void cancel() {
-        if (mAnimator != null) {
-            mAnimator.cancel();
-        }
+    public void cancel() {
+        logD("cancel()");
+        mHandler.post(
+                () -> {
+                    if (mAnimator != null) {
+                        mAnimator.cancel();
+                    }
+                });
     }
 
     private static void logD(String msg) {
         if (OriginTransitionSession.DEBUG) {
             Log.d(TAG, msg);
         }
+    }
+
+    private static void logW(String msg) {
+        Log.w(TAG, msg);
     }
 
     private static void logE(String msg) {
@@ -388,6 +439,23 @@ public class OriginRemoteTransition extends IRemoteTransition.Stub {
         Rect out = new Rect();
         state.bounds.roundOut(out);
         return out;
+    }
+
+    /** A {@link Runnable} that will only run once. */
+    private static class OneShotRunnable implements Runnable {
+        private final AtomicBoolean mDone = new AtomicBoolean();
+        private final Runnable mRunnable;
+
+        OneShotRunnable(Runnable runnable) {
+            this.mRunnable = runnable;
+        }
+
+        @Override
+        public void run() {
+            if (!mDone.getAndSet(true)) {
+                mRunnable.run();
+            }
+        }
     }
 
     /**

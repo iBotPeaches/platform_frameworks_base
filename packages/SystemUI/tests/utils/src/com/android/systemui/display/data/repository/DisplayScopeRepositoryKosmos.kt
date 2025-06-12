@@ -16,11 +16,13 @@
 
 package com.android.systemui.display.data.repository
 
+import com.android.app.displaylib.PerDisplayRepository
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
+import kotlinx.coroutines.CoroutineScope
 
 val Kosmos.fakeDisplayScopeRepository by
     Kosmos.Fixture { FakeDisplayScopeRepository(testDispatcher) }
 
-var Kosmos.displayScopeRepository: DisplayScopeRepository by
+var Kosmos.displayScopeRepository: PerDisplayRepository<CoroutineScope> by
     Kosmos.Fixture { fakeDisplayScopeRepository }

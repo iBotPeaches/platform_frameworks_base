@@ -23,15 +23,13 @@ import android.content.SharedPreferences
 import com.android.systemui.backup.BackupHelper
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.res.R
 import com.android.systemui.settings.UserFileManager
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -43,7 +41,6 @@ import kotlinx.coroutines.flow.onStart
  * the question "which affordances should the keyguard show?" for the user associated with the
  * System UI process.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class KeyguardQuickAffordanceLocalUserSelectionManager
 @Inject
@@ -102,7 +99,7 @@ constructor(
                     // common case anyway as restoration really only happens on initial device
                     // setup).
                     emit(Unit)
-                }
+                },
             ) { _, _ ->
             }
             .flatMapLatest {
@@ -164,10 +161,7 @@ constructor(
         return result
     }
 
-    override fun setSelections(
-        slotId: String,
-        affordanceIds: List<String>,
-    ) {
+    override fun setSelections(slotId: String, affordanceIds: List<String>) {
         val key = "$KEY_PREFIX_SLOT$slotId"
         val value = affordanceIds.joinToString(AFFORDANCE_DELIMITER)
         sharedPrefs.edit().putString(key, value).apply()

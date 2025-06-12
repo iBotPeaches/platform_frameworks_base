@@ -158,6 +158,14 @@ public final class GnssMeasurementsEvent implements Parcelable {
     /**
      * Gets the collection of {@link GnssAutomaticGainControl} associated with the
      * current event.
+     *
+     * <p>This field must be reported when the GNSS measurement engine is running, even when the
+     * GnssMeasurement or GnssClock fields are not reported yet. E.g., when a GNSS signal is too
+     * weak to be acquired, the AGC value must still be reported.
+     *
+     * <p>For devices that do not support this field, an empty collection is returned. In that case,
+     * please use {@link GnssMeasurement#hasAutomaticGainControlLevelDb()}
+     * and {@link GnssMeasuremen#getAutomaticGainControlLevelDb()}.
      */
     @NonNull
     public Collection<GnssAutomaticGainControl> getGnssAutomaticGainControls() {

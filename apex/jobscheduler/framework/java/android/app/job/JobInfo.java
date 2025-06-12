@@ -810,7 +810,7 @@ public class JobInfo implements Parcelable {
 
     /**
      * <p class="caution"><strong>Note:</strong> Beginning with
-     * {@link android.os.Build.VERSION_CODES#B}, this flag will be ignored and no longer
+     * {@link android.os.Build.VERSION_CODES#BAKLAVA}, this flag will be ignored and no longer
      * function effectively, regardless of the calling app's target SDK version.
      * Calling this method will always return {@code false}.
      *
@@ -2137,9 +2137,9 @@ public class JobInfo implements Parcelable {
          * Jobs marked as important-while-foreground are given {@link #PRIORITY_HIGH} by default.
          *
          * <p class="caution"><strong>Note:</strong> Beginning with
-         * {@link android.os.Build.VERSION_CODES#B}, this flag will be ignored and no longer
+         * {@link android.os.Build.VERSION_CODES#BAKLAVA}, this flag will be ignored and no longer
          * function effectively, regardless of the calling app's target SDK version.
-         * {link #isImportantWhileForeground()} will always return {@code false}.
+         * {@link #isImportantWhileForeground()} will always return {@code false}.
          * Apps should use {link #setExpedited(boolean)} with {@code true} to indicate
          * that this job is important and needs to run as soon as possible.
          *

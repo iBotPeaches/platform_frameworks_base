@@ -18,9 +18,12 @@ package com.android.systemui.media.controls.ui.animation
 
 import android.animation.ValueAnimator
 import android.graphics.Color
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.media.controls.ui.view.GutsViewHolder
 import com.android.systemui.media.controls.ui.view.MediaViewHolder
@@ -33,6 +36,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.Mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
@@ -49,7 +53,9 @@ private const val TARGET_COLOR = Color.BLUE
 class ColorSchemeTransitionTest : SysuiTestCase() {
 
     private interface ExtractCB : (ColorScheme) -> Int
+
     private interface ApplyCB : (Int) -> Unit
+
     private lateinit var colorTransition: AnimatingColorTransition
     private lateinit var colorSchemeTransition: ColorSchemeTransition
 
@@ -79,7 +85,7 @@ class ColorSchemeTransitionTest : SysuiTestCase() {
                 mediaViewHolder,
                 multiRippleController,
                 turbulenceNoiseController,
-                animatingColorTransitionFactory
+                animatingColorTransitionFactory,
             )
 
         colorTransition =
@@ -154,10 +160,21 @@ class ColorSchemeTransitionTest : SysuiTestCase() {
         verify(applyColor).invoke(expectedColor)
     }
 
+    @DisableFlags(Flags.FLAG_MEDIA_CONTROLS_A11Y_COLORS)
     @Test
-    fun testColorSchemeTransition_update() {
+    fun testColorSchemeTransition_update_legacy() {
         colorSchemeTransition.updateColorScheme(colorScheme)
         verify(mockAnimatingTransition, times(8)).updateColorScheme(colorScheme)
         verify(gutsViewHolder).colorScheme = colorScheme
+    }
+
+    @EnableFlags(Flags.FLAG_MEDIA_CONTROLS_A11Y_COLORS)
+    @Test
+    fun testColorSchemeTransition_update() {
+        colorSchemeTransition.updateColorScheme(colorScheme)
+        verify(mockAnimatingTransition, times(3)).updateColorScheme(colorScheme)
+        verify(gutsViewHolder).setColors(colorScheme)
+        verify(multiRippleController).updateColor(anyInt())
+        verify(turbulenceNoiseController).updateNoiseColor(anyInt())
     }
 }

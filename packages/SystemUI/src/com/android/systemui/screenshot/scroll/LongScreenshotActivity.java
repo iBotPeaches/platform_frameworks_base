@@ -16,6 +16,8 @@
 
 package com.android.systemui.screenshot.scroll;
 
+import static com.android.systemui.shared.Flags.usePreferredImageEditor;
+
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.ComponentName;
@@ -87,6 +89,7 @@ public class LongScreenshotActivity extends Activity {
     private final ImageExporter mImageExporter;
     private final LongScreenshotData mLongScreenshotHolder;
     private final ActionIntentExecutor mActionExecutor;
+    private final ActionIntentCreator mActionIntentCreator;
 
     private ImageView mPreview;
     private ImageView mTransitionView;
@@ -117,13 +120,15 @@ public class LongScreenshotActivity extends Activity {
     @Inject
     public LongScreenshotActivity(UiEventLogger uiEventLogger, ImageExporter imageExporter,
             @Main Executor mainExecutor, @Background Executor bgExecutor,
-            LongScreenshotData longScreenshotHolder, ActionIntentExecutor actionExecutor) {
+            LongScreenshotData longScreenshotHolder, ActionIntentExecutor actionExecutor,
+            ActionIntentCreator actionIntentCreator) {
         mUiEventLogger = uiEventLogger;
         mUiExecutor = mainExecutor;
         mBackgroundExecutor = bgExecutor;
         mImageExporter = imageExporter;
         mLongScreenshotHolder = longScreenshotHolder;
         mActionExecutor = actionExecutor;
+        mActionIntentCreator = actionIntentCreator;
     }
 
 
@@ -347,36 +352,62 @@ public class LongScreenshotActivity extends Activity {
     private void doEdit(Uri uri) {
         if (mScreenshotUserHandle != Process.myUserHandle()) {
             // TODO: Fix transition for work profile. Omitting it in the meantime.
-            mActionExecutor.launchIntentAsync(
-                    ActionIntentCreator.INSTANCE.createEdit(uri, this),
-                    mScreenshotUserHandle, false,
-                    /* activityOptions */ null, /* transitionCoordinator */ null);
-        } else {
-            String editorPackage = getString(R.string.config_screenshotEditor);
-            Intent intent = new Intent(Intent.ACTION_EDIT);
-            intent.setDataAndType(uri, "image/png");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            Bundle options = null;
+            mActionIntentCreator.createEdit(uri, intent -> {
+                mActionExecutor.launchIntentAsync(
+                        intent,
+                        mScreenshotUserHandle, false,
+                        /* activityOptions */ null, /* transitionCoordinator */ null);
+            });
 
-            // Skip shared element transition for implicit edit intents
-            if (!TextUtils.isEmpty(editorPackage)) {
-                intent.setComponent(ComponentName.unflattenFromString(editorPackage));
-                mTransitionView.setImageBitmap(mOutputBitmap);
-                mTransitionView.setVisibility(View.VISIBLE);
-                mTransitionView.setTransitionName(
-                        ChooserActivity.FIRST_IMAGE_PREVIEW_TRANSITION_NAME);
-                options = ActivityOptions.makeSceneTransitionAnimation(this, mTransitionView,
-                        ChooserActivity.FIRST_IMAGE_PREVIEW_TRANSITION_NAME).toBundle();
-                // TODO: listen for transition completing instead of finishing onStop
-                mTransitionStarted = true;
+        } else {
+            if (usePreferredImageEditor()) {
+                mActionIntentCreator.createEdit(uri, intent -> {
+                    Bundle options = null;
+
+                    if (intent.getComponent() != null) {
+                        // Modify intent for shared transition if we're opening a specific editor.
+                        intent.removeFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        intent.removeFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        mTransitionView.setImageBitmap(mOutputBitmap);
+                        mTransitionView.setVisibility(View.VISIBLE);
+                        mTransitionView.setTransitionName(
+                                ChooserActivity.FIRST_IMAGE_PREVIEW_TRANSITION_NAME);
+                        options = ActivityOptions.makeSceneTransitionAnimation(this,
+                                mTransitionView,
+                                ChooserActivity.FIRST_IMAGE_PREVIEW_TRANSITION_NAME).toBundle();
+                        // TODO: listen for transition completing instead of finishing onStop
+                        mTransitionStarted = true;
+                    }
+
+                    startActivity(intent, options);
+                });
+            } else {
+                String editorPackage = getString(R.string.config_screenshotEditor);
+                Intent intent = new Intent(Intent.ACTION_EDIT);
+                intent.setDataAndType(uri, "image/png");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                Bundle options = null;
+
+                // Skip shared element transition for implicit edit intents
+                if (!TextUtils.isEmpty(editorPackage)) {
+                    intent.setComponent(ComponentName.unflattenFromString(editorPackage));
+                    mTransitionView.setImageBitmap(mOutputBitmap);
+                    mTransitionView.setVisibility(View.VISIBLE);
+                    mTransitionView.setTransitionName(
+                            ChooserActivity.FIRST_IMAGE_PREVIEW_TRANSITION_NAME);
+                    options = ActivityOptions.makeSceneTransitionAnimation(this, mTransitionView,
+                            ChooserActivity.FIRST_IMAGE_PREVIEW_TRANSITION_NAME).toBundle();
+                    // TODO: listen for transition completing instead of finishing onStop
+                    mTransitionStarted = true;
+                }
+                startActivity(intent, options);
             }
-            startActivity(intent, options);
         }
     }
 
     private void doShare(Uri uri) {
-        Intent shareIntent = ActionIntentCreator.INSTANCE.createShare(uri);
+        Intent shareIntent = mActionIntentCreator.createShare(uri);
         mActionExecutor.launchIntentAsync(shareIntent, mScreenshotUserHandle, false,
                 /* activityOptions */ null, /* transitionCoordinator */ null);
     }

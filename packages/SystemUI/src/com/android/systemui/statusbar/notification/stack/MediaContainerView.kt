@@ -70,14 +70,15 @@ class MediaContainerView(context: Context, attrs: AttributeSet?) : ExpandableVie
     }
 
     override fun performRemoveAnimation(
-            duration: Long,
-            delay: Long,
-            translationDirection: Float,
-            isHeadsUpAnimation: Boolean,
-            onStartedRunnable: Runnable?,
-            onFinishedRunnable: Runnable?,
-            animationListener: AnimatorListenerAdapter?,
-            clipSide: ClipSide
+        duration: Long,
+        delay: Long,
+        translationDirection: Float,
+        isHeadsUpAnimation: Boolean,
+        isHeadsUpCycling: Boolean,
+        onStartedRunnable: Runnable?,
+        onFinishedRunnable: Runnable?,
+        animationListener: AnimatorListenerAdapter?,
+        clipSide: ClipSide,
     ): Long {
         return 0
     }
@@ -86,7 +87,8 @@ class MediaContainerView(context: Context, attrs: AttributeSet?) : ExpandableVie
         delay: Long,
         duration: Long,
         isHeadsUpAppear: Boolean,
-        onEnd: Runnable?
+        isHeadsUpCycling: Boolean,
+        onEnd: Runnable?,
     ) {
         // No animation, it doesn't need it, this would be local
     }
@@ -103,9 +105,7 @@ class MediaContainerView(context: Context, attrs: AttributeSet?) : ExpandableVie
         assertMediaContainerVisibility(visibility)
     }
 
-    /**
-     * visibility should be aligned with MediaContainerView visibility on the keyguard.
-     */
+    /** visibility should be aligned with MediaContainerView visibility on the keyguard. */
     private fun isVisibilityValid(visibility: Int): Boolean {
         val currentViewState = viewState as? MediaContainerViewState ?: return true
         val shouldBeGone = !currentViewState.shouldBeVisible
@@ -113,8 +113,7 @@ class MediaContainerView(context: Context, attrs: AttributeSet?) : ExpandableVie
     }
 
     /**
-     * b/298213983
-     * MediaContainerView's visibility is changed to VISIBLE when it should be GONE.
+     * b/298213983 MediaContainerView's visibility is changed to VISIBLE when it should be GONE.
      * This method check this state and logs.
      */
     private fun assertMediaContainerVisibility(visibility: Int) {
@@ -122,8 +121,10 @@ class MediaContainerView(context: Context, attrs: AttributeSet?) : ExpandableVie
 
         if (currentViewState is MediaContainerViewState) {
             if (!currentViewState.shouldBeVisible && visibility == VISIBLE) {
-                Log.wtf("MediaContainerView", "MediaContainerView should be GONE " +
-                        "but its visibility changed to VISIBLE")
+                Log.wtf(
+                    "MediaContainerView",
+                    "MediaContainerView should be GONE " + "but its visibility changed to VISIBLE",
+                )
             }
         }
     }

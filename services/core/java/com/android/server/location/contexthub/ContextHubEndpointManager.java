@@ -16,22 +16,39 @@
 
 package com.android.server.location.contexthub;
 
+import android.annotation.IntDef;
+import android.annotation.NonNull;
 import android.content.Context;
+import android.hardware.contexthub.ContextHubInfo;
 import android.hardware.contexthub.EndpointInfo;
+import android.hardware.contexthub.ErrorCode;
 import android.hardware.contexthub.HubEndpointInfo;
+import android.hardware.contexthub.HubInfo;
+import android.hardware.contexthub.HubMessage;
 import android.hardware.contexthub.IContextHubEndpoint;
 import android.hardware.contexthub.IContextHubEndpointCallback;
+import android.hardware.contexthub.IEndpointCommunication;
+import android.hardware.contexthub.MessageDeliveryStatus;
+import android.hardware.contexthub.Reason;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.util.Log;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.function.Consumer;
 
 /**
  * A class that manages registration/unregistration of clients and manages messages to/from clients.
@@ -40,13 +57,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 /* package */ class ContextHubEndpointManager
         implements ContextHubHalEndpointCallback.IEndpointSessionCallback {
+    /** The range of session IDs to use for endpoints */
+    public static final int SERVICE_SESSION_RANGE = 1024;
+
     private static final String TAG = "ContextHubEndpointManager";
 
     /** The hub ID of the Context Hub Service. */
     private static final long SERVICE_HUB_ID = 0x416e64726f696400L;
-
-    /** The range of session IDs to use for endpoints */
-    private static final int SERVICE_SESSION_RANGE = 1024;
 
     /** The length of the array that should be returned by HAL requestSessionIdRange */
     private static final int SERVICE_SESSION_RANGE_LENGTH = 2;
@@ -58,6 +75,8 @@ import java.util.concurrent.ConcurrentHashMap;
     private final IContextHubWrapper mContextHubProxy;
 
     private final HubInfoRegistry mHubInfoRegistry;
+
+    private final ContextHubTransactionManager mTransactionManager;
 
     /** A map of endpoint IDs to brokers currently registered. */
     private final Map<Long, ContextHubEndpointBroker> mEndpointMap = new ConcurrentHashMap<>();
@@ -72,11 +91,11 @@ import java.util.concurrent.ConcurrentHashMap;
     @GuardedBy("mEndpointLock")
     private long mNextEndpointId = -2;
 
-    /** The minimum session ID reservable by endpoints (retrieved from HAL) */
-    private final int mMinSessionId;
+    /** The minimum session ID reservable by endpoints (retrieved from HAL in init()) */
+    private int mMinSessionId = -1;
 
-    /** The minimum session ID reservable by endpoints (retrieved from HAL) */
-    private final int mMaxSessionId;
+    /** The minimum session ID reservable by endpoints (retrieved from HAL in init()) */
+    private int mMaxSessionId = -1;
 
     /** Variables for managing session ID creation */
     private final Object mSessionIdLock = new Object();
@@ -89,42 +108,149 @@ import java.util.concurrent.ConcurrentHashMap;
     @GuardedBy("mSessionIdLock")
     private int mNextSessionId = 0;
 
-    /** Initialized to true if all initialization in the constructor succeeds. */
-    private final boolean mSessionIdsValid;
+    /** Set true if init() succeeds */
+    private boolean mSessionIdsValid = false;
 
-    /* package */ ContextHubEndpointManager(
-            Context context, IContextHubWrapper contextHubProxy, HubInfoRegistry hubInfoRegistry) {
+    /** The interface for endpoint communication (retrieved from HAL in init()) */
+    private IEndpointCommunication mHubInterface = null;
+
+    /** Thread pool executor for handling timeout */
+    private final ScheduledExecutorService mSessionTimeoutExecutor;
+
+    /*
+     * The list of previous registration records.
+     */
+    private static final int NUM_CLIENT_RECORDS = 20;
+    private final ConcurrentLinkedEvictingDeque<RegistrationRecord> mRegistrationRecordDeque =
+            new ConcurrentLinkedEvictingDeque<>(NUM_CLIENT_RECORDS);
+
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(
+            prefix = {"ACTION_"},
+            value = {
+                ACTION_REGISTERED,
+                ACTION_UNREGISTERED,
+            })
+    public @interface Action {}
+
+    public static final int ACTION_REGISTERED = 0;
+    public static final int ACTION_UNREGISTERED = 1;
+
+    /** A container class to store a record of ContextHubEndpointBroker registrations. */
+    private class RegistrationRecord {
+        private final String mBroker;
+        private final int mAction;
+        private final long mTimestamp;
+
+        RegistrationRecord(String broker, @Action int action) {
+            mBroker = broker;
+            mAction = action;
+            mTimestamp = System.currentTimeMillis();
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(ContextHubServiceUtil.formatDateFromTimestamp(mTimestamp));
+            sb.append(" ");
+            sb.append(mAction == ACTION_REGISTERED ? "+ " : "- ");
+            sb.append(mBroker);
+            return sb.toString();
+        }
+    }
+
+    @VisibleForTesting
+    ContextHubEndpointManager(
+            Context context,
+            IContextHubWrapper contextHubProxy,
+            HubInfoRegistry hubInfoRegistry,
+            ContextHubTransactionManager transactionManager,
+            ScheduledExecutorService scheduledExecutorService) {
         mContext = context;
         mContextHubProxy = contextHubProxy;
         mHubInfoRegistry = hubInfoRegistry;
+        mTransactionManager = transactionManager;
+        mSessionTimeoutExecutor = scheduledExecutorService;
+    }
+
+    /* package */ ContextHubEndpointManager(
+            Context context,
+            IContextHubWrapper contextHubProxy,
+            HubInfoRegistry hubInfoRegistry,
+            ContextHubTransactionManager transactionManager) {
+        this(
+                context,
+                contextHubProxy,
+                hubInfoRegistry,
+                transactionManager,
+                new ScheduledThreadPoolExecutor(1));
+    }
+
+    /**
+     * Initializes this class.
+     *
+     * This is separate from the constructor so that this may be passed into the callback registered
+     * with the HAL.
+     *
+     * @throws InstantiationException on unexpected failure
+     * @throws UnsupportedOperationException if not supported by the HAL
+     */
+    /* package */ void init() throws InstantiationException, UnsupportedOperationException {
+        if (mSessionIdsValid) {
+            throw new IllegalStateException("Already initialized");
+        }
+        try {
+            HubInfo info = new HubInfo();
+            info.hubId = SERVICE_HUB_ID;
+            // TODO(b/387291125): Populate the ContextHubInfo with real values.
+            ContextHubInfo contextHubInfo = new ContextHubInfo();
+            contextHubInfo.name = "";
+            contextHubInfo.vendor = "";
+            contextHubInfo.toolchain = "";
+            contextHubInfo.supportedPermissions = new String[0];
+            info.hubDetails = HubInfo.HubDetails.contextHubInfo(contextHubInfo);
+            mHubInterface = mContextHubProxy.registerEndpointHub(
+                    new ContextHubHalEndpointCallback(mHubInfoRegistry, this),
+                    info);
+            if (mHubInterface == null) {
+                throw new IllegalStateException("Received null IEndpointCommunication");
+            }
+        } catch (RemoteException | IllegalStateException | ServiceSpecificException e) {
+            String error = "Failed to register ContextHubService as message hub";
+            Log.e(TAG, error, e);
+            throw new InstantiationException(error);
+        }  // Forward UnsupportedOperationException to caller
+
         int[] range = null;
         try {
-            range = mContextHubProxy.requestSessionIdRange(SERVICE_SESSION_RANGE);
+            range = mHubInterface.requestSessionIdRange(SERVICE_SESSION_RANGE);
             if (range != null && range.length < SERVICE_SESSION_RANGE_LENGTH) {
-                Log.e(TAG, "Invalid session ID range: range array size = " + range.length);
-                range = null;
+                String error = "Invalid session ID range: range array size = " + range.length;
+                Log.e(TAG, error);
+                unregisterHub();
+                throw new InstantiationException(error);
             }
         } catch (RemoteException | IllegalArgumentException | ServiceSpecificException e) {
-            Log.e(TAG, "Exception while calling HAL requestSessionIdRange", e);
+            String error = "Exception while calling HAL requestSessionIdRange";
+            Log.e(TAG, error, e);
+            unregisterHub();
+            throw new InstantiationException(error);
         }
 
-        if (range == null) {
-            mMinSessionId = -1;
-            mMaxSessionId = -1;
-            mSessionIdsValid = false;
-        } else {
-            mMinSessionId = range[0];
-            mMaxSessionId = range[1];
-            if (!isSessionIdRangeValid(mMinSessionId, mMaxSessionId)) {
-                Log.e(
-                        TAG,
-                        "Invalid session ID range: max=" + mMaxSessionId + " min=" + mMinSessionId);
-                mSessionIdsValid = false;
-            } else {
-                mNextSessionId = mMinSessionId;
-                mSessionIdsValid = true;
-            }
+        mMinSessionId = range[0];
+        mMaxSessionId = range[1];
+        if (!isSessionIdRangeValid(mMinSessionId, mMaxSessionId)) {
+            String error =
+                    "Invalid session ID range: max=" + mMaxSessionId + " min=" + mMinSessionId;
+            Log.e(TAG, error);
+            unregisterHub();
+            throw new InstantiationException(error);
         }
+
+        synchronized (mSessionIdLock) {
+            mNextSessionId = mMinSessionId;
+        }
+        mSessionIdsValid = true;
     }
 
     /**
@@ -132,11 +258,15 @@ import java.util.concurrent.ConcurrentHashMap;
      *
      * @param pendingEndpointInfo the object describing the endpoint being registered
      * @param callback the callback interface of the endpoint to register
+     * @param packageName the name of the package of the calling client
      * @return the endpoint interface
      * @throws IllegalStateException if max number of endpoints have already registered
      */
     /* package */ IContextHubEndpoint registerEndpoint(
-            HubEndpointInfo pendingEndpointInfo, IContextHubEndpointCallback callback)
+            HubEndpointInfo pendingEndpointInfo,
+            @NonNull IContextHubEndpointCallback callback,
+            String packageName,
+            String attributionTag)
             throws RemoteException {
         if (!mSessionIdsValid) {
             throw new IllegalStateException("ContextHubEndpointManager failed to initialize");
@@ -146,19 +276,18 @@ import java.util.concurrent.ConcurrentHashMap;
         EndpointInfo halEndpointInfo =
                 ContextHubServiceUtil.createHalEndpointInfo(
                         pendingEndpointInfo, endpointId, SERVICE_HUB_ID);
-        try {
-            mContextHubProxy.registerEndpoint(halEndpointInfo);
-        } catch (RemoteException e) {
-            Log.e(TAG, "RemoteException while calling HAL registerEndpoint", e);
-            throw e;
-        }
         broker =
                 new ContextHubEndpointBroker(
                         mContext,
-                        mContextHubProxy,
+                        mHubInterface,
                         this /* endpointManager */,
                         halEndpointInfo,
-                        callback);
+                        callback,
+                        packageName,
+                        attributionTag,
+                        mTransactionManager,
+                        mSessionTimeoutExecutor);
+        broker.register();
         mEndpointMap.put(endpointId, broker);
 
         try {
@@ -170,6 +299,7 @@ import java.util.concurrent.ConcurrentHashMap;
             return null;
         }
 
+        mRegistrationRecordDeque.add(new RegistrationRecord(broker.toString(), ACTION_REGISTERED));
         Log.d(TAG, "Registered endpoint with ID = " + endpointId);
         return IContextHubEndpoint.Stub.asInterface(broker);
     }
@@ -210,17 +340,33 @@ import java.util.concurrent.ConcurrentHashMap;
         }
     }
 
+    /** Returns if a sessionId can be allocated for the service hub. */
+    private boolean isSessionIdAllocatedForService(int sessionId) {
+        return sessionId > mMaxSessionId || sessionId < mMinSessionId;
+    }
+
     /**
      * Unregisters an endpoint given its ID.
      *
      * @param endpointId The ID of the endpoint to unregister.
      */
     /* package */ void unregisterEndpoint(long endpointId) {
-        mEndpointMap.remove(endpointId);
+        ContextHubEndpointBroker broker = mEndpointMap.remove(endpointId);
+        if (broker != null) {
+            mRegistrationRecordDeque.add(
+                    new RegistrationRecord(broker.toString(), ACTION_UNREGISTERED));
+        }
     }
 
-    @Override
-    public void onEndpointSessionOpenRequest(
+    /** Invoked by the service when the Context Hub HAL restarts. */
+    /* package */ void onHalRestart() {
+        for (ContextHubEndpointBroker broker : mEndpointMap.values()) {
+            // The broker will close existing sessions and re-register itself
+            broker.onHalRestart();
+        }
+    }
+
+    private Optional<Byte> onEndpointSessionOpenRequestInternal(
             int sessionId,
             HubEndpointInfo.HubEndpointIdentifier destination,
             HubEndpointInfo.HubEndpointIdentifier initiator,
@@ -230,7 +376,7 @@ import java.util.concurrent.ConcurrentHashMap;
                     TAG,
                     "onEndpointSessionOpenRequest: invalid destination hub ID: "
                             + destination.getHub());
-            return;
+            return Optional.of(Reason.ENDPOINT_INVALID);
         }
         ContextHubEndpointBroker broker = mEndpointMap.get(destination.getEndpoint());
         if (broker == null) {
@@ -238,7 +384,7 @@ import java.util.concurrent.ConcurrentHashMap;
                     TAG,
                     "onEndpointSessionOpenRequest: unknown destination endpoint ID: "
                             + destination.getEndpoint());
-            return;
+            return Optional.of(Reason.ENDPOINT_INVALID);
         }
         HubEndpointInfo initiatorInfo = mHubInfoRegistry.getEndpointInfo(initiator);
         if (initiatorInfo == null) {
@@ -246,22 +392,36 @@ import java.util.concurrent.ConcurrentHashMap;
                     TAG,
                     "onEndpointSessionOpenRequest: unknown initiator endpoint ID: "
                             + initiator.getEndpoint());
-            return;
+            return Optional.of(Reason.ENDPOINT_INVALID);
         }
-        broker.onEndpointSessionOpenRequest(sessionId, initiatorInfo, serviceDescriptor);
+        if (!isSessionIdAllocatedForService(sessionId)) {
+            Log.e(
+                    TAG,
+                    "onEndpointSessionOpenRequest: invalid session ID, rejected:"
+                            + " sessionId="
+                            + sessionId);
+            return Optional.of(Reason.OPEN_ENDPOINT_SESSION_REQUEST_REJECTED);
+        }
+        return broker.onEndpointSessionOpenRequest(sessionId, initiatorInfo, serviceDescriptor);
+    }
+
+    @Override
+    public void onEndpointSessionOpenRequest(
+            int sessionId,
+            HubEndpointInfo.HubEndpointIdentifier destination,
+            HubEndpointInfo.HubEndpointIdentifier initiator,
+            String serviceDescriptor) {
+        Optional<Byte> errorOptional =
+                onEndpointSessionOpenRequestInternal(
+                        sessionId, destination, initiator, serviceDescriptor);
+        errorOptional.ifPresent((error) -> halCloseEndpointSessionNoThrow(sessionId, error));
     }
 
     @Override
     public void onCloseEndpointSession(int sessionId, byte reason) {
-        boolean callbackInvoked = false;
-        for (ContextHubEndpointBroker broker : mEndpointMap.values()) {
-            if (broker.hasSessionId(sessionId)) {
-                broker.onCloseEndpointSession(sessionId, reason);
-                callbackInvoked = true;
-                break;
-            }
-        }
-
+        boolean callbackInvoked =
+                invokeCallbackForMatchingSession(
+                        sessionId, (broker) -> broker.onCloseEndpointSession(sessionId, reason));
         if (!callbackInvoked) {
             Log.w(TAG, "onCloseEndpointSession: unknown session ID " + sessionId);
         }
@@ -269,17 +429,115 @@ import java.util.concurrent.ConcurrentHashMap;
 
     @Override
     public void onEndpointSessionOpenComplete(int sessionId) {
-        boolean callbackInvoked = false;
-        for (ContextHubEndpointBroker broker : mEndpointMap.values()) {
-            if (broker.hasSessionId(sessionId)) {
-                broker.onEndpointSessionOpenComplete(sessionId);
-                callbackInvoked = true;
-                break;
-            }
-        }
-
+        boolean callbackInvoked =
+                invokeCallbackForMatchingSession(
+                        sessionId, (broker) -> broker.onEndpointSessionOpenComplete(sessionId));
         if (!callbackInvoked) {
             Log.w(TAG, "onEndpointSessionOpenComplete: unknown session ID " + sessionId);
+        }
+    }
+
+    @Override
+    public void onMessageReceived(int sessionId, HubMessage message) {
+        boolean callbackInvoked =
+                invokeCallbackForMatchingSession(
+                        sessionId, (broker) -> broker.onMessageReceived(sessionId, message));
+        if (!callbackInvoked) {
+            Log.w(TAG, "onMessageReceived: unknown session ID " + sessionId);
+            if (message.isResponseRequired()) {
+                sendMessageDeliveryStatus(
+                        sessionId,
+                        message.getMessageSequenceNumber(),
+                        ErrorCode.DESTINATION_NOT_FOUND);
+            }
+        }
+    }
+
+    @Override
+    public void onMessageDeliveryStatusReceived(int sessionId, int sequenceNumber, byte errorCode) {
+        boolean callbackInvoked =
+                invokeCallbackForMatchingSession(
+                        sessionId,
+                        (broker) ->
+                                broker.onMessageDeliveryStatusReceived(
+                                        sessionId, sequenceNumber, errorCode));
+        if (!callbackInvoked) {
+            Log.w(TAG, "onMessageDeliveryStatusReceived: unknown session ID " + sessionId);
+        }
+    }
+
+    /**
+     * Calls the HAL closeEndpointSession API.
+     *
+     * @param sessionId The session ID to close
+     * @param halReason The HAL reason
+     */
+    /* package */ void halCloseEndpointSession(int sessionId, byte halReason)
+            throws RemoteException {
+        try {
+            mHubInterface.closeEndpointSession(sessionId, halReason);
+        } catch (RemoteException | IllegalArgumentException | UnsupportedOperationException e) {
+            throw e;
+        }
+    }
+
+    /** Same as halCloseEndpointSession but does not throw the exception */
+    /* package */ void halCloseEndpointSessionNoThrow(int sessionId, byte halReason) {
+        try {
+            halCloseEndpointSession(sessionId, halReason);
+        } catch (RemoteException | IllegalArgumentException | UnsupportedOperationException e) {
+            Log.e(TAG, "Exception while calling HAL closeEndpointSession", e);
+        }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        int count = 1;
+        for (ContextHubEndpointBroker broker : mEndpointMap.values()) {
+            sb.append(count + ". " + broker);
+            sb.append(System.lineSeparator());
+            count++;
+        }
+
+        sb.append(System.lineSeparator());
+        sb.append("Registration History:");
+        sb.append(System.lineSeparator());
+        Iterator<RegistrationRecord> it = mRegistrationRecordDeque.descendingIterator();
+        while (it.hasNext()) {
+            sb.append(it.next());
+            sb.append(System.lineSeparator());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Invokes a callback for a session with matching ID.
+     *
+     * @param callback The callback to execute
+     * @return true if a callback was executed
+     */
+    private boolean invokeCallbackForMatchingSession(
+            int sessionId, Consumer<ContextHubEndpointBroker> callback) {
+        for (ContextHubEndpointBroker broker : mEndpointMap.values()) {
+            if (broker.hasSessionId(sessionId)) {
+                try {
+                    callback.accept(broker);
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Exception while invoking callback", e);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Unregister the hub (called during init() failure). Silence errors. */
+    private void unregisterHub() {
+        try {
+            mHubInterface.unregister();
+        } catch (RemoteException | IllegalStateException e) {
+            Log.e(TAG, "Failed to unregister from HAL on init failure", e);
         }
     }
 
@@ -298,5 +556,32 @@ import java.util.concurrent.ConcurrentHashMap;
      */
     private boolean isSessionIdRangeValid(int minId, int maxId) {
         return (minId <= maxId) && (minId >= 0) && (maxId >= 0);
+    }
+
+    private void sendMessageDeliveryStatus(
+            int sessionId, int messageSequenceNumber, byte errorCode) {
+        MessageDeliveryStatus status = new MessageDeliveryStatus();
+        status.messageSequenceNumber = messageSequenceNumber;
+        status.errorCode = errorCode;
+        try {
+            mHubInterface.sendMessageDeliveryStatusToEndpoint(sessionId, status);
+        } catch (RemoteException e) {
+            Log.w(
+                    TAG,
+                    "Exception while sending message delivery status on session " + sessionId,
+                    e);
+        }
+    }
+
+    @VisibleForTesting
+    /* package */ int getNumAvailableSessions() {
+        synchronized (mSessionIdLock) {
+            return (mMaxSessionId - mMinSessionId + 1) - mReservedSessionIds.size();
+        }
+    }
+
+    @VisibleForTesting
+    /* package */ int getNumRegisteredClients() {
+        return mEndpointMap.size();
     }
 }

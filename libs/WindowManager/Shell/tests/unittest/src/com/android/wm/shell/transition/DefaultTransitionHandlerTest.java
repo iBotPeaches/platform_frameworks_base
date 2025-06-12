@@ -48,10 +48,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.internal.jank.InteractionJankMonitor;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTestCase;
 import com.android.wm.shell.TestShellExecutor;
 import com.android.wm.shell.common.DisplayController;
+import com.android.wm.shell.common.DisplayInsetsController;
 import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.sysui.ShellInit;
 
@@ -77,6 +79,8 @@ public class DefaultTransitionHandlerTest extends ShellTestCase {
             InstrumentationRegistry.getInstrumentation().getTargetContext();
 
     private final DisplayController mDisplayController = mock(DisplayController.class);
+    private final DisplayInsetsController mDisplayInsetsController =
+            mock(DisplayInsetsController.class);
     private final TransactionPool mTransactionPool = new MockTransactionPool();
     private final TestShellExecutor mMainExecutor = new TestShellExecutor();
     private final TestShellExecutor mAnimExecutor = new TestShellExecutor();
@@ -94,9 +98,10 @@ public class DefaultTransitionHandlerTest extends ShellTestCase {
                 mContext,
                 mShellInit);
         mTransitionHandler = new DefaultTransitionHandler(
-                mContext, mShellInit, mDisplayController,
+                mContext, mShellInit, mDisplayController, mDisplayInsetsController,
                 mTransactionPool, mMainExecutor, mMainHandler, mAnimExecutor,
-                mRootTaskDisplayAreaOrganizer);
+                mock(Handler.class), mRootTaskDisplayAreaOrganizer,
+                mock(InteractionJankMonitor.class));
         mShellInit.init();
     }
 
@@ -291,6 +296,7 @@ public class DefaultTransitionHandlerTest extends ShellTestCase {
         handler.mergeAnimation(
                 new Binder(),
                 new TransitionInfoBuilder(TRANSIT_SLEEP, FLAG_SYNC).build(),
+                MockTransactionPool.create(),
                 MockTransactionPool.create(),
                 token,
                 mock(Transitions.TransitionFinishCallback.class));

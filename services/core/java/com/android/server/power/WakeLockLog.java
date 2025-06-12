@@ -81,11 +81,12 @@ final class WakeLockLog {
     private static final int TYPE_ACQUIRE = 0x1;
     private static final int TYPE_RELEASE = 0x2;
     private static final int MAX_LOG_ENTRY_BYTE_SIZE = 9;
-    private static final int LOG_SIZE = 1024 * 10;
+    private static final int LOG_SIZE = 1024 * 3;
     private static final int LOG_SIZE_MIN = MAX_LOG_ENTRY_BYTE_SIZE + 1;
 
-    private static final int TAG_DATABASE_SIZE = 128;
+    private static final int TAG_DATABASE_SIZE = 64;
     private static final int TAG_DATABASE_SIZE_MAX = 128;
+    private static final int TAG_DATABASE_STARTING_SIZE = 16;
 
     private static final int LEVEL_SCREEN_TIMEOUT_OVERRIDE_WAKE_LOCK = 0;
     private static final int LEVEL_PARTIAL_WAKE_LOCK = 1;
@@ -182,7 +183,7 @@ final class WakeLockLog {
      * @param pw The {@code PrintWriter} to write to.
      */
     public void dump(PrintWriter pw) {
-        dump(pw, false);
+        dump(pw, /* includeTagDb= */ true);
     }
 
     @VisibleForTesting
@@ -1161,15 +1162,16 @@ final class WakeLockLog {
      */
     static class TagDatabase {
         private final int mInvalidIndex;
-        private final TagData[] mArray;
+        private final int mMaxArraySize;
+        private TagData[] mArray;
         private Callback mCallback;
 
         TagDatabase(Injector injector) {
-            int size = Math.min(injector.getTagDatabaseSize(), TAG_DATABASE_SIZE_MAX);
-
-            // Largest possible index used as "INVALID", hence the (size - 1) sizing.
-            mArray = new TagData[size - 1];
-            mInvalidIndex = size - 1;
+            // Largest possible index used as "INVALID", hence the (size - 1) sizing
+            mMaxArraySize = Math.min(injector.getTagDatabaseSize(), TAG_DATABASE_SIZE_MAX - 1);
+            int startingSize = Math.min(mMaxArraySize, injector.getTagDatabaseStartingSize());
+            mArray = new TagData[startingSize];
+            mInvalidIndex = mMaxArraySize;
         }
 
         @Override
@@ -1195,8 +1197,10 @@ final class WakeLockLog {
             sb.append(", entries: ").append(entries);
             sb.append(", Bytes used: ").append(byteEstimate);
             if (DEBUG) {
-                sb.append(", Avg tag size: ").append(tagSize / tags);
-                sb.append("\n    ").append(Arrays.toString(mArray));
+                sb.append(", Avg tag size: ").append(tags == 0 ? 0 : (tagSize / tags));
+                for (int i = 0; i < mArray.length; i++) {
+                    sb.append("\n  [").append(i).append("] ").append(mArray[i]);
+                }
             }
             return sb.toString();
         }
@@ -1282,6 +1286,18 @@ final class WakeLockLog {
             // Item not found, and we shouldn't create one.
             if (!shouldCreate) {
                 return null;
+            }
+
+            // We don't have a spot available, see if we can still increase the array size
+            if (firstAvailable == -1) {
+                if (mArray.length < mMaxArraySize) {
+                    int oldSize = mArray.length;
+                    int newSize = Math.min(oldSize * 2, mMaxArraySize);
+                    TagData[] newArray = new TagData[newSize];
+                    System.arraycopy(mArray, 0, newArray, 0, oldSize);
+                    mArray = newArray;
+                    firstAvailable = oldSize;
+                }
             }
 
             // If we need to remove an index, report to listeners that we are removing an index.
@@ -1400,6 +1416,10 @@ final class WakeLockLog {
     public static class Injector {
         public int getTagDatabaseSize() {
             return TAG_DATABASE_SIZE;
+        }
+
+        public int getTagDatabaseStartingSize() {
+            return TAG_DATABASE_STARTING_SIZE;
         }
 
         public int getLogSize() {

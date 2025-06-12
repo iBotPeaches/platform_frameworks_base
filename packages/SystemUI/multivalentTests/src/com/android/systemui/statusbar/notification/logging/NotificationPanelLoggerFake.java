@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.notification.logging;
 
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.logging.nano.Notifications;
 
@@ -47,6 +48,11 @@ public class NotificationPanelLoggerFake implements NotificationPanelLogger {
 
     @Override
     public void logNotificationDrag(NotificationEntry draggedNotification) {
+    }
+
+    @Override
+    public void logNotificationDrag(EntryAdapter draggedNotification) {
+
     }
 
     public static class CallRecord {

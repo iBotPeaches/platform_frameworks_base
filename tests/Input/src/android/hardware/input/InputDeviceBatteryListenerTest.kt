@@ -44,14 +44,12 @@ import org.mockito.junit.MockitoJUnitRunner
 /**
  * Tests for [InputManager.InputDeviceBatteryListener].
  *
- * Build/Install/Run:
- * atest InputTests:InputDeviceBatteryListenerTest
+ * Build/Install/Run: atest InputTests:InputDeviceBatteryListenerTest
  */
 @Presubmit
 @RunWith(MockitoJUnitRunner::class)
 class InputDeviceBatteryListenerTest {
-    @get:Rule
-    val rule = MockitoJUnit.rule()!!
+    @get:Rule val rule = MockitoJUnit.rule()!!
 
     private lateinit var testLooper: TestLooper
     private var registeredListener: IInputDeviceBatteryListener? = null
@@ -60,8 +58,7 @@ class InputDeviceBatteryListenerTest {
     private lateinit var context: Context
     private lateinit var inputManager: InputManager
 
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
     @Before
     fun setUp() {
@@ -71,41 +68,48 @@ class InputDeviceBatteryListenerTest {
         registeredListener = null
         monitoredDevices.clear()
         inputManager = InputManager(context)
-        `when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE)))
-                .thenReturn(inputManager)
+        `when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE))).thenReturn(inputManager)
 
         // Handle battery listener registration.
         doAnswer {
-            val deviceId = it.getArgument(0) as Int
-            val listener = it.getArgument(1) as IInputDeviceBatteryListener
-            if (registeredListener != null &&
-                    registeredListener!!.asBinder() != listener.asBinder()) {
-                // There can only be one registered battery listener per process.
-                fail("Trying to register a new listener when one already exists")
+                val deviceId = it.getArgument(0) as Int
+                val listener = it.getArgument(1) as IInputDeviceBatteryListener
+                if (
+                    registeredListener != null &&
+                        registeredListener!!.asBinder() != listener.asBinder()
+                ) {
+                    // There can only be one registered battery listener per process.
+                    fail("Trying to register a new listener when one already exists")
+                }
+                if (monitoredDevices.contains(deviceId)) {
+                    fail("Trying to start monitoring a device that was already being monitored")
+                }
+                monitoredDevices.add(deviceId)
+                registeredListener = listener
+                null
             }
-            if (monitoredDevices.contains(deviceId)) {
-                fail("Trying to start monitoring a device that was already being monitored")
-            }
-            monitoredDevices.add(deviceId)
-            registeredListener = listener
-            null
-        }.`when`(inputManagerRule.mock).registerBatteryListener(anyInt(), any())
+            .`when`(inputManagerRule.mock)
+            .registerBatteryListener(anyInt(), any())
 
         // Handle battery listener being unregistered.
         doAnswer {
-            val deviceId = it.getArgument(0) as Int
-            val listener = it.getArgument(1) as IInputDeviceBatteryListener
-            if (registeredListener == null ||
-                    registeredListener!!.asBinder() != listener.asBinder()) {
-                fail("Trying to unregister a listener that is not registered")
+                val deviceId = it.getArgument(0) as Int
+                val listener = it.getArgument(1) as IInputDeviceBatteryListener
+                if (
+                    registeredListener == null ||
+                        registeredListener!!.asBinder() != listener.asBinder()
+                ) {
+                    fail("Trying to unregister a listener that is not registered")
+                }
+                if (!monitoredDevices.remove(deviceId)) {
+                    fail("Trying to stop monitoring a device that is not being monitored")
+                }
+                if (monitoredDevices.isEmpty()) {
+                    registeredListener = null
+                }
             }
-            if (!monitoredDevices.remove(deviceId)) {
-                fail("Trying to stop monitoring a device that is not being monitored")
-            }
-            if (monitoredDevices.isEmpty()) {
-                registeredListener = null
-            }
-        }.`when`(inputManagerRule.mock).unregisterBatteryListener(anyInt(), any())
+            .`when`(inputManagerRule.mock)
+            .unregisterBatteryListener(anyInt(), any())
     }
 
     private fun notifyBatteryStateChanged(
@@ -113,15 +117,17 @@ class InputDeviceBatteryListenerTest {
         isPresent: Boolean = true,
         status: Int = BatteryState.STATUS_FULL,
         capacity: Float = 1.0f,
-        eventTime: Long = 12345L
+        eventTime: Long = 12345L,
     ) {
-        registeredListener!!.onBatteryStateChanged(IInputDeviceBatteryState().apply {
-            this.deviceId = deviceId
-            this.updateTime = eventTime
-            this.isPresent = isPresent
-            this.status = status
-            this.capacity = capacity
-        })
+        registeredListener!!.onBatteryStateChanged(
+            IInputDeviceBatteryState().apply {
+                this.deviceId = deviceId
+                this.updateTime = eventTime
+                this.isPresent = isPresent
+                this.status = status
+                this.capacity = capacity
+            }
+        )
     }
 
     @Test
@@ -130,7 +136,9 @@ class InputDeviceBatteryListenerTest {
 
         // Add a battery listener to monitor battery changes.
         inputManager.addInputDeviceBatteryListener(1 /*deviceId*/, executor) {
-                deviceId: Int, eventTime: Long, batteryState: BatteryState ->
+            deviceId: Int,
+            eventTime: Long,
+            batteryState: BatteryState ->
             callbackCount++
             assertEquals(1, deviceId)
             assertEquals(true, batteryState.isPresent)
@@ -149,8 +157,13 @@ class InputDeviceBatteryListenerTest {
         assertEquals(0, callbackCount)
 
         // Notifying battery change for the registered device will notify the listener.
-        notifyBatteryStateChanged(1 /*deviceId*/, true /*isPresent*/,
-            BatteryState.STATUS_DISCHARGING, 0.5f /*capacity*/, 8675309L /*eventTime*/)
+        notifyBatteryStateChanged(
+            1 /*deviceId*/,
+            true /*isPresent*/,
+            BatteryState.STATUS_DISCHARGING,
+            0.5f /*capacity*/,
+            8675309L, /*eventTime*/
+        )
         testLooper.dispatchNext()
         assertEquals(1, callbackCount)
     }

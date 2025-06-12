@@ -291,8 +291,7 @@ public class DisplayBrightnessStrategySelector {
     void setAllowAutoBrightnessWhileDozing(
             DisplayManagerInternal.DisplayOffloadSession displayOffloadSession) {
         mAllowAutoBrightnessWhileDozing = mAllowAutoBrightnessWhileDozingConfig;
-        if (mDisplayManagerFlags.offloadControlsDozeAutoBrightness()
-                && mDisplayManagerFlags.isDisplayOffloadEnabled()
+        if (mDisplayManagerFlags.isDisplayOffloadEnabled()
                 && displayOffloadSession != null) {
             mAllowAutoBrightnessWhileDozing &= displayOffloadSession.allowAutoBrightnessInDoze();
         }

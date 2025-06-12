@@ -56,6 +56,11 @@
     <item msgid="5376619709702103243">"අක්‍රියයි"</item>
     <item msgid="4875147066469902392">"සක්‍රියයි"</item>
   </string-array>
+  <string-array name="tile_states_modes_dnd">
+    <item msgid="6509540227356524582">"නොමැත"</item>
+    <item msgid="8589336868985358191">"ක්‍රියාවිරහිතයි"</item>
+    <item msgid="726072717827778234">"ක්‍රියාත්මකයි"</item>
+  </string-array>
   <string-array name="tile_states_flashlight">
     <item msgid="3465257127433353857">"නොමැත"</item>
     <item msgid="5044688398303285224">"අක්‍රියයි"</item>
@@ -195,5 +200,10 @@
     <item msgid="5894333929299989301">"ලබා ගත නොහැක"</item>
     <item msgid="6419996398343291862">"ක්‍රියාවිරහිතයි"</item>
     <item msgid="5908720590832378783">"ක්‍රියාත්මකයි"</item>
+  </string-array>
+  <string-array name="tile_states_desktopeffects">
+    <item msgid="6253480000354287321">"නොමැත"</item>
+    <item msgid="6641673879029894995">"ක්‍රියාවිරහිතයි"</item>
+    <item msgid="5806682401126108403">"ක්‍රියාත්මකයි"</item>
   </string-array>
 </resources>

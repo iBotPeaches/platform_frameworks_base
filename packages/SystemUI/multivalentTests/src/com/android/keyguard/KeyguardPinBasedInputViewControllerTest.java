@@ -16,12 +16,18 @@
 
 package com.android.keyguard;
 
+import static com.android.internal.widget.flags.Flags.FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
+import android.hardware.input.InputManager;
+import android.platform.test.annotations.EnableFlags;
 import android.testing.TestableLooper.RunWithLooper;
 import android.view.View;
 import android.view.ViewGroup;
@@ -79,8 +85,6 @@ public class KeyguardPinBasedInputViewControllerTest extends SysuiTestCase {
     @Mock
     private LatencyTracker mLatencyTracker;
     @Mock
-    private LiftToActivateListener mLiftToactivateListener;
-    @Mock
     private EmergencyButtonController mEmergencyButtonController;
     private FalsingCollector mFalsingCollector = new FalsingCollectorFake();
     @Mock
@@ -92,6 +96,8 @@ public class KeyguardPinBasedInputViewControllerTest extends SysuiTestCase {
     @Mock
     private UserActivityNotifier mUserActivityNotifier;
     private NumPadKey[] mButtons = new NumPadKey[]{};
+    @Mock
+    private InputManager mInputManager;
 
     private KeyguardPinBasedInputViewController mKeyguardPinViewController;
 
@@ -120,12 +126,13 @@ public class KeyguardPinBasedInputViewControllerTest extends SysuiTestCase {
                 new KeyguardKeyboardInteractor(new FakeKeyboardRepository());
         FakeFeatureFlags featureFlags = new FakeFeatureFlags();
         mSetFlagsRule.enableFlags(com.android.systemui.Flags.FLAG_REVAMPED_BOUNCER_MESSAGES);
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(false);
         mKeyguardPinViewController = new KeyguardPinBasedInputViewController(mPinBasedInputView,
                 mKeyguardUpdateMonitor, mSecurityMode, mLockPatternUtils, mKeyguardSecurityCallback,
-                mKeyguardMessageAreaControllerFactory, mLatencyTracker, mLiftToactivateListener,
+                mKeyguardMessageAreaControllerFactory, mLatencyTracker,
                 mEmergencyButtonController, mFalsingCollector, featureFlags,
                 mSelectedUserInteractor, keyguardKeyboardInteractor, mBouncerHapticPlayer,
-                mUserActivityNotifier) {
+                mUserActivityNotifier, mInputManager) {
             @Override
             public void onResume(int reason) {
                 super.onResume(reason);
@@ -149,5 +156,113 @@ public class KeyguardPinBasedInputViewControllerTest extends SysuiTestCase {
     public void testMessageIsSetWhenReset() {
         mKeyguardPinViewController.resetState();
         verify(mKeyguardMessageAreaController).setMessage(R.string.keyguard_enter_your_pin);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_addDevice_notKeyboard() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(false);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        mKeyguardPinViewController.onViewAttached();
+        mKeyguardPinViewController.onInputDeviceAdded(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_addDevice_keyboard() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        mKeyguardPinViewController.onViewAttached();
+        mKeyguardPinViewController.onInputDeviceAdded(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_addDevice_multipleKeyboards() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        mKeyguardPinViewController.onViewAttached();
+        mKeyguardPinViewController.onInputDeviceAdded(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+        mKeyguardPinViewController.onInputDeviceAdded(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_removeDevice_notKeyboard() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(false);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        mKeyguardPinViewController.onViewAttached();
+        mKeyguardPinViewController.onInputDeviceRemoved(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_removeDevice_keyboard() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(true, false);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(0)).setShowPassword(false);
+        mKeyguardPinViewController.onViewAttached();
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+        mKeyguardPinViewController.onInputDeviceRemoved(1);
+        verify(mPasswordEntry, times(2)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_removeDevice_multipleKeyboards() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(true, true);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(0)).setShowPassword(false);
+        mKeyguardPinViewController.onViewAttached();
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+        mKeyguardPinViewController.onInputDeviceRemoved(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_updateDevice_notKeyboard() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(false);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        mKeyguardPinViewController.onViewAttached();
+        mKeyguardPinViewController.onInputDeviceChanged(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_updateDevice_keyboard() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(true, false);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(0)).setShowPassword(false);
+        mKeyguardPinViewController.onViewAttached();
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+        mKeyguardPinViewController.onInputDeviceChanged(1);
+        verify(mPasswordEntry, times(2)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+    }
+
+    @Test
+    @EnableFlags(FLAG_HIDE_LAST_CHAR_WITH_PHYSICAL_INPUT)
+    public void updateAnimations_updateDevice_multipleKeyboards() {
+        when(mLockPatternUtils.isPinEnhancedPrivacyEnabled(anyInt())).thenReturn(true, true);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(0)).setShowPassword(false);
+        mKeyguardPinViewController.onViewAttached();
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
+        mKeyguardPinViewController.onInputDeviceChanged(1);
+        verify(mPasswordEntry, times(1)).setShowPassword(true);
+        verify(mPasswordEntry, times(1)).setShowPassword(false);
     }
 }

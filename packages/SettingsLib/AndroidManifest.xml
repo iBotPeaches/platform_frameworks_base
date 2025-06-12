@@ -21,6 +21,13 @@
     <uses-permission android:name="android.permission.READ_DEVICE_CONFIG" />
 
     <application>
+        <activity
+            android:name=".users.CreateUserActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnCloseSystemDialogs="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.Transparent"/>
     </application>
 
 </manifest>

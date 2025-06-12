@@ -77,6 +77,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
     private lateinit var resources: TestableResources
     private lateinit var trustRepository: FakeTrustRepository
     private lateinit var testScope: TestScope
+    private val TEST_REASON = "reason"
 
     @Before
     fun setUp() {
@@ -105,7 +106,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
                 mSelectedUserInteractor,
                 faceAuthInteractor,
             )
-        whenever(repository.primaryBouncerStartingDisappearAnimation.value).thenReturn(null)
+        whenever(repository.isPrimaryBouncerStartingDisappearAnimation()).thenReturn(false)
         whenever(repository.primaryBouncerShow.value).thenReturn(false)
         whenever(bouncerView.delegate).thenReturn(bouncerViewDelegate)
         resources = context.orCreateTestableResources
@@ -118,7 +119,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
             mainHandler.setMode(FakeHandler.Mode.QUEUEING)
 
             // WHEN bouncer show is requested
-            underTest.show(true)
+            underTest.show(true, TEST_REASON)
 
             // WHEN all queued messages are dispatched
             mainHandler.dispatchQueuedMessages()
@@ -134,7 +135,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
 
     @Test
     fun testShow_isScrimmed() {
-        underTest.show(true)
+        underTest.show(true, TEST_REASON)
         verify(repository).setKeyguardAuthenticatedBiometrics(null)
         verify(repository).setPrimaryStartingToHide(false)
         verify(repository).setPrimaryScrimmed(true)
@@ -162,7 +163,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
     @Test
     fun testShowReturnsFalseWhenDelegateIsNotSet() {
         whenever(bouncerView.delegate).thenReturn(null)
-        assertThat(underTest.show(true)).isEqualTo(false)
+        assertThat(underTest.show(true, TEST_REASON)).isEqualTo(false)
     }
 
     @Test
@@ -171,7 +172,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
         whenever(keyguardSecurityModel.getSecurityMode(anyInt()))
             .thenReturn(KeyguardSecurityModel.SecurityMode.SimPuk)
 
-        underTest.show(true)
+        underTest.show(true, TEST_REASON)
         verify(repository).setPrimaryShow(false)
         verify(repository).setPrimaryShow(true)
     }
@@ -199,7 +200,6 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
     @Test
     fun testExpansion_fullyShown() {
         whenever(repository.panelExpansionAmount.value).thenReturn(0.5f)
-        whenever(repository.primaryBouncerStartingDisappearAnimation.value).thenReturn(null)
         underTest.setPanelExpansion(EXPANSION_VISIBLE)
         verify(falsingCollector).onBouncerShown()
         verify(mPrimaryBouncerCallbackInteractor).dispatchFullyShown()
@@ -208,7 +208,6 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
     @Test
     fun testExpansion_fullyHidden() {
         whenever(repository.panelExpansionAmount.value).thenReturn(0.5f)
-        whenever(repository.primaryBouncerStartingDisappearAnimation.value).thenReturn(null)
         underTest.setPanelExpansion(EXPANSION_HIDDEN)
         verify(repository).setPrimaryShow(false)
         verify(falsingCollector).onBouncerHidden()
@@ -307,7 +306,6 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
     fun testIsFullShowing() {
         whenever(repository.primaryBouncerShow.value).thenReturn(true)
         whenever(repository.panelExpansionAmount.value).thenReturn(EXPANSION_VISIBLE)
-        whenever(repository.primaryBouncerStartingDisappearAnimation.value).thenReturn(null)
         assertThat(underTest.isFullyShowing()).isTrue()
         whenever(repository.primaryBouncerShow.value).thenReturn(false)
         assertThat(underTest.isFullyShowing()).isFalse()
@@ -333,9 +331,9 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
 
     @Test
     fun testIsAnimatingAway() {
-        whenever(repository.primaryBouncerStartingDisappearAnimation.value).thenReturn(Runnable {})
+        whenever(repository.isPrimaryBouncerStartingDisappearAnimation()).thenReturn(true)
         assertThat(underTest.isAnimatingAway()).isTrue()
-        whenever(repository.primaryBouncerStartingDisappearAnimation.value).thenReturn(null)
+        whenever(repository.isPrimaryBouncerStartingDisappearAnimation()).thenReturn(false)
         assertThat(underTest.isAnimatingAway()).isFalse()
     }
 
@@ -355,7 +353,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
         whenever(faceAuthInteractor.canFaceAuthRun()).thenReturn(true)
 
         // WHEN bouncer show is requested
-        underTest.show(true)
+        underTest.show(true, TEST_REASON)
 
         // THEN primary show & primary showing soon aren't updated immediately
         verify(repository, never()).setPrimaryShow(true)
@@ -378,7 +376,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
         whenever(faceAuthInteractor.canFaceAuthRun()).thenReturn(false)
 
         // WHEN bouncer show is requested
-        underTest.show(true)
+        underTest.show(true, TEST_REASON)
 
         // THEN primary show & primary showing soon are updated immediately
         verify(repository).setPrimaryShow(true)
@@ -397,7 +395,7 @@ class PrimaryBouncerInteractorTest : SysuiTestCase() {
             runCurrent()
 
             // WHEN bouncer show is requested
-            underTest.show(true)
+            underTest.show(true, TEST_REASON)
 
             // THEN primary show & primary showing soon were scheduled to update
             verify(repository, never()).setPrimaryShow(true)

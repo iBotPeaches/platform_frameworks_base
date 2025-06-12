@@ -28,19 +28,18 @@ import android.view.accessibility.AccessibilityNodeInfo;
 
 import com.android.internal.widget.ExploreByTouchHelper;
 import com.android.internal.widget.remotecompose.core.CoreDocument;
+import com.android.internal.widget.remotecompose.core.RemoteContextAware;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
 import com.android.internal.widget.remotecompose.core.semantics.AccessibilitySemantics;
-import com.android.internal.widget.remotecompose.core.semantics.CoreSemantics.Mode;
+import com.android.internal.widget.remotecompose.core.semantics.AccessibleComponent.Mode;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.Stack;
 
 public class PlatformRemoteComposeTouchHelper extends ExploreByTouchHelper {
     private final RemoteComposeDocumentAccessibility mRemoteDocA11y;
 
     private final SemanticNodeApplier<AccessibilityNodeInfo> mApplier;
+    private final View mHost;
 
     public PlatformRemoteComposeTouchHelper(
             View host,
@@ -49,14 +48,16 @@ public class PlatformRemoteComposeTouchHelper extends ExploreByTouchHelper {
         super(host);
         this.mRemoteDocA11y = remoteDocA11y;
         this.mApplier = applier;
+        this.mHost = host;
     }
 
     public static PlatformRemoteComposeTouchHelper forRemoteComposePlayer(
             View player, @NonNull CoreDocument coreDocument) {
         return new PlatformRemoteComposeTouchHelper(
                 player,
-                new CoreDocumentAccessibility(coreDocument),
-                new AndroidPlatformSemanticNodeApplier());
+                new CoreDocumentAccessibility(
+                        coreDocument, ((RemoteContextAware) player).getRemoteContext()),
+                new AndroidPlatformSemanticNodeApplier(player));
     }
 
     /**
@@ -94,35 +95,17 @@ public class PlatformRemoteComposeTouchHelper extends ExploreByTouchHelper {
      */
     @Override
     protected void getVisibleVirtualViews(IntArray virtualViewIds) {
-        Stack<Integer> toVisit = new Stack<>();
-        Set<Integer> visited = new HashSet<>();
+        Component rootComponent = mRemoteDocA11y.findComponentById(RootId);
 
-        toVisit.push(RootId);
+        if (rootComponent == null
+                || !mRemoteDocA11y.semanticModifiersForComponent(rootComponent).isEmpty()) {
+            virtualViewIds.add(RootId);
+        }
 
-        while (!toVisit.isEmpty()) {
-            Integer componentId = toVisit.remove(0);
-
-            if (visited.add(componentId)) {
-                Component component = mRemoteDocA11y.findComponentById(componentId);
-
-                // Only include the root when it has semantics such as content description
-                if (!RootId.equals(componentId)
-                        || !mRemoteDocA11y.semanticModifiersForComponent(component).isEmpty()) {
-                    virtualViewIds.add(componentId);
-                }
-
-                if (component != null) {
-                    Mode mergeMode = mRemoteDocA11y.mergeMode(component);
-
-                    if (mergeMode == Mode.SET) {
-                        List<Integer> childViews =
-                                mRemoteDocA11y.semanticallyRelevantChildComponents(
-                                        component, false);
-
-                        toVisit.addAll(childViews);
-                    }
-                }
-            }
+        List<Integer> children =
+                mRemoteDocA11y.semanticallyRelevantChildComponents(rootComponent, false);
+        for (int child : children) {
+            virtualViewIds.add(child);
         }
     }
 
@@ -148,6 +131,13 @@ public class PlatformRemoteComposeTouchHelper extends ExploreByTouchHelper {
         List<AccessibilitySemantics> semantics =
                 mRemoteDocA11y.semanticModifiersForComponent(component);
         mApplier.applyComponent(mRemoteDocA11y, node, component, semantics);
+
+        if (mergeMode == Mode.SET) {
+            List<Integer> childViews =
+                    mRemoteDocA11y.semanticallyRelevantChildComponents(component, false);
+
+            mApplier.addChildren(node, childViews);
+        }
     }
 
     @Override
@@ -159,7 +149,14 @@ public class PlatformRemoteComposeTouchHelper extends ExploreByTouchHelper {
         Component component = mRemoteDocA11y.findComponentById(virtualViewId);
 
         if (component != null) {
-            return mRemoteDocA11y.performAction(component, action, arguments);
+            boolean performed = mRemoteDocA11y.performAction(component, action, arguments);
+
+            if (performed) {
+                mHost.invalidate();
+                invalidateRoot();
+            }
+
+            return performed;
         } else {
             return false;
         }

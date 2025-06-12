@@ -16,7 +16,7 @@ filegroup {
     srcs: [
         "texts/ravenwood-common-policies.txt",
     ],
-    visibility: ["//visibility:private"],
+    visibility: [":__subpackages__"],
 }
 
 filegroup {
@@ -41,6 +41,22 @@ filegroup {
         "texts/ravenwood-standard-options.txt",
     ],
     visibility: ["//visibility:private"],
+}
+
+filegroup {
+    name: "ravenwood-standard-annotations",
+    srcs: [
+        "texts/ravenwood-standard-annotations.txt",
+    ],
+    visibility: [":__subpackages__"],
+}
+
+filegroup {
+    name: "ravenizer-standard-options",
+    srcs: [
+        "texts/ravenizer-standard-options.txt",
+    ],
+    visibility: [":__subpackages__"],
 }
 
 filegroup {

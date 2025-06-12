@@ -15,6 +15,7 @@
 -->
 <configuration description="Runs Frameworks UI Services Tests.">
     <target_preparer class="com.android.tradefed.targetprep.TestAppInstallSetup">
+        <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="FrameworksUiServicesTests.apk" />
     </target_preparer>
 

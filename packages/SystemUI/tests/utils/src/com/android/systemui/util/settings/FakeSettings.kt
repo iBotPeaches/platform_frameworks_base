@@ -70,6 +70,14 @@ class FakeSettings : SecureSettings, SystemSettings, UserSettingsProxy {
         }
     }
 
+    fun getContentObservers(uri: Uri, userHandle: Int): List<ContentObserver> {
+        if (userHandle == UserHandle.USER_ALL) {
+            return contentObserversAllUsers[uri.toString()] ?: listOf()
+        } else {
+            return contentObservers[SettingsKey(userHandle, uri.toString())] ?: listOf()
+        }
+    }
+
     override fun getContentResolver(): ContentResolver {
         throw UnsupportedOperationException("FakeSettings.getContentResolver is not implemented")
     }
@@ -279,6 +287,37 @@ class FakeSettings : SecureSettings, SystemSettings, UserSettingsProxy {
         makeDefault: Boolean,
     ): Boolean {
         return putString(name, value)
+    }
+
+    override fun getInt(name: String): Int {
+        return getIntForUser(name, userId)
+    }
+
+    override fun getInt(name: String, default: Int): Int {
+        return getIntForUser(name, default, userId)
+    }
+
+    override fun getIntForUser(name: String, userHandle: Int): Int {
+        return getIntForUser(name, 0, userHandle)
+    }
+
+    override fun getIntForUser(name: String, default: Int, userHandle: Int): Int {
+        return values[SettingsKey(userHandle, getUriFor(name).toString())]?.toInt() ?: default
+    }
+
+    override fun putIntForUser(name: String, value: Int, userHandle: Int): Boolean {
+        val key = SettingsKey(userHandle, getUriFor(name).toString())
+        values[key] = value.toString()
+        val uri = getUriFor(name)
+        contentObservers[key]?.onEach { it.dispatchChange(false, listOf(uri), 0, userHandle) }
+        contentObserversAllUsers[uri.toString()]?.onEach {
+            it.dispatchChange(false, listOf(uri), 0, userHandle)
+        }
+        return true
+    }
+
+    override fun putInt(name: String, value: Int): Boolean {
+        return putIntForUser(name, value, userId)
     }
 
     /** Runs current jobs on dispatcher after calling the method. */

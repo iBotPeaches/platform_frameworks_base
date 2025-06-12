@@ -31,6 +31,7 @@ import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.notification.domain.interactor.SeenNotificationsInteractor
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.ExpandableView
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.notification.shared.NotificationMinimalism
 import com.android.systemui.statusbar.policy.SplitShadeStateController
 import com.android.systemui.util.Compile
@@ -406,8 +407,14 @@ constructor(
                 }
 
             if (counter != null) {
-                val entry = (currentNotification as? ExpandableNotificationRow)?.entry
-                counter.incrementForBucket(entry?.bucket)
+                if (NotificationBundleUi.isEnabled) {
+                    val entryAdapter =
+                        (currentNotification as? ExpandableNotificationRow)?.entryAdapter
+                    counter.incrementForBucket(entryAdapter?.sectionBucket)
+                } else {
+                    val entry = (currentNotification as? ExpandableNotificationRow)?.entryLegacy
+                    counter.incrementForBucket(entry?.bucket)
+                }
             }
 
             log {
@@ -460,10 +467,16 @@ constructor(
         val height = view.heightWithoutLockscreenConstraints.toFloat()
         val gapAndDividerHeight =
             calculateGapAndDividerHeight(stack, previousView, current = view, visibleIndex)
+        val canPeek = view is ExpandableNotificationRow &&
+                if (NotificationBundleUi.isEnabled) view.entryAdapter?.canPeek() == true
+                else view.entryLegacy.isStickyAndNotDemoted
 
         var size =
             if (onLockscreen) {
-                if (view is ExpandableNotificationRow && view.entry.isStickyAndNotDemoted) {
+                if (
+                    view is ExpandableNotificationRow &&
+                        (canPeek || view.isPromotedOngoing)
+                ) {
                     height
                 } else {
                     view.getMinHeight(/* ignoreTemporaryStates= */ true).toFloat()

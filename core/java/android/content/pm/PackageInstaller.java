@@ -3250,7 +3250,6 @@ public class PackageInstaller {
          */
         @SystemApi
         @RequiresPermission(android.Manifest.permission.MANAGE_ROLLBACKS)
-        @FlaggedApi(Flags.FLAG_RECOVERABILITY_DETECTION)
         public void setRollbackImpactLevel(@PackageManager.RollbackImpactLevel int impactLevel) {
             if ((installFlags & PackageManager.INSTALL_ENABLE_ROLLBACK) == 0) {
                 throw new IllegalArgumentException(
@@ -3617,7 +3616,9 @@ public class PackageInstaller {
          * automatically fetched and installed when installing an app that wants to use these
          * dependencies.
          *
-         * <p> This feature is enabled by default.
+         * <p> This feature is enabled by default. Note that in the case of a multi-package
+         * installation session, no dependencies will be automatically installed even if this field
+         * is set to true.
          *
          * @param enableAutoInstallDependencies {@code true} to enable auto-installation of missing
          *                                      SDK or static shared library dependencies,
@@ -4573,6 +4574,9 @@ public class PackageInstaller {
         /**
          * Check whether missing SDK or static shared library dependencies should be automatically
          * fetched and installed when installing an app that wants to use these dependencies.
+         *
+         * <p> Note that in the case of a multi-package installation session, no dependencies will
+         * be automatically installed even if this method returns true.
          *
          * @return true if the dependencies will be auto-installed, false otherwise.
          */

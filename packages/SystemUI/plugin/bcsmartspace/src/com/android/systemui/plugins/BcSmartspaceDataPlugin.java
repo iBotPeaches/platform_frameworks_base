@@ -85,6 +85,10 @@ public interface BcSmartspaceDataPlugin extends Plugin {
         throw new UnsupportedOperationException("Not implemented by " + getClass());
     }
 
+    default SmartspaceView getLargeClockView(ViewGroup parent) {
+        throw new UnsupportedOperationException("Not implemented by " + getClass());
+    }
+
     /**
      * As the smartspace view becomes available, allow listeners to receive an event.
      */

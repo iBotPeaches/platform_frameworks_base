@@ -749,6 +749,10 @@ public abstract class PreferenceActivity extends ListActivity implements
             getListView().clearChoices();
         } else if (!WindowOnBackInvokedDispatcher.isOnBackInvokedCallbackEnabled(this)) {
             super.onBackPressed();
+        } else if (!mIsBackCallbackRegistered) {
+            // If predictive back is enabled and no callback is registered, finish the activity.
+            // This ensures correct back navigation behaviour when onBackPressed is called manually.
+            finish();
         }
         updateBackCallbackRegistrationState();
     }

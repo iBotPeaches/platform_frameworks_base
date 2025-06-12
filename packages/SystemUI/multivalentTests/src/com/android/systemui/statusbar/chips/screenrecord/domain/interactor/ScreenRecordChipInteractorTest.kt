@@ -34,7 +34,6 @@ import com.android.systemui.statusbar.chips.screenrecord.domain.model.ScreenReco
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -42,7 +41,6 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class ScreenRecordChipInteractorTest : SysuiTestCase() {
     private val kosmos = testKosmos().useUnconfinedTestDispatcher()
     private val testScope = kosmos.testScope
@@ -89,7 +87,7 @@ class ScreenRecordChipInteractorTest : SysuiTestCase() {
             screenRecordRepo.screenRecordState.value = ScreenRecordModel.Recording
             mediaProjectionRepo.mediaProjectionState.value = MediaProjectionState.NotProjecting
 
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = null))
+            assertThat((latest as ScreenRecordChipModel.Recording).recordedTask).isNull()
         }
 
     @Test
@@ -101,7 +99,7 @@ class ScreenRecordChipInteractorTest : SysuiTestCase() {
             mediaProjectionRepo.mediaProjectionState.value =
                 MediaProjectionState.Projecting.EntireScreen("host.package")
 
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = null))
+            assertThat((latest as ScreenRecordChipModel.Recording).recordedTask).isNull()
         }
 
     @Test
@@ -118,7 +116,48 @@ class ScreenRecordChipInteractorTest : SysuiTestCase() {
                     task,
                 )
 
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = task))
+            assertThat((latest as ScreenRecordChipModel.Recording).recordedTask).isEqualTo(task)
+        }
+
+    @Test
+    fun screenRecordState_projectionIsNotProjecting_hostPackageNull() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.screenRecordState)
+
+            screenRecordRepo.screenRecordState.value = ScreenRecordModel.Recording
+            mediaProjectionRepo.mediaProjectionState.value = MediaProjectionState.NotProjecting
+
+            assertThat((latest as ScreenRecordChipModel.Recording).hostPackage).isNull()
+        }
+
+    @Test
+    fun screenRecordState_projectionIsEntireScreen_hostPackageMatches() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.screenRecordState)
+
+            screenRecordRepo.screenRecordState.value = ScreenRecordModel.Recording
+            mediaProjectionRepo.mediaProjectionState.value =
+                MediaProjectionState.Projecting.EntireScreen(hostPackage = "host.package")
+
+            assertThat((latest as ScreenRecordChipModel.Recording).hostPackage)
+                .isEqualTo("host.package")
+        }
+
+    @Test
+    fun screenRecordState_projectionIsSingleTask_hostPackageMatches() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.screenRecordState)
+
+            screenRecordRepo.screenRecordState.value = ScreenRecordModel.Recording
+            mediaProjectionRepo.mediaProjectionState.value =
+                MediaProjectionState.Projecting.SingleTask(
+                    hostPackage = "host.package",
+                    hostDeviceName = null,
+                    task = createTask(taskId = 1),
+                )
+
+            assertThat((latest as ScreenRecordChipModel.Recording).hostPackage)
+                .isEqualTo("host.package")
         }
 
     @Test
@@ -152,7 +191,7 @@ class ScreenRecordChipInteractorTest : SysuiTestCase() {
             advanceTimeBy(901)
 
             // THEN we automatically update to the recording state
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = null))
+            assertThat(latest).isInstanceOf(ScreenRecordChipModel.Recording::class.java)
         }
 
     @Test
@@ -177,13 +216,14 @@ class ScreenRecordChipInteractorTest : SysuiTestCase() {
                 )
 
             // THEN we immediately switch to Recording, and we have the task
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = task))
+            assertThat(latest).isInstanceOf(ScreenRecordChipModel.Recording::class.java)
+            assertThat((latest as ScreenRecordChipModel.Recording).recordedTask).isEqualTo(task)
 
             // WHEN more than 900ms has elapsed
             advanceTimeBy(200)
 
             // THEN we still stay in the Recording state and we have the task
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = task))
+            assertThat((latest as ScreenRecordChipModel.Recording).recordedTask).isEqualTo(task)
         }
 
     @Test
@@ -249,7 +289,7 @@ class ScreenRecordChipInteractorTest : SysuiTestCase() {
 
             // THEN we *do* auto-start 400ms later
             advanceTimeBy(401)
-            assertThat(latest).isEqualTo(ScreenRecordChipModel.Recording(recordedTask = null))
+            assertThat(latest).isInstanceOf(ScreenRecordChipModel.Recording::class.java)
         }
 
     @Test

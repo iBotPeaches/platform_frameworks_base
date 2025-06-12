@@ -22,7 +22,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.hardware.usb.UsbDevice;
 import android.platform.test.annotations.RequiresFlagsEnabled;
@@ -118,6 +118,6 @@ public class BrailleDisplayControllerImplTest {
 
         verify(mBrailleDisplayCallback).onConnectionFailed(
                 BrailleDisplayController.BrailleDisplayCallback.FLAG_ERROR_CANNOT_ACCESS);
-        verifyZeroInteractions(mAccessibilityServiceConnection);
+        verifyNoMoreInteractions(mAccessibilityServiceConnection);
     }
 }

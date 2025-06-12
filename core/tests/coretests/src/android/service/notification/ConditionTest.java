@@ -23,10 +23,8 @@ import static junit.framework.Assert.fail;
 
 import static org.junit.Assert.assertThrows;
 
-import android.app.Flags;
 import android.net.Uri;
 import android.os.Parcel;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -113,7 +111,6 @@ public class ConditionTest {
 
     @Test
     public void testLongFields_inConstructors() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
         String longString = Strings.repeat("A", 65536);
         Uri longUri = Uri.parse("uri://" + Strings.repeat("A", 65530));
 
@@ -136,7 +133,6 @@ public class ConditionTest {
 
     @Test
     public void testLongFields_viaParcel() throws Exception {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
         // Set fields via reflection to force them to be long, then parcel and unparcel to make sure
         // it gets truncated upon unparcelling.
         Condition cond = new Condition(Uri.parse("uri://placeholder"), "placeholder",
@@ -170,8 +166,6 @@ public class ConditionTest {
 
     @Test
     public void testEquals() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         Condition cond1 = new Condition(Uri.parse("uri://placeholder"), "placeholder",
                 Condition.STATE_TRUE, Condition.SOURCE_USER_ACTION);
         Condition cond2 = new Condition(Uri.parse("uri://placeholder"), "placeholder",
@@ -186,8 +180,6 @@ public class ConditionTest {
 
     @Test
     public void testParcelConstructor() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         Condition cond = new Condition(Uri.parse("uri://placeholder"), "placeholder",
                 Condition.STATE_TRUE, Condition.SOURCE_USER_ACTION);
 
@@ -200,28 +192,24 @@ public class ConditionTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void constructor_unspecifiedSource_succeeds() {
         new Condition(Uri.parse("id"), "Summary", Condition.STATE_TRUE);
         // No exception.
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void constructor_validSource_succeeds() {
         new Condition(Uri.parse("id"), "Summary", Condition.STATE_TRUE, Condition.SOURCE_CONTEXT);
         // No exception.
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void constructor_invalidSource_throws() {
         assertThrows(IllegalArgumentException.class,
                 () -> new Condition(Uri.parse("uri"), "Summary", Condition.STATE_TRUE, 1000));
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void constructor_parcelWithInvalidSource_throws() {
         Condition original = new Condition(Uri.parse("condition"), "Summary", Condition.STATE_TRUE,
                 Condition.SOURCE_SCHEDULE);
@@ -237,7 +225,6 @@ public class ConditionTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_MODES_API)
     public void validate_invalidSource_throws() throws Exception {
         Condition condition = new Condition(Uri.parse("condition"), "Summary", Condition.STATE_TRUE,
                 Condition.SOURCE_SCHEDULE);

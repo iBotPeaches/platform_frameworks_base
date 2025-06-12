@@ -14,10 +14,12 @@ android_library {
     ],
     srcs: [":SettingsLibMetadata-srcs"],
     static_libs: [
+        "SettingsLibDataStore",
         "androidx.annotation_annotation",
         "androidx.fragment_fragment",
-        "guava",
-        "SettingsLibDataStore",
     ],
     kotlincflags: ["-Xjvm-default=all"],
+    optimize: {
+        proguard_flags_files: ["proguard.pgcfg"],
+    },
 }

@@ -30,7 +30,6 @@ import kotlin.math.ceil
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentCaptor
-import org.mockito.Mockito.eq
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
@@ -60,10 +59,11 @@ class TextAnimatorTest : SysuiTestCase() {
         val textAnimator =
             TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
+                this.createAnimator = { valueAnimator }
                 this.animator = valueAnimator
             }
 
-        textAnimator.setTextStyle(weight = 400, animate = true)
+        textAnimator.setTextStyle(TextAnimator.Style("'wght' 400"), TextAnimator.Animation())
 
         // If animation is requested, the base state should be rebased and the target state should
         // be updated.
@@ -90,10 +90,11 @@ class TextAnimatorTest : SysuiTestCase() {
         val textAnimator =
             TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
+                this.createAnimator = { valueAnimator }
                 this.animator = valueAnimator
             }
 
-        textAnimator.setTextStyle(weight = 400, animate = false)
+        textAnimator.setTextStyle(TextAnimator.Style("'wght' 400"))
 
         // If animation is not requested, the progress should be 1 which is end of animation and the
         // base state is rebased to target state by calling rebase.
@@ -118,23 +119,24 @@ class TextAnimatorTest : SysuiTestCase() {
         val textAnimator =
             TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
+                this.createAnimator = { valueAnimator }
                 this.animator = valueAnimator
             }
 
         textAnimator.setTextStyle(
-            weight = 400,
-            animate = true,
-            onAnimationEnd = animationEndCallback,
+            TextAnimator.Style("'wght' 400"),
+            TextAnimator.Animation(animate = true, onAnimationEnd = animationEndCallback),
         )
 
         // Verify animationEnd callback has been added.
         val captor = ArgumentCaptor.forClass(AnimatorListenerAdapter::class.java)
-        verify(valueAnimator).addListener(captor.capture())
-        captor.value.onAnimationEnd(valueAnimator)
+        verify(valueAnimator, times(2)).addListener(captor.capture())
+        for (callback in captor.allValues) {
+            callback.onAnimationEnd(valueAnimator)
+        }
 
         // Verify animationEnd callback has been invoked and removed.
         verify(animationEndCallback).run()
-        verify(valueAnimator).removeListener(eq(captor.value))
     }
 
     @Test
@@ -148,18 +150,20 @@ class TextAnimatorTest : SysuiTestCase() {
         val textAnimator =
             TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
+                this.createAnimator = { valueAnimator }
                 this.animator = valueAnimator
             }
 
-        textAnimator.setTextStyle(weight = 400, animate = true)
+        val animation = TextAnimator.Animation(animate = true)
+        textAnimator.setTextStyle(TextAnimator.Style("'wght' 400"), animation)
 
         val prevTypeface = paint.typeface
 
-        textAnimator.setTextStyle(weight = 700, animate = true)
+        textAnimator.setTextStyle(TextAnimator.Style("'wght' 700"), animation)
 
         assertThat(paint.typeface).isNotSameInstanceAs(prevTypeface)
 
-        textAnimator.setTextStyle(weight = 400, animate = true)
+        textAnimator.setTextStyle(TextAnimator.Style("'wght' 400"), animation)
 
         assertThat(paint.typeface).isSameInstanceAs(prevTypeface)
     }

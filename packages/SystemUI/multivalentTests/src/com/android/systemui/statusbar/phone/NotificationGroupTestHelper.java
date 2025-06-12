@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.phone;
 
+import static android.app.NotificationManager.IMPORTANCE_LOW;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.mock;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.when;
 
 import android.app.ActivityManager;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.content.Context;
 import android.os.UserHandle;
 import android.service.notification.StatusBarNotification;
@@ -85,6 +87,33 @@ public final class NotificationGroupTestHelper {
         return entry;
     }
 
+    public NotificationEntry createClassifiedEntry(boolean isSummary,
+            int groupAlertBehavior, String channelId) {
+
+        Notification notif = new Notification.Builder(mContext, TEST_CHANNEL_ID)
+                .setContentTitle("Title")
+                .setSmallIcon(R.drawable.ic_person)
+                .setGroupAlertBehavior(groupAlertBehavior)
+                .setGroupSummary(isSummary)
+                .setGroup(TEST_GROUP_ID)
+                .build();
+
+        NotificationChannel channel = new NotificationChannel(channelId, channelId, IMPORTANCE_LOW);
+        NotificationEntry entry = new NotificationEntryBuilder()
+                .setPkg(TEST_PACKAGE_NAME)
+                .setOpPkg(TEST_PACKAGE_NAME)
+                .setId(mId++)
+                .setNotification(notif)
+                .updateRanking((rankingBuilder -> rankingBuilder.setChannel(channel)))
+                .setUser(new UserHandle(ActivityManager.getCurrentUser()))
+                .build();
+
+        ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
+        entry.setRow(row);
+        when(row.getEntryLegacy()).thenReturn(entry);
+        return entry;
+    }
+
     public NotificationEntry createEntry(int id, String tag, boolean isSummary,
             int groupAlertBehavior) {
         Notification notif = new Notification.Builder(mContext, TEST_CHANNEL_ID)
@@ -106,6 +135,7 @@ public final class NotificationGroupTestHelper {
         ExpandableNotificationRow row = mock(ExpandableNotificationRow.class);
         entry.setRow(row);
         when(row.getEntry()).thenReturn(entry);
+        when(row.getEntryLegacy()).thenReturn(entry);
         return entry;
     }
 

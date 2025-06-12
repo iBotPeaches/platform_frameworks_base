@@ -1,13 +1,31 @@
+/*
+ * Copyright (C) 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.android.systemui.kosmos
 
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.compose.runTestWithSnapshots
 import com.android.systemui.coroutines.FlowValue
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.coroutines.collectValues
 import com.android.systemui.kosmos.Kosmos.Fixture
-import com.android.systemui.settings.brightness.ui.BrightnessWarningToast
-import com.android.systemui.util.mockito.mock
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.mockito.kotlin.verify
 
 var Kosmos.testDispatcher by Fixture { StandardTestDispatcher() }
@@ -41,23 +59,22 @@ fun Kosmos.useUnconfinedTestDispatcher() = apply { testDispatcher = UnconfinedTe
 
 var Kosmos.testScope by Fixture { TestScope(testDispatcher) }
 var Kosmos.backgroundScope by Fixture { testScope.backgroundScope }
-var Kosmos.applicationCoroutineScope by Fixture { backgroundScope }
+var Kosmos.applicationCoroutineScope by Fixture { testScope.backgroundScope }
 var Kosmos.testCase: SysuiTestCase by Fixture()
-var Kosmos.backgroundCoroutineContext: CoroutineContext by Fixture {
-    backgroundScope.coroutineContext
-}
-var Kosmos.mainCoroutineContext: CoroutineContext by Fixture { testScope.coroutineContext }
-var Kosmos.brightnessWarningToast: BrightnessWarningToast by
-    Kosmos.Fixture { mock<BrightnessWarningToast>() }
+var Kosmos.backgroundCoroutineContext: CoroutineContext by Fixture { testDispatcher }
+var Kosmos.mainCoroutineContext: CoroutineContext by Fixture { testDispatcher }
 
 /**
  * Run this test body with a [Kosmos] as receiver, and using the [testScope] currently installed in
- * that kosmos instance
+ * that Kosmos instance
  */
-fun Kosmos.runTest(testBody: suspend Kosmos.() -> Unit) =
-    testScope.runTest testBody@{ this@runTest.testBody() }
+fun Kosmos.runTest(testBody: suspend Kosmos.() -> Unit) = let { kosmos ->
+    testScope.runTestWithSnapshots { kosmos.testBody() }
+}
 
 fun Kosmos.runCurrent() = testScope.runCurrent()
+
+fun Kosmos.advanceTimeBy(duration: Duration) = testScope.advanceTimeBy(duration)
 
 fun <T> Kosmos.collectLastValue(flow: Flow<T>) = testScope.collectLastValue(flow)
 
@@ -72,7 +89,6 @@ fun <T> Kosmos.collectValues(flow: Flow<T>): FlowValue<List<T>> = testScope.coll
  * If you want to assert on a [Flow] that is not a [StateFlow], please use
  * [TestScope.collectLastValue], to make sure that the desired value is captured when emitted.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 fun <T> TestScope.currentValue(stateFlow: StateFlow<T>): T {
     val values = mutableListOf<T>()
     val job = backgroundScope.launch { stateFlow.collect(values::add) }
@@ -89,7 +105,6 @@ fun <T> Kosmos.currentValue(fn: () -> T) = testScope.currentValue(fn)
  * Retrieve the result of [fn] after running all pending tasks. Do not use to retrieve the value of
  * a flow directly; for that, use either `currentValue(StateFlow)` or [collectLastValue]
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 fun <T> TestScope.currentValue(fn: () -> T): T {
     runCurrent()
     return fn()
@@ -101,7 +116,6 @@ fun <T> Kosmos.currentValue(stateFlow: StateFlow<T>): T {
 }
 
 /** Safely verify that a mock has been called after the test scope has caught up */
-@OptIn(ExperimentalCoroutinesApi::class)
 fun <T> TestScope.verifyCurrent(mock: T): T {
     runCurrent()
     return verify(mock)

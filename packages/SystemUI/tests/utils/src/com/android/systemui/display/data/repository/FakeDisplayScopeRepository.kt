@@ -16,15 +16,18 @@
 
 package com.android.systemui.display.data.repository
 
+import com.android.app.displaylib.PerDisplayRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 
-class FakeDisplayScopeRepository(private val dispatcher: CoroutineDispatcher) :
-    DisplayScopeRepository {
+class FakeDisplayScopeRepository(
+    private val dispatcher: CoroutineDispatcher,
+    override val debugName: String = "FakeDisplayScopeRepository",
+) : PerDisplayRepository<CoroutineScope> {
 
     private val perDisplayScopes = mutableMapOf<Int, CoroutineScope>()
 
-    override fun scopeForDisplay(displayId: Int): CoroutineScope {
+    override fun get(displayId: Int): CoroutineScope {
         return perDisplayScopes.computeIfAbsent(displayId) { CoroutineScope(dispatcher) }
     }
 }

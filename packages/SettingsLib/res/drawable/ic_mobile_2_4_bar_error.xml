@@ -1,26 +1,49 @@
+<!--
+     Copyright (C) 2025 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-        android:width="15dp"
-        android:height="14dp"
-        android:viewportWidth="15.0"
-        android:viewportHeight="14.0">
+    android:width="17dp"
+    android:height="12dp"
+    android:viewportWidth="16.0"
+    android:viewportHeight="12.0">
+    <group>
+        <!-- clip-out the circle which will contain the exclamation point (below this group) -->
+        <clip-path
+            android:pathData="
+            M0,0
+            V13.5,0
+            H13.5,20
+            V0,20
+            H0,0
+            M14.999,13.5C17.761,13.5 19.999,11.261 19.999,8.5C19.999,5.739 17.761,3.5 14.999,3.5C12.238,3.5 9.999,5.739 9.999,8.5C9.999,11.261 12.238,13.5 14.999,13.5Z" />
+        <path
+            android:pathData="M1.249,7C1.939,7 2.499,7.56 2.499,8.25L2.499,10.75C2.499,11.44 1.939,12 1.249,12C0.559,12 -0.001,11.44 -0.001,10.75L-0.001,8.25C-0.001,7.56 0.559,7 1.249,7Z"
+            android:fillColor="#000"/>
+        <path
+            android:pathData="M5.749,4.5C6.439,4.5 6.999,5.06 6.999,5.75L6.999,10.75C6.999,11.44 6.439,12 5.749,12C5.059,12 4.499,11.44 4.499,10.75L4.499,5.75C4.499,5.06 5.059,4.5 5.749,4.5Z"
+            android:fillColor="#000"/>
+        <path
+            android:pathData="M10.249,2C10.939,2 11.499,2.56 11.499,3.25L11.499,10.75C11.499,11.44 10.939,12 10.249,12C9.559,12 8.999,11.44 8.999,10.75L8.999,3.25C8.999,2.56 9.559,2 10.249,2Z"
+            android:fillAlpha="0.45"
+            android:fillColor="#000"/>
+        <path
+            android:pathData="M14.749,0C15.439,0 15.999,0.56 15.999,1.25L15.999,10.75C15.999,11.44 15.439,12 14.749,12C14.059,12 13.499,11.44 13.499,10.75L13.499,1.25C13.499,0.56 14.059,0 14.749,0Z"
+            android:fillAlpha="0.45"
+            android:fillColor="#000"/>
+    </group>
     <path
-        android:pathData="M7,3.5C7,3.224 7.224,3 7.5,3H8.5C8.776,3 9,3.224 9,3.5V13.5C9,13.776 8.776,14 8.5,14H7.5C7.224,14 7,13.776 7,13.5V3.5Z"
-        android:fillAlpha="0.3"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M0,10.5C0,10.224 0.224,10 0.5,10H1.5C1.776,10 2,10.224 2,10.5V13.5C2,13.776 1.776,14 1.5,14H0.5C0.224,14 0,13.776 0,13.5V10.5Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M3.5,7C3.5,6.724 3.724,6.5 4,6.5H5C5.276,6.5 5.5,6.724 5.5,7V13.5C5.5,13.776 5.276,14 5,14H4C3.724,14 3.5,13.776 3.5,13.5V7Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M11,0C10.724,0 10.5,0.224 10.5,0.5V3H12.5V0.5C12.5,0.224 12.276,0 12,0H11Z"
-        android:fillAlpha="0.3"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M12.25,13C12.25,12.448 12.698,12 13.25,12C13.802,12 14.25,12.448 14.25,13C14.25,13.552 13.802,14 13.25,14C12.698,14 12.25,13.552 12.25,13Z"
-        android:fillColor="#000"/>
-    <path
-        android:pathData="M12.25,5C12.25,4.724 12.474,4.5 12.75,4.5H13.75C14.026,4.5 14.25,4.724 14.25,5V10C14.25,10.276 14.026,10.5 13.75,10.5H12.75C12.474,10.5 12.25,10.276 12.25,10V5Z"
+        android:pathData="M14.999,5C14.589,5 14.249,5.34 14.249,5.75L14.249,8.75C14.249,9.16 14.589,9.5 14.999,9.5C15.409,9.5 15.749,9.16 15.749,8.75L15.749,5.75C15.749,5.34 15.409,5 14.999,5ZM14.999,12C15.409,12 15.749,11.66 15.749,11.25C15.749,10.84 15.409,10.5 14.999,10.5C14.589,10.5 14.249,10.84 14.249,11.25C14.249,11.66 14.589,12 14.999,12Z"
         android:fillColor="#000"/>
 </vector>

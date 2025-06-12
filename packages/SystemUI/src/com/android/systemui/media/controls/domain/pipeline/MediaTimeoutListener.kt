@@ -25,12 +25,10 @@ import com.android.internal.annotations.VisibleForTesting
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.media.NotificationMediaManager.isPlayingState
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.shared.model.SmartspaceMediaData
 import com.android.systemui.media.controls.util.MediaControllerFactory
-import com.android.systemui.media.controls.util.MediaFlags
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-import com.android.systemui.statusbar.NotificationMediaManager.isPlayingState
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.util.concurrency.DelayableExecutor
 import com.android.systemui.util.time.SystemClock
@@ -58,11 +56,9 @@ constructor(
     private val logger: MediaTimeoutLogger,
     statusBarStateController: SysuiStatusBarStateController,
     private val systemClock: SystemClock,
-    private val mediaFlags: MediaFlags,
 ) : MediaDataManager.Listener {
 
     private val mediaListeners: MutableMap<String, PlaybackStateListener> = mutableMapOf()
-    private val recommendationListeners: MutableMap<String, RecommendationListener> = mutableMapOf()
 
     /**
      * Callback representing that a media object is now expired:
@@ -103,16 +99,6 @@ constructor(
                             ) {
                                 // We dozed too long - timeout now, and cancel the pending one
                                 listener.expireMediaTimeout(key, "timeout happened while dozing")
-                                listener.doTimeout()
-                            }
-                        }
-
-                        recommendationListeners.forEach { (key, listener) ->
-                            if (
-                                listener.cancellation != null &&
-                                    listener.expiration <= systemClock.currentTimeMillis()
-                            ) {
-                                logger.logTimeoutCancelled(key, "Timed out while dozing")
                                 listener.doTimeout()
                             }
                         }
@@ -178,30 +164,6 @@ constructor(
 
     override fun onMediaDataRemoved(key: String, userInitiated: Boolean) {
         mediaListeners.remove(key)?.destroy()
-    }
-
-    override fun onSmartspaceMediaDataLoaded(
-        key: String,
-        data: SmartspaceMediaData,
-        shouldPrioritize: Boolean,
-    ) {
-        if (!mediaFlags.isPersistentSsCardEnabled()) return
-
-        // First check if we already have a listener
-        recommendationListeners.get(key)?.let {
-            if (!it.destroyed) {
-                it.recommendationData = data
-                return
-            }
-        }
-
-        // Otherwise, create a new one
-        recommendationListeners[key] = RecommendationListener(key, data)
-    }
-
-    override fun onSmartspaceMediaDataRemoved(key: String, immediately: Boolean) {
-        if (!mediaFlags.isPersistentSsCardEnabled()) return
-        recommendationListeners.remove(key)?.destroy()
     }
 
     fun isTimedOut(key: String): Boolean {
@@ -346,56 +308,6 @@ constructor(
             }
             expiration = Long.MAX_VALUE
             cancellation = null
-        }
-    }
-
-    /** Listens to changes in recommendation card data and schedules a timeout for its expiration */
-    private inner class RecommendationListener(var key: String, data: SmartspaceMediaData) {
-        private var timedOut = false
-        var destroyed = false
-        var expiration = Long.MAX_VALUE
-            private set
-
-        var cancellation: Runnable? = null
-            private set
-
-        var recommendationData: SmartspaceMediaData = data
-            set(value) {
-                destroyed = false
-                field = value
-                processUpdate()
-            }
-
-        init {
-            recommendationData = data
-        }
-
-        fun destroy() {
-            cancellation?.run()
-            cancellation = null
-            destroyed = true
-        }
-
-        private fun processUpdate() {
-            if (recommendationData.expiryTimeMs != expiration) {
-                // The expiry time changed - cancel and reschedule
-                val timeout =
-                    recommendationData.expiryTimeMs -
-                        recommendationData.headphoneConnectionTimeMillis
-                logger.logRecommendationTimeoutScheduled(key, timeout)
-                cancellation?.run()
-                cancellation = mainExecutor.executeDelayed({ doTimeout() }, timeout)
-                expiration = recommendationData.expiryTimeMs
-            }
-        }
-
-        fun doTimeout() {
-            cancellation?.run()
-            cancellation = null
-            logger.logTimeout(key)
-            timedOut = true
-            expiration = Long.MAX_VALUE
-            timeoutCallback(key, timedOut)
         }
     }
 }

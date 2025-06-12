@@ -22,6 +22,8 @@ import android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD
 import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
 import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW
+import android.app.WindowConfiguration.WINDOWING_MODE_PINNED
+import android.content.ComponentName
 import android.graphics.Rect
 import android.view.Display.DEFAULT_DISPLAY
 import com.android.wm.shell.MockToken
@@ -35,9 +37,22 @@ object DesktopTestHelpers {
     ): RunningTaskInfo =
         TestRunningTaskInfoBuilder()
             .setDisplayId(displayId)
+            .setParentTaskId(displayId)
             .setToken(MockToken().token())
             .setActivityType(ACTIVITY_TYPE_STANDARD)
             .setWindowingMode(WINDOWING_MODE_FREEFORM)
+            .setLastActiveTime(100)
+            .setUserId(DEFAULT_USER_ID)
+            .apply { bounds?.let { setBounds(it) } }
+            .build()
+
+    fun createPinnedTask(displayId: Int = DEFAULT_DISPLAY, bounds: Rect? = null): RunningTaskInfo =
+        TestRunningTaskInfoBuilder()
+            .setDisplayId(displayId)
+            .setParentTaskId(displayId)
+            .setToken(MockToken().token())
+            .setActivityType(ACTIVITY_TYPE_STANDARD)
+            .setWindowingMode(WINDOWING_MODE_PINNED)
             .setLastActiveTime(100)
             .apply { bounds?.let { setBounds(it) } }
             .build()
@@ -48,6 +63,7 @@ object DesktopTestHelpers {
             .setToken(MockToken().token())
             .setActivityType(ACTIVITY_TYPE_STANDARD)
             .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
+            .setUserId(DEFAULT_USER_ID)
             .setLastActiveTime(100)
 
     /** Create a task that has windowing mode set to [WINDOWING_MODE_FULLSCREEN] */
@@ -61,6 +77,7 @@ object DesktopTestHelpers {
             .setToken(MockToken().token())
             .setActivityType(ACTIVITY_TYPE_STANDARD)
             .setWindowingMode(WINDOWING_MODE_MULTI_WINDOW)
+            .setUserId(DEFAULT_USER_ID)
             .setLastActiveTime(100)
             .build()
 
@@ -70,13 +87,26 @@ object DesktopTestHelpers {
             .setToken(MockToken().token())
             .setActivityType(ACTIVITY_TYPE_HOME)
             .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
+            .setUserId(DEFAULT_USER_ID)
             .setLastActiveTime(100)
             .build()
 
+    /**
+     * Create a new System Modal task builder, i.e. a builder for a task with only transparent
+     * activities.
+     */
+    fun createSystemModalTaskBuilder(displayId: Int = DEFAULT_DISPLAY): TestRunningTaskInfoBuilder =
+        createFullscreenTaskBuilder(displayId).setActivityStackTransparent(true).setNumActivities(1)
+
     /** Create a new System Modal task, i.e. a task with only transparent activities. */
     fun createSystemModalTask(displayId: Int = DEFAULT_DISPLAY): RunningTaskInfo =
-        createFullscreenTaskBuilder(displayId)
-            .setActivityStackTransparent(true)
-            .setNumActivities(1)
-            .build()
+        createSystemModalTaskBuilder(displayId).build()
+
+    /** Create a new System Modal task with a base Activity. */
+    fun createSystemModalTaskWithBaseActivity() =
+        createSystemModalTask().apply {
+            baseActivity = ComponentName("com.test.dummypackage", "TestClass")
+        }
+
+    const val DEFAULT_USER_ID = 10
 }

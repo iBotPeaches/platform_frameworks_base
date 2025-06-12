@@ -22,7 +22,7 @@ import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
-import android.net.platform.flags.Flags;
+import android.security.Flags;
 import android.security.net.config.UserCertificateSource;
 
 import com.android.org.conscrypt.TrustManagerImpl;
@@ -86,8 +86,8 @@ public class X509TrustManagerExtensions {
         try {
             checkServerTrustedOcspAndTlsData = tm.getClass().getMethod("checkServerTrusted",
                     X509Certificate[].class,
-                    Byte[].class,
-                    Byte[].class,
+                    byte[].class,
+                    byte[].class,
                     String.class,
                     String.class);
         } catch (ReflectiveOperationException ignored) { }
@@ -152,7 +152,7 @@ public class X509TrustManagerExtensions {
      * @throws IllegalArgumentException if the TrustManager is not compatible.
      * @return the properly ordered chain used for verification as a list of X509Certificates.
      */
-    @FlaggedApi(Flags.FLAG_X509_EXTENSIONS_CERTIFICATE_TRANSPARENCY)
+    @FlaggedApi(Flags.FLAG_CERTIFICATE_TRANSPARENCY_CONFIGURATION)
     @NonNull
     public List<X509Certificate> checkServerTrusted(
             @SuppressLint("ArrayReturn") @NonNull X509Certificate[] chain,
@@ -179,7 +179,7 @@ public class X509TrustManagerExtensions {
         }
         try {
             result = (List<X509Certificate>) mCheckServerTrustedOcspAndTlsData.invoke(mTrustManager,
-                    ocspData, tlsSctData, chain, authType, host);
+                    chain, ocspData, tlsSctData, authType, host);
             return result == null ? Collections.emptyList() : result;
         } catch (IllegalAccessException e) {
             throw new CertificateException("Failed to call checkServerTrusted", e);

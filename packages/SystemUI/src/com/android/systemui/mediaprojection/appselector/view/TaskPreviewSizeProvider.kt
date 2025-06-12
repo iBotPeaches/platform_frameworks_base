@@ -19,6 +19,7 @@ package com.android.systemui.mediaprojection.appselector.view
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Rect
+import android.view.WindowManager
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.android.systemui.mediaprojection.appselector.MediaProjectionAppSelectorScope
@@ -36,6 +37,7 @@ constructor(
     private val context: Context,
     private val windowMetricsProvider: WindowMetricsProvider,
     private val configurationController: ConfigurationController,
+    private val windowManager: WindowManager,
 ) : CallbackController<TaskPreviewSizeListener>, ConfigurationListener, DefaultLifecycleObserver {
 
     /** Returns the size of the task preview on the screen in pixels */
@@ -65,7 +67,7 @@ constructor(
         val width = maxWindowBounds.width()
         var height = maximumWindowHeight
 
-        val isLargeScreen = isLargeScreen(context)
+        val isLargeScreen = isLargeScreen(windowManager, context.resources)
         if (isLargeScreen) {
             val taskbarSize = windowMetricsProvider.currentWindowInsets.bottom
             height -= taskbarSize

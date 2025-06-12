@@ -1134,6 +1134,9 @@ public class AudioSystem
     public static final Set<Integer> DEVICE_ALL_HDMI_SYSTEM_AUDIO_AND_SPEAKER_SET;
     /** @hide */
     public static final Set<Integer> DEVICE_OUT_ALL_BLE_SET;
+    /** @hide */
+    public static final Set<Integer> DEVICE_OUT_PICK_FOR_VOLUME_SET;
+
     static {
         DEVICE_OUT_ALL_SET = new HashSet<>();
         DEVICE_OUT_ALL_SET.add(DEVICE_OUT_EARPIECE);
@@ -1201,6 +1204,22 @@ public class AudioSystem
         DEVICE_OUT_ALL_BLE_SET.add(DEVICE_OUT_BLE_HEADSET);
         DEVICE_OUT_ALL_BLE_SET.add(DEVICE_OUT_BLE_SPEAKER);
         DEVICE_OUT_ALL_BLE_SET.add(DEVICE_OUT_BLE_BROADCAST);
+
+        DEVICE_OUT_PICK_FOR_VOLUME_SET = new HashSet<>();
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_WIRED_HEADSET);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_WIRED_HEADPHONE);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_USB_DEVICE);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_USB_HEADSET);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLUETOOTH_A2DP);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLUETOOTH_SCO);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLUETOOTH_SCO_HEADSET);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLUETOOTH_SCO_CARKIT);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_HEARING_AID);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLE_HEADSET);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLE_SPEAKER);
+        DEVICE_OUT_PICK_FOR_VOLUME_SET.add(DEVICE_OUT_BLE_BROADCAST);
     }
 
     // input devices
@@ -1754,13 +1773,21 @@ public class AudioSystem
     @UnsupportedAppUsage
     public static int setDeviceConnectionState(AudioDeviceAttributes attributes, int state,
             int codecFormat) {
+        return setDeviceConnectionState(attributes, state, codecFormat, false /*deviceSwitch*/);
+    }
+
+    /**
+     * @hide
+     */
+    public static int setDeviceConnectionState(AudioDeviceAttributes attributes, int state,
+            int codecFormat, boolean deviceSwitch) {
         android.media.audio.common.AudioPort port =
                 AidlConversion.api2aidl_AudioDeviceAttributes_AudioPort(attributes);
         Parcel parcel = Parcel.obtain();
         port.writeToParcel(parcel, 0);
         parcel.setDataPosition(0);
         try {
-            return setDeviceConnectionState(state, parcel, codecFormat);
+            return setDeviceConnectionState(state, parcel, codecFormat, deviceSwitch);
         } finally {
             parcel.recycle();
         }
@@ -1769,7 +1796,10 @@ public class AudioSystem
      * @hide
      */
     @UnsupportedAppUsage
-    public static native int setDeviceConnectionState(int state, Parcel parcel, int codecFormat);
+    public static native int setDeviceConnectionState(int state, Parcel parcel, int codecFormat,
+                                                      boolean deviceSwitch);
+
+
     /** @hide */
     @UnsupportedAppUsage
     public static native int getDeviceConnectionState(int device, String device_address);
@@ -2702,4 +2732,25 @@ public class AudioSystem
      * @hide
      */
     public static native void triggerSystemPropertyUpdate(long handle);
+
+    /**
+     * Registers the given {@link INativeAudioVolumeGroupCallback} to native audioserver.
+     * @param callback to register
+     * @return {@link #SUCCESS} if successfully registered.
+     *
+     * @hide
+     */
+    public static native int registerAudioVolumeGroupCallback(
+            INativeAudioVolumeGroupCallback callback);
+
+    /**
+     * Unegisters the given {@link INativeAudioVolumeGroupCallback} from native audioserver
+     * previously registered via {@link #registerAudioVolumeGroupCallback}.
+     * @param callback to register
+     * @return {@link #SUCCESS} if successfully registered.
+     *
+     * @hide
+     */
+    public static native int unregisterAudioVolumeGroupCallback(
+            INativeAudioVolumeGroupCallback callback);
 }

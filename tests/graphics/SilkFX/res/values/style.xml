@@ -24,6 +24,13 @@
         <item name="buttonStyle">@style/AppTheme.Button</item>
         <item name="colorAccent">#bbffffff</item>
     </style>
+    <style name="Theme.LutTestTheme" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowElevation">0dp</item>
+        <item name="buttonStyle">@style/AppTheme.Button</item>
+        <item name="colorAccent">#bbffffff</item>
+    </style>
     <style name="AppTheme.Button" parent="Widget.AppCompat.Button">
         <item name="android:textColor">#ffffffff</item>
     </style>

@@ -23,6 +23,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.PermissionMethod;
 import android.annotation.PermissionName;
+import android.annotation.SpecialUsers.CanBeALL;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager.ProcessCapability;
 import android.app.ActivityManager.RestrictionLevel;
@@ -140,6 +141,15 @@ public abstract class ActivityManagerInternal {
      */
     public abstract boolean startIsolatedProcess(String entryPoint, String[] mainArgs,
             String processName, String abiOverride, int uid, Runnable crashHandler);
+
+    /**
+     * Called when a user is being deleted. This can happen during normal device usage
+     * or just at startup, when partially removed users are purged. Any state persisted by the
+     * ActivityManager should be purged now.
+     *
+     * @param userId The user being cleaned up.
+     */
+    public abstract void onUserRemoving(@UserIdInt int userId);
 
     /**
      * Called when a user has been deleted. This can happen during normal device usage
@@ -282,14 +292,14 @@ public abstract class ActivityManagerInternal {
     public abstract boolean canStartMoreUsers();
 
     /**
-     * Sets the user switcher message for switching from {@link android.os.UserHandle#SYSTEM}.
+     * Sets the user switcher message for switching from a user.
      */
-    public abstract void setSwitchingFromSystemUserMessage(String switchingFromSystemUserMessage);
+    public abstract void setSwitchingFromUserMessage(@UserIdInt int user, @Nullable String message);
 
     /**
-     * Sets the user switcher message for switching to {@link android.os.UserHandle#SYSTEM}.
+     * Sets the user switcher message for switching to a user.
      */
-    public abstract void setSwitchingToSystemUserMessage(String switchingToSystemUserMessage);
+    public abstract void setSwitchingToUserMessage(@UserIdInt int user, @Nullable String message);
 
     /**
      * Returns maximum number of users that can run simultaneously.
@@ -485,6 +495,11 @@ public abstract class ActivityManagerInternal {
      */
     public static final int OOM_ADJ_REASON_FOLLOW_UP = 23;
 
+    /**
+     * Oom Adj Reason: Update after oom adjuster configuration has changed.
+     */
+    public static final int OOM_ADJ_REASON_RECONFIGURATION = 24;
+
     @IntDef(prefix = {"OOM_ADJ_REASON_"}, value = {
         OOM_ADJ_REASON_NONE,
         OOM_ADJ_REASON_ACTIVITY,
@@ -510,6 +525,7 @@ public abstract class ActivityManagerInternal {
         OOM_ADJ_REASON_RESTRICTION_CHANGE,
         OOM_ADJ_REASON_COMPONENT_DISABLED,
         OOM_ADJ_REASON_FOLLOW_UP,
+        OOM_ADJ_REASON_RECONFIGURATION,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface OomAdjReason {}
@@ -1350,8 +1366,8 @@ public abstract class ActivityManagerInternal {
      * watchdog reset.
      * @hide
      */
-    public abstract void killApplicationSync(String pkgName, int appId, int userId,
-            String reason, int exitInfoReason);
+    public abstract void killApplicationSync(String pkgName, int appId,
+            @CanBeALL @UserIdInt int userId, String reason, int exitInfoReason);
 
     /**
      * Queries the offset data for a given method on a process.

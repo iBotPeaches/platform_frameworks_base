@@ -24,7 +24,7 @@ import com.android.systemui.brightness.shared.model.BrightnessLog
 import com.android.systemui.brightness.shared.model.LinearBrightness
 import com.android.systemui.brightness.shared.model.formatBrightness
 import com.android.systemui.brightness.shared.model.logDiffForTable
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -133,7 +133,7 @@ constructor(
                     listener,
                     null,
                     /* eventFlags */ 0,
-                    DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_BRIGHTNESS,
+                    DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_BRIGHTNESS,
                 )
 
                 awaitClose { displayManager.unregisterDisplayListener(listener) }
@@ -181,10 +181,11 @@ constructor(
             .logDiffForTable(tableBuffer, TABLE_PREFIX_LINEAR, TABLE_COLUMN_BRIGHTNESS, null)
             .stateIn(applicationScope, SharingStarted.WhileSubscribed(), LinearBrightness(0f))
 
-    override val isBrightnessOverriddenByWindow = brightnessInfo
-        .filterNotNull()
-        .map { it.isBrightnessOverrideByWindow }
-        .stateIn(applicationScope, SharingStarted.WhileSubscribed(), false)
+    override val isBrightnessOverriddenByWindow =
+        brightnessInfo
+            .filterNotNull()
+            .map { it.isBrightnessOverrideByWindow }
+            .stateIn(applicationScope, SharingStarted.WhileSubscribed(), false)
 
     override fun setTemporaryBrightness(value: LinearBrightness) {
         apiQueue.trySend(SetBrightnessMethod.Temporary(value))

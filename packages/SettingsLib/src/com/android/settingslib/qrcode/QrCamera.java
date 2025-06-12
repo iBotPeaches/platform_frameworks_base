@@ -16,8 +16,8 @@
 
 package com.android.settingslib.qrcode;
 
+import android.annotation.NonNull;
 import android.content.Context;
-import android.content.res.Configuration;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
@@ -75,12 +75,29 @@ public class QrCamera extends Handler {
 
     @VisibleForTesting
     Camera mCamera;
+    Camera.CameraInfo mCameraInfo;
+
+    /**
+     * The size of the preview image as requested to camera, e.g. 1920x1080.
+     */
     private Size mPreviewSize;
+
+    /**
+     * Whether the preview image would be displayed in "portrait" (width less
+     * than height) orientation in current display orientation.
+     *
+     * Note that we don't distinguish between a rotation of 90 degrees or 270
+     * degrees here, since we center crop all the preview.
+     *
+     * TODO: Handle external camera / multiple display, this likely requires
+     * migrating to newer Camera2 API.
+     */
+    private boolean mPreviewInPortrait;
+
     private WeakReference<Context> mContext;
     private ScannerCallback mScannerCallback;
     private MultiFormatReader mReader;
     private DecodingTask mDecodeTask;
-    private int mCameraOrientation;
     @VisibleForTesting
     Camera.Parameters mParameters;
 
@@ -152,8 +169,14 @@ public class QrCamera extends Handler {
          * @param previewSize       Is the preview size set by camera
          * @param cameraOrientation Is the orientation of current Camera
          * @return The rectangle would like to crop from the camera preview shot.
+         * @deprecated This is no longer used, and the frame position is
+         *     automatically calculated from the preview size and the
+         *     background View size.
          */
-        Rect getFramePosition(Size previewSize, int cameraOrientation);
+        @Deprecated
+        default @NonNull Rect getFramePosition(@NonNull Size previewSize, int cameraOrientation) {
+            throw new AssertionError("getFramePosition shouldn't be used");
+        }
 
         /**
          * Sets the transform to associate with preview area.
@@ -170,6 +193,41 @@ public class QrCamera extends Handler {
          * @return Returns true if qrCode hold valid information.
          */
         boolean isValid(String qrCode);
+    }
+
+    private boolean setPreviewDisplayOrientation() {
+        if (mContext.get() == null) {
+            return false;
+        }
+
+        final WindowManager winManager =
+                (WindowManager) mContext.get().getSystemService(Context.WINDOW_SERVICE);
+        final int rotation = winManager.getDefaultDisplay().getRotation();
+        int degrees = 0;
+        switch (rotation) {
+            case Surface.ROTATION_0:
+                degrees = 0;
+                break;
+            case Surface.ROTATION_90:
+                degrees = 90;
+                break;
+            case Surface.ROTATION_180:
+                degrees = 180;
+                break;
+            case Surface.ROTATION_270:
+                degrees = 270;
+                break;
+        }
+        int rotateDegrees = 0;
+        if (mCameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+            rotateDegrees = (mCameraInfo.orientation + degrees) % 360;
+            rotateDegrees = (360 - rotateDegrees) % 360;  // compensate the mirror
+        } else {
+            rotateDegrees = (mCameraInfo.orientation - degrees + 360) % 360;
+        }
+        mCamera.setDisplayOrientation(rotateDegrees);
+        mPreviewInPortrait = (rotateDegrees == 90 || rotateDegrees == 270);
+        return true;
     }
 
     @VisibleForTesting
@@ -195,37 +253,39 @@ public class QrCamera extends Handler {
         mCamera.setParameters(mParameters);
     }
 
-    private boolean startPreview() {
-        if (mContext.get() == null) {
-            return false;
-        }
+    /**
+     * Set transform matrix to crop and center the preview picture.
+     */
+    private void setTransformationMatrix() {
+        final Size previewDisplaySize = rotateIfPortrait(mPreviewSize);
+        final Size viewSize = mScannerCallback.getViewSize();
+        final Rect cropRegion = calculateCenteredCrop(previewDisplaySize, viewSize);
 
-        final WindowManager winManager =
-                (WindowManager) mContext.get().getSystemService(Context.WINDOW_SERVICE);
-        final int rotation = winManager.getDefaultDisplay().getRotation();
-        int degrees = 0;
-        switch (rotation) {
-            case Surface.ROTATION_0:
-                degrees = 0;
-                break;
-            case Surface.ROTATION_90:
-                degrees = 90;
-                break;
-            case Surface.ROTATION_180:
-                degrees = 180;
-                break;
-            case Surface.ROTATION_270:
-                degrees = 270;
-                break;
-        }
-        final int rotateDegrees = (mCameraOrientation - degrees + 360) % 360;
-        mCamera.setDisplayOrientation(rotateDegrees);
+        // Note that strictly speaking, since the preview is mirrored in front
+        // camera case, we should also mirror the crop region here. But since
+        // we're cropping at the center, mirroring would result in the same
+        // crop region other than small off-by-one error from floating point
+        // calculation and wouldn't be noticeable.
+
+        // Calculate transformation matrix.
+        float scaleX = previewDisplaySize.getWidth() / (float) cropRegion.width();
+        float scaleY = previewDisplaySize.getHeight() / (float) cropRegion.height();
+        float translateX = -cropRegion.left / (float) cropRegion.width() * viewSize.getWidth();
+        float translateY = -cropRegion.top / (float) cropRegion.height() * viewSize.getHeight();
+
+        // Set the transform matrix.
+        final Matrix matrix = new Matrix();
+        matrix.setScale(scaleX, scaleY);
+        matrix.postTranslate(translateX, translateY);
+        mScannerCallback.setTransform(matrix);
+    }
+
+    private void startPreview() {
         mCamera.startPreview();
         if (Camera.Parameters.FOCUS_MODE_AUTO.equals(mParameters.getFocusMode())) {
             mCamera.autoFocus(/* Camera.AutoFocusCallback */ null);
             sendMessageDelayed(obtainMessage(MSG_AUTO_FOCUS), AUTOFOCUS_INTERVAL_MS);
         }
-        return true;
     }
 
     private class DecodingTask extends AsyncTask<Void, Void, String> {
@@ -300,7 +360,7 @@ public class QrCamera extends Handler {
                     if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
                         releaseCamera();
                         mCamera = Camera.open(i);
-                        mCameraOrientation = cameraInfo.orientation;
+                        mCameraInfo = cameraInfo;
                         break;
                     }
                 }
@@ -309,7 +369,7 @@ public class QrCamera extends Handler {
                     Camera.getCameraInfo(0, cameraInfo);
                     releaseCamera();
                     mCamera = Camera.open(0);
-                    mCameraOrientation = cameraInfo.orientation;
+                    mCameraInfo = cameraInfo;
                 }
             } catch (RuntimeException e) {
                 Log.e(TAG, "Fail to open camera: " + e);
@@ -323,11 +383,12 @@ public class QrCamera extends Handler {
                     throw new IOException("Cannot find available camera");
                 }
                 mCamera.setPreviewTexture(surface);
+                if (!setPreviewDisplayOrientation()) {
+                    throw new IOException("Lost context");
+                }
                 setCameraParameter();
                 setTransformationMatrix();
-                if (!startPreview()) {
-                    throw new IOException("Lost contex");
-                }
+                startPreview();
             } catch (IOException ioe) {
                 Log.e(TAG, "Fail to startPreview camera: " + ioe);
                 mCamera = null;
@@ -345,32 +406,30 @@ public class QrCamera extends Handler {
         }
     }
 
-    /** Set transform matrix to crop and center the preview picture */
-    private void setTransformationMatrix() {
-        final boolean isPortrait = mContext.get().getResources().getConfiguration().orientation
-                == Configuration.ORIENTATION_PORTRAIT;
-
-        final int previewWidth = isPortrait ? mPreviewSize.getWidth() : mPreviewSize.getHeight();
-        final int previewHeight = isPortrait ? mPreviewSize.getHeight() : mPreviewSize.getWidth();
-        final float ratioPreview = (float) getRatio(previewWidth, previewHeight);
-
-        // Calculate transformation matrix.
-        float scaleX = 1.0f;
-        float scaleY = 1.0f;
-        if (previewWidth > previewHeight) {
-            scaleY = scaleX / ratioPreview;
+    /**
+     * Calculates the crop region in `previewSize` to have the same aspect
+     * ratio as `viewSize` and center aligned.
+     */
+    private Rect calculateCenteredCrop(Size previewSize, Size viewSize) {
+        final double previewRatio = getRatio(previewSize);
+        final double viewRatio = getRatio(viewSize);
+        int width;
+        int height;
+        if (previewRatio > viewRatio) {
+            width = previewSize.getWidth();
+            height = (int) Math.round(width * viewRatio);
         } else {
-            scaleX = scaleY / ratioPreview;
+            height = previewSize.getHeight();
+            width = (int) Math.round(height / viewRatio);
         }
-
-        // Set the transform matrix.
-        final Matrix matrix = new Matrix();
-        matrix.setScale(scaleX, scaleY);
-        mScannerCallback.setTransform(matrix);
+        final int left = (previewSize.getWidth() - width) / 2;
+        final int top = (previewSize.getHeight() - height) / 2;
+        return new Rect(left, top, left + width, top + height);
     }
 
     private QrYuvLuminanceSource getFrameImage(byte[] imageData) {
-        final Rect frame = mScannerCallback.getFramePosition(mPreviewSize, mCameraOrientation);
+        final Size viewSize = mScannerCallback.getViewSize();
+        final Rect frame = calculateCenteredCrop(mPreviewSize, rotateIfPortrait(viewSize));
         final QrYuvLuminanceSource image = new QrYuvLuminanceSource(imageData,
                 mPreviewSize.getWidth(), mPreviewSize.getHeight());
         return (QrYuvLuminanceSource)
@@ -398,17 +457,18 @@ public class QrCamera extends Handler {
      */
     private Size getBestPreviewSize(Camera.Parameters parameters) {
         final double minRatioDiffPercent = 0.1;
-        final Size windowSize = mScannerCallback.getViewSize();
-        final double winRatio = getRatio(windowSize.getWidth(), windowSize.getHeight());
+        final Size viewSize = rotateIfPortrait(mScannerCallback.getViewSize());
+        final double viewRatio = getRatio(viewSize);
         double bestChoiceRatio = 0;
         Size bestChoice = new Size(0, 0);
         for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
-            double ratio = getRatio(size.width, size.height);
+            final Size newSize = toAndroidSize(size);
+            final double ratio = getRatio(newSize);
             if (size.height * size.width > bestChoice.getWidth() * bestChoice.getHeight()
-                    && (Math.abs(bestChoiceRatio - winRatio) / winRatio > minRatioDiffPercent
-                    || Math.abs(ratio - winRatio) / winRatio <= minRatioDiffPercent)) {
-                bestChoice = new Size(size.width, size.height);
-                bestChoiceRatio = getRatio(size.width, size.height);
+                    && (Math.abs(bestChoiceRatio - viewRatio) / viewRatio > minRatioDiffPercent
+                    || Math.abs(ratio - viewRatio) / viewRatio <= minRatioDiffPercent)) {
+                bestChoice = newSize;
+                bestChoiceRatio = ratio;
             }
         }
         return bestChoice;
@@ -419,25 +479,26 @@ public class QrCamera extends Handler {
      * picture size and aspect ratio to choose the best one.
      */
     private Size getBestPictureSize(Camera.Parameters parameters) {
-        final Camera.Size previewSize = parameters.getPreviewSize();
-        final double previewRatio = getRatio(previewSize.width, previewSize.height);
+        final Size previewSize = mPreviewSize;
+        final double previewRatio = getRatio(previewSize);
         List<Size> bestChoices = new ArrayList<>();
         final List<Size> similarChoices = new ArrayList<>();
 
         // Filter by ratio
-        for (Camera.Size size : parameters.getSupportedPictureSizes()) {
-            double ratio = getRatio(size.width, size.height);
+        for (Camera.Size picSize : parameters.getSupportedPictureSizes()) {
+            final Size size = toAndroidSize(picSize);
+            final double ratio = getRatio(size);
             if (ratio == previewRatio) {
-                bestChoices.add(new Size(size.width, size.height));
+                bestChoices.add(size);
             } else if (Math.abs(ratio - previewRatio) < MAX_RATIO_DIFF) {
-                similarChoices.add(new Size(size.width, size.height));
+                similarChoices.add(size);
             }
         }
 
         if (bestChoices.size() == 0 && similarChoices.size() == 0) {
             Log.d(TAG, "No proper picture size, return default picture size");
             Camera.Size defaultPictureSize = parameters.getPictureSize();
-            return new Size(defaultPictureSize.width, defaultPictureSize.height);
+            return toAndroidSize(defaultPictureSize);
         }
 
         if (bestChoices.size() == 0) {
@@ -447,7 +508,7 @@ public class QrCamera extends Handler {
         // Get the best by area
         int bestAreaDifference = Integer.MAX_VALUE;
         Size bestChoice = null;
-        final int previewArea = previewSize.width * previewSize.height;
+        final int previewArea = previewSize.getWidth() * previewSize.getHeight();
         for (Size size : bestChoices) {
             int areaDifference = Math.abs(size.getWidth() * size.getHeight() - previewArea);
             if (areaDifference < bestAreaDifference) {
@@ -458,8 +519,20 @@ public class QrCamera extends Handler {
         return bestChoice;
     }
 
-    private double getRatio(double x, double y) {
-        return (x < y) ? x / y : y / x;
+    private Size rotateIfPortrait(Size size) {
+        if (mPreviewInPortrait) {
+            return new Size(size.getHeight(), size.getWidth());
+        } else {
+            return size;
+        }
+    }
+
+    private double getRatio(Size size) {
+        return size.getHeight() / (double) size.getWidth();
+    }
+
+    private Size toAndroidSize(Camera.Size size) {
+        return new Size(size.width, size.height);
     }
 
     @VisibleForTesting

@@ -26,7 +26,10 @@
                 <padding
                     android:left="20dp"
                     android:right="20dp" />
-                <solid android:color="?androidprv:attr/materialColorSurfaceContainerHigh" />
+                <!-- TODO(b/294830092): Update to the blur surface effect color token when
+                                        the resource workaround is resolved and
+                                        notification_shade_blur is enabled. -->
+                <solid android:color="@androidprv:color/materialColorSurfaceContainerHigh" />
             </shape>
         </inset>
     </item>

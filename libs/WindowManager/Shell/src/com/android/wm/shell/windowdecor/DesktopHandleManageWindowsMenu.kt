@@ -43,7 +43,7 @@ class DesktopHandleManageWindowsMenu(
     private val captionWidth: Int,
     private val windowManagerWrapper: WindowManagerWrapper,
     context: Context,
-    snapshotList: List<Pair<Int, TaskSnapshot>>,
+    snapshotList: List<Pair<Int, TaskSnapshot?>>,
     onIconClickListener: ((Int) -> Unit),
     onOutsideClickListener: (() -> Unit)
 ) : ManageWindowsViewContainer(

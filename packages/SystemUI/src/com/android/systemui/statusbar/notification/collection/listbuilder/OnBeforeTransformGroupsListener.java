@@ -16,7 +16,7 @@
 
 package com.android.systemui.statusbar.notification.collection.listbuilder;
 
-import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifPromoter;
 
@@ -35,5 +35,5 @@ public interface OnBeforeTransformGroupsListener {
      *             a live view into the current notif list and will change as the list moves through
      *             the pipeline.
      */
-    void onBeforeTransformGroups(List<ListEntry> list);
+    void onBeforeTransformGroups(List<PipelineEntry> list);
 }

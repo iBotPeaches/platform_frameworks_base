@@ -20,7 +20,17 @@ import androidx.compose.runtime.Composable
 
 interface TouchpadTutorialScreensProvider {
 
-    @Composable fun BackGesture(onDoneButtonClicked: () -> Unit, onBack: () -> Unit)
+    @Composable
+    fun BackGesture(
+        onDoneButtonClicked: () -> Unit,
+        onBack: () -> Unit,
+        onAutoProceed: (suspend () -> Unit)?,
+    )
 
-    @Composable fun HomeGesture(onDoneButtonClicked: () -> Unit, onBack: () -> Unit)
+    @Composable
+    fun HomeGesture(
+        onDoneButtonClicked: () -> Unit,
+        onBack: () -> Unit,
+        onAutoProceed: (suspend () -> Unit)?,
+    )
 }

@@ -39,6 +39,7 @@ import com.android.systemui.statusbar.notification.collection.notifcollection.In
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionListener
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifLifetimeExtender
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifLifetimeExtender.OnEndLifetimeExtensionCallback
+import com.android.systemui.statusbar.notification.collection.notifcollection.UpdateSource
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.captureMany
 import com.android.systemui.util.mockito.withArgCaptor
@@ -191,7 +192,7 @@ class RemoteInputCoordinatorTest : SysuiTestCase() {
         `when`(remoteInputManager.shouldKeepForRemoteInputHistory(entry)).thenReturn(true)
         `when`(remoteInputManager.shouldKeepForSmartReplyHistory(entry)).thenReturn(false)
 
-        collectionListeners.forEach { it.onEntryUpdated(entry, true) }
+        collectionListeners.forEach { it.onEntryUpdated(entry, UpdateSource.App) }
 
         verify(rebuilder, times(1)).rebuildForRemoteInputReply(entry)
     }
@@ -208,7 +209,7 @@ class RemoteInputCoordinatorTest : SysuiTestCase() {
                 .build()
         `when`(remoteInputManager.shouldKeepForRemoteInputHistory(entry)).thenReturn(false)
         `when`(remoteInputManager.shouldKeepForSmartReplyHistory(entry)).thenReturn(true)
-        collectionListeners.forEach { it.onEntryUpdated(entry, true) }
+        collectionListeners.forEach { it.onEntryUpdated(entry, UpdateSource.App) }
 
         verify(rebuilder, times(1)).rebuildForCanceledSmartReplies(entry)
         verify(smartReplyController, times(1)).stopSending(entry)
@@ -226,7 +227,7 @@ class RemoteInputCoordinatorTest : SysuiTestCase() {
                 .build()
         `when`(remoteInputManager.shouldKeepForRemoteInputHistory(entry)).thenReturn(false)
         `when`(remoteInputManager.shouldKeepForSmartReplyHistory(entry)).thenReturn(false)
-        collectionListeners.forEach { it.onEntryUpdated(entry, true) }
+        collectionListeners.forEach { it.onEntryUpdated(entry, UpdateSource.App) }
 
         verify(rebuilder, times(1)).rebuildForRemoteInputReply(entry)
     }
@@ -246,7 +247,7 @@ class RemoteInputCoordinatorTest : SysuiTestCase() {
         `when`(remoteInputManager.shouldKeepForRemoteInputHistory(entry)).thenReturn(false)
         `when`(remoteInputManager.shouldKeepForSmartReplyHistory(entry)).thenReturn(false)
 
-        collectionListeners.forEach { it.onEntryUpdated(entry, true) }
+        collectionListeners.forEach { it.onEntryUpdated(entry, UpdateSource.App) }
 
         assertThat(entry.remoteInputs).isNull()
     }

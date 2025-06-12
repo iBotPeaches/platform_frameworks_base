@@ -51,31 +51,32 @@ private fun createKeyboard(deviceId: Int): InputDevice =
 /**
  * Tests for {@link KeyRemapper}.
  *
- * Build/Install/Run:
- * atest InputTests:KeyRemapperTests
+ * Build/Install/Run: atest InputTests:KeyRemapperTests
  */
 @Presubmit
 class KeyRemapperTests {
 
     companion object {
         const val DEVICE_ID = 1
-        val REMAPPABLE_KEYS = intArrayOf(
-            KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT,
-            KeyEvent.KEYCODE_META_LEFT, KeyEvent.KEYCODE_META_RIGHT,
-            KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_ALT_RIGHT,
-            KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_SHIFT_RIGHT,
-            KeyEvent.KEYCODE_CAPS_LOCK
-        )
+        val REMAPPABLE_KEYS =
+            intArrayOf(
+                KeyEvent.KEYCODE_CTRL_LEFT,
+                KeyEvent.KEYCODE_CTRL_RIGHT,
+                KeyEvent.KEYCODE_META_LEFT,
+                KeyEvent.KEYCODE_META_RIGHT,
+                KeyEvent.KEYCODE_ALT_LEFT,
+                KeyEvent.KEYCODE_ALT_RIGHT,
+                KeyEvent.KEYCODE_SHIFT_LEFT,
+                KeyEvent.KEYCODE_SHIFT_RIGHT,
+                KeyEvent.KEYCODE_CAPS_LOCK,
+            )
     }
 
-    @get:Rule
-    val rule = MockitoJUnit.rule()!!
+    @get:Rule val rule = MockitoJUnit.rule()!!
 
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
-    @Mock
-    private lateinit var native: NativeInputManagerService
+    @Mock private lateinit var native: NativeInputManagerService
     private lateinit var mKeyRemapper: KeyRemapper
     private lateinit var context: Context
     private lateinit var dataStore: PersistentDataStore
@@ -84,24 +85,22 @@ class KeyRemapperTests {
     @Before
     fun setup() {
         context = Mockito.spy(ContextWrapper(ApplicationProvider.getApplicationContext()))
-        dataStore = PersistentDataStore(object : PersistentDataStore.Injector() {
-            override fun openRead(): InputStream? {
-                throw FileNotFoundException()
-            }
+        dataStore =
+            PersistentDataStore(
+                object : PersistentDataStore.Injector() {
+                    override fun openRead(): InputStream? {
+                        throw FileNotFoundException()
+                    }
 
-            override fun startWrite(): FileOutputStream? {
-                throw IOException()
-            }
+                    override fun startWrite(): FileOutputStream? {
+                        throw IOException()
+                    }
 
-            override fun finishWrite(fos: FileOutputStream?, success: Boolean) {}
-        })
+                    override fun finishWrite(fos: FileOutputStream?, success: Boolean) {}
+                }
+            )
         testLooper = TestLooper()
-        mKeyRemapper = KeyRemapper(
-            context,
-            native,
-            dataStore,
-            testLooper.looper
-        )
+        mKeyRemapper = KeyRemapper(context, native, dataStore, testLooper.looper)
         val inputManager = InputManager(context)
         Mockito.`when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE)))
             .thenReturn(inputManager)
@@ -131,7 +130,7 @@ class KeyRemapperTests {
                 assertEquals(
                     "Remapping should include mapping from $fromKeyCode to $toKeyCode",
                     toKeyCode,
-                    remapping.getOrDefault(fromKeyCode, -1)
+                    remapping.getOrDefault(fromKeyCode, -1),
                 )
             }
 
@@ -141,7 +140,7 @@ class KeyRemapperTests {
             assertEquals(
                 "Remapping size should be 0 after clearAllModifierKeyRemappings",
                 0,
-                mKeyRemapper.keyRemapping.size
+                mKeyRemapper.keyRemapping.size,
             )
         }
     }
@@ -159,7 +158,7 @@ class KeyRemapperTests {
             assertEquals(
                 "Remapping should not be done if modifier key remapping is disabled",
                 0,
-                remapping.size
+                remapping.size,
             )
         }
     }
@@ -168,7 +167,8 @@ class KeyRemapperTests {
         init {
             Settings.Global.putString(
                 context.contentResolver,
-                "settings_new_keyboard_modifier_key", enabled.toString()
+                "settings_new_keyboard_modifier_key",
+                enabled.toString(),
             )
         }
 
@@ -176,7 +176,7 @@ class KeyRemapperTests {
             Settings.Global.putString(
                 context.contentResolver,
                 "settings_new_keyboard_modifier_key",
-                ""
+                "",
             )
         }
     }

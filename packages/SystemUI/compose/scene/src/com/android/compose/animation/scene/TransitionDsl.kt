@@ -19,15 +19,12 @@ package com.android.compose.animation.scene
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.SpringSpec
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.android.compose.animation.scene.content.state.TransitionState
 import com.android.compose.animation.scene.transformation.Transformation
-import kotlin.math.tanh
+import com.android.internal.jank.Cuj.CujType
 
 /** Define the [transitions][SceneTransitions] to be used with a [SceneTransitionLayout]. */
 fun transitions(builder: SceneTransitionsBuilder.() -> Unit): SceneTransitions {
@@ -39,22 +36,10 @@ fun transitions(builder: SceneTransitionsBuilder.() -> Unit): SceneTransitions {
 @TransitionDsl
 interface SceneTransitionsBuilder {
     /**
-     * The default [AnimationSpec] used when after the user lifts their finger after starting a
-     * swipe to transition, to animate back into one of the 2 scenes we are transitioning to.
-     */
-    var defaultSwipeSpec: SpringSpec<Float>
-
-    /**
      * The [InterruptionHandler] used when transitions are interrupted. Defaults to
      * [DefaultInterruptionHandler].
      */
     var interruptionHandler: InterruptionHandler
-
-    /**
-     * Default [ProgressConverter] used during overscroll. It lets you change a linear progress into
-     * a function of your choice. Defaults to [ProgressConverter.Default].
-     */
-    var defaultOverscrollProgressConverter: ProgressConverter
 
     /**
      * Define the default animation to be played when transitioning [to] the specified content, from
@@ -73,6 +58,7 @@ interface SceneTransitionsBuilder {
     fun to(
         to: ContentKey,
         key: TransitionKey? = null,
+        @CujType cuj: Int? = null,
         preview: (TransitionBuilder.() -> Unit)? = null,
         reversePreview: (TransitionBuilder.() -> Unit)? = null,
         builder: TransitionBuilder.() -> Unit = {},
@@ -99,29 +85,11 @@ interface SceneTransitionsBuilder {
         from: ContentKey,
         to: ContentKey? = null,
         key: TransitionKey? = null,
+        @CujType cuj: Int? = null,
         preview: (TransitionBuilder.() -> Unit)? = null,
         reversePreview: (TransitionBuilder.() -> Unit)? = null,
         builder: TransitionBuilder.() -> Unit = {},
     )
-
-    /**
-     * Define the animation to be played when the [content] is overscrolled in the given
-     * [orientation].
-     *
-     * The overscroll animation always starts from a progress of 0f, and reaches 1f when moving the
-     * [distance] down/right, -1f when moving in the opposite direction.
-     */
-    fun overscroll(
-        content: ContentKey,
-        orientation: Orientation,
-        builder: OverscrollBuilder.() -> Unit,
-    )
-
-    /**
-     * Prevents overscroll the [content] in the given [orientation], allowing ancestors to
-     * eventually consume the remaining gesture.
-     */
-    fun overscrollDisabled(content: ContentKey, orientation: Orientation)
 }
 
 interface BaseTransitionBuilder : PropertyTransformationBuilder {
@@ -164,15 +132,10 @@ interface TransitionBuilder : BaseTransitionBuilder {
      * The [AnimationSpec] used to animate the associated transition progress from `0` to `1` when
      * the transition is triggered (i.e. it is not gesture-based).
      */
-    var spec: AnimationSpec<Float>
+    var spec: AnimationSpec<Float>?
 
-    /**
-     * The [SpringSpec] used to animate the associated transition progress when the transition was
-     * started by a swipe and is now animating back to a scene because the user lifted their finger.
-     *
-     * If `null`, then the [SceneTransitionsBuilder.defaultSwipeSpec] will be used.
-     */
-    var swipeSpec: SpringSpec<Float>?
+    /** The CUJ associated to this transitions. */
+    @CujType var cuj: Int?
 
     /**
      * Define a timestamp-based range for the transformations inside [builder].
@@ -225,35 +188,6 @@ interface TransitionBuilder : BaseTransitionBuilder {
     fun reversed(builder: TransitionBuilder.() -> Unit)
 }
 
-@TransitionDsl
-interface OverscrollBuilder : BaseTransitionBuilder {
-    /**
-     * Function that takes a linear overscroll progress value ranging from 0 to +/- infinity and
-     * outputs the desired **overscroll progress value**.
-     *
-     * When the progress value is:
-     * - 0, the user is not overscrolling.
-     * - 1, the user overscrolled by exactly the [distance].
-     * - Greater than 1, the user overscrolled more than the [distance].
-     */
-    var progressConverter: ProgressConverter?
-
-    /** Translate the element(s) matching [matcher] by ([x], [y]) pixels. */
-    fun translate(
-        matcher: ElementMatcher,
-        x: OverscrollScope.() -> Float = { 0f },
-        y: OverscrollScope.() -> Float = { 0f },
-    )
-}
-
-interface OverscrollScope : Density {
-    /**
-     * Return the absolute distance between fromScene and toScene, if available, otherwise
-     * [DistanceUnspecified].
-     */
-    val absoluteDistance: Float
-}
-
 /**
  * An interface to decide where we should draw shared Elements or compose MovableElements.
  *
@@ -276,8 +210,8 @@ interface ElementContentPicker {
     fun contentDuringTransition(
         element: ElementKey,
         transition: TransitionState.Transition,
-        fromContentZIndex: Float,
-        toContentZIndex: Float,
+        fromContentZIndex: Long,
+        toContentZIndex: Long,
     ): ContentKey
 
     /**
@@ -345,8 +279,8 @@ object HighestZIndexContentPicker : ElementContentPicker {
     override fun contentDuringTransition(
         element: ElementKey,
         transition: TransitionState.Transition,
-        fromContentZIndex: Float,
-        toContentZIndex: Float,
+        fromContentZIndex: Long,
+        toContentZIndex: Long,
     ): ContentKey {
         return if (fromContentZIndex > toContentZIndex) {
             transition.fromContent
@@ -366,8 +300,8 @@ object HighestZIndexContentPicker : ElementContentPicker {
             override fun contentDuringTransition(
                 element: ElementKey,
                 transition: TransitionState.Transition,
-                fromContentZIndex: Float,
-                toContentZIndex: Float,
+                fromContentZIndex: Long,
+                toContentZIndex: Long,
             ): ContentKey {
                 return HighestZIndexContentPicker.contentDuringTransition(
                     element,
@@ -387,8 +321,8 @@ object LowestZIndexContentPicker : ElementContentPicker {
     override fun contentDuringTransition(
         element: ElementKey,
         transition: TransitionState.Transition,
-        fromContentZIndex: Float,
-        toContentZIndex: Float,
+        fromContentZIndex: Long,
+        toContentZIndex: Long,
     ): ContentKey {
         return if (fromContentZIndex < toContentZIndex) {
             transition.fromContent
@@ -408,8 +342,8 @@ object LowestZIndexContentPicker : ElementContentPicker {
             override fun contentDuringTransition(
                 element: ElementKey,
                 transition: TransitionState.Transition,
-                fromContentZIndex: Float,
-                toContentZIndex: Float,
+                fromContentZIndex: Long,
+                toContentZIndex: Long,
             ): ContentKey {
                 return LowestZIndexContentPicker.contentDuringTransition(
                     element,
@@ -441,8 +375,8 @@ class MovableElementContentPicker(override val contents: Set<ContentKey>) :
     override fun contentDuringTransition(
         element: ElementKey,
         transition: TransitionState.Transition,
-        fromContentZIndex: Float,
-        toContentZIndex: Float,
+        fromContentZIndex: Long,
+        toContentZIndex: Long,
     ): ContentKey {
         return when {
             transition.toContent in contents -> transition.toContent
@@ -531,36 +465,4 @@ interface PropertyTransformationBuilder {
 
     /** Apply a [transformation] to the element(s) matching [matcher]. */
     fun transformation(matcher: ElementMatcher, transformation: Transformation.Factory)
-}
-
-/** This converter lets you change a linear progress into a function of your choice. */
-fun interface ProgressConverter {
-    fun convert(progress: Float): Float
-
-    companion object {
-        /** Starts linearly with some resistance and slowly approaches to 0.2f */
-        val Default = tanh(maxProgress = 0.2f, tilt = 3f)
-
-        /**
-         * The scroll stays linear, with [factor] you can control how much resistance there is.
-         *
-         * @param factor If you choose a value between 0f and 1f, the progress will grow more
-         *   slowly, like there's resistance. A value of 1f means there's no resistance.
-         */
-        fun linear(factor: Float = 1f) = ProgressConverter { it * factor }
-
-        /**
-         * This function starts linear and slowly approaches [maxProgress].
-         *
-         * See a [visual representation](https://www.desmos.com/calculator/usgvvf0z1u) of this
-         * function.
-         *
-         * @param maxProgress is the maximum progress value.
-         * @param tilt behaves similarly to the factor in the [linear] function, and allows you to
-         *   control how quickly you get to the [maxProgress].
-         */
-        fun tanh(maxProgress: Float, tilt: Float = 1f) = ProgressConverter {
-            maxProgress * tanh(x = it / (maxProgress * tilt))
-        }
-    }
 }

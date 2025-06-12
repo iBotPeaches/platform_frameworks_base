@@ -24,6 +24,7 @@ import static android.content.pm.PackageManager.DELETE_KEEP_DATA;
 import static android.content.pm.PackageManager.DELETE_SUCCEEDED;
 import static android.content.pm.PackageManager.MATCH_KNOWN_PACKAGES;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+import static android.os.UserHandle.USER_ALL;
 
 import static com.android.server.pm.InstructionSets.getAppDexInstructionSets;
 import static com.android.server.pm.PackageManagerService.DEBUG_COMPRESSION;
@@ -35,6 +36,8 @@ import static com.android.server.pm.PackageManagerService.TAG;
 import android.Manifest;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SpecialUsers.CanBeALL;
+import android.annotation.UserIdInt;
 import android.app.ApplicationExitInfo;
 import android.app.ApplicationPackageManager;
 import android.content.Intent;
@@ -120,7 +123,7 @@ final class DeletePackageHelper {
         final boolean res;
 
         final int removeUser = (deleteFlags & PackageManager.DELETE_ALL_USERS) != 0
-                ? UserHandle.USER_ALL : userId;
+                ? USER_ALL : userId;
 
         final PackageSetting uninstalledPs;
         final PackageSetting disabledSystemPs;
@@ -181,7 +184,7 @@ final class DeletePackageHelper {
                 if (libraryInfo != null) {
                     boolean flagSdkLibIndependence = Flags.sdkLibIndependence();
                     for (int currUserId : allUsers) {
-                        if (removeUser != UserHandle.USER_ALL && removeUser != currUserId) {
+                        if (removeUser != USER_ALL && removeUser != currUserId) {
                             continue;
                         }
                         var libClientPackagesPair = computer.getPackagesUsingSharedLibrary(
@@ -225,7 +228,7 @@ final class DeletePackageHelper {
                     && ((deleteFlags & PackageManager.DELETE_SYSTEM_APP) == 0)) {
                 // We're downgrading a system app, which will apply to all users, so
                 // freeze them all during the downgrade
-                freezeUser = UserHandle.USER_ALL;
+                freezeUser = USER_ALL;
                 priorUserStates = new SparseArray<>();
                 for (int i = 0; i < allUsers.length; i++) {
                     PackageUserState userState = uninstalledPs.readUserState(allUsers[i]);
@@ -419,7 +422,7 @@ final class DeletePackageHelper {
         if (PackageManagerServiceUtils.isSystemApp(ps)) {
             final boolean deleteSystem = (flags & PackageManager.DELETE_SYSTEM_APP) != 0;
             final boolean deleteAllUsers =
-                    user == null || user.getIdentifier() == UserHandle.USER_ALL;
+                    user == null || user.getIdentifier() == USER_ALL;
             if ((!deleteSystem || deleteAllUsers) && disabledPs == null) {
                 Slog.w(TAG, "Attempt to delete unknown system package "
                         + ps.getName());
@@ -462,9 +465,9 @@ final class DeletePackageHelper {
                     Manifest.permission.SUSPEND_APPS, packageName, userId) == PERMISSION_GRANTED);
         }
 
-        final int userId = user == null ? UserHandle.USER_ALL : user.getIdentifier();
+        final int userId = user == null ? USER_ALL : user.getIdentifier();
         // Remember which users are affected, before the installed states are modified
-        outInfo.mRemovedUsers = userId == UserHandle.USER_ALL
+        outInfo.mRemovedUsers = userId == USER_ALL
                 ? ps.queryUsersInstalledOrHasData(allUserHandles)
                 : new int[]{userId};
         outInfo.populateBroadcastUsers(ps);
@@ -477,7 +480,7 @@ final class DeletePackageHelper {
         outInfo.mRemovedPackageVersionCode = ps.getVersionCode();
 
         if ((!systemApp || (flags & PackageManager.DELETE_SYSTEM_APP) != 0)
-                && userId != UserHandle.USER_ALL) {
+                && userId != USER_ALL) {
             // The caller is asking that the package only be deleted for a single
             // user.  To do this, we just mark its uninstalled state and delete
             // its data. If this is a system app, we only allow this to happen if
@@ -550,7 +553,7 @@ final class DeletePackageHelper {
         for (final int affectedUserId : outInfo.mRemovedUsers) {
             if (hadSuspendAppsPermission.get(affectedUserId)) {
                 mPm.unsuspendForSuspendingPackage(snapshot, packageName,
-                        affectedUserId /*suspendingUserId*/, true /*inAllUsers*/);
+                        affectedUserId /*suspendingUserId*/, USER_ALL);
                 mPm.removeAllDistractingPackageRestrictions(snapshot, affectedUserId);
             }
         }
@@ -562,7 +565,7 @@ final class DeletePackageHelper {
     }
 
     @GuardedBy("mPm.mInstallLock")
-    private void deleteInstalledPackageLIF(PackageSetting ps, int userId,
+    private void deleteInstalledPackageLIF(PackageSetting ps, @CanBeALL @UserIdInt int userId,
             boolean deleteCodeAndResources, int flags, @NonNull int[] allUserHandles,
             @NonNull PackageRemovedInfo outInfo, boolean writeSettings) {
         synchronized (mPm.mLock) {
@@ -588,7 +591,7 @@ final class DeletePackageHelper {
 
     @GuardedBy("mPm.mLock")
     private void markPackageUninstalledForUserLPw(PackageSetting ps, UserHandle user, int flags) {
-        final int[] userIds = (user == null || user.getIdentifier() == UserHandle.USER_ALL)
+        final int[] userIds = (user == null || user.getIdentifier() == USER_ALL)
                 ? mUserManagerInternal.getUserIds()
                 : new int[] {user.getIdentifier()};
         for (int nextUserId : userIds) {
@@ -685,7 +688,7 @@ final class DeletePackageHelper {
             flags |= PackageManager.DELETE_KEEP_DATA;
         }
         try (PackageManagerTracedLock installLock = mPm.mInstallLock.acquireLock()) {
-            deleteInstalledPackageLIF(deletedPs, UserHandle.USER_ALL, true, flags, allUserHandles,
+            deleteInstalledPackageLIF(deletedPs, USER_ALL, true, flags, allUserHandles,
                     outInfo, writeSettings);
         }
     }
@@ -729,10 +732,13 @@ final class DeletePackageHelper {
         final String internalPackageName =
                 snapshot.resolveInternalPackageName(packageName, versionCode);
 
+        final boolean deleteAllUsers = (deleteFlags & PackageManager.DELETE_ALL_USERS) != 0;
+        final int[] users = deleteAllUsers ? mUserManagerInternal.getUserIds() : new int[]{userId};
+
         if (!isOrphaned(snapshot, internalPackageName)
                 && !allowSilentUninstall
-                && !isCallerAllowedToSilentlyUninstall(
-                        snapshot, callingUid, internalPackageName, userId)) {
+                && !isCallerAllowedToSilentlyUninstall(snapshot, callingUid, internalPackageName,
+                users)) {
             mPm.mHandler.post(() -> {
                 try {
                     final Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
@@ -751,8 +757,7 @@ final class DeletePackageHelper {
             });
             return;
         }
-        final boolean deleteAllUsers = (deleteFlags & PackageManager.DELETE_ALL_USERS) != 0;
-        final int[] users = deleteAllUsers ? mUserManagerInternal.getUserIds() : new int[]{userId};
+
         if (UserHandle.getUserId(callingUid) != userId || (deleteAllUsers && users.length > 1)) {
             mPm.mContext.enforceCallingOrSelfPermission(
                     android.Manifest.permission.INTERACT_ACROSS_USERS_FULL,
@@ -916,16 +921,24 @@ final class DeletePackageHelper {
     }
 
     private boolean isCallerAllowedToSilentlyUninstall(@NonNull Computer snapshot, int callingUid,
-            String pkgName, int userId) {
+            String pkgName, int[] targetUserIds) {
         if (PackageManagerServiceUtils.isRootOrShell(callingUid)
                 || UserHandle.getAppId(callingUid) == Process.SYSTEM_UID) {
             return true;
         }
         final int callingUserId = UserHandle.getUserId(callingUid);
+
         // If the caller installed the pkgName, then allow it to silently uninstall.
-        if (callingUid == snapshot.getPackageUid(
-                snapshot.getInstallerPackageName(pkgName, userId), 0, callingUserId)) {
-            return true;
+        for (int user : targetUserIds) {
+            try {
+                if (callingUid == snapshot.getPackageUid(
+                        snapshot.getInstallerPackageName(pkgName, user), 0, callingUserId)) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // The app to be uninstalled (`pkgName`) is not installed on this `user`. Continue
+                // looking for the installerPkgName in the next user
+            }
         }
 
         // Allow package verifier to silently uninstall.

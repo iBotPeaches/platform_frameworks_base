@@ -42,8 +42,7 @@ import platform.test.screenshot.matchers.PixelPerfectMatcher
 /**
  * Unit tests for PointerIcon.
  *
- * Run with:
- * atest InputTests:com.android.test.input.PointerIconLoadingTest
+ * Run with: atest InputTests:com.android.test.input.PointerIconLoadingTest
  */
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -51,16 +50,19 @@ class PointerIconLoadingTest {
     private lateinit var context: Context
     private lateinit var exactScreenshotMatcher: BitmapMatcher
 
-    @get:Rule
-    val testName = TestName()
+    @get:Rule val testName = TestName()
 
     @get:Rule
-    val screenshotRule = ScreenshotTestRule(GoldenPathManager(
-        InstrumentationRegistry.getInstrumentation().getContext(),
-        ASSETS_PATH,
-        TEST_OUTPUT_PATH,
-        PathConfig()
-    ), disableIconPool = false)
+    val screenshotRule =
+        ScreenshotTestRule(
+            GoldenPathManager(
+                InstrumentationRegistry.getInstrumentation().getContext(),
+                ASSETS_PATH,
+                TEST_OUTPUT_PATH,
+                PathConfig(),
+            ),
+            disableIconPool = false,
+        )
 
     @Before
     fun setUp() {
@@ -86,22 +88,26 @@ class PointerIconLoadingTest {
         theme.setTo(context.getTheme())
         theme.applyStyle(
             PointerIcon.vectorFillStyleToResource(PointerIcon.POINTER_ICON_VECTOR_STYLE_FILL_GREEN),
-            /* force= */ true)
-        theme.applyStyle(PointerIcon.vectorStrokeStyleToResource(
-            PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_WHITE), /* force= */ true)
+            /* force= */ true,
+        )
+        theme.applyStyle(
+            PointerIcon.vectorStrokeStyleToResource(
+                PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_WHITE
+            ),
+            /* force= */ true,
+        )
 
         val pointerIcon =
             PointerIcon.getLoadedSystemIcon(
                 ContextThemeWrapper(context, theme),
                 PointerIcon.TYPE_ARROW,
                 /* useLargeIcons= */ false,
-                /* pointerScale= */ 1f)
+                /* pointerScale= */ 1f,
+            )
 
-        pointerIcon.getBitmap().assertAgainstGolden(
-            screenshotRule,
-            testName.methodName,
-            exactScreenshotMatcher
-        )
+        pointerIcon
+            .getBitmap()
+            .assertAgainstGolden(screenshotRule, testName.methodName, exactScreenshotMatcher)
     }
 
     @Test
@@ -113,22 +119,26 @@ class PointerIconLoadingTest {
         theme.setTo(context.getTheme())
         theme.applyStyle(
             PointerIcon.vectorFillStyleToResource(PointerIcon.POINTER_ICON_VECTOR_STYLE_FILL_BLACK),
-            /* force= */ true)
-        theme.applyStyle(PointerIcon.vectorStrokeStyleToResource(
-            PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_BLACK), /* force= */ true)
+            /* force= */ true,
+        )
+        theme.applyStyle(
+            PointerIcon.vectorStrokeStyleToResource(
+                PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_BLACK
+            ),
+            /* force= */ true,
+        )
 
         val pointerIcon =
             PointerIcon.getLoadedSystemIcon(
                 ContextThemeWrapper(context, theme),
                 PointerIcon.TYPE_ARROW,
                 /* useLargeIcons= */ false,
-                /* pointerScale= */ 1f)
+                /* pointerScale= */ 1f,
+            )
 
-        pointerIcon.getBitmap().assertAgainstGolden(
-            screenshotRule,
-            testName.methodName,
-            exactScreenshotMatcher
-        )
+        pointerIcon
+            .getBitmap()
+            .assertAgainstGolden(screenshotRule, testName.methodName, exactScreenshotMatcher)
     }
 
     @Test
@@ -140,11 +150,14 @@ class PointerIconLoadingTest {
         theme.setTo(context.getTheme())
         theme.applyStyle(
             PointerIcon.vectorFillStyleToResource(PointerIcon.POINTER_ICON_VECTOR_STYLE_FILL_BLACK),
-            /* force= */ true)
+            /* force= */ true,
+        )
         theme.applyStyle(
             PointerIcon.vectorStrokeStyleToResource(
-                PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_WHITE),
-            /* force= */ true)
+                PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_WHITE
+            ),
+            /* force= */ true,
+        )
         val pointerScale = 2f
 
         val pointerIcon =
@@ -152,13 +165,12 @@ class PointerIconLoadingTest {
                 ContextThemeWrapper(context, theme),
                 PointerIcon.TYPE_ARROW,
                 /* useLargeIcons= */ false,
-                pointerScale)
+                pointerScale,
+            )
 
-        pointerIcon.getBitmap().assertAgainstGolden(
-            screenshotRule,
-            testName.methodName,
-            exactScreenshotMatcher
-        )
+        pointerIcon
+            .getBitmap()
+            .assertAgainstGolden(screenshotRule, testName.methodName, exactScreenshotMatcher)
     }
 
     companion object {

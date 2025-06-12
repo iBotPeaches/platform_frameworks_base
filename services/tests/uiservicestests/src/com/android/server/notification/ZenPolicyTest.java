@@ -21,7 +21,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.fail;
 
-import android.app.Flags;
 import android.os.Parcel;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.notification.ZenPolicy;
@@ -34,7 +33,6 @@ import com.android.server.UiServiceTestCase;
 
 import com.google.protobuf.nano.InvalidProtocolBufferNanoException;
 
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -49,11 +47,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
-
-    @Before
-    public final void setUp() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-    }
 
     @Test
     public void testZenPolicyApplyAllowedToDisallowed() {
@@ -207,8 +200,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testZenPolicyApplyChannels_applyUnset() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
         ZenPolicy unset = builder.build();
 
@@ -223,8 +214,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testZenPolicyApplyChannels_applyStricter() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
         builder.allowPriorityChannels(false);
         ZenPolicy none = builder.build();
@@ -239,8 +228,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testZenPolicyApplyChannels_applyLooser() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
         builder.allowPriorityChannels(false);
         ZenPolicy none = builder.build();
@@ -255,8 +242,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testZenPolicyApplyChannels_applySet() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
         ZenPolicy unset = builder.build();
 
@@ -270,8 +255,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testZenPolicyOverwrite_allUnsetPolicies() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
         ZenPolicy unset = builder.build();
 
@@ -292,8 +275,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testZenPolicyOverwrite_someOverlappingFields_takeNewPolicy() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         ZenPolicy p1 = new ZenPolicy.Builder()
                 .allowCalls(ZenPolicy.PEOPLE_TYPE_CONTACTS)
                 .allowMessages(ZenPolicy.PEOPLE_TYPE_STARRED)
@@ -375,7 +356,6 @@ public class ZenPolicyTest extends UiServiceTestCase {
 
     @Test
     public void testEmptyZenPolicy_emptyChannels() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
 
         ZenPolicy policy = builder.build();
@@ -688,22 +668,7 @@ public class ZenPolicyTest extends UiServiceTestCase {
     }
 
     @Test
-    public void testAllowChannels_noFlag() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_MODES_API);
-
-        // allowChannels should be unset, not be modifiable, and not show up in any output
-        ZenPolicy.Builder builder = new ZenPolicy.Builder();
-        builder.allowPriorityChannels(true);
-        ZenPolicy policy = builder.build();
-
-        assertThat(policy.getPriorityChannelsAllowed()).isEqualTo(ZenPolicy.STATE_UNSET);
-        assertThat(policy.toString().contains("allowChannels")).isFalse();
-    }
-
-    @Test
     public void testAllowChannels() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_MODES_API);
-
         // allow priority channels
         ZenPolicy.Builder builder = new ZenPolicy.Builder();
         builder.allowPriorityChannels(true);

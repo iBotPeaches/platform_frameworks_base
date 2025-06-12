@@ -89,6 +89,10 @@ public final class InputDataStore {
             final InputStream inputStream = mInputGestureFileInjector.openRead(userId);
             inputGestureDataList = readInputGesturesXml(inputStream, false);
             inputStream.close();
+        } catch (FileNotFoundException exception) {
+            // There are valid reasons for the file to be missing, such as shortcuts having not
+            // been registered by the user.
+            return List.of();
         } catch (IOException exception) {
             // In case we are unable to read from the file on disk or another IO operation error,
             // fail gracefully.
@@ -125,8 +129,20 @@ public final class InputDataStore {
         }
     }
 
-    @VisibleForTesting
-    List<InputGestureData> readInputGesturesXml(InputStream stream, boolean utf8Encoded)
+    /**
+     * Parses the given input stream and returns the list of {@link InputGestureData} objects.
+     * This parsing happens on a best effort basis. If invalid data exists in the given payload
+     * it will be skipped. An example of this would be a keycode that does not exist in the
+     * present version of Android.  If the payload is malformed, instead this will throw an
+     * exception and require the caller to handel this appropriately for its situation.
+     *
+     * @param stream stream of the input payload of XML data
+     * @param utf8Encoded whether or not the input data is UTF-8 encoded
+     * @return list of {@link InputGestureData} objects pulled from the payload
+     * @throws XmlPullParserException
+     * @throws IOException
+     */
+    public List<InputGestureData> readInputGesturesXml(InputStream stream, boolean utf8Encoded)
             throws XmlPullParserException, IOException {
         List<InputGestureData> inputGestureDataList = new ArrayList<>();
         TypedXmlPullParser parser;
@@ -151,6 +167,31 @@ public final class InputDataStore {
             }
         }
         return inputGestureDataList;
+    }
+
+    /**
+     * Serializes the given list of {@link InputGestureData} objects to XML in the provided output
+     * stream.
+     *
+     * @param stream               output stream to put serialized data.
+     * @param utf8Encoded          whether or not to encode the serialized data in UTF-8 format.
+     * @param inputGestureDataList the list of {@link InputGestureData} objects to serialize.
+     */
+    public void writeInputGestureXml(OutputStream stream, boolean utf8Encoded,
+            List<InputGestureData> inputGestureDataList) throws IOException {
+        final TypedXmlSerializer serializer;
+        if (utf8Encoded) {
+            serializer = Xml.newFastSerializer();
+            serializer.setOutput(stream, StandardCharsets.UTF_8.name());
+        } else {
+            serializer = Xml.resolveSerializer(stream);
+        }
+
+        serializer.startDocument(null, true);
+        serializer.startTag(null, TAG_ROOT);
+        writeInputGestureListToXml(serializer, inputGestureDataList);
+        serializer.endTag(null, TAG_ROOT);
+        serializer.endDocument();
     }
 
     private InputGestureData readInputGestureFromXml(TypedXmlPullParser parser)
@@ -237,24 +278,6 @@ public final class InputDataStore {
             }
         }
         return inputGestureDataList;
-    }
-
-    @VisibleForTesting
-    void writeInputGestureXml(OutputStream stream, boolean utf8Encoded,
-            List<InputGestureData> inputGestureDataList) throws IOException {
-        final TypedXmlSerializer serializer;
-        if (utf8Encoded) {
-            serializer = Xml.newFastSerializer();
-            serializer.setOutput(stream, StandardCharsets.UTF_8.name());
-        } else {
-            serializer = Xml.resolveSerializer(stream);
-        }
-
-        serializer.startDocument(null, true);
-        serializer.startTag(null, TAG_ROOT);
-        writeInputGestureListToXml(serializer, inputGestureDataList);
-        serializer.endTag(null, TAG_ROOT);
-        serializer.endDocument();
     }
 
     private void writeInputGestureToXml(TypedXmlSerializer serializer,

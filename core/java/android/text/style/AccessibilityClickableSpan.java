@@ -43,6 +43,7 @@ import com.android.internal.R;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class AccessibilityClickableSpan extends ClickableSpan
         implements ParcelableSpan {
     // The id of the span this one replaces

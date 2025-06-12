@@ -31,8 +31,6 @@ import android.view.accessibility.AccessibilityManager
 import android.widget.ImageView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.app.viewcapture.ViewCapture
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.internal.logging.InstanceId
 import com.android.internal.logging.testing.UiEventLoggerFake
 import com.android.systemui.SysuiTestCase
@@ -75,8 +73,6 @@ class MediaTttChipControllerReceiverTest : SysuiTestCase() {
     @Mock private lateinit var windowManager: WindowManager
     @Mock private lateinit var commandQueue: CommandQueue
     @Mock private lateinit var rippleController: MediaTttReceiverRippleController
-    @Mock private lateinit var lazyViewCapture: Lazy<ViewCapture>
-    private lateinit var viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager
     private lateinit var commandQueueCallback: CommandQueue.Callbacks
     private lateinit var fakeAppIconDrawable: Drawable
     private lateinit var uiEventLoggerFake: UiEventLoggerFake
@@ -114,18 +110,12 @@ class MediaTttChipControllerReceiverTest : SysuiTestCase() {
         fakeWakeLockBuilder = WakeLockFake.Builder(context)
         fakeWakeLockBuilder.setWakeLock(fakeWakeLock)
 
-        viewCaptureAwareWindowManager =
-            ViewCaptureAwareWindowManager(
-                windowManager,
-                lazyViewCapture,
-                isViewCaptureEnabled = false,
-            )
         controllerReceiver =
             FakeMediaTttChipControllerReceiver(
                 commandQueue,
                 context,
                 logger,
-                viewCaptureAwareWindowManager,
+                windowManager,
                 fakeExecutor,
                 accessibilityManager,
                 configurationController,

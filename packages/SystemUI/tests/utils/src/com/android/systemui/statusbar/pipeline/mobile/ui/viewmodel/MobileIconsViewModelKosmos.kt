@@ -16,7 +16,6 @@
 
 package com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel
 
-import com.android.systemui.flags.featureFlagsClassic
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.statusbar.pipeline.airplane.domain.interactor.airplaneModeInteractor
@@ -31,7 +30,6 @@ val Kosmos.mobileIconsViewModel: MobileIconsViewModel by
             interactor = mobileIconsInteractor,
             airplaneModeInteractor = airplaneModeInteractor,
             constants = mock(),
-            flags = featureFlagsClassic,
             scope = applicationCoroutineScope,
         )
     }

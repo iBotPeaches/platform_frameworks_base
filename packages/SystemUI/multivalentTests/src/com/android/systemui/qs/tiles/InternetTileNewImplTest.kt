@@ -32,8 +32,8 @@ import com.android.systemui.qs.QSHost
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.logging.QSLogger
+import com.android.systemui.qs.tiles.dialog.InternetDetailsViewModel
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
-import com.android.systemui.qs.tiles.dialog.WifiStateWorker
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.connectivity.AccessPointController
 import com.android.systemui.statusbar.pipeline.airplane.data.repository.FakeAirplaneModeRepository
@@ -50,24 +50,20 @@ import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkMode
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiScanEntry
 import com.android.systemui.util.mockito.mock
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWithLooper(setAsMainLooper = true)
 @RunWith(ParameterizedAndroidJunit4::class)
@@ -99,8 +95,8 @@ class InternetTileNewImplTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Mock private lateinit var activityStarter: ActivityStarter
     @Mock private lateinit var logger: QSLogger
     @Mock private lateinit var dialogManager: InternetDialogManager
-    @Mock private lateinit var wifiStateWorker: WifiStateWorker
     @Mock private lateinit var accessPointController: AccessPointController
+    @Mock private lateinit var internetDetailsViewModelFactory: InternetDetailsViewModel.Factory
 
     @Before
     fun setUp() {
@@ -135,13 +131,20 @@ class InternetTileNewImplTest(flags: FlagsParameterization) : SysuiTestCase() {
                 logger,
                 viewModel,
                 dialogManager,
-                wifiStateWorker,
                 accessPointController,
+                internetDetailsViewModelFactory,
             )
 
         underTest.initialize()
+
         underTest.setListening(Object(), true)
 
+        looper.processAllMessages()
+    }
+
+    @After
+    fun tearDown() {
+        underTest.destroy()
         looper.processAllMessages()
     }
 
@@ -235,26 +238,6 @@ class InternetTileNewImplTest(flags: FlagsParameterization) : SysuiTestCase() {
             assertThat(underTest.state.state).isEqualTo(Tile.STATE_ACTIVE)
             assertThat(underTest.state.secondaryLabel).isEqualTo(WIFI_SSID)
         }
-
-    @Test
-    fun secondaryClick_turnsWifiOff() {
-        whenever(wifiStateWorker.isWifiEnabled).thenReturn(true)
-
-        underTest.secondaryClick(null)
-        looper.processAllMessages()
-
-        verify(wifiStateWorker, times(1)).isWifiEnabled = eq(false)
-    }
-
-    @Test
-    fun secondaryClick_turnsWifiOn() {
-        whenever(wifiStateWorker.isWifiEnabled).thenReturn(false)
-
-        underTest.secondaryClick(null)
-        looper.processAllMessages()
-
-        verify(wifiStateWorker, times(1)).isWifiEnabled = eq(true)
-    }
 
     companion object {
         const val WIFI_SSID = "test ssid"

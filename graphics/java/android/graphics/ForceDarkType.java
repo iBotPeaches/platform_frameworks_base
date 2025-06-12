@@ -29,6 +29,7 @@ import java.lang.annotation.RetentionPolicy;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class ForceDarkType {
     /**
      * Force dark disabled: normal, default operation.

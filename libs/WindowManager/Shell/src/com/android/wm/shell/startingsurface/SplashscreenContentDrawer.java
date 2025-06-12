@@ -633,7 +633,7 @@ public class SplashscreenContentDrawer {
 
         private class ShapeIconFactory extends BaseIconFactory {
             protected ShapeIconFactory(Context context, int fillResIconDpi, int iconBitmapSize) {
-                super(context, fillResIconDpi, iconBitmapSize, true /* shapeDetection */);
+                super(context, fillResIconDpi, iconBitmapSize);
             }
         }
 
@@ -681,7 +681,8 @@ public class SplashscreenContentDrawer {
             // C. The background of the adaptive icon is grayscale, and the foreground of the
             // adaptive icon forms a certain contrast with the theme color.
             // D. Didn't specify icon background color.
-            if (!iconColor.mIsBgComplex && mTmpAttrs.mIconBgColor == Color.TRANSPARENT
+            if (iconForeground != null
+                    && !iconColor.mIsBgComplex && mTmpAttrs.mIconBgColor == Color.TRANSPARENT
                     && (isRgbSimilarInHsv(mThemeColor, iconColor.mBgColor)
                             || (iconColor.mIsBgGrayscale
                                     && !isRgbSimilarInHsv(mThemeColor, iconColor.mFgColor)))) {

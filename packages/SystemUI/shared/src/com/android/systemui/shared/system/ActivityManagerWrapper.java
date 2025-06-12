@@ -227,6 +227,17 @@ public class ActivityManagerWrapper {
     }
 
     /**
+     * Sets whether or not the specified task is perceptible.
+     */
+    public boolean setTaskIsPerceptible(int taskId, boolean isPerceptible) {
+        try {
+            return getService().setTaskIsPerceptible(taskId, isPerceptible);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
      * Removes a task by id.
      */
     public void removeTask(final int taskId) {
@@ -316,5 +327,10 @@ public class ActivityManagerWrapper {
     public static boolean isHomeTask(RunningTaskInfo info) {
         return info.configuration.windowConfiguration.getActivityType()
                 == WindowConfiguration.ACTIVITY_TYPE_HOME;
+    }
+
+    public boolean isRunningInTestHarness() {
+        return ActivityManager.isRunningInTestHarness()
+                || ActivityManager.isRunningInUserTestHarness();
     }
 }

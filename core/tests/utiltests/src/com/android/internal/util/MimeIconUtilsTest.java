@@ -18,7 +18,7 @@ package com.android.internal.util;
 
 import static org.junit.Assert.assertEquals;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.runner.AndroidJUnit4;
@@ -31,7 +31,7 @@ import org.junit.runner.RunWith;
  * Tests for {@link MimeIconUtils}.
  */
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = MimeIconUtils.class)
+@DisabledOnRavenwood(blockedBy = MimeIconUtils.class)
 public class MimeIconUtilsTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

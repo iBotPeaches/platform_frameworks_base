@@ -18,31 +18,39 @@ package com.android.settingslib.widget;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import android.content.Context;
 import android.view.View;
 import android.widget.TextView;
 
+import androidx.preference.PreferenceDataStore;
 import androidx.preference.PreferenceViewHolder;
+import androidx.test.core.app.ApplicationProvider;
 
+import com.android.settingslib.preference.PreferenceScreenFactory;
 import com.android.settingslib.widget.mainswitch.R;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.RuntimeEnvironment;
 
 @RunWith(RobolectricTestRunner.class)
 public class MainSwitchPreferenceTest {
 
-    private Context mContext;
+    private final Context mContext = ApplicationProvider.getApplicationContext();
     private View mRootView;
     private PreferenceViewHolder mHolder;
     private MainSwitchPreference mPreference;
 
     @Before
     public void setUp() {
-        mContext = RuntimeEnvironment.application;
         mRootView = View.inflate(mContext, R.layout.settingslib_main_switch_layout,
                 null /* parent */);
         mHolder = PreferenceViewHolder.createInstanceForTests(mRootView);
@@ -50,23 +58,49 @@ public class MainSwitchPreferenceTest {
     }
 
     @Test
-    public void setTitle_shouldUpdateTitle() {
+    public void onBindViewHolder_title() {
         final String defaultOnText = "Test title";
 
-        mPreference.onBindViewHolder(mHolder);
         mPreference.setTitle(defaultOnText);
-        mPreference.updateStatus(true /* checked */);
+        mPreference.onBindViewHolder(mHolder);
 
-        assertThat(((TextView) mRootView.findViewById(R.id.switch_text)).getText())
-                .isEqualTo(defaultOnText);
+        assertThat(mRootView.<TextView>requireViewById(
+                R.id.switch_text).getText().toString()).isEqualTo(defaultOnText);
     }
 
     @Test
-    public void updateStatus_shouldMatchTheStatus() {
+    public void onBindViewHolder_checked() {
+        mPreference.setChecked(true);
         mPreference.onBindViewHolder(mHolder);
-        mPreference.updateStatus(true);
 
-        assertThat(mPreference.isChecked()).isTrue();
+        assertThat(mRootView.<MainSwitchBar>requireViewById(
+                R.id.settingslib_main_switch_bar).isChecked()).isTrue();
     }
 
+    @Test
+    public void setOnPreferenceChangeListener() {
+        // Attach preference to preference screen, otherwise `Preference.performClick` does not
+        // interact with underlying datastore
+        new PreferenceScreenFactory(mContext).getOrCreatePreferenceScreen().addPreference(
+                mPreference);
+
+        PreferenceDataStore preferenceDataStore = mock(PreferenceDataStore.class);
+        // always return the provided default value
+        when(preferenceDataStore.getBoolean(any(), anyBoolean())).thenAnswer(
+                invocation -> invocation.getArguments()[1]);
+        mPreference.setPreferenceDataStore(preferenceDataStore);
+
+        String key = "key";
+        mPreference.setKey(key);
+        mPreference.setOnPreferenceChangeListener((preference, newValue) -> false);
+        mPreference.onBindViewHolder(mHolder);
+
+        mPreference.performClick();
+        verify(preferenceDataStore, never()).putBoolean(any(), anyBoolean());
+
+        mPreference.setOnPreferenceChangeListener((preference, newValue) -> true);
+
+        mPreference.performClick();
+        verify(preferenceDataStore).putBoolean(any(), anyBoolean());
+    }
 }

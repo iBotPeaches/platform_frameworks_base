@@ -16,6 +16,7 @@
 
 package android.text.method;
 
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.annotations.Presubmit;
 import android.text.InputType;
 import android.util.KeyUtils;
@@ -41,6 +42,7 @@ import org.junit.runner.RunWith;
 @Presubmit
 @SmallTest
 @RunWith(AndroidJUnit4.class)
+@DisabledOnRavenwood(blockedBy = EditText.class)
 public class BackspaceTest {
     private EditText mTextView;
 

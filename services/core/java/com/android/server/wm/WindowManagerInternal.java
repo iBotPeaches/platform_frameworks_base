@@ -54,7 +54,6 @@ import android.window.ScreenCapture.ScreenshotHardwareBuffer;
 import com.android.internal.policy.KeyInterceptionInfo;
 import com.android.server.input.InputManagerService;
 import com.android.server.policy.WindowManagerPolicy;
-import com.android.server.wallpaper.WallpaperCropper.WallpaperCropUtils;
 import com.android.server.wm.SensitiveContentPackages.PackageInfo;
 
 import java.lang.annotation.Retention;
@@ -151,6 +150,30 @@ public abstract class WindowManagerInternal {
                     int bottom);
         }
     }
+
+    /** Interface for clients to receive callbacks related to window change. */
+    public interface WindowFocusChangeListener {
+        /**
+         * Notify on focus changed.
+         *
+         * @param focusedWindowToken the token of the newly focused window.
+         */
+        void focusChanged(@NonNull IBinder focusedWindowToken);
+    }
+
+    /**
+     * Registers a listener to be notified about window focus changes.
+     *
+     * @param listener the {@link WindowFocusChangeListener} to register.
+     */
+    public abstract void registerWindowFocusChangeListener(WindowFocusChangeListener listener);
+
+    /**
+     * Unregisters a listener that was registered via {@link #registerWindowFocusChangeListener}.
+     *
+     * @param listener the {@link WindowFocusChangeListener} to unregister.
+     */
+    public abstract void unregisterWindowFocusChangeListener(WindowFocusChangeListener listener);
 
     /**
      * Interface to receive a callback when the windows reported for
@@ -348,7 +371,7 @@ public abstract class WindowManagerInternal {
          * @param statsToken the token tracking the current IME request.
          */
         void onImeRequestedChanged(IBinder windowToken, boolean imeVisible,
-                @Nullable ImeTracker.Token statsToken);
+                @NonNull ImeTracker.Token statsToken);
     }
 
     /**
@@ -748,12 +771,6 @@ public abstract class WindowManagerInternal {
     public abstract void setWallpaperCropHints(IBinder windowToken, SparseArray<Rect> cropHints);
 
     /**
-     * Transmits the {@link WallpaperCropUtils} instance to {@link WallpaperController}.
-     * {@link WallpaperCropUtils} contains the helpers to properly position the wallpaper.
-     */
-    public abstract void setWallpaperCropUtils(WallpaperCropUtils wallpaperCropUtils);
-
-    /**
      * Returns {@code true} if a Window owned by {@code uid} has focus.
      */
     public abstract boolean isUidFocused(int uid);
@@ -1137,6 +1154,15 @@ public abstract class WindowManagerInternal {
      * Returns an instance of {@link ScreenshotHardwareBuffer} containing the current
      * screenshot.
      */
-    public abstract ScreenshotHardwareBuffer takeAssistScreenshot(
-            Set<Integer> windowTypesToExclude);
+    public abstract ScreenshotHardwareBuffer takeAssistScreenshot();
+
+    /**
+     * Returns an instance of {@link ScreenshotHardwareBuffer} containing the current
+     * screenshot, excluding layers that are not appropriate to pass to contextual search
+     * services - such as the cursor or any current contextual search window.
+     *
+     * @param uid the UID of the contextual search application. System alert windows belonging
+     * to this UID will be excluded from the screenshot.
+     */
+    public abstract ScreenshotHardwareBuffer takeContextualSearchScreenshot(int uid);
 }

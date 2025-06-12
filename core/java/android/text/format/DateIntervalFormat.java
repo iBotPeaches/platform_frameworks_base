@@ -37,6 +37,7 @@ import java.util.TimeZone;
  * @hide
  */
 @VisibleForTesting(visibility = PACKAGE)
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class DateIntervalFormat {
 
     private static final LruCache<String, android.icu.text.DateIntervalFormat> CACHED_FORMATTERS =

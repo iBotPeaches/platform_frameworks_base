@@ -24,11 +24,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.DialogTransitionAnimator
-import com.android.systemui.qs.tiles.base.actions.FakeQSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.actions.intentInputs
-import com.android.systemui.qs.tiles.base.interactor.QSTileInputTestKtx
+import com.android.systemui.qs.tiles.base.domain.actions.FakeQSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.actions.intentInputs
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.saver.domain.model.DataSaverTileModel
 import com.android.systemui.settings.UserFileManager
+import com.android.systemui.shade.domain.interactor.FakeShadeDialogContextInteractor
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.eq
@@ -53,17 +54,19 @@ class DataSaverTileUserActionInteractorTest : SysuiTestCase() {
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var dialogFactory: SystemUIDialog.Factory
     private lateinit var underTest: DataSaverTileUserActionInteractor
+    private lateinit var contextInteractor: FakeShadeDialogContextInteractor
 
     @Before
     fun setup() {
         userFileManager = mock<UserFileManager>()
         sharedPreferences = mock<SharedPreferences>()
         dialogFactory = mock<SystemUIDialog.Factory>()
+        contextInteractor = FakeShadeDialogContextInteractor(mContext)
         whenever(
                 userFileManager.getSharedPreferences(
                     eq(DataSaverTileUserActionInteractor.PREFS),
                     eq(Context.MODE_PRIVATE),
-                    eq(context.userId)
+                    eq(context.userId),
                 )
             )
             .thenReturn(sharedPreferences)
@@ -71,6 +74,7 @@ class DataSaverTileUserActionInteractorTest : SysuiTestCase() {
         underTest =
             DataSaverTileUserActionInteractor(
                 context,
+                contextInteractor,
                 EmptyCoroutineContext,
                 EmptyCoroutineContext,
                 dataSaverController,
@@ -87,7 +91,7 @@ class DataSaverTileUserActionInteractorTest : SysuiTestCase() {
         whenever(
                 sharedPreferences.getBoolean(
                     eq(DataSaverTileUserActionInteractor.DIALOG_SHOWN),
-                    any()
+                    any(),
                 )
             )
             .thenReturn(true)
@@ -107,7 +111,7 @@ class DataSaverTileUserActionInteractorTest : SysuiTestCase() {
         whenever(
                 sharedPreferences.getBoolean(
                     eq(DataSaverTileUserActionInteractor.DIALOG_SHOWN),
-                    any()
+                    any(),
                 )
             )
             .thenReturn(false)
@@ -128,7 +132,7 @@ class DataSaverTileUserActionInteractorTest : SysuiTestCase() {
         whenever(
                 sharedPreferences.getBoolean(
                     eq(DataSaverTileUserActionInteractor.DIALOG_SHOWN),
-                    any()
+                    any(),
                 )
             )
             .thenReturn(false)
@@ -144,7 +148,7 @@ class DataSaverTileUserActionInteractorTest : SysuiTestCase() {
         whenever(
                 sharedPreferences.getBoolean(
                     eq(DataSaverTileUserActionInteractor.DIALOG_SHOWN),
-                    any()
+                    any(),
                 )
             )
             .thenReturn(true)

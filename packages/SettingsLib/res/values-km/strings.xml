@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"សកម្ម (ខាងឆ្វេងប៉ុណ្ណោះ)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"សកម្ម (ខាងស្ដាំប៉ុណ្ណោះ)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"សកម្ម (ខាងឆ្វេង និងខាងស្ដាំ)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"មិនអាចប្ដូរមជ្ឈដ្ឋានជុំវិញបានទេ"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"សកម្ម (តែមេឌៀប៉ុណ្ណោះ)។ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"សកម្ម (តែមេឌៀប៉ុណ្ណោះ)។ ឆ្វេង៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> ស្ដាំ៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>។"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"ឧបករណ៍ភ្ញៀវ។ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"ឧបករណ៍ភ្ញៀវ។ ឆ្វេង៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> ស្ដាំ៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>។"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"ឧបករណ៍ភ្ញៀវ (មេឌៀតែប៉ុណ្ណោះ)។ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"ឧបករណ៍ភ្ញៀវ (មេឌៀតែប៉ុណ្ណោះ)។ ឆ្វេង៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> ស្ដាំ៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>។"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"បានភ្ជាប់ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)។ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"បានភ្ជាប់ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)។ ឆ្វេង៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> ស្ដាំ៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>។"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"បានភ្ជាប់ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)។ ឆ្វេង៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"បានភ្ជាប់ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)។ ស្ដាំ៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"បានភ្ជាប់ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"ឧបករណ៍ភ្ញៀវ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)។ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>។"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"ឧបករណ៍ភ្ញៀវ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)។ ឆ្វេង៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> ស្ដាំ៖ ថ្ម <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>។"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"ឧបករណ៍ភ្ញៀវ (អាចប្រើការស្ដាប់សំឡេងរួមគ្នា)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"សកម្ម (តែមេឌៀប៉ុណ្ណោះ)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"ឧបករណ៍ភ្ញៀវ"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"ឧបករណ៍ភ្ញៀវ (មេឌៀតែប៉ុណ្ណោះ)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"អាចប្រើការស្ដាប់សំឡេងរួមគ្នា"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"ឧបករណ៍ភ្ញៀវ។ អាចប្រើការស្ដាប់សំឡេងរួមគ្នា"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"សកម្ម (តែមេឌៀប៉ុណ្ណោះ) តែខាងឆ្វេងប៉ុណ្ណោះ"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"សកម្ម (តែមេឌៀប៉ុណ្ណោះ) តែខាងស្ដាំប៉ុណ្ណោះ"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"សកម្ម (តែមេឌៀប៉ុណ្ណោះ) ឆ្វេង និងស្ដាំ"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"ការបំប្លែងដែលពន្លឿនដោយប្រើហាតវែរ"</string>
     <string name="media_category" msgid="8122076702526144053">"មេឌៀ"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"តាមដាន"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"ការគ្រប់គ្រងវិនដូ"</string>
     <string name="strict_mode" msgid="889864762140862437">"បាន​បើក​មុខងារតឹងរ៉ឹង"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"បញ្ចេញ​ពន្លឺ​អេក្រង់​ពេល​កម្មវិធី​ធ្វើ​ប្រតិបត្តិការ​យូរ​លើ​សែស្រឡាយ​​មេ"</string>
     <string name="pointer_location" msgid="7516929526199520173">"ទីតាំង​ទ្រនិច"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"មាត្រដ្ឋាន​ចលនាបែបផែនឆ្លង"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"មាត្រដ្ឋាន​រយៈពេល​ចលនា"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"ត្រាប់ជាអេក្រង់​ទី​ពីរ"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"ទីតាំងបង្ហាញផ្ទាំង"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"កម្មវិធី"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"កុំ​រក្សា​ទុកសកម្មភាព"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"បំផ្លាញ​គ្រប់​សកម្មភាព ពេល​អ្នក​ប្រើ​ចាកចេញ"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"ការអនុវត្ត WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"កំណត់ការប្រតិបត្តិ WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"ជម្រើសនេះលែងមានសុពលភាពទៀតហើយ ព្យាយាមម្តងទៀត"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"ឧបករណ៍អ្នកអភិវឌ្ឍន៍ WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"រកមិនឃើញកញ្ចប់ WebView ទេ។"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"មិនអាចបើកឧបករណ៍អ្នកអភិវឌ្ឍន៍បានទេ។"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"របៀបនៃពណ៌រូបភាព"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"ប្រើ sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"បាន​បិទ"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"ការសាកថ្មរហ័ស"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"គ្រប់គ្រងដោយអ្នកគ្រប់គ្រង"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"គ្រប់គ្រងដោយការកំណត់ដែលបានរឹតបន្តឹង"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"មិនអាច​ប្រើបានទេ​អំឡុងពេល​ហៅទូរសព្ទ"</string>
     <string name="disabled" msgid="8017887509554714950">"បិទ"</string>
+    <string name="enabled" msgid="3997122818554810678">"បាន​បើក"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"បាន​អនុញ្ញាត"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"មិន​បានអនុញ្ញាត​"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"ដំឡើងកម្មវិធីដែលមិនស្គាល់"</string>
@@ -606,9 +624,10 @@
     <string name="tv_media_transfer_earc_fallback_title" msgid="3098685494578519940">"HDMI eARC"</string>
     <string name="tv_media_transfer_arc_subtitle" msgid="1040017851325069082">"បានភ្ជាប់តាមរយៈ ARC"</string>
     <string name="tv_media_transfer_earc_subtitle" msgid="645191413103303077">"បានភ្ជាប់តាមរយៈ eARC"</string>
-    <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"ឧបករណ៍បំពងសំឡេង​ភ្ជាប់មកជាមួយ"</string>
+    <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"ឧបករណ៍សំឡេងមកជាមួយ"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"សំឡេងទូរទស្សន៍"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"មាន​បញ្ហា​ក្នុងការ​ភ្ជាប់។ បិទ រួច​បើក​ឧបករណ៍​វិញ"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"មិនអាចភ្ជាប់​បានទេ"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"ឧបករណ៍​សំឡេងប្រើខ្សែ"</string>
     <string name="help_label" msgid="3528360748637781274">"ជំនួយ និងមតិកែលម្អ"</string>
     <string name="storage_category" msgid="2287342585424631813">"ទំហំផ្ទុក"</string>

@@ -26,7 +26,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
@@ -51,6 +50,7 @@ import com.android.server.input.TouchpadHardwareProperties;
 import com.android.server.input.TouchpadHardwareState;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -70,6 +70,10 @@ public class TouchpadDebugViewTest {
     private TouchpadDebugView mTouchpadDebugView;
     private WindowManager.LayoutParams mWindowLayoutParams;
 
+    @Rule
+    public final TestableContext mTestableContext =
+            new TestableContext(InstrumentationRegistry.getInstrumentation().getContext());
+
     @Mock
     WindowManager mWindowManager;
     @Mock
@@ -77,14 +81,10 @@ public class TouchpadDebugViewTest {
 
     Rect mWindowBounds;
     WindowMetrics mWindowMetrics;
-    TestableContext mTestableContext;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        Context context = InstrumentationRegistry.getInstrumentation().getContext();
-        mTestableContext = new TestableContext(context);
-
         mTestableContext.addMockSystemService(WindowManager.class, mWindowManager);
         mTestableContext.addMockSystemService(InputManager.class, mInputManager);
 

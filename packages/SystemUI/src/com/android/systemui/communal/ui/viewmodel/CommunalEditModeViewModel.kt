@@ -113,7 +113,7 @@ constructor(
     val canShowEditMode =
         allOf(
                 keyguardTransitionInteractor.isFinishedIn(
-                    scene = Scenes.Gone,
+                    content = Scenes.Gone,
                     stateWithoutSceneContainer = KeyguardState.GONE,
                 ),
                 communalInteractor.editModeOpen,
@@ -141,7 +141,10 @@ constructor(
         metricsLogger.logAddWidget(componentName.flattenToString(), rank)
     }
 
-    override fun onDeleteWidget(id: Int, componentName: ComponentName, rank: Int) {
+    override fun onDeleteWidget(id: Int, key: String, componentName: ComponentName, rank: Int) {
+        if (selectedKey.value == key) {
+            setSelectedKey(null)
+        }
         communalInteractor.deleteWidget(id)
         metricsLogger.logRemoveWidget(componentName.flattenToString(), rank)
     }
@@ -164,9 +167,8 @@ constructor(
         )
     }
 
-    override fun onReorderWidgetStart() {
-        // Clear selection status
-        setSelectedKey(null)
+    override fun onReorderWidgetStart(draggingItemKey: String) {
+        setSelectedKey(draggingItemKey)
         _reorderingWidgets.value = true
         uiEventLogger.log(CommunalUiEvent.COMMUNAL_HUB_REORDER_WIDGET_START)
     }
@@ -242,8 +244,9 @@ constructor(
             )
             putExtra(
                 AppWidgetManager.EXTRA_CATEGORY_FILTER,
-                CommunalWidgetCategories.defaultCategories,
+                CommunalWidgetCategories.includedCategories,
             )
+            putExtra(EXTRA_CATEGORY_EXCLUSION_FILTER, CommunalWidgetCategories.excludedCategories)
 
             communalSettingsInteractor.workProfileUserDisallowedByDevicePolicy.value?.let {
                 putExtra(EXTRA_USER_ID_FILTER, arrayListOf(it.id))
@@ -282,6 +285,7 @@ constructor(
 
         private const val EXTRA_DESIRED_WIDGET_WIDTH = "desired_widget_width"
         private const val EXTRA_DESIRED_WIDGET_HEIGHT = "desired_widget_height"
+        private const val EXTRA_CATEGORY_EXCLUSION_FILTER = "category_exclusion_filter"
         private const val EXTRA_PICKER_TITLE = "picker_title"
         private const val EXTRA_PICKER_DESCRIPTION = "picker_description"
         private const val EXTRA_UI_SURFACE_KEY = "ui_surface"

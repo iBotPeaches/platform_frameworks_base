@@ -16,17 +16,11 @@
 
 package android.hardware.input
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
 import android.content.ContextWrapper
 import android.graphics.drawable.Drawable
 import android.platform.test.annotations.Presubmit
-import android.platform.test.flag.junit.SetFlagsRule
 import androidx.test.platform.app.InstrumentationRegistry
-import com.android.hardware.input.Flags
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
@@ -34,8 +28,7 @@ import org.mockito.junit.MockitoJUnitRunner
 /**
  * Tests for Keyboard layout preview
  *
- * Build/Install/Run:
- * atest InputTests:KeyboardLayoutPreviewTests
+ * Build/Install/Run: atest InputTests:KeyboardLayoutPreviewTests
  */
 @Presubmit
 @RunWith(MockitoJUnitRunner::class)
@@ -46,9 +39,6 @@ class KeyboardLayoutPreviewTests {
         const val HEIGHT = 100
     }
 
-    @get:Rule
-    val setFlagsRule = SetFlagsRule()
-
     private fun createDrawable(): Drawable? {
         val context = ContextWrapper(InstrumentationRegistry.getInstrumentation().getContext())
         val inputManager = context.getSystemService(InputManager::class.java)!!
@@ -56,16 +46,9 @@ class KeyboardLayoutPreviewTests {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_KEYBOARD_LAYOUT_PREVIEW_FLAG)
     fun testKeyboardLayoutDrawable_hasCorrectDimensions() {
         val drawable = createDrawable()!!
         assertEquals(WIDTH, drawable.intrinsicWidth)
         assertEquals(HEIGHT, drawable.intrinsicHeight)
-    }
-
-    @Test
-    @DisableFlags(Flags.FLAG_KEYBOARD_LAYOUT_PREVIEW_FLAG)
-    fun testKeyboardLayoutDrawable_isNull_ifFlagOff() {
-        assertNull(createDrawable())
     }
 }

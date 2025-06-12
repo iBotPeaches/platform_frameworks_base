@@ -26,7 +26,6 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
-
 import org.junit.Assert.assertNull
 
 private fun <T> getEvent(queue: LinkedBlockingQueue<T>): T? {
@@ -39,7 +38,7 @@ private fun <T> assertNoEvents(queue: LinkedBlockingQueue<T>) {
 }
 
 class SpyInputEventReceiver(channel: InputChannel, looper: Looper) :
-        InputEventReceiver(channel, looper) {
+    InputEventReceiver(channel, looper) {
     private val mInputEvents = LinkedBlockingQueue<InputEvent>()
 
     override fun onInputEvent(event: InputEvent) {
@@ -57,8 +56,9 @@ class SpyInputEventReceiver(channel: InputChannel, looper: Looper) :
 }
 
 class SpyInputEventSender(channel: InputChannel, looper: Looper) :
-        InputEventSender(channel, looper) {
+    InputEventSender(channel, looper) {
     data class FinishedSignal(val seq: Int, val handled: Boolean)
+
     data class Timeline(val inputEventId: Int, val gpuCompletedTime: Long, val presentTime: Long)
 
     private val mFinishedSignals = LinkedBlockingQueue<FinishedSignal>()

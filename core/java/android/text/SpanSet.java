@@ -31,6 +31,7 @@ import java.util.Arrays;
  * Note that empty spans are ignored by this class.
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SpanSet<E> {
     private final Class<? extends E> classType;
 

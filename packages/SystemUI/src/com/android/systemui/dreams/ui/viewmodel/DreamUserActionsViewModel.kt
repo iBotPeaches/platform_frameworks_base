@@ -19,11 +19,12 @@ package com.android.systemui.dreams.ui.viewmodel
 import com.android.compose.animation.scene.Swipe
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
-import com.android.systemui.communal.domain.interactor.CommunalInteractor
 import com.android.systemui.deviceentry.domain.interactor.DeviceUnlockedInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.scene.ui.viewmodel.UserActionsViewModel
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shade.shared.model.ShadeMode
 import com.android.systemui.shade.ui.viewmodel.dualShadeActions
 import com.android.systemui.shade.ui.viewmodel.singleShadeActions
@@ -39,9 +40,9 @@ import kotlinx.coroutines.flow.map
 class DreamUserActionsViewModel
 @AssistedInject
 constructor(
-    private val communalInteractor: CommunalInteractor,
     private val deviceUnlockedInteractor: DeviceUnlockedInteractor,
     private val shadeInteractor: ShadeInteractor,
+    private val shadeModeInteractor: ShadeModeInteractor,
 ) : UserActionsViewModel() {
 
     override suspend fun hydrateActions(setActions: (Map<UserAction, UserActionResult>) -> Unit) {
@@ -52,17 +53,14 @@ constructor(
                 } else {
                     combine(
                         deviceUnlockedInteractor.deviceUnlockStatus.map { it.isUnlocked },
-                        communalInteractor.isCommunalAvailable,
-                        shadeInteractor.shadeMode,
-                    ) { isDeviceUnlocked, isCommunalAvailable, shadeMode ->
+                        shadeModeInteractor.shadeMode,
+                    ) { isDeviceUnlocked, shadeMode ->
                         buildList {
-                                if (isCommunalAvailable) {
-                                    add(Swipe.Start to Scenes.Communal)
+                                if (isDeviceUnlocked) {
+                                    add(Swipe.Up to Scenes.Gone)
+                                } else {
+                                    add(Swipe.Up to Overlays.Bouncer)
                                 }
-
-                                val bouncerOrGone =
-                                    if (isDeviceUnlocked) Scenes.Gone else Scenes.Bouncer
-                                add(Swipe.Up to bouncerOrGone)
 
                                 addAll(
                                     when (shadeMode) {

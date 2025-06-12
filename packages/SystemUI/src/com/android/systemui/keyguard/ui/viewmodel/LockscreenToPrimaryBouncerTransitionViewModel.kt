@@ -16,38 +16,41 @@
 
 package com.android.systemui.keyguard.ui.viewmodel
 
+import com.android.systemui.Flags
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.FromLockscreenTransitionInteractor
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState.LOCKSCREEN
 import com.android.systemui.keyguard.shared.model.KeyguardState.PRIMARY_BOUNCER
 import com.android.systemui.keyguard.ui.KeyguardTransitionAnimationFlow
+import com.android.systemui.keyguard.ui.transitions.BlurConfig
 import com.android.systemui.keyguard.ui.transitions.DeviceEntryIconTransition
+import com.android.systemui.keyguard.ui.transitions.PrimaryBouncerTransition
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.ui.composable.transitions.TO_BOUNCER_FADE_FRACTION
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Breaks down LOCKSCREEN->PRIMARY BOUNCER transition into discrete steps for corresponding views to
  * consume.
  */
-@ExperimentalCoroutinesApi
 @SysUISingleton
 class LockscreenToPrimaryBouncerTransitionViewModel
 @Inject
 constructor(
+    private val blurConfig: BlurConfig,
     shadeDependentFlows: ShadeDependentFlows,
     animationFlow: KeyguardTransitionAnimationFlow,
-) : DeviceEntryIconTransition {
+) : DeviceEntryIconTransition, PrimaryBouncerTransition {
     private val transitionAnimation =
         animationFlow
             .setup(
                 duration = FromLockscreenTransitionInteractor.TO_PRIMARY_BOUNCER_DURATION,
-                edge = Edge.create(from = LOCKSCREEN, to = Scenes.Bouncer),
+                edge = Edge.create(from = LOCKSCREEN, to = Overlays.Bouncer),
             )
             .setupWithoutSceneContainer(edge = Edge.create(from = LOCKSCREEN, to = PRIMARY_BOUNCER))
 
@@ -61,11 +64,35 @@ constructor(
 
     val shortcutsAlpha: Flow<Float> =
         transitionAnimation.sharedFlow(
-            duration = FromLockscreenTransitionInteractor.TO_PRIMARY_BOUNCER_DURATION,
+            duration = 200.milliseconds,
             onStep = alphaForAnimationStep,
+            // Rapid swipes to bouncer, and may end up skipping intermediate values that would've
+            // caused a complete fade out of lockscreen elements. Ensure it goes to 0f.
+            onFinish = { 0f },
         )
 
     val lockscreenAlpha: Flow<Float> = shortcutsAlpha
+
+    val notificationAlpha: Flow<Float> =
+        if (Flags.bouncerUiRevamp()) {
+            shadeDependentFlows.transitionFlow(
+                flowWhenShadeIsNotExpanded = lockscreenAlpha,
+                flowWhenShadeIsExpanded = transitionAnimation.immediatelyTransitionTo(1f),
+            )
+        } else {
+            lockscreenAlpha
+        }
+
+    override val notificationBlurRadius: Flow<Float> =
+        if (Flags.bouncerUiRevamp()) {
+            shadeDependentFlows.transitionFlow(
+                flowWhenShadeIsNotExpanded = emptyFlow(),
+                flowWhenShadeIsExpanded =
+                    transitionAnimation.immediatelyTransitionTo(blurConfig.maxBlurRadiusPx),
+            )
+        } else {
+            emptyFlow()
+        }
 
     override val deviceEntryParentViewAlpha: Flow<Float> =
         shadeDependentFlows.transitionFlow(
@@ -77,5 +104,25 @@ constructor(
                     onFinish = { 0f },
                 ),
             flowWhenShadeIsExpanded = transitionAnimation.immediatelyTransitionTo(0f),
+        )
+    override val windowBlurRadius: Flow<Float> =
+        shadeDependentFlows.transitionFlow(
+            flowWhenShadeIsExpanded =
+                if (Flags.notificationShadeBlur()) {
+                    transitionAnimation.immediatelyTransitionTo(blurConfig.maxBlurRadiusPx)
+                } else {
+                    emptyFlow()
+                },
+            flowWhenShadeIsNotExpanded =
+                transitionAnimation.sharedFlow(
+                    duration = FromLockscreenTransitionInteractor.TO_PRIMARY_BOUNCER_DURATION,
+                    onStep = {
+                        transitionProgressToBlurRadius(
+                            starBlurRadius = blurConfig.minBlurRadiusPx,
+                            endBlurRadius = blurConfig.maxBlurRadiusPx,
+                            transitionProgress = it,
+                        )
+                    },
+                ),
         )
 }

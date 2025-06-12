@@ -33,6 +33,7 @@ import android.service.notification.StatusBarNotification;
 
 import com.android.internal.logging.UiEvent;
 import com.android.internal.logging.UiEventLogger;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.logging.nano.Notifications;
 import com.android.systemui.statusbar.notification.stack.PriorityBucket;
@@ -63,6 +64,8 @@ public interface NotificationPanelLogger {
      * @param draggedNotification the notification that is being dragged
      */
     void logNotificationDrag(NotificationEntry draggedNotification);
+
+    void logNotificationDrag(EntryAdapter draggedNotification);
 
     enum NotificationPanelEvent implements UiEventLogger.UiEventEnum {
         @UiEvent(doc = "Notification panel shown from status bar.")
@@ -114,6 +117,42 @@ public interface NotificationPanelLogger {
                     proto.isGroupSummary = n.getNotification().isGroupSummary();
                 }
                 proto.section = toNotificationSection(ne.getBucket());
+                proto_array[i] = proto;
+            }
+            ++i;
+        }
+        notificationList.notifications = proto_array;
+        return notificationList;
+    }
+
+    /**
+     * Composes a NotificationsList proto from the list of visible notifications.
+     * @param visibleNotifications as provided by NotificationEntryManager.getVisibleNotifications()
+     * @return NotificationList proto suitable for SysUiStatsLog.write(NOTIFICATION_PANEL_REPORTED)
+     */
+    static Notifications.NotificationList adapterToNotificationProto(
+            @Nullable List<EntryAdapter> visibleNotifications) {
+        Notifications.NotificationList notificationList = new Notifications.NotificationList();
+        if (visibleNotifications == null) {
+            return notificationList;
+        }
+        final Notifications.Notification[] proto_array =
+                new Notifications.Notification[visibleNotifications.size()];
+        int i = 0;
+        for (EntryAdapter ne : visibleNotifications) {
+            final StatusBarNotification n = ne.getSbn();
+            if (n != null) {
+                final Notifications.Notification proto = new Notifications.Notification();
+                proto.uid = n.getUid();
+                proto.packageName = n.getPackageName();
+                if (n.getInstanceId() != null) {
+                    proto.instanceId = n.getInstanceId().getId();
+                }
+                // TODO set np.groupInstanceId
+                if (n.getNotification() != null) {
+                    proto.isGroupSummary = n.getNotification().isGroupSummary();
+                }
+                proto.section = toNotificationSection(ne.getSectionBucket());
                 proto_array[i] = proto;
             }
             ++i;

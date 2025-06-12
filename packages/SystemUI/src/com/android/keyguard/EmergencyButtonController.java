@@ -156,7 +156,7 @@ public class EmergencyButtonController extends ViewController<EmergencyButton> {
                 mMainExecutor.execute(() -> mView.updateEmergencyCallButton(
                         /* isInCall= */ isInCall,
                         /* hasTelephonyRadio= */ getContext().getPackageManager()
-                                .hasSystemFeature(PackageManager.FEATURE_TELEPHONY),
+                                .hasSystemFeature(PackageManager.FEATURE_TELEPHONY_CALLING),
                         /* simLocked= */ mKeyguardUpdateMonitor.isSimPinVoiceSecure(),
                         /* isSecure= */ isSecure));
             });

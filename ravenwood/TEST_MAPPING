@@ -150,6 +150,10 @@
       "host": true
     },
     {
+      "name": "RavenwoodCoreTest-light",
+      "host": true
+    },
+    {
       "name": "RavenwoodMinimumTest",
       "host": true
     },
@@ -168,13 +172,19 @@
     {
       "name": "RavenwoodServicesTest",
       "host": true
+    },
+    {
+      "name": "UinputTestsRavenwood",
+      "host": true
     }
     // AUTO-GENERATED-END
   ],
   "ravenwood-postsubmit": [
-    {
-      "name": "SystemUiRavenTests",
-      "host": true
-    }
+    // We haven't maintained SystemUiRavenTests, and as a result, it's been demoted already.
+    // Disable it until we fix the issues: b/319647875
+    // {
+    //   "name": "SystemUiRavenTests",
+    //   "host": true
+    // }
   ]
 }

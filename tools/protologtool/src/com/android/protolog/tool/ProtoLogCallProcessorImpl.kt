@@ -74,7 +74,7 @@ class ProtoLogCallProcessorImpl(
     }
 
     fun process(code: CompilationUnit, logCallVisitor: ProtoLogCallVisitor?, fileName: String):
-            CompilationUnit {
+            Collection<CodeProcessingException> {
         return process(code, logCallVisitor, null, fileName)
     }
 
@@ -83,7 +83,7 @@ class ProtoLogCallProcessorImpl(
         logCallVisitor: ProtoLogCallVisitor?,
         otherCallVisitor: MethodCallVisitor?,
         fileName: String
-    ): CompilationUnit {
+    ): Collection<CodeProcessingException> {
         CodeUtils.checkWildcardStaticImported(code, protoLogClassName, fileName)
         CodeUtils.checkWildcardStaticImported(code, protoLogGroupClassName, fileName)
 
@@ -93,41 +93,63 @@ class ProtoLogCallProcessorImpl(
                 protoLogGroupClassName)
         val staticGroupImports = CodeUtils.staticallyImportedMethods(code, protoLogGroupClassName)
 
+        val errors = mutableListOf<CodeProcessingException>()
         code.findAll(MethodCallExpr::class.java)
                 .filter { call ->
                     isProtoCall(call, isLogClassImported, staticLogImports)
                 }.forEach { call ->
                     val context = ParsingContext(fileName, call)
 
-                    val logMethods = LogLevel.entries.map { it.shortCode }
-                    if (logMethods.contains(call.name.id)) {
-                        // Process a log call
-                        if (call.arguments.size < 2) {
-                            throw InvalidProtoLogCallException("Method signature does not match " +
-                                    "any ProtoLog method: $call", context)
-                        }
+                    try {
+                        val logMethods = LogLevel.entries.map { it.shortCode }
+                        if (logMethods.contains(call.name.id)) {
+                            // Process a log call
+                            if (call.arguments.size < 2) {
+                                errors.add(InvalidProtoLogCallException(
+                                    "Method signature does not match " +
+                                            "any ProtoLog method: $call", context
+                                ))
+                                return@forEach
+                            }
 
-                        val messageString = CodeUtils.concatMultilineString(call.getArgument(1),
-                            context)
-                        val groupNameArg = call.getArgument(0)
-                        val groupName =
-                            getLogGroupName(groupNameArg, isGroupClassImported,
-                                staticGroupImports, fileName)
-                        if (groupName !in groupMap) {
-                            throw InvalidProtoLogCallException("Unknown group argument " +
-                                    "- not a ProtoLogGroup enum member: $call", context)
-                        }
+                            val messageString = CodeUtils.concatMultilineString(
+                                call.getArgument(1),
+                                context
+                            )
+                            val groupNameArg = call.getArgument(0)
+                            val groupName =
+                                getLogGroupName(
+                                    groupNameArg, isGroupClassImported,
+                                    staticGroupImports, fileName
+                                )
+                            if (groupName !in groupMap) {
+                                errors.add(InvalidProtoLogCallException(
+                                    "Unknown group argument " +
+                                            "- not a ProtoLogGroup enum member: $call", context
+                                ))
+                                return@forEach
+                            }
 
-                        logCallVisitor?.processCall(call, messageString, getLevelForMethodName(
-                            call.name.toString(), call, context), groupMap.getValue(groupName))
-                    } else if (call.name.id == "init") {
-                        // No processing
-                    } else {
-                        // Process non-log message calls
-                        otherCallVisitor?.processCall(call)
+                            logCallVisitor?.processCall(
+                                call, messageString, getLevelForMethodName(
+                                    call.name.toString(), call, context
+                                ), groupMap.getValue(groupName),
+                                context.lineNumber
+                            )
+                        } else if (call.name.id == "init") {
+                            // No processing
+                        } else {
+                            // Process non-log message calls
+                            otherCallVisitor?.processCall(call)
+                        }
+                    } catch (e: Throwable) {
+                        errors.add(InvalidProtoLogCallException(
+                            "Error processing log call: $call",
+                            context, e
+                        ))
                     }
                 }
-        return code
+        return errors
     }
 
     private fun getLevelForMethodName(

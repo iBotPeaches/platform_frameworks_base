@@ -33,6 +33,7 @@ import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.domain.interactor.sceneInteractor
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.FakeMobileConnectionsRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.fake
@@ -43,7 +44,6 @@ import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import com.android.systemui.util.mockito.whenever
 import com.android.telecom.telecomManager
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -55,7 +55,6 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableSceneContainer
@@ -96,7 +95,8 @@ class BouncerActionButtonInteractorTest : SysuiTestCase() {
 
         kosmos.telecomManager = telecomManager
 
-        kosmos.sceneInteractor.changeScene(Scenes.Bouncer, "")
+        kosmos.sceneInteractor.changeScene(Scenes.Lockscreen, "")
+        kosmos.sceneInteractor.showOverlay(Overlays.Bouncer, "")
     }
 
     @Test

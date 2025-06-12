@@ -26,8 +26,12 @@ import android.window.WindowContainerToken;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
+import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.Preconditions;
+import com.android.wm.shell.common.pip.PipDesktopState;
+import com.android.wm.shell.protolog.ShellProtoLogGroup;
 import com.android.wm.shell.shared.annotations.ShellMainThread;
 
 import java.io.PrintWriter;
@@ -121,6 +125,8 @@ public class PipTransitionState {
     @ShellMainThread
     private final Handler mMainHandler;
 
+    private final PipDesktopState mPipDesktopState;
+
     //
     // Swipe up to enter PiP related state
     //
@@ -170,8 +176,9 @@ public class PipTransitionState {
 
     private final List<PipTransitionStateChangedListener> mCallbacks = new ArrayList<>();
 
-    public PipTransitionState(@ShellMainThread Handler handler) {
+    public PipTransitionState(@ShellMainThread Handler handler, PipDesktopState pipDesktopState) {
         mMainHandler = handler;
+        mPipDesktopState = pipDesktopState;
     }
 
     /**
@@ -201,6 +208,13 @@ public class PipTransitionState {
             Preconditions.checkArgument(extra != null && !extra.isEmpty(),
                     "No extra bundle for " + stateToString(state) + " state.");
         }
+        if (!shouldTransitionToState(state)) {
+            ProtoLog.v(ShellProtoLogGroup.WM_SHELL_PICTURE_IN_PICTURE,
+                    "%s: Attempted to transition to an invalid state=%s, while in %s",
+                    TAG, stateToString(state), this);
+            return;
+        }
+
         if (mState != state) {
             final int prevState = mState;
             mState = state;
@@ -305,7 +319,8 @@ public class PipTransitionState {
         mSwipePipToHomeAppBounds.setEmpty();
     }
 
-    @Nullable WindowContainerToken getPipTaskToken() {
+    @Nullable
+    public WindowContainerToken getPipTaskToken() {
         return mPipTaskInfo != null ? mPipTaskInfo.getToken() : null;
     }
 
@@ -372,6 +387,21 @@ public class PipTransitionState {
     @TransitionState
     public int getCustomState() {
         return ++mPrevCustomState;
+    }
+
+    @VisibleForTesting
+    boolean shouldTransitionToState(@TransitionState int newState) {
+        switch (newState) {
+            case SCHEDULED_BOUNDS_CHANGE:
+                // Allow scheduling bounds change only when both of these are true:
+                // - while in PiP, except for if another bounds change was scheduled but hasn't
+                //   started playing yet
+                // - there is no drag-to-desktop gesture in progress; otherwise the PiP resize
+                //   transition will block the drag-to-desktop transitions from finishing
+                return isInPip() && !mPipDesktopState.isDragToDesktopInProgress();
+            default:
+                return true;
+        }
     }
 
     private static String stateToString(int state) {

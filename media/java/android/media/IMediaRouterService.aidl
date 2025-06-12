@@ -25,6 +25,7 @@ import android.media.MediaRouterClientState;
 import android.media.RouteDiscoveryPreference;
 import android.media.RouteListingPreference;
 import android.media.RoutingSessionInfo;
+import android.media.SuggestedDeviceInfo;
 import android.os.Bundle;
 import android.os.UserHandle;
 /**
@@ -72,6 +73,10 @@ interface IMediaRouterService {
             in MediaRoute2Info route);
     void setSessionVolumeWithRouter2(IMediaRouter2 router, String sessionId, int volume);
     void releaseSessionWithRouter2(IMediaRouter2 router, String sessionId);
+    void setDeviceSuggestionsWithRouter2(IMediaRouter2 router,
+            in @nullable List<SuggestedDeviceInfo> suggestedDeviceInfo);
+    @nullable Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestionsWithRouter2(
+            IMediaRouter2 router);
 
     // Methods for MediaRouter2Manager
     List<RoutingSessionInfo> getRemoteSessions(IMediaRouter2Manager manager);
@@ -98,4 +103,8 @@ interface IMediaRouterService {
             String sessionId, int volume);
     void releaseSessionWithManager(IMediaRouter2Manager manager, int requestId, String sessionId);
     boolean showMediaOutputSwitcherWithProxyRouter(IMediaRouter2Manager manager);
+    void setDeviceSuggestionsWithManager(IMediaRouter2Manager manager,
+            in @nullable List<SuggestedDeviceInfo> suggestedDeviceInfo);
+    @nullable Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestionsWithManager(
+            IMediaRouter2Manager manager);
 }

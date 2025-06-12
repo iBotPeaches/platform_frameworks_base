@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.bouncer.data.repository.fakeKeyguardBouncerRepository
+import com.android.systemui.dump.dumpManager
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.plugins.DarkIconDispatcher
@@ -38,9 +39,9 @@ import com.android.systemui.statusbar.data.model.StatusBarMode.LIGHTS_OUT_TRANSP
 import com.android.systemui.statusbar.data.model.StatusBarMode.OPAQUE
 import com.android.systemui.statusbar.data.model.StatusBarMode.TRANSPARENT
 import com.android.systemui.statusbar.data.repository.fakeStatusBarModePerDisplayRepository
-import com.android.systemui.statusbar.window.data.model.StatusBarWindowState
 import com.android.systemui.statusbar.window.data.repository.fakeStatusBarWindowStatePerDisplayRepository
 import com.android.systemui.statusbar.window.fakeStatusBarWindowController
+import com.android.systemui.statusbar.window.shared.model.StatusBarWindowState
 import com.android.systemui.testKosmos
 import com.android.wm.shell.bubbles.bubbles
 import com.google.common.truth.Truth.assertThat
@@ -70,6 +71,7 @@ class StatusBarOrchestratorTest : SysuiTestCase() {
     private val mockBubbles = kosmos.bubbles
     private val fakeStatusBarWindowController = kosmos.fakeStatusBarWindowController
     private val fakeStatusBarInitializer = kosmos.fakeStatusBarInitializer
+    private val dumpManager = kosmos.dumpManager
 
     private val orchestrator = kosmos.statusBarOrchestrator
 
@@ -290,6 +292,15 @@ class StatusBarOrchestratorTest : SysuiTestCase() {
             verify(fakeStatusBarInitializer.statusBarTransitions, times(1))
                 .transitionTo(TRANSPARENT.toTransitionModeInt(), /* animate= */ true)
         }
+
+    @Test
+    fun stop_unregisterDumpable() {
+        orchestrator.start()
+
+        orchestrator.stop()
+
+        verify(dumpManager).unregisterDumpable("StatusBarOrchestrator")
+    }
 
     private fun putDeviceToSleep() {
         fakePowerRepository.updateWakefulness(

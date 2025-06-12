@@ -21,7 +21,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.Back
 import com.android.compose.animation.scene.Swipe
-import com.android.compose.animation.scene.UserActionResult
+import com.android.compose.animation.scene.UserActionResult.HideOverlay
+import com.android.compose.animation.scene.UserActionResult.ReplaceByOverlay
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.flags.EnableSceneContainer
@@ -29,7 +30,7 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.qs.panels.ui.viewmodel.editModeViewModel
 import com.android.systemui.scene.shared.model.Overlays
-import com.android.systemui.scene.ui.viewmodel.SceneContainerEdge
+import com.android.systemui.scene.ui.viewmodel.SceneContainerArea
 import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
@@ -53,7 +54,7 @@ class QuickSettingsShadeOverlayActionsViewModelTest : SysuiTestCase() {
             val actions by collectLastValue(underTest.actions)
             underTest.activateIn(this)
 
-            assertThat((actions?.get(Swipe.Up) as? UserActionResult.HideOverlay)?.overlay)
+            assertThat((actions?.get(Swipe.Up) as? HideOverlay)?.overlay)
                 .isEqualTo(Overlays.QuickSettingsShade)
             assertThat(actions?.get(Swipe.Down)).isNull()
         }
@@ -66,7 +67,7 @@ class QuickSettingsShadeOverlayActionsViewModelTest : SysuiTestCase() {
             underTest.activateIn(this)
             assertThat(isEditing).isFalse()
 
-            assertThat((actions?.get(Back) as? UserActionResult.HideOverlay)?.overlay)
+            assertThat((actions?.get(Back) as? HideOverlay)?.overlay)
                 .isEqualTo(Overlays.QuickSettingsShade)
         }
 
@@ -82,16 +83,14 @@ class QuickSettingsShadeOverlayActionsViewModelTest : SysuiTestCase() {
         }
 
     @Test
-    fun downFromTopLeft_switchesToNotificationsShade() =
+    fun downFromTopStart_switchesToNotificationsShade() =
         testScope.runTest {
             val actions by collectLastValue(underTest.actions)
             underTest.activateIn(this)
 
-            assertThat(
-                    (actions?.get(Swipe.Down(fromSource = SceneContainerEdge.TopLeft))
-                            as? UserActionResult.ReplaceByOverlay)
-                        ?.overlay
-                )
-                .isEqualTo(Overlays.NotificationsShade)
+            val action =
+                (actions?.get(Swipe.Down(fromSource = SceneContainerArea.TopEdgeStartHalf))
+                    as? ReplaceByOverlay)
+            assertThat(action?.overlay).isEqualTo(Overlays.NotificationsShade)
         }
 }

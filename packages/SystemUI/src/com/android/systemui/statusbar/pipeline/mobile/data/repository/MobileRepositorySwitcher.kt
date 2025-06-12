@@ -20,17 +20,16 @@ import android.os.Bundle
 import androidx.annotation.VisibleForTesting
 import com.android.settingslib.SignalIcon
 import com.android.settingslib.mobile.MobileMappings
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.demomode.DemoMode
 import com.android.systemui.demomode.DemoModeController
 import com.android.systemui.statusbar.pipeline.mobile.data.model.SubscriptionModel
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.demo.DemoMobileConnectionsRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.prod.MobileConnectionsRepositoryImpl
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -49,9 +48,9 @@ import kotlinx.coroutines.flow.stateIn
  * something like this:
  * ```
  * RealRepository
- *                 │
- *                 ├──►RepositorySwitcher──►RealInteractor──►RealViewModel
- *                 │
+ *       │
+ *       ├──►RepositorySwitcher──►RealInteractor──►RealViewModel
+ *       │
  * DemoRepository
  * ```
  *
@@ -62,12 +61,11 @@ import kotlinx.coroutines.flow.stateIn
  * implementation.
  */
 @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class MobileRepositorySwitcher
 @Inject
 constructor(
-    @Application scope: CoroutineScope,
+    @Background scope: CoroutineScope,
     val realRepository: MobileConnectionsRepositoryImpl,
     val demoMobileConnectionsRepository: DemoMobileConnectionsRepository,
     demoModeController: DemoModeController,
@@ -121,7 +119,7 @@ constructor(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                realRepository.activeMobileDataSubscriptionId.value
+                realRepository.activeMobileDataSubscriptionId.value,
             )
 
     override val activeMobileDataRepository: StateFlow<MobileConnectionRepository?> =
@@ -130,7 +128,7 @@ constructor(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                realRepository.activeMobileDataRepository.value
+                realRepository.activeMobileDataRepository.value,
             )
 
     override val activeSubChangedInGroupEvent: Flow<Unit> =
@@ -142,7 +140,7 @@ constructor(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                realRepository.defaultDataSubRatConfig.value
+                realRepository.defaultDataSubRatConfig.value,
             )
 
     override val defaultMobileIconMapping: Flow<Map<String, SignalIcon.MobileIconGroup>> =
@@ -157,14 +155,14 @@ constructor(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                realRepository.isDeviceEmergencyCallCapable.value
+                realRepository.isDeviceEmergencyCallCapable.value,
             )
 
     override val isAnySimSecure: Flow<Boolean> = activeRepo.flatMapLatest { it.isAnySimSecure }
 
     override fun getIsAnySimSecure(): Boolean = activeRepo.value.getIsAnySimSecure()
 
-    override val defaultDataSubId: StateFlow<Int> =
+    override val defaultDataSubId: StateFlow<Int?> =
         activeRepo
             .flatMapLatest { it.defaultDataSubId }
             .stateIn(scope, SharingStarted.WhileSubscribed(), realRepository.defaultDataSubId.value)
@@ -189,7 +187,7 @@ constructor(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                realRepository.defaultConnectionIsValidated.value
+                realRepository.defaultConnectionIsValidated.value,
             )
 
     override fun getRepoForSubId(subId: Int): MobileConnectionRepository {

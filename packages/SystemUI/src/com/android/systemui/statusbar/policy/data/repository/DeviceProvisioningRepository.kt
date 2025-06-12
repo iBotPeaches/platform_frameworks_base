@@ -15,7 +15,7 @@
  */
 package com.android.systemui.statusbar.policy.data.repository
 
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.statusbar.policy.DeviceProvisionedController
 import dagger.Binds
 import dagger.Module

@@ -137,13 +137,13 @@ final class SingleVibrationSession implements VibrationSession, IBinder.DeathRec
     }
 
     @Override
-    public void notifyVibratorCallback(int vibratorId, long vibrationId) {
+    public void notifyVibratorCallback(int vibratorId, long vibrationId, long stepId) {
         if (vibrationId != mVibration.id) {
             return;
         }
         synchronized (mLock) {
             if (mConductor != null) {
-                mConductor.notifyVibratorComplete(vibratorId);
+                mConductor.notifyVibratorComplete(vibratorId, stepId);
             }
         }
     }

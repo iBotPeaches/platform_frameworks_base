@@ -16,9 +16,6 @@
 
 package android.view;
 
-import static com.android.window.flags.Flags.FLAG_ENABLE_WM_EXTENSIONS_FOR_ALL_FLAG;
-
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
@@ -47,19 +44,8 @@ public class WindowManagerTests {
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Test
-    public void testHasWindowExtensionsEnabled_flagDisabled() {
-        mSetFlagsRule.disableFlags(FLAG_ENABLE_WM_EXTENSIONS_FOR_ALL_FLAG);
-
-        // Before FLAG_ENABLE_WM_EXTENSIONS_FOR_ALL_FLAG, Extensions are always bundled with AE.
-        assertEquals(isActivityEmbeddingEnableForAll(),
-                WindowManager.hasWindowExtensionsEnabled());
-    }
-
-    @Test
-    public void testHasWindowExtensionsEnabled_flagEnabled() {
-        mSetFlagsRule.enableFlags(FLAG_ENABLE_WM_EXTENSIONS_FOR_ALL_FLAG);
-
-        // Extensions should be enabled on all devices.
+    public void testHasWindowExtensionsEnabled() {
+        // Extensions should be enabled on all phones/tablets.
         assertTrue(WindowManager.hasWindowExtensionsEnabled());
     }
 

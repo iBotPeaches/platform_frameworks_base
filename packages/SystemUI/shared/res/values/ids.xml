@@ -21,4 +21,8 @@
     <item type="id" name="date_smartspace_view" />
     <!-- ID of the smartspace weather view. -->
     <item type="id" name="weather_smartspace_view" />
+    <!-- ID of the smartspace date view near the large clock. -->
+    <item type="id" name="date_smartspace_view_large" />
+    <!-- ID of the smartspace weather view near the large clock. -->
+    <item type="id" name="weather_smartspace_view_large" />
 </resources>

@@ -89,6 +89,9 @@ public interface NotificationShadeWindowController extends RemoteInputController
     /** Sets the state of whether the glanceable hub is showing or not. */
     default void setGlanceableHubShowing(boolean showing) {}
 
+    /** Sets the state of whether the glanceable hub can change with user's orientation or not. */
+    default void setGlanceableHubOrientationAware(boolean isOrientationAware) {}
+
     /** Sets the state of whether the backdrop is showing or not. */
     default void setBackdropShowing(boolean showing) {}
 

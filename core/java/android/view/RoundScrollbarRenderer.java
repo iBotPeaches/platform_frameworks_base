@@ -20,6 +20,7 @@ import static android.util.MathUtils.acos;
 
 import static java.lang.Math.sin;
 
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -40,12 +41,12 @@ public class RoundScrollbarRenderer {
 
     // The range of the scrollbar position represented as an angle in degrees.
     private static final float SCROLLBAR_ANGLE_RANGE = 28.8f;
-    private static final float MAX_SCROLLBAR_ANGLE_SWIPE = 26.3f; // 90%
-    private static final float MIN_SCROLLBAR_ANGLE_SWIPE = 3.1f; // 10%
-    private static final float THUMB_WIDTH_DP = 4f;
+    private static final float MAX_SCROLLBAR_ANGLE_SWIPE = 0.7f * SCROLLBAR_ANGLE_RANGE;
+    private static final float MIN_SCROLLBAR_ANGLE_SWIPE = 0.3f * SCROLLBAR_ANGLE_RANGE;
+    private static final float GAP_BETWEEN_TRACK_AND_THUMB_DP = 3f;
     private static final float OUTER_PADDING_DP = 2f;
-    private static final int DEFAULT_THUMB_COLOR = 0xFFFFFFFF;
-    private static final int DEFAULT_TRACK_COLOR = 0x4CFFFFFF;
+    private static final int DEFAULT_THUMB_COLOR = 0xFFC6C6C7;
+    private static final int DEFAULT_TRACK_COLOR = 0xFF2F3131;
 
     // Rate at which the scrollbar will resize itself when the size of the view changes
     private static final float RESIZING_RATE = 0.8f;
@@ -57,14 +58,16 @@ public class RoundScrollbarRenderer {
     private final RectF mRect = new RectF();
     private final View mParent;
     private final float mInset;
+    private final float mGapBetweenThumbAndTrackPx;
+    private final boolean mUseRefactoredRoundScrollbar;
 
     private float mPreviousMaxScroll = 0;
     private float mMaxScrollDiff = 0;
     private float mPreviousCurrentScroll = 0;
     private float mCurrentScrollDiff = 0;
     private float mThumbStrokeWidthAsDegrees = 0;
+    private float mGapBetweenTrackAndThumbAsDegrees = 0;
     private boolean mDrawToLeft;
-    private boolean mUseRefactoredRoundScrollbar;
 
     public RoundScrollbarRenderer(View parent) {
         // Paints for the round scrollbar.
@@ -80,16 +83,17 @@ public class RoundScrollbarRenderer {
 
         mParent = parent;
 
+        Resources resources = parent.getContext().getResources();
         // Fetch the resource indicating the thickness of CircularDisplayMask, rounding in the same
         // way WindowManagerService.showCircularMask does. The scroll bar is inset by this amount so
         // that it doesn't get clipped.
         int maskThickness =
-                parent.getContext()
-                        .getResources()
-                        .getDimensionPixelSize(
-                                com.android.internal.R.dimen.circular_display_mask_thickness);
+                resources.getDimensionPixelSize(
+                        com.android.internal.R.dimen.circular_display_mask_thickness);
 
-        float thumbWidth = dpToPx(THUMB_WIDTH_DP);
+        float thumbWidth =
+                resources.getDimensionPixelSize(com.android.internal.R.dimen.round_scrollbar_width);
+        mGapBetweenThumbAndTrackPx = dpToPx(GAP_BETWEEN_TRACK_AND_THUMB_DP);
         mThumbPaint.setStrokeWidth(thumbWidth);
         mTrackPaint.setStrokeWidth(thumbWidth);
         mInset = thumbWidth / 2 + maskThickness;
@@ -175,7 +179,6 @@ public class RoundScrollbarRenderer {
         }
     }
 
-    /** Returns true if horizontal bounds are updated */
     private void updateBounds(Rect bounds) {
         mRect.set(
                 bounds.left + mInset,
@@ -184,6 +187,8 @@ public class RoundScrollbarRenderer {
                 bounds.bottom - mInset);
         mThumbStrokeWidthAsDegrees =
                 getVertexAngle((mRect.right - mRect.left) / 2f, mThumbPaint.getStrokeWidth() / 2f);
+        mGapBetweenTrackAndThumbAsDegrees =
+                getVertexAngle((mRect.right - mRect.left) / 2f, mGapBetweenThumbAndTrackPx);
     }
 
     private float computeSweepAngle(float scrollExtent, float maxScroll) {
@@ -262,20 +267,22 @@ public class RoundScrollbarRenderer {
                 // The highest point of the top track on a vertical scale. Here the thumb width is
                 // reduced to account for the arc formed by ROUND stroke style
                 -SCROLLBAR_ANGLE_RANGE / 2f - mThumbStrokeWidthAsDegrees,
-                // The lowest point of the top track on a vertical scale. Here the thumb width is
-                // reduced twice to (a) account for the arc formed by ROUND stroke style (b) gap
-                // between thumb and top track
-                thumbStartAngle - mThumbStrokeWidthAsDegrees * 2,
+                // The lowest point of the top track on a vertical scale. It's reduced by
+                // (a) angular distance for the arc formed by ROUND stroke style
+                // (b) gap between thumb and top track
+                thumbStartAngle - mThumbStrokeWidthAsDegrees - mGapBetweenTrackAndThumbAsDegrees,
                 alpha);
         // Draws the thumb
         drawArc(canvas, thumbStartAngle, thumbSweepAngle, mThumbPaint);
         // Draws the bottom arc
         drawTrack(
                 canvas,
-                // The highest point of the bottom track on a vertical scale. Here the thumb width
-                // is added twice to (a) account for the arc formed by ROUND stroke style (b) gap
-                // between thumb and bottom track
-                (thumbStartAngle + thumbSweepAngle) + mThumbStrokeWidthAsDegrees * 2,
+                // The highest point of the bottom track on a vertical scale. Following added to it
+                // (a) angular distance for the arc formed by ROUND stroke style
+                // (b) gap between thumb and top track
+                (thumbStartAngle + thumbSweepAngle)
+                        + mThumbStrokeWidthAsDegrees
+                        + mGapBetweenTrackAndThumbAsDegrees,
                 // The lowest point of the top track on a vertical scale. Here the thumb width is
                 // added to account for the arc formed by ROUND stroke style
                 SCROLLBAR_ANGLE_RANGE / 2f + mThumbStrokeWidthAsDegrees,

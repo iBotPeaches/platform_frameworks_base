@@ -23,6 +23,7 @@ import android.annotation.CallbackExecutor;
 import android.annotation.NonNull;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
+import android.media.AudioDeviceVolumeManager;
 import android.media.AudioManager;
 import android.media.AudioSystem;
 import android.media.VolumeInfo;
@@ -137,18 +138,6 @@ public class FakeAudioFramework {
             // Do nothing
         }
 
-
-        @Override
-        @AudioManager.DeviceVolumeBehavior
-        public int getDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device) {
-            return mDeviceVolumeBehaviors.getOrDefault(device, DEFAULT_DEVICE_VOLUME_BEHAVIOR);
-        }
-
-        public void setDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device,
-                @AudioManager.DeviceVolumeBehavior int deviceVolumeBehavior) {
-            setVolumeBehaviorHelper(device, deviceVolumeBehavior);
-        }
-
         @Override
         @NonNull
         public List<AudioDeviceAttributes> getDevicesForAttributes(
@@ -183,21 +172,34 @@ public class FakeAudioFramework {
         public void setDeviceAbsoluteVolumeBehavior(
                 @NonNull AudioDeviceAttributes device,
                 @NonNull VolumeInfo volume,
+                boolean handlesVolumeAdjustment,
                 @NonNull @CallbackExecutor Executor executor,
-                @NonNull OnAudioDeviceVolumeChangedListener vclistener,
-                boolean handlesVolumeAdjustment) {
-            setVolumeBehaviorHelper(device, AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE);
+                @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
+            setVolumeBehaviorHelper(device,
+                    AudioDeviceVolumeManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE);
         }
 
         @Override
         public void setDeviceAbsoluteVolumeAdjustOnlyBehavior(
                 @NonNull AudioDeviceAttributes device,
                 @NonNull VolumeInfo volume,
+                boolean handlesVolumeAdjustment,
                 @NonNull @CallbackExecutor Executor executor,
-                @NonNull OnAudioDeviceVolumeChangedListener vclistener,
-                boolean handlesVolumeAdjustment) {
+                @NonNull OnAudioDeviceVolumeChangedListener vclistener) {
             setVolumeBehaviorHelper(device,
-                    AudioManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY);
+                    AudioDeviceVolumeManager.DEVICE_VOLUME_BEHAVIOR_ABSOLUTE_ADJUST_ONLY);
+        }
+
+        @Override
+        @AudioDeviceVolumeManager.DeviceVolumeBehavior
+        public int getDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device) {
+            return mDeviceVolumeBehaviors.getOrDefault(device, DEFAULT_DEVICE_VOLUME_BEHAVIOR);
+        }
+
+        @Override
+        public void setDeviceVolumeBehavior(@NonNull AudioDeviceAttributes device,
+                @AudioDeviceVolumeManager.DeviceVolumeBehavior int deviceVolumeBehavior) {
+            setVolumeBehaviorHelper(device, deviceVolumeBehavior);
         }
     }
 
@@ -222,7 +224,7 @@ public class FakeAudioFramework {
      * Helper method for changing an audio device's volume behavior. Notifies listeners.
      */
     private void setVolumeBehaviorHelper(AudioDeviceAttributes device,
-            @AudioManager.DeviceVolumeBehavior int newVolumeBehavior) {
+            @AudioDeviceVolumeManager.DeviceVolumeBehavior int newVolumeBehavior) {
 
         int currentVolumeBehavior = mDeviceVolumeBehaviors.getOrDefault(
                 device, DEFAULT_DEVICE_VOLUME_BEHAVIOR);

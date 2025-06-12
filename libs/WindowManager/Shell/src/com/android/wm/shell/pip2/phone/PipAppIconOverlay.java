@@ -26,6 +26,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.hardware.HardwareBuffer;
 import android.util.TypedValue;
 import android.view.SurfaceControl;
 
@@ -39,7 +40,6 @@ public final class PipAppIconOverlay extends PipContentOverlay {
 
     private final Context mContext;
     private final int mAppIconSizePx;
-    private final Rect mAppBounds;
     private final int mOverlayHalfSize;
     private final Matrix mTmpTransform = new Matrix();
     private final float[] mTmpFloat9 = new float[9];
@@ -55,10 +55,6 @@ public final class PipAppIconOverlay extends PipContentOverlay {
 
         final int overlaySize = getOverlaySize(appBounds, destinationBounds);
         mOverlayHalfSize = overlaySize >> 1;
-
-        // When the activity is in the secondary split, make sure the scaling center is not
-        // offset.
-        mAppBounds = new Rect(0, 0, appBounds.width(), appBounds.height());
 
         mBitmap = Bitmap.createBitmap(overlaySize, overlaySize, Bitmap.Config.ARGB_8888);
         prepareAppIconOverlay(appIcon);
@@ -85,12 +81,17 @@ public final class PipAppIconOverlay extends PipContentOverlay {
 
     @Override
     public void attach(SurfaceControl.Transaction tx, SurfaceControl parentLeash) {
+        final HardwareBuffer buffer = mBitmap.getHardwareBuffer();
         tx.show(mLeash);
         tx.setLayer(mLeash, Integer.MAX_VALUE);
-        tx.setBuffer(mLeash, mBitmap.getHardwareBuffer());
+        tx.setBuffer(mLeash, buffer);
         tx.setAlpha(mLeash, 0f);
         tx.reparent(mLeash, parentLeash);
         tx.apply();
+        // Cleanup the bitmap and buffer after setting up the leash
+        mBitmap.recycle();
+        mBitmap = null;
+        buffer.close();
     }
 
     @Override
@@ -106,16 +107,6 @@ public final class PipAppIconOverlay extends PipContentOverlay {
                 endBounds.height() / 2f - mOverlayHalfSize * scale);
         atomicTx.setMatrix(mLeash, mTmpTransform, mTmpFloat9)
                 .setAlpha(mLeash, fraction < 0.5f ? 0 : (fraction - 0.5f) * 2);
-    }
-
-
-
-    @Override
-    public void detach(SurfaceControl.Transaction tx) {
-        super.detach(tx);
-        if (mBitmap != null && !mBitmap.isRecycled()) {
-            mBitmap.recycle();
-        }
     }
 
     private void prepareAppIconOverlay(Drawable appIcon) {
@@ -139,6 +130,8 @@ public final class PipAppIconOverlay extends PipContentOverlay {
                 mOverlayHalfSize + mAppIconSizePx / 2);
         appIcon.setBounds(appIconBounds);
         appIcon.draw(canvas);
+        Bitmap oldBitmap = mBitmap;
         mBitmap = mBitmap.copy(Bitmap.Config.HARDWARE, false /* mutable */);
+        oldBitmap.recycle();
     }
 }

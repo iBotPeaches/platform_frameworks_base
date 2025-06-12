@@ -17,10 +17,16 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"配套设备管理器"</string>
-    <string name="confirmation_title" msgid="2244241995958340998">"允许应用&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;访问&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;？"</string>
+    <string name="confirmation_title" msgid="2244241995958340998">"要允许“&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;”应用访问“&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;”吗？"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"请确保此<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>已开启<xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>，并将<xliff:g id="PROFILE_NAME">%3$s</xliff:g>放在附近。"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"未找到设备，请稍后重试。"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"蓝牙"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"WLAN"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"蓝牙和 WLAN"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"手表"</string>
-    <string name="chooser_title_non_profile" msgid="6035023914517087400">"选择要由&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;管理的设备"</string>
-    <string name="chooser_title" msgid="2235819929238267637">"选择 <xliff:g id="PROFILE_NAME">%1$s</xliff:g> 进行设置"</string>
+    <string name="chooser_title_non_profile" msgid="6035023914517087400">"选择要由“&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;”管理的设备"</string>
+    <string name="chooser_title" msgid="2235819929238267637">"选择要设置的<xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"寻找<xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"该应用将能同步信息（例如来电者的姓名），并能获得您<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>上的以下权限"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"允许&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;管理&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;？"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"设备"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"允许&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;将您的<xliff:g id="DEVICE_TYPE">%2$s</xliff:g>上的应用流式传输到&lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;吗？"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"“<xliff:g id="APP_NAME_0">%1$s</xliff:g>”将能够访问“<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>”上显示或播放的任何内容，包括音频、照片、付款信息、密码和消息。&lt;br/&gt;&lt;br/&gt;“<xliff:g id="APP_NAME_2">%1$s</xliff:g>”可将应用流式传输到“<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>”，除非您撤消此访问权限。"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"“<xliff:g id="APP_NAME">%1$s</xliff:g>”正代表“<xliff:g id="DEVICE_NAME">%2$s</xliff:g>”请求获得从您的<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>流式传输应用的权限"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"要允许&lt;strong&gt;“<xliff:g id="APP_NAME">%1$s</xliff:g>”&lt;/strong&gt;在<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>和&lt;strong&gt;“<xliff:g id="DEVICE_NAME">%2$s</xliff:g>”&lt;/strong&gt;之间流式传输音频和系统功能吗？"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"“<xliff:g id="APP_NAME_0">%2$s</xliff:g>”将能够访问“<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>”上播放的任何内容。&lt;br/&gt;&lt;br/&gt;“<xliff:g id="APP_NAME_2">%2$s</xliff:g>”能够将音频流式传输到“<xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>”，除非您撤消此访问权限。"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"设备"</string>
     <string name="summary_generic" msgid="1761976003668044801">"此应用将能在您的手机和所选设备之间同步信息，例如来电者的姓名"</string>
     <string name="consent_yes" msgid="8344487259618762872">"允许"</string>
     <string name="consent_no" msgid="2640796915611404382">"不允许"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"取消"</string>
     <string name="consent_back" msgid="2560683030046918882">"返回"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"向下滚动列表"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"向下箭头"</string>
     <string name="permission_expand" msgid="893185038020887411">"展开<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"收起<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"要让&lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt;上的应用享有在&lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;上的同等权限吗？"</string>

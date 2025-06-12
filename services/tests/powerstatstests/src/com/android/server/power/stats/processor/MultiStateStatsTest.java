@@ -21,6 +21,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 
+import android.annotation.SuppressLint;
 import android.os.BatteryConsumer;
 
 import androidx.test.filters.SmallTest;
@@ -124,6 +125,7 @@ public class MultiStateStatsTest {
         assertThat(e.getMessage()).contains("40");
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void multiStateStats_aggregation() {
         MultiStateStats.Factory factory = makeFactory(true, true, false);
@@ -143,6 +145,8 @@ public class MultiStateStatsTest {
 
         multiStateStats.increment(new long[]{200, 200}, 5000);
 
+        multiStateStats.increment(null, 6000);  // No-op
+
         long[] stats = new long[DIMENSION_COUNT];
         multiStateStats.getStats(stats, new int[]{0, BatteryConsumer.PROCESS_STATE_FOREGROUND, 0});
         // (400 - 100) * 0.5 + (600 - 400) * 0.5
@@ -157,9 +161,9 @@ public class MultiStateStatsTest {
         // (400 - 100) * 0 + (600 - 400) * 0.5
         assertThat(stats).isEqualTo(new long[]{100, 100});
 
-        multiStateStats.getStats(stats, new int[]{1, BatteryConsumer.PROCESS_STATE_BACKGROUND, 0});
         // Never been in this composite state
-        assertThat(stats).isEqualTo(new long[]{0, 0});
+        assertThat(multiStateStats.getStats(stats,
+                new int[]{1, BatteryConsumer.PROCESS_STATE_BACKGROUND, 0})).isFalse();
     }
 
     @Test

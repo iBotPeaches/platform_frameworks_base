@@ -20,6 +20,7 @@
 #include <android-base/unique_fd.h>
 #include <android/os/BnIdmap2.h>
 #include <android/os/FabricatedOverlayInfo.h>
+#include <android/os/OverlayConstraint.h>
 #include <binder/BinderService.h>
 #include <idmap2/ResourceContainer.h>
 #include <idmap2/Result.h>
@@ -49,11 +50,13 @@ class Idmap2Service : public BinderService<Idmap2Service>, public BnIdmap2 {
   binder::Status verifyIdmap(const std::string& target_path, const std::string& overlay_path,
                              const std::string& overlay_name, int32_t fulfilled_policies,
                              bool enforce_overlayable, int32_t user_id,
+                             const std::vector<os::OverlayConstraint>& constraints,
                              bool* _aidl_return) override;
 
   binder::Status createIdmap(const std::string& target_path, const std::string& overlay_path,
                              const std::string& overlay_name, int32_t fulfilled_policies,
                              bool enforce_overlayable, int32_t user_id,
+                             const std::vector<os::OverlayConstraint>& constraints,
                              std::optional<std::string>* _aidl_return) override;
 
   binder::Status createFabricatedOverlay(

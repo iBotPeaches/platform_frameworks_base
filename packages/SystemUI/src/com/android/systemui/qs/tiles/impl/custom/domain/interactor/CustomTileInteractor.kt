@@ -18,11 +18,12 @@ package com.android.systemui.qs.tiles.impl.custom.domain.interactor
 
 import android.os.UserHandle
 import android.service.quicksettings.Tile
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.tiles.base.shared.model.QSTileScope
 import com.android.systemui.qs.tiles.impl.custom.data.repository.CustomTileDefaultsRepository
 import com.android.systemui.qs.tiles.impl.custom.data.repository.CustomTileRepository
-import com.android.systemui.qs.tiles.impl.di.QSTileScope
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
@@ -34,7 +35,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -100,7 +100,7 @@ constructor(
             launchUpdates(user)
             customTileRepository.restoreForTheUserIfNeeded(
                 user,
-                customTileRepository.isTileActive()
+                customTileRepository.isTileActive(),
             )
             // Suspend to make sure it gets the tile from one of the sources: restoration, defaults,
             // or

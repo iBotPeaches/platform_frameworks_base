@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="accessibility_menu_service_name" msgid="730136711554740131">"无障碍功能菜单"</string>
+    <string name="accessibility_menu_service_name" msgid="730136711554740131">"无障碍菜单"</string>
     <string name="accessibility_menu_intro" msgid="3164193281544042394">"无障碍功能菜单是一个放大的菜单，方便您通过屏幕控制设备，完成锁屏、控制音量和亮度、截图等操作。"</string>
     <string name="assistant_label" msgid="6796392082252272356">"Google 助理"</string>
     <string name="assistant_utterance" msgid="65509599221141377">"Google 助理"</string>

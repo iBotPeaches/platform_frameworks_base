@@ -20,16 +20,29 @@ import static com.android.systemui.log.LogBufferHelperKt.logcatLogBuffer;
 
 import static junit.framework.Assert.assertTrue;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.ActivityOptions;
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.platform.test.flag.junit.FlagsParameterization;
 import android.testing.TestableLooper;
+import android.util.Pair;
+import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.RemoteViews;
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.systemui.SysuiTestCase;
@@ -42,19 +55,37 @@ import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.NotificationEntryBuilder;
 import com.android.systemui.statusbar.notification.collection.render.NotificationVisibilityProvider;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
+import com.android.systemui.statusbar.notification.row.NotificationTestHelper;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 import com.android.systemui.statusbar.policy.RemoteInputUriController;
 import com.android.systemui.util.kotlin.JavaAdapter;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4;
+import platform.test.runner.parameterized.Parameters;
+
 @SmallTest
-@RunWith(AndroidJUnit4.class)
+@RunWith(ParameterizedAndroidJunit4.class)
 @TestableLooper.RunWithLooper
 public class NotificationRemoteInputManagerTest extends SysuiTestCase {
+
+    @Parameters(name = "{0}")
+    public static List<FlagsParameterization> getParams() {
+        return FlagsParameterization.allCombinationsOf(NotificationBundleUi.FLAG_NAME);
+    }
+
     private static final String TEST_PACKAGE_NAME = "test";
     private static final int TEST_UID = 0;
 
@@ -69,13 +100,33 @@ public class NotificationRemoteInputManagerTest extends SysuiTestCase {
     @Mock private NotificationClickNotifier mClickNotifier;
     @Mock private NotificationLockscreenUserManager mLockscreenUserManager;
     @Mock private PowerInteractor mPowerInteractor;
+    @Mock
+    NotificationRemoteInputManager.RemoteInputListener mRemoteInputListener;
+    private ActionClickLogger mActionClickLogger;
+    @Captor
+    ArgumentCaptor<NotificationRemoteInputManager.ClickHandler> mClickHandlerArgumentCaptor;
+    private Context mSpyContext;
 
+    private NotificationTestHelper mTestHelper;
     private TestableNotificationRemoteInputManager mRemoteInputManager;
     private NotificationEntry mEntry;
 
+   public NotificationRemoteInputManagerTest(FlagsParameterization flags) {
+       super();
+       mSetFlagsRule.setFlagsParameterization(flags);
+   }
+
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+
+        mSpyContext = spy(mContext);
+        doNothing().when(mSpyContext).startIntentSender(
+                any(), any(), anyInt(), anyInt(), anyInt(), any());
+
+
+        mTestHelper = new NotificationTestHelper(mSpyContext, mDependency);
+        mActionClickLogger = spy(new ActionClickLogger(logcatLogBuffer()));
 
         mRemoteInputManager = new TestableNotificationRemoteInputManager(mContext,
                 mock(NotifPipelineFlags.class),
@@ -87,9 +138,10 @@ public class NotificationRemoteInputManagerTest extends SysuiTestCase {
                 mRemoteInputUriController,
                 new RemoteInputControllerLogger(logcatLogBuffer()),
                 mClickNotifier,
-                new ActionClickLogger(logcatLogBuffer()),
+                mActionClickLogger,
                 mock(JavaAdapter.class),
                 mock(ShadeInteractor.class));
+        mRemoteInputManager.setRemoteInputListener(mRemoteInputListener);
         mEntry = new NotificationEntryBuilder()
                 .setPkg(TEST_PACKAGE_NAME)
                 .setOpPkg(TEST_PACKAGE_NAME)
@@ -131,6 +183,70 @@ public class NotificationRemoteInputManagerTest extends SysuiTestCase {
         when(mSmartReplyController.isSendingSmartReply(mEntry.getKey())).thenReturn(true);
 
         assertTrue(mRemoteInputManager.shouldKeepForSmartReplyHistory(mEntry));
+    }
+
+    @Test
+    public void testActionClick() throws Exception {
+        RemoteViews.RemoteResponse response = mock(RemoteViews.RemoteResponse.class);
+        when(response.getLaunchOptions(any())).thenReturn(
+                Pair.create(mock(Intent.class), mock(ActivityOptions.class)));
+        ExpandableNotificationRow row = getRowWithReplyAction();
+        View actionView = ((LinearLayout) row.getPrivateLayout().getExpandedChild().findViewById(
+                com.android.internal.R.id.actions)).getChildAt(0);
+        Notification n = getNotification(row);
+        CountDownLatch latch = new CountDownLatch(1);
+        Consumer<NotificationEntry> consumer = notificationEntry -> latch.countDown();
+        if (!NotificationBundleUi.isEnabled()) {
+            mRemoteInputManager.addActionPressListener(consumer);
+        }
+
+        mRemoteInputManager.getRemoteViewsOnClickHandler().onInteraction(
+                actionView,
+                n.actions[0].actionIntent,
+                response);
+
+        verify(mActionClickLogger).logInitialClick(row.getKey(), 0, n.actions[0].actionIntent);
+        verify(mClickNotifier).onNotificationActionClick(
+                eq(row.getKey()), eq(0), eq(n.actions[0]), any(), eq(false));
+        verify(mCallback).handleRemoteViewClick(eq(actionView), eq(n.actions[0].actionIntent),
+                eq(false), eq(0), mClickHandlerArgumentCaptor.capture());
+
+        mClickHandlerArgumentCaptor.getValue().handleClick();
+        verify(mActionClickLogger).logStartingIntentWithDefaultHandler(
+                row.getKey(), n.actions[0].actionIntent, 0);
+
+        verify(mRemoteInputListener).releaseNotificationIfKeptForRemoteInputHistory(row.getKey());
+        if (NotificationBundleUi.isEnabled()) {
+            verify(row.getEntryAdapter()).onNotificationActionClicked();
+        } else {
+            latch.await(10, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private Notification getNotification(ExpandableNotificationRow row) {
+        if (NotificationBundleUi.isEnabled()) {
+            return row.getEntryAdapter().getSbn().getNotification();
+        } else {
+            return row.getEntryLegacy().getSbn().getNotification();
+        }
+    }
+
+    private ExpandableNotificationRow getRowWithReplyAction() throws Exception {
+        PendingIntent pi = PendingIntent.getBroadcast(getContext(), 0, new Intent("Action"),
+                PendingIntent.FLAG_IMMUTABLE);
+        Notification n = new Notification.Builder(mSpyContext, "")
+                .setSmallIcon(com.android.systemui.res.R.drawable.ic_person)
+                .addAction(new Notification.Action(com.android.systemui.res.R.drawable.ic_person,
+                        "reply", pi))
+                .build();
+        ExpandableNotificationRow row = mTestHelper.createRow(n);
+        row.onNotificationUpdated();
+        row.getPrivateLayout().setExpandedChild(Notification.Builder.recoverBuilder(mSpyContext, n)
+                .createBigContentView().apply(
+                        mSpyContext,
+                        row.getPrivateLayout(),
+                        mRemoteInputManager.getRemoteViewsOnClickHandler()));
+        return row;
     }
 
     private class TestableNotificationRemoteInputManager extends NotificationRemoteInputManager {

@@ -268,17 +268,37 @@
      72dp (content margin) - 12dp (action padding) - 4dp (button inset) -->
     <dimen name="notification_2025_actions_margin_start">56dp</dimen>
 
+    <!-- Notification action button text size -->
+    <dimen name="notification_2025_action_text_size">16sp</dimen>
+
     <!-- The margin on the end of most content views (ignores the expander) -->
     <dimen name="notification_content_margin_end">16dp</dimen>
 
     <!-- The margin on the end of the top-line content views (accommodates the expander) -->
     <dimen name="notification_heading_margin_end">56dp</dimen>
 
+    <!-- The vertical spacing for the smart reply/smart action container.
+     Note that the button background itself also has an inset of 6dp (making the height of the
+     tappable area 48dp total, 32dp for the visible button plus 6dp top and bottom), so the visible
+     space between the button and the other content is going to be 16dp. -->
+    <dimen name="notification_2025_smart_reply_container_margin">10dp</dimen>
+
     <!-- The total height of the notification action list -->
     <dimen name="notification_action_list_height">60dp</dimen>
 
+    <!-- The total height of the notification action list (2025 redesign version) -->
+    <dimen name="notification_2025_action_list_height">48dp</dimen>
+
     <!-- The margin of the notification action list at the top -->
     <dimen name="notification_action_list_margin_top">0dp</dimen>
+
+    <!-- The margin of the notification action list at the bottom in the 2025 redesign -->
+    <dimen name="notification_2025_action_list_margin_bottom">6dp</dimen>
+
+    <!-- The minimum height of the notification action container, to act as a bottom padding for the
+         notification when there are no actions. This should always be equal to
+         notification_2025_margin - notification_2025_action_list_margin_bottom. -->
+    <dimen name="notification_2025_action_list_min_height">10dp</dimen>
 
     <!-- The overall height of the emphasized notification action -->
     <dimen name="notification_action_emphasized_height">48dp</dimen>
@@ -301,6 +321,9 @@
     <!-- The size of icons for visual actions in the notification_material_action_list -->
     <dimen name="notification_actions_icon_size">56dp</dimen>
 
+    <!-- The size of icon actions in notification_material_action_list (2025 redesign version) -->
+    <dimen name="notification_2025_actions_icon_size">48dp</dimen>
+
     <!-- The size of icons for visual actions in the notification_material_action_list -->
     <dimen name="notification_actions_icon_drawable_size">20dp</dimen>
 
@@ -310,8 +333,14 @@
     <!-- Size of the stroke with for the emphasized notification button style -->
     <dimen name="emphasized_button_stroke_width">1dp</dimen>
 
-    <!-- height of the content margin to accomodate for the header -->
+    <!-- height of the content margin to accommodate for the header -->
     <dimen name="notification_content_margin_top">50dp</dimen>
+
+    <!-- The spacing between the content and the header text above it, scaling with text size.
+         This value is chosen so that, taking into account the text spacing for both the text in the
+         top line and the text in the content, the distance between them is ~2dp with the default
+         screen configuration (and will grow accordingly for larger font sizes) -->
+    <dimen name="notification_2025_content_margin_top">8sp</dimen>
 
     <!-- height of the content margin that is applied at the end of the notification content -->
     <dimen name="notification_content_margin">20dp</dimen>
@@ -323,7 +352,7 @@
     <dimen name="notification_progress_margin_top">8dp</dimen>
 
     <!-- The horizontal margin before and after the notification progress bar. -->
-    <dimen name="notification_progress_margin_horizontal">2dp</dimen>
+    <dimen name="notification_progress_margin_horizontal">4dp</dimen>
 
     <!-- height of the notification header -->
     <dimen name="notification_header_height">56dp</dimen>
@@ -381,17 +410,56 @@
     <!-- The absolute size of the notification expand icon. -->
     <dimen name="notification_header_expand_icon_size">56dp</dimen>
 
+    <!-- Margin to allow space for the expand button when showing the right icon in expanded -->
+    <!-- notifications. This is equal to notification_2025_expand_button_pill_width -->
+    <!-- + notification_2025_margin (end padding for expand button) -->
+    <!-- + notification_2025_expand_button_right_icon_spacing (space between pill and icon) -->
+    <dimen name="notification_2025_right_icon_expanded_margin_end">52dp</dimen>
+
+    <!-- The large icon has a smaller vertical margin than most other notification content, to -->
+    <!-- allow it to grow up to 48dp. -->
+    <dimen name="notification_2025_right_icon_vertical_margin">12dp</dimen>
+
     <!-- the height of the expand button pill -->
     <dimen name="notification_expand_button_pill_height">24dp</dimen>
+
+    <!-- the height of the expand button pill (2025 redesign version) -->
+    <dimen name="notification_2025_expand_button_pill_height">20dp</dimen>
+
+    <!-- the width of the expand button pill (2025 redesign version) -->
+    <dimen name="notification_2025_expand_button_pill_width">28dp</dimen>
+
+    <!-- the size of the expand arrow (2025 redesign version) -->
+    <dimen name="notification_2025_expand_button_icon_size">16sp</dimen>
 
     <!-- the padding of the expand icon in the notification header -->
     <dimen name="notification_expand_button_icon_padding">2dp</dimen>
 
+    <!-- the padding of the expand icon in the notification header -->
+    <dimen name="notification_2025_expand_button_vertical_icon_padding">2dp</dimen>
+
+    <!-- the padding of the expand icon in the notification header -->
+    <dimen name="notification_2025_expand_button_horizontal_icon_padding">6dp</dimen>
+
+    <!-- smaller padding for the end of the expand icon, for use when showing the number -->
+    <dimen name="notification_2025_expand_button_reduced_end_padding">4dp</dimen>
+
+    <!-- the space needed between the expander pill and the large icon when visible -->
+    <dimen name="notification_2025_expand_button_right_icon_spacing">8dp</dimen>
+
     <!-- the size of the notification close button -->
     <dimen name="notification_close_button_size">16dp</dimen>
 
+    <dimen name="notification_close_button_padding">2dp</dimen>
+
     <!-- Margin for all notification content -->
     <dimen name="notification_2025_margin">16dp</dimen>
+
+    <!-- A smaller version of the margin to be used when we need more space for the content -->
+    <dimen name="notification_2025_reduced_margin">12dp</dimen>
+
+    <!-- The difference between the usual margin and the reduced margin -->
+    <dimen name="notification_2025_additional_margin">4dp</dimen>
 
     <!-- Vertical margin for the headerless notification content, when content has 1 line -->
     <!-- 16 * 2 (margins) + 24 (1 line) = 56 (notification) -->
@@ -407,15 +475,18 @@
     <!-- The minimum height of the notification content (even when there's only one line of text) -->
     <dimen name="notification_2025_content_min_height">40dp</dimen>
 
-    <!-- Height of a headerless notification with one or two lines -->
-    <!-- 16 * 2 (margins) + 40 (min content height) = 72 (notification) -->
+    <!-- Max height of a collapsed (headerless) notification with a summarization -->
+    <dimen name="notification_collapsed_height_with_summarization">156dp</dimen>
+
+    <!-- Max height of a collapsed (headerless) notification with one or two lines -->
+    <!-- 14 * 2 (reduced margins) + 48 (max collapsed content height) = 72 (notification) -->
     <dimen name="notification_2025_min_height">72dp</dimen>
 
     <!-- Height of a headerless notification with one line -->
     <!-- 16 * 2 (margins) + 24 (1 line) = 56 (notification) -->
     <dimen name="notification_headerless_min_height">56dp</dimen>
 
-    <!-- Height of a small two-line notification -->
+    <!-- Max height of a collapsed two-line notification -->
     <!-- 20 * 2 (margins) + 24 * 2 (2 lines) = 88 (notification) -->
     <dimen name="notification_min_height">88dp</dimen>
 
@@ -451,6 +522,9 @@
 
     <!-- The spacing between messages in Notification.MessagingStyle -->
     <dimen name="notification_messaging_spacing">6dp</dimen>
+
+    <!-- The spacing between messages in Notification.MessagingStyle (2025 redesign version) -->
+    <dimen name="notification_2025_messaging_spacing">14dp</dimen>
 
     <!-- The spacing between messages in Notification.MessagingStyle -->
     <dimen name="notification_messaging_spacing_conversation_group">24dp</dimen>
@@ -584,11 +658,22 @@
     <!-- Size of the feedback indicator for notifications -->
     <dimen name="notification_feedback_size">20dp</dimen>
 
+    <!-- Size of the (work) profile badge for notifications -->
+    <dimen name="notification_badge_size">12dp</dimen>
+
+    <!-- Size of the (work) profile badge for notifications (2025 redesign version).
+         Scales with font size. Chosen to look good alongside notification_subtext_size text. -->
+    <dimen name="notification_2025_badge_size">14sp</dimen>
+
+    <!-- Baseline for aligning icons in the top line (like the work profile icon or alerting icon)
+         to the text properly. This is equal to notification_2025_badge_size - 2sp. -->
+    <dimen name="notification_2025_badge_baseline">12sp</dimen>
+
+    <!-- Spacing for the top line icons (e.g. the work profile badge). -->
+    <dimen name="notification_2025_badge_margin">4dp</dimen>
+
     <!-- Size of the phishing alert for notifications -->
     <dimen name="notification_phishing_alert_size">@dimen/notification_badge_size</dimen>
-
-    <!-- Size of the profile badge for notifications -->
-    <dimen name="notification_badge_size">12dp</dimen>
 
     <!-- Size of the alerted icon for notifications -->
     <dimen name="notification_alerted_size">@dimen/notification_badge_size</dimen>
@@ -676,6 +761,21 @@
     <!-- The minimum window size of the accessibility window magnifier -->
     <dimen name="accessibility_window_magnifier_min_size">122dp</dimen>
 
+    <!-- The accessibility autoclick panel button spacing -->
+    <dimen name="accessibility_autoclick_type_panel_button_spacing">12dp</dimen>
+
+    <!-- The accessibility autoclick panel button width and height -->
+    <dimen name="accessibility_autoclick_type_panel_button_size">36dp</dimen>
+
+    <!-- The accessibility autoclick panel divider width -->
+    <dimen name="accessibility_autoclick_type_panel_divider_width">1dp</dimen>
+
+    <!-- The accessibility autoclick panel divider height -->
+    <dimen name="accessibility_autoclick_type_panel_divider_height">24dp</dimen>
+
+    <!-- The accessibility autoclick scroll panel button width and height -->
+    <dimen name="accessibility_autoclick_scroll_panel_button_size">36dp</dimen>
+
     <!-- Margin around the various security views -->
     <dimen name="keyguard_muliuser_selector_margin">8dp</dimen>
 
@@ -731,6 +831,9 @@
     <!-- Amount to reduce the size of the circular mask by (to compensate for
          aliasing effects). This is only used on circular displays. -->
     <dimen name="circular_display_mask_thickness">1px</dimen>
+
+    <!-- The width of the round scrollbar -->
+    <dimen name="round_scrollbar_width">5dp</dimen>
 
     <dimen name="lock_pattern_dot_line_width">22dp</dimen>
     <dimen name="lock_pattern_dot_size">14dp</dimen>
@@ -837,6 +940,8 @@
     <dimen name="notification_right_icon_size">48dp</dimen>
     <!-- The margin between the right icon and the content. -->
     <dimen name="notification_right_icon_content_margin">12dp</dimen>
+    <!-- The margin between the right icon and the content. (2025 redesign version) -->
+    <dimen name="notification_2025_right_icon_content_margin">16dp</dimen>
     <!-- The top and bottom margin of the right icon in the normal notification states -->
     <dimen name="notification_right_icon_headerless_margin">20dp</dimen>
     <!-- The top margin of the right icon in the "big" notification states -->
@@ -861,9 +966,11 @@
     <!-- The size of the progress tracker height -->
     <dimen name="notification_progress_tracker_height">20dp</dimen>
     <!-- The gap between segments in the notification progress bar -->
-    <dimen name="notification_progress_segSeg_gap">2dp</dimen>
+    <dimen name="notification_progress_segSeg_gap">4dp</dimen>
     <!-- The gap between a segment and a point in the notification progress bar -->
     <dimen name="notification_progress_segPoint_gap">4dp</dimen>
+    <!-- The minimum required drawing width of the notification progress bar segments -->
+    <dimen name="notification_progress_segments_min_width">16dp</dimen>
     <!-- The height of the notification progress bar segments -->
     <dimen name="notification_progress_segments_height">6dp</dimen>
     <!-- The height of the notification progress bar faded segments -->
@@ -1153,4 +1260,7 @@
 
     <!-- The maximum width for a context menu icon -->
     <dimen name="list_menu_item_icon_max_width">24dp</dimen>
+
+    <!-- Default height of desktop view header for freeform tasks on launch. -->
+    <dimen name="desktop_view_default_header_height">40dp</dimen>
 </resources>

@@ -18,7 +18,7 @@ package com.android.systemui.statusbar.notification.collection.listbuilder.plugg
 
 import android.annotation.Nullable;
 
-import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.collection.ShadeListBuilder;
 import com.android.systemui.statusbar.notification.collection.render.NodeController;
 import com.android.systemui.statusbar.notification.collection.render.NodeSpec;
@@ -52,11 +52,11 @@ public abstract class NotifSectioner extends Pluggable<NotifSectioner> {
      * However, this doesn't necessarily mean that your section will get called on each top-level
      * notification. The first section to return true determines the section of the notification.
      */
-    public abstract boolean isInSection(ListEntry entry);
+    public abstract boolean isInSection(PipelineEntry entry);
 
     /**
      * Returns an optional {@link NotifComparator} to sort entries only in this section.
-     * {@link ListEntry} instances passed to this comparator are guaranteed to have this section,
+     * {@link PipelineEntry} instances passed to this comparator are guaranteed to have this section,
      * and this ordering will take precedence over any global comparators supplied to {@link
      * com.android.systemui.statusbar.notification.collection.NotifPipeline#setComparators(List)}.
      *
@@ -80,5 +80,5 @@ public abstract class NotifSectioner extends Pluggable<NotifSectioner> {
      * Notify of children of this section being updated
      * @param entries of this section that are borrowed (must clone to store)
      */
-    public void onEntriesUpdated(List<ListEntry> entries) {}
+    public void onEntriesUpdated(List<PipelineEntry> entries) {}
 }

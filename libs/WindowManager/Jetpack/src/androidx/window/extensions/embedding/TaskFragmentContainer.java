@@ -18,6 +18,8 @@ package androidx.window.extensions.embedding;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 
+import static com.android.window.flags.Flags.activityEmbeddingDelayTaskFragmentFinishForActivityLaunch;
+
 import android.app.Activity;
 import android.app.ActivityThread;
 import android.app.WindowConfiguration.WindowingMode;
@@ -52,6 +54,8 @@ import java.util.Objects;
 @SuppressWarnings("GuardedBy")
 class TaskFragmentContainer {
     private static final int APPEAR_EMPTY_TIMEOUT_MS = 3000;
+
+    private static final int DELAYED_TASK_FRAGMENT_CLEANUP_TIMEOUT_MS = 500;
 
     /** Parcelable data of this TaskFragmentContainer. */
     @NonNull
@@ -164,6 +168,18 @@ class TaskFragmentContainer {
      * Whether to apply dimming on the parent Task that was requested last.
      */
     private boolean mLastDimOnTask;
+
+    /** The timestamp of the latest pending activity launch attempt. 0 means no pending launch. */
+    private long mLastActivityLaunchTimestampMs = 0;
+
+    /**
+     * The scheduled runnable for delayed TaskFragment cleanup. This is used when the TaskFragment
+     * becomes empty, but we expect a new activity to appear in it soon.
+     *
+     * It should be {@code null} when not scheduled.
+     */
+    @Nullable
+    private Runnable mDelayedTaskFragmentCleanupRunnable;
 
     /**
      * Creates a container with an existing activity that will be re-parented to it in a window
@@ -538,6 +554,10 @@ class TaskFragmentContainer {
         } else if (mAppearEmptyTimeout != null && !info.isEmpty()) {
             mController.getHandler().removeCallbacks(mAppearEmptyTimeout);
             mAppearEmptyTimeout = null;
+        }
+
+        if (activityEmbeddingDelayTaskFragmentFinishForActivityLaunch()) {
+            clearActivityLaunchHintIfNecessary(mInfo, info);
         }
 
         mHasCrossProcessActivities = false;
@@ -1062,6 +1082,89 @@ class TaskFragmentContainer {
 
     boolean isOverlayWithActivityAssociation() {
         return isOverlay() && mParcelableData.mAssociatedActivityToken != null;
+    }
+
+    /**
+     * Indicates whether there is possibly a pending activity launching into this TaskFragment.
+     *
+     * This should only be used as a hint because we cannot reliably determine if the new activity
+     * is going to appear into this TaskFragment.
+     *
+     * TODO(b/293800510) improve activity launch tracking in TaskFragment.
+     */
+    boolean hasActivityLaunchHint() {
+        if (mLastActivityLaunchTimestampMs == 0) {
+            return false;
+        }
+        if (System.currentTimeMillis() > mLastActivityLaunchTimestampMs + APPEAR_EMPTY_TIMEOUT_MS) {
+            // The hint has expired after APPEAR_EMPTY_TIMEOUT_MS.
+            mLastActivityLaunchTimestampMs = 0;
+            return false;
+        }
+        return true;
+    }
+
+    /** Records the latest activity launch attempt. */
+    void setActivityLaunchHint() {
+        mLastActivityLaunchTimestampMs = System.currentTimeMillis();
+    }
+
+    /**
+     * If we get a new info showing that the TaskFragment has more activities than the previous
+     * info, we clear the new activity launch hint.
+     *
+     * Note that this is not a reliable way and cannot cover situations when the attempted
+     * activity launch did not cause TaskFragment info activity count changes, such as trampoline
+     * launches or single top launches.
+     *
+     * TODO(b/293800510) improve activity launch tracking in TaskFragment.
+     */
+    private void clearActivityLaunchHintIfNecessary(
+            @Nullable TaskFragmentInfo oldInfo, @NonNull TaskFragmentInfo newInfo) {
+        final int previousActivityCount = oldInfo == null ? 0 : oldInfo.getRunningActivityCount();
+        if (newInfo.getRunningActivityCount() > previousActivityCount) {
+            mLastActivityLaunchTimestampMs = 0;
+            cancelDelayedTaskFragmentCleanup();
+        }
+    }
+
+    /**
+     * Schedules delayed TaskFragment cleanup due to pending activity launch. The scheduled cleanup
+     * will be canceled if a new activity appears in this TaskFragment.
+     */
+    void scheduleDelayedTaskFragmentCleanup() {
+        if (mDelayedTaskFragmentCleanupRunnable != null) {
+            // Remove the previous callback if there is already one scheduled.
+            mController.getHandler().removeCallbacks(mDelayedTaskFragmentCleanupRunnable);
+        }
+        mDelayedTaskFragmentCleanupRunnable = new Runnable() {
+            @Override
+            public void run() {
+                synchronized (mController.mLock) {
+                    if (mDelayedTaskFragmentCleanupRunnable != this) {
+                        // The scheduled cleanup runnable has been canceled or rescheduled, so
+                        // skipping.
+                        return;
+                    }
+                    if (isEmpty()) {
+                        mLastActivityLaunchTimestampMs = 0;
+                        mController.onTaskFragmentAppearEmptyTimeout(
+                                TaskFragmentContainer.this);
+                    }
+                    mDelayedTaskFragmentCleanupRunnable = null;
+                }
+            }
+        };
+        mController.getHandler().postDelayed(
+                mDelayedTaskFragmentCleanupRunnable, DELAYED_TASK_FRAGMENT_CLEANUP_TIMEOUT_MS);
+    }
+
+    private void cancelDelayedTaskFragmentCleanup() {
+        if (mDelayedTaskFragmentCleanupRunnable == null) {
+            return;
+        }
+        mController.getHandler().removeCallbacks(mDelayedTaskFragmentCleanupRunnable);
+        mDelayedTaskFragmentCleanupRunnable = null;
     }
 
     @Override

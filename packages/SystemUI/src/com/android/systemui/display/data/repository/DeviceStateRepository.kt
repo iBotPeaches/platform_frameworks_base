@@ -27,7 +27,7 @@ import android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_HARDWARE_CONFI
 import android.hardware.devicestate.DeviceStateManager
 import android.hardware.devicestate.feature.flags.Flags as DeviceStateManagerFlags
 import com.android.internal.R
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DeviceStateRepository.DeviceState
 import java.util.concurrent.Executor

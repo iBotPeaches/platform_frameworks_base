@@ -62,10 +62,11 @@ import android.util.Slog;
 import android.util.proto.ProtoOutputStream;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.protolog.ProtoLogConfigurationServiceImpl.RegisterClientArgs;
+import com.android.internal.protolog.IProtoLogConfigurationService.RegisterClientArgs;
 import com.android.internal.protolog.common.ILogger;
 import com.android.internal.protolog.common.IProtoLog;
 import com.android.internal.protolog.common.IProtoLogGroup;
+import com.android.internal.protolog.common.InvalidFormatStringException;
 import com.android.internal.protolog.common.LogDataType;
 import com.android.internal.protolog.common.LogLevel;
 
@@ -79,6 +80,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -160,19 +162,25 @@ public abstract class PerfettoProtoLogImpl extends IProtoLogClient.Stub implemen
         Objects.requireNonNull(mConfigurationService,
                 "A null ProtoLog Configuration Service was provided!");
 
-        try {
-            var args = createConfigurationServiceRegisterClientArgs();
+        mBackgroundLoggingService.execute(() -> {
+            try {
+                var args = createConfigurationServiceRegisterClientArgs();
 
-            final var groupArgs = mLogGroups.values().stream()
-                    .map(group -> new RegisterClientArgs
-                            .GroupConfig(group.name(), group.isLogToLogcat()))
-                    .toArray(RegisterClientArgs.GroupConfig[]::new);
-            args.setGroups(groupArgs);
+                args.groups = new String[mLogGroups.size()];
+                args.groupsDefaultLogcatStatus = new boolean[mLogGroups.size()];
 
-            mConfigurationService.registerClient(this, args);
-        } catch (RemoteException e) {
-            throw new RuntimeException("Failed to register ProtoLog client");
-        }
+                var groups = mLogGroups.values().stream().toList();
+                for (var i = 0; i < groups.size(); i++) {
+                    var group = groups.get(i);
+                    args.groups[i] = group.name();
+                    args.groupsDefaultLogcatStatus[i] = group.isLogToLogcat();
+                }
+
+                mConfigurationService.registerClient(this, args);
+            } catch (RemoteException e) {
+                throw new RuntimeException("Failed to register ProtoLog client");
+            }
+        });
     }
 
     /**
@@ -200,7 +208,12 @@ public abstract class PerfettoProtoLogImpl extends IProtoLogClient.Stub implemen
 
     @Override
     public void log(LogLevel logLevel, IProtoLogGroup group, String messageString, Object... args) {
-        log(logLevel, group, new Message(messageString), args);
+        try {
+            log(logLevel, group, new Message(messageString), args);
+        } catch (InvalidFormatStringException e) {
+            Slog.e(LOG_TAG, "Invalid protolog string format", e);
+            log(logLevel, group, new Message("INVALID MESSAGE"), new Object[0]);
+        }
     }
 
     /**
@@ -316,7 +329,7 @@ public abstract class PerfettoProtoLogImpl extends IProtoLogClient.Stub implemen
         PrintWriter pw = shell.getOutPrintWriter();
 
         if (android.tracing.Flags.clientSideProtoLogging()) {
-            pw.println("Command deprecated. Please use 'cmd protolog' instead.");
+            pw.println("Command deprecated. Please use 'cmd protolog_configuration' instead.");
             return -1;
         }
 
@@ -824,7 +837,7 @@ public abstract class PerfettoProtoLogImpl extends IProtoLogClient.Stub implemen
             this.mMessageString = null;
         }
 
-        private Message(@NonNull String messageString) {
+        private Message(@NonNull String messageString) throws InvalidFormatStringException {
             this.mMessageHash = null;
             final List<Integer> argTypes = LogDataType.parseFormatString(messageString);
             this.mMessageMask = LogDataType.logDataTypesToBitMask(argTypes);
@@ -856,6 +869,25 @@ public abstract class PerfettoProtoLogImpl extends IProtoLogClient.Stub implemen
             }
 
             throw new RuntimeException("Both mMessageString and mMessageHash should never be null");
+        }
+    }
+
+    /**
+     * This is only used by unit tests to wait until {@link #connectToConfigurationService} is
+     * done. Because unit tests are sensitive to concurrent accesses.
+     */
+    @VisibleForTesting
+    public static void waitForInitialization() {
+        final IProtoLog currentInstance = ProtoLog.getSingleInstance();
+        if (!(currentInstance instanceof PerfettoProtoLogImpl protoLog)) {
+            return;
+        }
+        try {
+            protoLog.mBackgroundLoggingService.submit(() -> {
+                Log.i(LOG_TAG, "Complete initialization");
+            }).get();
+        } catch (InterruptedException | ExecutionException e) {
+            Log.e(LOG_TAG, "Failed to wait for tracing service", e);
         }
     }
 }

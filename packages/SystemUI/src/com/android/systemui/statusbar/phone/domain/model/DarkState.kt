@@ -24,4 +24,6 @@ data class DarkState(
     val areas: Collection<Rect>,
     /** Tint color to apply to UI elements that fall within [areas]. */
     val tint: Int,
+    /** _How_ dark the area is. Less than 0.5 is dark, otherwise light */
+    val darkIntensity: Float,
 )

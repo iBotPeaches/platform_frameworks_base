@@ -41,8 +41,7 @@ import org.mockito.Mockito
 /**
  * Tests for {@link InputDataStore}.
  *
- * Build/Install/Run:
- * atest InputTests:InputDataStoreTests
+ * Build/Install/Run: atest InputTests:InputDataStoreTests
  */
 @Presubmit
 class InputDataStoreTests {
@@ -63,25 +62,32 @@ class InputDataStoreTests {
 
     private fun setupInputDataStore() {
         tempFile = File.createTempFile("input_gestures", ".xml")
-        inputDataStore = InputDataStore(object : InputDataStore.FileInjector("input_gestures") {
-            private val atomicFile: AtomicFile = AtomicFile(tempFile)
+        inputDataStore =
+            InputDataStore(
+                object : InputDataStore.FileInjector("input_gestures") {
+                    private val atomicFile: AtomicFile = AtomicFile(tempFile)
 
-            override fun openRead(userId: Int): InputStream? {
-                return atomicFile.openRead()
-            }
+                    override fun openRead(userId: Int): InputStream? {
+                        return atomicFile.openRead()
+                    }
 
-            override fun startWrite(userId: Int): FileOutputStream? {
-                return atomicFile.startWrite()
-            }
+                    override fun startWrite(userId: Int): FileOutputStream? {
+                        return atomicFile.startWrite()
+                    }
 
-            override fun finishWrite(userId: Int, fos: FileOutputStream?, success: Boolean) {
-                if (success) {
-                    atomicFile.finishWrite(fos)
-                } else {
-                    atomicFile.failWrite(fos)
+                    override fun finishWrite(
+                        userId: Int,
+                        fos: FileOutputStream?,
+                        success: Boolean,
+                    ) {
+                        if (success) {
+                            atomicFile.finishWrite(fos)
+                        } else {
+                            atomicFile.failWrite(fos)
+                        }
+                    }
                 }
-            }
-        })
+            )
     }
 
     private fun getPrintableXml(inputGestures: List<InputGestureData>): String {
@@ -92,164 +98,157 @@ class InputDataStoreTests {
 
     @Test
     fun saveToDiskKeyGesturesOnly() {
-        val inputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_H,
-                        KeyEvent.META_META_ON
+        val inputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_H, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(
+                            KeyEvent.KEYCODE_1,
+                            KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON,
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
-                .build()
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
+                    .build(),
+            )
 
         inputDataStore.saveInputGestures(USER_ID, inputGestures)
         assertEquals(
             inputGestures,
             inputDataStore.loadInputGestures(USER_ID),
-            getPrintableXml(inputGestures)
+            getPrintableXml(inputGestures),
         )
     }
 
     @Test
     fun saveToDiskTouchpadGestures() {
-        val inputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createTouchpadTrigger(
-                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+        val inputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createTouchpadTrigger(
+                            InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-                .build()
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                    .build()
+            )
 
         inputDataStore.saveInputGestures(USER_ID, inputGestures)
         assertEquals(
             inputGestures,
             inputDataStore.loadInputGestures(USER_ID),
-            getPrintableXml(inputGestures)
+            getPrintableXml(inputGestures),
         )
     }
 
     @Test
     fun saveToDiskAppLaunchGestures() {
-        val inputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createTouchpadTrigger(
-                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+        val inputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createTouchpadTrigger(
+                            InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
-                .setAppLaunchData(AppLaunchData.createLaunchDataForRole(RoleManager.ROLE_BROWSER))
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
+                    .setAppLaunchData(
+                        AppLaunchData.createLaunchDataForRole(RoleManager.ROLE_BROWSER)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
-                .setAppLaunchData(AppLaunchData.createLaunchDataForCategory(Intent.CATEGORY_APP_CONTACTS))
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
-                .setAppLaunchData(
-                    AppLaunchData.createLaunchDataForComponent(
-                        "com.test",
-                        "com.test.BookmarkTest"
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
+                    .setAppLaunchData(
+                        AppLaunchData.createLaunchDataForCategory(Intent.CATEGORY_APP_CONTACTS)
                     )
-                )
-                .build()
-        )
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_1, KeyEvent.META_META_ON)
+                    )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
+                    .setAppLaunchData(
+                        AppLaunchData.createLaunchDataForComponent(
+                            "com.test",
+                            "com.test.BookmarkTest",
+                        )
+                    )
+                    .build(),
+            )
 
         inputDataStore.saveInputGestures(USER_ID, inputGestures)
         assertEquals(
             inputGestures,
             inputDataStore.loadInputGestures(USER_ID),
-            getPrintableXml(inputGestures)
+            getPrintableXml(inputGestures),
         )
     }
 
     @Test
     fun saveToDiskCombinedGestures() {
-        val inputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON
+        val inputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(
+                            KeyEvent.KEYCODE_1,
+                            KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON,
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createTouchpadTrigger(
-                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createTouchpadTrigger(
+                            InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_9,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_9, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
-                .setAppLaunchData(AppLaunchData.createLaunchDataForCategory(Intent.CATEGORY_APP_CONTACTS))
-                .build(),
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_LAUNCH_APPLICATION)
+                    .setAppLaunchData(
+                        AppLaunchData.createLaunchDataForCategory(Intent.CATEGORY_APP_CONTACTS)
+                    )
+                    .build(),
+            )
 
         inputDataStore.saveInputGestures(USER_ID, inputGestures)
         assertEquals(
             inputGestures,
             inputDataStore.loadInputGestures(USER_ID),
-            getPrintableXml(inputGestures)
+            getPrintableXml(inputGestures),
         )
     }
 
     @Test
     fun validXmlParse() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
             <root>
                 <input_gesture_list>
@@ -263,45 +262,42 @@ class InputDataStoreTests {
                         <touchpad_trigger touchpad_gesture_type="1" />
                     </input_gesture>
                 </input_gesture_list>
-            </root>""".trimIndent()
-        val validInputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON
+            </root>"""
+                .trimIndent()
+        val validInputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(
+                            KeyEvent.KEYCODE_1,
+                            KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON,
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createTouchpadTrigger(
-                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createTouchpadTrigger(
+                            InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-                .build()
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                    .build(),
+            )
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            validInputGestures,
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(validInputGestures, inputDataStore.readInputGesturesXml(inputStream, true))
     }
 
     @Test
     fun missingTriggerData() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
             <root>
                 <input_gesture_list>
@@ -314,36 +310,33 @@ class InputDataStoreTests {
                         <touchpad_trigger touchpad_gesture_type="1" />
                     </input_gesture>
                 </input_gesture_list>
-            </root>""".trimIndent()
-        val validInputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+            </root>"""
+                .trimIndent()
+        val validInputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createTouchpadTrigger(
-                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createTouchpadTrigger(
+                            InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-                .build()
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                    .build(),
+            )
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            validInputGestures,
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(validInputGestures, inputDataStore.readInputGesturesXml(inputStream, true))
     }
 
     @Test
     fun invalidKeycode() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
             <root>
                 <input_gesture_list>
@@ -357,36 +350,36 @@ class InputDataStoreTests {
                         <touchpad_trigger touchpad_gesture_type="1" />
                     </input_gesture>
                 </input_gesture_list>
-            </root>""".trimIndent()
-        val validInputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON
+            </root>"""
+                .trimIndent()
+        val validInputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(
+                            KeyEvent.KEYCODE_1,
+                            KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON,
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createTouchpadTrigger(
-                        InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createTouchpadTrigger(
+                            InputGestureData.TOUCHPAD_GESTURE_TYPE_THREE_FINGER_TAP
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-                .build()
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                    .build(),
+            )
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            validInputGestures,
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(validInputGestures, inputDataStore.readInputGesturesXml(inputStream, true))
     }
 
     @Test
     fun invalidTriggerName() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
                 <root>
                 <input_gesture_list>
@@ -400,37 +393,34 @@ class InputDataStoreTests {
                         <invalid_trigger_name touchpad_gesture_type="1" />
                     </input_gesture>
                 </input_gesture_list>
-            </root>""".trimIndent()
-        val validInputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON
+            </root>"""
+                .trimIndent()
+        val validInputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(
+                            KeyEvent.KEYCODE_1,
+                            KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON,
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
-                .build(),
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
+                    .build(),
+            )
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            validInputGestures,
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(validInputGestures, inputDataStore.readInputGesturesXml(inputStream, true))
     }
 
     @Test
     fun invalidTouchpadGestureType() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
             <root>
                 <input_gesture_list>
@@ -444,61 +434,55 @@ class InputDataStoreTests {
                         <touchpad_trigger touchpad_gesture_type="9999" />
                     </input_gesture>
                 </input_gesture_list>
-            </root>""".trimIndent()
-        val validInputGestures = listOf(
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_1,
-                        KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON
+            </root>"""
+                .trimIndent()
+        val validInputGestures =
+            listOf(
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(
+                            KeyEvent.KEYCODE_1,
+                            KeyEvent.META_META_ON or KeyEvent.META_CTRL_ON,
+                        )
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
-                .build(),
-            InputGestureData.Builder()
-                .setTrigger(
-                    InputGestureData.createKeyTrigger(
-                        KeyEvent.KEYCODE_2,
-                        KeyEvent.META_META_ON
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_BACK)
+                    .build(),
+                InputGestureData.Builder()
+                    .setTrigger(
+                        InputGestureData.createKeyTrigger(KeyEvent.KEYCODE_2, KeyEvent.META_META_ON)
                     )
-                )
-                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
-                .build(),
-        )
+                    .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS)
+                    .build(),
+            )
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            validInputGestures,
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(validInputGestures, inputDataStore.readInputGesturesXml(inputStream, true))
     }
 
     @Test
     fun emptyInputGestureList() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
             <root>
                 <input_gesture_list>
                 </input_gesture_list>
-            </root>""".trimIndent()
+            </root>"""
+                .trimIndent()
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            listOf(),
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(listOf(), inputDataStore.readInputGesturesXml(inputStream, true))
     }
 
     @Test
     fun invalidTag() {
-        val xmlData = """
+        val xmlData =
+            """
             <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
             <root>
                 <invalid_tag_name>
                 </invalid_tag_name>
-            </root>""".trimIndent()
+            </root>"""
+                .trimIndent()
         val inputStream = ByteArrayInputStream(xmlData.toByteArray(Charsets.UTF_8))
-        assertEquals(
-            listOf(),
-            inputDataStore.readInputGesturesXml(inputStream, true)
-        )
+        assertEquals(listOf(), inputDataStore.readInputGesturesXml(inputStream, true))
     }
 }

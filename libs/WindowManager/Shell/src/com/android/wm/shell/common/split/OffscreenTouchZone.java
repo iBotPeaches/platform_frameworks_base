@@ -56,6 +56,7 @@ public class OffscreenTouchZone {
     /** The function that will be run when this zone is tapped. */
     private final Runnable mOnClickRunnable;
     private SurfaceControlViewHost mViewHost;
+    private SurfaceControl mLeash;
 
     /**
      * @param isTopLeft Whether the desired touch zone will be on the top/left or the bottom/right
@@ -96,6 +97,7 @@ public class OffscreenTouchZone {
                 .setCallsite("OffscreenTouchZone::init");
         builder.setParent(stageRoot);
         SurfaceControl leash = builder.build();
+        mLeash = leash;
 
         // Create a ViewHost that will hold our view.
         WindowlessWindowManager wwm = new WindowlessWindowManager(config, leash, null);
@@ -117,9 +119,13 @@ public class OffscreenTouchZone {
     }
 
     /** Releases the touch zone when it's no longer needed. */
-    void release() {
+    void release(SurfaceControl.Transaction t) {
         if (mViewHost != null) {
             mViewHost.release();
+        }
+        if (mLeash != null) {
+            t.remove(mLeash);
+            mLeash = null;
         }
     }
 

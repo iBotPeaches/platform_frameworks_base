@@ -18,6 +18,7 @@ package com.android.server.power.stats.processor;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.annotation.SuppressLint;
 import android.os.BatteryConsumer;
 import android.os.PersistableBundle;
 import android.util.SparseArray;
@@ -280,6 +281,7 @@ public class AggregatedPowerStatsTest {
                 .isEqualTo(new long[]{250, 300});
     }
 
+    @SuppressLint("CheckResult")
     private static long[] getDeviceStats(
             AggregatedPowerStats stats, int powerComponentId,
             int... states) {
@@ -290,6 +292,7 @@ public class AggregatedPowerStatsTest {
         return out;
     }
 
+    @SuppressLint("CheckResult")
     private static long[] getStateStats(
             AggregatedPowerStats stats, int key, int... states) {
         PowerComponentAggregatedPowerStats powerComponentStats =
@@ -299,6 +302,7 @@ public class AggregatedPowerStatsTest {
         return out;
     }
 
+    @SuppressLint("CheckResult")
     private static long[] getUidDeviceStats(
             AggregatedPowerStats stats, int powerComponentId,
             int uid, int... states) {

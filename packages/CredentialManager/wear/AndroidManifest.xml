@@ -32,7 +32,8 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:label="@string/app_name"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CredentialSelector">
 
         <!-- Activity called by GMS has to be exactly:
         com.android.credentialmanager.CredentialSelectorActivity -->
@@ -42,7 +43,8 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop"
-            android:permission="android.permission.LAUNCH_CREDENTIAL_SELECTOR" />
+            android:permission="android.permission.LAUNCH_CREDENTIAL_SELECTOR"
+            android:theme="@style/Theme.CredentialSelector"/>
     </application>
 
 </manifest>

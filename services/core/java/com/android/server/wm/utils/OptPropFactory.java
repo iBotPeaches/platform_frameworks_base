@@ -21,6 +21,7 @@ import static java.lang.Boolean.TRUE;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.UserIdInt;
 import android.content.pm.PackageManager;
 import android.util.Slog;
 
@@ -38,15 +39,20 @@ public class OptPropFactory {
     @NonNull
     private final String mPackageName;
 
+    @UserIdInt
+    private final int mUserId;
+
     /**
      * Object responsible to handle optIn and optOut properties.
      *
      * @param packageManager The PackageManager reference
      * @param packageName    The name of the package.
      */
-    public OptPropFactory(@NonNull PackageManager packageManager, @NonNull String packageName) {
+    public OptPropFactory(@NonNull PackageManager packageManager, @NonNull String packageName,
+            @UserIdInt int userId) {
         mPackageManager = packageManager;
         mPackageName = packageName;
+        mUserId = userId;
     }
 
     /**
@@ -58,7 +64,8 @@ public class OptPropFactory {
     @NonNull
     public OptProp create(@NonNull String propertyName) {
         return OptProp.create(
-                () -> mPackageManager.getProperty(propertyName, mPackageName).getBoolean(),
+                () -> mPackageManager.getPropertyAsUser(propertyName, mPackageName,
+                        null /* className */, mUserId).getBoolean(),
                 propertyName);
     }
 
@@ -73,7 +80,8 @@ public class OptPropFactory {
     @NonNull
     public OptProp create(@NonNull String propertyName, @NonNull BooleanSupplier gateCondition) {
         return OptProp.create(
-                () -> mPackageManager.getProperty(propertyName, mPackageName).getBoolean(),
+                () -> mPackageManager.getPropertyAsUser(propertyName, mPackageName,
+                        null /* className */, mUserId).getBoolean(),
                 propertyName,
                 gateCondition);
     }

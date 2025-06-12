@@ -104,6 +104,7 @@ fun WearApp(
         scrollable(Screen.MultipleCredentialsScreenFlatten.route) {
             MultiCredentialsFlattenScreen(
                 credentialSelectorUiState = (remember { uiState } as MultipleEntry),
+                columnState = it.columnState,
                 flowEngine = flowEngine,
             )
         }

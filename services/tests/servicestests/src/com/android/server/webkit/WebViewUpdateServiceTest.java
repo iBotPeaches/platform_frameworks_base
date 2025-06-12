@@ -43,7 +43,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.util.concurrent.CountDownLatch;
@@ -340,7 +340,7 @@ public class WebViewUpdateServiceTest {
         runWebViewBootPreparationOnMainSync();
 
         Mockito.verify(mTestSystemImpl, Mockito.never()).onWebViewProviderChanged(
-                Matchers.anyObject());
+                ArgumentMatchers.any());
 
         WebViewProviderResponse response = mWebViewUpdateServiceImpl.waitForAndGetProvider();
         assertEquals(WebViewFactory.LIBLOAD_FAILED_LISTING_WEBVIEW_PACKAGES, response.status);
@@ -378,7 +378,7 @@ public class WebViewUpdateServiceTest {
         runWebViewBootPreparationOnMainSync();
 
         Mockito.verify(mTestSystemImpl, Mockito.never()).onWebViewProviderChanged(
-                Matchers.anyObject());
+                ArgumentMatchers.any());
 
         WebViewProviderResponse response = mWebViewUpdateServiceImpl.waitForAndGetProvider();
         assertEquals(WebViewFactory.LIBLOAD_FAILED_LISTING_WEBVIEW_PACKAGES, response.status);
@@ -822,7 +822,7 @@ public class WebViewUpdateServiceTest {
         checkPreparationPhasesForPackage(firstPackage, 1);
 
         Mockito.verify(mTestSystemImpl, Mockito.never()).killPackageDependents(
-                Mockito.anyObject());
+                Mockito.any());
     }
 
     @Test

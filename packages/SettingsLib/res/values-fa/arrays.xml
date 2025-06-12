@@ -288,4 +288,22 @@
     <item msgid="3753634915787796632">"۲"</item>
     <item msgid="4779928470672877922">"۳"</item>
   </string-array>
+  <string-array name="shade_display_awareness_entries">
+    <item msgid="816770658383209617">"فقط نمایشگر دستگاه (پیش‌فرض)"</item>
+    <item msgid="9161645858025071955">"نمایشگر خارجی"</item>
+    <item msgid="23651860565814477">"آخرین لمس نوار وضعیت"</item>
+    <item msgid="7521112827893653392">"کانونی‌محور"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_summaries">
+    <item msgid="2964753205732912921">"نمایش سایه فقط در نمایشگر دستگاه"</item>
+    <item msgid="1955398604822147783">"نمایش سایه در یک نمایشگر خارجی"</item>
+    <item msgid="391477482416751568">"نمایش سایه در نمایشگری که کاربر آخرین بار با نوار وضعیت آن تعامل داشته است"</item>
+    <item msgid="1746820128097981528">"نمایش سایه در آخرین نمایشگر کانونی‌شده"</item>
+  </string-array>
+  <string-array name="shade_display_awareness_values">
+    <item msgid="3055776101992426514">"نمایشگر_پیش‌فرض"</item>
+    <item msgid="774789415968826925">"هر_نمایشگر_خارجی"</item>
+    <item msgid="7880769915418638436">"آخرین_لمس_نوار_وضعیت"</item>
+    <item msgid="4313165186636015195">"نمایشگر_کانونی‌شده"</item>
+  </string-array>
 </resources>

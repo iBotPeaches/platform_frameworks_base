@@ -99,10 +99,7 @@ public class HearingDevicesChecker {
 
     private boolean isExclusivelyManagedBluetoothDevice(
             @NonNull CachedBluetoothDevice cachedDevice) {
-        if (com.android.settingslib.flags.Flags.enableHideExclusivelyManagedBluetoothDevice()) {
-            return BluetoothUtils.isExclusivelyManagedBluetoothDevice(mContext,
-                    cachedDevice.getDevice());
-        }
-        return false;
+        return BluetoothUtils.isExclusivelyManagedBluetoothDevice(mContext,
+                cachedDevice.getDevice());
     }
 }

@@ -28,7 +28,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.annotation.EnforcePermission;
 import android.hardware.devicestate.DeviceStateManager.DeviceStateCallback;
@@ -207,7 +207,7 @@ public final class DeviceStateManagerGlobalTest {
 
         mService.setSupportedStates(List.of(OTHER_DEVICE_STATE));
         mService.setBaseState(OTHER_DEVICE_STATE);
-        verifyZeroInteractions(callback);
+        verifyNoMoreInteractions(callback);
     }
 
     @Test

@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.notification.headsup;
 
+import android.annotation.Nullable;
 import android.content.Context;
 import android.os.RemoteException;
 import android.view.MotionEvent;
@@ -140,7 +141,7 @@ public class HeadsUpTouchHelper implements Gefingerpoken {
                 if (mPickedChild != null && mTouchingHeadsUpView) {
                     // We may swallow this click if the heads up just came in.
                     if (mHeadsUpManager.shouldSwallowClick(
-                            mPickedChild.getEntry().getSbn().getKey())) {
+                            mPickedChild.getKey())) {
                         endMotion();
                         return true;
                     }
@@ -208,12 +209,14 @@ public class HeadsUpTouchHelper implements Gefingerpoken {
                     if (mPickedChild != null && mTouchingHeadsUpView) {
                         // We may swallow this click if the heads up just came in.
                         if (mHeadsUpManager.shouldSwallowClick(
-                                mPickedChild.getEntry().getSbn().getKey())) {
+                                mPickedChild.getKey())) {
                             endMotion();
+                            setTrackingHeadsUp(false);
                             return true;
                         }
                     }
                     endMotion();
+                    setTrackingHeadsUp(false);
                     return false;
             }
             return false;
@@ -258,7 +261,7 @@ public class HeadsUpTouchHelper implements Gefingerpoken {
         void setHeadsUpDraggingStartingHeight(int startHeight);
 
         /** Sets notification that is being expanded. */
-        void setTrackedHeadsUp(ExpandableNotificationRow expandableNotificationRow);
+        void setTrackedHeadsUp(@Nullable ExpandableNotificationRow expandableNotificationRow);
 
         /** Called when a MotionEvent is about to trigger expansion. */
         void startExpand(float newX, float newY, boolean startTracking, float expandedHeight);

@@ -20,8 +20,10 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 
 import android.content.pm.PackageManager;
 
@@ -52,7 +54,8 @@ class AppCompatComponentPropRobot {
         final PackageManager.Property property = new PackageManager.Property(propertyName,
                 /* value */ enabled, packageName, className);
         try {
-            doReturn(property).when(mPackageManager).getProperty(eq(propertyName), anyString());
+            doReturn(property).when(mPackageManager).getPropertyAsUser(eq(propertyName),
+                    anyString(), nullable(String.class), anyInt());
         } catch (PackageManager.NameNotFoundException e) {
             fail(e.getLocalizedMessage());
         }

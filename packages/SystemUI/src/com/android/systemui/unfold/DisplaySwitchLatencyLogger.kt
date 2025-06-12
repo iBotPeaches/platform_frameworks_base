@@ -49,6 +49,8 @@ class DisplaySwitchLatencyLogger {
                 hallSensorToDeviceStateChangeMs,
                 onScreenTurningOnToOnDrawnMs,
                 onDrawnToOnScreenTurnedOnMs,
+                trackingResult,
+                screenWakelockStatus,
             )
         }
     }

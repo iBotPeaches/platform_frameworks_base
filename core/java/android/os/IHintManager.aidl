@@ -21,11 +21,13 @@ import android.os.CpuHeadroomParamsInternal;
 import android.os.GpuHeadroomParamsInternal;
 import android.os.IHintSession;
 import android.os.SessionCreationConfig;
-import android.hardware.power.CpuHeadroomResult;
+
 import android.hardware.power.ChannelConfig;
+import android.hardware.power.CpuHeadroomResult;
 import android.hardware.power.GpuHeadroomResult;
 import android.hardware.power.SessionConfig;
 import android.hardware.power.SessionTag;
+import android.hardware.power.SupportInfo;
 
 /** {@hide} */
 interface IHintManager {
@@ -37,16 +39,17 @@ interface IHintManager {
      * Throws UnsupportedOperationException if ADPF is not supported, and IllegalStateException
      * if creation is supported but fails.
      */
-    IHintSession createHintSessionWithConfig(in IBinder token, in SessionTag tag,
+    SessionCreationReturn createHintSessionWithConfig(in IBinder token, in SessionTag tag,
             in SessionCreationConfig creationConfig, out SessionConfig config);
-
-    /**
-     * Get preferred rate limit in nanoseconds.
-     */
-    long getHintSessionPreferredRate();
 
     void setHintSessionThreads(in IHintSession hintSession, in int[] tids);
     int[] getHintSessionThreadIds(in IHintSession hintSession);
+
+    parcelable SessionCreationReturn {
+        IHintSession session;
+        // True if the graphics pipeline thread limit is being exceeded
+        boolean pipelineThreadLimitExceeded = false;
+    }
 
     /**
      * Returns FMQ channel information for the caller, which it associates to a binder token.
@@ -61,13 +64,31 @@ interface IHintManager {
     long getGpuHeadroomMinIntervalMillis();
 
     /**
-     * Get Maximum number of graphics pipeline threads allowed per-app.
-     */
-    int getMaxGraphicsPipelineThreadsCount();
-
-    /**
      * Used by the JNI to pass an interface to the SessionManager;
      * for internal use only.
      */
     oneway void passSessionManagerBinder(in IBinder sessionManager);
+
+    parcelable HintManagerClientData {
+        int powerHalVersion;
+        int maxGraphicsPipelineThreads;
+        int maxCpuHeadroomThreads;
+        long preferredRateNanos;
+        SupportInfo supportInfo;
+    }
+
+    interface IHintManagerClient {
+        /**
+        * Returns FMQ channel information for the caller, which it associates to the callback binder lifespan.
+        */
+        oneway void receiveChannelConfig(in ChannelConfig config);
+    }
+
+    /**
+     * Set up an ADPF client, receiving a remote client binder interface and
+     * passing back a bundle of support and configuration information.
+     */
+    HintManagerClientData registerClient(in IHintManagerClient client);
+
+    HintManagerClientData getClientData();
 }

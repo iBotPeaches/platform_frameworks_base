@@ -16,12 +16,15 @@
 
 package com.android.settingslib.widget;
 
+import static android.view.HapticFeedbackConstants.CLOCK_TICK;
+
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -45,6 +48,9 @@ import com.google.android.material.slider.Slider;
  */
 public class SliderPreference extends Preference {
     private static final String TAG = "SliderPreference";
+    public static final int HAPTIC_FEEDBACK_MODE_NONE = 0;
+    public static final int HAPTIC_FEEDBACK_MODE_ON_TICKS = 1;
+    public static final int HAPTIC_FEEDBACK_MODE_ON_ENDS = 2;
 
     private final int mTextStartId;
     private final int mTextEndId;
@@ -70,8 +76,11 @@ public class SliderPreference extends Preference {
     private int mMin;
     private int mMax;
     private int mSliderIncrement;
+    private int mHapticFeedbackMode = HAPTIC_FEEDBACK_MODE_NONE;
+    private boolean mTickVisible = false;
     private boolean mAdjustable;
     private boolean mTrackingTouch;
+    private CharSequence mSliderContentDescription;
 
     /**
      * Listener reacting to the user pressing DPAD left/right keys if {@code
@@ -143,6 +152,7 @@ public class SliderPreference extends Preference {
             @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         setLayoutResource(R.layout.settingslib_expressive_preference_slider);
+        setSelectable(false);
 
         TypedArray a = context.obtainStyledAttributes(
                 attrs, androidx.preference.R.styleable.SeekBarPreference, defStyleAttr,
@@ -262,15 +272,28 @@ public class SliderPreference extends Preference {
         }
         if (mSliderIncrement != 0) {
             mSlider.setStepSize(mSliderIncrement);
+            mSlider.setTickVisible(mTickVisible);
         } else {
             mSliderIncrement = (int) (mSlider.getStepSize());
+        }
+        final CharSequence title = getTitle();
+        if (!TextUtils.isEmpty(mSliderContentDescription)) {
+            mSlider.setContentDescription(mSliderContentDescription);
+        } else if (!TextUtils.isEmpty(title)) {
+            mSlider.setContentDescription(title);
+        } else {
+            mSlider.setContentDescription(null);
         }
         mSlider.setValueFrom(mMin);
         mSlider.setValueTo(mMax);
         mSlider.setValue(mSliderValue);
+        mSlider.clearOnSliderTouchListeners();
         mSlider.addOnSliderTouchListener(mTouchListener);
+        mSlider.clearOnChangeListeners();
         mSlider.addOnChangeListener(mChangeListener);
         mSlider.setEnabled(isEnabled());
+        mSlider.setFocusable(isSelectable());
+        mSlider.setClickable(isSelectable());
 
         // Set up slider color
         mSlider.setTrackActiveTintList(mTrackActiveColor);
@@ -427,6 +450,29 @@ public class SliderPreference extends Preference {
     }
 
     /**
+     * Sets the haptic feedback mode. HAPTIC_FEEDBACK_MODE_ON_TICKS means to perform haptic feedback
+     * as the {@link Slider} value is updated; HAPTIC_FEEDBACK_MODE_ON_ENDS means to perform haptic
+     * feedback as the {@link Slider} value is equal to the min/max value.
+     *
+     * @param hapticFeedbackMode The haptic feedback mode.
+     */
+    public void setHapticFeedbackMode(int hapticFeedbackMode) {
+        mHapticFeedbackMode = hapticFeedbackMode;
+    }
+
+    /**
+     * Sets whether the tick marks are visible. Only used when the slider is in discrete mode.
+     *
+     * @param tickVisible The visibility of tick marks.
+     */
+    public void setTickVisible(boolean tickVisible) {
+        if (tickVisible != mTickVisible) {
+            mTickVisible = tickVisible;
+            notifyChanged();
+        }
+    }
+
+    /**
      * Gets whether the current {@link Slider} value is displayed to the user.
      *
      * @return Whether the current {@link Slider} value is displayed to the user
@@ -469,6 +515,19 @@ public class SliderPreference extends Preference {
         setValueInternal(sliderValue, true);
     }
 
+
+    /**
+     * Sets the content description of the {@link Slider}.
+     *
+     * @param contentDescription The content description of the {@link Slider}
+     */
+    public void setSliderContentDescription(@Nullable CharSequence contentDescription) {
+        mSliderContentDescription = contentDescription;
+        if (mSlider != null) {
+            mSlider.setContentDescription(contentDescription);
+        }
+    }
+
     @Override
     protected void onSetInitialValue(@Nullable Object defaultValue) {
         if (defaultValue == null) {
@@ -487,11 +546,20 @@ public class SliderPreference extends Preference {
      * set the {@link Slider}'s value to the stored value.
      */
     void syncValueInternal(@NonNull Slider slider) {
-        int sliderValue = mMin + (int) slider.getValue();
+        int sliderValue = (int) slider.getValue();
         if (sliderValue != mSliderValue) {
             if (callChangeListener(sliderValue)) {
                 setValueInternal(sliderValue, false);
-                // TODO: mHapticFeedbackMode
+                switch (mHapticFeedbackMode) {
+                    case HAPTIC_FEEDBACK_MODE_ON_TICKS:
+                        slider.performHapticFeedback(CLOCK_TICK);
+                        break;
+                    case HAPTIC_FEEDBACK_MODE_ON_ENDS:
+                        if (mSliderValue == mMax || mSliderValue == mMin) {
+                            slider.performHapticFeedback(CLOCK_TICK);
+                        }
+                        break;
+                }
             } else {
                 slider.setValue(mSliderValue);
             }

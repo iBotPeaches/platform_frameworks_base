@@ -17,7 +17,14 @@
 package com.android.systemui.qs.pipeline.shared.logging
 
 import com.android.systemui.kosmos.Kosmos
-import com.android.systemui.util.mockito.mock
+import com.android.systemui.log.logcatLogBuffer
 
 /** mock */
-var Kosmos.qsLogger: QSPipelineLogger by Kosmos.Fixture { mock<QSPipelineLogger>() }
+var Kosmos.qsLogger: QSPipelineLogger by
+    Kosmos.Fixture {
+        QSPipelineLogger(
+            logcatLogBuffer(QSPipelineLogger.TILE_LIST_TAG),
+            logcatLogBuffer(QSPipelineLogger.AUTO_ADD_TAG),
+            logcatLogBuffer(QSPipelineLogger.RESTORE_TAG),
+        )
+    }

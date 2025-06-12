@@ -25,7 +25,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 
 /**
- * Repository for observing values of [Settings.Secure] for the currently active user. That means
+ * Repository for observing values of [Settings.System] for the currently active user. That means
  * when user is switched and the new user has different value, flow will emit new value.
  */
 // TODO: b/377244768 - Make internal once call sites inject SystemSettingsRepository instead.

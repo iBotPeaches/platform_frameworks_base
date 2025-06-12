@@ -26,8 +26,9 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.StatusBarState
+import com.android.systemui.statusbar.notification.collection.BundleEntry
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 import com.android.systemui.statusbar.notification.collection.NotifPipeline
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.coordinator.dagger.CoordinatorScope
@@ -176,7 +177,7 @@ constructor(
             }
         }
 
-    private fun pickOutTopUnseenNotifs(list: List<ListEntry>) {
+    private fun pickOutTopUnseenNotifs(list: List<PipelineEntry>) {
         if (NotificationMinimalism.isUnexpectedlyInLegacyMode()) return
         if (!minimalismEnabled) return
         // Only ever elevate a top unseen notification on keyguard, not even locked shade
@@ -193,6 +194,7 @@ constructor(
                     when (it) {
                         is NotificationEntry -> listOfNotNull(it)
                         is GroupEntry -> it.children
+                        is BundleEntry -> emptyList()
                         else -> error("unhandled type of $it")
                     }
                 }
@@ -224,9 +226,10 @@ constructor(
 
     val topOngoingSectioner =
         object : NotifSectioner("TopOngoing", BUCKET_TOP_ONGOING) {
-            override fun isInSection(entry: ListEntry): Boolean {
+            override fun isInSection(entry: PipelineEntry): Boolean {
                 if (NotificationMinimalism.isUnexpectedlyInLegacyMode()) return false
                 if (!minimalismEnabled) return false
+                if (BundleUtil.isClassified(entry)) return false
                 return entry.anyEntry { notificationEntry ->
                     seenNotificationsInteractor.isTopOngoingNotification(notificationEntry)
                 }
@@ -235,16 +238,17 @@ constructor(
 
     val topUnseenSectioner =
         object : NotifSectioner("TopUnseen", BUCKET_TOP_UNSEEN) {
-            override fun isInSection(entry: ListEntry): Boolean {
+            override fun isInSection(entry: PipelineEntry): Boolean {
                 if (NotificationMinimalism.isUnexpectedlyInLegacyMode()) return false
                 if (!minimalismEnabled) return false
+                if (BundleUtil.isClassified(entry)) return false
                 return entry.anyEntry { notificationEntry ->
                     seenNotificationsInteractor.isTopUnseenNotification(notificationEntry)
                 }
             }
         }
 
-    private fun ListEntry.anyEntry(predicate: (NotificationEntry?) -> Boolean) =
+    private fun PipelineEntry.anyEntry(predicate: (NotificationEntry?) -> Boolean) =
         when {
             predicate(representativeEntry) -> true
             this !is GroupEntry -> false

@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"อนุญาตให้แอป &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; เข้าถึง &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ใช่ไหม"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"ตรวจสอบว่า<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>เครื่องนี้เปิด<xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g>อยู่ และให้อยู่ใกล้กับ<xliff:g id="PROFILE_NAME">%3$s</xliff:g>"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"ไม่พบอุปกรณ์ โปรดลองอีกครั้งในภายหลัง"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"บลูทูธ"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"บลูทูธและ Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"นาฬิกา"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"เลือกอุปกรณ์ที่จะให้มีการจัดการโดย &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"เลือก<xliff:g id="PROFILE_NAME">%1$s</xliff:g>ที่จะตั้งค่า"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"กำลังค้นหา<xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"แอปนี้จะได้รับอนุญาตให้ซิงค์ข้อมูล เช่น ชื่อของบุคคลที่โทรเข้ามา และมีสิทธิ์เข้าถึงข้อมูลเหล่านี้ใน<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>ของคุณ"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"อนุญาตให้ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; จัดการ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ไหม"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"อุปกรณ์"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"อนุญาตให้ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; สตรีมแอปใน<xliff:g id="DEVICE_TYPE">%2$s</xliff:g>ของคุณไปยัง &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt; ไหม"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> จะมีสิทธิ์เข้าถึงทุกอย่างที่ปรากฏหรือเล่นบน <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g> ซึ่งรวมถึงเสียง รูปภาพ ข้อมูลการชำระเงิน รหัสผ่าน และข้อความ&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> จะสามารถสตรีมแอปไปยัง <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> ได้จนกว่าคุณจะนำการให้สิทธิ์นี้ออก"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> กำลังขอสิทธิ์ในนามของ <xliff:g id="DEVICE_NAME">%2$s</xliff:g> เพื่อสตรีมแอปจาก<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>ของคุณ"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"อนุญาตให้ &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; สตรีมเสียงและฟีเจอร์ของระบบระหว่าง<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>กับ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ไหม"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> จะมีสิทธิ์เข้าถึงทุกอย่างที่เล่นบน <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> จะสามารถสตรีมเสียงไปยัง <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> ได้จนกว่าคุณจะนำสิทธิ์เข้าถึงนี้ออก"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"อุปกรณ์"</string>
     <string name="summary_generic" msgid="1761976003668044801">"แอปนี้จะสามารถซิงค์ข้อมูล เช่น ชื่อของบุคคลที่โทรเข้ามา ระหว่างโทรศัพท์ของคุณและอุปกรณ์ที่เลือกไว้ได้"</string>
     <string name="consent_yes" msgid="8344487259618762872">"อนุญาต"</string>
     <string name="consent_no" msgid="2640796915611404382">"ไม่อนุญาต"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"ยกเลิก"</string>
     <string name="consent_back" msgid="2560683030046918882">"กลับ"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"เลื่อนรายการลง"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"ลูกศรชี้ลง"</string>
     <string name="permission_expand" msgid="893185038020887411">"ขยาย <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"ยุบ <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"ให้แอปใน &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; มีสิทธิ์เหมือนกับใน &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; ไหม"</string>

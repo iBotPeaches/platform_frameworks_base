@@ -91,6 +91,12 @@ static int nativeSetTvMessageEnabled(JNIEnv* env, jclass clazz, jlong ptr, jint 
     return tvInputHal->setTvMessageEnabled(deviceId, streamId, type, enabled);
 }
 
+static int nativeSetPictureProfile(JNIEnv* env, jclass clazz, jlong ptr, jint deviceId,
+                                   jint streamId, jlong profileHandle) {
+    JTvInputHal* tvInputHal = (JTvInputHal*)ptr;
+    return tvInputHal->setPictureProfileId(deviceId, streamId, profileHandle);
+}
+
 static void nativeClose(JNIEnv* env, jclass clazz, jlong ptr) {
     JTvInputHal* tvInputHal = (JTvInputHal*)ptr;
     delete tvInputHal;
@@ -104,6 +110,7 @@ static const JNINativeMethod gTvInputHalMethods[] = {
         {"nativeGetStreamConfigs", "(JII)[Landroid/media/tv/TvStreamConfig;",
          (void*)nativeGetStreamConfigs},
         {"nativeSetTvMessageEnabled", "(JIIIZ)I", (void*)nativeSetTvMessageEnabled},
+        {"nativeSetPictureProfile", "(JIIJ)I", (void*)nativeSetPictureProfile},
         {"nativeClose", "(J)V", (void*)nativeClose},
 };
 

@@ -17,7 +17,10 @@
 
 package com.android.systemui.user.data.repository
 
+import android.app.admin.DevicePolicyManager
 import android.app.admin.devicePolicyManager
+import android.content.Intent
+import android.content.applicationContext
 import android.content.pm.UserInfo
 import android.internal.statusbar.fakeStatusBarService
 import android.os.UserHandle
@@ -27,6 +30,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.broadcast.broadcastDispatcher
+import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.kosmos.useUnconfinedTestDispatcher
@@ -40,7 +44,6 @@ import com.android.systemui.util.settings.fakeGlobalSettings
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.runTest
@@ -51,8 +54,9 @@ import org.mockito.Mock
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when` as whenever
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class UserRepositoryImplTest : SysuiTestCase() {
@@ -75,10 +79,7 @@ class UserRepositoryImplTest : SysuiTestCase() {
     fun setUp() {
         MockitoAnnotations.initMocks(this)
         tracker = FakeUserTracker()
-        context.orCreateTestableResources.addOverride(
-            R.bool.config_userSwitchingMustGoThroughLoginScreen,
-            false,
-        )
+        setUserSwitchingMustGoThroughLoginScreen(false)
     }
 
     @Test
@@ -171,6 +172,39 @@ class UserRepositoryImplTest : SysuiTestCase() {
             assertThat(underTest.mainUserId).isEqualTo(mainUserId)
             job1.cancel()
             job2.cancel()
+        }
+
+    @Test
+    fun userUnlockedFlow_tracksBroadcastedChanges() =
+        testScope.runTest {
+            val userHandle: UserHandle = mock()
+            underTest = create(testScope.backgroundScope)
+            val latest by collectLastValue(underTest.isUserUnlocked(userHandle))
+            whenever(manager.isUserUnlocked(eq(userHandle))).thenReturn(false)
+            broadcastDispatcher.sendIntentToMatchingReceiversOnly(
+                context,
+                Intent(Intent.ACTION_USER_UNLOCKED),
+            )
+
+            assertThat(latest).isFalse()
+
+            whenever(manager.isUserUnlocked(eq(userHandle))).thenReturn(true)
+            broadcastDispatcher.sendIntentToMatchingReceiversOnly(
+                context,
+                Intent(Intent.ACTION_USER_UNLOCKED),
+            )
+
+            assertThat(latest).isTrue()
+        }
+
+    @Test
+    fun userUnlockedFlow_initialValueReported() =
+        testScope.runTest {
+            val userHandle: UserHandle = mock()
+            underTest = create(testScope.backgroundScope)
+            whenever(manager.isUserUnlocked(eq(userHandle))).thenReturn(true)
+            val latest by collectLastValue(underTest.isUserUnlocked(userHandle))
+            assertThat(latest).isTrue()
         }
 
     @Test
@@ -273,6 +307,117 @@ class UserRepositoryImplTest : SysuiTestCase() {
             job.cancel()
         }
 
+    @Test
+    fun isSecondaryUserLogoutEnabled_secondaryLogoutDisabled_alwaysFalse() =
+        testScope.runTest {
+            underTest = create(testScope.backgroundScope)
+            mockLogoutUser(LogoutUserResult.NON_SYSTEM_CURRENT)
+            setSecondaryUserLogoutEnabled(false)
+            setUpUsers(count = 2, selectedIndex = 0)
+            tracker.onProfileChanged()
+
+            val secondaryUserLogoutEnabled by
+                collectLastValue(underTest.isSecondaryUserLogoutEnabled)
+
+            assertThat(secondaryUserLogoutEnabled).isFalse()
+
+            setUpUsers(count = 2, selectedIndex = 1)
+            tracker.onProfileChanged()
+            assertThat(secondaryUserLogoutEnabled).isFalse()
+        }
+
+    @Test
+    fun isSecondaryUserLogoutEnabled_secondaryLogoutEnabled_NullLogoutUser_alwaysFalse() =
+        testScope.runTest {
+            underTest = create(testScope.backgroundScope)
+            mockLogoutUser(LogoutUserResult.NONE)
+            setSecondaryUserLogoutEnabled(true)
+            setUpUsers(count = 2, selectedIndex = 0)
+            tracker.onProfileChanged()
+
+            val secondaryUserLogoutEnabled by
+                collectLastValue(underTest.isSecondaryUserLogoutEnabled)
+
+            assertThat(secondaryUserLogoutEnabled).isFalse()
+
+            setUpUsers(count = 2, selectedIndex = 1)
+            tracker.onProfileChanged()
+            assertThat(secondaryUserLogoutEnabled).isFalse()
+        }
+
+    @Test
+    fun isSecondaryUserLogoutEnabled_secondaryLogoutEnabled_NonSystemLogoutUser_trueWhenNonSystem() =
+        testScope.runTest {
+            underTest = create(testScope.backgroundScope)
+            mockLogoutUser(LogoutUserResult.NON_SYSTEM_CURRENT)
+            setSecondaryUserLogoutEnabled(true)
+            setUpUsers(count = 2, selectedIndex = 0)
+            tracker.onProfileChanged()
+
+            val secondaryUserLogoutEnabled by
+                collectLastValue(underTest.isSecondaryUserLogoutEnabled)
+
+            assertThat(secondaryUserLogoutEnabled).isFalse()
+
+            setUpUsers(count = 2, selectedIndex = 1)
+            tracker.onProfileChanged()
+            assertThat(secondaryUserLogoutEnabled).isTrue()
+        }
+
+    @Test
+    fun isLogoutToSystemUserEnabled_logoutThroughLoginScreenDisabled_alwaysFalse() =
+        testScope.runTest {
+            underTest = create(testScope.backgroundScope)
+            mockLogoutUser(LogoutUserResult.NON_SYSTEM_CURRENT)
+            setUserSwitchingMustGoThroughLoginScreen(false)
+            setUpUsers(count = 2, selectedIndex = 0)
+            tracker.onProfileChanged()
+
+            val logoutToSystemUserEnabled by collectLastValue(underTest.isLogoutToSystemUserEnabled)
+
+            assertThat(logoutToSystemUserEnabled).isFalse()
+
+            setUpUsers(count = 2, selectedIndex = 1)
+            tracker.onProfileChanged()
+            assertThat(logoutToSystemUserEnabled).isFalse()
+        }
+
+    @Test
+    fun isLogoutToSystemUserEnabled_logoutThroughLoginScreenEnabled_NullLogoutUser_alwaysFalse() =
+        testScope.runTest {
+            underTest = create(testScope.backgroundScope)
+            mockLogoutUser(LogoutUserResult.NONE)
+            setUserSwitchingMustGoThroughLoginScreen(true)
+            setUpUsers(count = 2, selectedIndex = 0)
+            tracker.onProfileChanged()
+
+            val logoutToSystemUserEnabled by collectLastValue(underTest.isLogoutToSystemUserEnabled)
+
+            assertThat(logoutToSystemUserEnabled).isFalse()
+
+            setUpUsers(count = 2, selectedIndex = 1)
+            tracker.onProfileChanged()
+            assertThat(logoutToSystemUserEnabled).isFalse()
+        }
+
+    @Test
+    fun isLogoutToSystemUserEnabled_logoutThroughLoginScreenEnabled_NonSystemLogoutUser_trueWhenNonSystem() =
+        testScope.runTest {
+            underTest = create(testScope.backgroundScope)
+            mockLogoutUser(LogoutUserResult.NON_SYSTEM_CURRENT)
+            setUserSwitchingMustGoThroughLoginScreen(true)
+            setUpUsers(count = 2, selectedIndex = 0)
+            tracker.onProfileChanged()
+
+            val logoutToSystemUserEnabled by collectLastValue(underTest.isLogoutToSystemUserEnabled)
+
+            assertThat(logoutToSystemUserEnabled).isFalse()
+
+            setUpUsers(count = 2, selectedIndex = 1)
+            tracker.onProfileChanged()
+            assertThat(logoutToSystemUserEnabled).isTrue()
+        }
+
     private fun createUserInfo(id: Int, isGuest: Boolean): UserInfo {
         val flags = 0
         return UserInfo(
@@ -319,6 +464,38 @@ class UserRepositoryImplTest : SysuiTestCase() {
         assertThat(model.isUserSwitcherEnabled).isEqualTo(expectedUserSwitcherEnabled)
     }
 
+    private fun setSecondaryUserLogoutEnabled(enabled: Boolean) {
+        whenever(devicePolicyManager.isLogoutEnabled).thenReturn(enabled)
+        broadcastDispatcher.sendIntentToMatchingReceiversOnly(
+            kosmos.applicationContext,
+            Intent(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED),
+        )
+    }
+
+    private fun setUserSwitchingMustGoThroughLoginScreen(enabled: Boolean) {
+        context.orCreateTestableResources.addOverride(
+            R.bool.config_userSwitchingMustGoThroughLoginScreen,
+            enabled,
+        )
+    }
+
+    private fun mockLogoutUser(result: LogoutUserResult) {
+        when (result) {
+            LogoutUserResult.NONE -> {
+                whenever(devicePolicyManager.logoutUser).thenReturn(null)
+            }
+            LogoutUserResult.NON_SYSTEM_CURRENT -> {
+                whenever(devicePolicyManager.logoutUser).thenAnswer {
+                    if (tracker.userHandle != UserHandle.SYSTEM) {
+                        tracker.userHandle
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+    }
+
     private fun create(scope: CoroutineScope): UserRepositoryImpl {
         return UserRepositoryImpl(
             appContext = context,
@@ -337,5 +514,10 @@ class UserRepositoryImplTest : SysuiTestCase() {
 
     companion object {
         @JvmStatic private val IMMEDIATE = Dispatchers.Main.immediate
+    }
+
+    private enum class LogoutUserResult {
+        NONE,
+        NON_SYSTEM_CURRENT,
     }
 }

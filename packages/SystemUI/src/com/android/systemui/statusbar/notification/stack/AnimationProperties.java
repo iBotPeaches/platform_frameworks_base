@@ -23,6 +23,8 @@ import android.util.Property;
 import android.view.View;
 import android.view.animation.Interpolator;
 
+import com.android.internal.dynamicanimation.animation.DynamicAnimation;
+
 import java.util.function.Consumer;
 
 /**
@@ -74,6 +76,34 @@ public class AnimationProperties {
                 }
             }
         };
+    }
+
+    /**
+     * @return a listener that will be added for a given property during its animation. Similar to
+     * the finish listener but used for Dynamic / SpringAnimations
+     */
+    public DynamicAnimation.OnAnimationEndListener getAnimationEndListener(Property property) {
+        if (mAnimationEndAction == null && mAnimationCancelAction == null) {
+            return null;
+        }
+        Consumer<Property> cancelAction = mAnimationCancelAction;
+        Consumer<Property> endAction = mAnimationEndAction;
+        return (animation, canceled, value, velocity) -> {
+            if (canceled && cancelAction != null) {
+                cancelAction.accept(property);
+            } else if (!canceled && endAction != null) {
+                endAction.accept(property);
+            }
+        };
+    }
+
+    /**
+     * @return a listener that is invoked when a property animation starts, used for dynamic
+     * animations. For classical, interpolator based animations used the listeneradapter instead,
+     * this is only for Dynamic Animations
+     */
+    public Consumer<DynamicAnimation> getAnimationStartListener(Property property) {
+        return null;
     }
 
     /**

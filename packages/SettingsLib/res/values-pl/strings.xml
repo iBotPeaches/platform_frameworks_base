@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktywne (tylko lewa strona)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktywne (tylko prawa strona)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktywne (lewa i prawa strona)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Nie udało się zaktualizować otoczenia"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktywne (tylko multimedia). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> naładowania baterii."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktywne (tylko multimedia), lewa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, prawa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> naładowania baterii."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Urządzenie gościa. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterii."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Urządzenie gościa. Lewa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, prawa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterii."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Urządzenie gościa (tylko multimedia). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterii."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Urządzenie gościa (tylko multimedia). Lewa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, prawa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterii."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Połączone (obsługa udostępniania dźwięku), <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> naładowania baterii."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Połączone (obsługa udostępniania dźwięku), lewa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, prawa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> naładowania baterii."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Połączone (obsługa udostępniania dźwięku). Lewa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> naładowania baterii."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Połączone (obsługa udostępniania dźwięku). Prawa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> naładowania baterii."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Połączone (obsługa udostępniania dźwięku)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Urządzenie gościa (obsługuje udostępnianie dźwięku). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> baterii."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Urządzenie gościa (obsługuje udostępnianie dźwięku). Lewa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, prawa: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> baterii."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Urządzenie gościa (obsługuje udostępnianie dźwięku)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktywne (tylko multimedia)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Urządzenie gościa"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Urządzenie gościa (tylko multimedia)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Obsługa udostępniania dźwięku"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Urządzenie gościa. Obsługuje udostępnianie dźwięku"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktywne (tylko multimedia), tylko lewa"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktywne (tylko multimedia), tylko prawa"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktywne (tylko multimedia), lewa i prawa"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Sprzętowa akceleracja renderowania"</string>
     <string name="media_category" msgid="8122076702526144053">"Multimedia"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Monitorowanie"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Zarządzanie oknami"</string>
     <string name="strict_mode" msgid="889864762140862437">"Tryb ścisły włączony"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Miganie ekranu podczas długich operacji w wątku głównym"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Lokalizacja wskaźnika"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Skala animacji przejścia"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Skala długości animacji"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Symuluj ekrany dodatkowe"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Pozycja wyświetlania cienia"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplikacje"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Nie zachowuj działań"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Przerwij każde działanie, gdy użytkownik je porzuci"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Implementacja WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Ustaw implementację WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Ta opcja nie jest już obsługiwana. Spróbuj ponownie."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Narzędzia deweloperskie WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Nie znaleziono pakietu WebView."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Nie udało się uruchomić Narzędzi deweloperskich."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Tryb kolorów obrazu"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Użyj sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Wyłączone"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Szybkie ładowanie"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Kontrolowane przez administratora"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Obowiązują ustawienia z ograniczonym dostępem"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Niedostępne w trakcie połączeń"</string>
     <string name="disabled" msgid="8017887509554714950">"Wyłączona"</string>
+    <string name="enabled" msgid="3997122818554810678">"Włączono"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Dozwolone"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Niedozwolone"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instalowanie nieznanych aplikacji"</string>
@@ -607,8 +625,9 @@
     <string name="tv_media_transfer_arc_subtitle" msgid="1040017851325069082">"Połączono przez ARC"</string>
     <string name="tv_media_transfer_earc_subtitle" msgid="645191413103303077">"Połączono przez eARC"</string>
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Wbudowany głośnik"</string>
-    <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Telewizyjne urządzenie audio"</string>
+    <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Audio z telewizora"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Problem z połączeniem. Wyłącz i ponownie włącz urządzenie"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Nie można się połączyć"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Przewodowe urządzenie audio"</string>
     <string name="help_label" msgid="3528360748637781274">"Pomoc i opinie"</string>
     <string name="storage_category" msgid="2287342585424631813">"Pamięć wewnętrzna"</string>

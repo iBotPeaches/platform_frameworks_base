@@ -55,12 +55,20 @@ SkColor makeDark(SkColor color) {
     }
 }
 
+SkColor invert(SkColor color) {
+    Lab lab = sRGBToLab(color);
+    lab.L = 100 - lab.L;
+    return LabToSRGB(lab, SkColorGetA(color));
+}
+
 SkColor transformColor(ColorTransform transform, SkColor color) {
     switch (transform) {
         case ColorTransform::Light:
             return makeLight(color);
         case ColorTransform::Dark:
             return makeDark(color);
+        case ColorTransform::Invert:
+            return invert(color);
         default:
             return color;
     }
@@ -79,19 +87,6 @@ SkColor transformColorInverse(ColorTransform transform, SkColor color) {
 
 static void applyColorTransform(ColorTransform transform, SkPaint& paint) {
     if (transform == ColorTransform::None) return;
-
-    if (transform == ColorTransform::Invert) {
-        auto filter = SkHighContrastFilter::Make(
-                {/* grayscale= */ false, SkHighContrastConfig::InvertStyle::kInvertLightness,
-                 /* contrast= */ 0.0f});
-
-        if (paint.getColorFilter()) {
-            paint.setColorFilter(SkColorFilters::Compose(filter, paint.refColorFilter()));
-        } else {
-            paint.setColorFilter(filter);
-        }
-        return;
-    }
 
     SkColor newColor = transformColor(transform, paint.getColor());
     paint.setColor(newColor);
@@ -112,6 +107,22 @@ static void applyColorTransform(ColorTransform transform, SkPaint& paint) {
             paint.setShader(SkGradientShader::MakeLinear(
                     info.fPoints, info.fColors, info.fColorOffsets, info.fColorCount,
                     info.fTileMode, info.fGradientFlags, nullptr));
+        } else {
+            if (transform == ColorTransform::Invert) {
+                // Since we're trying to invert every thing around this draw call, we invert
+                // the color of the draw call if we don't know what it is.
+                auto filter = SkHighContrastFilter::Make(
+                        {/* grayscale= */ false,
+                         SkHighContrastConfig::InvertStyle::kInvertLightness,
+                         /* contrast= */ 0.0f});
+
+                if (paint.getColorFilter()) {
+                    paint.setColorFilter(SkColorFilters::Compose(filter, paint.refColorFilter()));
+                } else {
+                    paint.setColorFilter(filter);
+                }
+                return;
+            }
         }
     }
 
@@ -150,8 +161,13 @@ bool transformPaint(ColorTransform transform, SkPaint* paint) {
 }
 
 bool transformPaint(ColorTransform transform, SkPaint* paint, BitmapPalette palette) {
-    palette = filterPalette(paint, palette);
     bool shouldInvert = false;
+    if (transform == ColorTransform::Invert && palette != BitmapPalette::Colorful) {
+        // When the transform is Invert we invert any image that is not deemed "colorful",
+        // regardless of calculated image brightness.
+        shouldInvert = true;
+    }
+    palette = filterPalette(paint, palette);
     if (palette == BitmapPalette::Light && transform == ColorTransform::Dark) {
         shouldInvert = true;
     }

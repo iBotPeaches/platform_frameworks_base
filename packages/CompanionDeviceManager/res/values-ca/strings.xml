@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Gestor de dispositius complementaris"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Vols permetre que l\'aplicació &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; accedeixi a &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Assegura\'t que aquest dispositiu (<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>) hagi activat <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> i mantén el <xliff:g id="PROFILE_NAME">%3$s</xliff:g> a prop."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"No s\'ha trobat cap dispositiu. Torna-ho a provar més tard."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"el Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"la Wi‑Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"el Bluetooth i la Wi‑Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"rellotge"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Tria un dispositiu perquè el gestioni &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Tria un <xliff:g id="PROFILE_NAME">%1$s</xliff:g> per configurar"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"S\'està cercant un <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Aquesta aplicació podrà sincronitzar informació, com ara el nom d\'algú que truca, i accedir a aquests permisos al <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Permet que &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; gestioni &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"dispositiu"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Vols permetre que &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; reprodueixi en continu les aplicacions del dispositiu (<xliff:g id="DEVICE_TYPE">%2$s</xliff:g>) a &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> podrà accedir a qualsevol cosa que sigui visible o que es reprodueixi al dispositiu <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, inclosos àudios, fotos, informació de pagament, contrasenyes i missatges.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> podrà reproduir en continu aplicacions al dispositiu <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> fins que suprimeixis l\'accés a aquest permís."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> demana permís en nom del dispositiu <xliff:g id="DEVICE_NAME">%2$s</xliff:g> per reproduir en continu aplicacions del teu dispositiu (<xliff:g id="DEVICE_TYPE">%3$s</xliff:g>)"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Vols permetre que &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; reprodueixi en continu àudio i funcions del sistema entre el dispositiu <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> i &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> podrà accedir a qualsevol cosa que es reprodueixi al dispositiu <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> podrà reproduir en continu àudio al dispositiu <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> fins que suprimeixis l\'accés a aquest permís."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"dispositiu"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Aquesta aplicació podrà sincronitzar informació, com ara el nom d\'algú que truca, entre el teu telèfon i el dispositiu triat"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Permet"</string>
     <string name="consent_no" msgid="2640796915611404382">"No permetis"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Cancel·la"</string>
     <string name="consent_back" msgid="2560683030046918882">"Enrere"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Desplaça la llista cap avall"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Fletxa avall"</string>
     <string name="permission_expand" msgid="893185038020887411">"Desplega <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Replega <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Vols concedir a les aplicacions del dispositiu &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; els mateixos permisos que tenen a &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

@@ -34,12 +34,17 @@
         android:orientation="horizontal"/>
 
     <!-- PaddingEnd is added to balance hover padding, compensating for paddingStart in statusIcons.
-         See b/339589733 -->
+         See b/339589733.
+
+         Default visibility is now "gone" to make space for the new battery icon
+         -->
     <com.android.systemui.battery.BatteryMeterView android:id="@+id/battery"
         android:layout_height="wrap_content"
         android:layout_width="wrap_content"
         android:clipToPadding="false"
         android:clipChildren="false"
         android:paddingEnd="@dimen/status_bar_battery_end_padding"
-        systemui:textAppearance="@style/TextAppearance.StatusBar.Clock" />
+        android:visibility="gone"
+        systemui:textAppearance="@style/TextAppearance.StatusBar.Default" />
+
 </LinearLayout>

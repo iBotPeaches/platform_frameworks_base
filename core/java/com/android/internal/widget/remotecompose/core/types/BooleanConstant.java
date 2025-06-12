@@ -25,11 +25,15 @@ import com.android.internal.widget.remotecompose.core.RemoteContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Used to represent a boolean */
-public class BooleanConstant extends Operation {
+public class BooleanConstant extends Operation implements Serializable {
+    private static final String CLASS_NAME = "BooleanConstant";
+
     private static final int OP_CODE = Operations.DATA_BOOLEAN;
     private boolean mValue = false;
     private int mId;
@@ -123,5 +127,10 @@ public class BooleanConstant extends Operation {
                 .description("A boolean and its associated id")
                 .field(DocumentedOperation.INT, "id", "id of Int")
                 .field(BYTE, "value", "8-bit 0 or 1");
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer.addType(CLASS_NAME).add("id", mId).add("value", mValue);
     }
 }

@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"&lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt; অ্যাক্সেস করার জন্য &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; অ্যাপকে কি অনুমতি দিতে চান?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"<xliff:g id="DEVICE_TYPE">%1$s</xliff:g>-এর <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> চালু আছে কিনা তা ভালোভাবে দেখে নিন এবং আপনার <xliff:g id="PROFILE_NAME">%3$s</xliff:g> কাছাকাছি রাখুন।"</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"কোনও ডিভাইস খুঁজে পাওয়া যায়নি। পরে আবার চেষ্টা করুন।"</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"ব্লুটুথ"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"ওয়াই-ফাই"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"ব্লুটুথ ও ওয়াই-ফাই"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"ঘড়ি"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"&lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ম্যানেজ করা যাবে এমন একটি ডিভাইস বেছে নিন"</string>
     <string name="chooser_title" msgid="2235819929238267637">"সেট-আপ করতে কোনও <xliff:g id="PROFILE_NAME">%1$s</xliff:g> বেছে নিন"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"<xliff:g id="PROFILE_NAME">%1$s</xliff:g> খোঁজা হচ্ছে"</string>
     <string name="summary_watch" msgid="8134580124808507407">"কল করছেন এমন কোনও ব্যক্তির নামের মতো তথ্য সিঙ্ক ও আপনার <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>-এ এইসব অনুমতি অ্যাক্সেস করার জন্য, এই অ্যাপকে অনুমতি দেওয়া হবে"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"আপনি কি &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; ম্যানেজ করার জন্য &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;-কে অনুমতি দেবেন?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"ডিভাইস"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"আপনার <xliff:g id="DEVICE_TYPE">%2$s</xliff:g>-এর অ্যাপ &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?-এ স্ট্রিম করার জন্য &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;-কে অনুমতি দেবেন?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"অডিও, ফটো, পাসওয়ার্ড ও মেসেজ সহ <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>-এ দেখা ও চালানো যায় এমন সব কিছু <xliff:g id="APP_NAME_0">%1$s</xliff:g> অ্যাক্সেস করতে পারবে।&lt;br/&gt;&lt;br/&gt;আপনি এই অনুমতি না সরানো পর্যন্ত <xliff:g id="APP_NAME_2">%1$s</xliff:g>, <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>-এ অ্যাপ স্ট্রিম করতে পারবে।"</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"আপনার <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> থেকে অ্যাপ স্ট্রিম করার জন্য <xliff:g id="DEVICE_NAME">%2$s</xliff:g>-এর হয়ে <xliff:g id="APP_NAME">%1$s</xliff:g> অনুমতি চাইছে"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"আপনার <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> ও &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;-এর মধ্যে অডিও ও সিস্টেমের ফিচার স্ট্রিম করার জন্য &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;-কে অনুমতি দিতে চান?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>-এ চালানো যায় এমন সব কিছু <xliff:g id="APP_NAME_0">%2$s</xliff:g> অ্যাক্সেস করতে পারবে। &lt;br/&gt;&lt;br/&gt;আপনি এই অনুমতি সম্পর্কিত অ্যাক্সেস সরিয়ে না দেওয়া পর্যন্ত <xliff:g id="APP_NAME_2">%2$s</xliff:g>, <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g>-এ অডিও স্ট্রিম করতে পারবে।"</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"ডিভাইস"</string>
     <string name="summary_generic" msgid="1761976003668044801">"এই অ্যাপ, আপনার ফোন এবং বেছে নেওয়া ডিভাইসের মধ্যে তথ্য সিঙ্ক করতে পারবে, যেমন কোনও কলারের নাম"</string>
     <string name="consent_yes" msgid="8344487259618762872">"অনুমতি দিন"</string>
     <string name="consent_no" msgid="2640796915611404382">"অনুমতি দেবেন না"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"বাতিল করুন"</string>
     <string name="consent_back" msgid="2560683030046918882">"ফিরুন"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"তালিকা নিচের দিকে স্ক্রল করুন"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"নিম্নমুখী তীরচিহ্ন"</string>
     <string name="permission_expand" msgid="893185038020887411">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> বড় করুন"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"<xliff:g id="PERMISSION_TYPE">%1$s</xliff:g> আড়াল করুন"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"&lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;-এ যে অনুমতি দেওয়া আছে &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt;-এও সেই একই অনুমতি দিতে চান?"</string>

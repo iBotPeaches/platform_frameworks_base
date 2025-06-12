@@ -46,6 +46,8 @@ using android::binder::Status;
 using android::idmap2::BinaryStreamVisitor;
 using android::idmap2::FabricatedOverlayContainer;
 using android::idmap2::Idmap;
+using android::idmap2::IdmapConstraint;
+using android::idmap2::IdmapConstraints;
 using android::idmap2::IdmapHeader;
 using android::idmap2::OverlayResourceContainer;
 using android::idmap2::PrettyPrintVisitor;
@@ -72,6 +74,18 @@ Status error(const std::string& msg) {
 
 PolicyBitmask ConvertAidlArgToPolicyBitmask(int32_t arg) {
   return static_cast<PolicyBitmask>(arg);
+}
+
+std::unique_ptr<const IdmapConstraints> ConvertAidlConstraintsToIdmapConstraints(
+        const std::vector<android::os::OverlayConstraint>& constraints) {
+  auto idmapConstraints = std::make_unique<IdmapConstraints>();
+  for (const auto& constraint : constraints) {
+    IdmapConstraint idmapConstraint{};
+    idmapConstraint.constraint_type = constraint.type;
+    idmapConstraint.constraint_value = constraint.value;
+    idmapConstraints->constraints.insert(idmapConstraint);
+  }
+  return idmapConstraints;
 }
 
 }  // namespace
@@ -113,6 +127,7 @@ Status Idmap2Service::removeIdmap(const std::string& overlay_path, int32_t user_
 Status Idmap2Service::verifyIdmap(const std::string& target_path, const std::string& overlay_path,
                                   const std::string& overlay_name, int32_t fulfilled_policies,
                                   bool enforce_overlayable, int32_t user_id ATTRIBUTE_UNUSED,
+                                  const std::vector<os::OverlayConstraint>& constraints,
                                   bool* _aidl_return) {
   SYSTRACE << "Idmap2Service::verifyIdmap " << overlay_path;
   assert(_aidl_return);
@@ -120,10 +135,17 @@ Status Idmap2Service::verifyIdmap(const std::string& target_path, const std::str
   const std::string idmap_path = Idmap::CanonicalIdmapPathFor(kIdmapCacheDir, overlay_path);
   std::ifstream fin(idmap_path);
   const std::unique_ptr<const IdmapHeader> header = IdmapHeader::FromBinaryStream(fin);
+  const std::unique_ptr<const IdmapConstraints> oldConstraints =
+          IdmapConstraints::FromBinaryStream(fin);
   fin.close();
   if (!header) {
     *_aidl_return = false;
     LOG(WARNING) << "failed to parse idmap header of '" << idmap_path << "'";
+    return ok();
+  }
+  if (!oldConstraints) {
+    *_aidl_return = false;
+    LOG(WARNING) << "failed to parse idmap constraints of '" << idmap_path << "'";
     return ok();
   }
 
@@ -145,7 +167,10 @@ Status Idmap2Service::verifyIdmap(const std::string& target_path, const std::str
       header->IsUpToDate(*GetPointer(*target), **overlay, overlay_name,
                          ConvertAidlArgToPolicyBitmask(fulfilled_policies), enforce_overlayable);
 
-  *_aidl_return = static_cast<bool>(up_to_date);
+  std::unique_ptr<const IdmapConstraints> newConstraints =
+          ConvertAidlConstraintsToIdmapConstraints(constraints);
+
+  *_aidl_return = static_cast<bool>(up_to_date && (*oldConstraints == *newConstraints));
   if (!up_to_date) {
     LOG(WARNING) << "idmap '" << idmap_path
                  << "' not up to date : " << up_to_date.GetErrorMessage();
@@ -156,6 +181,7 @@ Status Idmap2Service::verifyIdmap(const std::string& target_path, const std::str
 Status Idmap2Service::createIdmap(const std::string& target_path, const std::string& overlay_path,
                                   const std::string& overlay_name, int32_t fulfilled_policies,
                                   bool enforce_overlayable, int32_t user_id ATTRIBUTE_UNUSED,
+                                  const std::vector<os::OverlayConstraint>& constraints,
                                   std::optional<std::string>* _aidl_return) {
   assert(_aidl_return);
   SYSTRACE << "Idmap2Service::createIdmap " << target_path << " " << overlay_path;
@@ -186,8 +212,11 @@ Status Idmap2Service::createIdmap(const std::string& target_path, const std::str
     return error("failed to load apk overlay '%s'" + overlay_path);
   }
 
+  std::unique_ptr<const IdmapConstraints> idmapConstraints =
+          ConvertAidlConstraintsToIdmapConstraints(constraints);
   const auto idmap = Idmap::FromContainers(*GetPointer(*target), **overlay, overlay_name,
-                                           policy_bitmask, enforce_overlayable);
+                                           policy_bitmask, enforce_overlayable,
+                                           std::move(idmapConstraints));
   if (!idmap) {
     return error(idmap.GetErrorMessage());
   }

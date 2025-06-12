@@ -19,29 +19,34 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.widget.remotecompose.core.operations.BitmapData;
 import com.android.internal.widget.remotecompose.core.operations.ComponentValue;
+import com.android.internal.widget.remotecompose.core.operations.DataListFloat;
+import com.android.internal.widget.remotecompose.core.operations.DrawContent;
+import com.android.internal.widget.remotecompose.core.operations.FloatConstant;
 import com.android.internal.widget.remotecompose.core.operations.FloatExpression;
+import com.android.internal.widget.remotecompose.core.operations.Header;
 import com.android.internal.widget.remotecompose.core.operations.IntegerExpression;
 import com.android.internal.widget.remotecompose.core.operations.NamedVariable;
 import com.android.internal.widget.remotecompose.core.operations.RootContentBehavior;
 import com.android.internal.widget.remotecompose.core.operations.ShaderData;
 import com.android.internal.widget.remotecompose.core.operations.TextData;
 import com.android.internal.widget.remotecompose.core.operations.Theme;
-import com.android.internal.widget.remotecompose.core.operations.layout.ClickModifierOperation;
+import com.android.internal.widget.remotecompose.core.operations.layout.CanvasOperations;
 import com.android.internal.widget.remotecompose.core.operations.layout.Component;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentEnd;
-import com.android.internal.widget.remotecompose.core.operations.layout.ComponentStartOperation;
-import com.android.internal.widget.remotecompose.core.operations.layout.LoopEnd;
+import com.android.internal.widget.remotecompose.core.operations.layout.Container;
+import com.android.internal.widget.remotecompose.core.operations.layout.ContainerEnd;
+import com.android.internal.widget.remotecompose.core.operations.layout.LayoutComponent;
 import com.android.internal.widget.remotecompose.core.operations.layout.LoopOperation;
-import com.android.internal.widget.remotecompose.core.operations.layout.OperationsListEnd;
 import com.android.internal.widget.remotecompose.core.operations.layout.RootLayoutComponent;
-import com.android.internal.widget.remotecompose.core.operations.layout.TouchCancelModifierOperation;
-import com.android.internal.widget.remotecompose.core.operations.layout.TouchDownModifierOperation;
-import com.android.internal.widget.remotecompose.core.operations.layout.TouchUpModifierOperation;
 import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ComponentModifiers;
 import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ModifierOperation;
-import com.android.internal.widget.remotecompose.core.operations.layout.modifiers.ScrollModifierOperation;
+import com.android.internal.widget.remotecompose.core.operations.utilities.IntMap;
 import com.android.internal.widget.remotecompose.core.operations.utilities.StringSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
+import com.android.internal.widget.remotecompose.core.types.IntegerConstant;
+import com.android.internal.widget.remotecompose.core.types.LongConstant;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,10 +59,23 @@ import java.util.Set;
  * Represents a platform independent RemoteCompose document, containing RemoteCompose operations +
  * state
  */
-public class CoreDocument {
+public class CoreDocument implements Serializable {
 
     private static final boolean DEBUG = false;
-    private static final int DOCUMENT_API_LEVEL = 2;
+
+    // Semantic version
+    public static final int MAJOR_VERSION = 1;
+    public static final int MINOR_VERSION = 0;
+    public static final int PATCH_VERSION = 0;
+
+    // Internal version level
+    public static final int DOCUMENT_API_LEVEL = 6;
+
+    // We also keep a more fine-grained BUILD number, exposed as
+    // ID_API_LEVEL = DOCUMENT_API_LEVEL + BUILD
+    static final float BUILD = 0.0f;
+
+    private static final boolean UPDATE_VARIABLES_BEFORE_LAYOUT = false;
 
     @NonNull ArrayList<Operation> mOperations = new ArrayList<>();
 
@@ -65,8 +83,9 @@ public class CoreDocument {
 
     @NonNull RemoteComposeState mRemoteComposeState = new RemoteComposeState();
     @VisibleForTesting @NonNull public TimeVariables mTimeVariables = new TimeVariables();
+
     // Semantic version of the document
-    @NonNull Version mVersion = new Version(0, 1, 0);
+    @NonNull Version mVersion = new Version(MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
 
     @Nullable
     String mContentDescription; // text description of the document (used for accessibility)
@@ -90,6 +109,11 @@ public class CoreDocument {
     private HashSet<Component> mAppliedTouchOperations = new HashSet<>();
 
     private int mLastId = 1; // last component id when inflating the file
+
+    private IntMap<Object> mDocProperties;
+
+    boolean mFirstPaint = true;
+    private boolean mIsUpdateDoc = false;
 
     /** Returns a version number that is monotonically increasing. */
     public static int getDocumentApiLevel() {
@@ -117,6 +141,11 @@ public class CoreDocument {
         return mWidth;
     }
 
+    /**
+     * Set the viewport width of the document
+     *
+     * @param width document width
+     */
     public void setWidth(int width) {
         this.mWidth = width;
         mRemoteComposeState.setWindowWidth(width);
@@ -126,6 +155,11 @@ public class CoreDocument {
         return mHeight;
     }
 
+    /**
+     * Set the viewport height of the document
+     *
+     * @param height document height
+     */
     public void setHeight(int height) {
         this.mHeight = height;
         mRemoteComposeState.setWindowHeight(height);
@@ -387,8 +421,140 @@ public class CoreDocument {
         }
     }
 
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType("CoreDocument")
+                .add("width", mWidth)
+                .add("height", mHeight)
+                .add("operations", mOperations);
+    }
+
+    /**
+     * Set the properties of the document
+     *
+     * @param properties the properties to set
+     */
+    public void setProperties(IntMap<Object> properties) {
+        mDocProperties = properties;
+    }
+
+    /**
+     * @param key the key
+     * @return the value associated with the key
+     */
+    public Object getProperty(short key) {
+        if (mDocProperties == null) {
+            return null;
+        }
+        return mDocProperties.get(key);
+    }
+
+    /**
+     * Apply a collection of operations to the document
+     *
+     * @param delta the delta to apply
+     */
+    public void applyUpdate(CoreDocument delta) {
+        HashMap<Integer, TextData> txtData = new HashMap<Integer, TextData>();
+        HashMap<Integer, BitmapData> imgData = new HashMap<Integer, BitmapData>();
+        HashMap<Integer, FloatConstant> fltData = new HashMap<Integer, FloatConstant>();
+        HashMap<Integer, IntegerConstant> intData = new HashMap<Integer, IntegerConstant>();
+        HashMap<Integer, LongConstant> longData = new HashMap<Integer, LongConstant>();
+        HashMap<Integer, DataListFloat> floatListData = new HashMap<Integer, DataListFloat>();
+        recursiveTraverse(
+                mOperations,
+                (op) -> {
+                    if (op instanceof TextData) {
+                        TextData d = (TextData) op;
+                        txtData.put(d.mTextId, d);
+                    } else if (op instanceof BitmapData) {
+                        BitmapData d = (BitmapData) op;
+                        imgData.put(d.mImageId, d);
+                    } else if (op instanceof FloatConstant) {
+                        FloatConstant d = (FloatConstant) op;
+                        fltData.put(d.mId, d);
+                    } else if (op instanceof IntegerConstant) {
+                        IntegerConstant d = (IntegerConstant) op;
+                        intData.put(d.mId, d);
+                    } else if (op instanceof LongConstant) {
+                        LongConstant d = (LongConstant) op;
+                        longData.put(d.mId, d);
+                    } else if (op instanceof DataListFloat) {
+                        DataListFloat d = (DataListFloat) op;
+                        floatListData.put(d.mId, d);
+                    }
+                });
+
+        recursiveTraverse(
+                delta.mOperations,
+                (op) -> {
+                    if (op instanceof TextData) {
+                        TextData t = (TextData) op;
+                        TextData txtInDoc = txtData.get(t.mTextId);
+                        if (txtInDoc != null) {
+                            txtInDoc.update(t);
+                            txtInDoc.markDirty();
+                        }
+                    } else if (op instanceof BitmapData) {
+                        BitmapData b = (BitmapData) op;
+                        BitmapData imgInDoc = imgData.get(b.mImageId);
+                        if (imgInDoc != null) {
+                            imgInDoc.update(b);
+                            imgInDoc.markDirty();
+                        }
+                    } else if (op instanceof FloatConstant) {
+                        FloatConstant f = (FloatConstant) op;
+                        FloatConstant fltInDoc = fltData.get(f.mId);
+                        if (fltInDoc != null) {
+                            fltInDoc.update(f);
+                            fltInDoc.markDirty();
+                        }
+                    } else if (op instanceof IntegerConstant) {
+                        IntegerConstant ic = (IntegerConstant) op;
+                        IntegerConstant intInDoc = intData.get(ic.mId);
+                        if (intInDoc != null) {
+                            intInDoc.update(ic);
+                            intInDoc.markDirty();
+                        }
+                    } else if (op instanceof LongConstant) {
+                        LongConstant lc = (LongConstant) op;
+                        LongConstant longInDoc = longData.get(lc.mId);
+                        if (longInDoc != null) {
+                            longInDoc.update(lc);
+                            longInDoc.markDirty();
+                        }
+                    } else if (op instanceof DataListFloat) {
+                        DataListFloat lc = (DataListFloat) op;
+                        DataListFloat longInDoc = floatListData.get(lc.mId);
+                        if (longInDoc != null) {
+                            longInDoc.update(lc);
+                            longInDoc.markDirty();
+                        }
+                    }
+                });
+    }
+
+    private interface Visitor {
+        void visit(Operation op);
+    }
+
+    private void recursiveTraverse(ArrayList<Operation> mOperations, Visitor visitor) {
+        for (Operation op : mOperations) {
+            if (op instanceof Container) {
+                recursiveTraverse(((Container) op).getList(), visitor);
+            }
+            visitor.visit(op);
+        }
+    }
+
     // ============== Haptic support ==================
     public interface HapticEngine {
+        /**
+         * Implements a haptic effect
+         *
+         * @param type the type of effect
+         */
         void haptic(int type);
     }
 
@@ -398,6 +564,11 @@ public class CoreDocument {
         mHapticEngine = engine;
     }
 
+    /**
+     * Execute an haptic command
+     *
+     * @param type the type of haptic pre-defined effect
+     */
     public void haptic(int type) {
         if (mHapticEngine != null) {
             mHapticEngine.haptic(type);
@@ -406,12 +577,23 @@ public class CoreDocument {
 
     // ============== Haptic support ==================
 
-    public void appliedTouchOperation(Component operation) {
-        mAppliedTouchOperations.add(operation);
+    /**
+     * To signal that the given component will apply the touch operation
+     *
+     * @param component the component applying the touch
+     */
+    public void appliedTouchOperation(Component component) {
+        mAppliedTouchOperations.add(component);
     }
 
     /** Callback interface for host actions */
     public interface ActionCallback {
+        /**
+         * Callback for actions
+         *
+         * @param name the action name
+         * @param value the payload of the action
+         */
         void onAction(@NonNull String name, Object value);
     }
 
@@ -444,7 +626,14 @@ public class CoreDocument {
         mActionListeners.clear();
     }
 
+    /** Id Actions */
     public interface IdActionCallback {
+        /**
+         * Callback on Id Actions
+         *
+         * @param id the actio id triggered
+         * @param metadata optional metadata
+         */
         void onAction(int id, @Nullable String metadata);
     }
 
@@ -461,6 +650,32 @@ public class CoreDocument {
             this.major = major;
             this.minor = minor;
             this.patchLevel = patchLevel;
+        }
+
+        /**
+         * Returns true if the document has been encoded for at least the given version MAJOR.MINOR
+         *
+         * @param major major version number
+         * @param minor minor version number
+         * @param patch patch version number
+         * @return true if the document was written at least with the given version
+         */
+        public boolean supportsVersion(int major, int minor, int patch) {
+            if (major > this.major) {
+                return false;
+            }
+            if (major < this.major) {
+                return true;
+            }
+            // major is the same
+            if (minor > this.minor) {
+                return false;
+            }
+            if (minor < this.minor) {
+                return true;
+            }
+            // minor is the same
+            return patch <= this.patchLevel;
         }
     }
 
@@ -524,10 +739,20 @@ public class CoreDocument {
             return mTop;
         }
 
+        /**
+         * Returns the width of the click area
+         *
+         * @return the width of the click area
+         */
         public float width() {
             return Math.max(0, mRight - mLeft);
         }
 
+        /**
+         * Returns the height of the click area
+         *
+         * @return the height of the click area
+         */
         public float height() {
             return Math.max(0, mBottom - mTop);
         }
@@ -551,6 +776,11 @@ public class CoreDocument {
         mOperations = new ArrayList<Operation>();
         buffer.inflateFromBuffer(mOperations);
         for (Operation op : mOperations) {
+            if (op instanceof Header) {
+                // Make sure we parse the version at init time...
+                Header header = (Header) op;
+                header.setVersion(this);
+            }
             if (op instanceof IntegerExpression) {
                 IntegerExpression expression = (IntegerExpression) op;
                 mIntegerExpressions.put((long) expression.mId, expression);
@@ -581,86 +811,66 @@ public class CoreDocument {
      */
     @NonNull
     private ArrayList<Operation> inflateComponents(@NonNull ArrayList<Operation> operations) {
-        Component currentComponent = null;
-        ArrayList<Component> components = new ArrayList<>();
         ArrayList<Operation> finalOperationsList = new ArrayList<>();
         ArrayList<Operation> ops = finalOperationsList;
-        ClickModifierOperation currentClickModifier = null;
-        TouchDownModifierOperation currentTouchDownModifier = null;
-        TouchUpModifierOperation currentTouchUpModifier = null;
-        TouchCancelModifierOperation currentTouchCancelModifier = null;
-        LoopOperation currentLoop = null;
-        ScrollModifierOperation currentScrollModifier = null;
+
+        ArrayList<Container> containers = new ArrayList<>();
+        LayoutComponent lastLayoutComponent = null;
 
         mLastId = -1;
         for (Operation o : operations) {
-            if (o instanceof ComponentStartOperation) {
-                Component component = (Component) o;
-                component.setParent(currentComponent);
-                components.add(component);
-                currentComponent = component;
-                ops.add(currentComponent);
-                ops = currentComponent.getList();
-                if (component.getComponentId() < mLastId) {
-                    mLastId = component.getComponentId();
+            if (o instanceof Container) {
+                Container container = (Container) o;
+                if (container instanceof Component) {
+                    Component component = (Component) container;
+                    // Make sure to set the parent when a component is first found, so that
+                    // the inflate when closing the component is in a state where the hierarchy
+                    // is already existing.
+                    if (!containers.isEmpty()) {
+                        Container parentContainer = containers.get(containers.size() - 1);
+                        if (parentContainer instanceof Component) {
+                            component.setParent((Component) parentContainer);
+                        }
+                    }
+                    if (component.getComponentId() < mLastId) {
+                        mLastId = component.getComponentId();
+                    }
+                    if (component instanceof LayoutComponent) {
+                        lastLayoutComponent = (LayoutComponent) component;
+                    }
                 }
-            } else if (o instanceof ComponentEnd) {
-                if (currentComponent != null) {
-                    currentComponent.inflate();
+                containers.add(container);
+                ops = container.getList();
+            } else if (o instanceof ContainerEnd) {
+                // check if we have a parent container
+                Container container = null;
+                // pop the container
+                if (!containers.isEmpty()) {
+                    container = containers.remove(containers.size() - 1);
                 }
-                components.remove(components.size() - 1);
-                if (!components.isEmpty()) {
-                    currentComponent = components.get(components.size() - 1);
-                    ops = currentComponent.getList();
+                Container parentContainer = null;
+                if (!containers.isEmpty()) {
+                    parentContainer = containers.get(containers.size() - 1);
+                }
+                if (parentContainer != null) {
+                    ops = parentContainer.getList();
                 } else {
                     ops = finalOperationsList;
                 }
-            } else if (o instanceof ClickModifierOperation) {
-                // TODO: refactor to add container <- component...
-                currentClickModifier = (ClickModifierOperation) o;
-                ops = currentClickModifier.getList();
-            } else if (o instanceof TouchDownModifierOperation) {
-                currentTouchDownModifier = (TouchDownModifierOperation) o;
-                ops = currentTouchDownModifier.getList();
-            } else if (o instanceof TouchUpModifierOperation) {
-                currentTouchUpModifier = (TouchUpModifierOperation) o;
-                ops = currentTouchUpModifier.getList();
-            } else if (o instanceof TouchCancelModifierOperation) {
-                currentTouchCancelModifier = (TouchCancelModifierOperation) o;
-                ops = currentTouchCancelModifier.getList();
-            } else if (o instanceof ScrollModifierOperation) {
-                currentScrollModifier = (ScrollModifierOperation) o;
-                ops = currentScrollModifier.getList();
-            } else if (o instanceof OperationsListEnd) {
-                ops = currentComponent.getList();
-                if (currentClickModifier != null) {
-                    ops.add(currentClickModifier);
-                    currentClickModifier = null;
-                } else if (currentTouchDownModifier != null) {
-                    ops.add(currentTouchDownModifier);
-                    currentTouchDownModifier = null;
-                } else if (currentTouchUpModifier != null) {
-                    ops.add(currentTouchUpModifier);
-                    currentTouchUpModifier = null;
-                } else if (currentTouchCancelModifier != null) {
-                    ops.add(currentTouchCancelModifier);
-                    currentTouchCancelModifier = null;
-                } else if (currentScrollModifier != null) {
-                    ops.add(currentScrollModifier);
-                    currentScrollModifier = null;
+                if (container != null) {
+                    if (container instanceof Component) {
+                        Component component = (Component) container;
+                        component.inflate();
+                    }
+                    ops.add((Operation) container);
                 }
-            } else if (o instanceof LoopOperation) {
-                currentLoop = (LoopOperation) o;
-                ops = currentLoop.getList();
-            } else if (o instanceof LoopEnd) {
-                if (currentComponent != null) {
-                    ops = currentComponent.getList();
-                    ops.add(currentLoop);
-                } else {
-                    ops = finalOperationsList;
+                if (container instanceof CanvasOperations) {
+                    ((CanvasOperations) container).setComponent(lastLayoutComponent);
                 }
-                currentLoop = null;
             } else {
+                if (o instanceof DrawContent) {
+                    ((DrawContent) o).setComponent(lastLayoutComponent);
+                }
                 ops.add(o);
             }
         }
@@ -669,16 +879,24 @@ public class CoreDocument {
 
     @NonNull private HashMap<Integer, Component> mComponentMap = new HashMap<Integer, Component>();
 
+    /**
+     * Register all the operations recursively
+     *
+     * @param context
+     * @param list
+     */
     private void registerVariables(
             @NonNull RemoteContext context, @NonNull ArrayList<Operation> list) {
         for (Operation op : list) {
             if (op instanceof VariableSupport) {
-                ((VariableSupport) op).updateVariables(context);
                 ((VariableSupport) op).registerListening(context);
             }
             if (op instanceof Component) {
                 mComponentMap.put(((Component) op).getComponentId(), (Component) op);
-                registerVariables(context, ((Component) op).getList());
+                ((Component) op).registerVariables(context);
+            }
+            if (op instanceof Container) {
+                registerVariables(context, ((Container) op).getList());
             }
             if (op instanceof ComponentValue) {
                 ComponentValue v = (ComponentValue) op;
@@ -692,14 +910,34 @@ public class CoreDocument {
             if (op instanceof ComponentModifiers) {
                 for (ModifierOperation modifier : ((ComponentModifiers) op).getList()) {
                     if (modifier instanceof VariableSupport) {
-                        ((VariableSupport) modifier).updateVariables(context);
                         ((VariableSupport) modifier).registerListening(context);
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Apply the operations recursively, for the original initialization pass with mode == DATA
+     *
+     * @param context
+     * @param list
+     */
+    private void applyOperations(
+            @NonNull RemoteContext context, @NonNull ArrayList<Operation> list) {
+        for (Operation op : list) {
+            if (op instanceof VariableSupport) {
+                ((VariableSupport) op).updateVariables(context);
+            }
+            if (op instanceof Component) { // for componentvalues...
+                ((Component) op).updateVariables(context);
+            }
             op.markNotDirty();
             op.apply(context);
             context.incrementOpCount();
+            if (op instanceof Container) {
+                applyOperations(context, ((Container) op).getList());
+            }
         }
     }
 
@@ -719,7 +957,12 @@ public class CoreDocument {
         mTimeVariables.updateTime(context);
 
         registerVariables(context, mOperations);
+        applyOperations(context, mOperations);
         context.mMode = RemoteContext.ContextMode.UNSET;
+
+        if (UPDATE_VARIABLES_BEFORE_LAYOUT) {
+            mFirstPaint = true;
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -729,12 +972,20 @@ public class CoreDocument {
     /**
      * Returns true if the document can be displayed given this version of the player
      *
-     * @param majorVersion the max major version supported by the player
-     * @param minorVersion the max minor version supported by the player
+     * @param playerMajorVersion the max major version supported by the player
+     * @param playerMinorVersion the max minor version supported by the player
      * @param capabilities a bitmask of capabilities the player supports (unused for now)
      */
-    public boolean canBeDisplayed(int majorVersion, int minorVersion, long capabilities) {
-        return mVersion.major <= majorVersion && mVersion.minor <= minorVersion;
+    public boolean canBeDisplayed(
+            int playerMajorVersion, int playerMinorVersion, long capabilities) {
+        if (mVersion.major < playerMajorVersion) {
+            return true;
+        }
+        if (mVersion.major > playerMajorVersion) {
+            return false;
+        }
+        // same major version
+        return mVersion.minor <= playerMinorVersion;
     }
 
     /**
@@ -744,7 +995,7 @@ public class CoreDocument {
      * @param minorVersion minor version number, increased when adding new features
      * @param patch patch level, increased upon bugfixes
      */
-    void setVersion(int majorVersion, int minorVersion, int patch) {
+    public void setVersion(int majorVersion, int minorVersion, int patch) {
         mVersion = new Version(majorVersion, minorVersion, patch);
     }
 
@@ -831,14 +1082,21 @@ public class CoreDocument {
      *
      * @param id the click area id
      */
-    public void performClick(int id) {
+    public void performClick(@NonNull RemoteContext context, int id, @NonNull String metadata) {
         for (ClickAreaRepresentation clickArea : mClickAreas) {
             if (clickArea.mId == id) {
                 warnClickListeners(clickArea);
+                return;
             }
         }
+
         for (IdActionCallback listener : mIdActionListeners) {
-            listener.onAction(id, "");
+            listener.onAction(id, metadata);
+        }
+
+        Component component = getComponent(id);
+        if (component != null) {
+            component.onClick(context, this, -1, -1);
         }
     }
 
@@ -969,29 +1227,23 @@ public class CoreDocument {
      * @return array of named variables or null
      */
     public String[] getNamedVariables(int type) {
-        int count = 0;
-        for (Operation op : mOperations) {
+        ArrayList<String> ret = new ArrayList<>();
+        getNamedVars(type, mOperations, ret);
+        return ret.toArray(new String[0]);
+    }
+
+    private void getNamedVars(int type, ArrayList<Operation> ops, ArrayList<String> list) {
+        for (Operation op : ops) {
             if (op instanceof NamedVariable) {
                 NamedVariable n = (NamedVariable) op;
                 if (n.mVarType == type) {
-                    count++;
+                    list.add(n.mVarName);
                 }
             }
-        }
-        if (count == 0) {
-            return null;
-        }
-        String[] ret = new String[count];
-        int i = 0;
-        for (Operation op : mOperations) {
-            if (op instanceof NamedVariable) {
-                NamedVariable n = (NamedVariable) op;
-                if (n.mVarType == type) {
-                    ret[i++] = n.mVarName;
-                }
+            if (op instanceof Container) {
+                getNamedVars(type, ((Container) op).getList(), list);
             }
         }
-        return ret;
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -1022,13 +1274,35 @@ public class CoreDocument {
     }
 
     /**
+     * Traverse the list of operations to update the variables. TODO: this should walk the
+     * dependency tree instead
+     *
+     * @param context
+     * @param operations
+     */
+    private void updateVariables(
+            @NonNull RemoteContext context, int theme, List<Operation> operations) {
+        for (int i = 0; i < operations.size(); i++) {
+            Operation op = operations.get(i);
+            if (op.isDirty() && op instanceof VariableSupport) {
+                ((VariableSupport) op).updateVariables(context);
+                op.apply(context);
+                op.markNotDirty();
+            }
+            if (op instanceof Container) {
+                updateVariables(context, theme, ((Container) op).getList());
+            }
+        }
+    }
+
+    /**
      * Paint the document
      *
      * @param context the provided PaintContext
      * @param theme the theme we want to use for this document.
      */
     public void paint(@NonNull RemoteContext context, int theme) {
-        context.getLastOpCount();
+        context.clearLastOpCount();
         context.getPaintContext().clearNeedsRepaint();
         context.loadFloat(RemoteContext.ID_DENSITY, context.getDensity());
         context.mMode = RemoteContext.ContextMode.UNSET;
@@ -1038,6 +1312,15 @@ public class CoreDocument {
 
         context.mRemoteComposeState = mRemoteComposeState;
         context.mRemoteComposeState.setContext(context);
+
+        if (UPDATE_VARIABLES_BEFORE_LAYOUT) {
+            // Update any dirty variables
+            if (mFirstPaint) {
+                mFirstPaint = false;
+            } else {
+                updateVariables(context, theme, mOperations);
+            }
+        }
 
         // If we have a content sizing set, we are going to take the original document
         // dimension into account and apply scale+translate according to the RootContentBehavior
@@ -1080,19 +1363,22 @@ public class CoreDocument {
             }
         }
         context.mMode = RemoteContext.ContextMode.PAINT;
-        for (Operation op : mOperations) {
+        for (int i = 0; i < mOperations.size(); i++) {
+            Operation op = mOperations.get(i);
             // operations will only be executed if no theme is set (ie UNSPECIFIED)
             // or the theme is equal as the one passed in argument to paint.
             boolean apply = true;
             if (theme != Theme.UNSPECIFIED) {
+                int currentTheme = context.getTheme();
                 apply =
-                        op instanceof Theme // always apply a theme setter
-                                || context.getTheme() == theme
-                                || context.getTheme() == Theme.UNSPECIFIED;
+                        currentTheme == theme
+                                || currentTheme == Theme.UNSPECIFIED
+                                || op instanceof Theme; // always apply a theme setter
             }
             if (apply) {
-                if (op.isDirty() || op instanceof PaintOperation) {
-                    if (op.isDirty() && op instanceof VariableSupport) {
+                boolean opIsDirty = op.isDirty();
+                if (opIsDirty || op instanceof PaintOperation) {
+                    if (opIsDirty && op instanceof VariableSupport) {
                         op.markNotDirty();
                         ((VariableSupport) op).updateVariables(context);
                     }
@@ -1143,6 +1429,11 @@ public class CoreDocument {
         return count;
     }
 
+    /**
+     * Returns a list of useful statistics for the runtime document
+     *
+     * @return
+     */
     @NonNull
     public String[] getStats() {
         ArrayList<String> ret = new ArrayList<>();
@@ -1161,8 +1452,8 @@ public class CoreDocument {
 
             values[0] += 1;
             values[1] += sizeOfComponent(mOperation, buffer);
-            if (mOperation instanceof Component) {
-                Component com = (Component) mOperation;
+            if (mOperation instanceof Container) {
+                Container com = (Container) mOperation;
                 count += addChildren(com, map, buffer);
             } else if (mOperation instanceof LoopOperation) {
                 LoopOperation com = (LoopOperation) mOperation;
@@ -1188,9 +1479,9 @@ public class CoreDocument {
     }
 
     private int addChildren(
-            @NonNull Component base, @NonNull HashMap<String, int[]> map, @NonNull WireBuffer tmp) {
-        int count = base.mList.size();
-        for (Operation mOperation : base.mList) {
+            @NonNull Container base, @NonNull HashMap<String, int[]> map, @NonNull WireBuffer tmp) {
+        int count = base.getList().size();
+        for (Operation mOperation : base.getList()) {
             Class<? extends Operation> c = mOperation.getClass();
             int[] values;
             if (map.containsKey(c.getSimpleName())) {
@@ -1201,62 +1492,42 @@ public class CoreDocument {
             }
             values[0] += 1;
             values[1] += sizeOfComponent(mOperation, tmp);
-            if (mOperation instanceof Component) {
-                count += addChildren((Component) mOperation, map, tmp);
-            }
-            if (mOperation instanceof LoopOperation) {
-                count += addChildren((LoopOperation) mOperation, map, tmp);
+            if (mOperation instanceof Container) {
+                count += addChildren((Container) mOperation, map, tmp);
             }
         }
         return count;
     }
 
-    private int addChildren(
-            @NonNull LoopOperation base,
-            @NonNull HashMap<String, int[]> map,
-            @NonNull WireBuffer tmp) {
-        int count = base.mList.size();
-        for (Operation mOperation : base.mList) {
-            Class<? extends Operation> c = mOperation.getClass();
-            int[] values;
-            if (map.containsKey(c.getSimpleName())) {
-                values = map.get(c.getSimpleName());
-            } else {
-                values = new int[2];
-                map.put(c.getSimpleName(), values);
-            }
-            values[0] += 1;
-            values[1] += sizeOfComponent(mOperation, tmp);
-            if (mOperation instanceof Component) {
-                count += addChildren((Component) mOperation, map, tmp);
-            }
-            if (mOperation instanceof LoopOperation) {
-                count += addChildren((LoopOperation) mOperation, map, tmp);
-            }
-        }
-        return count;
-    }
-
+    /**
+     * Returns a string representation of the operations, traversing the list of operations &
+     * containers
+     *
+     * @return
+     */
     @NonNull
     public String toNestedString() {
         StringBuilder ret = new StringBuilder();
         for (Operation mOperation : mOperations) {
             ret.append(mOperation.toString());
             ret.append("\n");
-            if (mOperation instanceof Component) {
-                toNestedString((Component) mOperation, ret, "  ");
+            if (mOperation instanceof Container) {
+                toNestedString((Container) mOperation, ret, "  ");
             }
         }
         return ret.toString();
     }
 
     private void toNestedString(
-            @NonNull Component base, @NonNull StringBuilder ret, String indent) {
-        for (Operation mOperation : base.mList) {
-            ret.append(mOperation.toString());
-            ret.append("\n");
-            if (mOperation instanceof Component) {
-                toNestedString((Component) mOperation, ret, indent + "  ");
+            @NonNull Container base, @NonNull StringBuilder ret, String indent) {
+        for (Operation mOperation : base.getList()) {
+            for (String line : mOperation.toString().split("\n")) {
+                ret.append(indent);
+                ret.append(line);
+                ret.append("\n");
+            }
+            if (mOperation instanceof Container) {
+                toNestedString((Container) mOperation, ret, indent + "  ");
             }
         }
     }
@@ -1268,6 +1539,12 @@ public class CoreDocument {
 
     /** defines if a shader can be run */
     public interface ShaderControl {
+        /**
+         * validate if a shader can run in the document
+         *
+         * @param shader the source of the shader
+         * @return true if the shader is allowed to run
+         */
         boolean isShaderValid(String shader);
     }
 
@@ -1278,9 +1555,24 @@ public class CoreDocument {
      * @param ctl the call back to allow evaluation of shaders
      */
     public void checkShaders(RemoteContext context, ShaderControl ctl) {
-        for (Operation op : mOperations) {
+        checkShaders(context, ctl, mOperations);
+    }
+
+    /**
+     * Recursive private version that checks the shaders
+     *
+     * @param context the remote context
+     * @param ctl the call back to allow evaluation of shaders
+     * @param operations the operations to check
+     */
+    private void checkShaders(
+            RemoteContext context, ShaderControl ctl, List<Operation> operations) {
+        for (Operation op : operations) {
             if (op instanceof TextData) {
                 op.apply(context);
+            }
+            if (op instanceof Container) {
+                checkShaders(context, ctl, ((Container) op).getList());
             }
             if (op instanceof ShaderData) {
                 ShaderData sd = (ShaderData) op;
@@ -1289,5 +1581,21 @@ public class CoreDocument {
                 sd.enable(ctl.isShaderValid(str));
             }
         }
+    }
+
+    /**
+     * Set if this is an update doc
+     *
+     * @param isUpdateDoc
+     */
+    public void setUpdateDoc(boolean isUpdateDoc) {
+        mIsUpdateDoc = isUpdateDoc;
+    }
+
+    /**
+     * @return if this is an update doc
+     */
+    public boolean isUpdateDoc() {
+        return mIsUpdateDoc;
     }
 }

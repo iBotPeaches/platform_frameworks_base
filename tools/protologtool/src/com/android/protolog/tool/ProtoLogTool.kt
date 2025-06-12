@@ -69,7 +69,8 @@ object ProtoLogTool {
         val messageString: String,
         val logLevel: LogLevel,
         val logGroup: LogGroup,
-        val position: String
+        val position: String,
+        val lineNumber: Int,
     )
 
     private fun showHelpAndExit() {
@@ -129,14 +130,16 @@ object ProtoLogTool {
                     val outSrc = try {
                         val code = tryParse(text, path)
                         if (containsProtoLogText(text, PROTOLOG_CLASS_NAME)) {
-                            transformer.processClass(text, path, packagePath(file, code), code)
+                            val (processedText, errors) = transformer.processClass(text, path, packagePath(file, code), code)
+                            errors.forEach { injector.reportProcessingError(it) }
+                            processedText
                         } else {
                             text
                         }
                     } catch (ex: ParsingException) {
                         // If we cannot parse this file, skip it (and log why). Compilation will
                         // fail in a subsequent build step.
-                        injector.reportParseError(ex)
+                        injector.reportProcessingError(ex)
                         text
                     }
                     path to outSrc
@@ -404,7 +407,7 @@ object ProtoLogTool {
                         } catch (ex: ParsingException) {
                             // If we cannot parse this file, skip it (and log why). Compilation will
                             // fail in a subsequent build step.
-                            injector.reportParseError(ex)
+                            injector.reportProcessingError(ex)
                             null
                         }
                     } else {
@@ -435,9 +438,10 @@ object ProtoLogTool {
                 call: MethodCallExpr,
                 messageString: String,
                 level: LogLevel,
-                group: LogGroup
+                group: LogGroup,
+                lineNumber: Int,
             ) {
-                val logCall = LogCall(messageString, level, group, packagePath)
+                val logCall = LogCall(messageString, level, group, packagePath, lineNumber)
                 calls.add(logCall)
             }
         }
@@ -464,6 +468,14 @@ object ProtoLogTool {
         try {
             val command = CommandOptions(args)
             invoke(command)
+
+            if (injector.processingErrors.isNotEmpty()) {
+                injector.processingErrors.forEachIndexed { index, it ->
+                    println("CodeProcessingException " +
+                            "(${index + 1}/${injector.processingErrors.size}): \n${it.message}\n")
+                }
+                exitProcess(1)
+            }
         } catch (ex: InvalidCommandException) {
             println("InvalidCommandException: \n${ex.message}\n")
             showHelpAndExit()
@@ -487,12 +499,14 @@ object ProtoLogTool {
     }
 
     var injector = object : Injector {
+        override val processingErrors: MutableList<CodeProcessingException>
+            get() = mutableListOf()
         override fun fileOutputStream(file: String) = FileOutputStream(file)
         override fun readText(file: File) = file.readText()
         override fun readLogGroups(jarPath: String, className: String) =
                 ProtoLogGroupReader().loadFromJar(jarPath, className)
-        override fun reportParseError(ex: ParsingException) {
-            println("\n${ex.message}\n")
+        override fun reportProcessingError(ex: CodeProcessingException) {
+            processingErrors.add(ex)
         }
     }
 
@@ -500,7 +514,8 @@ object ProtoLogTool {
         fun fileOutputStream(file: String): OutputStream
         fun readText(file: File): String
         fun readLogGroups(jarPath: String, className: String): Map<String, LogGroup>
-        fun reportParseError(ex: ParsingException)
+        fun reportProcessingError(ex: CodeProcessingException)
+        val processingErrors: Collection<CodeProcessingException>
     }
 }
 

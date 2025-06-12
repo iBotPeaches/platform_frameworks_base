@@ -23,9 +23,9 @@ import android.view.inputmethod.InputMethodSubtype
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.mock
@@ -47,7 +47,7 @@ class InputMethodRepositoryTest : SysuiTestCase() {
 
     @Mock private lateinit var inputMethodManager: InputMethodManager
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
 
     private lateinit var underTest: InputMethodRepository
@@ -72,7 +72,7 @@ class InputMethodRepositoryTest : SysuiTestCase() {
                     inputMethodManager.getEnabledInputMethodSubtypeListAsUser(
                         any(),
                         anyBoolean(),
-                        eq(USER_HANDLE)
+                        eq(USER_HANDLE),
                     )
                 )
                 .thenReturn(listOf())
@@ -97,7 +97,7 @@ class InputMethodRepositoryTest : SysuiTestCase() {
                     inputMethodManager.getEnabledInputMethodSubtypeListAsUser(
                         eq(selectedImiId),
                         anyBoolean(),
-                        eq(USER_HANDLE)
+                        eq(USER_HANDLE),
                     )
                 )
                 .thenReturn(
@@ -125,7 +125,7 @@ class InputMethodRepositoryTest : SysuiTestCase() {
             verify(inputMethodManager)
                 .showInputMethodPickerFromSystem(
                     /* showAuxiliarySubtypes = */ eq(true),
-                    /* displayId = */ eq(displayId)
+                    /* displayId = */ eq(displayId),
                 )
         }
 

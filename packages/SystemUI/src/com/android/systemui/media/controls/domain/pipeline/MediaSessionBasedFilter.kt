@@ -26,7 +26,6 @@ import android.util.Log
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.shared.model.SmartspaceMediaData
 import com.android.systemui.statusbar.phone.NotificationListenerWithPlugins
 import java.util.concurrent.Executor
 import javax.inject.Inject
@@ -46,7 +45,7 @@ constructor(
     context: Context,
     private val sessionManager: MediaSessionManager,
     @Main private val foregroundExecutor: Executor,
-    @Background private val backgroundExecutor: Executor
+    @Background private val backgroundExecutor: Executor,
 ) : MediaDataManager.Listener {
 
     private val listeners: MutableSet<MediaDataManager.Listener> = mutableSetOf()
@@ -98,7 +97,7 @@ constructor(
         data: MediaData,
         immediately: Boolean,
         receivedSmartspaceCardLatency: Int,
-        isSsReactivated: Boolean
+        isSsReactivated: Boolean,
     ) {
         backgroundExecutor.execute {
             data.token?.let { tokensWithNotifications.add(TokenId(it)) }
@@ -143,14 +142,6 @@ constructor(
         }
     }
 
-    override fun onSmartspaceMediaDataLoaded(
-        key: String,
-        data: SmartspaceMediaData,
-        shouldPrioritize: Boolean
-    ) {
-        backgroundExecutor.execute { dispatchSmartspaceMediaDataLoaded(key, data) }
-    }
-
     override fun onMediaDataRemoved(key: String, userInitiated: Boolean) {
         // Queue on background thread to ensure ordering of loaded and removed events is maintained.
         backgroundExecutor.execute {
@@ -159,15 +150,11 @@ constructor(
         }
     }
 
-    override fun onSmartspaceMediaDataRemoved(key: String, immediately: Boolean) {
-        backgroundExecutor.execute { dispatchSmartspaceMediaDataRemoved(key, immediately) }
-    }
-
     private fun dispatchMediaDataLoaded(
         key: String,
         oldKey: String?,
         info: MediaData,
-        immediately: Boolean
+        immediately: Boolean,
     ) {
         foregroundExecutor.execute {
             listeners.toSet().forEach { it.onMediaDataLoaded(key, oldKey, info, immediately) }
@@ -177,18 +164,6 @@ constructor(
     private fun dispatchMediaDataRemoved(key: String, userInitiated: Boolean) {
         foregroundExecutor.execute {
             listeners.toSet().forEach { it.onMediaDataRemoved(key, userInitiated) }
-        }
-    }
-
-    private fun dispatchSmartspaceMediaDataLoaded(key: String, info: SmartspaceMediaData) {
-        foregroundExecutor.execute {
-            listeners.toSet().forEach { it.onSmartspaceMediaDataLoaded(key, info) }
-        }
-    }
-
-    private fun dispatchSmartspaceMediaDataRemoved(key: String, immediately: Boolean) {
-        foregroundExecutor.execute {
-            listeners.toSet().forEach { it.onSmartspaceMediaDataRemoved(key, immediately) }
         }
     }
 

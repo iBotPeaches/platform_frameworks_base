@@ -19,6 +19,7 @@ import android.os.BatteryStats;
 import android.telephony.CellSignalStrength;
 import android.telephony.ModemActivityInfo;
 import android.telephony.ServiceState;
+import android.util.IntArray;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -29,7 +30,6 @@ import com.android.internal.power.ModemPowerProfile;
 import com.android.server.power.stats.UsageBasedPowerEstimator;
 import com.android.server.power.stats.format.MobileRadioPowerStatsLayout;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -198,18 +198,19 @@ class MobileRadioPowerStatsProcessor extends PowerStatsProcessor {
 
         combineDeviceStateEstimates();
 
-        ArrayList<Integer> uids = new ArrayList<>();
-        stats.collectUids(uids);
-        if (!uids.isEmpty()) {
-            for (int uid : uids) {
-                for (int i = 0; i < mPlan.uidStateEstimates.size(); i++) {
-                    computeUidRxTxTotals(stats, uid, mPlan.uidStateEstimates.get(i));
+        IntArray uids = stats.getActiveUids();
+        if (uids.size() != 0) {
+            for (int i = uids.size() - 1; i >= 0; i--) {
+                int uid = uids.get(i);
+                for (int j = 0; j < mPlan.uidStateEstimates.size(); j++) {
+                    computeUidRxTxTotals(stats, uid, mPlan.uidStateEstimates.get(j));
                 }
             }
 
-            for (int uid : uids) {
-                for (int i = 0; i < mPlan.uidStateEstimates.size(); i++) {
-                    computeUidPowerEstimates(stats, uid, mPlan.uidStateEstimates.get(i));
+            for (int i = uids.size() - 1; i >= 0; i--) {
+                int uid = uids.get(i);
+                for (int j = 0; j < mPlan.uidStateEstimates.size(); j++) {
+                    computeUidPowerEstimates(stats, uid, mPlan.uidStateEstimates.get(j));
                 }
             }
         }
@@ -258,7 +259,9 @@ class MobileRadioPowerStatsProcessor extends PowerStatsProcessor {
 
         stats.forEachStateStatsKey(key -> {
             RxTxPowerEstimators estimators = mRxTxPowerEstimators.get(key);
-            stats.getStateStats(mTmpStateStatsArray, key, deviceStates);
+            if (!stats.getStateStats(mTmpStateStatsArray, key, deviceStates)) {
+                return;
+            }
             long rxTime = mStatsLayout.getStateRxTime(mTmpStateStatsArray);
             intermediates.rxPower += estimators.mRxPowerEstimator.calculatePower(rxTime);
             for (int txLevel = 0; txLevel < ModemActivityInfo.getNumTxPowerLevels(); txLevel++) {
@@ -382,8 +385,10 @@ class MobileRadioPowerStatsProcessor extends PowerStatsProcessor {
                         / intermediates.txPackets;
             }
 
-            mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
-            stats.setUidStats(uid, proportionalEstimate.stateValues, mTmpUidStatsArray);
+            if (power != 0) {
+                mStatsLayout.setUidPowerEstimate(mTmpUidStatsArray, power);
+                stats.setUidStats(uid, proportionalEstimate.stateValues, mTmpUidStatsArray);
+            }
 
             if (DEBUG) {
                 Slog.d(TAG, "UID: " + uid

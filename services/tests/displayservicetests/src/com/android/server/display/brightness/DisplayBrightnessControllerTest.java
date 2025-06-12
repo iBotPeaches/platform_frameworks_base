@@ -28,7 +28,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -422,7 +421,7 @@ public final class DisplayBrightnessControllerTest {
         mDisplayBrightnessController.setAutomaticBrightnessController(
                 automaticBrightnessController);
         assertEquals(brightness, mDisplayBrightnessController.getCurrentBrightness(), 0.01f);
-        verifyZeroInteractions(automaticBrightnessController);
+        verifyNoMoreInteractions(automaticBrightnessController);
         verify(mBrightnessSetting, never()).getBrightnessNitsForDefaultDisplay();
         verify(mBrightnessSetting, never()).setBrightnessNoNotify(brightness);
     }

@@ -48,7 +48,6 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:maxWidth="130dp"
-            android:textAppearance="@android:style/TextAppearance.Material.Title"
             android:textSize="14sp"
             android:textFontWeight="500"
             android:lineHeight="20sp"
@@ -56,9 +55,7 @@
             android:layout_weight="1"
             android:layout_marginStart="8dp"
             android:singleLine="true"
-            android:ellipsize="none"
-            android:requiresFadingEdge="horizontal"
-            android:fadingEdgeLength="28dp"
+            android:ellipsize="end"
             android:clickable="false"
             android:focusable="false"
             tools:text="Gmail"/>
@@ -67,7 +64,7 @@
             android:id="@+id/expand_menu_button"
             android:layout_width="16dp"
             android:layout_height="16dp"
-            android:src="@drawable/ic_baseline_expand_more_24"
+            android:src="@drawable/ic_baseline_expand_more_16"
             android:background="@null"
             android:scaleType="fitCenter"
             android:clickable="false"
@@ -104,7 +101,7 @@
         android:layout_width="44dp"
         android:layout_height="40dp"
         android:layout_gravity="end"
-        android:layout_marginHorizontal="8dp"
+        android:layout_marginEnd="8dp"
         android:clickable="true"
         android:focusable="true"/>
 

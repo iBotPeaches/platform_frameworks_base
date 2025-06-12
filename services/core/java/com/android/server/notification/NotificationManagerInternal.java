@@ -82,4 +82,11 @@ public interface NotificationManagerInternal {
     byte[] getBackupPayload(int user, BackupRestoreEventLogger logger);
 
     void applyRestore(byte[] payload, int user, BackupRestoreEventLogger logger);
+
+    /**
+     * Notifies NotificationManager that the system decorations should be removed from the display.
+     *
+     * @param displayId display ID
+     */
+    void onDisplayRemoveSystemDecorations(int displayId);
 }

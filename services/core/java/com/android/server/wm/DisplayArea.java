@@ -264,7 +264,7 @@ public class DisplayArea<T extends WindowContainer> extends WindowContainer<T> {
         // that should be respected, Check all activities in display to make sure any eligible
         // activity should be respected.
         final ActivityRecord activity = mDisplayContent.getActivity((r) ->
-                r.mAppCompatController.getAppCompatOrientationOverrides()
+                r.mAppCompatController.getOrientationOverrides()
                     .shouldRespectRequestedOrientationDueToOverride());
         return activity != null;
     }
@@ -329,12 +329,6 @@ public class DisplayArea<T extends WindowContainer> extends WindowContainer<T> {
             }
         }
         return mChildren.size() - 1;
-    }
-
-    @Override
-    boolean needsZBoost() {
-        // Z Boost should only happen at or below the ActivityStack level.
-        return false;
     }
 
     @Override
@@ -748,14 +742,9 @@ public class DisplayArea<T extends WindowContainer> extends WindowContainer<T> {
                         && policy.okToAnimate(true /* ignoreScreenOn */)) {
                     return false;
                 }
-                // Consider unoccluding only when all unknown visibilities have been
-                // resolved, as otherwise we just may be starting another occluding activity.
-                final boolean isUnoccluding =
-                        mDisplayContent.mAppTransition.isUnoccluding()
-                                && mDisplayContent.mUnknownAppVisibilityController.allResolved();
-                // If keyguard is showing, or we're unoccluding, force the keyguard's orientation,
+                // Use keyguard's orientation if it is showing and not occluded
                 // even if SystemUI hasn't updated the attrs yet.
-                if (policy.isKeyguardShowingAndNotOccluded() || isUnoccluding) {
+                if (policy.isKeyguardShowingAndNotOccluded()) {
                     return true;
                 }
             }

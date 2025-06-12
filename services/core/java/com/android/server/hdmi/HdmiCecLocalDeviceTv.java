@@ -79,6 +79,9 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
     // True by default for all the ARC-enabled ports.
     private final SparseBooleanArray mArcFeatureEnabled = new SparseBooleanArray();
 
+    @GuardedBy("mLock")
+    private List<byte[]> mSupportedSads = new ArrayList<>();
+
     // Whether the System Audio Control feature is enabled or not. True by default.
     @GuardedBy("mLock")
     private boolean mSystemAudioControlFeatureEnabled;
@@ -212,32 +215,24 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
                     HdmiConfig.TIMEOUT_MS);
         }
 
-        launchRoutingControl(reason != HdmiControlService.INITIATED_BY_ENABLE_CEC &&
-                reason != HdmiControlService.INITIATED_BY_BOOT_UP);
         resetSelectRequestBuffer();
         launchDeviceDiscovery();
         startQueuedActions();
+        final boolean routingForBootup = reason != HdmiControlService.INITIATED_BY_ENABLE_CEC
+                && reason != HdmiControlService.INITIATED_BY_BOOT_UP;
         List<HdmiCecMessage> bufferedActiveSource = mDelayedMessageBuffer
                 .getBufferedMessagesWithOpcode(Constants.MESSAGE_ACTIVE_SOURCE);
-        if (bufferedActiveSource.isEmpty()) {
-            if (hasAction(RequestActiveSourceAction.class)) {
-                Slog.i(TAG, "RequestActiveSourceAction is in progress. Restarting.");
-                removeAction(RequestActiveSourceAction.class);
-            }
+        List<HdmiCecMessage> bufferedActiveSourceFromService = mService.getCecMessageWithOpcode(
+                Constants.MESSAGE_ACTIVE_SOURCE);
+        if (bufferedActiveSource.isEmpty() && bufferedActiveSourceFromService.isEmpty()) {
             addAndStartAction(new RequestActiveSourceAction(this, new IHdmiControlCallback.Stub() {
                 @Override
                 public void onComplete(int result) {
-                    if (!mService.getLocalActiveSource().isValid()
-                            && result != HdmiControlManager.RESULT_SUCCESS) {
-                        mService.sendCecCommand(HdmiCecMessageBuilder.buildActiveSource(
-                                getDeviceInfo().getLogicalAddress(),
-                                getDeviceInfo().getPhysicalAddress()));
-                        updateActiveSource(getDeviceInfo().getLogicalAddress(),
-                                getDeviceInfo().getPhysicalAddress(),
-                                "RequestActiveSourceAction#finishWithCallback()");
+                    if (result != HdmiControlManager.RESULT_SUCCESS) {
+                        launchRoutingControl(routingForBootup);
                     }
                 }
-            }));
+            }), true);
         } else {
             addCecDeviceForBufferedActiveSource(bufferedActiveSource.get(0));
         }
@@ -334,8 +329,15 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
             invokeCallback(callback, HdmiControlManager.RESULT_INCORRECT_MODE);
             return;
         }
-        removeAction(DeviceSelectActionFromTv.class);
-        addAndStartAction(new DeviceSelectActionFromTv(this, targetDevice, callback));
+        List<DeviceSelectActionFromTv> actions = getActions(DeviceSelectActionFromTv.class);
+        if (!actions.isEmpty()) {
+            DeviceSelectActionFromTv action = actions.get(0);
+            if (action.getTargetAddress() == targetDevice.getLogicalAddress()) {
+                return;
+            }
+        }
+        addAndStartAction(new DeviceSelectActionFromTv(this, targetDevice, callback),
+                true);
     }
 
     @ServiceThreadOnly
@@ -481,9 +483,8 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
                 HdmiCecMessageBuilder.buildRoutingChange(
                         getDeviceInfo().getLogicalAddress(), oldPath, newPath);
         mService.sendCecCommand(routingChange);
-        removeAction(RoutingControlAction.class);
         addAndStartAction(
-                new RoutingControlAction(this, newPath, callback));
+                new RoutingControlAction(this, newPath, callback), true);
     }
 
     @ServiceThreadOnly
@@ -797,7 +798,7 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
                     @Override
                     public void onDeviceDiscoveryDone(List<HdmiDeviceInfo> deviceInfos) {
                         for (HdmiDeviceInfo info : deviceInfos) {
-                            if (!isInputReady(info.getDeviceId())) {
+                            if (!isInputReady(info.getId())) {
                                 mService.getHdmiCecNetwork().removeCecDevice(
                                         HdmiCecLocalDeviceTv.this, info.getLogicalAddress());
                             }
@@ -807,16 +808,12 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
                         mSelectRequestBuffer.process();
                         resetSelectRequestBuffer();
 
-                        List<HotplugDetectionAction> hotplugActions
-                                = getActions(HotplugDetectionAction.class);
-                        if (hotplugActions.isEmpty()) {
+                        if (!hasAction(HotplugDetectionAction.class)) {
                             addAndStartAction(
                                     new HotplugDetectionAction(HdmiCecLocalDeviceTv.this));
                         }
 
-                        List<PowerStatusMonitorAction> powerStatusActions
-                                = getActions(PowerStatusMonitorAction.class);
-                        if (powerStatusActions.isEmpty()) {
+                        if (!hasAction(PowerStatusMonitorAction.class)) {
                             addAndStartAction(
                                     new PowerStatusMonitorAction(HdmiCecLocalDeviceTv.this));
                         }
@@ -863,6 +860,13 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
         addAndStartAction(
                 new SystemAudioActionFromTv(this, avr.getLogicalAddress(), enabled, callback));
     }
+
+    void clearSads() {
+        synchronized (mLock) {
+            mSupportedSads.clear();
+        }
+    }
+
 
     // # Seq 25
     void setSystemAudioMode(boolean on) {
@@ -917,13 +921,41 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
     }
 
     @ServiceThreadOnly
-    void enableArc(List<byte[]> supportedSads) {
+    void enableArc() {
         assertRunOnServiceThread();
         HdmiLogger.debug("Set Arc Status[old:%b new:true]", mArcEstablished);
 
         enableAudioReturnChannel(true);
-        notifyArcStatusToAudioService(true, supportedSads);
+        //Ensure mSupportedSads is empty before fetching SADs
+        synchronized (mLock) {
+            mSupportedSads.clear();
+            notifyArcStatusToAudioService(true, mSupportedSads);
+        }
         mArcEstablished = true;
+
+        // Avoid triggering duplicate RequestSadAction events.
+        // This could lead to unexpected responses from the AVR and cause the TV to receive data
+        // out of order. The SAD report does not provide information about the order of events.
+        if (hasAction(RequestSadAction.class)) {
+            return;
+        }
+
+        // Send Request SAD to get real SAD instead of default empty
+        RequestSadAction action = new RequestSadAction(
+                this, Constants.ADDR_AUDIO_SYSTEM,
+                new RequestSadAction.RequestSadCallback() {
+                    @Override
+                    public void onRequestSadDone(List<byte[]> supportedSadsDone) {
+                        synchronized (mLock) {
+                            mSupportedSads = supportedSadsDone;
+                        }
+                        notifyArcStatusToAudioService(false, new ArrayList<>());
+                        synchronized (mLock) {
+                            notifyArcStatusToAudioService(true, mSupportedSads);
+                        }
+                    }
+                });
+        addAndStartAction(action);
     }
 
     @ServiceThreadOnly
@@ -934,6 +966,7 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
         enableAudioReturnChannel(false);
         notifyArcStatusToAudioService(false, new ArrayList<>());
         mArcEstablished = false;
+        clearSads();
     }
 
     /**
@@ -1384,8 +1417,7 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
         } else {
             int activePath = mService.getPhysicalAddress();
             setActivePath(activePath);
-            if (!routingForBootup
-                    && !mDelayedMessageBuffer.isBuffered(Constants.MESSAGE_ACTIVE_SOURCE)) {
+            if (!mDelayedMessageBuffer.isBuffered(Constants.MESSAGE_ACTIVE_SOURCE)) {
                 mService.sendCecCommand(
                         HdmiCecMessageBuilder.buildActiveSource(
                                 getDeviceInfo().getLogicalAddress(), activePath));
@@ -1413,6 +1445,9 @@ public class HdmiCecLocalDeviceTv extends HdmiCecLocalDevice {
                 if (connected) {
                     if (mArcEstablished) {
                         enableAudioReturnChannel(true);
+                    } else {
+                        HdmiLogger.debug("Restart ARC again");
+                        onNewAvrAdded(getAvrDeviceInfo());
                     }
                 } else {
                     enableAudioReturnChannel(false);

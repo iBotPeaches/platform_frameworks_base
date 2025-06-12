@@ -597,6 +597,12 @@ public class WindowlessWindowManager implements IWindowSession {
     }
 
     @Override
+    public void updateAnimatingTypes(IWindow window, @InsetsType int animatingTypes,
+            @Nullable ImeTracker.Token statsToken) {
+        // NO-OP
+    }
+
+    @Override
     public void reportSystemGestureExclusionChanged(android.view.IWindow window,
             List<Rect> exclusionRects) {
     }
@@ -677,11 +683,6 @@ public class WindowlessWindowManager implements IWindowSession {
     @Override
     public void notifyImeWindowVisibilityChangedFromClient(IWindow window, boolean visible,
             @NonNull ImeTracker.Token statsToken) {
-    }
-
-    @Override
-    public void notifyInsetsAnimationRunningStateChanged(IWindow window, boolean running) {
-        // NO-OP
     }
 
     void setParentInterface(@Nullable ISurfaceControlViewHostParent parentInterface) {

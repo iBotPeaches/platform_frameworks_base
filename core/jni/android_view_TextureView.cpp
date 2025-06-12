@@ -85,7 +85,7 @@ static void android_view_TextureView_createNativeWindow(JNIEnv* env, jobject tex
         jobject surface) {
 
     sp<IGraphicBufferProducer> producer(SurfaceTexture_getProducer(env, surface));
-    sp<ANativeWindow> window = new Surface(producer, true);
+    sp<ANativeWindow> window = sp<Surface>::make(producer, true);
 
     window->incStrong((void*)android_view_TextureView_createNativeWindow);
     SET_LONG(textureView, gTextureViewClassInfo.nativeWindow, jlong(window.get()));

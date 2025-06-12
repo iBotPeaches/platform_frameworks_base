@@ -86,7 +86,6 @@ public class WindowContextController {
      * @param token The token used to attach to a window manager node. It is usually from
      *              {@link Context#getWindowContextToken()}.
      */
-    @VisibleForTesting
     public WindowContextController(@NonNull WindowTokenClient token) {
         mToken = token;
     }

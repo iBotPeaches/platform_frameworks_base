@@ -21,7 +21,6 @@ import static android.content.om.OverlayManagerTransaction.Request.BUNDLE_FABRIC
 import static android.content.om.OverlayManagerTransaction.Request.TYPE_REGISTER_FABRICATED;
 import static android.content.om.OverlayManagerTransaction.Request.TYPE_UNREGISTER_FABRICATED;
 
-import static com.android.internal.annotations.VisibleForTesting.Visibility.PACKAGE;
 import static com.android.internal.annotations.VisibleForTesting.Visibility.PRIVATE;
 import static com.android.internal.content.om.OverlayConfig.DEFAULT_PRIORITY;
 
@@ -85,7 +84,6 @@ public class OverlayManagerImpl {
      *
      * @param context the context to create overlay environment
      */
-    @VisibleForTesting(visibility = PACKAGE)
     public OverlayManagerImpl(@NonNull Context context) {
         mContext = Objects.requireNonNull(context);
 

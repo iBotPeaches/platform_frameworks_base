@@ -9,10 +9,10 @@ flag {
 }
 
 flag {
-   name: "bluetooth_qs_tile_dialog_auto_on_toggle"
-   namespace: "bluetooth"
-   description: "Displays the auto on toggle in the bluetooth QS tile dialog"
-   bug: "316985153"
+    name: "bluetooth_qs_tile_dialog_auto_on_toggle"
+    namespace: "bluetooth"
+    description: "Displays the auto on toggle in the bluetooth QS tile dialog"
+    bug: "316985153"
 }
 
 flag {
@@ -23,34 +23,17 @@ flag {
 }
 
 flag {
-  name: "enable_le_audio_sharing"
-  namespace: "pixel_cross_device_control"
-  description: "Gates whether to enable LE audio sharing"
-  bug: "323125723"
+    name: "enable_le_audio_sharing"
+    namespace: "pixel_cross_device_control"
+    description: "Gates whether to enable LE audio sharing"
+    bug: "388674074"
 }
 
 flag {
-  name: "enable_le_audio_qr_code_private_broadcast_sharing"
-  namespace: "pixel_cross_device_control"
-  description: "Gates whether to enable LE audio private broadcast sharing via QR code"
-  bug: "323125723"
-}
-
-flag {
-  name: "enable_hide_exclusively_managed_bluetooth_device"
-  namespace: "dck_framework"
-  description: "Hide exclusively managed Bluetooth devices in BT settings menu."
-  bug: "324475542"
-}
-
-flag {
-    name: "enable_set_preferred_transport_for_le_audio_device"
-    namespace: "bluetooth"
-    description: "Enable setting preferred transport for Le Audio device"
-    bug: "330581926"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
+    name: "enable_le_audio_qr_code_private_broadcast_sharing"
+    namespace: "pixel_cross_device_control"
+    description: "Gates whether to enable LE audio private broadcast sharing via QR code"
+    bug: "388674074"
 }
 
 flag {
@@ -89,7 +72,7 @@ flag {
     description: "the battery saver can pause all non-essential apps and their corresponding notification when device is in locked state to introduce the security vulnerability"
     bug: "346513692"
     metadata {
-      purpose: PURPOSE_BUGFIX
+        purpose: PURPOSE_BUGFIX
     }
 }
 
@@ -97,6 +80,7 @@ flag {
     name: "settings_catalyst"
     namespace: "android_settings"
     description: "Settings catalyst project migration"
+    is_exported: true
     bug: "323791114"
     is_exported: true
 }
@@ -106,18 +90,19 @@ flag {
     is_fixed_read_only: true
     namespace: "android_settings"
     description: "Enable WRITE_SYSTEM_PREFERENCE permission and appop"
+    is_exported: true
     bug: "375193223"
     is_exported: true
 }
 
 flag {
-  name: "asha_profile_access_profile_enabled_true"
-  namespace: "accessibility"
-  description: "Changes the return value of HearingAidProfile.accessProfileEnabled() to true"
-  bug: "356530795"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
+    name: "asha_profile_access_profile_enabled_true"
+    namespace: "accessibility"
+    description: "Changes the return value of HearingAidProfile.accessProfileEnabled() to true"
+    bug: "356530795"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -193,6 +178,66 @@ flag {
     namespace: "cross_device_experiences"
     description: "Do not show problem connecting message when Android Auto disconnect A2DP"
     bug: "381981752"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "disable_audio_sharing_auto_pick_fallback_in_ui"
+    namespace: "cross_device_experiences"
+    description: "Do not auto pick audio sharing fallback device in UI"
+    bug: "383469911"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "enable_temporary_bond_devices_ui"
+    namespace: "cross_device_experiences"
+    description: "UI changes for temporary bond devices in audio sharing."
+    bug: "362859132"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "adopt_primary_group_management_api"
+    namespace: "cross_device_experiences"
+    description: "Adopt Bluetooth LE broadcast primary group management APIs"
+    bug: "381946931"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "adopt_primary_group_management_api_v2"
+    namespace: "cross_device_experiences"
+    description: "Adopt more Bluetooth LE broadcast primary group management APIs post launch"
+    bug: "381946931"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "promote_audio_sharing_for_second_auto_connected_lea_device"
+    namespace: "cross_device_experiences"
+    description: "Show audio sharing promote notification or dialog when the second lea device is auto connected"
+    bug: "395786392"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "audio_stream_media_service_by_receive_state"
+    namespace: "cross_device_experiences"
+    description: "Start or update audio stream media service by receive state"
+    bug: "398700619"
     metadata {
         purpose: PURPOSE_BUGFIX
     }

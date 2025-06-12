@@ -18,6 +18,7 @@ package com.android.systemui.communal.ui.viewmodel
 
 import com.android.systemui.communal.domain.interactor.communalInteractor
 import com.android.systemui.communal.domain.interactor.communalSceneInteractor
+import com.android.systemui.communal.domain.interactor.communalSettingsInteractor
 import com.android.systemui.communal.util.communalColors
 import com.android.systemui.keyguard.domain.interactor.keyguardTransitionInteractor
 import com.android.systemui.keyguard.ui.viewmodel.dreamingToGlanceableHubTransitionViewModel
@@ -26,9 +27,7 @@ import com.android.systemui.keyguard.ui.viewmodel.glanceableHubToLockscreenTrans
 import com.android.systemui.keyguard.ui.viewmodel.lockscreenToGlanceableHubTransitionViewModel
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-@OptIn(ExperimentalCoroutinesApi::class)
 val Kosmos.communalTransitionViewModel by
     Kosmos.Fixture {
         CommunalTransitionViewModel(
@@ -43,5 +42,6 @@ val Kosmos.communalTransitionViewModel by
             communalSceneInteractor = communalSceneInteractor,
             keyguardTransitionInteractor = keyguardTransitionInteractor,
             communalColors = communalColors,
+            communalSettingsInteractor = communalSettingsInteractor,
         )
     }

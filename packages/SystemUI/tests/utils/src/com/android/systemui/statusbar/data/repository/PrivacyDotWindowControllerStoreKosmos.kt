@@ -16,8 +16,6 @@
 
 package com.android.systemui.statusbar.data.repository
 
-import android.view.WindowManager
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.systemui.display.data.repository.displayRepository
 import com.android.systemui.display.data.repository.displayWindowPropertiesRepository
 import com.android.systemui.kosmos.Kosmos
@@ -35,14 +33,6 @@ val Kosmos.privacyDotWindowControllerStoreImpl by
             windowControllerFactory = { _, _, _, _ -> mock() },
             displayWindowPropertiesRepository = displayWindowPropertiesRepository,
             privacyDotViewControllerStore = privacyDotViewControllerStore,
-            viewCaptureAwareWindowManagerFactory =
-                object : ViewCaptureAwareWindowManager.Factory {
-                    override fun create(
-                        windowManager: WindowManager
-                    ): ViewCaptureAwareWindowManager {
-                        return mock()
-                    }
-                },
         )
     }
 

@@ -1,9 +1,6 @@
 include platform/frameworks/base:/packages/SettingsLib/OWNERS
 
+zhibinliu@google.com
 chaohuiw@google.com
-hanxu@google.com
-kellyz@google.com
 pierreqian@google.com
 lijun@google.com
-songchenxi@google.com
-cyl@google.com

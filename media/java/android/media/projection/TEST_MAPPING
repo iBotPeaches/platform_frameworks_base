@@ -1,7 +1,7 @@
 {
-  "presubmit": [
+  "imports": [
     {
-      "name": "MediaProjectionTests"
+      "path": "frameworks/base/services/core/java/com/android/server/media/projection"
     }
   ]
 }

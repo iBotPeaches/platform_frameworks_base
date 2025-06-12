@@ -27,6 +27,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 
 import androidx.annotation.GravityInt;
+import androidx.annotation.IntDef;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceViewHolder;
 
@@ -34,21 +35,46 @@ import com.android.settingslib.widget.preference.button.R;
 
 import com.google.android.material.button.MaterialButton;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 /**
  * A preference handled a button
  */
 public class ButtonPreference extends Preference implements GroupSectionDividerMixin {
 
+    public static final int TYPE_FILLED = 0;
+    public static final int TYPE_TONAL = 1;
+    public static final int TYPE_OUTLINE = 2;
+
+    @IntDef({TYPE_FILLED, TYPE_TONAL, TYPE_OUTLINE})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Type {
+    }
+
+    public static final int SIZE_NORMAL = 0;
+    public static final int SIZE_LARGE = 1;
+    public static final int SIZE_EXTRA_LARGE = 2;
+
+    @IntDef({SIZE_NORMAL, SIZE_LARGE, SIZE_EXTRA_LARGE})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Size {
+    }
+
     enum ButtonStyle {
-        FILLED_NORMAL(0, 0, R.layout.settingslib_expressive_button_filled),
-        FILLED_LARGE(0, 1, R.layout.settingslib_expressive_button_filled_large),
-        FILLED_EXTRA(0, 2, R.layout.settingslib_expressive_button_filled_extra),
-        TONAL_NORMAL(1, 0, R.layout.settingslib_expressive_button_tonal),
-        TONAL_LARGE(1, 1, R.layout.settingslib_expressive_button_tonal_large),
-        TONAL_EXTRA(1, 2, R.layout.settingslib_expressive_button_tonal_extra),
-        OUTLINE_NORMAL(2, 0, R.layout.settingslib_expressive_button_outline),
-        OUTLINE_LARGE(2, 1, R.layout.settingslib_expressive_button_outline_large),
-        OUTLINE_EXTRA(2, 2, R.layout.settingslib_expressive_button_outline_extra);
+        FILLED_NORMAL(TYPE_FILLED, SIZE_NORMAL, R.layout.settingslib_expressive_button_filled),
+        FILLED_LARGE(TYPE_FILLED, SIZE_LARGE, R.layout.settingslib_expressive_button_filled_large),
+        FILLED_EXTRA(TYPE_FILLED, SIZE_EXTRA_LARGE,
+                R.layout.settingslib_expressive_button_filled_extra),
+        TONAL_NORMAL(TYPE_TONAL, SIZE_NORMAL, R.layout.settingslib_expressive_button_tonal),
+        TONAL_LARGE(TYPE_TONAL, SIZE_LARGE, R.layout.settingslib_expressive_button_tonal_large),
+        TONAL_EXTRA(TYPE_TONAL, SIZE_EXTRA_LARGE,
+                R.layout.settingslib_expressive_button_tonal_extra),
+        OUTLINE_NORMAL(TYPE_OUTLINE, SIZE_NORMAL, R.layout.settingslib_expressive_button_outline),
+        OUTLINE_LARGE(TYPE_OUTLINE, SIZE_LARGE,
+                R.layout.settingslib_expressive_button_outline_large),
+        OUTLINE_EXTRA(TYPE_OUTLINE, SIZE_EXTRA_LARGE,
+                R.layout.settingslib_expressive_button_outline_extra);
 
         private final int mType;
         private final int mSize;
@@ -60,7 +86,7 @@ public class ButtonPreference extends Preference implements GroupSectionDividerM
             this.mLayoutId = layoutId;
         }
 
-        static int getLayoutId(int type, int size) {
+        static int getLayoutId(@Type int type, @Size int size) {
             for (ButtonStyle style : values()) {
                 if (style.mType == type && style.mSize == size) {
                     return style.mLayoutId;
@@ -246,5 +272,29 @@ public class ButtonPreference extends Preference implements GroupSectionDividerM
             lp.gravity = mGravity;
             mButton.setLayoutParams(lp);
         }
+    }
+
+    /**
+     * Sets the style of the button.
+     *
+     * @param type Specifies the button's type, which sets the attribute `buttonPreferenceType`.
+     *             Possible values are:
+     *             <ul>
+     *                 <li>0: filled</li>
+     *                 <li>1: tonal</li>
+     *                 <li>2: outline</li>
+     *             </ul>
+     * @param size Specifies the button's size, which sets the attribute `buttonPreferenceSize`.
+     *             Possible values are:
+     *             <ul>
+     *                 <li>0: normal</li>
+     *                 <li>1: large</li>
+     *                 <li>2: extra large</li>
+     *             </ul>
+     */
+    public void setButtonStyle(@Type int type, @Size int size) {
+        int layoutId = ButtonStyle.getLayoutId(type, size);
+        setLayoutResource(layoutId);
+        notifyChanged();
     }
 }

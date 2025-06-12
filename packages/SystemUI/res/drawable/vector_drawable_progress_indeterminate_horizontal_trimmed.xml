@@ -38,7 +38,7 @@
             <path
                 android:name="rect"
                 android:pathData="M -144.0,-5.0 l 288.0,0 l 0,10.0 l -288.0,0 Z"
-                android:fillColor="?androidprv:attr/colorAccentPrimaryVariant" />
+                android:fillColor="@androidprv:color/materialColorPrimary" />
         </group>
     </group>
 </vector>

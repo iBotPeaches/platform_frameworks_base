@@ -407,6 +407,45 @@ static bool IsValidFile(IAaptContext* context, const std::string& input_path) {
   return true;
 }
 
+class FindReadWriteFlagsVisitor : public xml::Visitor {
+ public:
+  FindReadWriteFlagsVisitor(const FeatureFlagValues& feature_flag_values)
+      : feature_flag_values_(feature_flag_values) {
+  }
+
+  void Visit(xml::Element* node) override {
+    if (had_flags_) {
+      return;
+    }
+    auto* attr = node->FindAttribute(xml::kSchemaAndroid, xml::kAttrFeatureFlag);
+    if (attr != nullptr) {
+      std::string_view flag_name = util::TrimWhitespace(attr->value);
+      if (flag_name.starts_with('!')) {
+        flag_name = flag_name.substr(1);
+      }
+      if (auto it = feature_flag_values_.find(flag_name); it != feature_flag_values_.end()) {
+        if (!it->second.read_only) {
+          had_flags_ = true;
+          return;
+        }
+      } else {
+        // Flag not passed to aapt2, must evaluate at runtime
+        had_flags_ = true;
+        return;
+      }
+    }
+    VisitChildren(node);
+  }
+
+  bool HadFlags() const {
+    return had_flags_;
+  }
+
+ private:
+  bool had_flags_ = false;
+  const FeatureFlagValues& feature_flag_values_;
+};
+
 static bool CompileXml(IAaptContext* context, const CompileOptions& options,
                        const ResourcePathData& path_data, io::IFile* file, IArchiveWriter* writer,
                        const std::string& output_path) {
@@ -435,6 +474,10 @@ static bool CompileXml(IAaptContext* context, const CompileOptions& options,
   xmlres->file.source = path_data.source;
   xmlres->file.type = ResourceFile::Type::kProtoXml;
   xmlres->file.flag = ParseFlag(path_data.flag_name);
+
+  FindReadWriteFlagsVisitor visitor(options.feature_flag_values);
+  xmlres->root->Accept(&visitor);
+  xmlres->file.uses_readwrite_feature_flags = visitor.HadFlags();
 
   if (xmlres->file.flag) {
     std::string error;

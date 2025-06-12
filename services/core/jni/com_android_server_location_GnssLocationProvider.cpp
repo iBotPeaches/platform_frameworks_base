@@ -36,6 +36,7 @@
 #include <android/hardware/gnss/BnGnssMeasurementCallback.h>
 #include <android/hardware/gnss/BnGnssPowerIndicationCallback.h>
 #include <android/hardware/gnss/BnGnssPsdsCallback.h>
+#include <android_location_flags.h>
 #include <binder/IServiceManager.h>
 #include <nativehelper/JNIHelp.h>
 #include <pthread.h>
@@ -53,6 +54,8 @@
 #include "gnss/Gnss.h"
 #include "gnss/GnssAntennaInfo.h"
 #include "gnss/GnssAntennaInfoCallback.h"
+#include "gnss/GnssAssistance.h"
+#include "gnss/GnssAssistanceCallback.h"
 #include "gnss/GnssBatching.h"
 #include "gnss/GnssConfiguration.h"
 #include "gnss/GnssDebug.h"
@@ -114,6 +117,7 @@ using android::hardware::gnss::GnssConstellationType;
 using android::hardware::gnss::GnssPowerStats;
 using android::hardware::gnss::IGnssPowerIndication;
 using android::hardware::gnss::IGnssPowerIndicationCallback;
+using android::hardware::gnss::gnss_assistance::IGnssAssistanceCallback;
 
 using IGnssAidl = android::hardware::gnss::IGnss;
 using IGnssBatchingAidl = android::hardware::gnss::IGnssBatching;
@@ -140,6 +144,9 @@ std::unique_ptr<android::gnss::GnssPsdsInterface> gnssPsdsIface = nullptr;
 std::unique_ptr<android::gnss::GnssVisibilityControlInterface> gnssVisibilityControlIface = nullptr;
 std::unique_ptr<android::gnss::MeasurementCorrectionsInterface> gnssMeasurementCorrectionsIface =
         nullptr;
+std::unique_ptr<android::gnss::GnssAssistanceInterface> gnssAssistanceIface = nullptr;
+
+namespace location_flags = android::location::flags;
 
 namespace android {
 
@@ -229,6 +236,9 @@ static void android_location_gnss_hal_GnssNative_class_init_once(JNIEnv* env, jc
     gnss::GnssVisibilityControl_class_init_once(env, clazz);
     gnss::MeasurementCorrections_class_init_once(env, clazz);
     gnss::MeasurementCorrectionsCallback_class_init_once(env, clazz);
+    if (location_flags::gnss_assistance_interface_jni()) {
+        gnss::GnssAssistance_class_init_once(env, clazz);
+    }
     gnss::Utils_class_init_once(env);
 }
 
@@ -266,7 +276,9 @@ static void android_location_gnss_hal_GnssNative_init_once(JNIEnv* env, jobject 
     gnssBatchingIface = gnssHal->getGnssBatchingInterface();
     gnssVisibilityControlIface = gnssHal->getGnssVisibilityControlInterface();
     gnssPowerIndicationIface = gnssHal->getGnssPowerIndicationInterface();
-
+    if (location_flags::gnss_assistance_interface_jni()) {
+        gnssAssistanceIface = gnssHal->getGnssAssistanceInterface();
+    }
     if (mCallbacksObj) {
         ALOGE("Callbacks already initialized");
     } else {
@@ -355,10 +367,19 @@ static jboolean android_location_gnss_hal_GnssNative_init(JNIEnv* /* env */, jcl
     // Set IGnssPowerIndication.hal callback.
     if (gnssPowerIndicationIface != nullptr) {
         sp<IGnssPowerIndicationCallback> gnssPowerIndicationCallback =
-                new GnssPowerIndicationCallback();
+                sp<GnssPowerIndicationCallback>::make();
         auto status = gnssPowerIndicationIface->setCallback(gnssPowerIndicationCallback);
         if (!checkAidlStatus(status, "IGnssPowerIndication setCallback() failed.")) {
             gnssPowerIndicationIface = nullptr;
+        }
+    }
+
+    // Set IGnssAssistance callback.
+    if (gnssAssistanceIface != nullptr) {
+        sp<IGnssAssistanceCallback> gnssAssistanceCallback =
+                sp<gnss::GnssAssistanceCallback>::make();
+        if (!gnssAssistanceIface->setCallback(gnssAssistanceCallback)) {
+            ALOGI("IGnssAssistanceInterface setCallback() failed");
         }
     }
 
@@ -491,6 +512,15 @@ static void android_location_gnss_hal_GnssNative_inject_psds_data(JNIEnv* env, j
         return;
     }
     gnssPsdsIface->injectPsdsData(data, length, psdsType);
+}
+
+static void android_location_gnss_hal_GnssNative_inject_gnss_assistance(JNIEnv* env, jclass,
+                                                                        jobject gnssAssistanceObj) {
+    if (gnssAssistanceIface == nullptr) {
+        ALOGE("%s: IGnssAssistance interface not available.", __func__);
+        return;
+    }
+    gnssAssistanceIface->injectGnssAssistance(env, gnssAssistanceObj);
 }
 
 static void android_location_GnssNetworkConnectivityHandler_agps_data_conn_open(
@@ -937,6 +967,8 @@ static const JNINativeMethod sLocationProviderMethods[] = {
         {"native_stop_nmea_message_collection", "()Z",
          reinterpret_cast<void*>(
                  android_location_gnss_hal_GnssNative_stop_nmea_message_collection)},
+        {"native_inject_gnss_assistance", "(Landroid/location/GnssAssistance;)V",
+         reinterpret_cast<void*>(android_location_gnss_hal_GnssNative_inject_gnss_assistance)},
 };
 
 static const JNINativeMethod sBatchingMethods[] = {

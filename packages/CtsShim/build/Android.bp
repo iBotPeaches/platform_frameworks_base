@@ -152,34 +152,6 @@ android_app {
 }
 
 //##########################################################
-// Variant: System app upgrade
-
-android_app {
-    name: "CtsShimUpgrade",
-
-    sdk_version: "current",
-    optimize: {
-        enabled: false,
-    },
-    dex_preopt: {
-        enabled: false,
-    },
-
-    manifest: "shim/AndroidManifestUpgrade.xml",
-    min_sdk_version: "24",
-}
-
-java_genrule {
-    name: "generate_shim_manifest",
-    srcs: [
-        "shim/AndroidManifest.xml",
-        ":CtsShimUpgrade",
-    ],
-    out: ["AndroidManifest.xml"],
-    cmd: "sed -e s/__HASH__/`sha512sum -b $(location :CtsShimUpgrade) | cut -d' ' -f1`/ $(location shim/AndroidManifest.xml) > $(out)",
-}
-
-//##########################################################
 // Variant: System app
 
 android_app {
@@ -193,7 +165,7 @@ android_app {
         enabled: false,
     },
 
-    manifest: ":generate_shim_manifest",
+    manifest: "shim/AndroidManifest.xml",
     apex_available: [
         "//apex_available:platform",
         "com.android.apex.cts.shim.v1",

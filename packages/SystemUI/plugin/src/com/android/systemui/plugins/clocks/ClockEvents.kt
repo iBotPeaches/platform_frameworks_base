@@ -42,7 +42,4 @@ interface ClockEvents {
 
     /** Call with zen/dnd information */
     fun onZenDataChanged(data: ZenData)
-
-    /** Update reactive axes for this clock */
-    fun onFontAxesChanged(axes: List<ClockFontAxisSetting>)
 }

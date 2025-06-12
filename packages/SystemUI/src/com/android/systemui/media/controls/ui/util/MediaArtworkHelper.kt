@@ -25,7 +25,9 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Icon
 import android.graphics.drawable.LayerDrawable
 import android.util.Log
+import com.android.systemui.Flags
 import com.android.systemui.media.controls.ui.animation.backgroundEndFromScheme
+import com.android.systemui.media.controls.ui.animation.backgroundFromScheme
 import com.android.systemui.media.controls.ui.animation.backgroundStartFromScheme
 import com.android.systemui.monet.ColorScheme
 import com.android.systemui.monet.Style
@@ -89,22 +91,30 @@ object MediaArtworkHelper {
         startAlpha: Float,
         endAlpha: Float,
     ): LayerDrawable {
+        val startColor =
+            if (Flags.mediaControlsA11yColors()) {
+                backgroundFromScheme(colorScheme)
+            } else {
+                backgroundStartFromScheme(colorScheme)
+            }
+        val endColor =
+            if (Flags.mediaControlsA11yColors()) {
+                startColor
+            } else {
+                backgroundEndFromScheme(colorScheme)
+            }
         gradient.colors =
             intArrayOf(
-                getColorWithAlpha(backgroundStartFromScheme(colorScheme), startAlpha),
-                getColorWithAlpha(backgroundEndFromScheme(colorScheme), endAlpha),
+                getColorWithAlpha(startColor, startAlpha),
+                getColorWithAlpha(endColor, endAlpha),
             )
         return LayerDrawable(arrayOf(albumArt, gradient))
     }
 
     /** Returns [ColorScheme] of media app given its [icon]. */
-    fun getColorScheme(
-        icon: Drawable,
-        tag: String,
-        @Style.Type style: Int = Style.TONAL_SPOT,
-    ): ColorScheme? {
+    fun getColorScheme(icon: Drawable, tag: String, darkTheme: Boolean): ColorScheme? {
         return try {
-            ColorScheme(WallpaperColors.fromDrawable(icon), true, style)
+            ColorScheme(WallpaperColors.fromDrawable(icon), darkTheme, Style.CONTENT)
         } catch (e: PackageManager.NameNotFoundException) {
             Log.w(tag, "Fail to get media app info", e)
             null

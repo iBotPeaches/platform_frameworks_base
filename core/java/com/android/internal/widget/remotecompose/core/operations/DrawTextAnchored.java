@@ -26,11 +26,13 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Draw Text in Anchored to a point */
-public class DrawTextAnchored extends PaintOperation implements VariableSupport {
+public class DrawTextAnchored extends PaintOperation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.DRAW_TEXT_ANCHOR;
     private static final String CLASS_NAME = "DrawTextAnchored";
     int mTextID;
@@ -44,8 +46,11 @@ public class DrawTextAnchored extends PaintOperation implements VariableSupport 
     float mOutPanX;
     float mOutPanY;
 
+    String mLastString;
+
     public static final int ANCHOR_TEXT_RTL = 1;
     public static final int ANCHOR_MONOSPACE_MEASURE = 2;
+    public static final int MEASURE_EVERY_TIME = 4;
 
     public DrawTextAnchored(int textID, float x, float y, float panX, float panY, int flags) {
         mTextID = textID;
@@ -224,9 +229,27 @@ public class DrawTextAnchored extends PaintOperation implements VariableSupport 
                 ((mFlags & ANCHOR_MONOSPACE_MEASURE) != 0)
                         ? PaintContext.TEXT_MEASURE_MONOSPACE_WIDTH
                         : 0;
-        context.getTextBounds(mTextID, 0, -1, flags, mBounds);
+
+        String str = context.getText(mTextID);
+        if (str != mLastString || (mFlags & MEASURE_EVERY_TIME) != 0) {
+            mLastString = str;
+            context.getTextBounds(mTextID, 0, -1, flags, mBounds);
+        }
+
         float x = mOutX + getHorizontalOffset();
         float y = Float.isNaN(mOutPanY) ? mOutY : mOutY + getVerticalOffset();
         context.drawTextRun(mTextID, 0, -1, 0, 1, x, y, (mFlags & ANCHOR_TEXT_RTL) == 1);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("textId", mTextID)
+                .add("x", mX, mOutX)
+                .add("y", mY, mOutY)
+                .add("panX", mPanX, mOutPanX)
+                .add("panY", mPanY, mOutPanY)
+                .add("flags", mFlags);
     }
 }

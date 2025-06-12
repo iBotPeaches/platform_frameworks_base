@@ -16,15 +16,17 @@
 
 package com.android.systemui.statusbar.notification.shelf.ui.viewbinder
 
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.app.tracing.traceSection
+import com.android.systemui.Flags
 import com.android.systemui.plugins.FalsingManager
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.statusbar.NotificationShelf
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.NotificationIconContainerShelfViewBinder
 import com.android.systemui.statusbar.notification.row.ui.viewbinder.ActivatableNotificationViewBinder
 import com.android.systemui.statusbar.notification.shelf.ui.viewmodel.NotificationShelfViewModel
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 /** Binds a [NotificationShelf] to its [view model][NotificationShelfViewModel]. */
 object NotificationShelfViewBinder {
@@ -41,6 +43,15 @@ object NotificationShelfViewBinder {
                 viewModel.canModifyColorOfNotifications.collect(::setCanModifyColorOfNotifications)
             }
             launch { viewModel.isClickable.collect(::setCanInteract) }
+
+            if (SceneContainerFlag.isEnabled) {
+                launch { viewModel.isAlignedToEnd.collect(::setAlignedToEnd) }
+            }
+
+            if (Flags.notificationRowTransparency()) {
+                launch { viewModel.isBlurSupported.collect(shelf::setIsBlurSupported) }
+            }
+
             registerViewListenersWhileAttached(shelf, viewModel)
         }
     }

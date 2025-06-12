@@ -17,6 +17,7 @@
 package com.android.protolog.tool
 
 import com.android.protolog.tool.ProtoLogTool.PROTOLOG_IMPL_SRC_PATH
+import com.android.protolog.tool.ProtoLogTool.injector
 import com.google.common.truth.Truth
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -102,6 +103,42 @@ class EndToEndTest {
         """.trimIndent())
     }
 
+    @Test
+    fun e2e_transform_withErrors() {
+        val srcs = mapOf(
+            "frameworks/base/org/example/Example.java" to """
+                    package org.example;
+                    import com.android.internal.protolog.ProtoLog;
+                    import static com.android.internal.protolog.ProtoLogGroup.GROUP;
+
+                    class Example {
+                        void method() {
+                            String argString = "hello";
+                            int argInt = 123;
+                            ProtoLog.d(GROUP, "Invalid format: %s %d %9 %", argString, argInt);
+                        }
+                    }
+                """.trimIndent())
+        val output = run(
+            srcs = srcs,
+            logGroup = LogGroup("GROUP", true, false, "TAG_GROUP"),
+            commandOptions = CommandOptions(arrayOf("transform-protolog-calls",
+                "--protolog-class", "com.android.internal.protolog.ProtoLog",
+                "--loggroups-class", "com.android.internal.protolog.ProtoLogGroup",
+                "--loggroups-jar", "not_required.jar",
+                "--viewer-config-file-path", "not_required.pb",
+                "--output-srcjar", "out.srcjar",
+                "frameworks/base/org/example/Example.java"))
+        )
+        val outSrcJar = assertLoadSrcJar(output, "out.srcjar")
+        // No change to source code on failure to process
+        Truth.assertThat(outSrcJar["frameworks/base/org/example/Example.java"])
+            .contains(srcs["frameworks/base/org/example/Example.java"])
+
+        Truth.assertThat(injector.processingErrors).hasSize(1)
+        Truth.assertThat(injector.processingErrors.first().message).contains("Invalid format")
+    }
+
     private fun assertLoadSrcJar(
         outputs: Map<String, ByteArray>,
         path: String
@@ -172,7 +209,11 @@ class EndToEndTest {
             override fun readLogGroups(jarPath: String, className: String) = mapOf(
                     logGroup.name to logGroup)
 
-            override fun reportParseError(ex: ParsingException) = throw AssertionError(ex)
+            override fun reportProcessingError(ex: CodeProcessingException) {
+                processingErrors.add(ex)
+            }
+
+            override val processingErrors: MutableList<CodeProcessingException> = mutableListOf()
         }
 
         ProtoLogTool.invoke(commandOptions)

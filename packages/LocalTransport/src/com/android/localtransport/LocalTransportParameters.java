@@ -16,11 +16,15 @@
 
 package com.android.localtransport;
 
+import static com.android.localtransport.LocalTransport.DEBUG;
+import static com.android.localtransport.LocalTransport.TAG;
+
 import android.content.ContentResolver;
 import android.os.Handler;
 import android.provider.Settings;
 import android.util.KeyValueListParser;
 import android.util.KeyValueSettingObserver;
+import android.util.Log;
 
 import java.util.Arrays;
 import java.util.List;
@@ -76,15 +80,30 @@ public class LocalTransportParameters extends KeyValueSettingObserver {
     }
 
     public String getSettingValue(ContentResolver resolver) {
-        return Settings.Secure.getString(resolver, SETTING);
+        String value = Settings.Secure.getString(resolver, SETTING);
+        if (DEBUG) {
+            Log.d(TAG, "LocalTransportParameters.getSettingValue(): returning " + value);
+        }
+        return value;
     }
 
     public void update(KeyValueListParser parser) {
-        mFakeEncryptionFlag = parser.getBoolean(KEY_FAKE_ENCRYPTION_FLAG, false);
-        mIsNonIncrementalOnly = parser.getBoolean(KEY_NON_INCREMENTAL_ONLY, false);
-        mIsDeviceTransfer = parser.getBoolean(KEY_IS_DEVICE_TRANSFER, false);
-        mIsEncrypted = parser.getBoolean(KEY_IS_ENCRYPTED, false);
-        mLogAgentResults = parser.getBoolean(KEY_LOG_AGENT_RESULTS, /* def */ false);
+        mFakeEncryptionFlag = parser.getBoolean(KEY_FAKE_ENCRYPTION_FLAG, /* def= */ false);
+        mIsNonIncrementalOnly = parser.getBoolean(KEY_NON_INCREMENTAL_ONLY, /* def= */ false);
+        mIsDeviceTransfer = parser.getBoolean(KEY_IS_DEVICE_TRANSFER, /* def= */ false);
+        mIsEncrypted = parser.getBoolean(KEY_IS_ENCRYPTED, /* def= */ false);
+        mLogAgentResults = parser.getBoolean(KEY_LOG_AGENT_RESULTS, /* def= */ false);
         mNoRestrictedModePackages = parser.getString(KEY_NO_RESTRICTED_MODE_PACKAGES, /* def */ "");
+    }
+
+    @Override
+    public String toString() {
+        return "LocalTransportParameters[mFakeEncryptionFlag=" + mFakeEncryptionFlag
+                + ", mIsNonIncrementalOnly=" + mIsNonIncrementalOnly
+                + ", mIsDeviceTransfer=" + mIsDeviceTransfer
+                + ", mIsEncrypted=" + mIsEncrypted
+                + ", mLogAgentResults=" + mLogAgentResults
+                + ", noRestrictedModePackages()=" + noRestrictedModePackages()
+                + "]";
     }
 }

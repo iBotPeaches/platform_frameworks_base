@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"פעיל (שמאל בלבד)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"פעיל (ימין בלבד)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"פעיל (ימין ושמאל)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"לא ניתן לעדכן את עוצמת הרעשים בסביבה"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"פעיל (מדיה בלבד). סוללה: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"פעיל (מדיה בלבד). סוללה בצד שמאל: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, סוללה בצד ימין: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"מכשיר אורח. סוללה: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"מכשיר אורח. סוללה בצד שמאל: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>. סוללה בצד ימין: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"מכשיר אורח (מדיה בלבד). סוללה: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"מכשיר אורח (מדיה בלבד). סוללה בצד שמאל: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>. סוללה בצד ימין: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"מחובר (תמיכה בשיתוף אודיו). סוללה: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"מחובר (תמיכה בשיתוף אודיו). סוללה בצד שמאל: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, סוללה בצד ימין: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"מחובר (תמיכה בשיתוף אודיו). סוללה בצד שמאל: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"מחובר (תמיכה בשיתוף אודיו). סוללה בצד ימין: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"מחובר (תמיכה בשיתוף אודיו)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"מכשיר אורח (תומך בשיתוף אודיו). סוללה: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"מכשיר אורח (תומך בשיתוף אודיו). סוללה בצד שמאל: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>. סוללה בצד ימין: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"מכשיר אורח (תומך בשיתוף אודיו)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"פעיל (מדיה בלבד)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"מכשיר אורח"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"מכשיר אורח (מדיה בלבד)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"תמיכה בשיתוף אודיו"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"מכשיר אורח. תומך בשיתוף אודיו."</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"פעיל (מדיה בלבד), שמאל בלבד"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"פעיל (מדיה בלבד), ימין בלבד"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"פעיל (מדיה בלבד), שמאל וימין"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"עיבוד מואץ של חומרה"</string>
     <string name="media_category" msgid="8122076702526144053">"מדיה"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"מעקב"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"ניהול החלונות"</string>
     <string name="strict_mode" msgid="889864762140862437">"מצב קפדני מופעל"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"‏המסך יהבהב כשאפליקציות יבצעו פעולות ארוכות ב-thread הראשי"</string>
     <string name="pointer_location" msgid="7516929526199520173">"מיקום מצביע"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"קנה מידה לאנימציית מעבר"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"קנה מידה למשך זמן אנימציה"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"יצירת הדמיה של תצוגות משניות"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"מיקום לוח ההתראות"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"אפליקציות"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"ללא שמירת פעילויות"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"השמדת כל פעילות ברגע שהמשתמש עוזב אותה"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"‏יישום WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"‏הגדרת יישום WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"אפשרות זו כבר אינה תקפה. אפשר לנסות שוב."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"‏כלי פיתוח של WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"‏לא נמצאה חבילת WebView."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"לא ניתן היה להפעיל את כלי הפיתוח."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"מצב צבע התמונה"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"‏שימוש ב-sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"מושבת"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"טעינה מהירה"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"נמצא בשליטת מנהל מערכת"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"בשליטה של הגדרה מוגבלת"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"ההעדפה הזו לא זמינה במהלך שיחות"</string>
     <string name="disabled" msgid="8017887509554714950">"מושבת"</string>
+    <string name="enabled" msgid="3997122818554810678">"מופעלת"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"מורשה"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"לא מורשה"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"התקנת אפליקציות לא מוכרות"</string>
@@ -592,7 +610,7 @@
     <string name="media_transfer_default_device_name" msgid="4315604017399871828">"המכשיר המחובר"</string>
     <string name="media_transfer_this_phone" msgid="7194341457812151531">"הטלפון הזה"</string>
     <string name="media_transfer_digital_line_name" msgid="312091711951124301">"S/PDIF"</string>
-    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"אנלוגי"</string>
+    <string name="media_transfer_analog_line_name" msgid="1841163866716302104">"חיבור אנלוגי"</string>
     <string name="media_transfer_aux_line_name" msgid="894135835967856689">"AUX"</string>
     <string name="media_output_status_unknown_error" msgid="5098565887497902222">"לא ניתן להפעיל במכשיר"</string>
     <string name="media_output_status_require_premium" msgid="8411255800047014822">"יש לשדרג חשבון כדי לעבור"</string>
@@ -609,11 +627,12 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"רמקול מובנה"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"אודיו בטלוויזיה"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"יש בעיה בחיבור. עליך לכבות את המכשיר ולהפעיל אותו מחדש"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"לא ניתן להתחבר"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"התקן אודיו חוטי"</string>
     <string name="help_label" msgid="3528360748637781274">"עזרה ומשוב"</string>
     <string name="storage_category" msgid="2287342585424631813">"אחסון"</string>
     <string name="shared_data_title" msgid="1017034836800864953">"נתונים משותפים"</string>
-    <string name="shared_data_summary" msgid="5516326713822885652">"הצגה ושינוי של נתונים משותפים"</string>
+    <string name="shared_data_summary" msgid="5516326713822885652">"צפייה בנתונים המשותפים ושינוי שלהם"</string>
     <string name="shared_data_no_blobs_text" msgid="3108114670341737434">"אין נתונים משותפים למשתמש הזה."</string>
     <string name="shared_data_query_failure_text" msgid="3489828881998773687">"אירעה שגיאה באחזור הנתונים המשותפים. צריך לנסות שוב."</string>
     <string name="blob_id_text" msgid="8680078988996308061">"מזהה נתונים משותפים: <xliff:g id="BLOB_ID">%d</xliff:g>"</string>
@@ -679,7 +698,7 @@
     <string name="guest_exit_quick_settings_button" msgid="1912362095913765471">"יציאה ממצב אורח"</string>
     <string name="guest_notification_ephemeral" msgid="7263252466950923871">"כל הפעילות תימחק ביציאה"</string>
     <string name="guest_notification_non_ephemeral" msgid="6843799963012259330">"אפשר לשמור או למחוק את הפעילות שלך ביציאה"</string>
-    <string name="guest_notification_non_ephemeral_non_first_login" msgid="8009307983766934876">"ניתן לאפס כדי למחוק את הפעילות מהסשן כעת, או לשמור או למחוק את הפעילות ביציאה"</string>
+    <string name="guest_notification_non_ephemeral_non_first_login" msgid="8009307983766934876">"אפשר לאפס כדי למחוק עכשיו את הפעילות מהסשן, או לשמור או למחוק את הפעילות ביציאה"</string>
     <string name="user_image_photo_selector" msgid="433658323306627093">"בחירת תמונה"</string>
     <string name="failed_attempts_now_wiping_device" msgid="4016329172216428897">"נעשו יותר מדי ניסיונות שגויים. הנתונים במכשיר יימחקו."</string>
     <string name="failed_attempts_now_wiping_user" msgid="469060411789668050">"נעשו יותר מדי ניסיונות שגויים. המשתמש הזה יימחק."</string>

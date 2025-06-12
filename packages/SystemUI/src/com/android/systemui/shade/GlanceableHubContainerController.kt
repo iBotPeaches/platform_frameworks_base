@@ -17,19 +17,21 @@
 package com.android.systemui.shade
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.PowerManager
-import android.os.SystemClock
 import android.util.ArraySet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.view.updateMargins
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleObserver
@@ -40,6 +42,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.compose.theme.PlatformTheme
 import com.android.internal.annotations.VisibleForTesting
+import com.android.keyguard.UserActivityNotifier
 import com.android.systemui.Flags
 import com.android.systemui.ambient.touch.TouchMonitor
 import com.android.systemui.ambient.touch.dagger.AmbientTouchComponent
@@ -50,6 +53,7 @@ import com.android.systemui.communal.ui.compose.CommunalContainer
 import com.android.systemui.communal.ui.compose.CommunalContent
 import com.android.systemui.communal.ui.viewmodel.CommunalViewModel
 import com.android.systemui.communal.util.CommunalColors
+import com.android.systemui.communal.util.UserTouchActivityNotifier
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor
@@ -67,6 +71,7 @@ import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.lockscreen.LockscreenSmartspaceController
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController
 import com.android.systemui.util.kotlin.BooleanFlowOperators.anyOf
+import com.android.systemui.util.kotlin.Quad
 import com.android.systemui.util.kotlin.collectFlow
 import java.util.function.Consumer
 import javax.inject.Inject
@@ -96,11 +101,16 @@ constructor(
     private val notificationStackScrollLayoutController: NotificationStackScrollLayoutController,
     private val keyguardMediaController: KeyguardMediaController,
     private val lockscreenSmartspaceController: LockscreenSmartspaceController,
+    private val userTouchActivityNotifier: UserTouchActivityNotifier,
     @CommunalTouchLog logBuffer: LogBuffer,
+    private val userActivityNotifier: UserActivityNotifier,
 ) : LifecycleOwner {
     private val logger = Logger(logBuffer, TAG)
 
-    private class CommunalWrapper(context: Context) : FrameLayout(context) {
+    private class CommunalWrapper(
+        context: Context,
+        private val communalSettingsInteractor: CommunalSettingsInteractor,
+    ) : FrameLayout(context) {
         private val consumers: MutableSet<Consumer<Boolean>> = ArraySet()
 
         override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
@@ -119,6 +129,24 @@ constructor(
             } finally {
                 consumers.clear()
             }
+        }
+
+        override fun onApplyWindowInsets(windowInsets: WindowInsets): WindowInsets {
+            if (
+                !communalSettingsInteractor.isV2FlagEnabled() ||
+                    resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+            ) {
+                return super.onApplyWindowInsets(windowInsets)
+            }
+            val type = WindowInsets.Type.displayCutout()
+            val insets = windowInsets.getInsets(type)
+
+            // Reset horizontal margins added by window insets, so hub can be edge to edge.
+            if (insets.left > 0 || insets.right > 0) {
+                val lp = layoutParams as LayoutParams
+                lp.updateMargins(0, lp.topMargin, 0, lp.bottomMargin)
+            }
+            return WindowInsets.CONSUMED
         }
     }
 
@@ -229,6 +257,9 @@ constructor(
      * Tracks [KeyguardInteractor.isDreaming].
      */
     private var isDreaming = false
+
+    /** True if we should allow swiping open the glanceable hub. */
+    private var swipeToHubEnabled = false
 
     /** Observes and logs state when the lifecycle that controls the [touchMonitor] updates. */
     private val touchLifecycleLogger: LifecycleObserver = LifecycleEventObserver { _, event ->
@@ -409,11 +440,12 @@ constructor(
                 shadeInteractor.isAnyFullyExpanded,
                 shadeInteractor.isUserInteracting,
                 shadeInteractor.isShadeFullyCollapsed,
-                ::Triple,
+                shadeInteractor.isQsExpanded,
+                ::Quad,
             ),
-            { (isFullyExpanded, isUserInteracting, isShadeFullyCollapsed) ->
+            { (isFullyExpanded, isUserInteracting, isShadeFullyCollapsed, isQsExpanded) ->
                 shadeConsumingTouches = isUserInteracting
-                shadeShowing = !isShadeFullyCollapsed
+                shadeShowing = isQsExpanded || !isShadeFullyCollapsed
                 val expandedAndNotInteractive = isFullyExpanded && !isUserInteracting
 
                 // If we ever are fully expanded and not interacting, capture this state as we
@@ -436,8 +468,10 @@ constructor(
             },
         )
         collectFlow(containerView, keyguardInteractor.isDreaming, { isDreaming = it })
+        collectFlow(containerView, communalViewModel.swipeToHubEnabled, { swipeToHubEnabled = it })
 
-        communalContainerWrapper = CommunalWrapper(containerView.context)
+        communalContainerWrapper =
+            CommunalWrapper(containerView.context, communalSettingsInteractor)
         communalContainerWrapper?.addView(communalContainerView)
         logger.d("Hub container initialized")
         return communalContainerWrapper!!
@@ -518,7 +552,7 @@ constructor(
         val glanceableHubV2 = communalSettingsInteractor.isV2FlagEnabled()
         if (
             !hubShowing &&
-                (touchOnNotifications || touchOnUmo || touchOnSmartspace || glanceableHubV2)
+                (touchOnNotifications || touchOnUmo || touchOnSmartspace || !swipeToHubEnabled)
         ) {
             logger.d({
                 "Lockscreen touch ignored: touchOnNotifications: $bool1, touchOnUmo: $bool2, " +
@@ -613,8 +647,8 @@ constructor(
             // result in broken states.
             return true
         }
+        var handled = hubShowing
         try {
-            var handled = false
             if (!touchTakenByKeyguardGesture) {
                 communalContainerWrapper?.dispatchTouchEvent(ev) {
                     if (it) {
@@ -622,13 +656,11 @@ constructor(
                     }
                 }
             }
-            return handled || hubShowing
+            return handled
         } finally {
-            powerManager.userActivity(
-                SystemClock.uptimeMillis(),
-                PowerManager.USER_ACTIVITY_EVENT_TOUCH,
-                0,
-            )
+            if (handled) {
+                userTouchActivityNotifier.notifyActivity(ev)
+            }
         }
     }
 

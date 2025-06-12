@@ -31,7 +31,6 @@ import static android.view.View.INVISIBLE;
 import static android.view.View.LAYOUT_DIRECTION_RTL;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-
 import static com.android.internal.jank.InteractionJankMonitor.CUJ_VOLUME_CONTROL;
 import static com.android.internal.jank.InteractionJankMonitor.Configuration.Builder;
 import static com.android.settingslib.flags.Flags.audioSharingDeveloperOption;
@@ -126,6 +125,7 @@ import com.android.systemui.haptics.slider.HapticSliderPlugin;
 import com.android.systemui.haptics.slider.HapticSliderViewBinder;
 import com.android.systemui.haptics.slider.SeekableSliderTrackerConfig;
 import com.android.systemui.haptics.slider.SliderHapticFeedbackConfig;
+import com.android.systemui.haptics.slider.SliderHapticFeedbackFilter;
 import com.android.systemui.media.dialog.MediaOutputDialogManager;
 import com.android.systemui.plugins.VolumeDialog;
 import com.android.systemui.plugins.VolumeDialogController;
@@ -144,17 +144,16 @@ import com.android.systemui.volume.domain.interactor.VolumeDialogInteractor;
 import com.android.systemui.volume.domain.interactor.VolumePanelNavigationInteractor;
 import com.android.systemui.volume.panel.shared.flag.VolumePanelFlag;
 import com.android.systemui.volume.ui.navigation.VolumeNavigator;
-
 import com.google.android.msdl.domain.MSDLPlayer;
-import com.google.common.collect.ImmutableList;
-
-import dagger.Lazy;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+
+import dagger.Lazy;
 
 /**
  * Visual presentation of the volume dialog.
@@ -309,9 +308,9 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     private int mWindowGravity;
 
     @VisibleForTesting
-    final int mVolumeRingerIconDrawableId = R.drawable.ic_speaker_on;
+    final int mVolumeRingerIconDrawableId = R.drawable.ic_legacy_speaker_on;
     @VisibleForTesting
-    final int mVolumeRingerMuteIconDrawableId = R.drawable.ic_speaker_mute;
+    final int mVolumeRingerMuteIconDrawableId = R.drawable.ic_legacy_speaker_mute;
 
     private int mOriginalGravity;
     private final DevicePostureController.Callback mDevicePostureControllerCallback;
@@ -326,8 +325,8 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     private final VolumePanelFlag mVolumePanelFlag;
     private final VolumeDialogInteractor mInteractor;
     // Optional actions for soundDose
-    private Optional<ImmutableList<CsdWarningAction>>
-            mCsdWarningNotificationActions = Optional.of(ImmutableList.of());
+    private Optional<List<CsdWarningAction>>
+            mCsdWarningNotificationActions = Optional.of(Collections.emptyList());
 
     public VolumeDialogImpl(
             Context context,
@@ -1792,8 +1791,9 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
             enableRingerViewsH(!isZenMuted);
             switch (mState.ringerModeInternal) {
                 case AudioManager.RINGER_MODE_VIBRATE:
-                    mRingerIcon.setImageResource(R.drawable.ic_volume_ringer_vibrate);
-                    mSelectedRingerIcon.setImageResource(R.drawable.ic_volume_ringer_vibrate);
+                    mRingerIcon.setImageResource(R.drawable.ic_legacy_volume_ringer_vibrate);
+                    mSelectedRingerIcon.setImageResource(
+                            R.drawable.ic_legacy_volume_ringer_vibrate);
                     addAccessibilityDescription(mRingerIcon, RINGER_MODE_VIBRATE,
                             mContext.getString(R.string.volume_ringer_hint_mute));
                     mRingerIcon.setTag(Events.ICON_STATE_VIBRATE);
@@ -1991,7 +1991,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         if (zenMuted) {
             iconRes = com.android.internal.R.drawable.ic_qs_dnd;
         } else if (isRingVibrate) {
-            iconRes = R.drawable.ic_volume_ringer_vibrate;
+            iconRes = R.drawable.ic_legacy_volume_ringer_vibrate;
         } else if (isRingSilent) {
             iconRes = row.iconMuteRes;
         } else if (ss.routedToBluetooth) {
@@ -2010,7 +2010,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
 
         row.setIcon(iconRes, mContext.getTheme());
         row.iconState =
-                iconRes == R.drawable.ic_volume_ringer_vibrate ? Events.ICON_STATE_VIBRATE
+                iconRes == R.drawable.ic_legacy_volume_ringer_vibrate ? Events.ICON_STATE_VIBRATE
                 : (iconRes == R.drawable.ic_volume_media_bt_mute || iconRes == row.iconMuteRes)
                         ? Events.ICON_STATE_MUTE
                 : (iconRes == R.drawable.ic_volume_media_bt || iconRes == row.iconRes
@@ -2237,7 +2237,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     }
 
     public void setCsdWarningNotificationActionIntents(
-            ImmutableList<CsdWarningAction> actionIntent) {
+            List<CsdWarningAction> actionIntent) {
         mCsdWarningNotificationActions = Optional.of(actionIntent);
     }
 
@@ -2700,7 +2700,8 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 /* upperBookendScale= */ 1f,
                 /* lowerBookendScale= */ 0.05f,
                 /* exponent= */ 1f / 0.89f,
-                /* sliderStepSize = */ 0f);
+                /* sliderStepSize = */ 0f,
+                /* filter =*/new SliderHapticFeedbackFilter());
         private static final SeekableSliderTrackerConfig sSliderTrackerConfig =
                 new SeekableSliderTrackerConfig(
                         /* waitTimeMillis= */100,

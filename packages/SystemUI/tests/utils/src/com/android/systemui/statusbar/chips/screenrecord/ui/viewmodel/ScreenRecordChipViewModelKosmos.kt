@@ -24,6 +24,7 @@ import com.android.systemui.statusbar.chips.mediaprojection.ui.view.endMediaProj
 import com.android.systemui.statusbar.chips.screenrecord.domain.interactor.screenRecordChipInteractor
 import com.android.systemui.statusbar.chips.sharetoapp.ui.viewmodel.shareToAppChipViewModel
 import com.android.systemui.statusbar.chips.statusBarChipsLogger
+import com.android.systemui.statusbar.chips.uievents.statusBarChipsUiEventLogger
 import com.android.systemui.util.time.fakeSystemClock
 
 val Kosmos.screenRecordChipViewModel: ScreenRecordChipViewModel by
@@ -37,5 +38,6 @@ val Kosmos.screenRecordChipViewModel: ScreenRecordChipViewModel by
             dialogTransitionAnimator = mockDialogTransitionAnimator,
             systemClock = fakeSystemClock,
             logger = statusBarChipsLogger,
+            uiEventLogger = statusBarChipsUiEventLogger,
         )
     }

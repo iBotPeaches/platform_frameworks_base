@@ -22,6 +22,8 @@
 #include <log/log.h>
 #include <nativehelper/JNIHelp.h>
 
+#include <string>
+
 namespace android {
 
 static inline jclass FindClassOrDie(JNIEnv* env, const char* class_name) {

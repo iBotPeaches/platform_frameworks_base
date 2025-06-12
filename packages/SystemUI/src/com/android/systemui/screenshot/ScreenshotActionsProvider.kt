@@ -22,21 +22,21 @@ import android.net.Uri
 import android.util.Log
 import androidx.appcompat.content.res.AppCompatResources
 import com.android.internal.logging.UiEventLogger
-import com.android.systemui.Flags.screenshotContextUrl
+import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.log.DebugLogger.debugLog
 import com.android.systemui.res.R
-import com.android.systemui.screenshot.ActionIntentCreator.createEdit
-import com.android.systemui.screenshot.ActionIntentCreator.createShareWithSubject
-import com.android.systemui.screenshot.ActionIntentCreator.createShareWithText
 import com.android.systemui.screenshot.ScreenshotEvent.SCREENSHOT_EDIT_TAPPED
 import com.android.systemui.screenshot.ScreenshotEvent.SCREENSHOT_PREVIEW_TAPPED
 import com.android.systemui.screenshot.ScreenshotEvent.SCREENSHOT_SHARE_TAPPED
 import com.android.systemui.screenshot.ui.viewmodel.ActionButtonAppearance
 import com.android.systemui.screenshot.ui.viewmodel.PreviewAction
+import com.android.systemui.shared.Flags.screenshotContextUrl
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Provides actions for screenshots. This class can be overridden by a vendor-specific SysUI
@@ -70,6 +70,8 @@ class DefaultScreenshotActionsProvider
 constructor(
     private val context: Context,
     private val uiEventLogger: UiEventLogger,
+    private val actionIntentCreator: ActionIntentCreator,
+    @Application private val applicationScope: CoroutineScope,
     @Assisted val requestId: UUID,
     @Assisted val request: ScreenshotData,
     @Assisted val actionExecutor: ActionExecutor,
@@ -77,7 +79,7 @@ constructor(
 ) : ScreenshotActionsProvider {
     private var addedScrollChip = false
     private var onScrollClick: Runnable? = null
-    private var pendingAction: ((ScreenshotSavedResult) -> Unit)? = null
+    private var pendingAction: (suspend (ScreenshotSavedResult) -> Unit)? = null
     private var result: ScreenshotSavedResult? = null
     private var webUri: Uri? = null
 
@@ -88,7 +90,7 @@ constructor(
                 uiEventLogger.log(SCREENSHOT_PREVIEW_TAPPED, 0, request.packageNameString)
                 onDeferrableActionTapped { result ->
                     actionExecutor.startSharedTransition(
-                        createEdit(result.uri, context),
+                        actionIntentCreator.createEdit(result.uri),
                         result.user,
                         true,
                     )
@@ -110,9 +112,12 @@ constructor(
                 val uri = webUri
                 val shareIntent =
                     if (screenshotContextUrl() && uri != null) {
-                        createShareWithText(result.uri, extraText = uri.toString())
+                        actionIntentCreator.createShareWithText(
+                            result.uri,
+                            extraText = uri.toString(),
+                        )
                     } else {
-                        createShareWithSubject(result.uri, result.subject)
+                        actionIntentCreator.createShareWithSubject(result.uri, result.subject)
                     }
                 actionExecutor.startSharedTransition(shareIntent, result.user, false)
             }
@@ -130,7 +135,7 @@ constructor(
             uiEventLogger.log(SCREENSHOT_EDIT_TAPPED, 0, request.packageNameString)
             onDeferrableActionTapped { result ->
                 actionExecutor.startSharedTransition(
-                    createEdit(result.uri, context),
+                    actionIntentCreator.createEdit(result.uri),
                     result.user,
                     true,
                 )
@@ -165,15 +170,16 @@ constructor(
             return
         }
         this.result = result
-        pendingAction?.invoke(result)
+        pendingAction?.also { applicationScope.launch { it.invoke(result) } }
     }
 
     override fun onAssistContent(assistContent: AssistContent?) {
         webUri = assistContent?.webUri
     }
 
-    private fun onDeferrableActionTapped(onResult: (ScreenshotSavedResult) -> Unit) {
-        result?.let { onResult.invoke(it) } ?: run { pendingAction = onResult }
+    private fun onDeferrableActionTapped(onResult: suspend (ScreenshotSavedResult) -> Unit) {
+        result?.let { applicationScope.launch { onResult.invoke(it) } }
+            ?: run { pendingAction = onResult }
     }
 
     @AssistedFactory
@@ -187,6 +193,6 @@ constructor(
     }
 
     companion object {
-        private const val TAG = "ScreenshotActionsProvider"
+        private const val TAG = "ScreenshotActionsPrvdr"
     }
 }

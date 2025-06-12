@@ -18,11 +18,15 @@
 package com.android.systemui.keyguard.ui.binder
 
 import android.graphics.Rect
+import android.util.TypedValue
 import android.view.View
+import android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED
+import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.systemui.Flags
 import com.android.systemui.animation.ActivityTransitionAnimator
 import com.android.systemui.common.ui.binder.IconViewBinder
 import com.android.systemui.common.ui.binder.TextViewBinder
@@ -47,7 +51,7 @@ object KeyguardSettingsViewBinder {
         touchHandlingViewModel: KeyguardTouchHandlingViewModel,
         rootViewModel: KeyguardRootViewModel?,
         vibratorHelper: VibratorHelper,
-        activityStarter: ActivityStarter
+        activityStarter: ActivityStarter,
     ): DisposableHandle {
         val disposableHandle =
             view.repeatWhenAttached {
@@ -56,20 +60,19 @@ object KeyguardSettingsViewBinder {
                         viewModel.isVisible.distinctUntilChanged().collect { isVisible ->
                             view.animateVisibility(visible = isVisible)
                             if (isVisible) {
-                                vibratorHelper.vibrate(KeyguardBottomAreaVibrations.Activated)
+                                if (!Flags.msdlFeedback()) {
+                                    vibratorHelper.vibrate(KeyguardBottomAreaVibrations.Activated)
+                                }
+                                val textView = view.requireViewById(R.id.text) as TextView
                                 view.setOnTouchListener(
-                                    KeyguardSettingsButtonOnTouchListener(
-                                        viewModel = viewModel,
-                                    )
+                                    KeyguardSettingsButtonOnTouchListener(viewModel = viewModel)
                                 )
                                 IconViewBinder.bind(
                                     icon = viewModel.icon,
                                     view = view.requireViewById(R.id.icon),
                                 )
-                                TextViewBinder.bind(
-                                    view = view.requireViewById(R.id.text),
-                                    viewModel = viewModel.text,
-                                )
+                                TextViewBinder.bind(view = textView, viewModel = viewModel.text)
+                                textView.sendAccessibilityEvent(TYPE_VIEW_FOCUSED)
                             }
                         }
                     }
@@ -102,21 +105,25 @@ object KeyguardSettingsViewBinder {
                             }
                         }
                     }
+
+                    launch("$TAG#viewModel.textSize") {
+                        viewModel.textSize.collect { textSize ->
+                            val textView: TextView = view.requireViewById(R.id.text)
+                            textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize.toFloat())
+                        }
+                    }
                 }
             }
         return disposableHandle
     }
 
     /** Opens the wallpaper picker screen after the device is unlocked by the user. */
-    private fun navigateToLockScreenSettings(
-        activityStarter: ActivityStarter,
-        view: View,
-    ) {
+    private fun navigateToLockScreenSettings(activityStarter: ActivityStarter, view: View) {
         activityStarter.postStartActivityDismissingKeyguard(
             WallpaperPickerIntentUtils.getIntent(view.context, LAUNCH_SOURCE_KEYGUARD),
             /* delay= */ 0,
             /* animationController= */ ActivityTransitionAnimator.Controller.fromView(view),
-            /* customMessage= */ view.context.getString(R.string.keyguard_unlock_to_customize_ls)
+            /* customMessage= */ view.context.getString(R.string.keyguard_unlock_to_customize_ls),
         )
     }
 

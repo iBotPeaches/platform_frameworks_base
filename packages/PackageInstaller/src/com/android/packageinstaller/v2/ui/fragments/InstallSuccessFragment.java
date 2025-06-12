@@ -16,22 +16,31 @@
 
 package com.android.packageinstaller.v2.ui.fragments;
 
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_APP_SNIPPET;
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_RESULT_INTENT;
+import static com.android.packageinstaller.v2.model.PackageUtil.ARGS_SHOULD_RETURN_RESULT;
+
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
+
 import com.android.packageinstaller.R;
 import com.android.packageinstaller.v2.model.InstallSuccess;
+import com.android.packageinstaller.v2.model.PackageUtil.AppSnippet;
 import com.android.packageinstaller.v2.ui.InstallActionListener;
+
 import java.util.List;
 
 /**
@@ -41,13 +50,31 @@ import java.util.List;
 public class InstallSuccessFragment extends DialogFragment {
 
     private static final String LOG_TAG = InstallSuccessFragment.class.getSimpleName();
-    private final InstallSuccess mDialogData;
+    private InstallSuccess mDialogData;
     private AlertDialog mDialog;
     private InstallActionListener mInstallActionListener;
     private PackageManager mPm;
 
-    public InstallSuccessFragment(InstallSuccess dialogData) {
-        mDialogData = dialogData;
+    public InstallSuccessFragment() {
+        // Required for DialogFragment
+    }
+
+    /**
+     * Create a new instance of this fragment with necessary data set as fragment arguments
+     *
+     * @param dialogData {@link InstallSuccess} object containing data to display in the
+     *         dialog
+     * @return an instance of the fragment
+     */
+    public static InstallSuccessFragment newInstance(@NonNull InstallSuccess dialogData) {
+        Bundle args = new Bundle();
+        args.putParcelable(ARGS_APP_SNIPPET, dialogData.getAppSnippet());
+        args.putBoolean(ARGS_SHOULD_RETURN_RESULT, dialogData.getShouldReturnResult());
+        args.putParcelable(ARGS_RESULT_INTENT, dialogData.getResultIntent());
+
+        InstallSuccessFragment fragment = new InstallSuccessFragment();
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @Override
@@ -60,6 +87,8 @@ public class InstallSuccessFragment extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+        setDialogData(requireArguments());
+
         Log.i(LOG_TAG, "Creating " + LOG_TAG + "\n" + mDialogData);
         View dialogView = getLayoutInflater().inflate(R.layout.install_content_view, null);
         mDialog = new AlertDialog.Builder(requireContext())
@@ -104,5 +133,13 @@ public class InstallSuccessFragment extends DialogFragment {
         super.onCancel(dialog);
         Log.i(LOG_TAG, "Finished installing " + mDialogData.getAppLabel());
         mInstallActionListener.onNegativeResponse(mDialogData.getStageCode());
+    }
+
+    private void setDialogData(Bundle args) {
+        AppSnippet appSnippet = args.getParcelable(ARGS_APP_SNIPPET, AppSnippet.class);
+        boolean shouldReturnResult = args.getBoolean(ARGS_SHOULD_RETURN_RESULT);
+        Intent resultIntent = args.getParcelable(ARGS_RESULT_INTENT, Intent.class);
+
+        mDialogData = new InstallSuccess(appSnippet, shouldReturnResult, resultIntent);
     }
 }

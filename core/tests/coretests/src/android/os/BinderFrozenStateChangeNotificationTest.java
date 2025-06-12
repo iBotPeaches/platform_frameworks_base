@@ -27,7 +27,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Log;
 
@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Tests functionality of {@link android.os.IBinder.FrozenStateChangeCallback}.
  */
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = ActivityManager.class)
+@DisabledOnRavenwood(blockedBy = ActivityManager.class)
 public class BinderFrozenStateChangeNotificationTest {
     private static final String TAG = BinderFrozenStateChangeNotificationTest.class.getSimpleName();
 

@@ -38,7 +38,6 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.media.controls.domain.pipeline.MediaDataManager
 import com.android.systemui.media.controls.domain.pipeline.RESUME_MEDIA_TIMEOUT
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.util.MediaFlags
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.tuner.TunerService
 import com.android.systemui.util.Utils
@@ -67,7 +66,6 @@ constructor(
     private val mediaBrowserFactory: ResumeMediaBrowserFactory,
     dumpManager: DumpManager,
     private val systemClock: SystemClock,
-    private val mediaFlags: MediaFlags,
 ) : MediaDataManager.Listener, Dumpable {
 
     private var useMediaResumption: Boolean = Utils.useMediaResumption(context)
@@ -141,7 +139,7 @@ constructor(
 
     init {
         if (useMediaResumption) {
-            dumpManager.registerDumpable(TAG, this)
+            dumpManager.registerNormalDumpable(TAG, this)
             val unlockFilter = IntentFilter()
             unlockFilter.addAction(Intent.ACTION_USER_UNLOCKED)
             broadcastDispatcher.registerReceiver(
@@ -251,10 +249,7 @@ constructor(
                 mediaBrowser = null
             }
             // If we don't have a resume action, check if we haven't already
-            val isEligibleForResume =
-                data.isLocalSession() ||
-                    (mediaFlags.isRemoteResumeAllowed() &&
-                        data.playbackLocation != MediaData.PLAYBACK_CAST_REMOTE)
+            val isEligibleForResume = data.isLocalSession()
             if (data.resumeAction == null && !data.hasCheckedForResume && isEligibleForResume) {
                 // TODO also check for a media button receiver intended for restarting (b/154127084)
                 // Set null action to prevent additional attempts to connect

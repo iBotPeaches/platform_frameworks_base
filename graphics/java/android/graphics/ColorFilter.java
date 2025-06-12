@@ -23,6 +23,7 @@ import libcore.util.NativeAllocationRegistry;
  * each pixel drawn with that paint. This is an abstract class that should
  * never be used directly.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class ColorFilter {
 
     private static class NoImagePreloadHolder {

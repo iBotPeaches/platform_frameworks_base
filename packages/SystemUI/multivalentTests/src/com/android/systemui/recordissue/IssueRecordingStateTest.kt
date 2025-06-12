@@ -22,9 +22,9 @@ import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.settings.userFileManager
 import com.android.systemui.settings.userTracker
+import com.android.systemui.testKosmos
 import com.android.systemui.util.settings.fakeGlobalSettings
 import com.google.common.truth.Truth
 import org.junit.Before
@@ -40,7 +40,7 @@ import org.mockito.kotlin.verify
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 class IssueRecordingStateTest : SysuiTestCase() {
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private lateinit var underTest: IssueRecordingState
     @Mock private lateinit var resolver: ContentResolver
 

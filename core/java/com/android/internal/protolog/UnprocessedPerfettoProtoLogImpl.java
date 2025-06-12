@@ -19,7 +19,7 @@ package com.android.internal.protolog;
 import android.annotation.NonNull;
 import android.os.ServiceManager;
 
-import com.android.internal.protolog.ProtoLogConfigurationServiceImpl.RegisterClientArgs;
+import com.android.internal.protolog.IProtoLogConfigurationService.RegisterClientArgs;
 import com.android.internal.protolog.common.IProtoLogGroup;
 
 public class UnprocessedPerfettoProtoLogImpl extends PerfettoProtoLogImpl {

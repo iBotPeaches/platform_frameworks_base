@@ -20,24 +20,22 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.mediarouter.data.repository.fakeMediaRouterRepository
 import com.android.systemui.statusbar.chips.casttootherdevice.domain.interactor.mediaRouterChipInteractor
 import com.android.systemui.statusbar.chips.casttootherdevice.domain.model.MediaRouterCastModel
 import com.android.systemui.statusbar.policy.CastDevice
+import com.android.systemui.testKosmos
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class MediaRouterChipInteractorTest : SysuiTestCase() {
-    val kosmos = Kosmos()
+    val kosmos = testKosmos()
     val testScope = kosmos.testScope
     val mediaRouterRepository = kosmos.fakeMediaRouterRepository
 

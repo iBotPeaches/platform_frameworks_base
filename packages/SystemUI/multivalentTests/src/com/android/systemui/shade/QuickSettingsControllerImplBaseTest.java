@@ -28,11 +28,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
 
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.UiEventLogger;
-import com.android.keyguard.KeyguardStatusView;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryFaceAuthInteractor;
@@ -80,6 +80,7 @@ import com.android.systemui.statusbar.policy.data.repository.FakeUserSetupReposi
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.user.domain.interactor.UserSwitcherInteractor;
 import com.android.systemui.util.kotlin.JavaAdapter;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import dagger.Lazy;
 
@@ -148,6 +149,7 @@ public class QuickSettingsControllerImplBaseTest extends SysuiTestCase {
     @Mock protected UserSwitcherInteractor mUserSwitcherInteractor;
     @Mock protected SelectedUserInteractor mSelectedUserInteractor;
     @Mock protected LargeScreenHeaderHelper mLargeScreenHeaderHelper;
+    @Mock protected WindowManagerProvider mWindowManagerProvider;
 
     protected FakeDisableFlagsRepository mDisableFlagsRepository =
             mKosmos.getFakeDisableFlagsRepository();
@@ -197,11 +199,7 @@ public class QuickSettingsControllerImplBaseTest extends SysuiTestCase {
                         mTestScope.getBackgroundScope(),
                         mKeyguardRepository,
                         mShadeRepository
-                ),
-                mKosmos.getShadeModeInteractor());
-
-        KeyguardStatusView keyguardStatusView = new KeyguardStatusView(mContext);
-        keyguardStatusView.setId(R.id.keyguard_status_view);
+                ));
 
         when(mResources.getDimensionPixelSize(
                 R.dimen.lockscreen_shade_qs_transition_distance)).thenReturn(DEFAULT_HEIGHT);
@@ -218,8 +216,6 @@ public class QuickSettingsControllerImplBaseTest extends SysuiTestCase {
         when(mQs.getHeaderBottom()).thenReturn(QS_FRAME_BOTTOM);
         when(mPanelView.getY()).thenReturn((float) QS_FRAME_TOP);
         when(mPanelView.getHeight()).thenReturn(QS_FRAME_BOTTOM);
-        when(mPanelView.findViewById(R.id.keyguard_status_view))
-                .thenReturn(mock(KeyguardStatusView.class));
         when(mQs.getView()).thenReturn(mPanelView);
         when(mQSFragment.getView()).thenReturn(mPanelView);
 
@@ -237,6 +233,9 @@ public class QuickSettingsControllerImplBaseTest extends SysuiTestCase {
 
 
         mMainHandler = new Handler(Looper.getMainLooper());
+
+        WindowManager wm = mContext.getSystemService(WindowManager.class);
+        when(mWindowManagerProvider.getWindowManager(mContext)).thenReturn(wm);
 
         mQsController = new QuickSettingsControllerImpl(
                 mPanelViewControllerLazy,
@@ -274,7 +273,8 @@ public class QuickSettingsControllerImplBaseTest extends SysuiTestCase {
                 mCastController,
                 splitShadeStateController,
                 () -> mKosmos.getCommunalTransitionViewModel(),
-                () -> mLargeScreenHeaderHelper
+                () -> mLargeScreenHeaderHelper,
+                mWindowManagerProvider
         );
         mQsController.init();
 

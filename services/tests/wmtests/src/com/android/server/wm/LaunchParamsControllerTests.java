@@ -39,10 +39,12 @@ import static com.android.server.wm.LaunchParamsController.LaunchParamsModifier.
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
+import android.annotation.NonNull;
 import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo.WindowLayout;
 import android.graphics.Rect;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.util.ArrayMap;
 import android.util.SparseArray;
@@ -51,6 +53,7 @@ import androidx.test.filters.MediumTest;
 
 import com.android.server.wm.LaunchParamsController.LaunchParams;
 import com.android.server.wm.LaunchParamsController.LaunchParamsModifier;
+import com.android.window.flags.Flags;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -114,6 +117,7 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
         expected.mPreferredTaskDisplayArea = mock(TaskDisplayArea.class);
         expected.mWindowingMode = WINDOWING_MODE_PINNED;
         expected.mBounds.set(200, 300, 400, 500);
+        expected.mNeedsSafeRegionBounds = true;
 
         mPersister.putLaunchParams(userId, name, expected);
 
@@ -186,6 +190,7 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
         params.mWindowingMode = WINDOWING_MODE_FREEFORM;
         params.mBounds.set(0, 0, 30, 20);
         params.mPreferredTaskDisplayArea = mock(TaskDisplayArea.class);
+        params.mNeedsSafeRegionBounds = true;
 
         final InstrumentedPositioner positioner2 = new InstrumentedPositioner(RESULT_CONTINUE,
                 params);
@@ -223,6 +228,158 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
                 null /*options*/, null /*request*/, PHASE_BOUNDS, result);
 
         assertEquals(result, positioner2.getLaunchParams());
+    }
+
+    /**
+     * Tests only needs safe region bounds are not propagated if results are skipped.
+     */
+    @Test
+    public void testSkip_needsSafeRegionBoundsNotModified() {
+        final LaunchParams params1 = new LaunchParams();
+        params1.mNeedsSafeRegionBounds = true;
+        final InstrumentedPositioner positioner1 = new InstrumentedPositioner(RESULT_SKIP, params1);
+
+        final LaunchParams params2 = new LaunchParams();
+        params2.mNeedsSafeRegionBounds = false;
+        final InstrumentedPositioner positioner2 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params2);
+
+        mController.registerModifier(positioner1);
+        mController.registerModifier(positioner2);
+
+        final LaunchParams result = new LaunchParams();
+
+        mController.calculate(null /*task*/, null /*layout*/, null /*activity*/, null /*source*/,
+                null /*options*/, null /*request*/, PHASE_BOUNDS, result);
+
+        assertEquals(result, positioner2.getLaunchParams());
+    }
+
+    /**
+     * Tests only needs safe region bounds are propagated even if results are continued.
+     */
+    @Test
+    public void testContinue_needsSafeRegionBoundsCarriedOver() {
+        final LaunchParams params1 = new LaunchParams();
+        final InstrumentedPositioner positioner1 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params1);
+
+        final LaunchParams params2 = new LaunchParams();
+        params2.mNeedsSafeRegionBounds = true;
+        final InstrumentedPositioner positioner2 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params2);
+
+        mController.registerModifier(positioner1);
+        mController.registerModifier(positioner2);
+
+        final LaunchParams result = new LaunchParams();
+
+        mController.calculate(null /*task*/, null /*layout*/, null /*activity*/, null /*source*/,
+                null /*options*/, null /*request*/, PHASE_BOUNDS, result);
+
+        // Safe region is propagated from positioner1
+        assertEquals(result.mNeedsSafeRegionBounds,
+                positioner2.getLaunchParams().mNeedsSafeRegionBounds);
+        assertEquals(result.mWindowingMode, positioner1.getLaunchParams().mWindowingMode);
+        assertEquals(result.mBounds, positioner1.getLaunchParams().mBounds);
+        assertEquals(result.mPreferredTaskDisplayArea,
+                positioner1.getLaunchParams().mPreferredTaskDisplayArea);
+    }
+
+    /**
+     * Tests needs safe region bounds are modified if results from the next continue have been set.
+     */
+    @Test
+    public void testContinue_needsSafeRegionBoundsModifiedFromLaterContinue() {
+        final LaunchParams params1 = new LaunchParams();
+        params1.mNeedsSafeRegionBounds = false;
+        final InstrumentedPositioner positioner1 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params1);
+
+        final LaunchParams params2 = new LaunchParams();
+        params2.mNeedsSafeRegionBounds = true;
+        final InstrumentedPositioner positioner2 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params2);
+
+        mController.registerModifier(positioner1);
+        mController.registerModifier(positioner2);
+
+        final LaunchParams result = new LaunchParams();
+
+        mController.calculate(null /*task*/, null /*layout*/, null /*activity*/, null /*source*/,
+                null /*options*/, null /*request*/, PHASE_BOUNDS, result);
+
+        // Safe region is propagated from positioner1
+        assertEquals(result.mNeedsSafeRegionBounds,
+                positioner1.getLaunchParams().mNeedsSafeRegionBounds);
+        assertEquals(result.mWindowingMode, positioner2.getLaunchParams().mWindowingMode);
+        assertEquals(result.mBounds, positioner2.getLaunchParams().mBounds);
+        assertEquals(result.mPreferredTaskDisplayArea,
+                positioner2.getLaunchParams().mPreferredTaskDisplayArea);
+    }
+
+    /**
+     * Tests only needs safe region bounds are propagated to result done even if there are skipped
+     * and continued results and continue sets true for needs safe region bounds.
+     */
+    @Test
+    public void testDone_ContinueSetsNeedsSafeRegionBounds() {
+        final LaunchParams params1 = new LaunchParams();
+        final InstrumentedPositioner positioner1 = new InstrumentedPositioner(RESULT_DONE, params1);
+
+        final LaunchParams params2 = new LaunchParams();
+        final InstrumentedPositioner positioner2 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params2);
+
+        final LaunchParams params3 = new LaunchParams();
+        final InstrumentedPositioner positioner3 = new InstrumentedPositioner(RESULT_SKIP, params3);
+
+        final LaunchParams params4 = new LaunchParams();
+        params4.mNeedsSafeRegionBounds = true;
+        final InstrumentedPositioner positioner4 =
+                new InstrumentedPositioner(RESULT_CONTINUE, params4);
+
+        final LaunchParams params5 = new LaunchParams();
+        params5.mNeedsSafeRegionBounds = false;
+        final InstrumentedPositioner positioner5 = new InstrumentedPositioner(RESULT_SKIP, params5);
+
+        mController.registerModifier(positioner1);
+        mController.registerModifier(positioner2);
+        mController.registerModifier(positioner3);
+        mController.registerModifier(positioner4);
+        mController.registerModifier(positioner5);
+
+        final LaunchParams result = new LaunchParams();
+
+        mController.calculate(null /*task*/, null /*layout*/, null /*activity*/, null /*source*/,
+                null /*options*/, null /*request*/, PHASE_BOUNDS, result);
+
+        // Safe region is propagated from positioner4
+        assertEquals(result.mNeedsSafeRegionBounds,
+                positioner4.getLaunchParams().mNeedsSafeRegionBounds);
+        assertEquals(result.mWindowingMode, positioner1.getLaunchParams().mWindowingMode);
+        assertEquals(result.mBounds, positioner1.getLaunchParams().mBounds);
+        assertEquals(result.mPreferredTaskDisplayArea,
+                positioner1.getLaunchParams().mPreferredTaskDisplayArea);
+    }
+
+    /**
+     * Tests only needs safe region bounds are set if results are done.
+     */
+    @Test
+    public void testDone_needsSafeRegionBoundsModified() {
+        final LaunchParams params = new LaunchParams();
+        params.mNeedsSafeRegionBounds = true;
+        final InstrumentedPositioner positioner = new InstrumentedPositioner(RESULT_DONE, params);
+
+        mController.registerModifier(positioner);
+
+        final LaunchParams result = new LaunchParams();
+
+        mController.calculate(null /*task*/, null /*layout*/, null /*activity*/, null /*source*/,
+                null /*options*/, null /*request*/, PHASE_BOUNDS, result);
+
+        assertEquals(result, positioner.getLaunchParams());
     }
 
     /**
@@ -293,7 +450,7 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
         final int beforeWindowMode = task.getWindowingMode();
         assertNotEquals(windowingMode, beforeWindowMode);
 
-        mController.layoutTask(task, null /* windowLayout */);
+        layoutTask(task);
 
         final int afterWindowMode = task.getWindowingMode();
         assertEquals(afterWindowMode, beforeWindowMode);
@@ -317,7 +474,7 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
 
         assertNotEquals(expected, task.getBounds());
 
-        mController.layoutTask(task, null /* windowLayout */);
+        layoutTask(task);
 
         // Task will make adjustments to requested bounds. We only need to guarantee that the
         // reuqested bounds are expected.
@@ -342,7 +499,7 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
 
         assertNotEquals(expected, task.getBounds());
 
-        mController.layoutTask(task, null /* windowLayout */);
+        layoutTask(task);
 
         assertEquals(expected, task.getRequestedOverrideBounds());
     }
@@ -365,10 +522,38 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
 
         assertNotEquals(expected, task.getBounds());
 
-        mController.layoutTask(task, null /* windowLayout */);
+        layoutTask(task);
 
         assertNotEquals(expected, task.getBounds());
         assertEquals(expected, task.mLastNonFullscreenBounds);
+    }
+
+    /**
+     * Ensures that app bounds are set to exclude freeform caption if window is in freeform.
+     */
+    @Test
+    @EnableFlags(Flags.FLAG_EXCLUDE_CAPTION_FROM_APP_BOUNDS)
+    public void testLayoutTaskBoundsFreeformAppBounds() {
+        final Rect expected = new Rect(10, 20, 30, 40);
+
+        final LaunchParams params = new LaunchParams();
+        params.mBounds.set(expected);
+        params.mAppBounds.set(expected);
+        final InstrumentedPositioner positioner = new InstrumentedPositioner(RESULT_DONE, params);
+        final Task task = new TaskBuilder(mAtm.mTaskSupervisor)
+                .setWindowingMode(WINDOWING_MODE_FREEFORM).build();
+        final ActivityOptions options = ActivityOptions.makeBasic().setFlexibleLaunchSize(true);
+
+        mController.registerModifier(positioner);
+
+        assertNotEquals(expected, task.getBounds());
+
+        layoutTask(task, options);
+
+        // Task will make adjustments to requested bounds. We only need to guarantee that the
+        // requested bounds are expected.
+        assertEquals(expected,
+                task.getRequestedOverrideConfiguration().windowConfiguration.getAppBounds());
     }
 
     public static class InstrumentedPositioner implements LaunchParamsModifier {
@@ -466,5 +651,15 @@ public class LaunchParamsControllerTests extends WindowTestsBase {
 
     private TestDisplayContent createNewDisplayContent() {
         return addNewDisplayContentAt(DisplayContent.POSITION_TOP);
+    }
+
+    private void layoutTask(@NonNull Task task) {
+        mController.layoutTask(task, null /* layout */, null /* activity */, null /* source */,
+                null /* options */);
+    }
+
+    private void layoutTask(@NonNull Task task, ActivityOptions options) {
+        mController.layoutTask(task, null /* layout */, null /* activity */, null /* source */,
+                options /* options */);
     }
 }

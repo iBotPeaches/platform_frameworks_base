@@ -3,7 +3,7 @@
 //########################################################################
 
 package {
-    default_team: "trendy_team_lse_desktop_os_experience",
+    default_team: "trendy_team_media_projection",
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
     // all of the 'license_kinds' from "frameworks_base_license"
@@ -16,7 +16,6 @@ android_test {
     name: "MediaProjectionTests",
 
     srcs: ["**/*.java"],
-
     libs: [
         "android.test.base.stubs.system",
         "android.test.mock.stubs.system",
@@ -27,9 +26,11 @@ android_test {
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.ext.junit",
+        "flag-junit",
         "frameworks-base-testutils",
         "mockito-target-extended-minus-junit4",
         "platform-test-annotations",
+        "cts-mediaprojection-common",
         "testng",
         "testables",
         "truth",
@@ -42,7 +43,11 @@ android_test {
         "libstaticjvmtiagent",
     ],
 
-    test_suites: ["device-tests"],
+    data: [
+        ":CtsMediaProjectionTestCasesHelperApp",
+    ],
+
+    test_suites: ["general-tests"],
 
     platform_apis: true,
 

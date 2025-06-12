@@ -22,7 +22,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.times;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.verifyZeroInteractions;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.verifyNoMoreInteractions;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -118,7 +118,7 @@ public class WindowTracingLegacyTest {
     @Test
     public void trace_discared_whenNotTracing() {
         mWindowTracing.logState("where");
-        verifyZeroInteractions(mWmMock);
+        verifyNoMoreInteractions(mWmMock);
     }
 
     @Test

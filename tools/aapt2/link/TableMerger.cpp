@@ -295,6 +295,8 @@ bool TableMerger::DoMerge(const android::Source& src, ResourceTablePackage* src_
           dst_config_value =
               dst_entry->FindOrCreateValue(src_config_value->config, src_config_value->product);
         }
+        dst_config_value->uses_readwrite_feature_flags |=
+            src_config_value->uses_readwrite_feature_flags;
 
         // Continue if we're taking the new resource.
         CloningValueTransformer cloner(&main_table_->string_pool);
@@ -378,12 +380,13 @@ bool TableMerger::MergeFile(const ResourceFile& file_desc, bool overlay, io::IFi
   file_ref->file = file;
   file_ref->SetFlagStatus(file_desc.flag_status);
   file_ref->SetFlag(file_desc.flag);
-
   ResourceTablePackage* pkg = table.FindOrCreatePackage(file_desc.name.package);
-  pkg->FindOrCreateType(file_desc.name.type)
-      ->FindOrCreateEntry(file_desc.name.entry)
-      ->FindOrCreateValue(file_desc.config, {})
-      ->value = std::move(file_ref);
+  ResourceConfigValue* config_value = pkg->FindOrCreateType(file_desc.name.type)
+                                          ->FindOrCreateEntry(file_desc.name.entry)
+                                          ->FindOrCreateValue(file_desc.config, {});
+
+  config_value->value = std::move(file_ref);
+  config_value->uses_readwrite_feature_flags = file_desc.uses_readwrite_feature_flags;
 
   return DoMerge(file->GetSource(), pkg, false /*mangle*/, overlay /*overlay*/, true /*allow_new*/);
 }

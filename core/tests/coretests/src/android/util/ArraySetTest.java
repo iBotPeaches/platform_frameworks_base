@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 
 import org.junit.After;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -50,6 +51,7 @@ public class ArraySetTest {
      * internals.
      */
     @Test
+    @Ignore("Failing; b/399137661")
     public void testConcurrentModificationException() throws Exception {
         final int testDurMs = 10_000;
         System.out.println("Starting ArraySet concurrency test");

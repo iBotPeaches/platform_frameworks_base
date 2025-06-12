@@ -18,12 +18,12 @@ package com.android.systemui.statusbar.notification.collection.render
 
 import com.android.systemui.statusbar.notification.NotificationSectionsFeatureManager
 import com.android.systemui.statusbar.notification.collection.GroupEntry
-import com.android.systemui.statusbar.notification.collection.ListEntry
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.collection.listbuilder.NotifSection
 import com.android.systemui.statusbar.notification.collection.provider.SectionHeaderVisibilityProvider
 import com.android.systemui.util.Compile
 import com.android.app.tracing.traceSection
+import com.android.systemui.statusbar.notification.collection.PipelineEntry
 
 /**
  * Converts a notif list (the output of the ShadeListBuilder) into a NodeSpec, an abstract
@@ -45,7 +45,7 @@ class NodeSpecBuilder(
 
     fun buildNodeSpec(
         rootController: NodeController,
-        notifList: List<ListEntry>
+        notifList: List<PipelineEntry>
     ): NodeSpec = traceSection("NodeSpecBuilder.buildNodeSpec") {
         val root = NodeSpecImpl(null, rootController)
 
@@ -100,7 +100,7 @@ class NodeSpecBuilder(
         return@traceSection root
     }
 
-    private fun buildNotifNode(parent: NodeSpec, entry: ListEntry): NodeSpec = when (entry) {
+    private fun buildNotifNode(parent: NodeSpec, entry: PipelineEntry): NodeSpec = when (entry) {
         is NotificationEntry -> NodeSpecImpl(parent, viewBarn.requireNodeController(entry))
         is GroupEntry ->
             NodeSpecImpl(parent, viewBarn.requireNodeController(checkNotNull(entry.summary)))

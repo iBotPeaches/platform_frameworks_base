@@ -126,6 +126,9 @@ interface IUsbManager
     /* Returns true if the specified USB function is enabled. */
     boolean isFunctionEnabled(String function);
 
+    /* Returns true if UVC gadget support is enabled. */
+    boolean isUvcGadgetSupportEnabled();
+
     /* Sets the current USB function. */
     @EnforcePermission("MANAGE_USB")
     void setCurrentFunctions(long functions, int operationId);

@@ -17,6 +17,7 @@
 package android.app;
 
 import static android.Manifest.permission.POST_NOTIFICATIONS;
+import static android.app.NotificationChannel.DEFAULT_CHANNEL_ID;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.service.notification.Flags.notificationClassification;
 
@@ -50,11 +51,13 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.IpcDataCache;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.StrictMode;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.provider.Settings.Global;
@@ -65,12 +68,20 @@ import android.service.notification.StatusBarNotification;
 import android.service.notification.ZenDeviceEffects;
 import android.service.notification.ZenModeConfig;
 import android.service.notification.ZenPolicy;
+import android.text.TextUtils;
+import android.util.ArrayMap;
 import android.util.Log;
 import android.util.LruCache;
+import android.util.Slog;
 import android.util.proto.ProtoOutputStream;
+
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.notification.NotificationChannelGroupsHelper;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -345,7 +356,6 @@ public class NotificationManager {
      * a DND component, the rule owner should activate any extra behavior that's part of that mode
      * in response to this broadcast.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public static final int AUTOMATIC_RULE_STATUS_ACTIVATED = 4;
 
     /**
@@ -356,7 +366,6 @@ public class NotificationManager {
      * longer met) and then {@link Condition#STATE_TRUE} when the trigger criteria is freshly met,
      * or when the user re-activates it.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public static final int AUTOMATIC_RULE_STATUS_DEACTIVATED = 5;
 
     /**
@@ -404,7 +413,6 @@ public class NotificationManager {
      * <p>This broadcast is only sent to registered receivers and receivers in packages that have
      * been granted Notification Policy access (see {@link #isNotificationPolicyAccessGranted()}).
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     @SdkConstant(SdkConstant.SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_CONSOLIDATED_NOTIFICATION_POLICY_CHANGED =
             "android.app.action.CONSOLIDATED_NOTIFICATION_POLICY_CHANGED";
@@ -414,7 +422,6 @@ public class NotificationManager {
      * {@link #ACTION_CONSOLIDATED_NOTIFICATION_POLICY_CHANGED} containing the new
      * {@link Policy} value.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public static final String EXTRA_NOTIFICATION_POLICY =
             "android.app.extra.NOTIFICATION_POLICY";
 
@@ -645,16 +652,25 @@ public class NotificationManager {
      */
     public static int MAX_SERVICE_COMPONENT_NAME_LENGTH = 500;
 
-    private static final float MAX_NOTIFICATION_ENQUEUE_RATE = 5f;
+    private static final float MAX_NOTIFICATION_UPDATE_RATE = 5f;
+    private static final float MAX_NOTIFICATION_UNNECESSARY_CANCEL_RATE = 5f;
+    private static final int KNOWN_STATUS_ENQUEUED = 1;
+    private static final int KNOWN_STATUS_CANCELLED = 2;
 
     private final Context mContext;
     private final Map<CallNotificationEventListener, CallNotificationEventCallbackStub>
             mCallNotificationEventCallbacks = new HashMap<>();
 
     private final InstantSource mClock;
-    private final RateEstimator mEnqueueRateEstimator = new RateEstimator();
-    private final LruCache<String, Boolean> mEnqueuedNotificationKeys = new LruCache<>(10);
-    private final Object mEnqueueThrottleLock = new Object();
+    private final RateLimiter mUpdateRateLimiter = new RateLimiter("notify (update)",
+            "notifications.value_client_throttled_notify_update",
+            MAX_NOTIFICATION_UPDATE_RATE);
+    private final RateLimiter mUnnecessaryCancelRateLimiter = new RateLimiter("cancel (dupe)",
+            "notifications.value_client_throttled_cancel_duplicate",
+            MAX_NOTIFICATION_UNNECESSARY_CANCEL_RATE);
+    // Value is KNOWN_STATUS_ENQUEUED/_CANCELLED
+    private final LruCache<NotificationKey, Integer> mKnownNotifications = new LruCache<>(100);
+    private final Object mThrottleLock = new Object();
 
     @UnsupportedAppUsage
     private static INotificationManager sService;
@@ -677,9 +693,14 @@ public class NotificationManager {
     }
 
     /** {@hide} */
-    @UnsupportedAppUsage
-    public NotificationManager(Context context, InstantSource clock)
+    public NotificationManager(Context context)
     {
+        this(context, SystemClock.elapsedRealtimeClock());
+    }
+
+    /** {@hide} */
+    @UnsupportedAppUsage
+    public NotificationManager(Context context, InstantSource clock) {
         mContext = context;
         mClock = clock;
     }
@@ -756,6 +777,10 @@ public class NotificationManager {
         INotificationManager service = service();
         String sender = mContext.getPackageName();
 
+        if (discardNotify(mContext.getUser(), targetPackage, tag, id, notification)) {
+            return;
+        }
+
         try {
             if (localLOGV) Log.v(TAG, sender + ": notify(" + id + ", " + notification + ")");
             service.enqueueNotificationWithTag(targetPackage, sender, tag, id,
@@ -774,7 +799,7 @@ public class NotificationManager {
     {
         INotificationManager service = service();
         String pkg = mContext.getPackageName();
-        if (discardNotify(tag, id, notification)) {
+        if (discardNotify(user, pkg, tag, id, notification)) {
             return;
         }
 
@@ -791,31 +816,88 @@ public class NotificationManager {
      * Determines whether a {@link #notify} call should be skipped. If the notification is not
      * skipped, updates tracking metadata to use in future decisions.
      */
-    private boolean discardNotify(@Nullable String tag, int id, Notification notification) {
+    private boolean discardNotify(UserHandle user, String pkg, @Nullable String tag, int id,
+            Notification notification) {
         if (notificationClassification()
                 && NotificationChannel.SYSTEM_RESERVED_IDS.contains(notification.getChannelId())) {
             return true;
         }
 
         if (Flags.nmBinderPerfThrottleNotify()) {
-            String key = toEnqueuedNotificationKey(tag, id);
-            long now = mClock.millis();
-            synchronized (mEnqueueThrottleLock) {
-                if (mEnqueuedNotificationKeys.get(key) != null
-                        && !notification.hasCompletedProgress()
-                        && mEnqueueRateEstimator.getRate(now) > MAX_NOTIFICATION_ENQUEUE_RATE) {
-                    return true;
+            NotificationKey key = new NotificationKey(user, pkg, tag, id);
+            synchronized (mThrottleLock) {
+                Integer status = mKnownNotifications.get(key);
+                if (status != null && status == KNOWN_STATUS_ENQUEUED
+                        && !notification.hasCompletedProgress()) {
+                    if (mUpdateRateLimiter.eventExceedsRate()) {
+                        mUpdateRateLimiter.recordRejected(key);
+                        return true;
+                    }
+                    mUpdateRateLimiter.recordAccepted();
                 }
-
-                mEnqueueRateEstimator.update(now);
-                mEnqueuedNotificationKeys.put(key, Boolean.TRUE);
+                mKnownNotifications.put(key, KNOWN_STATUS_ENQUEUED);
             }
         }
 
         return false;
     }
-    private static String toEnqueuedNotificationKey(@Nullable String tag, int id) {
-        return tag + "," + id;
+
+    private record NotificationKey(@NonNull UserHandle user, @NonNull String pkg,
+                                   @Nullable String tag, int id) { }
+
+    /** Helper class to rate-limit Binder calls. */
+    private class RateLimiter {
+
+        private static final Duration RATE_LIMITER_LOG_INTERVAL = Duration.ofSeconds(1);
+
+        private final RateEstimator mInputRateEstimator;
+        private final RateEstimator mOutputRateEstimator;
+        private final String mName;
+        private final String mCounterName;
+        private final float mLimitRate;
+
+        private Instant mLogSilencedUntil;
+
+        private RateLimiter(String name, String counterName, float limitRate) {
+            mInputRateEstimator = new RateEstimator();
+            mOutputRateEstimator = new RateEstimator();
+            mName = name;
+            mCounterName = counterName;
+            mLimitRate = limitRate;
+        }
+
+        boolean eventExceedsRate() {
+            long nowMillis = mClock.millis();
+            mInputRateEstimator.update(nowMillis);
+            return mOutputRateEstimator.getRate(nowMillis) > mLimitRate;
+        }
+
+        void recordAccepted() {
+            mOutputRateEstimator.update(mClock.millis());
+        }
+
+        void recordRejected(NotificationKey key) {
+            Instant now = mClock.instant();
+            if (mLogSilencedUntil != null && now.isBefore(mLogSilencedUntil)) {
+                return;
+            }
+
+            if (Flags.nmBinderPerfLogNmThrottling()) {
+                try {
+                    service().incrementCounter(mCounterName);
+                } catch (RemoteException e) {
+                    Slog.w(TAG, "Ignoring error while trying to log " + mCounterName, e);
+                }
+            }
+
+            long nowMillis = now.toEpochMilli();
+            Slog.w(TAG, TextUtils.formatSimple(
+                    "Shedding %s of %s, rate limit (%s) exceeded: input %s, output would be %s",
+                    mName, key, mLimitRate, mInputRateEstimator.getRate(nowMillis),
+                    mOutputRateEstimator.getRate(nowMillis)));
+
+            mLogSilencedUntil = now.plus(RATE_LIMITER_LOG_INTERVAL);
+        }
     }
 
     private Notification fixNotification(Notification notification) {
@@ -899,6 +981,10 @@ public class NotificationManager {
      * @param id An identifier for this notification.
      */
     public void cancelAsPackage(@NonNull String targetPackage, @Nullable String tag, int id) {
+        if (discardCancel(mContext.getUser(), targetPackage, tag, id)) {
+            return;
+        }
+
         INotificationManager service = service();
         try {
             service.cancelNotificationWithTag(targetPackage, mContext.getOpPackageName(),
@@ -914,14 +1000,12 @@ public class NotificationManager {
     @UnsupportedAppUsage
     public void cancelAsUser(@Nullable String tag, int id, UserHandle user)
     {
-        if (Flags.nmBinderPerfThrottleNotify()) {
-            synchronized (mEnqueueThrottleLock) {
-                mEnqueuedNotificationKeys.remove(toEnqueuedNotificationKey(tag, id));
-            }
+        String pkg = mContext.getPackageName();
+        if (discardCancel(user, pkg, tag, id)) {
+            return;
         }
 
         INotificationManager service = service();
-        String pkg = mContext.getPackageName();
         if (localLOGV) Log.v(TAG, pkg + ": cancel(" + id + ")");
         try {
             service.cancelNotificationWithTag(
@@ -932,19 +1016,48 @@ public class NotificationManager {
     }
 
     /**
+     * Determines whether a {@link #cancel} call should be skipped. If not skipped, updates tracking
+     * metadata to use in future decisions.
+     */
+    private boolean discardCancel(UserHandle user, String pkg, @Nullable String tag, int id) {
+        if (Flags.nmBinderPerfThrottleNotify()) {
+            NotificationKey key = new NotificationKey(user, pkg, tag, id);
+            synchronized (mThrottleLock) {
+                Integer status = mKnownNotifications.get(key);
+                if (status != null && status == KNOWN_STATUS_CANCELLED) {
+                    if (mUnnecessaryCancelRateLimiter.eventExceedsRate()) {
+                        mUnnecessaryCancelRateLimiter.recordRejected(key);
+                        return true;
+                    }
+                    mUnnecessaryCancelRateLimiter.recordAccepted();
+                }
+                mKnownNotifications.put(key, KNOWN_STATUS_CANCELLED);
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Cancel all previously shown notifications. See {@link #cancel} for the
      * detailed behavior.
      */
     public void cancelAll()
     {
+        String pkg = mContext.getPackageName();
+        UserHandle user = mContext.getUser();
+
         if (Flags.nmBinderPerfThrottleNotify()) {
-            synchronized (mEnqueueThrottleLock) {
-                mEnqueuedNotificationKeys.evictAll();
+            synchronized (mThrottleLock) {
+                for (NotificationKey key : mKnownNotifications.snapshot().keySet()) {
+                    if (key.pkg.equals(pkg) && key.user.equals(user)) {
+                        mKnownNotifications.put(key, KNOWN_STATUS_CANCELLED);
+                    }
+                }
             }
         }
 
         INotificationManager service = service();
-        String pkg = mContext.getPackageName();
         if (localLOGV) Log.v(TAG, pkg + ": cancelAll()");
         try {
             service.cancelAllNotifications(pkg, mContext.getUserId());
@@ -968,7 +1081,7 @@ public class NotificationManager {
     public void setNotificationDelegate(@Nullable String delegate) {
         INotificationManager service = service();
         String pkg = mContext.getPackageName();
-        if (localLOGV) Log.v(TAG, pkg + ": cancelAll()");
+        if (localLOGV) Log.v(TAG, pkg + ": setNotificationDelegate()");
         try {
             service.setNotificationDelegate(pkg, delegate);
         } catch (RemoteException e) {
@@ -1144,12 +1257,20 @@ public class NotificationManager {
      * package (see {@link Context#createPackageContext(String, int)}).</p>
      */
     public NotificationChannel getNotificationChannel(String channelId) {
-        INotificationManager service = service();
-        try {
-            return service.getNotificationChannel(mContext.getOpPackageName(),
-                    mContext.getUserId(), mContext.getPackageName(), channelId);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
+        if (Flags.nmBinderPerfCacheChannels()) {
+            return getChannelFromList(channelId,
+                    mNotificationChannelListCache.query(new NotificationChannelQuery(
+                            mContext.getOpPackageName(),
+                            mContext.getPackageName(),
+                            mContext.getUserId())));
+        } else {
+            INotificationManager service = service();
+            try {
+                return service.getNotificationChannel(mContext.getOpPackageName(),
+                        mContext.getUserId(), mContext.getPackageName(), channelId);
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
         }
     }
 
@@ -1161,16 +1282,28 @@ public class NotificationManager {
      * delegate for (see {@link #canNotifyAsPackage(String)}), or it will not be returned. To query
      * a channel as a notification delegate, call this method from a context created for that
      * package (see {@link Context#createPackageContext(String, int)}).</p>
+     *
+     * <p>If a conversation channel with the given conversation id is not found, this method will
+     * instead return the parent channel with the given channel ID, or {@code null} if neither
+     * exists.</p>
      */
     public @Nullable NotificationChannel getNotificationChannel(@NonNull String channelId,
             @NonNull String conversationId) {
-        INotificationManager service = service();
-        try {
-            return service.getConversationNotificationChannel(mContext.getOpPackageName(),
-                    mContext.getUserId(), mContext.getPackageName(), channelId, true,
-                    conversationId);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
+        if (Flags.nmBinderPerfCacheChannels()) {
+            return getConversationChannelFromList(channelId, conversationId,
+                    mNotificationChannelListCache.query(new NotificationChannelQuery(
+                            mContext.getOpPackageName(),
+                            mContext.getPackageName(),
+                            mContext.getUserId())));
+        } else {
+            INotificationManager service = service();
+            try {
+                return service.getConversationNotificationChannel(mContext.getOpPackageName(),
+                        mContext.getUserId(), mContext.getPackageName(), channelId, true,
+                        conversationId);
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
         }
     }
 
@@ -1183,13 +1316,66 @@ public class NotificationManager {
      * {@link Context#createPackageContext(String, int)}).</p>
      */
     public List<NotificationChannel> getNotificationChannels() {
-        INotificationManager service = service();
-        try {
-            return service.getNotificationChannels(mContext.getOpPackageName(),
-                    mContext.getPackageName(), mContext.getUserId()).getList();
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
+        if (Flags.nmBinderPerfCacheChannels()) {
+            List<NotificationChannel> channelList = mNotificationChannelListCache.query(
+                    new NotificationChannelQuery(mContext.getOpPackageName(),
+                            mContext.getPackageName(), mContext.getUserId()));
+            List<NotificationChannel> out = new ArrayList();
+            if (channelList != null) {
+                for (NotificationChannel c : channelList) {
+                    out.add(c.copy());
+                }
+            }
+            return out;
+        } else {
+            INotificationManager service = service();
+            try {
+                return service.getNotificationChannels(mContext.getOpPackageName(),
+                        mContext.getPackageName(), mContext.getUserId()).getList();
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
         }
+    }
+
+    // channel list assumed to be associated with the appropriate package & user id already.
+    private static NotificationChannel getChannelFromList(String channelId,
+            List<NotificationChannel> channels) {
+        if (channels == null) {
+            return null;
+        }
+        if (channelId == null) {
+            channelId = DEFAULT_CHANNEL_ID;
+        }
+        for (NotificationChannel channel : channels) {
+            if (channelId.equals(channel.getId())) {
+                return channel.copy();
+            }
+        }
+        return null;
+    }
+
+    private static NotificationChannel getConversationChannelFromList(String channelId,
+            String conversationId, List<NotificationChannel> channels) {
+        if (channels == null) {
+            return null;
+        }
+        if (channelId == null) {
+            channelId = DEFAULT_CHANNEL_ID;
+        }
+        if (conversationId == null) {
+            return getChannelFromList(channelId, channels);
+        }
+        NotificationChannel parent = null;
+        for (NotificationChannel channel : channels) {
+            if (conversationId.equals(channel.getConversationId())
+                    && channelId.equals(channel.getParentChannelId())) {
+                return channel.copy();
+            } else if (channelId.equals(channel.getId())) {
+                parent = channel;
+            }
+        }
+        return parent != null ? parent.copy() : null;
     }
 
     /**
@@ -1218,11 +1404,24 @@ public class NotificationManager {
      * The channel group must belong to your package, or null will be returned.
      */
     public NotificationChannelGroup getNotificationChannelGroup(String channelGroupId) {
-        INotificationManager service = service();
-        try {
-            return service.getNotificationChannelGroup(mContext.getPackageName(), channelGroupId);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
+        if (Flags.nmBinderPerfCacheChannels()) {
+            String pkgName = mContext.getPackageName();
+            // getNotificationChannelGroup may only be called by the same package.
+            List<NotificationChannel> channelList = mNotificationChannelListCache.query(
+                    new NotificationChannelQuery(pkgName, pkgName, mContext.getUserId()));
+            Map<String, NotificationChannelGroup> groupHeaders =
+                    mNotificationChannelGroupsCache.query(pkgName);
+            NotificationChannelGroup ncg = NotificationChannelGroupsHelper.getGroupWithChannels(
+                    channelGroupId, channelList, groupHeaders, /* includeDeleted= */ false);
+            return ncg != null ? ncg.clone() : null;
+        } else {
+            INotificationManager service = service();
+            try {
+                return service.getNotificationChannelGroup(mContext.getPackageName(),
+                        channelGroupId);
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
         }
     }
 
@@ -1230,17 +1429,33 @@ public class NotificationManager {
      * Returns all notification channel groups belonging to the calling app.
      */
     public List<NotificationChannelGroup> getNotificationChannelGroups() {
-        INotificationManager service = service();
-        try {
-            final ParceledListSlice<NotificationChannelGroup> parceledList =
-                    service.getNotificationChannelGroups(mContext.getPackageName());
-            if (parceledList != null) {
-                return parceledList.getList();
+        if (Flags.nmBinderPerfCacheChannels()) {
+            String pkgName = mContext.getPackageName();
+            List<NotificationChannel> channelList = mNotificationChannelListCache.query(
+                    new NotificationChannelQuery(pkgName, pkgName, mContext.getUserId()));
+            Map<String, NotificationChannelGroup> groupHeaders =
+                    mNotificationChannelGroupsCache.query(pkgName);
+            List<NotificationChannelGroup> populatedGroupList =
+                    NotificationChannelGroupsHelper.getGroupsWithChannels(channelList, groupHeaders,
+                            NotificationChannelGroupsHelper.Params.forAllGroups());
+            List<NotificationChannelGroup> out = new ArrayList<>();
+            for (NotificationChannelGroup g : populatedGroupList) {
+                out.add(g.clone());
             }
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
+            return out;
+        } else {
+            INotificationManager service = service();
+            try {
+                final ParceledListSlice<NotificationChannelGroup> parceledList =
+                        service.getNotificationChannelGroups(mContext.getPackageName());
+                if (parceledList != null) {
+                    return parceledList.getList();
+                }
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
+            return new ArrayList<>();
         }
-        return new ArrayList<>();
     }
 
     /**
@@ -1268,6 +1483,126 @@ public class NotificationManager {
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
+    }
+
+    private static final String NOTIFICATION_CHANNELS_CACHE_API = "getNotificationChannels";
+    private static final int NOTIFICATION_CHANNELS_CACHE_SIZE = 10;
+    private static final String NOTIFICATION_CHANNEL_GROUPS_CACHE_API =
+            "getNotificationChannelGroups";
+    private static final int NOTIFICATION_CHANNEL_GROUPS_CACHE_SIZE = 10;
+
+    private final IpcDataCache.QueryHandler<NotificationChannelQuery, List<NotificationChannel>>
+            mNotificationChannelListQueryHandler = new IpcDataCache.QueryHandler<>() {
+                @Override
+                public List<NotificationChannel> apply(NotificationChannelQuery query) {
+                    INotificationManager service = service();
+                    try {
+                        return service.getNotificationChannels(query.callingPkg,
+                                query.targetPkg, query.userId).getList();
+                    } catch (RemoteException e) {
+                        throw e.rethrowFromSystemServer();
+                    }
+                }
+
+                @Override
+                public boolean shouldBypassCache(@NonNull NotificationChannelQuery query) {
+                    // Other locations should also not be querying the cache in the first place if
+                    // the flag is not enabled, but this is an extra precaution.
+                    if (!Flags.nmBinderPerfCacheChannels()) {
+                        Log.wtf(TAG,
+                                "shouldBypassCache called when nm_binder_perf_cache_channels off");
+                        return true;
+                    }
+                    return false;
+                }
+            };
+
+    private final IpcDataCache<NotificationChannelQuery, List<NotificationChannel>>
+            mNotificationChannelListCache =
+            new IpcDataCache<>(NOTIFICATION_CHANNELS_CACHE_SIZE, IpcDataCache.MODULE_SYSTEM,
+                    NOTIFICATION_CHANNELS_CACHE_API, NOTIFICATION_CHANNELS_CACHE_API,
+                    mNotificationChannelListQueryHandler);
+
+    private record NotificationChannelQuery(
+            String callingPkg,
+            String targetPkg,
+            int userId) {}
+
+    private final IpcDataCache.QueryHandler<String, Map<String, NotificationChannelGroup>>
+            mNotificationChannelGroupsQueryHandler = new IpcDataCache.QueryHandler<>() {
+                @Override
+                public Map<String, NotificationChannelGroup> apply(String pkg) {
+                    INotificationManager service = service();
+                    Map<String, NotificationChannelGroup> groups = new ArrayMap<>();
+                    try {
+                        final ParceledListSlice<NotificationChannelGroup> parceledList =
+                                service.getNotificationChannelGroupsWithoutChannels(pkg);
+                        if (parceledList != null) {
+                            for (NotificationChannelGroup group : parceledList.getList()) {
+                                groups.put(group.getId(), group);
+                            }
+                        }
+                    } catch (RemoteException e) {
+                        throw e.rethrowFromSystemServer();
+                    }
+                    return groups;
+                }
+
+                @Override
+                public boolean shouldBypassCache(@NonNull String query) {
+                    // Other locations should also not be querying the cache in the first place if
+                    // the flag is not enabled, but this is an extra precaution.
+                    if (!Flags.nmBinderPerfCacheChannels()) {
+                        Log.wtf(TAG,
+                                "shouldBypassCache called when nm_binder_perf_cache_channels off");
+                        return true;
+                    }
+                    return false;
+                }
+            };
+
+    private final IpcDataCache<String, Map<String, NotificationChannelGroup>>
+            mNotificationChannelGroupsCache = new IpcDataCache<>(
+            NOTIFICATION_CHANNEL_GROUPS_CACHE_SIZE, IpcDataCache.MODULE_SYSTEM,
+            NOTIFICATION_CHANNEL_GROUPS_CACHE_API, NOTIFICATION_CHANNEL_GROUPS_CACHE_API,
+            mNotificationChannelGroupsQueryHandler);
+
+    /**
+     * @hide
+     */
+    public static void invalidateNotificationChannelCache() {
+        if (Flags.nmBinderPerfCacheChannels()) {
+            IpcDataCache.invalidateCache(IpcDataCache.MODULE_SYSTEM,
+                    NOTIFICATION_CHANNELS_CACHE_API);
+        } else {
+            // if we are here, we have failed to flag something
+            Log.wtf(TAG, "invalidateNotificationChannelCache called without flag");
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public static void invalidateNotificationChannelGroupCache() {
+        if (Flags.nmBinderPerfCacheChannels()) {
+            IpcDataCache.invalidateCache(IpcDataCache.MODULE_SYSTEM,
+                    NOTIFICATION_CHANNEL_GROUPS_CACHE_API);
+        } else {
+            // if we are here, we have failed to flag something
+            Log.wtf(TAG, "invalidateNotificationChannelGroupCache called without flag");
+        }
+    }
+
+    /**
+     * For testing only: running tests with a cache requires marking the cache's property for
+     * testing, as test APIs otherwise cannot invalidate the cache. This must be called after
+     * calling PropertyInvalidatedCache.setTestMode(true).
+     * @hide
+     */
+    @VisibleForTesting
+    public void setChannelCachesToTestMode() {
+        mNotificationChannelListCache.testPropertyName();
+        mNotificationChannelGroupsCache.testPropertyName();
     }
 
     /**
@@ -1404,12 +1739,12 @@ public class NotificationManager {
      * rule management to system settings/uis via
      * {@link Settings#ACTION_AUTOMATIC_ZEN_RULE_SETTINGS}.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public boolean areAutomaticZenRulesUserManaged() {
-        if (Flags.modesApi() && Flags.modesUi()) {
+        if (Flags.modesUi()) {
             PackageManager pm = mContext.getPackageManager();
             return !pm.hasSystemFeature(PackageManager.FEATURE_WATCH)
-                    && !pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
+                    && !pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
+                    && !pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK);
         } else {
             return false;
         }
@@ -1425,21 +1760,15 @@ public class NotificationManager {
     public Map<String, AutomaticZenRule> getAutomaticZenRules() {
         INotificationManager service = service();
         try {
-            if (Flags.modesApi()) {
-                return service.getAutomaticZenRules();
-            } else {
-                List<ZenModeConfig.ZenRule> rules = service.getZenRules();
-                Map<String, AutomaticZenRule> ruleMap = new HashMap<>();
-                for (ZenModeConfig.ZenRule rule : rules) {
-                    AutomaticZenRule azr = new AutomaticZenRule(rule.name, rule.component,
-                            rule.configurationActivity, rule.conditionId, rule.zenPolicy,
-                            zenModeToInterruptionFilter(rule.zenMode), rule.enabled,
-                            rule.creationTime);
-                    azr.setPackageName(rule.pkg);
-                    ruleMap.put(rule.id, azr);
+            Map<String, AutomaticZenRule> result = new HashMap<>();
+            ParceledListSlice<AutomaticZenRule.AzrWithId> parceledRules =
+                    service.getAutomaticZenRules();
+            if (parceledRules != null) {
+                for (AutomaticZenRule.AzrWithId rule : parceledRules.getList()) {
+                    result.put(rule.mId, rule.mRule);
                 }
-                return ruleMap;
             }
+            return result;
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -1481,7 +1810,6 @@ public class NotificationManager {
 
     /** @hide */
     @TestApi
-    @FlaggedApi(Flags.FLAG_MODES_API)
     @NonNull
     public String addAutomaticZenRule(@NonNull AutomaticZenRule automaticZenRule,
             boolean fromUser) {
@@ -1517,7 +1845,6 @@ public class NotificationManager {
 
     /** @hide */
     @TestApi
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public boolean updateAutomaticZenRule(@NonNull String id,
             @NonNull AutomaticZenRule automaticZenRule, boolean fromUser) {
         INotificationManager service = service();
@@ -1537,7 +1864,6 @@ public class NotificationManager {
      * @param id The id of the rule
      * @return the state of the rule.
      */
-    @FlaggedApi(Flags.FLAG_MODES_API)
     @Condition.State
     public int getAutomaticZenRuleState(@NonNull String id) {
         INotificationManager service = service();
@@ -1612,7 +1938,6 @@ public class NotificationManager {
 
     /** @hide */
     @TestApi
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public boolean removeAutomaticZenRule(@NonNull String id, boolean fromUser) {
         INotificationManager service = service();
         try {
@@ -1927,19 +2252,6 @@ public class NotificationManager {
     /**
      * @hide
      */
-    @FlaggedApi(android.app.Flags.FLAG_NOTIFICATION_CLASSIFICATION_UI)
-    public void setTypeAdjustmentForPackageState(@NonNull String pkg, boolean enabled) {
-        INotificationManager service = service();
-        try {
-            service.setTypeAdjustmentForPackageState(pkg, enabled);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
-    }
-
-    /**
-     * @hide
-     */
     public List<String> getEnabledNotificationListenerPackages() {
         INotificationManager service = service();
         try {
@@ -2016,7 +2328,6 @@ public class NotificationManager {
      * @hide
      */
     @TestApi
-    @FlaggedApi(Flags.FLAG_MODES_API)
     public @NonNull ZenPolicy getDefaultZenPolicy() {
         INotificationManager service = service();
         try {
@@ -2383,7 +2694,7 @@ public class NotificationManager {
         /**
          * @hide
          */
-        public static final int STATE_CHANNELS_BYPASSING_DND = 1 << 0;
+        public static final int STATE_HAS_PRIORITY_CHANNELS = 1 << 0;
 
         /**
          * Whether the policy indicates that even priority channels are NOT permitted to bypass DND.
@@ -2608,7 +2919,7 @@ public class NotificationManager {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder().append("NotificationManager.Policy[")
+            return new StringBuilder().append("NotificationManager.Policy[")
                     .append("priorityCategories=")
                     .append(priorityCategoriesToString(priorityCategories))
                     .append(",priorityCallSenders=")
@@ -2618,24 +2929,19 @@ public class NotificationManager {
                     .append(",priorityConvSenders=")
                     .append(conversationSendersToString(priorityConversationSenders))
                     .append(",suppressedVisualEffects=")
-                    .append(suppressedEffectsToString(suppressedVisualEffects));
-            if (Flags.modesApi()) {
-                sb.append(",hasPriorityChannels=");
-            } else {
-                sb.append(",areChannelsBypassingDnd=");
-            }
-            sb.append((state == STATE_UNSET
-                    ? "unset"
-                    : ((state & STATE_CHANNELS_BYPASSING_DND) != 0)
-                            ? "true"
-                            : "false"));
-            if (Flags.modesApi()) {
-                sb.append(",allowPriorityChannels=")
-                        .append((state == STATE_UNSET
-                                ? "unset"
-                                : (allowPriorityChannels() ? "true" : "false")));
-            }
-            return sb.append("]").toString();
+                    .append(suppressedEffectsToString(suppressedVisualEffects))
+                    .append(",hasPriorityChannels=")
+                    .append((state == STATE_UNSET
+                            ? "unset"
+                            : ((state & STATE_HAS_PRIORITY_CHANNELS) != 0)
+                                    ? "true"
+                                    : "false"))
+                    .append(",allowPriorityChannels=")
+                    .append((state == STATE_UNSET
+                            ? "unset"
+                            : (allowPriorityChannels() ? "true" : "false")))
+                    .append("]")
+                    .toString();
         }
 
         /** @hide */
@@ -2910,7 +3216,6 @@ public class NotificationManager {
         }
 
         /** @hide **/
-        @FlaggedApi(Flags.FLAG_MODES_API)
         @TestApi // so CTS tests can read this state without having to use implementation detail
         public boolean allowPriorityChannels() {
             if (state == STATE_UNSET) {
@@ -2920,17 +3225,15 @@ public class NotificationManager {
         }
 
         /** @hide */
-        @FlaggedApi(Flags.FLAG_MODES_API)
         public boolean hasPriorityChannels() {
-            return (state & STATE_CHANNELS_BYPASSING_DND) != 0;
+            return (state & STATE_HAS_PRIORITY_CHANNELS) != 0;
         }
 
         /** @hide **/
-        @FlaggedApi(Flags.FLAG_MODES_API)
         public static int policyState(boolean hasPriorityChannels, boolean allowPriorityChannels) {
             int state = 0;
             if (hasPriorityChannels) {
-                state |= STATE_CHANNELS_BYPASSING_DND;
+                state |= STATE_HAS_PRIORITY_CHANNELS;
             }
             if (!allowPriorityChannels) {
                 state |= STATE_PRIORITY_CHANNELS_BLOCKED;

@@ -247,6 +247,15 @@ public class PermissionManagerServiceLoggingDecorator implements PermissionManag
     }
 
     @Override
+    public int getPermissionRequestState(String packageName, String permName, int deviceId,
+            String persistentDeviceId) {
+        Log.i(LOG_TAG, "checkUidPermissionState(permName = " + permName + ", deviceId = "
+                + persistentDeviceId + ", packageName = " + packageName + ")");
+        return mService.getPermissionRequestState(
+                packageName, permName, deviceId, persistentDeviceId);
+    }
+
+    @Override
     public Map<String, PermissionState> getAllPermissionStates(@NonNull String packageName,
             @NonNull String deviceId, int userId) {
         Log.i(LOG_TAG,

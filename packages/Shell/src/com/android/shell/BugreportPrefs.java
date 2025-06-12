@@ -23,25 +23,24 @@ import android.content.SharedPreferences;
  * Preferences related to bug reports.
  */
 final class BugreportPrefs {
-    static final String PREFS_BUGREPORT = "bugreports";
-
-    private static final String KEY_WARNING_STATE = "warning-state";
-
-    static final int STATE_UNKNOWN = 0;
-    // Shows the warning dialog.
-    static final int STATE_SHOW = 1;
-    // Skips the warning dialog.
-    static final int STATE_HIDE = 2;
 
     static int getWarningState(Context context, int def) {
-        final SharedPreferences prefs = context.getSharedPreferences(
-                PREFS_BUGREPORT, Context.MODE_PRIVATE);
-        return prefs.getInt(KEY_WARNING_STATE, def);
+        String prefsBugreport = context.getResources().getString(
+                com.android.internal.R.string.prefs_bugreport);
+        String keyWarningState = context.getResources().getString(
+                com.android.internal.R.string.key_warning_state);
+        final SharedPreferences prefs = context.getSharedPreferences(prefsBugreport,
+                Context.MODE_PRIVATE);
+        return prefs.getInt(keyWarningState, def);
     }
 
     static void setWarningState(Context context, int value) {
-        final SharedPreferences prefs = context.getSharedPreferences(
-                PREFS_BUGREPORT, Context.MODE_PRIVATE);
-        prefs.edit().putInt(KEY_WARNING_STATE, value).apply();
+        String prefsBugreport = context.getResources().getString(
+                com.android.internal.R.string.prefs_bugreport);
+        String keyWarningState = context.getResources().getString(
+                com.android.internal.R.string.key_warning_state);
+        final SharedPreferences prefs = context.getSharedPreferences(prefsBugreport,
+                Context.MODE_PRIVATE);
+        prefs.edit().putInt(keyWarningState, value).apply();
     }
 }

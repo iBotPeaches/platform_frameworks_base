@@ -197,9 +197,7 @@ class RollbackStore {
         json.put("isStaged", rollback.isStaged());
         json.put("causePackages", versionedPackagesToJson(rollback.getCausePackages()));
         json.put("committedSessionId", rollback.getCommittedSessionId());
-        if (Flags.recoverabilityDetection()) {
-            json.put("rollbackImpactLevel", rollback.getRollbackImpactLevel());
-        }
+        json.put("rollbackImpactLevel", rollback.getRollbackImpactLevel());
         return json;
     }
 
@@ -211,11 +209,9 @@ class RollbackStore {
                 versionedPackagesFromJson(json.getJSONArray("causePackages")),
                 json.getInt("committedSessionId"));
 
-        if (Flags.recoverabilityDetection()) {
-                // to make it backward compatible.
-            rollbackInfo.setRollbackImpactLevel(json.optInt("rollbackImpactLevel",
-                    PackageManager.ROLLBACK_USER_IMPACT_LOW));
-        }
+        // to make it backward compatible.
+        rollbackInfo.setRollbackImpactLevel(json.optInt("rollbackImpactLevel",
+                PackageManager.ROLLBACK_USER_IMPACT_LOW));
 
         return rollbackInfo;
     }

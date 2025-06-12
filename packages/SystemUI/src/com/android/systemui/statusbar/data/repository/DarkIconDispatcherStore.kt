@@ -24,7 +24,6 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.repository.DisplayRepository
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository
 import com.android.systemui.display.data.repository.PerDisplayStore
-import com.android.systemui.display.data.repository.PerDisplayStoreImpl
 import com.android.systemui.display.data.repository.SingleDisplayStore
 import com.android.systemui.plugins.DarkIconDispatcher
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
@@ -59,14 +58,18 @@ constructor(
     private val displayWindowPropertiesRepository: DisplayWindowPropertiesRepository,
 ) :
     SysuiDarkIconDispatcherStore,
-    PerDisplayStoreImpl<SysuiDarkIconDispatcher>(backgroundApplicationScope, displayRepository) {
+    StatusBarPerDisplayStoreImpl<SysuiDarkIconDispatcher>(
+        backgroundApplicationScope,
+        displayRepository,
+    ) {
 
     init {
-        StatusBarConnectedDisplays.assertInNewMode()
+        StatusBarConnectedDisplays.unsafeAssertInNewMode()
     }
 
-    override fun createInstanceForDisplay(displayId: Int): SysuiDarkIconDispatcher {
-        val properties = displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR)
+    override fun createInstanceForDisplay(displayId: Int): SysuiDarkIconDispatcher? {
+        val properties =
+            displayWindowPropertiesRepository.get(displayId, TYPE_STATUS_BAR) ?: return null
         return factory.create(displayId, properties.context)
     }
 
@@ -103,7 +106,7 @@ constructor(private val store: SysuiDarkIconDispatcherStore) : DarkIconDispatche
     override val defaultDisplay: DarkIconDispatcher
         get() = store.defaultDisplay
 
-    override fun forDisplay(displayId: Int): DarkIconDispatcher = store.forDisplay(displayId)
+    override fun forDisplay(displayId: Int): DarkIconDispatcher? = store.forDisplay(displayId)
 }
 
 @Module

@@ -32,7 +32,7 @@ import static androidx.constraintlayout.widget.ConstraintSet.START;
 import static androidx.constraintlayout.widget.ConstraintSet.TOP;
 import static androidx.constraintlayout.widget.ConstraintSet.WRAP_CONTENT;
 
-import static com.android.systemui.Flags.gsfBouncer;
+import static com.android.systemui.Flags.bouncerUiRevamp2;
 import static com.android.systemui.plugins.FalsingManager.LOW_PENALTY;
 
 import static java.lang.Integer.max;
@@ -51,6 +51,7 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BlendMode;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
@@ -97,6 +98,7 @@ import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
 import com.android.settingslib.Utils;
 import com.android.settingslib.drawable.CircleFramedDrawable;
+import com.android.systemui.FontStyles;
 import com.android.systemui.Gefingerpoken;
 import com.android.systemui.classifier.FalsingA11yDelegate;
 import com.android.systemui.plugins.FalsingManager;
@@ -118,6 +120,7 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
     static final int USER_TYPE_PRIMARY = 1;
     static final int USER_TYPE_WORK_PROFILE = 2;
     static final int USER_TYPE_SECONDARY_USER = 3;
+    private boolean mTransparentModeEnabled = false;
 
     @IntDef({MODE_UNINITIALIZED, MODE_DEFAULT, MODE_ONE_HANDED, MODE_USER_SWITCHER})
     public @interface Mode {}
@@ -169,6 +172,7 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
     private boolean mIsDragging;
     private float mStartTouchY = -1;
     private boolean mDisappearAnimRunning;
+    private boolean mIsAppearAnimationDelayed;
     private SwipeListener mSwipeListener;
     private ViewMode mViewMode = new DefaultViewMode();
     private boolean mIsInteractable;
@@ -346,8 +350,7 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
         setPadding(getPaddingLeft(), getPaddingTop() + getResources().getDimensionPixelSize(
                         R.dimen.keyguard_security_container_padding_top), getPaddingRight(),
                 getPaddingBottom());
-        setBackgroundColor(Utils.getColorAttrDefaultColor(getContext(),
-                com.android.internal.R.attr.materialColorSurfaceDim));
+        reloadBackgroundColor();
     }
 
     void onResume(SecurityMode securityMode, boolean faceAuthEnabled) {
@@ -581,6 +584,10 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
         return false;
     }
 
+    boolean isAppearAnimationDelayed() {
+        return mIsAppearAnimationDelayed;
+    }
+
     void addMotionEventListener(Gefingerpoken listener) {
         mMotionEventListeners.add(listener);
     }
@@ -620,6 +627,19 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
         setTranslationY(0f);
         updateChildren(0 /* translationY */, 1f /* alpha */);
         mViewMode.startAppearAnimation(securityMode);
+    }
+
+    /**
+     * Set view translationY and alpha as we delay bouncer animation.
+     */
+    public void setupForDelayedAppear() {
+        setTranslationY(0f);
+        setAlpha(0f);
+        setIsAppearAnimationDelayed(true);
+    }
+
+    public void setIsAppearAnimationDelayed(boolean isDelayed) {
+        mIsAppearAnimationDelayed = isDelayed;
     }
 
     private void beginJankInstrument(int cuj) {
@@ -810,12 +830,38 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
     public void reset() {
         mViewMode.reset();
         mDisappearAnimRunning = false;
+        mIsAppearAnimationDelayed = false;
+    }
+
+    /**
+     * Make the bouncer background transparent
+     */
+    public void enableTransparentMode() {
+        mTransparentModeEnabled = true;
+        reloadBackgroundColor();
+    }
+
+    /**
+     * Make the bouncer background opaque
+     */
+    public void disableTransparentMode() {
+        mTransparentModeEnabled = false;
+        reloadBackgroundColor();
+    }
+
+    private void reloadBackgroundColor() {
+        if (mTransparentModeEnabled) {
+            setBackgroundColor(Color.TRANSPARENT);
+        } else {
+            setBackgroundColor(
+                    getContext().getColor(com.android.internal.R.color.materialColorSurfaceDim));
+        }
+        invalidate();
     }
 
     void reloadColors() {
         mViewMode.reloadColors();
-        setBackgroundColor(Utils.getColorAttrDefaultColor(getContext(),
-                com.android.internal.R.attr.materialColorSurfaceDim));
+        reloadBackgroundColor();
     }
 
     /** Handles density or font scale changes. */
@@ -1337,8 +1383,9 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
                     true);
             mUserSwitcherViewGroup = mView.findViewById(R.id.keyguard_bouncer_user_switcher);
             mUserSwitcher = mView.findViewById(R.id.user_switcher_header);
-            if (gsfBouncer()) {
-                mUserSwitcher.setTypeface(Typeface.create("gsf-label-medium", Typeface.NORMAL));
+            if (bouncerUiRevamp2()) {
+                mUserSwitcher.setTypeface(
+                        Typeface.create(FontStyles.GSF_LABEL_MEDIUM, Typeface.NORMAL));
             }
         }
 

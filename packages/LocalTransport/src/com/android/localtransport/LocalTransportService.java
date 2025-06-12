@@ -16,15 +16,28 @@
 
 package com.android.localtransport;
 
+import static com.android.localtransport.LocalTransport.DEBUG;
+import static com.android.localtransport.LocalTransport.TAG;
+
+import android.annotation.Nullable;
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
+import android.util.Log;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 
 public class LocalTransportService extends Service {
-    private static LocalTransport sTransport = null;
+
+    @Nullable
+    private static LocalTransport sTransport;
 
     @Override
     public void onCreate() {
+        if (DEBUG) {
+            Log.d(TAG, "LocalTransportService.onCreate()");
+        }
         if (sTransport == null) {
             LocalTransportParameters parameters =
                     new LocalTransportParameters(getMainThreadHandler(), getContentResolver());
@@ -35,11 +48,27 @@ public class LocalTransportService extends Service {
 
     @Override
     public void onDestroy() {
+        if (DEBUG) {
+            Log.d(TAG, "LocalTransportService.onDestroy()");
+        }
         sTransport.getParameters().stop();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
+        if (DEBUG) {
+            Log.d(TAG, "LocalTransportService.onBind(" + intent + "): parameters="
+                    + sTransport.getParameters());
+        }
         return sTransport.getBinder();
+    }
+
+    @Override
+    protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        if (sTransport == null) {
+            pw.println("No sTransport");
+            return;
+        }
+        sTransport.dump(pw, args);
     }
 }

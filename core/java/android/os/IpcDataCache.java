@@ -658,4 +658,99 @@ public class IpcDataCache<Query, Result> extends PropertyInvalidatedCache<Query,
             }
         });
     }
+
+    /**
+     * The following APIs are exposed to support testing.  They only forward the superclass but
+     * that means the superclass does not have to expose the APIs itself.
+     */
+
+    /**
+     * Stop disabling local caches with the same name as <this>.  Any caches that are currently
+     * disabled remain disabled (the "disabled" setting is sticky).  However, new caches with this
+     * name will not be disabled.  It is not an error if the cache name is not found in the list
+     * of disabled caches.
+     * @hide
+     */
+    @TestApi
+    @Override
+    public final void forgetDisableLocal() {
+        super.forgetDisableLocal();
+    }
+
+    /**
+     * Return whether a cache instance is disabled.
+     * @hide
+     */
+    @TestApi
+    @Override
+    public final boolean isDisabled() {
+        return super.isDisabled();
+    }
+
+    /**
+     * This is an obsolete synonym for {@link #isDisabled()}.
+     * @hide
+     */
+    @TestApi
+    public boolean getDisabledState() {
+        return isDisabled();
+    }
+
+    /**
+     * Disable the use of this cache in this process.  This method is used internally and during
+     * testing.  To disable a cache in normal code, use disableProcessLocal().
+     * @hide
+     */
+    @TestApi
+    @Override
+    public final void disableInstance() {
+        super.disableInstance();
+    }
+
+    /**
+     * Disable all caches that use the property as the current cache.
+     * @hide
+     */
+    @TestApi
+    @Override
+    public final void disableSystemWide() {
+        super.disableSystemWide();
+    }
+
+    /**
+     * Enable or disable test mode.  The protocol requires that the mode toggle: for instance, it is
+     * illegal to clear the test mode if the test mode is already off.  Enabling test mode puts
+     * all caches in the process into test mode; all nonces are initialized to UNSET and
+     * subsequent reads and writes are to process memory.  This has the effect of disabling all
+     * caches that are not local to the process.  Disabling test mode restores caches to normal
+     * operation.
+     * @param mode The desired test mode.
+     * @throws IllegalStateException if the supplied mode is already set.
+     * @throws IllegalStateException if the process is not running an instrumentation test.
+     * @hide
+     */
+    @TestApi
+    public static void setTestMode(boolean mode) {
+        PropertyInvalidatedCache.setTestMode(mode);
+    }
+
+    /**
+     * Enable or disable test mode.  The protocol requires that the mode toggle: for instance, it is
+     * illegal to clear the test mode if the test mode is already off.  Enabling test mode puts
+     * all caches in the process into test mode; all nonces are initialized to UNSET and
+     * subsequent reads and writes are to process memory.  This has the effect of disabling all
+     * caches that are not local to the process.  Disabling test mode restores caches to normal
+     * operation.
+     * @param mode The desired test mode.
+     * @throws IllegalStateException if the supplied mode is already set.
+     * @throws IllegalStateException if the process is not running an instrumentation test.
+     * @hide
+     */
+    @FlaggedApi(android.os.Flags.FLAG_IPC_DATA_CACHE_TEST_APIS)
+    @SystemApi(client=SystemApi.Client.MODULE_LIBRARIES)
+    public static void setCacheTestMode(boolean mode) {
+        // Trunk-stable flagging requires that this API have a name different from the existing
+        // setTestMode() API.  However, the functionality is identical.
+        setTestMode(mode);
+    }
 }

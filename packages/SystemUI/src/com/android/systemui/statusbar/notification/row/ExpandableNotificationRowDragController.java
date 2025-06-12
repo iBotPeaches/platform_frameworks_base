@@ -54,6 +54,7 @@ import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.notification.logging.NotificationPanelLogger;
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 
 import javax.inject.Inject;
 
@@ -100,7 +101,15 @@ public class ExpandableNotificationRowDragController {
             enr = (ExpandableNotificationRow) view;
         }
 
-        StatusBarNotification sn = enr.getEntry().getSbn();
+        if (NotificationBundleUi.isEnabled()) {
+            if (!enr.getEntryAdapter().canDragAndDrop()) {
+                return;
+            }
+        }
+
+        StatusBarNotification sn = NotificationBundleUi.isEnabled()
+                ? enr.getEntryAdapter().getSbn()
+                : enr.getEntryLegacy().getSbn();
         Notification notification = sn.getNotification();
         final PendingIntent contentIntent = notification.contentIntent != null
                 ? notification.contentIntent
@@ -115,8 +124,7 @@ public class ExpandableNotificationRowDragController {
                  .show();
             return;
         }
-        Bitmap iconBitmap = getBitmapFromDrawable(
-                getPkgIcon(enr.getEntry().getSbn().getPackageName()));
+        Bitmap iconBitmap = getBitmapFromDrawable(getPkgIcon(sn.getPackageName()));
 
         final ImageView snapshot = new ImageView(mContext);
         snapshot.setImageBitmap(iconBitmap);
@@ -137,7 +145,11 @@ public class ExpandableNotificationRowDragController {
                 | View.DRAG_FLAG_REQUEST_SURFACE_FOR_RETURN_ANIMATION);
         if (result) {
             // Log notification drag only if it succeeds
-            mNotificationPanelLogger.logNotificationDrag(enr.getEntry());
+            if (NotificationBundleUi.isEnabled()) {
+                mNotificationPanelLogger.logNotificationDrag(enr.getEntryAdapter());
+            } else {
+                mNotificationPanelLogger.logNotificationDrag(enr.getEntryLegacy());
+            }
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             if (enr.isPinned()) {
                 mHeadsUpManager.releaseAllImmediately();

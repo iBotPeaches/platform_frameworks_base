@@ -38,11 +38,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.internal.widget.CachingIconView
 import com.android.systemui.SysuiTestCase
+import com.android.systemui.dump.DumpManager
 import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.media.controls.ui.view.GutsViewHolder
 import com.android.systemui.media.controls.ui.view.MediaHost
 import com.android.systemui.media.controls.ui.view.MediaViewHolder
-import com.android.systemui.media.controls.ui.view.RecommendationViewHolder
 import com.android.systemui.media.controls.ui.viewmodel.SeekBarViewModel
 import com.android.systemui.res.R
 import com.android.systemui.surfaceeffects.loadingeffect.LoadingEffectView
@@ -75,12 +75,11 @@ import org.mockito.MockitoAnnotations
 @RunWith(AndroidJUnit4::class)
 class MediaViewControllerTest : SysuiTestCase() {
     private val mediaHostStateHolder = MediaHost.MediaHostStateHolder()
-    private val mediaHostStatesManager = MediaHostStatesManager()
     private val configurationController =
         com.android.systemui.statusbar.phone.ConfigurationControllerImpl(context)
     private var player = TransitionLayout(context, /* attrs */ null, /* defStyleAttr */ 0)
-    private var recommendation = TransitionLayout(context, /* attrs */ null, /* defStyleAttr */ 0)
     private val clock = FakeSystemClock()
+    private lateinit var mediaHostStatesManager: MediaHostStatesManager
     private lateinit var mainExecutor: FakeExecutor
     private lateinit var seekBar: SeekBar
     private lateinit var multiRippleView: MultiRippleView
@@ -103,6 +102,7 @@ class MediaViewControllerTest : SysuiTestCase() {
     private lateinit var actionPlayPause: ImageButton
     private lateinit var actionNext: ImageButton
     private lateinit var actionPrev: ImageButton
+    @Mock private lateinit var dumpManager: DumpManager
     @Mock private lateinit var seamlessBackground: RippleDrawable
     @Mock private lateinit var albumView: ImageView
     @Mock lateinit var logger: MediaViewLogger
@@ -110,9 +110,6 @@ class MediaViewControllerTest : SysuiTestCase() {
     @Mock private lateinit var mockCopiedState: TransitionViewState
     @Mock private lateinit var detailWidgetState: WidgetState
     @Mock private lateinit var controlWidgetState: WidgetState
-    @Mock private lateinit var mediaTitleWidgetState: WidgetState
-    @Mock private lateinit var mediaSubTitleWidgetState: WidgetState
-    @Mock private lateinit var mediaContainerWidgetState: WidgetState
     @Mock private lateinit var seekBarViewModel: SeekBarViewModel
     @Mock private lateinit var seekBarData: LiveData<SeekBarViewModel.Progress>
     @Mock private lateinit var globalSettings: GlobalSettings
@@ -129,6 +126,7 @@ class MediaViewControllerTest : SysuiTestCase() {
     @Before
     fun setup() {
         MockitoAnnotations.initMocks(this)
+        mediaHostStatesManager = MediaHostStatesManager(dumpManager)
         mainExecutor = FakeExecutor(clock)
         mediaViewController =
             object :
@@ -145,7 +143,7 @@ class MediaViewControllerTest : SysuiTestCase() {
                     context: Context,
                     animId: Int,
                     motionInterpolator: Interpolator?,
-                    vararg targets: View?
+                    vararg targets: View?,
                 ): AnimatorSet {
                     return mockAnimator
                 }
@@ -158,7 +156,7 @@ class MediaViewControllerTest : SysuiTestCase() {
     fun testOrientationChanged_heightOfPlayerIsUpdated() {
         val newConfig = Configuration()
 
-        mediaViewController.attach(player, MediaViewController.TYPE.PLAYER)
+        mediaViewController.attach(player)
         // Change the height to see the effect of orientation change.
         MediaViewHolder.backgroundIds.forEach { id ->
             mediaViewController.expandedLayout.getConstraint(id).layout.mHeight = 10
@@ -177,30 +175,8 @@ class MediaViewControllerTest : SysuiTestCase() {
     }
 
     @Test
-    fun testOrientationChanged_heightOfRecCardIsUpdated() {
-        val newConfig = Configuration()
-
-        mediaViewController.attach(recommendation, MediaViewController.TYPE.RECOMMENDATION)
-        // Change the height to see the effect of orientation change.
-        mediaViewController.expandedLayout
-            .getConstraint(RecommendationViewHolder.backgroundId)
-            .layout
-            .mHeight = 10
-        newConfig.orientation = ORIENTATION_LANDSCAPE
-        configurationController.onConfigurationChanged(newConfig)
-
-        assertTrue(
-            mediaViewController.expandedLayout
-                .getConstraint(RecommendationViewHolder.backgroundId)
-                .layout
-                .mHeight ==
-                context.resources.getDimensionPixelSize(R.dimen.qs_media_session_height_expanded)
-        )
-    }
-
-    @Test
     fun testObtainViewState_applySquishFraction_toPlayerTransitionViewState_height() {
-        mediaViewController.attach(player, MediaViewController.TYPE.PLAYER)
+        mediaViewController.attach(player)
         player.measureState =
             TransitionViewState().apply {
                 this.height = 100
@@ -224,29 +200,8 @@ class MediaViewControllerTest : SysuiTestCase() {
     }
 
     @Test
-    fun testObtainViewState_applySquishFraction_toRecommendationTransitionViewState_height() {
-        mediaViewController.attach(recommendation, MediaViewController.TYPE.RECOMMENDATION)
-        recommendation.measureState = TransitionViewState().apply { this.height = 100 }
-        mediaHostStateHolder.expansion = 1f
-        val widthMeasureSpec = View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY)
-        val heightMeasureSpec = View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY)
-        mediaHostStateHolder.measurementInput =
-            MeasurementInput(widthMeasureSpec, heightMeasureSpec)
-
-        // Test no squish
-        mediaHostStateHolder.squishFraction = 1f
-        assertTrue(mediaViewController.obtainViewState(mediaHostStateHolder)!!.height == 100)
-        assertTrue(mediaViewController.obtainViewState(mediaHostStateHolder)!!.measureHeight == 100)
-
-        // Test half squish
-        mediaHostStateHolder.squishFraction = 0.5f
-        assertTrue(mediaViewController.obtainViewState(mediaHostStateHolder)!!.height == 50)
-        assertTrue(mediaViewController.obtainViewState(mediaHostStateHolder)!!.measureHeight == 100)
-    }
-
-    @Test
     fun testObtainViewState_expandedMatchesParentHeight() {
-        mediaViewController.attach(player, MediaViewController.TYPE.PLAYER)
+        mediaViewController.attach(player)
         player.measureState =
             TransitionViewState().apply {
                 this.height = 100
@@ -283,7 +238,7 @@ class MediaViewControllerTest : SysuiTestCase() {
             .thenReturn(
                 mutableMapOf(
                     R.id.media_progress_bar to controlWidgetState,
-                    R.id.header_artist to detailWidgetState
+                    R.id.header_artist to detailWidgetState,
                 )
             )
         whenever(mockCopiedState.measureHeight).thenReturn(200)
@@ -311,7 +266,7 @@ class MediaViewControllerTest : SysuiTestCase() {
             .thenReturn(
                 mutableMapOf(
                     R.id.media_progress_bar to controlWidgetState,
-                    R.id.header_artist to detailWidgetState
+                    R.id.header_artist to detailWidgetState,
                 )
             )
         whenever(mockCopiedState.measureHeight).thenReturn(200)
@@ -330,46 +285,6 @@ class MediaViewControllerTest : SysuiTestCase() {
         mediaViewController.squishViewState(mockViewState, 200F / 200F)
         verify(controlWidgetState, never()).alpha = floatThat { it > 0 }
         verify(detailWidgetState, never()).alpha = floatThat { it > 0 }
-    }
-
-    @Test
-    fun testSquishViewState_applySquishFraction_toTransitionViewState_alpha_forRecommendation() {
-        whenever(mockViewState.copy()).thenReturn(mockCopiedState)
-        whenever(mockCopiedState.widgetStates)
-            .thenReturn(
-                mutableMapOf(
-                    R.id.media_title to mediaTitleWidgetState,
-                    R.id.media_subtitle to mediaSubTitleWidgetState,
-                    R.id.media_cover1_container to mediaContainerWidgetState
-                )
-            )
-        whenever(mockCopiedState.measureHeight).thenReturn(360)
-        // media container widgets occupy [20, 300]
-        whenever(mediaContainerWidgetState.y).thenReturn(20F)
-        whenever(mediaContainerWidgetState.height).thenReturn(280)
-        whenever(mediaContainerWidgetState.alpha).thenReturn(1F)
-        // media title widgets occupy [320, 330]
-        whenever(mediaTitleWidgetState.y).thenReturn(320F)
-        whenever(mediaTitleWidgetState.height).thenReturn(10)
-        whenever(mediaTitleWidgetState.alpha).thenReturn(1F)
-        // media subtitle widgets occupy [340, 350]
-        whenever(mediaSubTitleWidgetState.y).thenReturn(340F)
-        whenever(mediaSubTitleWidgetState.height).thenReturn(10)
-        whenever(mediaSubTitleWidgetState.alpha).thenReturn(1F)
-
-        // in current beizer, when the progress reach 0.38, the result will be 0.5
-        mediaViewController.squishViewState(mockViewState, 307.6F / 360F)
-        verify(mediaContainerWidgetState).alpha = floatThat { kotlin.math.abs(it - 0.5F) < delta }
-        mediaViewController.squishViewState(mockViewState, 320F / 360F)
-        verify(mediaContainerWidgetState).alpha = floatThat { kotlin.math.abs(it - 1.0F) < delta }
-        // media title and media subtitle are in same widget group, should be calculate together and
-        // have same alpha
-        mediaViewController.squishViewState(mockViewState, 353.8F / 360F)
-        verify(mediaTitleWidgetState).alpha = floatThat { kotlin.math.abs(it - 0.5F) < delta }
-        verify(mediaSubTitleWidgetState).alpha = floatThat { kotlin.math.abs(it - 0.5F) < delta }
-        mediaViewController.squishViewState(mockViewState, 360F / 360F)
-        verify(mediaTitleWidgetState).alpha = floatThat { kotlin.math.abs(it - 1.0F) < delta }
-        verify(mediaSubTitleWidgetState).alpha = floatThat { kotlin.math.abs(it - 1.0F) < delta }
     }
 
     @EnableSceneContainer

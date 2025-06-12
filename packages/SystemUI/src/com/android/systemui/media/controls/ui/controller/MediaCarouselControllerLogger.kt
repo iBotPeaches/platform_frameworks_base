@@ -64,41 +64,20 @@ constructor(@MediaCarouselControllerLog private val buffer: LogBuffer) {
             { "removing player $str1, by user $bool1" },
         )
 
-    fun logRecommendationLoaded(key: String, isActive: Boolean) =
-        buffer.log(
-            TAG,
-            LogLevel.DEBUG,
-            {
-                str1 = key
-                bool1 = isActive
-            },
-            { "add recommendation $str1, active $bool1" },
-        )
-
-    fun logRecommendationRemoved(key: String, immediately: Boolean) =
-        buffer.log(
-            TAG,
-            LogLevel.DEBUG,
-            {
-                str1 = key
-                bool1 = immediately
-            },
-            { "removing recommendation $str1, immediate=$bool1" },
-        )
-
     fun logCarouselHidden() = buffer.log(TAG, LogLevel.DEBUG, {}, { "hiding carousel" })
 
     fun logCarouselVisible() = buffer.log(TAG, LogLevel.DEBUG, {}, { "showing carousel" })
 
-    fun logMediaHostVisibility(location: Int, visible: Boolean) {
+    fun logMediaHostVisibility(location: Int, visible: Boolean, oldState: Boolean) {
         buffer.log(
             TAG,
             LogLevel.DEBUG,
             {
                 int1 = location
                 bool1 = visible
+                bool2 = oldState
             },
-            { "media host visibility changed location=$location, visible:$visible" },
+            { "media host visibility changed location=$int1, visible:$bool1, was:$bool2" },
         )
     }
 }

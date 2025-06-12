@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 
 import android.media.ExifInterface;
 import android.os.Bundle;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 import android.provider.DocumentsContract;
 import android.provider.MetadataReader;
@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = MetadataReader.class)
+@DisabledOnRavenwood(blockedBy = MetadataReader.class)
 public class MetadataReaderTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

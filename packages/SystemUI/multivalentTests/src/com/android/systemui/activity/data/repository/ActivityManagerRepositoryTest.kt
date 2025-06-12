@@ -31,6 +31,7 @@ import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.log.core.Logger
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.testKosmos
+import com.android.systemui.util.time.fakeSystemClock
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -134,6 +135,118 @@ class ActivityManagerRepositoryTest : SysuiTestCase() {
 
             // Verify no crash, and we get a value emitted
             assertThat(latest).isFalse()
+        }
+
+    @Test
+    fun createAppVisibilityFlow_fetchesInitialValue_trueWithLastVisibleTime() =
+        kosmos.runTest {
+            whenever(activityManager.getUidImportance(THIS_UID)).thenReturn(IMPORTANCE_FOREGROUND)
+            fakeSystemClock.setCurrentTimeMillis(5000)
+
+            val latest by
+                collectLastValue(underTest.createAppVisibilityFlow(THIS_UID, logger, LOG_TAG))
+
+            assertThat(latest!!.isAppCurrentlyVisible).isTrue()
+            assertThat(latest!!.lastAppVisibleTime).isEqualTo(5000)
+        }
+
+    @Test
+    fun createAppVisibilityFlow_fetchesInitialValue_falseWithoutLastVisibleTime() =
+        kosmos.runTest {
+            whenever(activityManager.getUidImportance(THIS_UID)).thenReturn(IMPORTANCE_GONE)
+            fakeSystemClock.setCurrentTimeMillis(5000)
+
+            val latest by
+                collectLastValue(underTest.createAppVisibilityFlow(THIS_UID, logger, LOG_TAG))
+
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
+            assertThat(latest!!.lastAppVisibleTime).isNull()
+        }
+
+    @Test
+    fun createAppVisibilityFlow_getsImportanceUpdates_updatesLastVisibleTimeOnlyWhenVisible() =
+        kosmos.runTest {
+            whenever(activityManager.getUidImportance(THIS_UID)).thenReturn(IMPORTANCE_GONE)
+            fakeSystemClock.setCurrentTimeMillis(5000)
+            val latest by
+                collectLastValue(underTest.createAppVisibilityFlow(THIS_UID, logger, LOG_TAG))
+
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
+            assertThat(latest!!.lastAppVisibleTime).isNull()
+
+            val listenerCaptor = argumentCaptor<ActivityManager.OnUidImportanceListener>()
+            verify(activityManager).addOnUidImportanceListener(listenerCaptor.capture(), any())
+            val listener = listenerCaptor.firstValue
+
+            // WHEN the app becomes visible
+            fakeSystemClock.setCurrentTimeMillis(7000)
+            listener.onUidImportance(THIS_UID, IMPORTANCE_FOREGROUND)
+
+            // THEN the status and lastAppVisibleTime are updated
+            assertThat(latest!!.isAppCurrentlyVisible).isTrue()
+            assertThat(latest!!.lastAppVisibleTime).isEqualTo(7000)
+
+            // WHEN the app is no longer visible
+            listener.onUidImportance(THIS_UID, IMPORTANCE_TOP_SLEEPING)
+
+            // THEN the lastAppVisibleTime is preserved
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
+            assertThat(latest!!.lastAppVisibleTime).isEqualTo(7000)
+
+            // WHEN the app is visible again
+            fakeSystemClock.setCurrentTimeMillis(9000)
+            listener.onUidImportance(THIS_UID, IMPORTANCE_FOREGROUND)
+
+            // THEN the lastAppVisibleTime is updated
+            assertThat(latest!!.isAppCurrentlyVisible).isTrue()
+            assertThat(latest!!.lastAppVisibleTime).isEqualTo(9000)
+        }
+
+    @Test
+    fun createAppVisibilityFlow_ignoresUpdatesForOtherUids() =
+        kosmos.runTest {
+            val latest by
+                collectLastValue(underTest.createAppVisibilityFlow(THIS_UID, logger, LOG_TAG))
+
+            val listenerCaptor = argumentCaptor<ActivityManager.OnUidImportanceListener>()
+            verify(activityManager).addOnUidImportanceListener(listenerCaptor.capture(), any())
+            val listener = listenerCaptor.firstValue
+
+            listener.onUidImportance(THIS_UID, IMPORTANCE_GONE)
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
+
+            // WHEN another UID becomes foreground
+            listener.onUidImportance(THIS_UID + 2, IMPORTANCE_FOREGROUND)
+
+            // THEN this UID still stays not visible
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
+        }
+
+    @Test
+    fun createAppVisibilityFlow_securityExceptionOnUidRegistration_ok() =
+        kosmos.runTest {
+            whenever(activityManager.getUidImportance(THIS_UID)).thenReturn(IMPORTANCE_GONE)
+            whenever(activityManager.addOnUidImportanceListener(any(), any()))
+                .thenThrow(SecurityException())
+
+            val latest by
+                collectLastValue(underTest.createAppVisibilityFlow(THIS_UID, logger, LOG_TAG))
+
+            // Verify no crash, and we get a value emitted
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
+        }
+
+    /** Regression test for b/216248574. */
+    @Test
+    fun createAppVisibilityFlow_getUidImportanceThrowsException_ok() =
+        kosmos.runTest {
+            whenever(activityManager.getUidImportance(any())).thenThrow(SecurityException())
+
+            val latest by
+                collectLastValue(underTest.createAppVisibilityFlow(THIS_UID, logger, LOG_TAG))
+
+            // Verify no crash, and we get a value emitted
+            assertThat(latest!!.isAppCurrentlyVisible).isFalse()
         }
 
     companion object {

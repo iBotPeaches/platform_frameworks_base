@@ -34,6 +34,7 @@ import android.os.UserHandle;
 import android.permission.PermissionManager;
 import android.permission.flags.Flags;
 import android.util.ArraySet;
+import android.util.Log;
 
 import com.android.internal.annotations.Immutable;
 
@@ -90,6 +91,7 @@ import java.util.Set;
  */
 @Immutable
 public final class AttributionSource implements Parcelable {
+    private static final String TAG = "AttributionSource";
     private static final String DESCRIPTOR = "android.content.AttributionSource";
 
     private static final Binder sDefaultToken = new Binder(DESCRIPTOR);
@@ -273,6 +275,13 @@ public final class AttributionSource implements Parcelable {
 
         final AttributionSource globalSource = ActivityThread.currentAttributionSource();
         if (globalSource != null) {
+            if (Flags.enforceDefaultDeviceIdInMyAttributionSource()
+                    && globalSource.getDeviceId() != Context.DEVICE_ID_DEFAULT) {
+                Log.w(TAG,
+                        "Avoid using myAttributionSource() to fetch an attributionSource with a "
+                                + "non-default device Id");
+                return globalSource.withDeviceId(Context.DEVICE_ID_DEFAULT);
+            }
             return globalSource;
         }
 

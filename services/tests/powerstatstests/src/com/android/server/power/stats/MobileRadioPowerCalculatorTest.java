@@ -62,18 +62,13 @@ import java.util.List;
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class MobileRadioPowerCalculatorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
     private static final int APP_UID2 = Process.FIRST_APPLICATION_UID + 101;
     @Mock
     NetworkStatsManager mNetworkStatsManager;
 
-    @Rule(order = 1)
+    @Rule(order = 0)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule();
 
     @Test

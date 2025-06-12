@@ -29,7 +29,7 @@ import com.android.systemui.qs.pipeline.data.repository.tileSpecRepository
 import com.android.systemui.qs.pipeline.shared.logging.qsLogger
 import com.android.systemui.qs.pipeline.shared.pipelineFlagsRepository
 import com.android.systemui.qs.qsTileFactory
-import com.android.systemui.qs.tiles.di.newQSTileFactory
+import com.android.systemui.qs.tiles.base.ui.model.newQSTileFactory
 import com.android.systemui.settings.userTracker
 import com.android.systemui.user.data.repository.userRepository
 

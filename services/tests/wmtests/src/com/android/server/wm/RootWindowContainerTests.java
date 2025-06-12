@@ -31,6 +31,7 @@ import static android.window.DisplayAreaOrganizer.FEATURE_VENDOR_FIRST;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
+import static com.android.server.display.feature.flags.Flags.FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT;
 import static com.android.server.wm.ActivityRecord.State.FINISHING;
 import static com.android.server.wm.ActivityRecord.State.PAUSED;
 import static com.android.server.wm.ActivityRecord.State.PAUSING;
@@ -40,6 +41,7 @@ import static com.android.server.wm.ActivityRecord.State.STOPPING;
 import static com.android.server.wm.ActivityTaskSupervisor.ON_TOP;
 import static com.android.server.wm.RootWindowContainer.MATCH_ATTACHED_TASK_OR_RECENT_TASKS_AND_RESTORE;
 import static com.android.server.wm.WindowContainer.POSITION_BOTTOM;
+
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -63,6 +65,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 
 import android.app.ActivityOptions;
 import android.app.WindowConfiguration;
@@ -77,12 +80,15 @@ import android.graphics.Rect;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.util.Pair;
+import android.view.DisplayInfo;
 
 import androidx.test.filters.MediumTest;
 
 import com.android.internal.app.ResolverActivity;
+import com.android.window.flags.Flags;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -450,31 +456,6 @@ public class RootWindowContainerTests extends WindowTestsBase {
     }
 
     @Test
-    public void testMovingBottomMostRootTaskActivityToPinnedRootTask() {
-        final Task fullscreenTask = mRootWindowContainer.getDefaultTaskDisplayArea().createRootTask(
-                WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, true /* onTop */);
-        final ActivityRecord firstActivity = new ActivityBuilder(mAtm)
-                .setTask(fullscreenTask).build();
-        final Task task = firstActivity.getTask();
-
-        final ActivityRecord secondActivity = new ActivityBuilder(mAtm)
-                .setTask(fullscreenTask).build();
-
-        fullscreenTask.moveTaskToBack(task);
-
-        // Ensure full screen task has both tasks.
-        ensureTaskPlacement(fullscreenTask, firstActivity, secondActivity);
-        assertEquals(task.getTopMostActivity(), secondActivity);
-        firstActivity.setState(STOPPED, "testMovingBottomMostRootTaskActivityToPinnedRootTask");
-
-
-        // Move first activity to pinned root task.
-        mRootWindowContainer.moveActivityToPinnedRootTask(secondActivity, "initialMove");
-
-        assertTrue(firstActivity.mRequestForceTransition);
-    }
-
-    @Test
     public void testMultipleActivitiesTaskEnterPip() {
         // Enable shell transition because the order of setting windowing mode is different.
         registerTestTransitionPlayer();
@@ -531,7 +512,7 @@ public class RootWindowContainerTests extends WindowTestsBase {
         final Rect bounds = new Rect(task.getBounds());
         bounds.scale(0.5f);
         task.setBounds(bounds);
-        assertFalse(activity.mAppCompatController.getAppCompatAspectRatioPolicy()
+        assertFalse(activity.mAppCompatController.getAspectRatioPolicy()
                 .isLetterboxedForFixedOrientationAndAspectRatio());
         assertThat(task.autoRemoveRecents).isFalse();
     }
@@ -693,6 +674,7 @@ public class RootWindowContainerTests extends WindowTestsBase {
     @Test
     public void testAwakeFromSleepingWithAppConfiguration() {
         final DisplayContent display = mRootWindowContainer.getDefaultDisplay();
+        display.setIgnoreOrientationRequest(false);
         final ActivityRecord activity = new ActivityBuilder(mAtm).setCreateTask(true).build();
         activity.moveFocusableActivityToTop("test");
         assertTrue(activity.getRootTask().isFocusedRootTaskOnDisplay());
@@ -1331,6 +1313,44 @@ public class RootWindowContainerTests extends WindowTestsBase {
         assertEquals(taskDisplayArea.getTopRootTask(), taskDisplayArea.getRootHomeTask());
     }
 
+    @EnableFlags(Flags.FLAG_ENABLE_TOP_VISIBLE_ROOT_TASK_PER_USER_TRACKING)
+    @Test
+    public void testSwitchUser_withVisibleRootTasks_storesAllVisibleRootTasksForCurrentUser() {
+        // Set up root tasks
+        final Task rootTask1 = mRootWindowContainer.getDefaultTaskDisplayArea().createRootTask(
+                WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, true /* onTop */);
+        final Task rootTask2 = mRootWindowContainer.getDefaultTaskDisplayArea().createRootTask(
+                WINDOWING_MODE_FREEFORM, ACTIVITY_TYPE_STANDARD, true /* onTop */);
+        final Task rootTask3 = mRootWindowContainer.getDefaultTaskDisplayArea().createRootTask(
+                WINDOWING_MODE_FREEFORM, ACTIVITY_TYPE_STANDARD, true /* onTop */);
+        doReturn(rootTask3).when(mRootWindowContainer).getTopDisplayFocusedRootTask();
+
+        // Set up child tasks inside root tasks and set some of them visible
+        final Task task1 = new TaskBuilder(mSupervisor).setOnTop(true).setParentTask(
+                rootTask1).build();
+        final Task task2 = new TaskBuilder(mSupervisor).setOnTop(true).setParentTask(
+                rootTask2).build();
+        final Task task3 = new TaskBuilder(mSupervisor).setOnTop(true).setParentTask(
+                rootTask3).build();
+        rootTask1.mUserId = mRootWindowContainer.mCurrentUser;
+        rootTask2.mUserId = mRootWindowContainer.mCurrentUser;
+        rootTask3.mUserId = mRootWindowContainer.mCurrentUser;
+        doReturn(false).when(task1).isVisible();
+        doReturn(true).when(task2).isVisible();
+        doReturn(true).when(task3).isVisible();
+
+        // Switch to a different user
+        int currentUser = mRootWindowContainer.mCurrentUser;
+        int otherUser = currentUser + 1;
+        mRootWindowContainer.switchUser(otherUser, null);
+
+        // Verify that the previous user persists it's previous visible root tasks
+        assertArrayEquals(
+                new int[]{rootTask2.mTaskId, rootTask3.mTaskId},
+                mRootWindowContainer.mUserVisibleRootTasks.get(currentUser).toArray()
+        );
+    }
+
     @Test
     public void testLockAllProfileTasks() {
         final int profileUid = UserHandle.PER_USER_RANGE + UserHandle.MIN_SECONDARY_USER_ID;
@@ -1359,6 +1379,23 @@ public class RootWindowContainerTests extends WindowTestsBase {
         clearInvocations(controller);
         mWm.mRoot.lockAllProfileTasks(profileUserId);
         verify(controller, never()).notifyTaskProfileLocked(any(), anyInt());
+    }
+
+    @EnableFlags(FLAG_ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT)
+    @Test
+    public void testOnDisplayBelongToTopologyChanged() {
+        final DisplayInfo displayInfo = new DisplayInfo();
+        displayInfo.copyFrom(mDisplayInfo);
+        displayInfo.displayId = DEFAULT_DISPLAY + 1;
+        final DisplayContent dc = createNewDisplay(displayInfo);
+        final int displayId = dc.getDisplayId();
+
+        doReturn(dc).when(mRootWindowContainer).getDisplayContentOrCreate(displayId);
+        doReturn(true).when(mWm.mDisplayWindowSettings).shouldShowSystemDecorsLocked(dc);
+
+        mRootWindowContainer.onDisplayAdded(displayId);
+        verify(mWm.mDisplayManagerInternal, times(1)).onDisplayBelongToTopologyChanged(anyInt(),
+                anyBoolean());
     }
 
     /**

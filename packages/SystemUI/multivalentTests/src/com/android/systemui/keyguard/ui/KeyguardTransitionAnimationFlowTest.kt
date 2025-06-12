@@ -57,9 +57,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                     duration = 1000.milliseconds,
                     edge = Edge.create(from = Scenes.Gone, to = DREAMING),
                 )
-                .setupWithoutSceneContainer(
-                    edge = Edge.create(from = GONE, to = DREAMING),
-                )
+                .setupWithoutSceneContainer(edge = Edge.create(from = GONE, to = DREAMING))
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -75,7 +73,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                 underTest.sharedFlow(
                     startTime = 300.milliseconds,
                     duration = 800.milliseconds,
-                    onStep = { it }
+                    onStep = { it },
                 )
         }
 
@@ -109,6 +107,17 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
 
             repository.sendTransitionStep(step(0.5f, TransitionState.CANCELED))
             assertThat(animationValues()).isEqualTo(100f)
+        }
+
+    @Test
+    fun onStepReturnsNullEmitsNothing() =
+        testScope.runTest {
+            val flow = underTest.sharedFlow(duration = 100.milliseconds, onStep = { null })
+            var animationValues = collectLastValue(flow)
+            runCurrent()
+
+            repository.sendTransitionStep(step(0.5f, TransitionState.RUNNING))
+            assertThat(animationValues()).isNull()
         }
 
     @Test
@@ -166,11 +175,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
     @Test
     fun usesOnStepToDoubleValue() =
         testScope.runTest {
-            val flow =
-                underTest.sharedFlow(
-                    duration = 1000.milliseconds,
-                    onStep = { it * 2 },
-                )
+            val flow = underTest.sharedFlow(duration = 1000.milliseconds, onStep = { it * 2 })
             val animationValues by collectLastValue(flow)
             runCurrent()
 
@@ -190,10 +195,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
     fun usesOnStepToDoubleValueWithState() =
         testScope.runTest {
             val flow =
-                underTest.sharedFlowWithState(
-                    duration = 1000.milliseconds,
-                    onStep = { it * 2 },
-                )
+                underTest.sharedFlowWithState(duration = 1000.milliseconds, onStep = { it * 2 })
             val animationValues by collectLastValue(flow)
             runCurrent()
 
@@ -204,7 +206,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                         from = GONE,
                         to = DREAMING,
                         transitionState = TransitionState.STARTED,
-                        value = 0f
+                        value = 0f,
                     )
                 )
             repository.sendTransitionStep(step(0.3f, TransitionState.RUNNING))
@@ -214,7 +216,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                         from = GONE,
                         to = DREAMING,
                         transitionState = TransitionState.RUNNING,
-                        value = 0.6f
+                        value = 0.6f,
                     )
                 )
             repository.sendTransitionStep(step(0.6f, TransitionState.RUNNING))
@@ -224,7 +226,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                         from = GONE,
                         to = DREAMING,
                         transitionState = TransitionState.RUNNING,
-                        value = 1.2f
+                        value = 1.2f,
                     )
                 )
             repository.sendTransitionStep(step(0.8f, TransitionState.RUNNING))
@@ -234,7 +236,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                         from = GONE,
                         to = DREAMING,
                         transitionState = TransitionState.RUNNING,
-                        value = 1.6f
+                        value = 1.6f,
                     )
                 )
             repository.sendTransitionStep(step(1f, TransitionState.RUNNING))
@@ -244,7 +246,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                         from = GONE,
                         to = DREAMING,
                         transitionState = TransitionState.RUNNING,
-                        value = 2f
+                        value = 2f,
                     )
                 )
             repository.sendTransitionStep(step(1f, TransitionState.FINISHED))
@@ -254,7 +256,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
                         from = GONE,
                         to = DREAMING,
                         transitionState = TransitionState.FINISHED,
-                        value = null
+                        value = null,
                     )
                 )
         }
@@ -262,11 +264,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
     @Test
     fun sameFloatValueWithTheSameTransitionStateDoesNotEmitTwice() =
         testScope.runTest {
-            val flow =
-                underTest.sharedFlow(
-                    duration = 1000.milliseconds,
-                    onStep = { it },
-                )
+            val flow = underTest.sharedFlow(duration = 1000.milliseconds, onStep = { it })
             val values by collectValues(flow)
             runCurrent()
 
@@ -280,11 +278,7 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
     @Test
     fun sameFloatValueWithADifferentTransitionStateDoesEmitTwice() =
         testScope.runTest {
-            val flow =
-                underTest.sharedFlow(
-                    duration = 1000.milliseconds,
-                    onStep = { it },
-                )
+            val flow = underTest.sharedFlow(duration = 1000.milliseconds, onStep = { it })
             val values by collectValues(flow)
             runCurrent()
 
@@ -302,14 +296,14 @@ class KeyguardTransitionAnimationFlowTest : SysuiTestCase() {
 
     private fun step(
         value: Float,
-        state: TransitionState = TransitionState.RUNNING
+        state: TransitionState = TransitionState.RUNNING,
     ): TransitionStep {
         return TransitionStep(
             from = GONE,
             to = DREAMING,
             value = value,
             transitionState = state,
-            ownerName = "GoneToDreamingTransitionViewModelTest"
+            ownerName = "GoneToDreamingTransitionViewModelTest",
         )
     }
 }

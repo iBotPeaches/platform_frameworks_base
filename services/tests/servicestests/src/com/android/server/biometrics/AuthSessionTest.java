@@ -18,9 +18,11 @@ package com.android.server.biometrics;
 
 import static android.hardware.biometrics.BiometricAuthenticator.TYPE_FACE;
 import static android.hardware.biometrics.BiometricAuthenticator.TYPE_FINGERPRINT;
+import static android.hardware.biometrics.BiometricConstants.BIOMETRIC_ERROR_CONTENT_VIEW_MORE_OPTIONS_BUTTON;
 import static android.hardware.biometrics.BiometricConstants.BIOMETRIC_ERROR_NEGATIVE_BUTTON;
 import static android.hardware.biometrics.BiometricPrompt.DISMISSED_REASON_BIOMETRIC_CONFIRMED;
 import static android.hardware.biometrics.BiometricPrompt.DISMISSED_REASON_BIOMETRIC_CONFIRM_NOT_REQUIRED;
+import static android.hardware.biometrics.BiometricPrompt.DISMISSED_REASON_CONTENT_VIEW_MORE_OPTIONS;
 import static android.hardware.biometrics.BiometricPrompt.DISMISSED_REASON_NEGATIVE;
 import static android.hardware.biometrics.BiometricPrompt.DISMISSED_REASON_USER_CANCEL;
 
@@ -40,7 +42,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -449,7 +450,7 @@ public class AuthSessionTest {
         assertEquals(startFingerprintNow ? BiometricSensor.STATE_AUTHENTICATING
                         : BiometricSensor.STATE_COOKIE_RETURNED,
                 session.mPreAuthInfo.eligibleSensors.get(fingerprintSensorId).getSensorState());
-        verify(mBiometricContext).updateContext((OperationContextExt) anyObject(),
+        verify(mBiometricContext).updateContext((OperationContextExt) any(),
                 eq(session.isCrypto()));
 
         // start fingerprint sensor if it was delayed
@@ -552,7 +553,7 @@ public class AuthSessionTest {
 
         session.onDialogDismissed(DISMISSED_REASON_BIOMETRIC_CONFIRMED, null);
         verify(mBiometricFrameworkStatsLogger, times(1)).authenticate(
-                (OperationContextExt) anyObject(),
+                (OperationContextExt) any(),
                 eq(BiometricsProtoEnums.MODALITY_FACE),
                 eq(BiometricsProtoEnums.ACTION_UNKNOWN),
                 eq(BiometricsProtoEnums.CLIENT_BIOMETRIC_PROMPT),
@@ -580,15 +581,15 @@ public class AuthSessionTest {
 
         session.onDialogDismissed(DISMISSED_REASON_BIOMETRIC_CONFIRM_NOT_REQUIRED, null);
         verify(mBiometricFrameworkStatsLogger, never()).authenticate(
-                anyObject(), anyInt(), anyInt(), anyInt(), anyBoolean(), anyLong(), anyInt(),
+                any(), anyInt(), anyInt(), anyInt(), anyBoolean(), anyLong(), anyInt(),
                 anyBoolean(), anyInt(), eq(-1f));
         verify(mBiometricFrameworkStatsLogger, never()).error(
-                anyObject(), anyInt(), anyInt(), anyInt(), anyBoolean(), anyLong(), anyInt(),
+                any(), anyInt(), anyInt(), anyInt(), anyBoolean(), anyLong(), anyInt(),
                 anyInt(), anyInt());
     }
 
     @Test
-    public void testLogOnDialogDismissed_error() throws RemoteException {
+    public void testLogOnDialogDismissed_negativeButton() throws RemoteException {
         final IBiometricAuthenticator faceAuthenticator = mock(IBiometricAuthenticator.class);
 
         setupFace(0 /* id */, false /* confirmationAlwaysRequired */, faceAuthenticator);
@@ -603,13 +604,40 @@ public class AuthSessionTest {
 
         session.onDialogDismissed(DISMISSED_REASON_NEGATIVE, null);
         verify(mBiometricFrameworkStatsLogger, times(1)).error(
-                (OperationContextExt) anyObject(),
+                (OperationContextExt) any(),
                 eq(BiometricsProtoEnums.MODALITY_FACE),
                 eq(BiometricsProtoEnums.ACTION_AUTHENTICATE),
                 eq(BiometricsProtoEnums.CLIENT_BIOMETRIC_PROMPT),
                 eq(false),
                 anyLong(),
                 eq(BIOMETRIC_ERROR_NEGATIVE_BUTTON),
+                eq(0) /* vendorCode */,
+                eq(0) /* userId */);
+    }
+
+    @Test
+    public void testLogOnDialogDismissed_contentViewMoreOptionsButton() throws RemoteException {
+        final IBiometricAuthenticator faceAuthenticator = mock(IBiometricAuthenticator.class);
+
+        setupFace(0 /* id */, false /* confirmationAlwaysRequired */, faceAuthenticator);
+        final AuthSession session = createAuthSession(mSensors,
+                false /* checkDevicePolicyManager */,
+                Authenticators.BIOMETRIC_STRONG,
+                TEST_REQUEST_ID,
+                0 /* operationId */,
+                0 /* userId */);
+        session.goToInitialState();
+        assertEquals(STATE_AUTH_CALLED, session.getState());
+
+        session.onDialogDismissed(DISMISSED_REASON_CONTENT_VIEW_MORE_OPTIONS, null);
+        verify(mBiometricFrameworkStatsLogger, times(1)).error(
+                (OperationContextExt) any(),
+                eq(BiometricsProtoEnums.MODALITY_FACE),
+                eq(BiometricsProtoEnums.ACTION_AUTHENTICATE),
+                eq(BiometricsProtoEnums.CLIENT_BIOMETRIC_PROMPT),
+                eq(false),
+                anyLong(),
+                eq(BIOMETRIC_ERROR_CONTENT_VIEW_MORE_OPTIONS_BUTTON),
                 eq(0) /* vendorCode */,
                 eq(0) /* userId */);
     }
@@ -908,7 +936,7 @@ public class AuthSessionTest {
                 type,
                 false /* resetLockoutRequiresHardwareAuthToken */));
 
-        when(mSettingObserver.getEnabledForApps(anyInt())).thenReturn(true);
+        when(mSettingObserver.getEnabledForApps(anyInt(), anyInt())).thenReturn(true);
     }
 
     private void setupFace(int id, boolean confirmationAlwaysRequired,
@@ -930,6 +958,6 @@ public class AuthSessionTest {
             }
         });
 
-        when(mSettingObserver.getEnabledForApps(anyInt())).thenReturn(true);
+        when(mSettingObserver.getEnabledForApps(anyInt(), anyInt())).thenReturn(true);
     }
 }

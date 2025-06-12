@@ -24,10 +24,12 @@ import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.app.ActivityTaskManager.INVALID_WINDOWING_MODE;
 import static android.app.FullscreenRequestHandler.REMOTE_CALLBACK_RESULT_KEY;
 import static android.app.FullscreenRequestHandler.RESULT_APPROVED;
+import static android.app.FullscreenRequestHandler.RESULT_FAILED_ALREADY_FULLY_EXPANDED;
 import static android.app.FullscreenRequestHandler.RESULT_FAILED_NOT_IN_FULLSCREEN_WITH_HISTORY;
 import static android.app.FullscreenRequestHandler.RESULT_FAILED_NOT_TOP_FOCUSED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
@@ -95,6 +97,7 @@ import android.os.UserHandle;
 import android.service.voice.VoiceInteractionManagerInternal;
 import android.util.Slog;
 import android.view.RemoteAnimationDefinition;
+import android.window.DesktopModeFlags;
 import android.window.SizeConfigurationBuckets;
 import android.window.TransitionInfo;
 
@@ -1113,11 +1116,11 @@ class ActivityClientController extends IActivityClientController.Stub {
                     false /* fromClient */);
         }
 
+        final EnterPipRequestedItem item = new EnterPipRequestedItem(r.token);
         try {
-            final EnterPipRequestedItem item = new EnterPipRequestedItem(r.token);
-            mService.getLifecycleManager().scheduleTransactionItem(r.app.getThread(), item);
-            return true;
-        } catch (Exception e) {
+            return mService.getLifecycleManager().scheduleTransactionItem(r.app.getThread(), item);
+        } catch (RemoteException e) {
+            // TODO(b/323801078): remove Exception when cleanup
             Slog.w(TAG, "Failed to send enter pip requested item: "
                     + r.intent.getComponent(), e);
             return false;
@@ -1129,10 +1132,11 @@ class ActivityClientController extends IActivityClientController.Stub {
      */
     void onPictureInPictureUiStateChanged(@NonNull ActivityRecord r,
             PictureInPictureUiState pipState) {
+        final PipStateTransactionItem item = new PipStateTransactionItem(r.token, pipState);
         try {
-            final PipStateTransactionItem item = new PipStateTransactionItem(r.token, pipState);
             mService.getLifecycleManager().scheduleTransactionItem(r.app.getThread(), item);
-        } catch (Exception e) {
+        } catch (RemoteException e) {
+            // TODO(b/323801078): remove Exception when cleanup
             Slog.w(TAG, "Failed to send pip state transaction item: "
                     + r.intent.getComponent(), e);
         }
@@ -1187,17 +1191,25 @@ class ActivityClientController extends IActivityClientController.Stub {
         if (requesterActivity.getWindowingMode() == WINDOWING_MODE_PINNED) {
             return RESULT_APPROVED;
         }
+        final int taskWindowingMode = topFocusedRootTask.getWindowingMode();
         // If this is not coming from the currently top-most activity, reject the request.
         if (requesterActivity != topFocusedRootTask.getTopMostActivity()) {
             return RESULT_FAILED_NOT_TOP_FOCUSED;
         }
         if (fullscreenRequest == FULLSCREEN_MODE_REQUEST_EXIT) {
-            if (topFocusedRootTask.getWindowingMode() != WINDOWING_MODE_FULLSCREEN) {
+            if (taskWindowingMode != WINDOWING_MODE_FULLSCREEN) {
                 return RESULT_FAILED_NOT_IN_FULLSCREEN_WITH_HISTORY;
             }
             if (topFocusedRootTask.mMultiWindowRestoreWindowingMode == INVALID_WINDOWING_MODE) {
                 return RESULT_FAILED_NOT_IN_FULLSCREEN_WITH_HISTORY;
             }
+            return RESULT_APPROVED;
+        }
+
+        if (DesktopModeFlags.ENABLE_REQUEST_FULLSCREEN_BUGFIX.isTrue()
+                && (taskWindowingMode == WINDOWING_MODE_FULLSCREEN
+                || taskWindowingMode == WINDOWING_MODE_MULTI_WINDOW)) {
+            return RESULT_FAILED_ALREADY_FULLY_EXPANDED;
         }
         return RESULT_APPROVED;
     }
@@ -1280,7 +1292,7 @@ class ActivityClientController extends IActivityClientController.Stub {
         }
     }
 
-    private static void executeMultiWindowFullscreenRequest(int fullscreenRequest, Task requester) {
+    private void executeMultiWindowFullscreenRequest(int fullscreenRequest, Task requester) {
         final int targetWindowingMode;
         if (fullscreenRequest == FULLSCREEN_MODE_REQUEST_ENTER) {
             final int restoreWindowingMode = requester.getRequestedOverrideWindowingMode();
@@ -1293,7 +1305,13 @@ class ActivityClientController extends IActivityClientController.Stub {
                     requester.getParent().mRemoteToken.toWindowContainerToken();
         } else {
             targetWindowingMode = requester.mMultiWindowRestoreWindowingMode;
-            requester.restoreWindowingMode();
+            if (DesktopModeFlags.ENABLE_REQUEST_FULLSCREEN_BUGFIX.isTrue()
+                    && targetWindowingMode == WINDOWING_MODE_PINNED) {
+                final ActivityRecord r = requester.topRunningActivity();
+                enterPictureInPictureMode(r.token, r.pictureInPictureArgs);
+            } else {
+                requester.restoreWindowingMode();
+            }
         }
         if (targetWindowingMode == WINDOWING_MODE_FULLSCREEN) {
             requester.setBounds(null);
@@ -1510,13 +1528,12 @@ class ActivityClientController extends IActivityClientController.Stub {
         synchronized (mGlobalLock) {
             final ActivityRecord r = ActivityRecord.isInRootTaskLocked(token);
             if (r != null && r.isState(RESUMED, PAUSING)) {
-                r.mDisplayContent.mAppTransition.overridePendingAppTransition(
-                        packageName, enterAnim, exitAnim, backgroundColor, null, null,
-                        r.mOverrideTaskTransition);
                 r.mTransitionController.setOverrideAnimation(
                         TransitionInfo.AnimationOptions.makeCustomAnimOptions(packageName,
-                                enterAnim, exitAnim, backgroundColor, r.mOverrideTaskTransition), r,
-                        null /* startCallback */, null /* finishCallback */);
+                                enterAnim, 0 /* changeResId */, exitAnim,
+                                r.mOverrideTaskTransition),
+                        r, null /* startCallback */, null /* finishCallback */);
+                r.mTransitionController.setOverrideBackgroundColor(backgroundColor);
             }
         }
         Binder.restoreCallingIdentity(origId);

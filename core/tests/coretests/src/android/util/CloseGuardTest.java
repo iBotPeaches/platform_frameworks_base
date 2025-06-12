@@ -16,7 +16,7 @@
 
 package android.util;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import libcore.dalvik.system.CloseGuardSupport;
@@ -26,7 +26,7 @@ import org.junit.Test;
 import org.junit.rules.TestRule;
 
 /** Unit tests for {@link android.util.CloseGuard} */
-@IgnoreUnderRavenwood(blockedBy = CloseGuard.class)
+@DisabledOnRavenwood(blockedBy = CloseGuard.class)
 public class CloseGuardTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();
@@ -35,7 +35,7 @@ public class CloseGuardTest {
     public final TestRule rule;
 
     public CloseGuardTest() {
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             rule = CloseGuardSupport.getRule();
         } else {
             rule = null;

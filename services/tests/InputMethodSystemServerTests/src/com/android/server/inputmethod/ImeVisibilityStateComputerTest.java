@@ -50,6 +50,7 @@ import android.view.inputmethod.InputMethodManager;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.WindowManagerInternal;
 
 import org.junit.Before;
@@ -73,6 +74,11 @@ public class ImeVisibilityStateComputerTest extends InputMethodManagerServiceTes
     public void setUp() throws RemoteException {
         super.setUp();
         ImeVisibilityStateComputer.Injector injector = new ImeVisibilityStateComputer.Injector() {
+            @Override
+            public UserManagerInternal getUserManagerService() {
+                return mMockUserManagerInternal;
+            }
+
             @Override
             public WindowManagerInternal getWmService() {
                 return mMockWindowManagerInternal;
@@ -261,7 +267,8 @@ public class ImeVisibilityStateComputerTest extends InputMethodManagerServiceTes
             // visibility state will be preserved to the current window state.
             final ImeTargetWindowState stateWithUnChangedFlag = initImeTargetWindowState(
                     mWindowToken);
-            mComputer.computeState(stateWithUnChangedFlag, true /* allowVisible */);
+            mComputer.computeState(stateWithUnChangedFlag, true /* allowVisible */,
+                    true /* imeRequestedVisible */);
             assertThat(stateWithUnChangedFlag.isRequestedImeVisible()).isEqualTo(
                     lastState.isRequestedImeVisible());
         }

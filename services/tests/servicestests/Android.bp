@@ -31,6 +31,7 @@ android_test {
 
         "test-apps/SuspendTestApp/src/**/*.java",
         "test-apps/DisplayManagerTestApp/src/**/*.java",
+        "test-apps/TopologyTestApp/src/**/*.java",
     ],
 
     static_libs: [
@@ -62,6 +63,7 @@ android_test {
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.ext.junit",
+        "CtsAccessibilityCommon",
         "cts-wm-util",
         "platform-compat-test-rules",
         "platform-parametric-runner-lib",
@@ -92,7 +94,6 @@ android_test {
         "net_flags_lib",
         "CtsVirtualDeviceCommonLib",
         "com_android_server_accessibility_flags_lib",
-        "locksettings_flags_lib",
     ] + select(soong_config_variable("ANDROID", "release_crashrecovery_module"), {
         "true": ["service-crashrecovery-pre-jarjar"],
         default: [],
@@ -141,6 +142,7 @@ android_test {
 
     data: [
         ":DisplayManagerTestApp",
+        ":TopologyTestApp",
         ":SimpleServiceTestApp1",
         ":SimpleServiceTestApp2",
         ":SimpleServiceTestApp3",
@@ -344,6 +346,17 @@ test_module_config {
     ],
 
     include_filters: ["com.android.server.om."],
+}
+
+test_module_config {
+    name: "FrameworksServicesTests_theme",
+    base: "FrameworksServicesTests",
+    test_suites: [
+        "device-tests",
+        "automotive-tests",
+    ],
+
+    include_filters: ["com.android.server.theming."],
 }
 
 // Used by contexthub TEST_MAPPING

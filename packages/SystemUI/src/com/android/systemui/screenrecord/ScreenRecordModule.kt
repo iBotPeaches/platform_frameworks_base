@@ -24,14 +24,14 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.ScreenRecordTile
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
-import com.android.systemui.qs.tiles.base.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
 import com.android.systemui.qs.tiles.impl.screenrecord.domain.interactor.ScreenRecordTileDataInteractor
 import com.android.systemui.qs.tiles.impl.screenrecord.domain.interactor.ScreenRecordTileUserActionInteractor
-import com.android.systemui.qs.tiles.impl.screenrecord.domain.ui.ScreenRecordTileMapper
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.impl.screenrecord.domain.ui.mapper.ScreenRecordTileMapper
 import com.android.systemui.res.R
 import com.android.systemui.screenrecord.data.model.ScreenRecordModel
 import com.android.systemui.screenrecord.data.repository.ScreenRecordRepository
@@ -86,7 +86,7 @@ interface ScreenRecordModule {
             factory: QSTileViewModelFactory.Static<ScreenRecordModel>,
             mapper: ScreenRecordTileMapper,
             stateInteractor: ScreenRecordTileDataInteractor,
-            userActionInteractor: ScreenRecordTileUserActionInteractor
+            userActionInteractor: ScreenRecordTileUserActionInteractor,
         ): QSTileViewModel =
             factory.create(
                 TileSpec.create(SCREEN_RECORD_TILE_SPEC),

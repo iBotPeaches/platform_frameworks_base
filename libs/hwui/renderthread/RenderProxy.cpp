@@ -21,6 +21,11 @@
 #include <SkPicture.h>
 #include <gui/TraceUtils.h>
 #include <pthread.h>
+
+#ifdef __ANDROID__
+#include <gui/SurfaceControl.h>
+#endif
+
 #include <ui/GraphicBufferAllocator.h>
 
 #include "DeferredLayerUpdater.h"
@@ -115,17 +120,12 @@ void RenderProxy::setSurface(ANativeWindow* window, bool enableTimeout) {
     });
 }
 
-void RenderProxy::setSurfaceControl(ASurfaceControl* surfaceControl) {
-    auto funcs = mRenderThread.getASurfaceControlFunctions();
-    if (surfaceControl) {
-        funcs.acquireFunc(surfaceControl);
-    }
-    mRenderThread.queue().post([this, control = surfaceControl, funcs]() mutable {
-        mContext->setSurfaceControl(control);
-        if (control) {
-            funcs.releaseFunc(control);
-        }
+void RenderProxy::setSurfaceControl(sp<SurfaceControl> surfaceControl) {
+#ifdef __ANDROID__
+    mRenderThread.queue().post([this, control = std::move(surfaceControl)]() mutable {
+        mContext->setSurfaceControl(std::move(control));
     });
+#endif
 }
 
 void RenderProxy::allocateBuffers() {
@@ -420,15 +420,15 @@ void RenderProxy::setFrameCompleteCallback(std::function<void()>&& callback) {
     mDrawFrameTask.setFrameCompleteCallback(std::move(callback));
 }
 
-void RenderProxy::addFrameMetricsObserver(FrameMetricsObserver* observerPtr) {
-    mRenderThread.queue().post([this, observer = sp{observerPtr}]() {
-        mContext->addFrameMetricsObserver(observer.get());
+void RenderProxy::addFrameMetricsObserver(sp<FrameMetricsObserver>&& observer) {
+    mRenderThread.queue().post([this, observer = std::move(observer)]() mutable {
+        mContext->addFrameMetricsObserver(std::move(observer));
     });
 }
 
-void RenderProxy::removeFrameMetricsObserver(FrameMetricsObserver* observerPtr) {
-    mRenderThread.queue().post([this, observer = sp{observerPtr}]() {
-        mContext->removeFrameMetricsObserver(observer.get());
+void RenderProxy::removeFrameMetricsObserver(sp<FrameMetricsObserver>&& observer) {
+    mRenderThread.queue().post([this, observer = std::move(observer)]() {
+        mContext->removeFrameMetricsObserver(observer);
     });
 }
 

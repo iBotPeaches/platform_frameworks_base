@@ -134,4 +134,15 @@ to pre-existing users, but cannot uninstall pre-existing system packages from pr
     <install-in-user-type package="com.android.avatarpicker">
         <install-in user-type="FULL" />
     </install-in-user-type>
+
+    <!-- Users Widget (Users widget)-->
+    <install-in-user-type package="com.android.multiuser">
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+
+    <!-- PrivateSpace App, only install in private profile -->
+    <install-in-user-type package="com.android.privatespace">
+        <install-in user-type="android.os.usertype.profile.PRIVATE" />
+    </install-in-user-type>
+
 </config>

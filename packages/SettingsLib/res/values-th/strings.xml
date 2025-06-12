@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"ใช้งานอยู่ (เฉพาะข้างซ้าย)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"ใช้งานอยู่ (เฉพาะข้างขวา)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"ใช้งานอยู่ (ข้างซ้ายและขวา)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"อัปเดตเสียงแวดล้อมไม่ได้"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"ใช้งานอยู่ (สื่อเท่านั้น) แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"ใช้งานอยู่ (สื่อเท่านั้น) แบตเตอรี่ข้างซ้าย: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, ข้างขวา: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"อุปกรณ์ของผู้ใช้ชั่วคราว แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"อุปกรณ์ของผู้ใช้ชั่วคราว L: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"อุปกรณ์ของผู้ใช้ชั่วคราว (สื่อเท่านั้น) แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"อุปกรณ์ของผู้ใช้ชั่วคราว (สื่อเท่านั้น) L: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"เชื่อมต่อแล้ว (รองรับการแชร์เสียง) แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"เชื่อมต่อแล้ว (รองรับการแชร์เสียง) แบตเตอรี่ข้างซ้าย: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, ข้างขวา: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"เชื่อมต่อแล้ว (รองรับการแชร์เสียง) ซ้าย: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"เชื่อมต่อแล้ว (รองรับการแชร์เสียง) ขวา: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"เชื่อมต่อแล้ว (รองรับการแชร์เสียง)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"อุปกรณ์ของผู้ใช้ชั่วคราว (รองรับการแชร์เสียง) แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g>"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"อุปกรณ์ของผู้ใช้ชั่วคราว (รองรับการแชร์เสียง) L: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, R: แบตเตอรี่ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"อุปกรณ์ของผู้ใช้ชั่วคราว (รองรับการแชร์เสียง)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"ใช้งานอยู่ (สื่อเท่านั้น)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"อุปกรณ์ของผู้ใช้ชั่วคราว"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"อุปกรณ์ของผู้ใช้ชั่วคราว (สื่อเท่านั้น)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"รองรับการแชร์เสียง"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"อุปกรณ์ของผู้ใช้ชั่วคราว รองรับการแชร์เสียง"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"ใช้งานอยู่ (สื่อเท่านั้น), ซ้ายเท่านั้น"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"ใช้งานอยู่ (สื่อเท่านั้น), ขวาเท่านั้น"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"ใช้งานอยู่ (สื่อเท่านั้น), ซ้ายและขวา"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"การแสดงผลที่มีการเร่งด้วยฮาร์ดแวร์"</string>
     <string name="media_category" msgid="8122076702526144053">"สื่อ"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"การตรวจสอบ"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"การจัดการหน้าต่าง"</string>
     <string name="strict_mode" msgid="889864762140862437">"เปิดใช้งานโหมดเข้มงวด"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"กะพริบหน้าจอเมื่อแอปทำงานในเทรดหลักนาน"</string>
     <string name="pointer_location" msgid="7516929526199520173">"ตำแหน่งของตัวชี้"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"อัตราการเคลื่อนไหวของการเปลี่ยนภาพ"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"อัตราความเร็วตามตัวสร้างภาพเคลื่อนไหว"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"จำลองจอแสดงผลรอง"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"ตำแหน่งการแสดงผลของเฉดสี"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"แอปพลิเคชัน"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"ไม่เก็บกิจกรรม"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"ล้างทุกกิจกรรมทันทีที่ผู้ใช้ออกไป"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"การใช้งาน WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"ตั้งค่าการใช้งาน WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"ตัวเลือกนี้ใช้ไม่ได้อีกต่อไป โปรดลองอีกครั้ง"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"เครื่องมือสำหรับนักพัฒนาเว็บของ WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"ไม่พบแพ็กเกจ WebView"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"เปิดเครื่องมือสำหรับนักพัฒนาเว็บไม่ได้"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"โหมดสีของรูปภาพ"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"ใช้ sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"ปิดใช้"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"ชาร์จเร็ว"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"ผู้ดูแลระบบเป็นผู้ควบคุม"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"ควบคุมโดยการตั้งค่าที่จำกัด"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"ใช้งานไม่ได้ขณะสนทนาโทรศัพท์"</string>
     <string name="disabled" msgid="8017887509554714950">"ปิดอยู่"</string>
+    <string name="enabled" msgid="3997122818554810678">"เปิดใช้อยู่"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"อนุญาต"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"ไม่อนุญาต"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"ติดตั้งแอปที่ไม่รู้จัก"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"ลำโพงในตัว"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"เสียงจากทีวี"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"เกิดปัญหาในการเชื่อมต่อ ปิดอุปกรณ์แล้วเปิดใหม่อีกครั้ง"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"เชื่อมต่อไม่ได้"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"อุปกรณ์เสียงแบบมีสาย"</string>
     <string name="help_label" msgid="3528360748637781274">"ความช่วยเหลือและความคิดเห็น"</string>
     <string name="storage_category" msgid="2287342585424631813">"พื้นที่เก็บข้อมูล"</string>

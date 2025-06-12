@@ -134,6 +134,7 @@ public interface ImeTracker {
             ORIGIN_CLIENT,
             ORIGIN_SERVER,
             ORIGIN_IME,
+            ORIGIN_WM_SHELL,
     })
     @Retention(RetentionPolicy.SOURCE)
     @interface Origin {}
@@ -224,6 +225,15 @@ public interface ImeTracker {
             PHASE_SERVER_UPDATE_CLIENT_VISIBILITY,
             PHASE_WM_DISPLAY_IME_CONTROLLER_SET_IME_REQUESTED_VISIBLE,
             PHASE_WM_UPDATE_DISPLAY_WINDOW_REQUESTED_VISIBLE_TYPES,
+            PHASE_WM_REQUESTED_VISIBLE_TYPES_NOT_CHANGED,
+            PHASE_CLIENT_UPDATE_ANIMATING_TYPES,
+            PHASE_WM_UPDATE_ANIMATING_TYPES,
+            PHASE_WM_WINDOW_ANIMATING_TYPES_CHANGED,
+            PHASE_WM_NOTIFY_HIDE_ANIMATION_FINISHED,
+            PHASE_WM_UPDATE_DISPLAY_WINDOW_ANIMATING_TYPES,
+            PHASE_CLIENT_ON_CONTROLS_CHANGED,
+            PHASE_SERVER_IME_INVOKER,
+            PHASE_SERVER_CLIENT_INVOKER,
     })
     @Retention(RetentionPolicy.SOURCE)
     @interface Phase {}
@@ -444,6 +454,31 @@ public interface ImeTracker {
     /** The control target reported its requestedVisibleTypes back to WindowManagerService. */
     int PHASE_WM_UPDATE_DISPLAY_WINDOW_REQUESTED_VISIBLE_TYPES =
             ImeProtoEnums.PHASE_WM_UPDATE_DISPLAY_WINDOW_REQUESTED_VISIBLE_TYPES;
+    /** The requestedVisibleTypes have not been changed, so this request is not continued. */
+    int PHASE_WM_REQUESTED_VISIBLE_TYPES_NOT_CHANGED =
+            ImeProtoEnums.PHASE_WM_REQUESTED_VISIBLE_TYPES_NOT_CHANGED;
+    /** Updating the currently animating types on the client side. */
+    int PHASE_CLIENT_UPDATE_ANIMATING_TYPES =
+            ImeProtoEnums.PHASE_CLIENT_UPDATE_ANIMATING_TYPES;
+    /** Updating the animating types in the WindowState on the WindowManager side. */
+    int PHASE_WM_UPDATE_ANIMATING_TYPES =
+            ImeProtoEnums.PHASE_WM_UPDATE_ANIMATING_TYPES;
+    /** Animating types of the WindowState have changed, now sending them to state controller. */
+    int PHASE_WM_WINDOW_ANIMATING_TYPES_CHANGED =
+            ImeProtoEnums.PHASE_WM_WINDOW_ANIMATING_TYPES_CHANGED;
+    /** ImeInsetsSourceProvider got notified that the hide animation is finished. */
+    int PHASE_WM_NOTIFY_HIDE_ANIMATION_FINISHED =
+            ImeProtoEnums.PHASE_WM_NOTIFY_HIDE_ANIMATION_FINISHED;
+    /** The control target reported its animatingTypes back to WindowManagerService. */
+    int PHASE_WM_UPDATE_DISPLAY_WINDOW_ANIMATING_TYPES =
+            ImeProtoEnums.PHASE_WM_UPDATE_DISPLAY_WINDOW_ANIMATING_TYPES;
+    /** InsetsController received a control for the IME. */
+    int PHASE_CLIENT_ON_CONTROLS_CHANGED =
+            ImeProtoEnums.PHASE_CLIENT_ON_CONTROLS_CHANGED;
+    /** Reached the IME invoker on the server. */
+    int PHASE_SERVER_IME_INVOKER = ImeProtoEnums.PHASE_SERVER_IME_INVOKER;
+    /** Reached the IME client invoker on the server. */
+    int PHASE_SERVER_CLIENT_INVOKER = ImeProtoEnums.PHASE_SERVER_CLIENT_INVOKER;
 
     /**
      * Called when an IME request is started.

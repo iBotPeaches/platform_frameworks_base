@@ -21,7 +21,7 @@ import static android.provider.Settings.Secure.ACCESSIBILITY_MAGNIFICATION_MODE_
 
 import static com.android.systemui.accessibility.AccessibilityLogger.MagnificationSettingsEvent;
 import static com.android.systemui.accessibility.WindowMagnificationSettings.MagnificationSize;
-import static com.android.systemui.recents.OverviewProxyService.OverviewProxyListener;
+import static com.android.systemui.recents.LauncherProxyService.LauncherProxyListener;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_MAGNIFICATION_OVERLAP;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -50,13 +50,13 @@ import android.view.accessibility.IMagnificationConnectionCallback;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.model.SysUiState;
-import com.android.systemui.recents.OverviewProxyService;
+import com.android.systemui.recents.LauncherProxyService;
 import com.android.systemui.settings.FakeDisplayTracker;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.util.settings.SecureSettings;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -80,13 +80,13 @@ public class MagnificationTest extends SysuiTestCase {
     @Mock
     private IMagnificationConnectionCallback mConnectionCallback;
     @Mock
-    private OverviewProxyService mOverviewProxyService;
+    private LauncherProxyService mLauncherProxyService;
     @Mock
     private SecureSettings mSecureSettings;
 
     private CommandQueue mCommandQueue;
     private MagnificationImpl mMagnification;
-    private OverviewProxyListener mOverviewProxyListener;
+    private LauncherProxyListener mLauncherProxyListener;
     private FakeDisplayTracker mDisplayTracker = new FakeDisplayTracker(mContext);
 
     @Mock
@@ -98,7 +98,7 @@ public class MagnificationTest extends SysuiTestCase {
     @Mock
     private IWindowManager mIWindowManager;
     @Mock
-    private ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
+    private WindowManagerProvider mWindowManagerProvider;
 
     @Before
     public void setUp() throws Exception {
@@ -130,20 +130,19 @@ public class MagnificationTest extends SysuiTestCase {
         mMagnification = new MagnificationImpl(getContext(),
                 getContext().getMainThreadHandler(), mContext.getMainExecutor(),
                 mCommandQueue, mModeSwitchesController,
-                mSysUiState, mOverviewProxyService, mSecureSettings, mDisplayTracker,
+                mSysUiState, mLauncherProxyService, mSecureSettings, mDisplayTracker,
                 getContext().getSystemService(DisplayManager.class), mA11yLogger, mIWindowManager,
-                getContext().getSystemService(AccessibilityManager.class),
-                mViewCaptureAwareWindowManager);
+                getContext().getSystemService(AccessibilityManager.class), mWindowManagerProvider);
         mMagnification.mWindowMagnificationControllerSupplier = new FakeControllerSupplier(
                 mContext.getSystemService(DisplayManager.class), mWindowMagnificationController);
         mMagnification.mMagnificationSettingsSupplier = new FakeSettingsSupplier(
                 mContext.getSystemService(DisplayManager.class), mMagnificationSettingsController);
         mMagnification.start();
 
-        final ArgumentCaptor<OverviewProxyListener> listenerArgumentCaptor =
-                ArgumentCaptor.forClass(OverviewProxyListener.class);
-        verify(mOverviewProxyService).addCallback(listenerArgumentCaptor.capture());
-        mOverviewProxyListener = listenerArgumentCaptor.getValue();
+        final ArgumentCaptor<LauncherProxyListener> listenerArgumentCaptor =
+                ArgumentCaptor.forClass(LauncherProxyListener.class);
+        verify(mLauncherProxyService).addCallback(listenerArgumentCaptor.capture());
+        mLauncherProxyListener = listenerArgumentCaptor.getValue();
     }
 
     @Test
@@ -336,7 +335,7 @@ public class MagnificationTest extends SysuiTestCase {
 
     @Test
     public void overviewProxyIsConnected_noController_resetFlag() {
-        mOverviewProxyListener.onConnectionChanged(true);
+        mLauncherProxyListener.onConnectionChanged(true);
 
         verify(mSysUiState).setFlag(SYSUI_STATE_MAGNIFICATION_OVERLAP, false);
         verify(mSysUiState).commitUpdate(mContext.getDisplayId());
@@ -349,7 +348,7 @@ public class MagnificationTest extends SysuiTestCase {
                 mContext.getSystemService(DisplayManager.class), mController);
         mMagnification.mWindowMagnificationControllerSupplier.get(TEST_DISPLAY);
 
-        mOverviewProxyListener.onConnectionChanged(true);
+        mLauncherProxyListener.onConnectionChanged(true);
 
         verify(mController).updateSysUIStateFlag();
     }

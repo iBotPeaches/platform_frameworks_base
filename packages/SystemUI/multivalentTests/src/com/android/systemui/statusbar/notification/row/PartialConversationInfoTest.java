@@ -40,6 +40,7 @@ import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.os.UserHandle;
+import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.testing.TestableLooper;
 import android.text.SpannableString;
@@ -81,7 +82,6 @@ public class PartialConversationInfoTest extends SysuiTestCase {
     private TestableLooper mTestableLooper;
     private PartialConversationInfo mInfo;
     private NotificationChannel mNotificationChannel;
-    private NotificationChannel mDefaultNotificationChannel;
     private StatusBarNotification mSbn;
     private NotificationEntry mEntry;
 
@@ -141,15 +141,14 @@ public class PartialConversationInfoTest extends SysuiTestCase {
         // Some test channels.
         mNotificationChannel = new NotificationChannel(
                 TEST_CHANNEL, TEST_CHANNEL_NAME, IMPORTANCE_LOW);
-        mDefaultNotificationChannel = new NotificationChannel(
-                NotificationChannel.DEFAULT_CHANNEL_ID, TEST_CHANNEL_NAME,
-                IMPORTANCE_LOW);
         Notification n = new Notification.Builder(mContext, mNotificationChannel.getId())
                 .setContentTitle(new SpannableString("title"))
                 .build();
         mSbn = new StatusBarNotification(TEST_PACKAGE_NAME, TEST_PACKAGE_NAME, 0, null, TEST_UID, 0,
                 n, UserHandle.CURRENT, null, 0);
-        mEntry = new NotificationEntryBuilder().setSbn(mSbn).build();
+        mEntry = new NotificationEntryBuilder().setSbn(mSbn).updateRanking(rankingBuilder -> {
+            rankingBuilder.setChannel(mNotificationChannel);
+        }).build();
     }
 
     @Test
@@ -160,8 +159,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 null,
                 true,
                 false);
@@ -178,8 +177,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 null,
                 true,
                 false);
@@ -194,8 +193,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 null,
                 true,
                 false);
@@ -219,8 +218,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                entry,
+                mEntry.getRanking(),
+                mSbn,
                 null,
                 true,
                 false);
@@ -237,8 +236,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 (View v, NotificationChannel c, int appUid) -> {
                     assertEquals(mNotificationChannel, c);
                     latch.countDown();
@@ -260,8 +259,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 (View v, NotificationChannel c, int appUid) -> {
                     assertEquals(mNotificationChannel, c);
                     latch.countDown();
@@ -282,8 +281,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 null,
                 true,
                 false);
@@ -298,8 +297,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 (View v, NotificationChannel c, int appUid) -> {
                     assertEquals(mNotificationChannel, c);
                 },
@@ -316,8 +315,8 @@ public class PartialConversationInfoTest extends SysuiTestCase {
                 mMockINotificationManager,
                 mChannelEditorDialogController,
                 TEST_PACKAGE_NAME,
-                mNotificationChannel,
-                mEntry,
+                mEntry.getRanking(),
+                mSbn,
                 null,
                 true,
                 true);

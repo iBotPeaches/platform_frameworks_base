@@ -26,7 +26,6 @@ import static android.view.WindowManager.TRANSIT_TO_BACK;
 import static android.view.WindowManager.TRANSIT_TO_FRONT;
 import static android.window.TransitionInfo.FLAGS_IS_NON_APP_WINDOW;
 import static android.window.TransitionInfo.FLAG_IS_DISPLAY;
-import static android.window.TransitionInfo.FLAG_STARTING_WINDOW_TRANSFER_RECIPIENT;
 import static android.window.TransitionInfo.FLAG_TRANSLUCENT;
 
 import static com.android.internal.policy.TransitionAnimation.WALLPAPER_TRANSITION_CLOSE;
@@ -39,26 +38,23 @@ import android.annotation.ColorInt;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.WindowConfiguration;
-import android.graphics.BitmapShader;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Insets;
-import android.graphics.Paint;
-import android.graphics.PixelFormat;
 import android.graphics.Rect;
-import android.graphics.Shader;
-import android.view.Surface;
+import android.util.SparseArray;
+import android.view.InsetsSource;
+import android.view.InsetsState;
 import android.view.SurfaceControl;
 import android.view.WindowManager;
 import android.view.animation.Animation;
-import android.view.animation.Transformation;
-import android.window.ScreenCapture;
 import android.window.TransitionInfo;
 
 import com.android.internal.R;
 import com.android.internal.policy.TransitionAnimation;
 import com.android.internal.protolog.ProtoLog;
-import com.android.window.flags.Flags;
+import com.android.wm.shell.common.DisplayController;
+import com.android.wm.shell.common.DisplayInsetsController;
+import com.android.wm.shell.common.DisplayLayout;
 import com.android.wm.shell.protolog.ShellProtoLogGroup;
 import com.android.wm.shell.shared.TransitionUtil;
 
@@ -78,12 +74,7 @@ public class TransitionAnimationHelper {
         final boolean isFreeform = isTask && change.getTaskInfo().isFreeform();
         final boolean isCoveredByOpaqueFullscreenChange =
                 isCoveredByOpaqueFullscreenChange(info, change);
-        final TransitionInfo.AnimationOptions options;
-        if (Flags.moveAnimationOptionsToChange()) {
-            options = change.getAnimationOptions();
-        } else {
-            options = info.getAnimationOptions();
-        }
+        final TransitionInfo.AnimationOptions options = change.getAnimationOptions();
         final int overrideType = options != null ? options.getType() : ANIM_NONE;
         int animAttr = 0;
         boolean translucent = false;
@@ -279,16 +270,10 @@ public class TransitionAnimationHelper {
      *                      the given transition animation.
      */
     @ColorInt
-    public static int getTransitionBackgroundColorIfSet(@NonNull TransitionInfo info,
-            @NonNull TransitionInfo.Change change, @NonNull Animation a,
-            @ColorInt int defaultColor) {
+    public static int getTransitionBackgroundColorIfSet(@NonNull TransitionInfo.Change change,
+            @NonNull Animation a, @ColorInt int defaultColor) {
         if (!a.getShowBackdrop()) {
             return defaultColor;
-        }
-        if (!Flags.moveAnimationOptionsToChange() && info.getAnimationOptions() != null
-                && info.getAnimationOptions().getBackgroundColor() != 0) {
-            // If available use the background color provided through AnimationOptions
-            return info.getAnimationOptions().getBackgroundColor();
         } else if (a.getBackdropColor() != 0) {
             // Otherwise fallback on the background color provided through the animation
             // definition.
@@ -329,129 +314,6 @@ public class TransitionAnimationHelper {
     }
 
     /**
-     * Adds edge extension surface to the given {@code change} for edge extension animation.
-     */
-    public static void edgeExtendWindow(@NonNull TransitionInfo.Change change,
-            @NonNull Animation a, @NonNull SurfaceControl.Transaction startTransaction,
-            @NonNull SurfaceControl.Transaction finishTransaction) {
-        // Do not create edge extension surface for transfer starting window change.
-        // The app surface could be empty thus nothing can draw on the hardware renderer, which will
-        // block this thread when calling Surface#unlockCanvasAndPost.
-        if ((change.getFlags() & FLAG_STARTING_WINDOW_TRANSFER_RECIPIENT) != 0) {
-            return;
-        }
-        final Transformation transformationAtStart = new Transformation();
-        a.getTransformationAt(0, transformationAtStart);
-        final Transformation transformationAtEnd = new Transformation();
-        a.getTransformationAt(1, transformationAtEnd);
-
-        // We want to create an extension surface that is the maximal size and the animation will
-        // take care of cropping any part that overflows.
-        final Insets maxExtensionInsets = Insets.min(
-                transformationAtStart.getInsets(), transformationAtEnd.getInsets());
-
-        final int targetSurfaceHeight = Math.max(change.getStartAbsBounds().height(),
-                change.getEndAbsBounds().height());
-        final int targetSurfaceWidth = Math.max(change.getStartAbsBounds().width(),
-                change.getEndAbsBounds().width());
-        if (maxExtensionInsets.left < 0) {
-            final Rect edgeBounds = new Rect(0, 0, 1, targetSurfaceHeight);
-            final Rect extensionRect = new Rect(0, 0,
-                    -maxExtensionInsets.left, targetSurfaceHeight);
-            final int xPos = maxExtensionInsets.left;
-            final int yPos = 0;
-            createExtensionSurface(change.getLeash(), edgeBounds, extensionRect, xPos, yPos,
-                    "Left Edge Extension", startTransaction, finishTransaction);
-        }
-
-        if (maxExtensionInsets.top < 0) {
-            final Rect edgeBounds = new Rect(0, 0, targetSurfaceWidth, 1);
-            final Rect extensionRect = new Rect(0, 0,
-                    targetSurfaceWidth, -maxExtensionInsets.top);
-            final int xPos = 0;
-            final int yPos = maxExtensionInsets.top;
-            createExtensionSurface(change.getLeash(), edgeBounds, extensionRect, xPos, yPos,
-                    "Top Edge Extension", startTransaction, finishTransaction);
-        }
-
-        if (maxExtensionInsets.right < 0) {
-            final Rect edgeBounds = new Rect(targetSurfaceWidth - 1, 0,
-                    targetSurfaceWidth, targetSurfaceHeight);
-            final Rect extensionRect = new Rect(0, 0,
-                    -maxExtensionInsets.right, targetSurfaceHeight);
-            final int xPos = targetSurfaceWidth;
-            final int yPos = 0;
-            createExtensionSurface(change.getLeash(), edgeBounds, extensionRect, xPos, yPos,
-                    "Right Edge Extension", startTransaction, finishTransaction);
-        }
-
-        if (maxExtensionInsets.bottom < 0) {
-            final Rect edgeBounds = new Rect(0, targetSurfaceHeight - 1,
-                    targetSurfaceWidth, targetSurfaceHeight);
-            final Rect extensionRect = new Rect(0, 0,
-                    targetSurfaceWidth, -maxExtensionInsets.bottom);
-            final int xPos = maxExtensionInsets.left;
-            final int yPos = targetSurfaceHeight;
-            createExtensionSurface(change.getLeash(), edgeBounds, extensionRect, xPos, yPos,
-                    "Bottom Edge Extension", startTransaction, finishTransaction);
-        }
-    }
-
-    /**
-     * Takes a screenshot of {@code surfaceToExtend}'s edge and extends it for edge extension
-     * animation.
-     */
-    private static SurfaceControl createExtensionSurface(@NonNull SurfaceControl surfaceToExtend,
-            @NonNull Rect edgeBounds, @NonNull Rect extensionRect, int xPos, int yPos,
-            @NonNull String layerName, @NonNull SurfaceControl.Transaction startTransaction,
-            @NonNull SurfaceControl.Transaction finishTransaction) {
-        final SurfaceControl edgeExtensionLayer = new SurfaceControl.Builder()
-                .setName(layerName)
-                .setParent(surfaceToExtend)
-                .setHidden(true)
-                .setCallsite("TransitionAnimationHelper#createExtensionSurface")
-                .setOpaque(true)
-                .setBufferSize(extensionRect.width(), extensionRect.height())
-                .build();
-
-        final ScreenCapture.LayerCaptureArgs captureArgs =
-                new ScreenCapture.LayerCaptureArgs.Builder(surfaceToExtend)
-                        .setSourceCrop(edgeBounds)
-                        .setFrameScale(1)
-                        .setPixelFormat(PixelFormat.RGBA_8888)
-                        .setChildrenOnly(true)
-                        .setAllowProtected(false)
-                        .setCaptureSecureLayers(true)
-                        .build();
-        final ScreenCapture.ScreenshotHardwareBuffer edgeBuffer =
-                ScreenCapture.captureLayers(captureArgs);
-
-        if (edgeBuffer == null) {
-            ProtoLog.e(ShellProtoLogGroup.WM_SHELL_TRANSITIONS,
-                    "Failed to capture edge of window.");
-            return null;
-        }
-
-        final BitmapShader shader = new BitmapShader(edgeBuffer.asBitmap(),
-                Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-        final Paint paint = new Paint();
-        paint.setShader(shader);
-
-        final Surface surface = new Surface(edgeExtensionLayer);
-        final Canvas c = surface.lockHardwareCanvas();
-        c.drawRect(extensionRect, paint);
-        surface.unlockCanvasAndPost(c);
-        surface.release();
-
-        startTransaction.setLayer(edgeExtensionLayer, Integer.MIN_VALUE);
-        startTransaction.setPosition(edgeExtensionLayer, xPos, yPos);
-        startTransaction.setVisibility(edgeExtensionLayer, true);
-        finishTransaction.remove(edgeExtensionLayer);
-
-        return edgeExtensionLayer;
-    }
-
-    /**
      * Returns whether there is an opaque fullscreen Change positioned in front of the given Change
      * in the given TransitionInfo.
      */
@@ -470,5 +332,78 @@ public class TransitionAnimationHelper {
             }
         }
         return false;
+    }
+
+    /**
+     * In some situations (eg. TaskBar) the content area of a display appears to be rounded. For
+     * these situations, we may want the animation to also express the same rounded corners (even
+     * though in steady-state, the app internally manages the insets). This class Keeps track of,
+     * and provides, the bounds of rounded-corner display content.
+     *
+     * This is used to enable already-running animations to adapt to changes in taskbar/navbar
+     * position live.
+     */
+    public static class RoundedContentPerDisplay implements
+            DisplayInsetsController.OnInsetsChangedListener {
+
+        /** The current bounds of the display content (post-inset). */
+        final Rect mBounds = new Rect();
+
+        @Override
+        public void insetsChanged(InsetsState insetsState) {
+            Insets insets = Insets.NONE;
+            for (int i = insetsState.sourceSize() - 1; i >= 0; i--) {
+                final InsetsSource source = insetsState.sourceAt(i);
+                if (!source.hasFlags(InsetsSource.FLAG_INSETS_ROUNDED_CORNER)) {
+                    continue;
+                }
+                insets = Insets.max(source.calculateInsets(insetsState.getDisplayFrame(), false),
+                        insets);
+            }
+            mBounds.set(insetsState.getDisplayFrame());
+            mBounds.inset(insets);
+        }
+    }
+
+    /**
+     * Keeps track of the bounds of rounded-corner display content (post-inset).
+     *
+     * @see RoundedContentPerDisplay
+     */
+    public static class RoundedContentTracker implements
+            DisplayController.OnDisplaysChangedListener {
+        final DisplayController mDisplayController;
+        final DisplayInsetsController mDisplayInsetsController;
+        final SparseArray<RoundedContentPerDisplay> mPerDisplay = new SparseArray<>();
+
+        RoundedContentTracker(DisplayController dc, DisplayInsetsController dic) {
+            mDisplayController = dc;
+            mDisplayInsetsController = dic;
+        }
+
+        void init() {
+            mDisplayController.addDisplayWindowListener(this);
+        }
+
+        RoundedContentPerDisplay forDisplay(int displayId) {
+            return mPerDisplay.get(displayId);
+        }
+
+        @Override
+        public void onDisplayAdded(int displayId) {
+            final RoundedContentPerDisplay perDisplay = new RoundedContentPerDisplay();
+            mDisplayInsetsController.addInsetsChangedListener(displayId, perDisplay);
+            mPerDisplay.put(displayId, perDisplay);
+            final DisplayLayout dl = mDisplayController.getDisplayLayout(displayId);
+            perDisplay.mBounds.set(0, 0, dl.width(), dl.height());
+        }
+
+        @Override
+        public void onDisplayRemoved(int displayId) {
+            final RoundedContentPerDisplay listener = mPerDisplay.removeReturnOld(displayId);
+            if (listener != null) {
+                mDisplayInsetsController.removeInsetsChangedListener(displayId, listener);
+            }
+        }
     }
 }

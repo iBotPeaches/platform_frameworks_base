@@ -196,6 +196,9 @@ public class WorkLockActivity extends Activity {
             confirmCredentialIntent.putExtra(Intent.EXTRA_INTENT, target.getIntentSender());
         }
 
+        String packageName = getIntent().getStringExtra(Intent.EXTRA_PACKAGE_NAME);
+        confirmCredentialIntent.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName);
+
         // WorkLockActivity is started as a task overlay, so unless credential confirmation is also
         // started as an overlay, it won't be visible.
         final ActivityOptions launchOptions = ActivityOptions.makeBasic();

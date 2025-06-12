@@ -30,11 +30,11 @@ import static com.android.server.power.stats.processor.AggregatedPowerStatsConfi
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.annotation.SuppressLint;
 import android.os.BatteryConsumer;
 import android.os.BatteryStats;
 import android.os.PersistableBundle;
 import android.os.Process;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.annotation.NonNull;
 
@@ -43,17 +43,11 @@ import com.android.internal.os.PowerStats;
 import com.android.server.power.stats.MockClock;
 import com.android.server.power.stats.format.BinaryStatePowerStatsLayout;
 
-import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.function.Supplier;
 
 public class BinaryStatePowerStatsProcessorTest {
-    @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
     private static final double PRECISION = 0.00001;
     private static final int APP_UID1 = Process.FIRST_APPLICATION_UID + 42;
     private static final int APP_UID2 = Process.FIRST_APPLICATION_UID + 101;
@@ -74,6 +68,7 @@ public class BinaryStatePowerStatsProcessorTest {
         }
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void powerProfileModel() {
         BinaryStatePowerStatsLayout statsLayout = new BinaryStatePowerStatsLayout();
@@ -138,12 +133,14 @@ public class BinaryStatePowerStatsProcessorTest {
         assertThat(statsLayout.getUidPowerEstimate(uidStats))
                 .isWithin(PRECISION).of(expectedPower2);
 
-        stats.getUidStats(uidStats, APP_UID2,
-                states(POWER_STATE_OTHER, SCREEN_STATE_ON, PROCESS_STATE_CACHED));
-        assertThat(statsLayout.getUidPowerEstimate(uidStats))
-                .isWithin(PRECISION).of(0);
+        if (stats.getUidStats(uidStats, APP_UID2,
+                states(POWER_STATE_OTHER, SCREEN_STATE_ON, PROCESS_STATE_CACHED))) {
+            assertThat(statsLayout.getUidPowerEstimate(uidStats))
+                    .isWithin(PRECISION).of(0);
+        }
     }
 
+    @SuppressLint("CheckResult")
     @Test
     public void energyConsumerModel() {
         BinaryStatePowerStatsLayout
@@ -232,10 +229,11 @@ public class BinaryStatePowerStatsProcessorTest {
         assertThat(statsLayout.getUidPowerEstimate(uidStats))
                 .isWithin(PRECISION).of(expectedPower2);
 
-        stats.getUidStats(uidStats, APP_UID2,
-                states(POWER_STATE_OTHER, SCREEN_STATE_ON, PROCESS_STATE_CACHED));
-        assertThat(statsLayout.getUidPowerEstimate(uidStats))
-                .isWithin(PRECISION).of(0);
+        if (stats.getUidStats(uidStats, APP_UID2,
+                states(POWER_STATE_OTHER, SCREEN_STATE_ON, PROCESS_STATE_CACHED))) {
+            assertThat(statsLayout.getUidPowerEstimate(uidStats))
+                    .isWithin(PRECISION).of(0);
+        }
     }
 
 

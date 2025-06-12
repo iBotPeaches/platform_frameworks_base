@@ -18,7 +18,7 @@ package com.android.systemui.keyevent.data.repository
 
 import android.view.KeyEvent
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.statusbar.CommandQueue
 import javax.inject.Inject
@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.Flow
 interface KeyEventRepository {
     /** Observable for whether the power button key is pressed/down or not. */
     val isPowerButtonDown: Flow<Boolean>
+
+    /** Observable for when the power button is being pressed but till the duration of long press */
+    val isPowerButtonLongPressed: Flow<Boolean>
 }
 
 @SysUISingleton
@@ -47,6 +50,21 @@ constructor(
                 }
             }
         trySendWithFailureLogging(false, TAG, "init isPowerButtonDown")
+        commandQueue.addCallback(callback)
+        awaitClose { commandQueue.removeCallback(callback) }
+    }
+
+    override val isPowerButtonLongPressed: Flow<Boolean> = conflatedCallbackFlow {
+        val callback =
+            object : CommandQueue.Callbacks {
+                override fun handleSystemKey(event: KeyEvent) {
+                    if (event.keyCode == KeyEvent.KEYCODE_POWER) {
+                        trySendWithFailureLogging(event.action == KeyEvent.ACTION_DOWN
+                                && event.isLongPress, TAG, "updated isPowerButtonLongPressed")
+                    }
+                }
+            }
+        trySendWithFailureLogging(false, TAG, "init isPowerButtonLongPressed")
         commandQueue.addCallback(callback)
         awaitClose { commandQueue.removeCallback(callback) }
     }

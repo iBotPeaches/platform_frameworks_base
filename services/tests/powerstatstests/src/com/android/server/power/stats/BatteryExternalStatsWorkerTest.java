@@ -26,16 +26,10 @@ import static com.android.server.power.stats.BatteryStatsImpl.ExternalStatsSync.
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 import android.content.Context;
-import android.hardware.power.stats.Channel;
-import android.hardware.power.stats.EnergyConsumer;
 import android.hardware.power.stats.EnergyConsumerResult;
 import android.hardware.power.stats.EnergyConsumerType;
-import android.hardware.power.stats.EnergyMeasurement;
-import android.hardware.power.stats.PowerEntity;
-import android.hardware.power.stats.StateResidencyResult;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.connectivity.WifiActivityEnergyInfo;
@@ -54,7 +48,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Tests for {@link BatteryExternalStatsWorker}.
@@ -66,7 +59,7 @@ import java.util.concurrent.CompletableFuture;
 @android.platform.test.annotations.DisabledOnRavenwood
 public class BatteryExternalStatsWorkerTest {
     private BatteryExternalStatsWorker mBatteryExternalStatsWorker;
-    private TestPowerStatsInternal mPowerStatsInternal;
+    private MockPowerStatsInternal mPowerStatsInternal;
     private Handler mHandler;
 
     @Before
@@ -80,7 +73,7 @@ public class BatteryExternalStatsWorkerTest {
                 mHandler, null, null, null,
                 new PowerProfile(context, true /* forTest */), buildScalingPolicies(),
                 new PowerStatsUidResolver());
-        mPowerStatsInternal = new TestPowerStatsInternal();
+        mPowerStatsInternal = new MockPowerStatsInternal();
         mBatteryExternalStatsWorker =
                 new BatteryExternalStatsWorker(new TestInjector(context), batteryStats, mHandler);
     }
@@ -259,103 +252,5 @@ public class BatteryExternalStatsWorkerTest {
         freqsByPolicy.put(0, new int[]{300000, 1000000, 2000000});
         freqsByPolicy.put(4, new int[]{300000, 1000000, 2500000, 3000000});
         return new CpuScalingPolicies(freqsByPolicy, freqsByPolicy);
-    }
-
-    private static class TestPowerStatsInternal extends PowerStatsInternal {
-        private final SparseArray<EnergyConsumer> mEnergyConsumers = new SparseArray();
-        private final SparseArray<EnergyConsumerResult> mEnergyConsumerResults = new SparseArray();
-        private final int mTimeSinceBoot = 0;
-
-        @Override
-        public EnergyConsumer[] getEnergyConsumerInfo() {
-            final int size = mEnergyConsumers.size();
-            final EnergyConsumer[] consumers = new EnergyConsumer[size];
-            for (int i = 0; i < size; i++) {
-                consumers[i] = mEnergyConsumers.valueAt(i);
-            }
-            return consumers;
-        }
-
-        @Override
-        public CompletableFuture<EnergyConsumerResult[]> getEnergyConsumedAsync(
-                int[] energyConsumerIds) {
-            final CompletableFuture<EnergyConsumerResult[]> future = new CompletableFuture();
-            final EnergyConsumerResult[] results;
-            final int length = energyConsumerIds.length;
-            if (length == 0) {
-                final int size = mEnergyConsumerResults.size();
-                results = new EnergyConsumerResult[size];
-                for (int i = 0; i < size; i++) {
-                    results[i] = mEnergyConsumerResults.valueAt(i);
-                }
-            } else {
-                results = new EnergyConsumerResult[length];
-                for (int i = 0; i < length; i++) {
-                    results[i] = mEnergyConsumerResults.get(energyConsumerIds[i]);
-                }
-            }
-            future.complete(results);
-            return future;
-        }
-
-        @Override
-        public PowerEntity[] getPowerEntityInfo() {
-            return new PowerEntity[0];
-        }
-
-        @Override
-        public CompletableFuture<StateResidencyResult[]> getStateResidencyAsync(
-                int[] powerEntityIds) {
-            return new CompletableFuture<>();
-        }
-
-        @Override
-        public Channel[] getEnergyMeterInfo() {
-            return new Channel[0];
-        }
-
-        @Override
-        public CompletableFuture<EnergyMeasurement[]> readEnergyMeterAsync(
-                int[] channelIds) {
-            return new CompletableFuture<>();
-        }
-
-        /**
-         * Util method to add a new EnergyConsumer for testing
-         *
-         * @return the EnergyConsumer id of the new EnergyConsumer
-         */
-        public int addEnergyConsumer(@EnergyConsumerType byte type, int ordinal, String name) {
-            final EnergyConsumer consumer = new EnergyConsumer();
-            final int id = getNextAvailableId();
-            consumer.id = id;
-            consumer.type = type;
-            consumer.ordinal = ordinal;
-            consumer.name = name;
-            mEnergyConsumers.put(id, consumer);
-
-            final EnergyConsumerResult result = new EnergyConsumerResult();
-            result.id = id;
-            result.timestampMs = mTimeSinceBoot;
-            result.energyUWs = 0;
-            mEnergyConsumerResults.put(id, result);
-            return id;
-        }
-
-        public void incrementEnergyConsumption(int id, long energyUWs) {
-            EnergyConsumerResult result = mEnergyConsumerResults.get(id, null);
-            assertNotNull(result);
-            result.energyUWs += energyUWs;
-        }
-
-        private int getNextAvailableId() {
-            final int size = mEnergyConsumers.size();
-            // Just return the first index that does not match the key (aka the EnergyConsumer id)
-            for (int i = size - 1; i >= 0; i--) {
-                if (mEnergyConsumers.keyAt(i) == i) return i + 1;
-            }
-            // Otherwise return the lowest id
-            return 0;
-        }
     }
 }

@@ -19,6 +19,7 @@ package com.android.systemui.communal.domain.interactor
 import android.content.testableContext
 import android.os.userManager
 import com.android.systemui.broadcast.broadcastDispatcher
+import com.android.systemui.communal.data.model.SuppressionReason
 import com.android.systemui.communal.data.repository.communalMediaRepository
 import com.android.systemui.communal.data.repository.communalSmartspaceRepository
 import com.android.systemui.communal.data.repository.communalWidgetRepository
@@ -35,11 +36,9 @@ import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.plugins.activityStarter
-import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.settings.userTracker
 import com.android.systemui.statusbar.phone.fakeManagedProfileController
-import com.android.systemui.user.data.repository.fakeUserRepository
 import com.android.systemui.util.mockito.mock
 
 val Kosmos.communalInteractor by Fixture {
@@ -76,37 +75,28 @@ fun Kosmos.setCommunalV2ConfigEnabled(enabled: Boolean) {
     )
 }
 
-suspend fun Kosmos.setCommunalEnabled(enabled: Boolean) {
+fun Kosmos.setCommunalEnabled(enabled: Boolean) {
     fakeFeatureFlagsClassic.set(Flags.COMMUNAL_SERVICE_ENABLED, enabled)
-    if (enabled) {
-        fakeUserRepository.asMainUser()
-    } else {
-        fakeUserRepository.asDefaultUser()
-    }
+    val suppressionReasons =
+        if (enabled) {
+            emptyList()
+        } else {
+            listOf(SuppressionReason.ReasonUnknown())
+        }
+    communalSettingsInteractor.setSuppressionReasons(suppressionReasons)
 }
 
-suspend fun Kosmos.setCommunalV2Enabled(enabled: Boolean) {
-    setCommunalV2ConfigEnabled(true)
-    if (enabled) {
-        fakeUserRepository.asMainUser()
-    } else {
-        fakeUserRepository.asDefaultUser()
-    }
+fun Kosmos.setCommunalV2Enabled(enabled: Boolean) {
+    setCommunalV2ConfigEnabled(enabled)
+    return setCommunalEnabled(enabled)
 }
 
-suspend fun Kosmos.setCommunalAvailable(available: Boolean) {
+fun Kosmos.setCommunalAvailable(available: Boolean) {
     setCommunalEnabled(available)
-    with(fakeKeyguardRepository) {
-        setIsEncryptedOrLockdown(!available)
-        setKeyguardShowing(available)
-    }
+    fakeKeyguardRepository.setKeyguardShowing(available)
 }
 
-suspend fun Kosmos.setCommunalV2Available(available: Boolean) {
-    setCommunalV2ConfigEnabled(true)
-    setCommunalEnabled(available)
-    with(fakeKeyguardRepository) {
-        setIsEncryptedOrLockdown(!available)
-        setKeyguardShowing(available)
-    }
+fun Kosmos.setCommunalV2Available(available: Boolean) {
+    setCommunalV2ConfigEnabled(available)
+    setCommunalAvailable(available)
 }

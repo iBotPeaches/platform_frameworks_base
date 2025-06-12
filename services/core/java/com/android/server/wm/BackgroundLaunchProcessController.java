@@ -125,27 +125,32 @@ class BackgroundLaunchProcessController {
             long lastActivityFinishTime) {
         // Allow if the proc is instrumenting with background activity starts privs.
         if (checkConfiguration.checkOtherExemptions && hasBackgroundActivityStartPrivileges) {
-            return new BalVerdict(BAL_ALLOW_PERMISSION, /*background*/ true,
+            return new BalVerdict(BAL_ALLOW_PERMISSION, /*background*/
                     "process instrumenting with background activity starts privileges");
         }
-        // Allow if the flag was explicitly set.
-        if (checkConfiguration.checkOtherExemptions && isBackgroundStartAllowedByToken(uid,
-                packageName, checkConfiguration.isCheckingForFgsStart)) {
-            return new BalVerdict(balImprovedMetrics() ? BAL_ALLOW_TOKEN : BAL_ALLOW_PERMISSION,
-                    /*background*/ true, "process allowed by token");
+        // Allow if the token is explicitly allowed.
+        if (checkConfiguration.checkOtherExemptions) {
+            BalVerdict tokenVerdict = isBackgroundStartAllowedByToken(uid,
+                    packageName, checkConfiguration.isCheckingForFgsStart);
+            if (tokenVerdict.allows()) {
+                if (!balImprovedMetrics()) {
+                    return new BalVerdict(BAL_ALLOW_PERMISSION, tokenVerdict.toString());
+                }
+                return tokenVerdict;
+            }
         }
         // Allow if the caller is bound by a UID that's currently foreground.
         // But still respect the appSwitchState.
         if (checkConfiguration.checkVisibility && appSwitchState != APP_SWITCH_DISALLOW
                 && isBoundByForegroundUid()) {
             return new BalVerdict(balImprovedMetrics() ? BAL_ALLOW_BOUND_BY_FOREGROUND
-                    : BAL_ALLOW_VISIBLE_WINDOW, /*background*/ false,
+                    : BAL_ALLOW_VISIBLE_WINDOW, /*background*/
                     "process bound by foreground uid");
         }
         // Allow if the caller has an activity in any foreground task.
         if (checkConfiguration.checkOtherExemptions && hasActivityInVisibleTask
                 && appSwitchState != APP_SWITCH_DISALLOW) {
-            return new BalVerdict(BAL_ALLOW_FOREGROUND, /*background*/ false,
+            return new BalVerdict(BAL_ALLOW_FOREGROUND, /*background*/
                     "process has activity in foreground task");
         }
 
@@ -160,7 +165,7 @@ class BackgroundLaunchProcessController {
                 long timeSinceLastStartOrFinish = now - Math.max(lastActivityLaunchTime,
                         lastActivityFinishTime);
                 if (timeSinceLastStartOrFinish < checkConfiguration.gracePeriod) {
-                    return new BalVerdict(BAL_ALLOW_GRACE_PERIOD, /*background*/ true,
+                    return new BalVerdict(BAL_ALLOW_GRACE_PERIOD, /*background*/
                             "within " + checkConfiguration.gracePeriod + "ms grace period ("
                                     + timeSinceLastStartOrFinish + "ms)");
                 }
@@ -174,42 +179,53 @@ class BackgroundLaunchProcessController {
      * isCheckingForFgsStart is false, we ask the callback if the start is allowed for these tokens,
      * otherwise if there is no callback we allow.
      */
-    private boolean isBackgroundStartAllowedByToken(int uid, String packageName,
+    private BalVerdict isBackgroundStartAllowedByToken(int uid, String packageName,
             boolean isCheckingForFgsStart) {
         synchronized (this) {
             if (mBackgroundStartPrivileges == null
                     || mBackgroundStartPrivileges.isEmpty()) {
                 // no tokens to allow anything
-                return false;
+                return BalVerdict.BLOCK;
             }
             if (isCheckingForFgsStart) {
                 // check if any token allows foreground service starts
                 for (int i = mBackgroundStartPrivileges.size(); i-- > 0; ) {
                     if (mBackgroundStartPrivileges.valueAt(i).allowsBackgroundFgsStarts()) {
-                        return true;
+                        return new BalVerdict(BAL_ALLOW_TOKEN, "process allowed by token");
                     }
                 }
-                return false;
+                return BalVerdict.BLOCK;
             }
             if (mBackgroundActivityStartCallback == null) {
                 // without a callback just check if any token allows background activity starts
                 for (int i = mBackgroundStartPrivileges.size(); i-- > 0; ) {
                     if (mBackgroundStartPrivileges.valueAt(i)
                             .allowsBackgroundActivityStarts()) {
-                        return true;
+                        return new BalVerdict(BAL_ALLOW_TOKEN, "process allowed by token");
                     }
                 }
-                return false;
+                return BalVerdict.BLOCK;
             }
             List<IBinder> binderTokens = getOriginatingTokensThatAllowBal();
             if (binderTokens.isEmpty()) {
                 // no tokens to allow anything
-                return false;
+                return BalVerdict.BLOCK;
             }
 
             // The callback will decide.
-            return mBackgroundActivityStartCallback.isActivityStartAllowed(
+            BackgroundActivityStartCallback.BackgroundActivityStartCallbackResult
+                    activityStartAllowed = mBackgroundActivityStartCallback.isActivityStartAllowed(
                     binderTokens, uid, packageName);
+            if (!activityStartAllowed.allowed()) {
+                return BalVerdict.BLOCK;
+            }
+            if (activityStartAllowed.token() == null) {
+                return new BalVerdict(BAL_ALLOW_TOKEN,
+                        "process allowed by callback (token ignored) tokens: " + binderTokens);
+            }
+            return new BalVerdict(BAL_ALLOW_TOKEN,
+                    "process allowed by callback (token: " + activityStartAllowed.token()
+                            + ") tokens: " + binderTokens);
         }
     }
 

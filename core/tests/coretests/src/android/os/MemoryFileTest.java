@@ -19,7 +19,7 @@ package android.os;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
-@IgnoreUnderRavenwood(blockedBy = MemoryFile.class)
+@DisabledOnRavenwood(blockedBy = MemoryFile.class)
 public class MemoryFileTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();

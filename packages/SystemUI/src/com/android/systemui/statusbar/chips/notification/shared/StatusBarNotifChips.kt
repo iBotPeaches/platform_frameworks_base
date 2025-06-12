@@ -16,15 +16,18 @@
 
 package com.android.systemui.statusbar.chips.notification.shared
 
-import com.android.systemui.Flags
+import android.app.Flags
 import com.android.systemui.flags.FlagToken
 import com.android.systemui.flags.RefactorFlagUtils
+
+// NOTE: We're merging this flag with the `ui_rich_ongoing` flag.
+//  We'll replace all usages of this class with PromotedNotificationUi as a follow-up.
 
 /** Helper for reading or using the status bar promoted notification chips flag state. */
 @Suppress("NOTHING_TO_INLINE")
 object StatusBarNotifChips {
     /** The aconfig flag name */
-    const val FLAG_NAME = Flags.FLAG_STATUS_BAR_NOTIFICATION_CHIPS
+    const val FLAG_NAME = Flags.FLAG_UI_RICH_ONGOING
 
     /** A token used for dependency declaration */
     val token: FlagToken
@@ -33,7 +36,7 @@ object StatusBarNotifChips {
     /** Is the refactor enabled */
     @JvmStatic
     inline val isEnabled
-        get() = Flags.statusBarNotificationChips()
+        get() = Flags.uiRichOngoing()
 
     /**
      * Called to ensure code is only run when the flag is enabled. This protects users from the
@@ -50,7 +53,9 @@ object StatusBarNotifChips {
      * Caution!! Using this check incorrectly will cause crashes in nextfood builds!
      */
     @JvmStatic
-    inline fun assertInNewMode() = RefactorFlagUtils.assertInNewMode(isEnabled, FLAG_NAME)
+    @Deprecated("Avoid crashing.", ReplaceWith("if (this.isUnexpectedlyInLegacyMode()) return"))
+    inline fun unsafeAssertInNewMode() =
+        RefactorFlagUtils.unsafeAssertInNewMode(isEnabled, FLAG_NAME)
 
     /**
      * Called to ensure code is only run when the flag is disabled. This will throw an exception if

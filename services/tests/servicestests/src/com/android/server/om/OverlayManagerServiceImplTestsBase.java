@@ -32,6 +32,7 @@ import android.content.om.OverlayableInfo;
 import android.content.pm.UserPackage;
 import android.os.FabricatedOverlayInfo;
 import android.os.FabricatedOverlayInternal;
+import android.os.OverlayConstraint;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
@@ -480,7 +481,7 @@ class OverlayManagerServiceImplTestsBase {
 
         @Override
         String createIdmap(String targetPath, String overlayPath, String overlayName,
-                int policies, boolean enforce, int userId) {
+                int policies, boolean enforce, int userId, OverlayConstraint[] constraints) {
             mIdmapFiles.put(overlayPath, new IdmapHeader(getCrc(targetPath),
                     getCrc(overlayPath), targetPath, overlayName, policies, enforce));
             return overlayPath;
@@ -493,7 +494,7 @@ class OverlayManagerServiceImplTestsBase {
 
         @Override
         boolean verifyIdmap(String targetPath, String overlayPath, String overlayName, int policies,
-                boolean enforce, int userId) {
+                boolean enforce, int userId, OverlayConstraint[] constraints) {
             final IdmapHeader idmap = mIdmapFiles.get(overlayPath);
             if (idmap == null) {
                 return false;

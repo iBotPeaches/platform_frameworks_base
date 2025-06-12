@@ -85,6 +85,7 @@ import com.android.server.display.RampAnimator.DualRampAnimator;
 import com.android.server.display.brightness.BrightnessEvent;
 import com.android.server.display.brightness.BrightnessReason;
 import com.android.server.display.brightness.clamper.BrightnessClamperController;
+import com.android.server.display.brightness.clamper.BrightnessClamperController.DisplayDeviceData;
 import com.android.server.display.brightness.clamper.HdrClamper;
 import com.android.server.display.color.ColorDisplayService;
 import com.android.server.display.config.HighBrightnessModeData;
@@ -1065,7 +1066,6 @@ public final class DisplayPowerControllerTest {
                 com.android.internal.R.bool.config_allowAutoBrightnessWhileDozing, true);
         mHolder = createDisplayPowerController(DISPLAY_ID, UNIQUE_ID);
         when(mDisplayManagerFlagsMock.isDisplayOffloadEnabled()).thenReturn(true);
-        when(mDisplayManagerFlagsMock.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(true);
         mHolder.dpc.setDisplayOffloadSession(mDisplayOffloadSession);
 
@@ -1171,7 +1171,6 @@ public final class DisplayPowerControllerTest {
                 com.android.internal.R.bool.config_allowAutoBrightnessWhileDozing, true);
         mHolder = createDisplayPowerController(DISPLAY_ID, UNIQUE_ID);
         when(mDisplayManagerFlagsMock.isDisplayOffloadEnabled()).thenReturn(true);
-        when(mDisplayManagerFlagsMock.offloadControlsDozeAutoBrightness()).thenReturn(true);
         when(mDisplayOffloadSession.allowAutoBrightnessInDoze()).thenReturn(false);
         mHolder.dpc.setDisplayOffloadSession(mDisplayOffloadSession);
 
@@ -1288,7 +1287,7 @@ public final class DisplayPowerControllerTest {
                 any(HysteresisLevels.class),
                 eq(mContext),
                 any(BrightnessRangeController.class),
-                any(BrightnessThrottler.class),
+                any(BrightnessClamperController.class),
                 /* ambientLightHorizonShort= */ anyInt(),
                 /* ambientLightHorizonLong= */ anyInt(),
                 eq(lux),
@@ -1299,8 +1298,9 @@ public final class DisplayPowerControllerTest {
 
     @Test
     public void testUpdateBrightnessThrottlingDataId() {
+        String throttlingDataId = "throttling-data-id";
         mHolder.display.getDisplayInfoLocked().thermalBrightnessThrottlingDataId =
-                "throttling-data-id";
+                throttlingDataId;
         clearInvocations(mHolder.display.getPrimaryDisplayDeviceLocked().getDisplayDeviceConfig());
 
         mHolder.dpc.onDisplayChanged(mHolder.hbmMetadata, Layout.NO_LEAD_DISPLAY);
@@ -1308,8 +1308,10 @@ public final class DisplayPowerControllerTest {
         mHolder.dpc.requestPowerState(dpr, /* waitForNegativeProximity= */ false);
         advanceTime(1); // Run updatePowerState
 
-        verify(mHolder.display.getPrimaryDisplayDeviceLocked().getDisplayDeviceConfig())
-                .getThermalBrightnessThrottlingDataMapByThrottlingId();
+        ArgumentCaptor<DisplayDeviceData> argumentCaptor = ArgumentCaptor.forClass(
+                DisplayDeviceData.class);
+        verify(mHolder.clamperController).onDisplayChanged(argumentCaptor.capture());
+        assertEquals(throttlingDataId, argumentCaptor.getValue().getThermalThrottlingDataId());
     }
 
     @Test
@@ -1401,33 +1403,9 @@ public final class DisplayPowerControllerTest {
     }
 
     @Test
-    public void testRampRateForHdrContent_HdrClamperOff() {
-        float hdrBrightness = 0.8f;
-        float clampedBrightness = 0.6f;
-        float transitionRate = 1.5f;
-
-        DisplayPowerRequest dpr = new DisplayPowerRequest();
-        when(mHolder.displayPowerState.getColorFadeLevel()).thenReturn(1.0f);
-        when(mHolder.displayPowerState.getScreenBrightness()).thenReturn(.2f);
-        when(mHolder.displayPowerState.getSdrScreenBrightness()).thenReturn(.1f);
-        when(mHolder.hbmController.getHighBrightnessMode()).thenReturn(
-                BrightnessInfo.HIGH_BRIGHTNESS_MODE_HDR);
-        when(mHolder.hbmController.getHdrBrightnessValue()).thenReturn(hdrBrightness);
-        when(mHolder.hdrClamper.getMaxBrightness()).thenReturn(clampedBrightness);
-        when(mHolder.hdrClamper.getTransitionRate()).thenReturn(transitionRate);
-
-        mHolder.dpc.requestPowerState(dpr, /* waitForNegativeProximity= */ false);
-        advanceTime(1); // Run updatePowerState
-
-        verify(mHolder.animator, atLeastOnce()).animateTo(eq(hdrBrightness), anyFloat(),
-                eq(BRIGHTNESS_RAMP_RATE_FAST_INCREASE), eq(false));
-    }
-
-    @Test
     public void testRampRateForHdrContent_HdrClamperOn() {
         float clampedBrightness = 0.6f;
         float transitionRate = 1.5f;
-        when(mDisplayManagerFlagsMock.isHdrClamperEnabled()).thenReturn(true);
         mHolder = createDisplayPowerController(DISPLAY_ID, UNIQUE_ID, /* isEnabled= */ true);
 
         DisplayPowerRequest dpr = new DisplayPowerRequest();
@@ -2626,11 +2604,13 @@ public final class DisplayPowerControllerTest {
                 mock(ScreenOffBrightnessSensorController.class);
         final HighBrightnessModeController hbmController = mock(HighBrightnessModeController.class);
         final HdrClamper hdrClamper = mock(HdrClamper.class);
-        final NormalBrightnessModeController normalBrightnessModeController = mock(
-                NormalBrightnessModeController.class);
+        final NormalBrightnessModeController normalBrightnessModeController =
+                new NormalBrightnessModeController();
         BrightnessClamperController clamperController = mock(BrightnessClamperController.class);
 
         when(hbmController.getCurrentBrightnessMax()).thenReturn(PowerManager.BRIGHTNESS_MAX);
+        when(hdrClamper.clamp(anyFloat())).thenAnswer(
+                invocation -> invocation.getArgument(0));
         when(clamperController.clamp(any(), any(), anyFloat(), anyBoolean(),
                 anyInt())).thenAnswer(
                 invocation -> DisplayBrightnessState.Builder.from(mDisplayBrightnessState)
@@ -2820,7 +2800,7 @@ public final class DisplayPowerControllerTest {
                 HysteresisLevels ambientBrightnessThresholdsIdle,
                 HysteresisLevels screenBrightnessThresholdsIdle, Context context,
                 BrightnessRangeController brightnessRangeController,
-                BrightnessThrottler brightnessThrottler, int ambientLightHorizonShort,
+                BrightnessClamperController clamperController, int ambientLightHorizonShort,
                 int ambientLightHorizonLong, float userLux, float userNits,
                 DisplayManagerFlags displayManagerFlags) {
             return mAutomaticBrightnessController;
@@ -2864,7 +2844,7 @@ public final class DisplayPowerControllerTest {
         @Override
         BrightnessClamperController getBrightnessClamperController(Handler handler,
                 BrightnessClamperController.ClamperChangeListener clamperChangeListener,
-                BrightnessClamperController.DisplayDeviceData data, Context context,
+                DisplayDeviceData data, Context context,
                 DisplayManagerFlags flags, SensorManager sensorManager, float currentBrightness) {
             return mClamperController;
         }

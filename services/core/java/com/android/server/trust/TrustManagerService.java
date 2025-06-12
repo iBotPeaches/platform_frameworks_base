@@ -356,37 +356,35 @@ public class TrustManagerService extends SystemService {
             refreshAgentList(UserHandle.USER_ALL);
             refreshDeviceLockedForUser(UserHandle.USER_ALL);
 
-            if (android.security.Flags.significantPlaces()) {
-                mSignificantPlaceServiceWatcher = ServiceWatcher.create(mContext, TAG,
-                        CurrentUserServiceSupplier.create(
-                                mContext,
-                                TrustManager.ACTION_BIND_SIGNIFICANT_PLACE_PROVIDER,
-                                null,
-                                null,
-                                null),
-                        new ServiceWatcher.ServiceListener<>() {
-                            @Override
-                            public void onBind(IBinder binder,
-                                    CurrentUserServiceSupplier.BoundServiceInfo service)
-                                    throws RemoteException {
-                                ISignificantPlaceProvider.Stub.asInterface(binder)
-                                        .setSignificantPlaceProviderManager(
-                                                new ISignificantPlaceProviderManager.Stub() {
-                                                    @Override
-                                                    public void setInSignificantPlace(
-                                                            boolean inSignificantPlace) {
-                                                        mIsInSignificantPlace = inSignificantPlace;
-                                                    }
-                                                });
-                            }
+            mSignificantPlaceServiceWatcher = ServiceWatcher.create(mContext, TAG,
+                    CurrentUserServiceSupplier.create(
+                            mContext,
+                            TrustManager.ACTION_BIND_SIGNIFICANT_PLACE_PROVIDER,
+                            null,
+                            null,
+                            null),
+                    new ServiceWatcher.ServiceListener<>() {
+                        @Override
+                        public void onBind(IBinder binder,
+                                CurrentUserServiceSupplier.BoundServiceInfo service)
+                                throws RemoteException {
+                            ISignificantPlaceProvider.Stub.asInterface(binder)
+                                    .setSignificantPlaceProviderManager(
+                                            new ISignificantPlaceProviderManager.Stub() {
+                                                @Override
+                                                public void setInSignificantPlace(
+                                                        boolean inSignificantPlace) {
+                                                    mIsInSignificantPlace = inSignificantPlace;
+                                                }
+                                            });
+                        }
 
-                            @Override
-                            public void onUnbind() {
-                                mIsInSignificantPlace = false;
-                            }
-                        });
-                mSignificantPlaceServiceWatcher.register();
-            }
+                        @Override
+                        public void onUnbind() {
+                            mIsInSignificantPlace = false;
+                        }
+                    });
+            mSignificantPlaceServiceWatcher.register();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             maybeEnableFactoryTrustAgents(UserHandle.USER_SYSTEM);
         }
@@ -1910,11 +1908,9 @@ public class TrustManagerService extends SystemService {
         public boolean isInSignificantPlace() {
             super.isInSignificantPlace_enforcePermission();
 
-            if (android.security.Flags.significantPlaces()) {
-                mSignificantPlaceServiceWatcher.runOnBinder(
-                        binder -> ISignificantPlaceProvider.Stub.asInterface(binder)
-                                .onSignificantPlaceCheck());
-            }
+            mSignificantPlaceServiceWatcher.runOnBinder(
+                    binder -> ISignificantPlaceProvider.Stub.asInterface(binder)
+                            .onSignificantPlaceCheck());
             return mIsInSignificantPlace;
         }
 

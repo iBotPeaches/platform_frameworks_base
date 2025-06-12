@@ -60,6 +60,14 @@ public class AndroidPlatformServices implements Platform {
     }
 
     @Override
+    public boolean isAlpha8Image(@NonNull Object image) {
+        if (image instanceof Bitmap) {
+            return ((Bitmap) image).getConfig().equals(Bitmap.Config.ALPHA_8);
+        }
+        return false;
+    }
+
+    @Override
     @Nullable
     public float[] pathToFloatArray(@NonNull Object path) {
         //        if (path is RemotePath) {

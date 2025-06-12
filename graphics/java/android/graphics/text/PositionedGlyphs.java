@@ -46,6 +46,7 @@ import java.util.Objects;
  * @see TextRunShaper#shapeTextRun(char[], int, int, int, int, float, float, boolean, Paint)
  * @see TextRunShaper#shapeTextRun(CharSequence, int, int, int, int, float, float, boolean, Paint)
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class PositionedGlyphs {
     private static class NoImagePreloadHolder {
         private static final NativeAllocationRegistry REGISTRY =

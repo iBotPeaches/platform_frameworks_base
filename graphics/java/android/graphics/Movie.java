@@ -27,6 +27,7 @@ import java.io.InputStream;
  * @deprecated Prefer {@link android.graphics.drawable.AnimatedImageDrawable}.
  */
 @Deprecated
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Movie {
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     private long mNativeMovie;

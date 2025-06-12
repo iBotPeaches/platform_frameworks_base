@@ -22,15 +22,15 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.RecordIssueTile
-import com.android.systemui.qs.tiles.base.viewmodel.QSTileViewModelFactory
-import com.android.systemui.qs.tiles.impl.irecording.IssueRecordingDataInteractor
-import com.android.systemui.qs.tiles.impl.irecording.IssueRecordingMapper
-import com.android.systemui.qs.tiles.impl.irecording.IssueRecordingModel
-import com.android.systemui.qs.tiles.impl.irecording.IssueRecordingUserActionInteractor
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
-import com.android.systemui.qs.tiles.viewmodel.StubQSTileViewModel
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.base.ui.viewmodel.StubQSTileViewModel
+import com.android.systemui.qs.tiles.impl.irecording.data.model.IssueRecordingModel
+import com.android.systemui.qs.tiles.impl.irecording.domain.interactor.IssueRecordingDataInteractor
+import com.android.systemui.qs.tiles.impl.irecording.domain.interactor.IssueRecordingUserActionInteractor
+import com.android.systemui.qs.tiles.impl.irecording.ui.mapper.IssueRecordingMapper
 import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
@@ -59,7 +59,7 @@ interface RecordIssueModule {
                 uiConfig =
                     QSTileUIConfig.Resource(
                         iconRes = R.drawable.qs_record_issue_icon_off,
-                        labelRes = R.string.qs_record_issue_label
+                        labelRes = R.string.qs_record_issue_label,
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.UTILITIES,
@@ -73,7 +73,7 @@ interface RecordIssueModule {
             factory: QSTileViewModelFactory.Static<IssueRecordingModel>,
             mapper: IssueRecordingMapper,
             stateInteractor: IssueRecordingDataInteractor,
-            userActionInteractor: IssueRecordingUserActionInteractor
+            userActionInteractor: IssueRecordingUserActionInteractor,
         ): QSTileViewModel =
             if (Flags.qsNewTilesFuture())
                 factory.create(

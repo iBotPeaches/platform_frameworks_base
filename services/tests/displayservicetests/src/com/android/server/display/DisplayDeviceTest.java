@@ -23,10 +23,17 @@ import static android.view.Surface.ROTATION_90;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.platform.test.annotations.Presubmit;
 import android.view.Display;
+import android.view.Surface;
 import android.view.SurfaceControl;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -37,6 +44,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 /**
@@ -152,6 +160,65 @@ public class DisplayDeviceTest {
                 mMockDisplayAdapter);
         displayDevice.setProjectionLocked(mMockTransaction, ROTATION_270, new Rect(), new Rect());
         assertThat(displayDevice.getDisplaySurfaceDefaultSizeLocked()).isEqualTo(LANDSCAPE_SIZE);
+    }
+
+    @Test
+    public void testSetDisplaySize_landscapeInstallRotation() {
+        DisplayDevice displayDevice = new FakeDisplayDevice(mDisplayDeviceInfo,
+                mMockDisplayAdapter);
+        mDisplayDeviceInfo.installOrientation = Surface.ROTATION_0;
+        mDisplayDeviceInfo.width = 100;
+        mDisplayDeviceInfo.height = 200;
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction).setDisplaySize(isNull(), eq(100), eq(200));
+
+        Mockito.clearInvocations(mMockTransaction);
+
+        mDisplayDeviceInfo.installOrientation = Surface.ROTATION_180;
+        mDisplayDeviceInfo.width = 300;
+        mDisplayDeviceInfo.height = 400;
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction).setDisplaySize(isNull(), eq(300), eq(400));
+    }
+
+    @Test
+    public void testSetDisplaySize_portraitInstallRotation() {
+        DisplayDevice displayDevice = new FakeDisplayDevice(mDisplayDeviceInfo,
+                mMockDisplayAdapter);
+        mDisplayDeviceInfo.installOrientation = Surface.ROTATION_90;
+        mDisplayDeviceInfo.width = 100;
+        mDisplayDeviceInfo.height = 200;
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction).setDisplaySize(isNull(), eq(200), eq(100));
+
+        Mockito.clearInvocations(mMockTransaction);
+
+        mDisplayDeviceInfo.installOrientation = Surface.ROTATION_270;
+        mDisplayDeviceInfo.width = 300;
+        mDisplayDeviceInfo.height = 400;
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction).setDisplaySize(isNull(), eq(400), eq(300));
+    }
+
+    @Test
+    public void testSetDisplaySize_invokedOnlyAfterResize() {
+        DisplayDevice displayDevice = new FakeDisplayDevice(mDisplayDeviceInfo,
+                mMockDisplayAdapter);
+        mDisplayDeviceInfo.installOrientation = Surface.ROTATION_90;
+        mDisplayDeviceInfo.width = 100;
+        mDisplayDeviceInfo.height = 200;
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction).setDisplaySize(isNull(), eq(200), eq(100));
+
+        Mockito.clearInvocations(mMockTransaction);
+
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction, never()).setDisplaySize(isNull(), anyInt(), anyInt());
+
+        mDisplayDeviceInfo.width = 300;
+        mDisplayDeviceInfo.height = 400;
+        displayDevice.configureDisplaySizeLocked(mMockTransaction);
+        verify(mMockTransaction).setDisplaySize(isNull(), eq(400), eq(300));
     }
 
     private static class FakeDisplayDevice extends DisplayDevice {

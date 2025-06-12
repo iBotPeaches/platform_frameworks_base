@@ -314,6 +314,7 @@ public class TransparentPolicyTest extends WindowTestsBase {
         runTestScenario((robot) -> {
             robot.transparentActivity((ta) -> {
                 ta.applyOnActivity((a) -> {
+                    a.setIgnoreOrientationRequest(false);
                     a.applyToTopActivity((topActivity) -> {
                         topActivity.mWmService.mAppCompatConfiguration
                                 .setLetterboxHorizontalPositionMultiplier(1.0f);
@@ -353,7 +354,7 @@ public class TransparentPolicyTest extends WindowTestsBase {
                     ta.launchTransparentActivityInTask();
                     a.assertNotNullOnTopActivity(ActivityRecord::getAppCompatDisplayInsets);
                     a.applyToTopActivity((top) -> {
-                        top.mAppCompatController.getAppCompatSizeCompatModePolicy()
+                        top.mAppCompatController.getSizeCompatModePolicy()
                                 .clearSizeCompatMode();
                     });
                     a.assertNullOnTopActivity(ActivityRecord::getAppCompatDisplayInsets);

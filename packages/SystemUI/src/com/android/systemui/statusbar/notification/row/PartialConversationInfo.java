@@ -24,6 +24,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.os.RemoteException;
+import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.util.AttributeSet;
@@ -35,6 +36,7 @@ import android.widget.TextView;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.systemui.res.R;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 
 /**
@@ -79,18 +81,18 @@ public class PartialConversationInfo extends LinearLayout implements
             INotificationManager iNotificationManager,
             ChannelEditorDialogController channelEditorDialogController,
             String pkg,
-            NotificationChannel notificationChannel,
-            NotificationEntry entry,
+            NotificationListenerService.Ranking ranking,
+            StatusBarNotification sbn,
             NotificationInfo.OnSettingsClickListener onSettingsClick,
             boolean isDeviceProvisioned,
             boolean isNonBlockable) {
         mINotificationManager = iNotificationManager;
         mPackageName = pkg;
-        mSbn = entry.getSbn();
+        mSbn = sbn;
         mPm = pm;
         mAppName = mPackageName;
         mOnSettingsClickListener = onSettingsClick;
-        mNotificationChannel = notificationChannel;
+        mNotificationChannel = ranking.getChannel();
         mAppUid = mSbn.getUid();
         mDelegatePkg = mSbn.getOpPkg();
         mIsDeviceProvisioned = isDeviceProvisioned;

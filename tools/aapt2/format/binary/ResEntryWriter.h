@@ -38,6 +38,8 @@ struct FlatEntry {
 
   // The entry string pool index to the entry's name.
   uint32_t entry_key;
+
+  bool uses_readwrite_feature_flags;
 };
 
 // Pair of ResTable_entry and Res_value. These pairs are stored sequentially in values buffer.

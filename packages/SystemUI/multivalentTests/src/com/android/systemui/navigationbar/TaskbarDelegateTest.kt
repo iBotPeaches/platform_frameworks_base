@@ -1,6 +1,7 @@
 package com.android.systemui.navigationbar
 
 import android.app.ActivityManager
+import android.os.Handler
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
@@ -8,7 +9,8 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.model.SysUiState
 import com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-import com.android.systemui.recents.OverviewProxyService
+import com.android.systemui.recents.LauncherProxyService
+import com.android.systemui.settings.DisplayTracker
 import com.android.systemui.shared.system.QuickStepContract
 import com.android.systemui.shared.system.TaskStackChangeListeners
 import com.android.systemui.statusbar.CommandQueue
@@ -47,7 +49,7 @@ class TaskbarDelegateTest : SysuiTestCase() {
     @Mock lateinit var mLightBarControllerFactory: LightBarTransitionsController.Factory
     @Mock lateinit var mLightBarTransitionController: LightBarTransitionsController
     @Mock lateinit var mCommandQueue: CommandQueue
-    @Mock lateinit var mOverviewProxyService: OverviewProxyService
+    @Mock lateinit var mLauncherProxyService: LauncherProxyService
     @Mock lateinit var mNavBarHelper: NavBarHelper
     @Mock lateinit var mNavigationModeController: NavigationModeController
     @Mock lateinit var mSysUiState: SysUiState
@@ -59,6 +61,8 @@ class TaskbarDelegateTest : SysuiTestCase() {
     @Mock lateinit var mCurrentSysUiState: NavBarHelper.CurrentSysuiState
     @Mock lateinit var mStatusBarKeyguardViewManager: StatusBarKeyguardViewManager
     @Mock lateinit var mStatusBarStateController: StatusBarStateController
+    @Mock lateinit var mDisplayTracker: DisplayTracker
+    @Mock lateinit var mHandler: Handler
 
     @Before
     fun setup() {
@@ -67,6 +71,11 @@ class TaskbarDelegateTest : SysuiTestCase() {
         `when`(mLightBarControllerFactory.create(any())).thenReturn(mLightBarTransitionController)
         `when`(mNavBarHelper.currentSysuiState).thenReturn(mCurrentSysUiState)
         `when`(mSysUiState.setFlag(anyLong(), anyBoolean())).thenReturn(mSysUiState)
+        `when`(mHandler.post(any())).thenAnswer {
+            (it.arguments[0] as Runnable).run()
+            true
+        }
+
         mTaskStackChangeListeners = TaskStackChangeListeners.getTestInstance()
         mTaskbarDelegate =
             TaskbarDelegate(
@@ -74,10 +83,11 @@ class TaskbarDelegateTest : SysuiTestCase() {
                 mLightBarControllerFactory,
                 mStatusBarKeyguardViewManager,
                 mStatusBarStateController,
+                mHandler,
             )
         mTaskbarDelegate.setDependencies(
             mCommandQueue,
-            mOverviewProxyService,
+            mLauncherProxyService,
             mNavBarHelper,
             mNavigationModeController,
             mSysUiState,
@@ -87,6 +97,7 @@ class TaskbarDelegateTest : SysuiTestCase() {
             mOptionalPip,
             mBackAnimation,
             mTaskStackChangeListeners,
+            mDisplayTracker,
         )
     }
 

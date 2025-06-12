@@ -17,6 +17,7 @@
 package com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel
 
 import com.android.systemui.common.shared.model.Icon
+import com.android.systemui.haptics.slider.SliderHapticFeedbackFilter
 
 /**
  * Models a state of a volume slider.
@@ -26,28 +27,31 @@ import com.android.systemui.common.shared.model.Icon
 sealed interface SliderState {
     val value: Float
     val valueRange: ClosedFloatingPointRange<Float>
-    val icon: Icon?
+    val step: Float
+    val hapticFilter: SliderHapticFeedbackFilter
+
+    // Force preloaded icon
+    val icon: Icon.Loaded?
     val isEnabled: Boolean
     val label: String
-    /**
-     * A11y slider controls works by adjusting one step up or down. The default slider step isn't
-     * enough to trigger rounding to the correct value.
-     */
-    val a11yStep: Int
+
     val a11yClickDescription: String?
     val a11yStateDescription: String?
+    val a11yContentDescription: String
     val disabledMessage: String?
     val isMutable: Boolean
 
     data object Empty : SliderState {
         override val value: Float = 0f
         override val valueRange: ClosedFloatingPointRange<Float> = 0f..1f
-        override val icon: Icon? = null
+        override val hapticFilter = SliderHapticFeedbackFilter()
+        override val icon: Icon.Loaded? = null
         override val label: String = ""
         override val disabledMessage: String? = null
-        override val a11yStep: Int = 0
+        override val step: Float = 0f
         override val a11yClickDescription: String? = null
         override val a11yStateDescription: String? = null
+        override val a11yContentDescription: String = label
         override val isEnabled: Boolean = true
         override val isMutable: Boolean = false
     }

@@ -790,12 +790,6 @@ public class WindowConfiguration implements Parcelable, Comparable<WindowConfigu
                 || mWindowingMode == WINDOWING_MODE_MULTI_WINDOW;
     }
 
-    /** Returns true if the task bounds should persist across power cycles.
-     * @hide */
-    public boolean persistTaskBounds() {
-        return mWindowingMode == WINDOWING_MODE_FREEFORM;
-    }
-
     /**
      * Returns true if the tasks associated with this window configuration are floating.
      * Floating tasks are laid out differently as they are allowed to extend past the display bounds

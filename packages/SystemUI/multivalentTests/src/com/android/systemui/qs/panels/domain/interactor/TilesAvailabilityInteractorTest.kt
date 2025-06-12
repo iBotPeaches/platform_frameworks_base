@@ -28,7 +28,7 @@ import com.android.systemui.qs.FakeQSFactory
 import com.android.systemui.qs.FakeQSTile
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.qsTileFactory
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
 import com.android.systemui.statusbar.connectivity.ConnectivityModule.Companion.AIRPLANE_MODE_TILE_SPEC
 import com.android.systemui.statusbar.connectivity.ConnectivityModule.Companion.HOTSPOT_TILE_SPEC
 import com.android.systemui.statusbar.connectivity.ConnectivityModule.Companion.INTERNET_TILE_SPEC
@@ -56,166 +56,178 @@ class TilesAvailabilityInteractorTest(flags: FlagsParameterization) : SysuiTestC
 
     private val createdTiles = mutableListOf<FakeQSTile>()
 
-    private val kosmos = testKosmos().apply {
-        tileAvailabilityInteractorsMap = buildMap {
-            put(AIRPLANE_MODE_TILE_SPEC, QSTileAvailabilityInteractor.AlwaysAvailableInteractor)
-            put(WORK_MODE_TILE_SPEC, FakeTileAvailabilityInteractor(
-                    mapOf(
-                            fakeUserRepository.getSelectedUserInfo().id to flowOf(true),
-                    ).withDefault { flowOf(false) }
-            ))
-            put(HOTSPOT_TILE_SPEC, FakeTileAvailabilityInteractor(
-                    emptyMap<Int, Flow<Boolean>>().withDefault { flowOf(false) }
-            ))
-        }
+    private val kosmos =
+        testKosmos().apply {
+            tileAvailabilityInteractorsMap = buildMap {
+                put(AIRPLANE_MODE_TILE_SPEC, QSTileAvailabilityInteractor.AlwaysAvailableInteractor)
+                put(
+                    WORK_MODE_TILE_SPEC,
+                    FakeTileAvailabilityInteractor(
+                        mapOf(fakeUserRepository.getSelectedUserInfo().id to flowOf(true))
+                            .withDefault { flowOf(false) }
+                    ),
+                )
+                put(
+                    HOTSPOT_TILE_SPEC,
+                    FakeTileAvailabilityInteractor(
+                        emptyMap<Int, Flow<Boolean>>().withDefault { flowOf(false) }
+                    ),
+                )
+            }
 
-        qsTileFactory = constantFactory(
-                tilesForCreator(
+            qsTileFactory =
+                constantFactory(
+                    tilesForCreator(
                         userRepository.getSelectedUserInfo().id,
                         mapOf(
-                                AIRPLANE_MODE_TILE_SPEC to false,
-                                WORK_MODE_TILE_SPEC to false,
-                                HOTSPOT_TILE_SPEC to true,
-                                INTERNET_TILE_SPEC to true,
-                                FLASHLIGHT_TILE_SPEC to false,
-                        )
+                            AIRPLANE_MODE_TILE_SPEC to false,
+                            WORK_MODE_TILE_SPEC to false,
+                            HOTSPOT_TILE_SPEC to true,
+                            INTERNET_TILE_SPEC to true,
+                            FLASHLIGHT_TILE_SPEC to false,
+                        ),
+                    )
                 )
-        )
-    }
+        }
 
     private val underTest by lazy { kosmos.tilesAvailabilityInteractor }
 
     @Test
     @DisableFlags(FLAG_QS_NEW_TILES)
-    fun flagOff_usesAvailabilityFromFactoryTiles() = with(kosmos) {
-        testScope.runTest {
-            val unavailableTiles = underTest.getUnavailableTiles(
-                    setOf(
-                            AIRPLANE_MODE_TILE_SPEC,
-                            WORK_MODE_TILE_SPEC,
-                            HOTSPOT_TILE_SPEC,
-                            INTERNET_TILE_SPEC,
-                            FLASHLIGHT_TILE_SPEC,
-                    ).map(TileSpec::create)
-            )
-            assertThat(unavailableTiles).isEqualTo(setOf(
-                    AIRPLANE_MODE_TILE_SPEC,
-                    WORK_MODE_TILE_SPEC,
-                    FLASHLIGHT_TILE_SPEC,
-            ).mapTo(mutableSetOf(), TileSpec::create))
-        }
-    }
-
-    @Test
-    fun tileCannotBeCreated_isUnavailable() = with(kosmos) {
-        testScope.runTest {
-            val badSpec = TileSpec.create("unknown")
-            val unavailableTiles = underTest.getUnavailableTiles(
-                    setOf(
-                        badSpec
+    fun flagOff_usesAvailabilityFromFactoryTiles() =
+        with(kosmos) {
+            testScope.runTest {
+                val unavailableTiles =
+                    underTest.getUnavailableTiles(
+                        setOf(
+                                AIRPLANE_MODE_TILE_SPEC,
+                                WORK_MODE_TILE_SPEC,
+                                HOTSPOT_TILE_SPEC,
+                                INTERNET_TILE_SPEC,
+                                FLASHLIGHT_TILE_SPEC,
+                            )
+                            .map(TileSpec::create)
                     )
-            )
-            assertThat(unavailableTiles).contains(badSpec)
+                assertThat(unavailableTiles)
+                    .isEqualTo(
+                        setOf(AIRPLANE_MODE_TILE_SPEC, WORK_MODE_TILE_SPEC, FLASHLIGHT_TILE_SPEC)
+                            .mapTo(mutableSetOf(), TileSpec::create)
+                    )
+            }
         }
-    }
+
+    @Test
+    fun tileCannotBeCreated_isUnavailable() =
+        with(kosmos) {
+            testScope.runTest {
+                val badSpec = TileSpec.create("unknown")
+                val unavailableTiles = underTest.getUnavailableTiles(setOf(badSpec))
+                assertThat(unavailableTiles).contains(badSpec)
+            }
+        }
 
     @Test
     @EnableFlags(FLAG_QS_NEW_TILES)
-    fun flagOn_defaultsToInteractorTiles_usesFactoryForOthers() = with(kosmos) {
-        testScope.runTest {
-            val unavailableTiles = underTest.getUnavailableTiles(
+    fun flagOn_defaultsToInteractorTiles_usesFactoryForOthers() =
+        with(kosmos) {
+            testScope.runTest {
+                val unavailableTiles =
+                    underTest.getUnavailableTiles(
+                        setOf(
+                                AIRPLANE_MODE_TILE_SPEC,
+                                WORK_MODE_TILE_SPEC,
+                                HOTSPOT_TILE_SPEC,
+                                INTERNET_TILE_SPEC,
+                                FLASHLIGHT_TILE_SPEC,
+                            )
+                            .map(TileSpec::create)
+                    )
+                assertThat(unavailableTiles)
+                    .isEqualTo(
+                        setOf(HOTSPOT_TILE_SPEC, FLASHLIGHT_TILE_SPEC)
+                            .mapTo(mutableSetOf(), TileSpec::create)
+                    )
+            }
+        }
+
+    @Test
+    @EnableFlags(FLAG_QS_NEW_TILES)
+    fun flagOn_defaultsToInteractorTiles_usesFactoryForOthers_userChange() =
+        with(kosmos) {
+            testScope.runTest {
+                fakeUserRepository.asMainUser()
+                val unavailableTiles =
+                    underTest.getUnavailableTiles(
+                        setOf(
+                                AIRPLANE_MODE_TILE_SPEC,
+                                WORK_MODE_TILE_SPEC,
+                                HOTSPOT_TILE_SPEC,
+                                INTERNET_TILE_SPEC,
+                                FLASHLIGHT_TILE_SPEC,
+                            )
+                            .map(TileSpec::create)
+                    )
+                assertThat(unavailableTiles)
+                    .isEqualTo(
+                        setOf(WORK_MODE_TILE_SPEC, HOTSPOT_TILE_SPEC, FLASHLIGHT_TILE_SPEC)
+                            .mapTo(mutableSetOf(), TileSpec::create)
+                    )
+            }
+        }
+
+    @Test
+    @EnableFlags(FLAG_QS_NEW_TILES)
+    fun flagOn_onlyNeededTilesAreCreated_andThenDestroyed() =
+        with(kosmos) {
+            testScope.runTest {
+                underTest.getUnavailableTiles(
                     setOf(
                             AIRPLANE_MODE_TILE_SPEC,
                             WORK_MODE_TILE_SPEC,
                             HOTSPOT_TILE_SPEC,
                             INTERNET_TILE_SPEC,
                             FLASHLIGHT_TILE_SPEC,
-                    ).map(TileSpec::create)
-            )
-            assertThat(unavailableTiles).isEqualTo(setOf(
-                    HOTSPOT_TILE_SPEC,
-                    FLASHLIGHT_TILE_SPEC,
-            ).mapTo(mutableSetOf(), TileSpec::create))
-        }
-    }
-
-    @Test
-    @EnableFlags(FLAG_QS_NEW_TILES)
-    fun flagOn_defaultsToInteractorTiles_usesFactoryForOthers_userChange() = with(kosmos) {
-        testScope.runTest {
-            fakeUserRepository.asMainUser()
-            val unavailableTiles = underTest.getUnavailableTiles(
-                    setOf(
-                            AIRPLANE_MODE_TILE_SPEC,
-                            WORK_MODE_TILE_SPEC,
-                            HOTSPOT_TILE_SPEC,
-                            INTERNET_TILE_SPEC,
-                            FLASHLIGHT_TILE_SPEC,
-                    ).map(TileSpec::create)
-            )
-            assertThat(unavailableTiles).isEqualTo(setOf(
-                    WORK_MODE_TILE_SPEC,
-                    HOTSPOT_TILE_SPEC,
-                    FLASHLIGHT_TILE_SPEC,
-            ).mapTo(mutableSetOf(), TileSpec::create))
-        }
-    }
-
-    @Test
-    @EnableFlags(FLAG_QS_NEW_TILES)
-    fun flagOn_onlyNeededTilesAreCreated_andThenDestroyed() = with(kosmos) {
-        testScope.runTest {
-            underTest.getUnavailableTiles(
-                    setOf(
-                            AIRPLANE_MODE_TILE_SPEC,
-                            WORK_MODE_TILE_SPEC,
-                            HOTSPOT_TILE_SPEC,
-                            INTERNET_TILE_SPEC,
-                            FLASHLIGHT_TILE_SPEC,
-                    ).map(TileSpec::create)
-            )
-            assertThat(createdTiles.map { it.tileSpec })
+                        )
+                        .map(TileSpec::create)
+                )
+                assertThat(createdTiles.map { it.tileSpec })
                     .containsExactly(INTERNET_TILE_SPEC, FLASHLIGHT_TILE_SPEC)
-            assertThat(createdTiles.all { it.destroyed }).isTrue()
+                assertThat(createdTiles.all { it.isDestroyed }).isTrue()
+            }
         }
-    }
 
     @Test
     @DisableFlags(FLAG_QS_NEW_TILES)
-    fun flagOn_TilesAreCreatedAndThenDestroyed() = with(kosmos) {
-        testScope.runTest {
-            val allTiles = setOf(
-                    AIRPLANE_MODE_TILE_SPEC,
-                    WORK_MODE_TILE_SPEC,
-                    HOTSPOT_TILE_SPEC,
-                    INTERNET_TILE_SPEC,
-                    FLASHLIGHT_TILE_SPEC,
-                )
-            underTest.getUnavailableTiles(allTiles.map(TileSpec::create))
-            assertThat(createdTiles.map { it.tileSpec })
-                    .containsExactlyElementsIn(allTiles)
-            assertThat(createdTiles.all { it.destroyed }).isTrue()
+    fun flagOn_TilesAreCreatedAndThenDestroyed() =
+        with(kosmos) {
+            testScope.runTest {
+                val allTiles =
+                    setOf(
+                        AIRPLANE_MODE_TILE_SPEC,
+                        WORK_MODE_TILE_SPEC,
+                        HOTSPOT_TILE_SPEC,
+                        INTERNET_TILE_SPEC,
+                        FLASHLIGHT_TILE_SPEC,
+                    )
+                underTest.getUnavailableTiles(allTiles.map(TileSpec::create))
+                assertThat(createdTiles.map { it.tileSpec }).containsExactlyElementsIn(allTiles)
+                assertThat(createdTiles.all { it.isDestroyed }).isTrue()
+            }
         }
-    }
-
 
     private fun constantFactory(creatorTiles: Set<FakeQSTile>): QSFactory {
         return FakeQSFactory { spec ->
-            creatorTiles.firstOrNull { it.tileSpec == spec }?.also {
-                createdTiles.add(it)
-            }
+            creatorTiles.firstOrNull { it.tileSpec == spec }?.also { createdTiles.add(it) }
         }
     }
 
     companion object {
         private fun tilesForCreator(
-                user: Int,
-                specAvailabilities: Map<String, Boolean>
+            user: Int,
+            specAvailabilities: Map<String, Boolean>,
         ): Set<FakeQSTile> {
             return specAvailabilities.mapTo(mutableSetOf()) {
-                FakeQSTile(user, it.value).apply {
-                    tileSpec = it.key
-                }
+                FakeQSTile(user, it.value).apply { tileSpec = it.key }
             }
         }
 

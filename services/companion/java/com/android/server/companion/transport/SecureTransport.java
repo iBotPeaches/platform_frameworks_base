@@ -36,15 +36,22 @@ class SecureTransport extends Transport implements SecureChannel.Callback {
 
     private final BlockingQueue<byte[]> mRequestQueue = new ArrayBlockingQueue<>(500);
 
-    SecureTransport(int associationId, ParcelFileDescriptor fd, Context context) {
+    SecureTransport(int associationId, ParcelFileDescriptor fd, Context context, int flags) {
         super(associationId, fd, context);
-        mSecureChannel = new SecureChannel(mRemoteIn, mRemoteOut, this, context);
+        mSecureChannel = new SecureChannel(mRemoteIn, mRemoteOut, this, context, flags);
     }
 
     SecureTransport(int associationId, ParcelFileDescriptor fd, Context context,
-            byte[] preSharedKey, AttestationVerifier verifier) {
+            byte[] preSharedKey, AttestationVerifier verifier, int flags) {
         super(associationId, fd, context);
-        mSecureChannel = new SecureChannel(mRemoteIn, mRemoteOut, this, preSharedKey, verifier);
+        mSecureChannel = new SecureChannel(
+                mRemoteIn,
+                mRemoteOut,
+                this,
+                preSharedKey,
+                verifier,
+                flags
+        );
     }
 
     @Override

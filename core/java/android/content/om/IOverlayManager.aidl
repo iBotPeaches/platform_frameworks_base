@@ -16,9 +16,12 @@
 
 package android.content.om;
 
+import android.content.om.OverlayConstraint;
 import android.content.om.OverlayIdentifier;
 import android.content.om.OverlayInfo;
 import android.content.om.OverlayManagerTransaction;
+
+import java.util.List;
 
 /**
  * Api for getting information about overlay packages.
@@ -101,6 +104,22 @@ interface IOverlayManager {
      * @return true if the system successfully registered the request, false otherwise.
      */
     boolean setEnabled(in String packageName, in boolean enable, in int userId);
+
+    /**
+     * Enable an overlay package for a specific set of constraints. In case of multiple constraints,
+     * the overlay would be enabled when any of the given constraints are satisfied.
+     *
+     * Re-enabling an overlay with new constraints updates the constraints for the overlay.
+     *
+     * The caller must pass the actor requirements specified in the class comment.
+     *
+     * @param packageName the name of the overlay package to enable.
+     * @param user The user for which to change the overlay.
+     * @param constraints list of {@link OverlayConstraint} for enabling the overlay.
+     * @return true if the system successfully registered the request, false otherwise.
+     */
+    boolean enableWithConstraints(in String packageName, in int userId,
+            in List<OverlayConstraint> constraints);
 
     /**
      * Request that an overlay package is enabled and any other overlay packages with the same

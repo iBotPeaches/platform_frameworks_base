@@ -21,7 +21,6 @@ import android.annotation.SuppressLint
 import android.app.DreamManager
 import com.android.app.animation.Interpolators
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.systemui.Flags.communalSceneKtfRefactor
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
 import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor
 import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
@@ -44,12 +43,10 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class FromDreamingTransitionInteractor
 @Inject
@@ -61,7 +58,6 @@ constructor(
     @Background bgDispatcher: CoroutineDispatcher,
     @Main mainDispatcher: CoroutineDispatcher,
     keyguardInteractor: KeyguardInteractor,
-    private val glanceableHubTransitions: GlanceableHubTransitions,
     private val communalInteractor: CommunalInteractor,
     private val communalSceneInteractor: CommunalSceneInteractor,
     private val communalSettingsInteractor: CommunalSettingsInteractor,
@@ -89,11 +85,7 @@ constructor(
         listenForDreamingToLockscreenOrGone()
         listenForDreamingToAodOrDozing()
         listenForTransitionToCamera(scope, keyguardInteractor)
-        if (!communalSceneKtfRefactor()) {
-            listenForDreamingToGlanceableHub()
-        } else {
-            listenForDreamingToGlanceableHubFromPowerButton()
-        }
+        listenForDreamingToGlanceableHubFromPowerButton()
         listenForDreamingToPrimaryBouncer()
     }
 
@@ -107,43 +99,49 @@ constructor(
         }
     }
 
-    private fun listenForDreamingToGlanceableHub() {
-        if (!communalSettingsInteractor.isCommunalFlagEnabled()) return
-        if (SceneContainerFlag.isEnabled) return
-        scope.launch("$TAG#listenForDreamingToGlanceableHub", mainDispatcher) {
-            glanceableHubTransitions.listenForGlanceableHubTransition(
-                transitionOwnerName = TAG,
-                fromState = KeyguardState.DREAMING,
-                toState = KeyguardState.GLANCEABLE_HUB,
-            )
-        }
-    }
-
     /**
      * Normally when pressing power button from the dream, the devices goes from DREAMING to DOZING,
      * then [FromDozingTransitionInteractor] handles the transition to GLANCEABLE_HUB. However if
      * the power button is pressed quickly, we may need to go directly from DREAMING to
      * GLANCEABLE_HUB as the transition to DOZING has not occurred yet.
      */
+    @OptIn(FlowPreview::class)
     @SuppressLint("MissingPermission")
     private fun listenForDreamingToGlanceableHubFromPowerButton() {
         if (!communalSettingsInteractor.isCommunalFlagEnabled()) return
         if (SceneContainerFlag.isEnabled) return
         scope.launch {
-            powerInteractor.isAwake
-                .debounce(50L)
-                .filterRelevantKeyguardStateAnd { isAwake -> isAwake }
-                .sample(communalInteractor.isCommunalAvailable)
-                .collect { isCommunalAvailable ->
-                    if (isCommunalAvailable && dreamManager.canStartDreaming(false)) {
-                        // This case handles tapping the power button to transition through
-                        // dream -> off -> hub.
-                        communalSceneInteractor.snapToScene(
-                            newScene = CommunalScenes.Communal,
-                            loggingReason = "from dreaming to hub",
-                        )
+            if (communalSettingsInteractor.isV2FlagEnabled()) {
+                powerInteractor.isAwake
+                    .debounce(50L)
+                    .filterRelevantKeyguardStateAnd { isAwake -> isAwake }
+                    .sample(communalSettingsInteractor.autoOpenEnabled)
+                    .collect { shouldShowCommunal ->
+                        if (shouldShowCommunal) {
+                            // This case handles tapping the power button to transition through
+                            // dream -> off -> hub.
+                            communalSceneInteractor.snapToScene(
+                                newScene = CommunalScenes.Communal,
+                                loggingReason = "from dreaming to hub",
+                            )
+                        }
                     }
-                }
+            } else {
+                powerInteractor.isAwake
+                    .debounce(50L)
+                    .filterRelevantKeyguardStateAnd { isAwake -> isAwake }
+                    .sample(communalInteractor.isCommunalAvailable)
+                    .collect { isCommunalAvailable ->
+                        if (isCommunalAvailable && dreamManager.canStartDreaming(false)) {
+                            // This case handles tapping the power button to transition through
+                            // dream -> off -> hub.
+                            communalSceneInteractor.snapToScene(
+                                newScene = CommunalScenes.Communal,
+                                loggingReason = "from dreaming to hub",
+                            )
+                        }
+                    }
+            }
         }
     }
 
@@ -318,5 +316,6 @@ constructor(
         val TO_LOCKSCREEN_DURATION = 1167.milliseconds
         val TO_AOD_DURATION = 300.milliseconds
         val TO_GONE_DURATION = DEFAULT_DURATION
+        val TO_PRIMARY_BOUNCER_DURATION = DEFAULT_DURATION
     }
 }

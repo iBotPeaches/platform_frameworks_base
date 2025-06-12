@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (C) 2025 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="match_parent">
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_height="match_parent"
+        android:layout_width="@dimen/notification_menu_item_width"
+        android:background="@drawable/notification_menu_button_background"
+        android:backgroundTint="@androidprv:color/materialColorPrimaryContainer"
+        android:padding="@dimen/notification_menu_button_padding">
+        <ImageView
+            android:id="@+id/promoted_menuitem_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:tint="@androidprv:color/materialColorPrimary"
+            android:src="@drawable/unpin_icon" />
+        <TextView
+            android:id="@+id/promoted_menuitem_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/notification_inline_disable_promotion_button"
+            style="@style/TextAppearance.NotificationMenuButtonText"/>
+        <androidx.constraintlayout.helper.widget.Flow
+            android:id="@+id/flow3"
+            android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:flow_verticalStyle="packed"
+            app:flow_horizontalAlign="center"
+            app:flow_verticalAlign="center"
+            app:constraint_referenced_ids="promoted_menuitem_icon,promoted_menuitem_text"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

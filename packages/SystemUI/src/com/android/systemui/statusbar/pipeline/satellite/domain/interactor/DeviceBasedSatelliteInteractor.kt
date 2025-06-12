@@ -16,9 +16,8 @@
 
 package com.android.systemui.statusbar.pipeline.satellite.domain.interactor
 
-import com.android.internal.telephony.flags.Flags
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.log.table.TableLogBuffer
@@ -32,7 +31,6 @@ import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.WifiIntera
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -49,7 +47,7 @@ constructor(
     val repo: DeviceBasedSatelliteRepository,
     iconsInteractor: MobileIconsInteractor,
     wifiInteractor: WifiInteractor,
-    @Application scope: CoroutineScope,
+    @Background scope: CoroutineScope,
     @DeviceBasedSatelliteInputLog private val logBuffer: LogBuffer,
     @DeviceBasedSatelliteTableLog private val tableLog: TableLogBuffer,
 ) {
@@ -58,45 +56,20 @@ constructor(
 
     /** Must be observed by any UI showing Satellite iconography */
     val isSatelliteAllowed =
-        if (Flags.oemEnabledSatelliteFlag()) {
-                repo.isSatelliteAllowedForCurrentLocation
-            } else {
-                flowOf(false)
-            }
-            .distinctUntilChanged()
-            .logDiffsForTable(
-                tableLog,
-                columnPrefix = "",
-                columnName = COL_ALLOWED,
-                initialValue = false,
-            )
+        repo.isSatelliteAllowedForCurrentLocation
+            .logDiffsForTable(tableLog, columnName = COL_ALLOWED, initialValue = false)
             .stateIn(scope, SharingStarted.WhileSubscribed(), false)
 
     /** See [SatelliteConnectionState] for relevant states */
     val connectionState =
-        if (Flags.oemEnabledSatelliteFlag()) {
-                repo.connectionState
-            } else {
-
-                flowOf(SatelliteConnectionState.Off)
-            }
-            .distinctUntilChanged()
-            .logDiffsForTable(
-                tableLog,
-                columnPrefix = "",
-                initialValue = SatelliteConnectionState.Off,
-            )
+        repo.connectionState
+            .logDiffsForTable(tableLog, initialValue = SatelliteConnectionState.Off)
             .stateIn(scope, SharingStarted.WhileSubscribed(), SatelliteConnectionState.Off)
 
     /** 0-4 description of the connection strength */
     val signalStrength =
-        if (Flags.oemEnabledSatelliteFlag()) {
-                repo.signalStrength
-            } else {
-                flowOf(0)
-            }
-            .distinctUntilChanged()
-            .logDiffsForTable(tableLog, columnPrefix = "", columnName = COL_LEVEL, initialValue = 0)
+        repo.signalStrength
+            .logDiffsForTable(tableLog, columnName = COL_LEVEL, initialValue = 0)
             .stateIn(scope, SharingStarted.WhileSubscribed(), 0)
 
     val isSatelliteProvisioned = repo.isSatelliteProvisioned
@@ -120,45 +93,31 @@ constructor(
                 isOosAndNotEmergencyAndNotSatellite.all { it }
             }
             .distinctUntilChanged()
-            .logDiffsForTable(
-                tableLog,
-                columnPrefix = "",
-                columnName = COL_ALL_OOS,
-                initialValue = true,
-            )
+            .logDiffsForTable(tableLog, columnName = COL_ALL_OOS, initialValue = true)
 
     /** When all connections are considered OOS, satellite connectivity is potentially valid */
     val areAllConnectionsOutOfService =
-        if (Flags.oemEnabledSatelliteFlag()) {
-                combine(allConnectionsOos, iconsInteractor.isDeviceInEmergencyCallsOnlyMode) {
-                    connectionsOos,
-                    deviceEmergencyOnly ->
-                    logBuffer.log(
-                        TAG,
-                        LogLevel.INFO,
-                        {
-                            bool1 = connectionsOos
-                            bool2 = deviceEmergencyOnly
-                        },
-                        {
-                            "Updating OOS status. allConnectionsOOs=$bool1 " +
-                                "deviceEmergencyOnly=$bool2"
-                        },
-                    )
-                    // If no connections exist, or all are OOS, then we look to the device-based
-                    // service state to detect if any calls are possible
-                    connectionsOos && !deviceEmergencyOnly
-                }
-            } else {
-                flowOf(false)
+        combine(allConnectionsOos, iconsInteractor.isDeviceInEmergencyCallsOnlyMode) {
+                connectionsOos,
+                deviceEmergencyOnly ->
+                logBuffer.log(
+                    TAG,
+                    LogLevel.INFO,
+                    {
+                        bool1 = connectionsOos
+                        bool2 = deviceEmergencyOnly
+                    },
+                    {
+                        "Updating OOS status. allConnectionsOOs=$bool1 " +
+                            "deviceEmergencyOnly=$bool2"
+                    },
+                )
+                // If no connections exist, or all are OOS, then we look to the device-based
+                // service state to detect if any calls are possible
+                connectionsOos && !deviceEmergencyOnly
             }
             .distinctUntilChanged()
-            .logDiffsForTable(
-                tableLog,
-                columnPrefix = "",
-                columnName = COL_FULL_OOS,
-                initialValue = true,
-            )
+            .logDiffsForTable(tableLog, columnName = COL_FULL_OOS, initialValue = true)
             .stateIn(scope, SharingStarted.WhileSubscribed(), true)
 
     /** True if any known mobile network is currently using a non terrestrial network */
@@ -190,7 +149,6 @@ constructor(
  * [defaultValue] allows for a default value to be used if there are no leaf nodes after applying
  * [selector]. E.g., if there are no mobile connections, assume that there is no service.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 private inline fun <R, reified S, T> Flow<List<R>>.aggregateOver(
     crossinline selector: (R) -> Flow<S>,
     defaultValue: T,

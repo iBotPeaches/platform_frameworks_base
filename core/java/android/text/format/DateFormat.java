@@ -63,6 +63,7 @@ import java.util.TimeZone;
  * Note that the non-{@code format} methods in this class are implemented by
  * {@code SimpleDateFormat}.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class DateFormat {
     /**
      * @deprecated Use a literal {@code '} instead.

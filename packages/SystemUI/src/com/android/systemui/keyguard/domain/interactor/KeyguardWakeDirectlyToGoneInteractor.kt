@@ -33,9 +33,11 @@ import com.android.systemui.keyguard.KeyguardViewMediator
 import com.android.systemui.keyguard.KeyguardWmStateRefactor
 import com.android.systemui.keyguard.data.repository.KeyguardRepository
 import com.android.systemui.keyguard.shared.model.BiometricUnlockMode
+import com.android.systemui.keyguard.shared.model.BiometricUnlockModel
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.KeyguardState.Companion.deviceIsAsleepInState
 import com.android.systemui.keyguard.shared.model.KeyguardState.Companion.deviceIsAwakeInState
+import com.android.systemui.keyguard.shared.model.TransitionStep
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.power.shared.model.WakeSleepReason
 import com.android.systemui.scene.shared.model.Scenes
@@ -52,6 +54,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
@@ -89,7 +92,8 @@ constructor(
     private val systemSettings: SystemSettings,
     private val selectedUserInteractor: SelectedUserInteractor,
     keyguardEnabledInteractor: KeyguardEnabledInteractor,
-    keyguardServiceLockNowInteractor: KeyguardServiceLockNowInteractor,
+    keyguardServiceShowLockscreenInteractor: KeyguardServiceShowLockscreenInteractor,
+    keyguardInteractor: KeyguardInteractor,
 ) {
 
     /**
@@ -99,20 +103,34 @@ constructor(
      * depend on that behavior, so for now, we'll replicate it here.
      */
     private val shouldSuppressKeyguard =
-        merge(powerInteractor.isAwake, keyguardServiceLockNowInteractor.lockNowEvents)
+        merge(
+                powerInteractor.isAwake,
+                // Update only when doKeyguardTimeout is called, not on fold or other events, to
+                // match
+                // pre-existing logic.
+                keyguardServiceShowLockscreenInteractor.showNowEvents.filter {
+                    it == ShowWhileAwakeReason.KEYGUARD_TIMEOUT_WHILE_SCREEN_ON
+                },
+            )
             .map { keyguardEnabledInteractor.isKeyguardSuppressed() }
             // Default to false, so that flows that combine this one emit prior to the first
             // wakefulness emission.
             .onStart { emit(false) }
 
     /**
-     * Whether we can wake from AOD/DOZING directly to GONE, bypassing LOCKSCREEN/BOUNCER states.
+     * Whether we can wake from AOD/DOZING or DREAMING directly to GONE, bypassing
+     * LOCKSCREEN/BOUNCER states.
      *
      * This is possible in the following cases:
      * - Keyguard is disabled, either from an app request or from security being set to "None".
      * - Keyguard is suppressed, via adb locksettings.
      * - We're wake and unlocking (fingerprint auth occurred while asleep).
      * - We're allowed to ignore auth and return to GONE, due to timeouts not elapsing.
+     * - We're DREAMING and dismissible.
+     * - We're already GONE and not transitioning out of GONE. Technically you're already awake when
+     *   GONE, but this makes it easier to reason about this state (for example, if
+     *   canWakeDirectlyToGone, don't tell WM to pause the top activity - something you should never
+     *   do while GONE as well).
      */
     val canWakeDirectlyToGone =
         combine(
@@ -120,14 +138,21 @@ constructor(
                 shouldSuppressKeyguard,
                 repository.biometricUnlockState,
                 repository.canIgnoreAuthAndReturnToGone,
-            ) {
-                keyguardEnabled,
-                shouldSuppressKeyguard,
-                biometricUnlockState,
-                canIgnoreAuthAndReturnToGone ->
+                transitionInteractor.currentKeyguardState,
+                transitionInteractor.startedKeyguardTransitionStep,
+            ) { values ->
+                val keyguardEnabled = values[0] as Boolean
+                val shouldSuppressKeyguard = values[1] as Boolean
+                val biometricUnlockState = values[2] as BiometricUnlockModel
+                val canIgnoreAuthAndReturnToGone = values[3] as Boolean
+                val currentState = values[4] as KeyguardState
+                val startedStep = values[5] as TransitionStep
                 (!keyguardEnabled || shouldSuppressKeyguard) ||
                     BiometricUnlockMode.isWakeAndUnlock(biometricUnlockState.mode) ||
-                    canIgnoreAuthAndReturnToGone
+                    canIgnoreAuthAndReturnToGone ||
+                    (currentState == KeyguardState.DREAMING &&
+                        keyguardInteractor.isKeyguardDismissible.value) ||
+                    (currentState == KeyguardState.GONE && startedStep.to == KeyguardState.GONE)
             }
             .distinctUntilChanged()
 

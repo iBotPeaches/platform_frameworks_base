@@ -17,12 +17,15 @@
 package com.android.systemui.wallpapers.data.repository
 
 import android.app.WallpaperInfo
+import android.graphics.PointF
+import android.graphics.RectF
 import android.view.View
 import com.android.systemui.dagger.SysUISingleton
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * A no-op implementation of [WallpaperRepository].
@@ -33,6 +36,13 @@ import kotlinx.coroutines.flow.asStateFlow
 @SysUISingleton
 class NoopWallpaperRepository @Inject constructor() : WallpaperRepository {
     override val wallpaperInfo: StateFlow<WallpaperInfo?> = MutableStateFlow(null).asStateFlow()
-    override val wallpaperSupportsAmbientMode = MutableStateFlow(false).asStateFlow()
+    override val lockscreenWallpaperInfo: StateFlow<WallpaperInfo?> =
+        MutableStateFlow(null).asStateFlow()
+    override val wallpaperSupportsAmbientMode = flowOf(false)
     override var rootView: View? = null
+    override val shouldSendFocalArea: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+
+    override fun sendLockScreenLayoutChangeCommand(wallpaperFocalAreaBounds: RectF) {}
+
+    override fun sendTapCommand(tapPosition: PointF) {}
 }

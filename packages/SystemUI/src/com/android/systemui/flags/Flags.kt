@@ -76,20 +76,9 @@ object Flags {
     val LOCKSCREEN_CUSTOM_CLOCKS =
         resourceBooleanFlag(R.bool.config_enableLockScreenCustomClocks, "lockscreen_custom_clocks")
 
-    /**
-     * Migration from the legacy isDozing/dozeAmount paths to the new KeyguardTransitionRepository
-     * will occur in stages. This is one stage of many to come.
-     */
-    // TODO(b/255607168): Tracking Bug
-    @JvmField val DOZING_MIGRATION_1 = unreleasedFlag("dozing_migration_1")
-
     /** Flag to control the revamp of keyguard biometrics progress animation */
     // TODO(b/244313043): Tracking bug
     @JvmField val BIOMETRICS_ANIMATION_REVAMP = unreleasedFlag("biometrics_animation_revamp")
-
-    // flag for controlling auto pin confirmation and material u shapes in bouncer
-    @JvmField
-    val AUTO_PIN_CONFIRMATION = releasedFlag("auto_pin_confirmation", "auto_pin_confirmation")
 
     /** Enables code to show contextual loyalty cards in wallet entrypoints */
     // TODO(b/294110497): Tracking Bug
@@ -99,14 +88,6 @@ object Flags {
 
     // TODO(b/242908637): Tracking Bug
     @JvmField val WALLPAPER_FULLSCREEN_PREVIEW = releasedFlag("wallpaper_fullscreen_preview")
-
-    /** Whether the long-press gesture to open wallpaper picker is enabled. */
-    // TODO(b/266242192): Tracking Bug
-    @JvmField val LOCK_SCREEN_LONG_PRESS_ENABLED = releasedFlag("lock_screen_long_press_enabled")
-
-    /** Inflate and bind views upon emitting a blueprint value . */
-    // TODO(b/297365780): Tracking Bug
-    @JvmField val LAZY_INFLATE_KEYGUARD = releasedFlag("lazy_inflate_keyguard")
 
     /** Enables UI updates for AI wallpapers in the wallpaper picker. */
     // TODO(b/267722622): Tracking Bug
@@ -179,9 +160,6 @@ object Flags {
     // TODO(b/291315866): Tracking Bug
     @JvmField val SIGNAL_CALLBACK_DEPRECATION = releasedFlag("signal_callback_deprecation")
 
-    // TODO(b/301610137): Tracking bug
-    @JvmField val NEW_NETWORK_SLICE_UI = releasedFlag("new_network_slice_ui")
-
     // TODO(b/311222557): Tracking bug
     val ROAMING_INDICATOR_VIA_DISPLAY_INFO = releasedFlag("roaming_indicator_via_display_info")
 
@@ -221,15 +199,6 @@ object Flags {
 
     // TODO(b/266157412): Tracking Bug
     val MEDIA_RETAIN_SESSIONS = unreleasedFlag("media_retain_sessions")
-
-    // TODO(b/267007629): Tracking Bug
-    val MEDIA_RESUME_PROGRESS = releasedFlag("media_resume_progress")
-
-    // TODO(b/267166152) : Tracking Bug
-    val MEDIA_RETAIN_RECOMMENDATIONS = unreleasedFlag("media_retain_recommendations")
-
-    // TODO(b/270437894): Tracking Bug
-    val MEDIA_REMOTE_RESUME = unreleasedFlag("media_remote_resume")
 
     // 1000 - dock
     val SIMULATE_DOCK_THROUGH_CHARGING = releasedFlag("simulate_dock_through_charging")
@@ -334,11 +303,6 @@ object Flags {
     @JvmField val USE_NEW_ACTIVITY_STARTER = releasedFlag(name = "use_new_activity_starter")
 
     // 2900 - Zero Jank fixes. Naming convention is: zj_<bug number>_<cuj name>
-
-    // TODO:(b/285623104): Tracking bug
-    @JvmField
-    val ZJ_285570694_LOCKSCREEN_TRANSITION_FROM_AOD =
-        releasedFlag("zj_285570694_lockscreen_transition_from_aod")
 
     // TODO(b/283447257): Tracking bug
     @JvmField

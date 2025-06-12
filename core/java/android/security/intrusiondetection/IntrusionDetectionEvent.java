@@ -19,10 +19,10 @@ package android.security.intrusiondetection;
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.SystemApi;
 import android.app.admin.ConnectEvent;
 import android.app.admin.DnsEvent;
 import android.app.admin.SecurityLog.SecurityEvent;
-import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.security.Flags;
@@ -91,12 +91,12 @@ public final class IntrusionDetectionEvent implements Parcelable {
             };
 
     /**
-     * Creates an IntrusionDetectionEvent object with a
-     * {@link SecurityEvent} object as the event source.
+     * Creates an IntrusionDetectionEvent object with a {@link SecurityEvent} object as the event
+     * source.
      *
      * @param securityEvent The SecurityEvent object.
      */
-    public IntrusionDetectionEvent(@NonNull SecurityEvent securityEvent) {
+    private IntrusionDetectionEvent(@NonNull SecurityEvent securityEvent) {
         mType = SECURITY_EVENT;
         mSecurityEvent = securityEvent;
         mNetworkEventDns = null;
@@ -104,12 +104,11 @@ public final class IntrusionDetectionEvent implements Parcelable {
     }
 
     /**
-     * Creates an IntrusionDetectionEvent object with a
-     * {@link DnsEvent} object as the event source.
+     * Creates an IntrusionDetectionEvent object with a {@link DnsEvent} object as the event source.
      *
      * @param dnsEvent The DnsEvent object.
      */
-    public IntrusionDetectionEvent(@NonNull DnsEvent dnsEvent) {
+    private IntrusionDetectionEvent(@NonNull DnsEvent dnsEvent) {
         mType = NETWORK_EVENT_DNS;
         mNetworkEventDns = dnsEvent;
         mSecurityEvent = null;
@@ -117,16 +116,50 @@ public final class IntrusionDetectionEvent implements Parcelable {
     }
 
     /**
-     * Creates an IntrusionDetectionEvent object with a
-     * {@link ConnectEvent} object as the event source.
+     * Creates an IntrusionDetectionEvent object with a {@link ConnectEvent} object as the event
+     * source.
      *
      * @param connectEvent The ConnectEvent object.
      */
-    public IntrusionDetectionEvent(@NonNull ConnectEvent connectEvent) {
+    private IntrusionDetectionEvent(@NonNull ConnectEvent connectEvent) {
         mType = NETWORK_EVENT_CONNECT;
         mNetworkEventConnect = connectEvent;
         mSecurityEvent = null;
         mNetworkEventDns = null;
+    }
+
+    /**
+     * Creates an IntrusionDetectionEvent object with a {@link SecurityEvent} object as the event
+     * source.
+     *
+     * @param securityEvent The SecurityEvent object.
+     */
+    @NonNull
+    public static IntrusionDetectionEvent createForSecurityEvent(
+            @NonNull SecurityEvent securityEvent) {
+        return new IntrusionDetectionEvent(securityEvent);
+    }
+
+    /**
+     * Creates an IntrusionDetectionEvent object with a {@link DnsEvent} object as the event source.
+     *
+     * @param dnsEvent The DnsEvent object.
+     */
+    @NonNull
+    public static IntrusionDetectionEvent createForDnsEvent(@NonNull DnsEvent dnsEvent) {
+        return new IntrusionDetectionEvent(dnsEvent);
+    }
+
+    /**
+     * Creates an IntrusionDetectionEvent object with a {@link ConnectEvent} object as the event
+     * source.
+     *
+     * @param connectEvent The ConnectEvent object.
+     */
+    @NonNull
+    public static IntrusionDetectionEvent createForConnectEvent(
+            @NonNull ConnectEvent connectEvent) {
+        return new IntrusionDetectionEvent(connectEvent);
     }
 
     private IntrusionDetectionEvent(@NonNull Parcel in) {
@@ -190,13 +223,13 @@ public final class IntrusionDetectionEvent implements Parcelable {
         out.writeInt(mType);
         switch (mType) {
             case SECURITY_EVENT:
-                out.writeParcelable(mSecurityEvent, flags);
+                mSecurityEvent.writeToParcel(out, flags);
                 break;
             case NETWORK_EVENT_DNS:
-                out.writeParcelable(mNetworkEventDns, flags);
+                mNetworkEventDns.writeToParcel(out, flags);
                 break;
             case NETWORK_EVENT_CONNECT:
-                out.writeParcelable(mNetworkEventConnect, flags);
+                mNetworkEventConnect.writeToParcel(out, flags);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid event type: " + mType);

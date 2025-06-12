@@ -35,6 +35,7 @@ import android.text.TextUtils;
  * TextView, it may appear cut. This can be avoided by decreasing the text size with an {@link
  * AbsoluteSizeSpan}
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SuperscriptSpan extends MetricAffectingSpan implements ParcelableSpan {
     /**
      * Creates a {@link SuperscriptSpan}.

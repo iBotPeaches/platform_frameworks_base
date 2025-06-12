@@ -176,16 +176,13 @@ public class BackgroundInstallControlService extends SystemService {
             if (Flags.bicClient()) {
                 mService.enforceCallerPermissions();
             }
-            if (!Build.IS_DEBUGGABLE) {
-                return mService.getBackgroundInstalledPackages(flags, userId);
-            }
             // The debug.transparency.bg-install-apps (only works for debuggable builds)
             // is used to set mock list of background installed apps for testing.
             // The list of apps' names is delimited by ",".
             // TODO: Remove after migrating test to new background install method using
             // {@link BackgroundInstallControlCallbackHelperTest}.installPackage b/310983905
             String propertyString = SystemProperties.get("debug.transparency.bg-install-apps");
-            if (TextUtils.isEmpty(propertyString)) {
+            if (TextUtils.isEmpty(propertyString) || !Build.IS_DEBUGGABLE) {
                 return mService.getBackgroundInstalledPackages(flags, userId);
             } else {
                 return mService.getMockBackgroundInstalledPackages(propertyString);
@@ -219,10 +216,27 @@ public class BackgroundInstallControlService extends SystemService {
                     PackageManager.PackageInfoFlags.of(flags), userId);
 
             initBackgroundInstalledPackages();
+            if(Build.IS_DEBUGGABLE) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("Tracked background installed package size: ")
+                    .append(mBackgroundInstalledPackages.size())
+                    .append("\n");
+                for (int i = 0; i < mBackgroundInstalledPackages.size(); ++i) {
+                    int installingUserId = mBackgroundInstalledPackages.keyAt(i);
+                    mBackgroundInstalledPackages.get(installingUserId).forEach(pkgName ->
+                        sb.append("userId: ").append(installingUserId)
+                            .append(", name: ").append(pkgName).append("\n"));
+                }
+                Slog.d(TAG, "Tracked background installed package: " + sb.toString());
+            }
+
             ListIterator<PackageInfo> iter = packages.listIterator();
             while (iter.hasNext()) {
                 String packageName = iter.next().packageName;
                 if (!mBackgroundInstalledPackages.contains(userId, packageName)) {
+                    if(Build.IS_DEBUGGABLE) {
+                        Slog.d(TAG,  packageName + " is not tracked, removing");
+                    }
                     iter.remove();
                 }
             }
@@ -284,6 +298,9 @@ public class BackgroundInstallControlService extends SystemService {
     }
 
     void handlePackageAdd(String packageName, int userId) {
+        if(Build.IS_DEBUGGABLE) {
+            Slog.d(TAG, "handlePackageAdd: checking " + packageName);
+        }
         ApplicationInfo appInfo = null;
         try {
             appInfo =
@@ -302,7 +319,7 @@ public class BackgroundInstallControlService extends SystemService {
             installerPackageName = installInfo.getInstallingPackageName();
             initiatingPackageName = installInfo.getInitiatingPackageName();
         } catch (PackageManager.NameNotFoundException e) {
-            Slog.w(TAG, "Package's installer not found " + packageName);
+            Slog.w(TAG, "Package's installer not found: " + packageName);
             return;
         }
 
@@ -314,6 +331,11 @@ public class BackgroundInstallControlService extends SystemService {
                 VirtualDeviceManager.PERSISTENT_DEVICE_ID_DEFAULT,
                 userId)
                 != PERMISSION_GRANTED) {
+            if(Build.IS_DEBUGGABLE) {
+                Slog.d(TAG, "handlePackageAdd " + packageName + ": installer ("
+                    + installerPackageName + ") doesn't "
+                    + "have INSTALL_PACKAGES permission, skipping");
+            }
             return;
         }
 
@@ -324,6 +346,10 @@ public class BackgroundInstallControlService extends SystemService {
 
         if (installedByAdb(initiatingPackageName)
                 || wasForegroundInstallation(installerPackageName, userId, installTimestamp)) {
+            if(Build.IS_DEBUGGABLE) {
+                Slog.d(TAG, "handlePackageAdd " + packageName + ": is installed by ADB or was "
+                    + "foreground installation, skipping");
+            }
             return;
         }
 
@@ -364,10 +390,11 @@ public class BackgroundInstallControlService extends SystemService {
                 .max(Comparator.comparingLong(PackageInstaller.SessionInfo::getCreatedMillis));
     }
 
-    // ADB sets installerPackageName to null, this creates a loophole to bypass BIC which will be
-    // addressed with b/265203007
     private boolean installedByAdb(String initiatingPackageName) {
-        if(PackageManagerServiceUtils.isInstalledByAdb(initiatingPackageName)) {
+        // GTS tests needs to adopt shell identity to install apps.
+        if(!SystemProperties.get("debug.gts.transparency.bg-install-apps").isEmpty()) {
+            Slog.d(TAG, "handlePackageAdd: is GTS tests, skipping ADB check");
+        } else if(PackageManagerServiceUtils.isInstalledByAdb(initiatingPackageName)) {
             Slog.d(TAG, "handlePackageAdd: is installed by ADB, skipping");
             return true;
         }

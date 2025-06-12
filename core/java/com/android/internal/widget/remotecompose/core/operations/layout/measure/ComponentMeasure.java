@@ -26,7 +26,7 @@ public class ComponentMeasure {
     float mY;
     float mW;
     float mH;
-    @NonNull Component.Visibility mVisibility = Component.Visibility.VISIBLE;
+    int mVisibility = Component.Visibility.VISIBLE;
 
     public void setX(float value) {
         mX = value;
@@ -60,16 +60,15 @@ public class ComponentMeasure {
         return mH;
     }
 
-    public @NonNull Component.Visibility getVisibility() {
+    public int getVisibility() {
         return mVisibility;
     }
 
-    public void setVisibility(@NonNull Component.Visibility visibility) {
+    public void setVisibility(int visibility) {
         mVisibility = visibility;
     }
 
-    public ComponentMeasure(
-            int id, float x, float y, float w, float h, @NonNull Component.Visibility visibility) {
+    public ComponentMeasure(int id, float x, float y, float w, float h, int visibility) {
         this.mId = id;
         this.mX = x;
         this.mY = y;
@@ -92,6 +91,11 @@ public class ComponentMeasure {
                 component.mVisibility);
     }
 
+    /**
+     * Initialize this ComponentMeasure from another ComponentMeasure instance.
+     *
+     * @param m the ComponentMeasure to copy from
+     */
     public void copyFrom(@NonNull ComponentMeasure m) {
         mX = m.mX;
         mY = m.mY;
@@ -100,7 +104,51 @@ public class ComponentMeasure {
         mVisibility = m.mVisibility;
     }
 
+    /**
+     * Returns true if the ComponentMeasure passed is identical to us
+     *
+     * @param m the ComponentMeasure to check
+     * @return true if the passed ComponentMeasure is identical to ourself
+     */
     public boolean same(@NonNull ComponentMeasure m) {
         return mX == m.mX && mY == m.mY && mW == m.mW && mH == m.mH && mVisibility == m.mVisibility;
+    }
+
+    /**
+     * Returns true if the component will be gone
+     *
+     * @return true if gone
+     */
+    public boolean isGone() {
+        return Component.Visibility.isGone(mVisibility);
+    }
+
+    /**
+     * Returns true if the component will be visible
+     *
+     * @return true if visible
+     */
+    public boolean isVisible() {
+        return Component.Visibility.isVisible(mVisibility);
+    }
+
+    /**
+     * Returns true if the component will be invisible
+     *
+     * @return true if invisible
+     */
+    public boolean isInvisible() {
+        return Component.Visibility.isInvisible(mVisibility);
+    }
+
+    /** Clear any override on the visibility */
+    public void clearVisibilityOverride() {
+        mVisibility = Component.Visibility.clearOverride(mVisibility);
+    }
+
+    /** Add a visibility override */
+    public void addVisibilityOverride(int value) {
+        mVisibility = Component.Visibility.clearOverride(mVisibility);
+        mVisibility = Component.Visibility.add(mVisibility, value);
     }
 }

@@ -16,39 +16,57 @@
 
 package com.android.systemui.qs.panels.ui.compose.toolbar
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.android.systemui.compose.modifiers.sysuiResTag
-import com.android.systemui.lifecycle.rememberViewModel
+import com.android.systemui.development.ui.compose.BuildNumber
 import com.android.systemui.qs.footer.ui.compose.IconButton
 import com.android.systemui.qs.panels.ui.viewmodel.toolbar.ToolbarViewModel
+import com.android.systemui.qs.ui.compose.borderOnFocus
 
 @Composable
-fun Toolbar(toolbarViewModelFactory: ToolbarViewModel.Factory, modifier: Modifier = Modifier) {
-    val viewModel = rememberViewModel("Toolbar") { toolbarViewModelFactory.create() }
-
-    Row(
-        modifier = modifier.fillMaxWidth().requiredHeight(48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+fun Toolbar(viewModel: ToolbarViewModel, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         viewModel.userSwitcherViewModel?.let {
-            IconButton(it, Modifier.sysuiResTag("multi_user_switch"))
+            IconButton(
+                it,
+                useModifierBasedExpandable = true,
+                Modifier.sysuiResTag("multi_user_switch"),
+            )
         }
 
-        EditModeButton(viewModel.editModeButtonViewModelFactory)
+        EditModeButton(viewModel.editModeButtonViewModel)
 
         IconButton(
             viewModel.settingsButtonViewModel,
+            useModifierBasedExpandable = true,
             Modifier.sysuiResTag("settings_button_container"),
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(viewModel.powerButtonViewModel, Modifier.sysuiResTag("pm_lite"))
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            BuildNumber(
+                viewModelFactory = viewModel.buildNumberViewModelFactory,
+                textColor = MaterialTheme.colorScheme.onSurface,
+                modifier =
+                    Modifier.borderOnFocus(
+                            color = MaterialTheme.colorScheme.secondary,
+                            cornerSize = CornerSize(1.dp),
+                        )
+                        .wrapContentSize(),
+            )
+        }
+
+        IconButton(
+            { viewModel.powerButtonViewModel },
+            useModifierBasedExpandable = true,
+            Modifier.sysuiResTag("pm_lite"),
+        )
     }
 }

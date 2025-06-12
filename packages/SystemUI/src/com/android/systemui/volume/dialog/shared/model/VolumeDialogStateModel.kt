@@ -23,6 +23,8 @@ data class VolumeDialogStateModel(
     val shouldShowA11ySlider: Boolean = false,
     val isShowingSafetyWarning: VolumeDialogSafetyWarningModel =
         VolumeDialogSafetyWarningModel.Invisible,
+    val isShowingCsdWarning: VolumeDialogCsdWarningModel = VolumeDialogCsdWarningModel.Invisible,
+    val isHovering: Boolean = false,
     val streamModels: Map<Int, VolumeDialogStreamModel> = mapOf(),
     val ringerModeInternal: Int = 0,
     val ringerModeExternal: Int = 0,

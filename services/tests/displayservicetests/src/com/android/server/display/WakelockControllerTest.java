@@ -21,7 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.hardware.display.DisplayManagerInternal;
 
@@ -210,7 +210,7 @@ public final class WakelockControllerTest {
 
         // Validate one suspend blocker was released
         assertFalse(mWakelockController.isProximityPositiveAcquired());
-        verifyZeroInteractions(mDisplayPowerCallbacks);
+        verifyNoMoreInteractions(mDisplayPowerCallbacks);
     }
 
     @Test
@@ -238,7 +238,7 @@ public final class WakelockControllerTest {
 
         // Validate one suspend blocker was released
         assertFalse(mWakelockController.isProximityNegativeAcquired());
-        verifyZeroInteractions(mDisplayPowerCallbacks);
+        verifyNoMoreInteractions(mDisplayPowerCallbacks);
     }
 
     @Test
@@ -265,7 +265,7 @@ public final class WakelockControllerTest {
 
         // Validate one suspend blocker was released
         assertFalse(mWakelockController.isOnStateChangedPending());
-        verifyZeroInteractions(mDisplayPowerCallbacks);
+        verifyNoMoreInteractions(mDisplayPowerCallbacks);
     }
 
     @Test

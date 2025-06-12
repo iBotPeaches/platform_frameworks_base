@@ -17,10 +17,16 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Companion Device Manager"</string>
-    <string name="confirmation_title" msgid="2244241995958340998">"Дозволувате апликацијата &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; да пристапува до &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="confirmation_title" msgid="2244241995958340998">"Дали дозволувате апликацијата &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; да пристапува до &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Погрижете се <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> да биде вклучен на овој <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> и вашиот <xliff:g id="PROFILE_NAME">%3$s</xliff:g> да биде во близина."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Не се најдени уреди. Обидете се повторно подоцна."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth и Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"часовник"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Изберете уред со којшто ќе управува &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Изберете <xliff:g id="PROFILE_NAME">%1$s</xliff:g> за поставување"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Се бара <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Оваа апликација ќе има дозвола да ги синхронизира податоците како што се имињата на јавувачите и да пристапува до следниве дозволи на вашиот <xliff:g id="DEVICE_TYPE">%1$s</xliff:g>"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Ќе дозволите &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; да управува со &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"уред"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Да се дозволи &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; да ги стримува апликациите од <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> на &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> ќе има пристап до сè што е видливо или репродуцирано на <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, вклучувајќи ги и аудиото, фотографиите, податоците за плаќање, лозинките и пораките.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> ќе може да стримува апликации на <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> сѐ додека не ја отстраните дозволава."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> бара дозвола во име на <xliff:g id="DEVICE_NAME">%2$s</xliff:g> за да стримува апликации од вашиот <xliff:g id="DEVICE_TYPE">%3$s</xliff:g>"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Да се дозволи &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; да стримува аудио и системски функции меѓу вашиот <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> и &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> ќе има пристап до сѐ што е пуштено на <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> ќе може да стримува аудио на <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> сѐ додека не ја отстраните дозволава."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"уред"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Оваа апликација ќе може да ги синхронизира податоците како што се имињата на јавувачите помеѓу вашиот телефон и избраниот уред"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Дозволи"</string>
     <string name="consent_no" msgid="2640796915611404382">"Не дозволувај"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Откажи"</string>
     <string name="consent_back" msgid="2560683030046918882">"Назад"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Лизгај надолу по списокот"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Стрелка надолу"</string>
     <string name="permission_expand" msgid="893185038020887411">"Прошири <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Собери <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Дасе дадат исти дозволи на апликациите на &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; како на &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
@@ -68,8 +78,8 @@
     <string name="permission_notifications_summary" msgid="2272810466047367030">"• Ги чита сите известувања, меѓу кои и податоци како контакти, пораки и фотографии&lt;br/&gt;• Испраќа известувања&lt;br/&gt;&lt;br/&gt;Може да управувате со способноста на апликацијава да чита и испраќа известувања кога било во „Поставки &gt; Известувања“."</string>
     <string name="permission_storage_summary" msgid="3918240895519506417"></string>
     <string name="permission_media_routing_control_summary" msgid="2714631092321412250">"Пристап до списокот со достапни уреди и контрола кои стримуваат или емитуваат аудио или видео од други апликации"</string>
-    <string name="device_type" product="default" msgid="8268703872070046263">"Телефон"</string>
-    <string name="device_type" product="tablet" msgid="5038791954983067774">"Таблет"</string>
+    <string name="device_type" product="default" msgid="8268703872070046263">"телефон"</string>
+    <string name="device_type" product="tablet" msgid="5038791954983067774">"таблет"</string>
     <string name="device_type" product="tv" msgid="5355611506659405636">"ТВ"</string>
     <string name="device_type" product="device" msgid="1526125965802507189">"уред"</string>
 </resources>

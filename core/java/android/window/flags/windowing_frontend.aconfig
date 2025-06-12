@@ -9,26 +9,6 @@ flag {
 }
 
 flag {
-  name: "reset_draw_state_on_client_invisible"
-  namespace: "windowing_frontend"
-  description: "Reset draw state if the client is notified to be invisible"
-  bug: "373023636"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-    name: "wait_for_transition_on_display_switch"
-    namespace: "windowing_frontend"
-    description: "Waits for Shell transition to start before unblocking the screen after display switch"
-    bug: "301420598"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
     name: "apply_lifecycle_on_pip_change"
     namespace: "windowing_frontend"
     description: "Make pip activity lifecyle change with windowing mode"
@@ -39,20 +19,21 @@ flag {
 }
 
 flag {
-    name: "blast_sync_notification_shade_on_display_switch"
-    namespace: "windowing_frontend"
-    description: "Make the buffer content of notification shade synchronize with display switch"
-    bug: "337154331"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
+  name: "cache_window_style"
+  namespace: "windowing_frontend"
+  description: "Cache common window styles"
+  bug: "350394503"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
-  name: "respect_animation_clip"
+  name: "use_cached_insets_for_display_switch"
   namespace: "windowing_frontend"
-  description: "Fix missing clip transformation of animation"
-  bug: "376601866"
+  description: "Reduce intermediate insets changes for display switch"
+  bug: "266197298"
   is_fixed_read_only: true
   metadata {
     purpose: PURPOSE_BUGFIX
@@ -80,6 +61,14 @@ flag {
   namespace: "windowing_frontend"
   description: "Deprecate and disable windowOptOutEdgeToEdgeEnforcement"
   bug: "377864165"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "action_mode_edge_to_edge"
+  namespace: "windowing_frontend"
+  description: "Make contextual action bar edge-to-edge"
+  bug: "379783298"
   is_fixed_read_only: true
 }
 
@@ -130,13 +119,6 @@ flag {
     description: "Do not synchronise the wallpaper offset"
     bug: "293248754"
     is_fixed_read_only: true
-}
-
-flag {
-    name: "predictive_back_system_anims"
-    namespace: "systemui"
-    description: "Predictive back for system animations"
-    bug: "320510464"
 }
 
 flag {
@@ -207,10 +189,10 @@ flag {
 }
 
 flag {
-  name: "filter_irrelevant_input_device_change"
+  name: "app_handle_no_relayout_on_exclusion_change"
   namespace: "windowing_frontend"
-  description: "Recompute display configuration only for necessary input device changes"
-  bug: "368461853"
+  description: "Remove unnecessary relayouts for app handle when exclusion regions change"
+  bug: "383672263"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -265,22 +247,22 @@ flag {
 }
 
 flag {
+  name: "scheduling_for_notification_shade"
+  namespace: "windowing_frontend"
+  description: "Demote top-app when notification shade is expanded"
+  bug: "362467878"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
     name: "release_snapshot_aggressively"
     namespace: "windowing_frontend"
     description: "Actively release task snapshot memory"
     bug: "238206323"
     is_fixed_read_only: true
-}
-
-flag {
-  name: "draw_snapshot_aspect_ratio_match"
-  namespace: "windowing_frontend"
-  description: "The aspect ratio should always match when drawing snapshot"
-  bug: "341020277"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -294,11 +276,25 @@ flag {
 }
 
 flag {
-  name: "system_ui_immersive_confirmation_dialog"
+  name: "reduce_unnecessary_measure"
   namespace: "windowing_frontend"
-  description: "Enable the implementation of the immersive confirmation dialog on system UI side by default"
-  bug: "359713629"
+  description: "Skip measuring view hierarchy if the size is known"
+  bug: "260382739"
   is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "use_visible_requested_for_process_tracker"
+  namespace: "windowing_frontend"
+  description: "Do not count closing activity as visible process"
+  bug: "396653764"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -316,39 +312,6 @@ flag {
   namespace: "windowing_frontend"
   description: "Ensure that wallpaper window tokens are always present/available for collection in transitions on Wear"
   bug: "355596979"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "migrate_predictive_back_transition"
-  namespace: "windowing_frontend"
-  description: "Create transition when visibility change from predictive back"
-  bug: "347168362"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "always_capture_activity_snapshot"
-  namespace: "windowing_frontend"
-  description: "Always capture activity snapshot regardless predictive back status"
-  bug: "362183912"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "remove_starting_window_wait_for_multi_transitions"
-  namespace: "windowing_frontend"
-  description: "Avoid remove starting window too early when playing multiple transitions"
-  bug: "362347290"
-  is_fixed_read_only: true
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -398,28 +361,6 @@ flag {
 }
 
 flag {
-  name: "defer_predictive_animation_if_no_snapshot"
-  namespace: "windowing_frontend"
-  description: "If no snapshot for previous window, start animation until the client has draw."
-  bug: "374621014"
-  is_fixed_read_only: true
-  metadata {
-      purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
-  name: "disallow_app_progress_embedded_window"
-  namespace: "windowing_frontend"
-  description: "Pilfer pointers when app transfer input gesture to embedded window."
-  bug: "365504126"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
     name: "predictive_back_system_override_callback"
     namespace: "windowing_frontend"
     description: "Provide pre-make predictive back API extension"
@@ -447,6 +388,17 @@ flag {
 }
 
 flag {
+    name: "remove_depart_target_from_motion"
+    namespace: "windowing_frontend"
+    description: "Remove DepartingAnimationTarget from BackMotionEvent"
+    bug: "395035430"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "predictive_back_default_enable_sdk_36"
     namespace: "systemui"
     description: "Enable Predictive Back by default with targetSdk>=36"
@@ -455,9 +407,161 @@ flag {
 }
 
 flag {
+    name: "remove_defer_hiding_client"
+    namespace: "windowing_frontend"
+    description: "Remove mDeferHidingClient since everything is in shell-transition."
+    is_fixed_read_only: true
+    bug: "382485959"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
   name: "relative_insets"
   namespace: "windowing_frontend"
   description: "Support insets definition and calculation relative to task bounds."
   bug: "277292497"
   is_fixed_read_only: true
+}
+
+flag {
+    name: "exclude_drawing_app_theme_snapshot_from_lock"
+    namespace: "windowing_frontend"
+    description: "Do not hold wm lock when drawing app theme snapshot."
+    is_fixed_read_only: true
+    bug: "373502791"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "reduce_changed_exclusion_rects_msgs"
+    namespace: "windowing_frontend"
+    description: "Don't send MSG_SYSTEM_GESTURE_EXCLUSION_CHANGED when there is no change"
+    bug: "388231176"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "keep_app_window_hide_while_locked"
+    namespace: "windowing_frontend"
+    description: "Do not let app window visible while device is locked"
+    is_fixed_read_only: true
+    bug: "378088391"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "use_rt_frame_callback_for_splash_screen_transfer"
+    namespace: "windowing_frontend"
+    description: "report SplashscreenView shown after RtFrame commit"
+    is_fixed_read_only: true
+    bug: "387231234"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "port_window_size_animation"
+    namespace: "windowing_frontend"
+    description: "Port window-resize animation from legacy to shell"
+    bug: "384976265"
+}
+
+flag {
+    name: "aod_transition"
+    namespace: "windowing_frontend"
+    description: "Support to show lock wallpaper in aod state"
+    bug: "361438779"
+}
+
+flag {
+    name: "check_disabled_snapshots_in_task_persister"
+    namespace: "windowing_frontend"
+    description: "Check for TaskSnapshots disabling in TaskSnapshotPersister."
+    bug: "387915176"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "clear_system_vibrator"
+    namespace: "windowing_frontend"
+    description: "Clears the system vibrator before attaching new window, to avoid leaks."
+    bug: "393190314"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "reduce_task_snapshot_memory_usage"
+    namespace: "windowing_frontend"
+    description: "Reduce task snapshot memory usage in either heap and dmabuf."
+    bug: "238206323"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "early_launch_hint"
+    namespace: "windowing_frontend"
+    description: "Sets Launch powermode for activity launches earlier"
+    bug: "399380676"
+    is_fixed_read_only: true
+        metadata {
+            purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "safe_release_snapshot_aggressively"
+    namespace: "windowing_frontend"
+    description: "Protect task snapshot memory from premature release, which can occur when a local variable holds a reference while the snapshot is removed from the cache."
+    bug: "238206323"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "scramble_snapshot_file_name"
+    namespace: "windowing_frontend"
+    description: "Scramble the file name of task snapshot."
+    bug: "293139053"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "delegate_back_gesture_to_shell"
+    namespace: "windowing_frontend"
+    description: "Delegate back gesture event to back animation controller."
+    bug: "394599430"
+    is_fixed_read_only: true
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "enable_multidisplay_trackpad_back_gesture"
+    namespace: "lse_desktop_experience"
+    description: "Adds support for trackpad back gestures on connected displays"
+    bug: "382774299"
 }

@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"ገቢር (ግራ ብቻ)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"ገቢር (ቀኝ ብቻ)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"ገቢር (ግራ እና ቀኝ)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"በዙሪያ ያሉትን ማዘመን አልተቻለም"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"ገቢር (ሚዲያ ብቻ)። <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"ገቢር (ሚዲያ ብቻ)። ግ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>፣ ቀ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ባትሪ።"</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"የእንግዳ መሣሪያ። <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"የእንግዳ መሣሪያ። ግ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>፣ ቀ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ባትሪ።"</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"የእንግዳ መሣሪያ (ሚዲያ ብቻ)። <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"የእንግዳ መሣሪያ (ሚዲያ ብቻ)። ግ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>፣ ቀ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ባትሪ።"</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"ተገናኝቷል (የድምፅ ማጋራት ይደግፋል)፣ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"ተገናኝቷል (የድምፅ ማጋራት ይደግፋል) ግ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>፣ ቀ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ባትሪ።"</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"ተገናኝቷል (የድምፅ ማጋራት ይደግፋል)። ግራ፦<xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"ተገናኝቷል (የድምፅ ማጋራት ይደግፋል)። ቀኝ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"ተገናኝቷል (የድምፅ ማጋራት ይደግፋል)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"የእንግዳ መሣሪያ (የድምፅ ማጋራትን ይደግፋል)። <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> ባትሪ።"</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"የእንግዳ መሣሪያ (የድምፅ ማጋራትን ይደግፋል)። ግ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>፣ ቀ፦ <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> ባትሪ።"</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"የእንግዳ መሣሪያ (የድምፅ ማጋራትን ይደግፋል)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"ገቢር (ሚዲያ ብቻ)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"የእንግዳ መሣሪያ"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"የእንግዳ መሣሪያ (ሚዲያ ብቻ)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"ድምፅ ማጋራትን ይደግፋል"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"የእንግዳ መሣሪያ። የድምፅ ማጋራትን ይደግፋል"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"ገቢር (ሚዲያ ብቻ)፣ ግራ ብቻ"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"ገቢር (ሚዲያ ብቻ) ቀኝ ብቻ"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"ገቢር (ሚዲያ ብቻ)፣ ግራ እና ቀኝ"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"የተፋጠነ የሃርድዌር አሰጣጥ"</string>
     <string name="media_category" msgid="8122076702526144053">"ማህደረመረጃ"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"ቁጥጥር"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"የመስኮት አስተዳደር"</string>
     <string name="strict_mode" msgid="889864762140862437">"ጥብቅ ሁነታ ነቅቷል"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"መተግበሪያዎች ረጅም ክንውኖች ወደ ዋና ክሮች ሲያካሂዱ ማያላይ ብልጭ አድርግ።"</string>
     <string name="pointer_location" msgid="7516929526199520173">"የአመልካች ሥፍራ"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"የእነማ ልኬት ለውጥ ሽግግር"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"እነማ አድራጊ ቆይታ መለኪያ"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"ሁለተኛ ማሳያዎችን አስመስለህ ሥራ"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"የጥላ ማሳያ አቀማመጥ"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"መተግበሪያዎች"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"እንቅስቃሴዎችን አትጠብቅ"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"ተጠቃሚው እስኪተወው ድረስ እያንዳንዱን እንቅስቃሴ አስወግድ"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"የWebView ትግበራ"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"የWebView ትግበራን ያዘጋጁ"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"ይህ ምርጫ ከአሁን በኋላ የሚሰራ አይደለም። እንደገና ይሞክሩ።"</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"የድር ዕይታ DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"የድር ዕይታ ጥቅል አልተገኘም።"</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevToolsን ማስጀመር አልተቻለም።"</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"የስዕል ቀለም ሁነታ"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGB ይጠቀሙ"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"ተሰናክሏል"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"ፈጣን መሙያ"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"በአስተዳዳሪ ቁጥጥር የተደረገበት"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"በተገደበ ቅንብር ቁጥጥር የሚደረግበት"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"በጥሪዎች ጊዜ አይገኝም"</string>
     <string name="disabled" msgid="8017887509554714950">"ቦዝኗል"</string>
+    <string name="enabled" msgid="3997122818554810678">"ነቅቷል"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"ይፈቀዳል"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"አይፈቀድም"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"ያልታወቁ መተግበሪያዎችን ይጫኑ"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"አብሮ የተሰራ ድምፅ ማውጫ"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"የTV ኦዲዮ"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"መገናኘት ላይ ችግር። መሳሪያውን ያጥፉት እና እንደገና ያብሩት"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"ማገናኘት አልተቻለም"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"ባለገመድ የኦዲዮ መሣሪያ"</string>
     <string name="help_label" msgid="3528360748637781274">"እገዛ እና ግብረመልስ"</string>
     <string name="storage_category" msgid="2287342585424631813">"ማከማቻ"</string>

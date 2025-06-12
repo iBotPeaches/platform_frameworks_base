@@ -44,6 +44,7 @@ import java.util.Objects;
  *
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class BaseRecordingCanvas extends Canvas {
 
     public BaseRecordingCanvas(long nativeCanvas) {

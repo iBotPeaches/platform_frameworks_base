@@ -23,6 +23,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -130,7 +131,7 @@ public class RestrictedPreferenceHelperTest {
 
     @RequiresFlagsEnabled(android.security.Flags.FLAG_AAPM_API)
     @Test
-    public void bindPreference_disabled_byAdvancedProtection_shouldDisplayDisabledSummary() {
+    public void bindPreference_disabled_byAdvancedProtection_shouldKeepExistingSummary() {
         final TextView summaryView = mock(TextView.class, RETURNS_DEEP_STUBS);
         final String userRestriction = UserManager.DISALLOW_UNINSTALL_APPS;
         final RestrictedLockUtils.EnforcedAdmin enforcedAdmin = new RestrictedLockUtils
@@ -143,16 +144,14 @@ public class RestrictedPreferenceHelperTest {
                 .thenReturn(summaryView);
         when(mDevicePolicyManager.getEnforcingAdmin(UserHandle.myUserId(), userRestriction))
                 .thenReturn(advancedProtectionEnforcingAdmin);
-        when(mContext.getString(
-                com.android.settingslib.widget.restricted.R.string.disabled_by_advanced_protection))
-                .thenReturn("advanced_protection");
 
+        summaryView.setText("existing summary");
         mHelper.useAdminDisabledSummary(true);
         mHelper.setDisabledByAdmin(enforcedAdmin);
         mHelper.onBindViewHolder(mViewHolder);
 
-        verify(summaryView).setText("advanced_protection");
-        verify(summaryView, never()).setVisibility(View.GONE);
+        verify(summaryView, atMostOnce()).setText(any()); // To set it to existing summary
+        verify(summaryView, never()).setVisibility(View.VISIBLE);
     }
 
     @RequiresFlagsEnabled(android.security.Flags.FLAG_AAPM_API)

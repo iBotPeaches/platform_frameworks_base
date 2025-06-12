@@ -181,7 +181,7 @@ art_profile_java_defaults {
             conditions_default: {
                 dex_preopt: {
                     app_image: true,
-                    profile: "art-profile",
+                    profile: ":art-profile-combined",
                 },
             },
         },
@@ -238,19 +238,25 @@ ondeviceintelligence_module_java_defaults {
     },
 }
 
-// merge all required services into one jar
-// ============================================================
 soong_config_module_type {
     name: "system_java_library",
     module_type: "java_library",
     config_namespace: "system_services",
-    bool_variables: ["without_vibrator"],
+    variables: ["without_hal"],
     properties: ["vintf_fragment_modules"],
 }
 
+soong_config_string_variable {
+    name: "without_hal",
+    values: [
+        "vibrator",
+        "devicestate",
+    ],
+}
+
 vintf_fragment {
-    name: "manifest_services.xml",
-    src: "manifest_services.xml",
+    name: "manifest_services_android.frameworks.location.xml",
+    src: "manifest_services_android.frameworks.location.xml",
 }
 
 vintf_fragment {
@@ -258,15 +264,19 @@ vintf_fragment {
     src: "manifest_services_android.frameworks.vibrator.xml",
 }
 
-system_java_library {
-    name: "services",
+vintf_fragment {
+    name: "manifest_services_android.frameworks.devicestate.xml",
+    src: "manifest_services_android.frameworks.devicestate.xml",
+}
+
+// merge all required services into one intermediate jar
+// ============================================================
+java_library {
+    name: "services.impl",
     defaults: [
-        "services_java_defaults",
-        "art_profile_java_defaults",
         "services_crashrecovery_stubs_conditionally",
         "ondeviceintelligence_conditionally",
     ],
-    installable: true,
 
     exclude_kotlinc_generated_files: true,
     optimize: {
@@ -330,15 +340,49 @@ system_java_library {
         "service-sdksandbox.stubs.system_server",
     ],
 
+    // Uncomment to enable output of certain warnings (deprecated, unchecked)
+    //javacflags: ["-Xlint"],
+
+    visibility: [
+        ":__subpackages__",
+        "//frameworks/opt:__subpackages__",
+    ],
+}
+
+// merge all required services into one final installable jar
+// ============================================================
+system_java_library {
+    name: "services",
+    defaults: [
+        "services_java_defaults",
+        "art_profile_java_defaults",
+    ],
+    installable: true,
+
+    exclude_kotlinc_generated_files: true,
+
+    // Note: all srcs and static_libs deps should go in services.impl.
+    static_libs: ["services.impl"],
+
     soong_config_variables: {
-        without_vibrator: {
-            vintf_fragment_modules: [
-                "manifest_services.xml",
-            ],
+        without_hal: {
+            vibrator: {
+                vintf_fragment_modules: [
+                    "manifest_services_android.frameworks.location.xml",
+                    "manifest_services_android.frameworks.devicestate.xml",
+                ],
+            },
+            devicestate: {
+                vintf_fragment_modules: [
+                    "manifest_services_android.frameworks.location.xml",
+                    "manifest_services_android.frameworks.vibrator.xml",
+                ],
+            },
             conditions_default: {
                 vintf_fragment_modules: [
-                    "manifest_services.xml",
+                    "manifest_services_android.frameworks.location.xml",
                     "manifest_services_android.frameworks.vibrator.xml",
+                    "manifest_services_android.frameworks.devicestate.xml",
                 ],
             },
         },
@@ -371,9 +415,14 @@ platform_compat_config {
     src: ":services",
 }
 
-filegroup {
-    name: "art-profile",
-    srcs: ["art-profile"],
+genrule {
+    name: "art-profile-combined",
+    srcs: [
+        "art-profile",
+        "art-profile-extra",
+    ],
+    out: ["art-profile-combined"],
+    cmd: "cat $(location art-profile) $(location art-profile-extra) > $(location art-profile-combined)",
 }
 
 // API stub

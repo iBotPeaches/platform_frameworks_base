@@ -27,6 +27,7 @@ import android.widget.TextView;
 /**
  * Base classes for movement methods.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class BaseMovementMethod implements MovementMethod {
     @Override
     public boolean canSelectArbitrarily() {

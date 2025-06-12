@@ -33,6 +33,7 @@ import dalvik.annotation.optimization.CriticalNative;
  * {@link RenderNode#endRecording()} is called. It must not be retained beyond that as it is
  * internally reused.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class RecordingCanvas extends BaseRecordingCanvas {
     // The recording canvas pool should be large enough to handle a deeply nested
     // view hierarchy because display lists are generated recursively.

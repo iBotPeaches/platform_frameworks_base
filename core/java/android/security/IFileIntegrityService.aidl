@@ -24,9 +24,6 @@ import android.os.IInstalld;
  * @hide
  */
 interface IFileIntegrityService {
-    boolean isApkVeritySupported();
-    boolean isAppSourceCertificateTrusted(in byte[] certificateBytes, in String packageName);
-
     IInstalld.IFsveritySetupAuthToken createAuthToken(in ParcelFileDescriptor authFd);
 
     @EnforcePermission("SETUP_FSVERITY")

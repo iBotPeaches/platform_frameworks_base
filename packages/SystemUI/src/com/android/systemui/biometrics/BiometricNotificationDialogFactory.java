@@ -32,6 +32,7 @@ import android.util.Log;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.res.R;
+import com.android.systemui.shade.domain.interactor.ShadeDialogContextInteractor;
 import com.android.systemui.statusbar.phone.SystemUIDialog;
 
 import javax.inject.Inject;
@@ -44,6 +45,7 @@ public class BiometricNotificationDialogFactory {
     private static final String TAG = "BiometricNotificationDialogFactory";
     private final Resources mResources;
     private final SystemUIDialog.Factory mSystemUIDialogFactory;
+    private final ShadeDialogContextInteractor mDialogContextInteractor;
     @Nullable private final FingerprintManager mFingerprintManager;
     @Nullable private final FaceManager mFaceManager;
 
@@ -51,10 +53,12 @@ public class BiometricNotificationDialogFactory {
     BiometricNotificationDialogFactory(
             @Main Resources resources,
             SystemUIDialog.Factory systemUIDialogFactory,
+            ShadeDialogContextInteractor shadeDialogContextInteractor,
             @Nullable FingerprintManager fingerprintManager,
             @Nullable FaceManager faceManager) {
         mResources = resources;
         mSystemUIDialogFactory = systemUIDialogFactory;
+        mDialogContextInteractor = shadeDialogContextInteractor;
         mFingerprintManager = fingerprintManager;
         mFaceManager = faceManager;
     }
@@ -62,7 +66,8 @@ public class BiometricNotificationDialogFactory {
     Dialog createReenrollDialog(
             int userId, ActivityStarter activityStarter, BiometricSourceType biometricSourceType,
             boolean isReenrollForced) {
-        SystemUIDialog sysuiDialog = mSystemUIDialogFactory.create();
+        SystemUIDialog sysuiDialog =
+                mSystemUIDialogFactory.create(mDialogContextInteractor.getContext());
         if (biometricSourceType == BiometricSourceType.FACE) {
             sysuiDialog.setTitle(mResources.getString(R.string.face_re_enroll_dialog_title));
             sysuiDialog.setMessage(mResources.getString(R.string.face_re_enroll_dialog_content));
@@ -90,7 +95,8 @@ public class BiometricNotificationDialogFactory {
     }
 
     private Dialog createReenrollFailureDialog(BiometricSourceType biometricType) {
-        final SystemUIDialog sysuiDialog = mSystemUIDialogFactory.create();
+        final SystemUIDialog sysuiDialog =
+                mSystemUIDialogFactory.create(mDialogContextInteractor.getContext());
 
         if (biometricType == BiometricSourceType.FACE) {
             sysuiDialog.setMessage(mResources.getString(

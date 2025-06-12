@@ -32,6 +32,7 @@ import java.util.Set;
  * Provides a utility for font file operations.
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class FontFileUtil {
 
     private FontFileUtil() {}  // Do not instantiate

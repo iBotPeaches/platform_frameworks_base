@@ -34,8 +34,10 @@ import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.statusbar.IStatusBarService;
+import com.android.systemui.statusbar.notification.collection.BundleEntry;
 import com.android.systemui.statusbar.notification.collection.GroupEntry;
 import com.android.systemui.statusbar.notification.collection.ListEntry;
+import com.android.systemui.statusbar.notification.collection.PipelineEntry;
 import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.ShadeListBuilder;
@@ -54,6 +56,7 @@ import com.android.systemui.statusbar.notification.row.icon.AppIconProvider;
 import com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProvider;
 import com.android.systemui.statusbar.notification.row.shared.AsyncGroupHeaderViewInflation;
 import com.android.systemui.statusbar.notification.row.shared.AsyncHybridViewInflation;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -232,14 +235,14 @@ public class PreparationCoordinator implements Coordinator {
          */
         @Override
         public boolean shouldFilterOut(NotificationEntry entry, long now) {
-            final GroupEntry parent = requireNonNull(entry.getParent());
-            Boolean isMemberOfDelayedGroup = mIsDelayedGroupCache.get(parent);
-            if (isMemberOfDelayedGroup == null) {
+            final PipelineEntry pipelineEntryParent = requireNonNull(entry.getParent());
+            Boolean isMemberOfDelayedGroup = mIsDelayedGroupCache.get(pipelineEntryParent);
+            if (isMemberOfDelayedGroup == null && pipelineEntryParent instanceof GroupEntry) {
+                GroupEntry parent = (GroupEntry) pipelineEntryParent;
                 isMemberOfDelayedGroup = shouldWaitForGroupToInflate(parent, now);
                 mIsDelayedGroupCache.put(parent, isMemberOfDelayedGroup);
             }
-
-            return !isInflated(entry) || isMemberOfDelayedGroup;
+            return !isInflated(entry) || (isMemberOfDelayedGroup != null && isMemberOfDelayedGroup);
         }
 
         @Override
@@ -279,7 +282,7 @@ public class PreparationCoordinator implements Coordinator {
         }
     };
 
-    private void purgeCaches(Collection<ListEntry> entries) {
+    private void purgeCaches(Collection<PipelineEntry> entries) {
         Set<String> wantedPackages = getPackages(entries);
         mAppIconProvider.purgeCache(wantedPackages);
         mNotificationIconStyleProvider.purgeCache(wantedPackages);
@@ -288,9 +291,9 @@ public class PreparationCoordinator implements Coordinator {
     /**
      * Get all app packages present in {@param entries}.
      */
-    private static @NonNull Set<String> getPackages(Collection<ListEntry> entries) {
+    private static @NonNull Set<String> getPackages(Collection<PipelineEntry> entries) {
         Set<String> packages = new HashSet<>();
-        for (ListEntry entry : entries) {
+        for (PipelineEntry entry : entries) {
             NotificationEntry notificationEntry = entry.getRepresentativeEntry();
             if (notificationEntry == null) {
                 Log.wtf(TAG, "notification entry " + entry.getKey()
@@ -302,10 +305,19 @@ public class PreparationCoordinator implements Coordinator {
         return packages;
     }
 
-    private void inflateAllRequiredViews(List<ListEntry> entries) {
+    private void inflateAllRequiredViews(List<PipelineEntry> entries) {
         for (int i = 0, size = entries.size(); i < size; i++) {
-            ListEntry entry = entries.get(i);
-            if (entry instanceof GroupEntry) {
+            PipelineEntry entry = entries.get(i);
+            if (NotificationBundleUi.isEnabled() && entry instanceof BundleEntry bundleEntry) {
+                for (ListEntry listEntry : bundleEntry.getChildren()) {
+                    if (listEntry instanceof GroupEntry groupEntry) {
+                        inflateRequiredGroupViews(groupEntry);
+                    } else {
+                        NotificationEntry notifEntry = (NotificationEntry) listEntry;
+                        inflateRequiredNotifViews(notifEntry);
+                    }
+                }
+            } else if (entry instanceof GroupEntry) {
                 GroupEntry groupEntry = (GroupEntry) entry;
                 inflateRequiredGroupViews(groupEntry);
             } else {
@@ -416,7 +428,7 @@ public class PreparationCoordinator implements Coordinator {
                 /* showSnooze = */ adjustment.isSnoozeEnabled(),
                 /* isChildInGroup = */ adjustment.isChildInGroup(),
                 /* isGroupSummary = */ adjustment.isGroupSummary(),
-                /* needsRedaction = */ adjustment.getNeedsRedaction()
+                /* needsRedaction = */ adjustment.getRedactionType()
         );
     }
 

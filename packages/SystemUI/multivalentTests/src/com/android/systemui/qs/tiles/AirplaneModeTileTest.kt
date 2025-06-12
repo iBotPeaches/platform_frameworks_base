@@ -23,7 +23,6 @@ import android.platform.test.flag.junit.FlagsParameterization.allCombinationsOf
 import android.testing.TestableLooper
 import androidx.test.filters.SmallTest
 import com.android.internal.logging.MetricsLogger
-import com.android.internal.telephony.flags.Flags
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.classifier.FalsingManagerFake
@@ -131,17 +130,7 @@ class AirplaneModeTileTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
-    fun handleClick_noSatelliteFeature_directSetAirplaneMode() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
-
-        mTile.handleClick(null)
-
-        verify(mConnectivityManager).setAirplaneMode(any())
-    }
-
-    @Test
     fun handleClick_hasSatelliteFeatureButClickIsProcessing_doNothing() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
         Mockito.`when`(mClickJob.isCompleted).thenReturn(false)
         mTile.mClickJob = mClickJob
 

@@ -32,6 +32,7 @@ fun DoneButton(
     onDoneButtonClicked: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    isNext: Boolean = false,
 ) {
     Row(
         horizontalArrangement = Arrangement.End,
@@ -39,7 +40,10 @@ fun DoneButton(
         modifier = modifier.fillMaxWidth(),
     ) {
         Button(onClick = onDoneButtonClicked, enabled = enabled) {
-            Text(stringResource(R.string.touchpad_tutorial_done_button))
+            val text =
+                if (isNext) R.string.touchpad_tutorial_next_button
+                else R.string.touchpad_tutorial_done_button
+            Text(stringResource(text))
         }
     }
 }

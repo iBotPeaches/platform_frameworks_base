@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Kveikt (eingöngu vinstra)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Kveikt (eingöngu hægra)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Kveikt (vinstra og hægra)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Ekki var hægt að uppfæra umhverfi"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Virkt (eingöngu margmiðlunarefni). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Virkt (eingöngu margmiðlunarefni), V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> rafhlöðuhleðsla."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Gestatæki. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Gestatæki. V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> rafhlöðuhleðsla."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Gestatæki (aðeins margmiðlunarefni). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Gestatæki (aðeins margmiðlunarefni). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> rafhlöðuhleðsla."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Tengt (styður hljóðdeilingu), <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Tengt (styður hljóðdeilingu), V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> rafhlöðuhleðsla."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Tengt (styður hljóðdeilingu). Vinstri: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Tengt (styður hljóðdeilingu). Hægri: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Tengt (styður hljóðdeilingu)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Gestatæki (styður hljóðdeilingu). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> rafhlöðuhleðsla."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Gestatæki (styður hljóðdeilingu). V: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, H: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> rafhlöðuhleðsla."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Gestatæki (styður hljóðdeilingu)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Virkt (eingöngu margmiðlunarefni)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Gestatæki"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Gestatæki (aðeins margmiðlunarefni)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Styður hljóðdeilingu"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Gestatæki. Styður hljóðdeilingu"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Virkt (eingöngu margmiðlunarefni), eingöngu vinstri"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Virkt (eingöngu margmiðlunarefni), eingöngu hægri"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Virkt (eingöngu margmiðlunarefni), vinstri og hægri"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Myndþýðing með vélbúnaðarhröðun"</string>
     <string name="media_category" msgid="8122076702526144053">"Margmiðlun"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Eftirlit"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Gluggastjórnun"</string>
     <string name="strict_mode" msgid="889864762140862437">"Kveikt á strangri stillingu"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Blikka skjá ef forrit gera tímafreka hluti á aðalþræði"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Staðsetning bendils"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Lengd hreyfiumbreytinga"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Tímalengd hreyfiáhrifa"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Herma eftir aukaskjáum"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Staðsetning skugga á skjá"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Forrit"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Ekki vista virkni"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Eyðileggja öll verk um leið og notandi yfirgefur þau"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Innleiðing WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Stilla innleiðingu WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Þetta val er ekki lengur gilt. Reyndu aftur."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView-pakki fannst ekki."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Ekki tókst að ræsa DevTools."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Litastilling mynda"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Nota sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Óvirkt"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Hraðhleðsla"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Stjórnað af kerfisstjóra"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Stýrt af takmarkaði stillingu"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Ekki í boði á meðan á símtölum stendur"</string>
     <string name="disabled" msgid="8017887509554714950">"Óvirkt"</string>
+    <string name="enabled" msgid="3997122818554810678">"Kveikt"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Heimilað"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Ekki heimilað"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Setja upp óþekkt forrit"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Innbyggður hátalari"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Sjónvarpshljóð"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Vandamál í tengingu. Slökktu og kveiktu á tækinu"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Ekki tókst að tengjast"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Snúrutengt hljómtæki"</string>
     <string name="help_label" msgid="3528360748637781274">"Hjálp og ábendingar"</string>
     <string name="storage_category" msgid="2287342585424631813">"Geymsla"</string>
@@ -636,7 +655,7 @@
     <string name="user_grant_admin_message" msgid="1673791931033486709">"Stjórnendur hafa tiltekin réttindi sem aðrir notendur hafa ekki. Stjórnandi getur stjórnað öllum notendum, uppfært eða endurstillt þetta tæki, breytt stillingum, séð öll uppsett forrit og veitt eða afturkallað stjórnandaheimildir annarra."</string>
     <string name="user_grant_admin_button" msgid="5441486731331725756">"Gera að stjórnanda"</string>
     <string name="user_setup_dialog_title" msgid="8037342066381939995">"Setja notanda upp núna?"</string>
-    <string name="user_setup_dialog_message" msgid="269931619868102841">"Gakktu úr skugga um að notandinn geti tekið tækið og sett upp sitt svæði"</string>
+    <string name="user_setup_dialog_message" msgid="269931619868102841">"Sjáðu til þess að notandinn geti tekið tækið og sett upp sitt svæði"</string>
     <string name="user_setup_profile_dialog_message" msgid="4788197052296962620">"Setja upp snið núna?"</string>
     <string name="user_setup_button_setup_now" msgid="1708269547187760639">"Setja upp núna"</string>
     <string name="user_setup_button_setup_later" msgid="8712980133555493516">"Ekki núna"</string>

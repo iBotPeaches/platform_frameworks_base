@@ -86,8 +86,8 @@ public class LogDataType {
                     case '%':
                         break;
                     default:
-                        throw new InvalidFormatStringException("Invalid format string field"
-                                + " %${messageString[i + 1]}");
+                        throw new InvalidFormatStringException("Invalid Protolog message format in "
+                                + "\"" + messageString + "\" at index " + i + ".");
                 }
                 i += 2;
             } else {

@@ -23,6 +23,7 @@ import android.view.TouchDelegate;
 import android.view.View;
 import android.widget.LinearLayout;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.settingslib.widget.preference.banner.R;
@@ -34,22 +35,25 @@ import com.android.settingslib.widget.preference.banner.R;
  * {@link BannerMessagePreference} to a {@code PreferenceScreen}.
  */
 public class BannerMessageView extends LinearLayout {
-    private Rect mTouchTargetForDismissButton;
+    @Nullable private Rect mTouchTargetForDismissButton;
 
-    public BannerMessageView(Context context) {
+    public BannerMessageView(@NonNull Context context) {
         super(context);
     }
 
-    public BannerMessageView(Context context,
-            @Nullable AttributeSet attrs) {
+    public BannerMessageView(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
     }
 
-    public BannerMessageView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+    public BannerMessageView(
+            @NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
     }
 
-    public BannerMessageView(Context context, AttributeSet attrs, int defStyleAttr,
+    public BannerMessageView(
+            @NonNull Context context,
+            @Nullable AttributeSet attrs,
+            int defStyleAttr,
             int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
     }

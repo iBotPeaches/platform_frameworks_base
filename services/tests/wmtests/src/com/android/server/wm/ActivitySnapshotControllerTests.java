@@ -29,6 +29,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 
@@ -62,11 +63,23 @@ public class ActivitySnapshotControllerTests extends TaskSnapshotPersisterTestBa
         super(0.8f /* highResScale */, 0.5f /* lowResScale */);
     }
 
+    private class TestActivitySnapshotController extends ActivitySnapshotController {
+        TestActivitySnapshotController(WindowManagerService service,
+                SnapshotPersistQueue persistQueue) {
+            super(service, persistQueue);
+        }
+        @Override
+        BaseAppSnapshotPersister.PersistInfoProvider createPersistInfoProvider(
+                WindowManagerService service) {
+            return mPersister.mPersistInfoProvider;
+        }
+    }
     @Override
     @Before
     public void setUp() {
         super.setUp();
-        mActivitySnapshotController = new ActivitySnapshotController(mWm, mSnapshotPersistQueue);
+        mActivitySnapshotController = new TestActivitySnapshotController(
+                mWm, mSnapshotPersistQueue);
         spyOn(mActivitySnapshotController);
         doReturn(false).when(mActivitySnapshotController).shouldDisableSnapshots();
         mActivitySnapshotController.resetTmpFields();
@@ -253,7 +266,11 @@ public class ActivitySnapshotControllerTests extends TaskSnapshotPersisterTestBa
      */
     @Test
     public void testSkipRecordActivity() {
-        doReturn(createSnapshot()).when(mActivitySnapshotController).recordSnapshotInner(any());
+        final AbsAppSnapshotController.SnapshotSupplier supplier =
+                new AbsAppSnapshotController.SnapshotSupplier();
+        supplier.setSupplier(this::createSnapshot);
+        doReturn(supplier).when(mActivitySnapshotController).recordSnapshotInner(
+                any(), anyBoolean(), any());
         final Task task = createTask(mDisplayContent);
 
         mSnapshotPersistQueue.setPaused(true);

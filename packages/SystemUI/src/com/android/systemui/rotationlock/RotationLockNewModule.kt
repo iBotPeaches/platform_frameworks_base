@@ -20,15 +20,15 @@ import com.android.systemui.camera.CameraRotationModule
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
-import com.android.systemui.qs.tiles.base.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
 import com.android.systemui.qs.tiles.impl.rotation.domain.interactor.RotationLockTileDataInteractor
 import com.android.systemui.qs.tiles.impl.rotation.domain.interactor.RotationLockTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.rotation.domain.model.RotationLockTileModel
 import com.android.systemui.qs.tiles.impl.rotation.ui.mapper.RotationLockTileMapper
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
 import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
@@ -73,7 +73,7 @@ interface RotationLockNewModule {
             factory: QSTileViewModelFactory.Static<RotationLockTileModel>,
             mapper: RotationLockTileMapper,
             stateInteractor: RotationLockTileDataInteractor,
-            userActionInteractor: RotationLockTileUserActionInteractor
+            userActionInteractor: RotationLockTileUserActionInteractor,
         ): QSTileViewModel =
             factory.create(
                 TileSpec.create(ROTATION_TILE_SPEC),

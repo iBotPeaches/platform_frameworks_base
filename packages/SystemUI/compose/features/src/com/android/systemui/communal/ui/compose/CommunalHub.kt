@@ -43,6 +43,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,7 +54,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,6 +79,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -95,6 +102,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -108,6 +117,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -151,6 +161,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -165,9 +176,10 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.layout.WindowMetricsCalculator
 import com.android.compose.animation.Easings.Emphasized
-import com.android.compose.animation.scene.SceneScope
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.modifiers.thenIf
 import com.android.compose.ui.graphics.painter.rememberDrawablePainter
+import com.android.compose.windowsizeclass.LocalWindowSizeClass
 import com.android.internal.R.dimen.system_app_widget_background_radius
 import com.android.systemui.Flags
 import com.android.systemui.Flags.communalResponsiveGrid
@@ -211,7 +223,7 @@ fun CommunalHub(
     widgetConfigurator: WidgetConfigurator? = null,
     onOpenWidgetPicker: (() -> Unit)? = null,
     onEditDone: (() -> Unit)? = null,
-    sceneScope: SceneScope? = null,
+    contentScope: ContentScope? = null,
 ) {
     val communalContent by
         viewModel.communalContent.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -248,6 +260,7 @@ fun CommunalHub(
     val windowMetrics = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(context)
     val screenWidth = windowMetrics.bounds.width()
     val layoutDirection = LocalLayoutDirection.current
+
     if (viewModel.isEditMode) {
         ObserveNewWidgetAddedEffect(communalContent, gridState, viewModel)
     } else {
@@ -293,9 +306,19 @@ fun CommunalHub(
                                     offset.y,
                                 ) - contentOffset
                             val index = firstIndexAtOffset(gridState, adjustedOffset)
-                            val key =
+                            val tappedKey =
                                 index?.let { keyAtIndexIfEditable(contentListState.list, index) }
-                            viewModel.setSelectedKey(key)
+
+                            viewModel.setSelectedKey(
+                                if (
+                                    Flags.hubEditModeTouchAdjustments() &&
+                                        selectedKey.value == tappedKey
+                                ) {
+                                    null
+                                } else {
+                                    tappedKey
+                                }
+                            )
                         }
                     }
                 }
@@ -421,7 +444,7 @@ fun CommunalHub(
                             widgetConfigurator = widgetConfigurator,
                             interactionHandler = interactionHandler,
                             widgetSection = widgetSection,
-                            sceneScope = sceneScope,
+                            contentScope = contentScope,
                         )
                     }
                 }
@@ -741,22 +764,53 @@ fun calculateWidgetSize(
 }
 
 @Composable
+private fun horizontalPaddingWithInsets(padding: Dp): Dp {
+    val orientation = LocalConfiguration.current.orientation
+    val displayCutoutPaddings = WindowInsets.displayCutout.asPaddingValues()
+    val horizontalDisplayCutoutPadding =
+        remember(orientation, displayCutoutPaddings) {
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                maxOf(
+                    // Top in portrait becomes startPadding (or endPadding) in landscape
+                    displayCutoutPaddings.calculateTopPadding(),
+                    // Bottom in portrait becomes endPadding (or startPadding) in landscape
+                    displayCutoutPaddings.calculateBottomPadding(),
+                )
+            } else {
+                0.dp
+            }
+        }
+    return padding + horizontalDisplayCutoutPadding
+}
+
+@Composable
 private fun HorizontalGridWrapper(
     minContentPadding: PaddingValues,
     gridState: LazyGridState,
+    dragDropState: GridDragDropState?,
     setContentOffset: (offset: Offset) -> Unit,
+    minHorizontalArrangement: Dp,
+    minVerticalArrangement: Dp,
     modifier: Modifier = Modifier,
     content: LazyGridScope.(sizeInfo: SizeInfo?) -> Unit,
 ) {
+    val isDragging = dragDropState?.draggingItemKey != null
     if (communalResponsiveGrid()) {
+        val flingBehavior =
+            rememberSnapFlingBehavior(lazyGridState = gridState, snapPosition = SnapPosition.Start)
         ResponsiveLazyHorizontalGrid(
             cellAspectRatio = 1.5f,
             modifier = modifier,
             state = gridState,
+            flingBehavior = flingBehavior,
             minContentPadding = minContentPadding,
-            minHorizontalArrangement = Dimensions.ItemSpacing,
-            minVerticalArrangement = Dimensions.ItemSpacing,
+            minHorizontalArrangement = minHorizontalArrangement,
+            minVerticalArrangement = minVerticalArrangement,
             setContentOffset = setContentOffset,
+            // Temporarily disable user gesture scrolling while dragging a widget to prevent
+            // conflicts between the drag and scroll gestures. Programmatic scrolling remains
+            // enabled to allow dragging a widget beyond the visible boundaries.
+            userScrollEnabled = !isDragging,
             content = content,
         )
     } else {
@@ -775,6 +829,10 @@ private fun HorizontalGridWrapper(
             contentPadding = minContentPadding,
             horizontalArrangement = Arrangement.spacedBy(Dimensions.ItemSpacing),
             verticalArrangement = Arrangement.spacedBy(Dimensions.ItemSpacing),
+            // Temporarily disable user gesture scrolling while dragging a widget to prevent
+            // conflicts between the drag and scroll gestures. Programmatic scrolling remains
+            // enabled to allow dragging a widget beyond the visible boundaries.
+            userScrollEnabled = !isDragging,
         ) {
             content(null)
         }
@@ -798,12 +856,13 @@ private fun BoxScope.CommunalHubLazyGrid(
     widgetConfigurator: WidgetConfigurator?,
     interactionHandler: RemoteViews.InteractionHandler?,
     widgetSection: CommunalAppWidgetSection,
-    sceneScope: SceneScope?,
+    contentScope: ContentScope?,
 ) {
     var gridModifier =
         Modifier.align(Alignment.TopStart).onGloballyPositioned { setGridCoordinates(it) }
     var list = communalContent
     var dragDropState: GridDragDropState? = null
+    var arrangementSpacing = Dimensions.ItemSpacing
     if (viewModel.isEditMode && viewModel is CommunalEditModeViewModel) {
         list = contentListState.list
         // for drag & drop operations within the communal hub grid
@@ -837,6 +896,9 @@ private fun BoxScope.CommunalHubLazyGrid(
         Box(Modifier.fillMaxSize().dragAndDropTarget(dragAndDropTargetState)) {}
     } else if (communalResponsiveGrid()) {
         gridModifier = gridModifier.fillMaxSize()
+        if (isCompactWindow()) {
+            arrangementSpacing = Dimensions.ItemSpacingCompact
+        }
     } else {
         gridModifier = gridModifier.height(hubDimensions.GridHeight)
     }
@@ -844,7 +906,10 @@ private fun BoxScope.CommunalHubLazyGrid(
     HorizontalGridWrapper(
         modifier = gridModifier,
         gridState = gridState,
+        dragDropState = dragDropState,
         minContentPadding = minContentPadding,
+        minHorizontalArrangement = arrangementSpacing,
+        minVerticalArrangement = arrangementSpacing,
         setContentOffset = setContentOffset,
     ) { sizeInfo ->
         /** Override spans based on the responsive grid size */
@@ -909,13 +974,15 @@ private fun BoxScope.CommunalHubLazyGrid(
                         Arrangement.spacedBy(
                             sizeInfo?.verticalArrangement ?: Dimensions.ItemSpacing
                         ),
-                    enabled = selected,
+                    enabled = selected && !isItemDragging,
                     alpha = { outlineAlpha },
                     modifier =
                         Modifier.requiredSize(dpSize)
                             .thenIf(!isItemDragging) {
                                 Modifier.animateItem(
-                                    placementSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                    placementSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                    // See b/376495198 - not supported with AndroidView
+                                    fadeOutSpec = null,
                                 )
                             }
                             .thenIf(isItemDragging) { Modifier.zIndex(1f) },
@@ -947,18 +1014,37 @@ private fun BoxScope.CommunalHubLazyGrid(
                     }
                 }
             } else {
+                val itemAlpha =
+                    if (communalResponsiveGrid()) {
+                        val percentVisible by
+                            remember(gridState, index) {
+                                derivedStateOf { calculatePercentVisible(gridState, index) }
+                            }
+                        animateFloatAsState(percentVisible)
+                    } else {
+                        null
+                    }
+
                 CommunalContent(
                     model = item,
                     viewModel = viewModel,
                     size = size,
                     selected = false,
-                    modifier = Modifier.requiredSize(dpSize).animateItem(),
+                    modifier =
+                        Modifier.requiredSize(dpSize)
+                            .animateItem(
+                                // See b/376495198 - not supported with AndroidView
+                                fadeOutSpec = null
+                            )
+                            .thenIf(communalResponsiveGrid()) {
+                                Modifier.graphicsLayer { alpha = itemAlpha?.value ?: 1f }
+                            },
                     index = index,
                     contentListState = contentListState,
                     interactionHandler = interactionHandler,
                     widgetSection = widgetSection,
                     resizeableItemFrameViewModel = resizeableItemFrameViewModel,
-                    sceneScope = sceneScope,
+                    contentScope = contentScope,
                 )
             }
         }
@@ -973,8 +1059,11 @@ private fun EmptyStateCta(contentPadding: PaddingValues, viewModel: BaseCommunal
     val colors = MaterialTheme.colorScheme
     Card(
         modifier = Modifier.height(hubDimensions.GridHeight).padding(contentPadding),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(3.adjustedDp, colors.secondary),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+            ),
         shape = RoundedCornerShape(size = 80.adjustedDp),
     ) {
         Column(
@@ -984,31 +1073,34 @@ private fun EmptyStateCta(contentPadding: PaddingValues, viewModel: BaseCommunal
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val titleForEmptyStateCTA = stringResource(R.string.title_for_empty_state_cta)
-            Text(
+            BasicText(
                 text = titleForEmptyStateCTA,
-                style = MaterialTheme.typography.displaySmall,
-                textAlign = TextAlign.Center,
-                color = colors.primary,
+                style =
+                    MaterialTheme.typography.displaySmall.merge(
+                        color = colors.onPrimary,
+                        textAlign = TextAlign.Center,
+                    ),
+                autoSize = TextAutoSize.StepBased(maxFontSize = 36.sp, stepSize = 0.1.sp),
                 modifier =
                     Modifier.focusable().semantics(mergeDescendants = true) {
                         contentDescription = titleForEmptyStateCTA
                         heading()
                     },
             )
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 Button(
                     modifier = Modifier.height(56.dp),
                     colors =
                         ButtonDefaults.buttonColors(
-                            containerColor = colors.primary,
-                            contentColor = colors.onPrimary,
+                            containerColor = colors.primaryContainer,
+                            contentColor = colors.onPrimaryContainer,
                         ),
                     onClick = { viewModel.onOpenWidgetEditor(shouldOpenWidgetPickerOnStart = true) },
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription =
-                            stringResource(R.string.label_for_button_in_empty_state_cta),
+                        contentDescription = null,
                         modifier = Modifier.size(24.dp),
                     )
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
@@ -1058,17 +1150,27 @@ private fun Toolbar(
                 .onSizeChanged { setToolbarSize(it) }
     ) {
         val addWidgetText = stringResource(R.string.hub_mode_add_widget_button_text)
-        ToolbarButton(
-            isPrimary = !removeEnabled,
-            modifier = Modifier.align(Alignment.CenterStart),
-            onClick = onOpenWidgetPicker,
-        ) {
-            Icon(Icons.Default.Add, null)
-            Text(text = addWidgetText)
+
+        if (!(Flags.hubEditModeTouchAdjustments() && removeEnabled)) {
+            ToolbarButton(
+                isPrimary = !removeEnabled,
+                modifier = Modifier.align(Alignment.CenterStart),
+                onClick = onOpenWidgetPicker,
+            ) {
+                Icon(Icons.Default.Add, null)
+                Text(text = addWidgetText)
+            }
         }
 
         AnimatedVisibility(
-            modifier = Modifier.align(Alignment.Center),
+            modifier =
+                Modifier.align(
+                    if (Flags.hubEditModeTouchAdjustments()) {
+                        Alignment.CenterStart
+                    } else {
+                        Alignment.Center
+                    }
+                ),
             visible = removeEnabled,
             enter = fadeIn(),
             exit = fadeOut(),
@@ -1091,7 +1193,11 @@ private fun Toolbar(
                     horizontalArrangement =
                         Arrangement.spacedBy(
                             ButtonDefaults.IconSpacing,
-                            Alignment.CenterHorizontally,
+                            if (Flags.hubEditModeTouchAdjustments()) {
+                                Alignment.Start
+                            } else {
+                                Alignment.CenterHorizontally
+                            },
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1189,7 +1295,7 @@ private fun CommunalContent(
     interactionHandler: RemoteViews.InteractionHandler?,
     widgetSection: CommunalAppWidgetSection,
     resizeableItemFrameViewModel: ResizeableItemFrameViewModel,
-    sceneScope: SceneScope? = null,
+    contentScope: ContentScope? = null,
 ) {
     when (model) {
         is CommunalContentModel.WidgetContent.Widget ->
@@ -1213,7 +1319,7 @@ private fun CommunalContent(
         is CommunalContentModel.CtaTileInViewMode -> CtaTileInViewModeContent(viewModel, modifier)
         is CommunalContentModel.Smartspace -> SmartspaceContent(interactionHandler, model, modifier)
         is CommunalContentModel.Tutorial -> TutorialContent(modifier)
-        is CommunalContentModel.Umo -> Umo(viewModel, sceneScope, modifier)
+        is CommunalContentModel.Umo -> Umo(viewModel, contentScope, modifier)
         is CommunalContentModel.Spacer -> Box(Modifier.fillMaxSize())
     }
 }
@@ -1352,6 +1458,7 @@ private fun WidgetContent(
     val shrinkWidgetLabel = stringResource(R.string.accessibility_action_label_shrink_widget)
     val expandWidgetLabel = stringResource(R.string.accessibility_action_label_expand_widget)
 
+    val isFocusable by viewModel.isFocusable.collectAsStateWithLifecycle(initialValue = false)
     val selectedKey by viewModel.selectedKey.collectAsStateWithLifecycle()
     val selectedIndex =
         selectedKey?.let { key -> contentListState.list.indexOfFirst { it.key == key } }
@@ -1378,7 +1485,6 @@ private fun WidgetContent(
         } else {
             Modifier
         }
-
     Box(
         modifier =
             modifier
@@ -1465,7 +1571,11 @@ private fun WidgetContent(
     ) {
         with(widgetSection) {
             Widget(
-                viewModel = viewModel,
+                isFocusable = isFocusable,
+                openWidgetEditor = {
+                    viewModel.setSelectedKey(model.key)
+                    viewModel.onOpenWidgetEditor()
+                },
                 model = model,
                 size = size,
                 modifier = Modifier.fillMaxSize().allowGestures(allowed = !viewModel.isEditMode),
@@ -1627,18 +1737,41 @@ private fun TutorialContent(modifier: Modifier = Modifier) {
 @Composable
 private fun Umo(
     viewModel: BaseCommunalViewModel,
-    sceneScope: SceneScope?,
+    contentScope: ContentScope?,
     modifier: Modifier = Modifier,
 ) {
-    if (SceneContainerFlag.isEnabled && sceneScope != null) {
-        sceneScope.MediaCarousel(
-            modifier = modifier.fillMaxSize(),
-            isVisible = true,
-            mediaHost = viewModel.mediaHost,
-            carouselController = viewModel.mediaCarouselController,
-        )
-    } else {
-        UmoLegacy(viewModel, modifier)
+    val showNextActionLabel = stringResource(R.string.accessibility_action_label_umo_show_next)
+    val showPreviousActionLabel =
+        stringResource(R.string.accessibility_action_label_umo_show_previous)
+
+    Box(
+        modifier =
+            modifier.thenIf(!viewModel.isEditMode) {
+                Modifier.semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(showNextActionLabel) {
+                                viewModel.onShowNextMedia()
+                                true
+                            },
+                            CustomAccessibilityAction(showPreviousActionLabel) {
+                                viewModel.onShowPreviousMedia()
+                                true
+                            },
+                        )
+                }
+            }
+    ) {
+        if (SceneContainerFlag.isEnabled && contentScope != null) {
+            contentScope.MediaCarousel(
+                modifier = modifier.fillMaxSize(),
+                isVisible = true,
+                mediaHost = viewModel.mediaHost,
+                carouselController = viewModel.mediaCarouselController,
+            )
+        } else {
+            UmoLegacy(viewModel, modifier)
+        }
     }
 }
 
@@ -1646,23 +1779,29 @@ private fun Umo(
 private fun UmoLegacy(viewModel: BaseCommunalViewModel, modifier: Modifier = Modifier) {
     AndroidView(
         modifier =
-            modifier.pointerInput(Unit) {
-                detectHorizontalDragGestures { change, _ ->
-                    change.consume()
-                    val upTime = SystemClock.uptimeMillis()
-                    val event =
-                        MotionEvent.obtain(
-                            upTime,
-                            upTime,
-                            MotionEvent.ACTION_MOVE,
-                            change.position.x,
-                            change.position.y,
-                            0,
-                        )
-                    viewModel.mediaHost.hostView.dispatchTouchEvent(event)
-                    event.recycle()
-                }
-            },
+            modifier
+                .clip(
+                    shape =
+                        RoundedCornerShape(dimensionResource(R.dimen.notification_corner_radius))
+                )
+                .background(MaterialTheme.colorScheme.primary)
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures { change, _ ->
+                        change.consume()
+                        val upTime = SystemClock.uptimeMillis()
+                        val event =
+                            MotionEvent.obtain(
+                                upTime,
+                                upTime,
+                                MotionEvent.ACTION_MOVE,
+                                change.position.x,
+                                change.position.y,
+                                0,
+                            )
+                        viewModel.mediaHost.hostView.dispatchTouchEvent(event)
+                        event.recycle()
+                    }
+                },
         factory = { _ ->
             viewModel.mediaHost.hostView.apply {
                 layoutParams =
@@ -1708,6 +1847,7 @@ fun AccessibilityContainer(viewModel: BaseCommunalViewModel, content: @Composabl
                             CustomAccessibilityAction(
                                 context.getString(R.string.accessibility_action_label_edit_widgets)
                             ) {
+                                viewModel.setSelectedKey(null)
                                 viewModel.onOpenWidgetEditor()
                                 true
                             },
@@ -1734,11 +1874,21 @@ private fun nonScalableTextSize(sizeInDp: Dp) = with(LocalDensity.current) { siz
 @Composable
 private fun gridContentPadding(isEditMode: Boolean, toolbarSize: IntSize?): PaddingValues {
     if (!isEditMode || toolbarSize == null) {
-        return PaddingValues(
-            start = Dimensions.ItemSpacing,
-            end = Dimensions.ItemSpacing,
-            top = hubDimensions.GridTopSpacing,
-        )
+        return if (communalResponsiveGrid()) {
+            val horizontalPaddings: Dp =
+                if (isCompactWindow()) {
+                    horizontalPaddingWithInsets(Dimensions.ItemSpacingCompact)
+                } else {
+                    Dimensions.ItemSpacing
+                }
+            PaddingValues(start = horizontalPaddings, end = horizontalPaddings)
+        } else {
+            PaddingValues(
+                start = Dimensions.ItemSpacing,
+                end = Dimensions.ItemSpacing,
+                top = hubDimensions.GridTopSpacing,
+            )
+        }
     }
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -1762,6 +1912,16 @@ private fun gridContentPadding(isEditMode: Boolean, toolbarSize: IntSize?): Padd
             top = verticalPadding + toolbarHeight,
             bottom = verticalPadding,
         )
+    }
+}
+
+/** Compact size in landscape or portrait */
+@Composable
+fun isCompactWindow(): Boolean {
+    val windowSizeClass = LocalWindowSizeClass.current
+    return remember(windowSizeClass) {
+        windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact ||
+            windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
     }
 }
 
@@ -1805,6 +1965,9 @@ class Dimensions(val context: Context, val config: Configuration) {
     companion object {
         val CardHeightFull
             get() = 530.adjustedDp
+
+        val ItemSpacingCompact
+            get() = 12.adjustedDp
 
         val ItemSpacing
             get() = if (communalResponsiveGrid()) 32.adjustedDp else 50.adjustedDp
@@ -1855,6 +2018,44 @@ private fun CommunalContentModel.getSpanOrMax(maxSpan: Int?) =
     } else {
         size.span
     }
+
+private fun IntRect.percentOverlap(other: IntRect): Float {
+    val intersection = intersect(other)
+    if (intersection.width < 0 || intersection.height < 0) {
+        return 0f
+    }
+    val overlapArea = intersection.width * intersection.height
+    val area = width * height
+    return overlapArea.toFloat() / area.toFloat()
+}
+
+private fun calculatePercentVisible(state: LazyGridState, index: Int): Float {
+    val viewportSize = state.layoutInfo.viewportSize
+    val visibleRect =
+        IntRect(
+            offset =
+                IntOffset(
+                    state.layoutInfo.viewportStartOffset + state.layoutInfo.beforeContentPadding,
+                    0,
+                ),
+            size =
+                IntSize(
+                    width =
+                        viewportSize.width -
+                            state.layoutInfo.beforeContentPadding -
+                            state.layoutInfo.afterContentPadding,
+                    height = viewportSize.height,
+                ),
+        )
+
+    val itemInfo = state.layoutInfo.visibleItemsInfo.find { it.index == index }
+    return if (itemInfo != null) {
+        val boundingBox = IntRect(itemInfo.offset, itemInfo.size)
+        boundingBox.percentOverlap(visibleRect)
+    } else {
+        0f
+    }
+}
 
 private object Colors {
     val DisabledColorFilter by lazy { disabledColorMatrix() }

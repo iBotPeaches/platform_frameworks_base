@@ -22,7 +22,6 @@ import android.view.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.compose.animation.scene.SceneKey
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.authentication.data.repository.fakeAuthenticationRepository
 import com.android.systemui.authentication.domain.interactor.authenticationInteractor
@@ -38,7 +37,7 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.lifecycle.activateIn
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.sceneInteractor
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.model.SelectedUserModel
 import com.android.systemui.user.data.model.SelectionStatus
@@ -47,7 +46,6 @@ import com.android.systemui.user.domain.interactor.selectedUserInteractor
 import com.google.common.truth.Truth.assertThat
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -57,7 +55,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class PasswordBouncerViewModelTest : SysuiTestCase() {
@@ -88,12 +85,12 @@ class PasswordBouncerViewModelTest : SysuiTestCase() {
     @Test
     fun onShown() =
         testScope.runTest {
-            val currentScene by collectLastValue(sceneInteractor.currentScene)
+            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             val password by collectLastValue(underTest.password)
             lockDeviceAndOpenPasswordBouncer()
 
             assertThat(password).isEmpty()
-            assertThat(currentScene).isEqualTo(Scenes.Bouncer)
+            assertThat(currentOverlays).contains(Overlays.Bouncer)
             assertThat(underTest.authenticationMethod).isEqualTo(AuthenticationMethodModel.Password)
         }
 
@@ -113,14 +110,14 @@ class PasswordBouncerViewModelTest : SysuiTestCase() {
     @Test
     fun onPasswordInputChanged() =
         testScope.runTest {
-            val currentScene by collectLastValue(sceneInteractor.currentScene)
+            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             val password by collectLastValue(underTest.password)
             lockDeviceAndOpenPasswordBouncer()
 
             underTest.onPasswordInputChanged("password")
 
             assertThat(password).isEqualTo("password")
-            assertThat(currentScene).isEqualTo(Scenes.Bouncer)
+            assertThat(currentOverlays).contains(Overlays.Bouncer)
         }
 
     @Test
@@ -154,7 +151,7 @@ class PasswordBouncerViewModelTest : SysuiTestCase() {
             kosmos.fakeAuthenticationRepository.setAuthenticationMethod(
                 AuthenticationMethodModel.Password
             )
-            switchToScene(Scenes.Bouncer)
+            showBouncer()
 
             // No input entered.
 
@@ -187,7 +184,7 @@ class PasswordBouncerViewModelTest : SysuiTestCase() {
     @Test
     fun onShown_againAfterSceneChange_resetsPassword() =
         testScope.runTest {
-            val currentScene by collectLastValue(sceneInteractor.currentScene)
+            val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
             val password by collectLastValue(underTest.password)
             lockDeviceAndOpenPasswordBouncer()
 
@@ -196,14 +193,14 @@ class PasswordBouncerViewModelTest : SysuiTestCase() {
             assertThat(password).isEqualTo("password")
 
             // The user doesn't confirm the password, but navigates back to the lockscreen instead.
-            switchToScene(Scenes.Lockscreen)
+            hideBouncer()
 
             // The user navigates to the bouncer again.
-            switchToScene(Scenes.Bouncer)
+            showBouncer()
 
             // Ensure the previously-entered password is not shown.
             assertThat(password).isEmpty()
-            assertThat(currentScene).isEqualTo(Scenes.Bouncer)
+            assertThat(currentOverlays).contains(Overlays.Bouncer)
         }
 
     @Test
@@ -381,21 +378,28 @@ class PasswordBouncerViewModelTest : SysuiTestCase() {
         assertThat(underTest.onKeyEvent(KeyEventType.KeyDown, KeyEvent.KEYCODE_SPACE)).isFalse()
     }
 
-    private fun TestScope.switchToScene(toScene: SceneKey) {
-        val currentScene by collectLastValue(sceneInteractor.currentScene)
-        val bouncerHidden = currentScene == Scenes.Bouncer && toScene != Scenes.Bouncer
-        sceneInteractor.changeScene(toScene, "reason")
-        if (bouncerHidden) underTest.onHidden()
+    private fun TestScope.showBouncer() {
+        val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
+        sceneInteractor.showOverlay(Overlays.Bouncer, "reason")
         runCurrent()
 
-        assertThat(currentScene).isEqualTo(toScene)
+        assertThat(currentOverlays).contains(Overlays.Bouncer)
+    }
+
+    private fun TestScope.hideBouncer() {
+        val currentOverlays by collectLastValue(sceneInteractor.currentOverlays)
+        sceneInteractor.hideOverlay(Overlays.Bouncer, "reason")
+        underTest.onHidden()
+        runCurrent()
+
+        assertThat(currentOverlays).doesNotContain(Overlays.Bouncer)
     }
 
     private fun TestScope.lockDeviceAndOpenPasswordBouncer() {
         kosmos.fakeAuthenticationRepository.setAuthenticationMethod(
             AuthenticationMethodModel.Password
         )
-        switchToScene(Scenes.Bouncer)
+        showBouncer()
     }
 
     private suspend fun TestScope.setLockout(isLockedOut: Boolean, failedAttemptCount: Int = 5) {

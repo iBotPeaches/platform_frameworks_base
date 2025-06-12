@@ -29,8 +29,8 @@ import static junit.framework.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -79,7 +79,7 @@ public class AccessibilityCacheTest {
     @Before
     public void setUp() {
         mAccessibilityNodeRefresher = mock(AccessibilityCache.AccessibilityNodeRefresher.class);
-        when(mAccessibilityNodeRefresher.refreshNode(anyObject(), anyBoolean())).thenReturn(true);
+        when(mAccessibilityNodeRefresher.refreshNode(any(), anyBoolean())).thenReturn(true);
         mAccessibilityCache = new AccessibilityCache(mAccessibilityNodeRefresher);
     }
 
@@ -854,7 +854,7 @@ public class AccessibilityCacheTest {
                 try {
                     assertEventTypeClearsNode(eventType, false);
                     verify(mAccessibilityNodeRefresher, never())
-                            .refreshNode(anyObject(), anyBoolean());
+                            .refreshNode(any(), anyBoolean());
                 } catch (Throwable e) {
                     throw new AssertionError(
                             "Failed for eventType: " + AccessibilityEvent.eventTypeToString(

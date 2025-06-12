@@ -28,7 +28,7 @@ import com.android.internal.widget.remotecompose.core.documentation.Documentatio
 import java.util.List;
 
 /** Represents the content of a CanvasLayout (i.e. contains the canvas commands) */
-public class CanvasContent extends Component implements ComponentStartOperation {
+public class CanvasContent extends Component {
 
     public CanvasContent(
             int componentId,
@@ -66,6 +66,12 @@ public class CanvasContent extends Component implements ComponentStartOperation 
         return "CANVAS_CONTENT";
     }
 
+    /**
+     * Write the operation on the buffer
+     *
+     * @param buffer
+     * @param componentId
+     */
     public static void apply(@NonNull WireBuffer buffer, int componentId) {
         buffer.start(Operations.LAYOUT_CANVAS_CONTENT);
         buffer.writeInt(componentId);

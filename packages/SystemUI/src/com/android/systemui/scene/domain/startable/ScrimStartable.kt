@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.scene.domain.startable
 
 import androidx.annotation.VisibleForTesting
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.OverlayKey
@@ -37,7 +36,7 @@ import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractor
+import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractorPassThrough
 import com.android.systemui.statusbar.phone.DozeServiceHost
 import com.android.systemui.statusbar.phone.ScrimController
 import com.android.systemui.statusbar.phone.ScrimState
@@ -45,14 +44,12 @@ import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 @SysUISingleton
 class ScrimStartable
@@ -67,7 +64,7 @@ constructor(
     biometricUnlockInteractor: BiometricUnlockInteractor,
     private val statusBarKeyguardViewManager: StatusBarKeyguardViewManager,
     private val alternateBouncerInteractor: AlternateBouncerInteractor,
-    brightnessMirrorShowingInteractor: BrightnessMirrorShowingInteractor,
+    brightnessMirrorShowingInteractor: BrightnessMirrorShowingInteractorPassThrough,
     private val dozeServiceHost: DozeServiceHost,
 ) : CoreStartable {
 
@@ -111,12 +108,12 @@ constructor(
                 // This is true when the lockscreen scene is either the current scene or somewhere
                 // in the navigation back stack of scenes.
                 val isOnKeyguard = !isDeviceEntered
-                val isCurrentSceneBouncer = currentScene == Scenes.Bouncer
-                // This is true when moving away from one of the keyguard scenes to the gone scene.
+                val isOnBouncer = Overlays.Bouncer in currentOverlays
+                // This is true when moving away from the lockscreen scene to the gone scene.
                 // It happens only when unlocking or when dismissing a dismissible lockscreen.
                 val isTransitioningAwayFromKeyguard =
                     transitionState is ObservableTransitionState.Transition.ChangeScene &&
-                        transitionState.fromScene.isKeyguard() &&
+                        transitionState.fromScene == Scenes.Lockscreen &&
                         transitionState.toScene == Scenes.Gone
 
                 // This is true when any of the shade scenes or overlays is the current content.
@@ -147,7 +144,7 @@ constructor(
                         // Assume scrim state for shade is already correct and do nothing
                         null
                     }
-                } else if (isCurrentSceneBouncer && !unlocking) {
+                } else if (isOnBouncer && !unlocking) {
                     // Bouncer needs the front scrim when it's on top of an activity, tapping on a
                     // notification, editing QS or being dismissed by
                     // FLAG_DISMISS_KEYGUARD_ACTIVITY.
@@ -216,10 +213,6 @@ constructor(
         if (isKeyguardGoingAway) {
             statusBarKeyguardViewManager.onKeyguardFadedAway()
         }
-    }
-
-    private fun SceneKey.isKeyguard(): Boolean {
-        return this == Scenes.Lockscreen || this == Scenes.Bouncer
     }
 
     private fun ContentKey.isShade(): Boolean {

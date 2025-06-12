@@ -45,6 +45,7 @@
         android:maxDrawableWidth="@dimen/notification_icon_circle_size"
         android:maxDrawableHeight="@dimen/notification_icon_circle_size"
         android:scaleType="centerCrop"
+        android:visibility="gone"
         android:importantForAccessibility="no"
         />
     <ViewStub

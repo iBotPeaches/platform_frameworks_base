@@ -16,12 +16,14 @@
 package com.android.server.wm;
 
 import android.annotation.Nullable;
+import android.hardware.HardwareBuffer;
 import android.util.ArrayMap;
 import android.window.TaskSnapshot;
 
 import com.android.internal.annotations.GuardedBy;
 
 import java.io.PrintWriter;
+import java.util.function.Consumer;
 
 /**
  * Base class for an app snapshot cache
@@ -38,11 +40,17 @@ abstract class SnapshotCache<TYPE extends WindowContainer> {
     @GuardedBy("mLock")
     protected final ArrayMap<Integer, CacheEntry> mRunningCache = new ArrayMap<>();
 
+    protected Consumer<HardwareBuffer> mSafeSnapshotReleaser;
+
     SnapshotCache(String name) {
         mName = name;
     }
 
     abstract void putSnapshot(TYPE window, TaskSnapshot snapshot);
+
+    void setSafeSnapshotReleaser(Consumer<HardwareBuffer> safeSnapshotReleaser) {
+        mSafeSnapshotReleaser = safeSnapshotReleaser;
+    }
 
     void clearRunningCache() {
         synchronized (mLock) {
@@ -51,7 +59,7 @@ abstract class SnapshotCache<TYPE extends WindowContainer> {
     }
 
     @Nullable
-    final TaskSnapshot getSnapshot(Integer id) {
+    final TaskSnapshot getSnapshotInner(Integer id) {
         synchronized (mLock) {
             // Try the running cache.
             final CacheEntry entry = mRunningCache.get(id);

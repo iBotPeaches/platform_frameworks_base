@@ -27,10 +27,10 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.when;
 
+import android.annotation.SuppressLint;
 import android.hardware.power.stats.EnergyConsumerType;
 import android.os.BatteryConsumer;
 import android.os.Handler;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import com.android.internal.os.Clock;
 import com.android.internal.os.PowerProfile;
@@ -51,11 +51,6 @@ import org.mockito.MockitoAnnotations;
 public class AmbientDisplayPowerStatsProcessorTest {
 
     @Rule(order = 0)
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
-
-    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule()
             .setNumDisplays(2)
             .setAveragePowerForOrdinal(PowerProfile.POWER_GROUP_DISPLAY_AMBIENT, 0, 180.0)
@@ -166,6 +161,7 @@ public class AmbientDisplayPowerStatsProcessorTest {
         return stats.getPowerComponentStats(BatteryConsumer.POWER_COMPONENT_AMBIENT_DISPLAY);
     }
 
+    @SuppressLint("CheckResult")
     private void assertPowerEstimate(
             PowerComponentAggregatedPowerStats aggregatedStats,
             int powerState, int screenState, double expectedPowerEstimate) {

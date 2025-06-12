@@ -321,13 +321,25 @@ public class LogModule {
     }
 
     /**
+     * Provides a {@link LogBuffer} for keyguard blueprint logs.
+     */
+    @Provides
+    @SysUISingleton
+    @KeyguardBlueprintLog
+    public static LogBuffer provideKeyguardBlueprintLog(LogBufferFactory factory) {
+        // TODO(b/389987229): Reduce back to 100
+        return factory.create("KeyguardBlueprintLog", 1000);
+    }
+
+    /**
      * Provides a {@link LogBuffer} for general keyguard clock logs.
      */
     @Provides
     @SysUISingleton
     @KeyguardClockLog
     public static LogBuffer provideKeyguardClockLog(LogBufferFactory factory) {
-        return factory.create("KeyguardClockLog", 100);
+        // TODO(b/389987229): Reduce back to 100
+        return factory.create("KeyguardClockLog", 1000);
     }
 
     /**
@@ -337,7 +349,8 @@ public class LogModule {
     @SysUISingleton
     @KeyguardSmallClockLog
     public static LogBuffer provideKeyguardSmallClockLog(LogBufferFactory factory) {
-        return factory.create("KeyguardSmallClockLog", 100);
+        // TODO(b/389987229): Reduce back to 100
+        return factory.create("KeyguardSmallClockLog", 1000);
     }
 
     /**
@@ -347,7 +360,8 @@ public class LogModule {
     @SysUISingleton
     @KeyguardLargeClockLog
     public static LogBuffer provideKeyguardLargeClockLog(LogBufferFactory factory) {
-        return factory.create("KeyguardLargeClockLog", 100);
+        // TODO(b/389987229): Reduce back to 100
+        return factory.create("KeyguardLargeClockLog", 1000);
     }
 
     /**

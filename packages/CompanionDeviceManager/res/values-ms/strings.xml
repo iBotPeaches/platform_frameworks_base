@@ -18,9 +18,15 @@
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="4470785958457506021">"Pengurus Peranti Rakan"</string>
     <string name="confirmation_title" msgid="2244241995958340998">"Benarkan apl &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; mengakses &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="message_discovery_soft_timeout" msgid="473346859407859161">"Pastikan <xliff:g id="DISCOVERY_METHOD">%2$s</xliff:g> telah dihidupkan pada <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> ini dan pastikan <xliff:g id="PROFILE_NAME">%3$s</xliff:g> berada berdekatan."</string>
+    <string name="message_discovery_hard_timeout" msgid="677514663495711424">"Tiada peranti ditemukan. Sila cuba sebentar lagi."</string>
+    <string name="discovery_bluetooth" msgid="5693557668470016164">"Bluetooth"</string>
+    <string name="discovery_wifi" msgid="1551782459721758773">"Wi-Fi"</string>
+    <string name="discovery_mixed" msgid="7071466134150760127">"Bluetooth dan Wi-Fi"</string>
     <string name="profile_name_watch" msgid="576290739483672360">"jam tangan"</string>
     <string name="chooser_title_non_profile" msgid="6035023914517087400">"Pilih peranti untuk diurus oleh &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt;"</string>
     <string name="chooser_title" msgid="2235819929238267637">"Pilih <xliff:g id="PROFILE_NAME">%1$s</xliff:g> untuk disediakan"</string>
+    <string name="single_device_title" msgid="4199861437545438606">"Mencari <xliff:g id="PROFILE_NAME">%1$s</xliff:g>"</string>
     <string name="summary_watch" msgid="8134580124808507407">"Apl ini akan dibenarkan untuk menyegerakkan maklumat, seperti nama individu yang membuat panggilan dan mengakses kebenaran ini pada <xliff:g id="DEVICE_TYPE">%1$s</xliff:g> anda"</string>
     <string name="confirmation_title_glasses" msgid="8288346850537727333">"Benarkan &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; mengurus &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="profile_name_glasses" msgid="3506504967216601277">"peranti"</string>
@@ -36,12 +42,16 @@
     <string name="title_nearby_device_streaming" msgid="2727103756701741359">"Benarkan &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; untuk menstrim apl <xliff:g id="DEVICE_TYPE">%2$s</xliff:g> anda kepada &lt;strong&gt;<xliff:g id="DEVICE_NAME">%3$s</xliff:g>&lt;/strong&gt;?"</string>
     <string name="summary_nearby_device_streaming" msgid="70434958004946884">"<xliff:g id="APP_NAME_0">%1$s</xliff:g> akan mendapat akses kepada semua kandungan yang dipaparkan atau dimainkan pada <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>, termasuk audio, foto, maklumat pembayaran, kata laluan dan mesej.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%1$s</xliff:g> akan dapat menstrim apl kepada <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> sehingga anda mengalih keluar akses kepada kebenaran ini."</string>
     <string name="helper_summary_nearby_device_streaming" msgid="4712712177819370967">"<xliff:g id="APP_NAME">%1$s</xliff:g> meminta kebenaran bagi pihak <xliff:g id="DEVICE_NAME">%2$s</xliff:g> untuk menstrim apl daripada <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> anda"</string>
+    <string name="title_virtual_device" msgid="6556338763070329395">"Benarkan &lt;strong&gt;<xliff:g id="APP_NAME">%1$s</xliff:g>&lt;/strong&gt; menstrim audio dan ciri sistem antara <xliff:g id="DEVICE_TYPE">%3$s</xliff:g> anda dengan &lt;strong&gt;<xliff:g id="DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>
+    <string name="summary_virtual_device" msgid="3502592544171322817">"<xliff:g id="APP_NAME_0">%2$s</xliff:g> akan mendapat akses kepada semua kandungan yang dimainkan pada <xliff:g id="DEVICE_NAME_1">%3$s</xliff:g>.&lt;br/&gt;&lt;br/&gt;<xliff:g id="APP_NAME_2">%2$s</xliff:g> akan dapat menstrim audio kepada <xliff:g id="DEVICE_NAME_3">%3$s</xliff:g> sehingga anda mengalih keluar akses kepada kebenaran ini."</string>
     <string name="profile_name_generic" msgid="6851028682723034988">"peranti"</string>
     <string name="summary_generic" msgid="1761976003668044801">"Apl ini akan dapat menyegerakkan maklumat seperti nama individu yang memanggil, antara telefon anda dengan peranti yang dipilih"</string>
     <string name="consent_yes" msgid="8344487259618762872">"Benarkan"</string>
     <string name="consent_no" msgid="2640796915611404382">"Jangan benarkan"</string>
     <string name="consent_cancel" msgid="5655005528379285841">"Batal"</string>
     <string name="consent_back" msgid="2560683030046918882">"Kembali"</string>
+    <string name="downward_arrow_action" msgid="2327165938832076333">"Tatal ke bawah senarai"</string>
+    <string name="downward_arrow" msgid="2292427714411156088">"Anak panah ke bawah"</string>
     <string name="permission_expand" msgid="893185038020887411">"Kembangkan <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_collapse" msgid="3320833884220844084">"Kuncupkan <xliff:g id="PERMISSION_TYPE">%1$s</xliff:g>"</string>
     <string name="permission_sync_confirmation_title" msgid="4409622174437248702">"Beri apl pada &lt;strong&gt;<xliff:g id="COMPANION_DEVICE_NAME">%1$s</xliff:g>&lt;/strong&gt; kebenaran yang sama seperti pada &lt;strong&gt;<xliff:g id="PRIMARY_DEVICE_NAME">%2$s</xliff:g>&lt;/strong&gt;?"</string>

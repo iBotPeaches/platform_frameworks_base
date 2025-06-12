@@ -22,14 +22,14 @@ import com.google.common.truth.Subject
 import com.google.common.truth.Truth
 
 /** Subclass of [Subject] to simplify verifying [FakeUiEvent] data */
-class UiEventSubject(metadata: FailureMetadata, private val actual: FakeUiEvent) :
+class UiEventSubject(metadata: FailureMetadata, private val actual: FakeUiEvent?) :
     Subject(metadata, actual) {
 
     /** Check that [FakeUiEvent] contains the expected data from the [bubble] passed id */
     fun hasBubbleInfo(bubble: Bubble) {
-        check("uid").that(actual.uid).isEqualTo(bubble.appUid)
-        check("packageName").that(actual.packageName).isEqualTo(bubble.packageName)
-        check("instanceId").that(actual.instanceId).isEqualTo(bubble.instanceId)
+        check("uid").that(actual?.uid).isEqualTo(bubble.appUid)
+        check("packageName").that(actual?.packageName).isEqualTo(bubble.packageName)
+        check("instanceId").that(actual?.instanceId).isEqualTo(bubble.instanceId)
     }
 
     companion object {

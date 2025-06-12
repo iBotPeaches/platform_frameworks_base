@@ -20,7 +20,7 @@ import android.annotation.SuppressLint
 import android.util.Log
 
 @SuppressLint("PrivateApi")
-object SystemProperties {
+internal object SystemProperties {
     private const val TAG = "SystemProperties"
 
     fun getBoolean(key: String, default: Boolean): Boolean = try {

@@ -51,6 +51,7 @@ import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.WeakHashMap;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class Bitmap implements Parcelable {
     private static final String TAG = "Bitmap";
 
@@ -102,6 +103,10 @@ public final class Bitmap implements Parcelable {
 
     private static volatile int sDefaultDensity = -1;
 
+    /**
+     * This id is not authoritative and can be duplicated if an ashmem bitmap is decoded from a
+     * parcel.
+     */
     private long mId;
 
     /**
@@ -750,6 +755,9 @@ public final class Bitmap implements Parcelable {
         if (b != null) {
             b.setPremultiplied(mRequestPremultiplied);
             b.mDensity = mDensity;
+            if (hasGainmap()) {
+                b.setGainmap(getGainmap().asShared());
+            }
         }
         return b;
     }
@@ -762,7 +770,8 @@ public final class Bitmap implements Parcelable {
      */
     @NonNull
     public Bitmap asShared() {
-        if (nativeIsBackedByAshmem(mNativePtr) && nativeIsImmutable(mNativePtr)) {
+        if (nativeIsBackedByAshmem(mNativePtr) && nativeIsImmutable(mNativePtr)
+                && (!hasGainmap() || getGainmap().asShared() == getGainmap())) {
             return this;
         }
         Bitmap shared = createAshmemBitmap();
@@ -2086,7 +2095,7 @@ public final class Bitmap implements Parcelable {
      */
     public void setGainmap(@Nullable Gainmap gainmap) {
         checkRecycled("Bitmap is recycled");
-        mGainmap = null;
+        mGainmap = gainmap;
         nativeSetGainmap(mNativePtr, gainmap == null ? 0 : gainmap.mNativePtr);
     }
 

@@ -16,6 +16,9 @@
 
 package com.android.systemui.statusbar.notification.row;
 
+import static android.app.Flags.FLAG_NOTIFICATIONS_REDESIGN_TEMPLATES;
+
+import static com.android.systemui.log.LogAssertKt.assertRunnableLogsWtf;
 import static com.android.systemui.statusbar.notification.row.NotificationRowContentBinder.FLAG_CONTENT_VIEW_ALL;
 import static com.android.systemui.statusbar.notification.row.NotificationTestHelper.PKG;
 import static com.android.systemui.statusbar.notification.row.NotificationTestHelper.USER_HANDLE;
@@ -29,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -57,6 +61,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.internal.R;
+import com.android.internal.logging.MetricsLogger;
 import com.android.internal.widget.CachingIconView;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.SysuiTestableContext;
@@ -64,13 +69,24 @@ import com.android.systemui.flags.FakeFeatureFlagsClassic;
 import com.android.systemui.flags.Flags;
 import com.android.systemui.plugins.statusbar.NotificationMenuRowPlugin;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
+import com.android.systemui.statusbar.chips.notification.shared.StatusBarNotifChips;
 import com.android.systemui.statusbar.notification.AboveShelfChangedListener;
 import com.android.systemui.statusbar.notification.FeedbackIcon;
+import com.android.systemui.statusbar.notification.NotificationActivityStarter;
 import com.android.systemui.statusbar.notification.SourceType;
+import com.android.systemui.statusbar.notification.collection.EntryAdapter;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
+import com.android.systemui.statusbar.notification.collection.NotificationEntryAdapter;
+import com.android.systemui.statusbar.notification.collection.coordinator.VisualStabilityCoordinator;
+import com.android.systemui.statusbar.notification.collection.provider.HighPriorityProvider;
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
 import com.android.systemui.statusbar.notification.headsup.PinnedStatus;
+import com.android.systemui.statusbar.notification.people.PeopleNotificationIdentifier;
+import com.android.systemui.statusbar.notification.promoted.PromotedNotificationUi;
 import com.android.systemui.statusbar.notification.row.ExpandableView.OnHeightChangedListener;
+import com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProvider;
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationViewWrapper;
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 import com.android.systemui.statusbar.notification.shared.NotificationContentAlphaOptimization;
 import com.android.systemui.statusbar.notification.stack.NotificationChildrenContainer;
 import com.android.systemui.statusbar.phone.KeyguardBypassController;
@@ -165,6 +181,7 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
     public void testUpdateBackgroundColors_isRecursive() throws Exception {
         ExpandableNotificationRow group = mNotificationTestHelper.createGroup();
         group.setTintColor(Color.RED);
@@ -188,6 +205,54 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     }
 
     @Test
+    @EnableFlags(FLAG_NOTIFICATIONS_REDESIGN_TEMPLATES)
+    public void setSensitive_doesNothingIfCalledAgain() throws Exception {
+        ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        measureAndLayout(row);
+
+        // GIVEN a mocked public layout
+        NotificationContentView mockPublicLayout = mock(NotificationContentView.class);
+        row.setPublicLayout(mockPublicLayout);
+
+        // GIVEN a sensitive notification row that's currently redacted
+        row.setHideSensitiveForIntrinsicHeight(true);
+        row.setSensitive(true, true);
+        assertThat(row.getShowingLayout()).isSameInstanceAs(row.getPublicLayout());
+        verify(mockPublicLayout).requestSelectLayout(eq(true));
+        clearInvocations(mockPublicLayout);
+
+        // WHEN the row is set to the same sensitive settings
+        row.setSensitive(true, true);
+
+        // VERIFY that the layout is not updated again
+        assertThat(row.getShowingLayout()).isSameInstanceAs(row.getPublicLayout());
+        verify(mockPublicLayout, never()).requestSelectLayout(anyBoolean());
+    }
+
+    @Test
+    @EnableFlags(FLAG_NOTIFICATIONS_REDESIGN_TEMPLATES)
+    public void testSetSensitiveOnNotifRowUpdatesLayout() throws Exception {
+        // GIVEN a sensitive notification row that's currently redacted
+        ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        measureAndLayout(row);
+        row.setHideSensitiveForIntrinsicHeight(true);
+        row.setSensitive(true, true);
+        assertThat(row.getShowingLayout()).isSameInstanceAs(row.getPublicLayout());
+
+        // GIVEN a mocked private layout
+        NotificationContentView mockPrivateLayout = mock(NotificationContentView.class);
+        row.setPrivateLayout(mockPrivateLayout);
+
+        // WHEN the row is set to no longer be sensitive
+        row.setSensitive(false, true);
+
+        // VERIFY that the layout is updated
+        assertThat(row.getShowingLayout()).isSameInstanceAs(row.getPrivateLayout());
+        verify(mockPrivateLayout).requestSelectLayout(eq(true));
+    }
+
+    @Test
+    @DisableFlags(FLAG_NOTIFICATIONS_REDESIGN_TEMPLATES)
     public void testSetSensitiveOnNotifRowNotifiesOfHeightChange() throws Exception {
         // GIVEN a sensitive notification row that's currently redacted
         ExpandableNotificationRow row = mNotificationTestHelper.createRow();
@@ -369,7 +434,7 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
 
         row.onDensityOrFontScaleChanged();
 
-        verify(mockContainer).reInflateViews(any(), any());
+        verify(mockContainer).reInflateViews(any());
     }
 
     @Test
@@ -518,7 +583,7 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     public void testIconScrollXAfterTranslationAndReset() throws Exception {
         ExpandableNotificationRow group = mNotificationTestHelper.createGroup();
 
-        group.setDismissUsingRowTranslationX(false);
+        group.setDismissUsingRowTranslationX(false, false);
         group.setTranslation(50);
         assertEquals(50, -group.getEntry().getIcons().getShelfIcon().getScrollX());
 
@@ -537,17 +602,18 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     }
 
     @Test
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
     public void testGetIsNonblockable() throws Exception {
         ExpandableNotificationRow row =
                 mNotificationTestHelper.createRow(mNotificationTestHelper.createNotification());
-        row.setEntry(null);
+        row.setEntryLegacy(null);
 
         assertTrue(row.getIsNonblockable());
 
         NotificationEntry entry = mock(NotificationEntry.class);
 
         Mockito.doReturn(false, true).when(entry).isBlockable();
-        row.setEntry(entry);
+        row.setEntryLegacy(entry);
         assertTrue(row.getIsNonblockable());
         assertFalse(row.getIsNonblockable());
     }
@@ -557,7 +623,8 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     public void testCanDismiss_immediately() throws Exception {
         ExpandableNotificationRow row =
                 mNotificationTestHelper.createRow(mNotificationTestHelper.createNotification());
-        when(mNotificationTestHelper.getDismissibilityProvider().isDismissable(row.getEntry()))
+        when(mNotificationTestHelper.getDismissibilityProvider().isDismissable(
+                row.getEntry().getKey()))
                 .thenReturn(true);
         row.performDismiss(false);
         verify(mNotificationTestHelper.getOnUserInteractionCallback())
@@ -569,7 +636,8 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     public void testCanDismiss() throws Exception {
         ExpandableNotificationRow row =
                 mNotificationTestHelper.createRow(mNotificationTestHelper.createNotification());
-        when(mNotificationTestHelper.getDismissibilityProvider().isDismissable(row.getEntry()))
+        when(mNotificationTestHelper.getDismissibilityProvider().isDismissable(
+                row.getEntry().getKey()))
                 .thenReturn(true);
         row.performDismiss(false);
         TestableLooper.get(this).processAllMessages();
@@ -581,7 +649,8 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     public void testCannotDismiss() throws Exception {
         ExpandableNotificationRow row =
                 mNotificationTestHelper.createRow(mNotificationTestHelper.createNotification());
-        when(mNotificationTestHelper.getDismissibilityProvider().isDismissable(row.getEntry()))
+        when(mNotificationTestHelper.getDismissibilityProvider().isDismissable(
+                row.getEntry().getKey()))
                 .thenReturn(false);
         row.performDismiss(false);
         verify(mNotificationTestHelper.getOnUserInteractionCallback(), never())
@@ -611,8 +680,8 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
         Assert.assertTrue(group.getAttachedChildren().isEmpty());
         Assert.assertNotEquals(group, child.getNotificationParent());
         verify(mNotificationTestHelper.getMockLogger()).logSkipAttachingKeepInParentChild(
-                /*child=*/ child.getEntry(),
-                /*newParent=*/ group.getEntry()
+                /*child=*/ child.getLoggingKey(),
+                /*newParent=*/ group.getLoggingKey()
         );
     }
 
@@ -628,7 +697,7 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
         Assert.assertNull(child.getNotificationParent());
         Assert.assertFalse(child.keepInParentForDismissAnimation());
         verify(mNotificationTestHelper.getMockLogger())
-                .logCancelAppearDrawing(child.getEntry(), false);
+                .logCancelAppearDrawing(child.getLoggingKey(), false);
         verifyNoMoreInteractions(mNotificationTestHelper.getMockLogger());
     }
 
@@ -644,8 +713,8 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
         Assert.assertNull(child.getNotificationParent());
         Assert.assertFalse(child.keepInParentForDismissAnimation());
         verify(mNotificationTestHelper.getMockLogger()).logKeepInParentChildDetached(
-                /*child=*/ child.getEntry(),
-                /*oldParent=*/ group.getEntry()
+                /*child=*/ child.getLoggingKey(),
+                /*oldParent=*/ group.getLoggingKey()
         );
     }
 
@@ -878,6 +947,129 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
     }
 
     @Test
+    @EnableFlags(PromotedNotificationUi.FLAG_NAME)
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    public void isExpanded_sensitivePromotedNotification_notExpanded() throws Exception {
+        // GIVEN
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        row.setEntryLegacy(entry);
+        setRowPromotedOngoing(row);
+        row.setSensitive(/* sensitive= */true, /* hideSensitive= */false);
+        row.setHideSensitiveForIntrinsicHeight(/* hideSensitive= */true);
+
+        // THEN
+        assertThat(row.isExpanded()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(PromotedNotificationUi.FLAG_NAME)
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    public void isExpanded_promotedNotificationNotOnKeyguard_expanded() throws Exception {
+        // GIVEN
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        row.setEntryLegacy(entry);
+        setRowPromotedOngoing(row);
+        row.setOnKeyguard(false);
+
+        // THEN
+        assertThat(row.isExpanded()).isTrue();
+    }
+
+    @Test
+    @EnableFlags(PromotedNotificationUi.FLAG_NAME)
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    public void isExpanded_promotedNotificationAllowOnKeyguard_expanded() throws Exception {
+        // GIVEN
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        row.setEntryLegacy(entry);
+        setRowPromotedOngoing(row);
+        row.setOnKeyguard(true);
+
+        // THEN
+        assertThat(row.isExpanded(/* allowOnKeyguard = */ true)).isTrue();
+    }
+
+    @Test
+    @EnableFlags(PromotedNotificationUi.FLAG_NAME)
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    public void isExpanded_promotedNotificationIgnoreLockscreenConstraints_expanded()
+            throws Exception {
+        // GIVEN
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        row.setEntryLegacy(entry);
+        setRowPromotedOngoing(row);
+        row.setOnKeyguard(true);
+        row.setIgnoreLockscreenConstraints(true);
+
+        // THEN
+        assertThat(row.isExpanded()).isTrue();
+    }
+
+    private static void setRowPromotedOngoing(ExpandableNotificationRow row) {
+        final NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        if (NotificationBundleUi.isEnabled()) {
+            final EntryAdapter entryAdapter = new NotificationEntryAdapter(
+                    mock(NotificationActivityStarter.class),
+                    mock(MetricsLogger.class),
+                    mock(PeopleNotificationIdentifier.class),
+                    mock(NotificationIconStyleProvider.class),
+                    mock(VisualStabilityCoordinator.class),
+                    mock(NotificationActionClickManager.class),
+                    mock(HighPriorityProvider.class),
+                    mock(HeadsUpManager.class),
+                    entry);
+            row.setEntryAdapter(entryAdapter);
+        } else {
+            row.setEntryLegacy(entry);
+        }
+    }
+
+    @Test
+    @EnableFlags(PromotedNotificationUi.FLAG_NAME)
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    public void isExpanded_promotedNotificationSaveSpaceOnLockScreen_notExpanded()
+            throws Exception {
+        // GIVEN
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        row.setEntryLegacy(entry);
+        setRowPromotedOngoing(row);
+        row.setOnKeyguard(true);
+        row.setSaveSpaceOnLockscreen(true);
+
+        // THEN
+        assertThat(row.isExpanded()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(PromotedNotificationUi.FLAG_NAME)
+    @DisableFlags(NotificationBundleUi.FLAG_NAME)
+    public void isExpanded_promotedNotificationNotSaveSpaceOnLockScreen_expanded()
+            throws Exception {
+        // GIVEN
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        NotificationEntry entry = mock(NotificationEntry.class);
+        when(entry.isPromotedOngoing()).thenReturn(true);
+        row.setEntryLegacy(entry);
+        setRowPromotedOngoing(row);
+        row.setOnKeyguard(true);
+        row.setSaveSpaceOnLockscreen(false);
+
+        // THEN
+        assertThat(row.isExpanded()).isTrue();
+    }
+
+    @Test
     public void onDisappearAnimationFinished_shouldSetFalse_headsUpAnimatingAway()
             throws Exception {
         final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
@@ -939,6 +1131,81 @@ public class ExpandableNotificationRowTest extends SysuiTestCase {
                 user.getUid(1234), user);
 
         assertThat(row.getImageResolver().getContext()).isSameInstanceAs(userContext);
+    }
+
+    @Test
+    @EnableFlags(com.android.systemui.Flags.FLAG_NOTIFICATIONS_PINNED_HUN_IN_SHADE)
+    public void mustStayOnScreen_false() throws Exception {
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        assertThat(row.mustStayOnScreen()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(com.android.systemui.Flags.FLAG_NOTIFICATIONS_PINNED_HUN_IN_SHADE)
+    public void mustStayOnScreen_isHeadsUp_markedAsSeen() throws Exception {
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        // When the row is a HUN
+        row.setHeadsUp(true);
+        //Then it must stay on screen
+        assertThat(row.mustStayOnScreen()).isTrue();
+        // And when the user has seen it
+        row.markHeadsUpSeen();
+        // Then it should NOT stay on screen anymore
+        assertThat(row.mustStayOnScreen()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(com.android.systemui.Flags.FLAG_NOTIFICATIONS_PINNED_HUN_IN_SHADE)
+    public void mustStayOnScreen_isPinned_markedAsSeen() throws Exception {
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        // When a HUN is pinned
+        row.setHeadsUp(true);
+        row.setPinnedStatus(PinnedStatus.PinnedBySystem);
+        //Then it must stay on screen
+        assertThat(row.mustStayOnScreen()).isTrue();
+        // And when the user has seen it
+        row.markHeadsUpSeen();
+        // Then it should still stay on screen
+        assertThat(row.mustStayOnScreen()).isTrue();
+    }
+
+    @Test
+    @DisableFlags(com.android.systemui.Flags.FLAG_NOTIFICATIONS_PINNED_HUN_IN_SHADE)
+    public void mustStayOnScreen_isPinned_markedAsSeen_false() throws Exception {
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+        // When a HUN is pinned
+        row.setHeadsUp(true);
+        row.setPinnedStatus(PinnedStatus.PinnedBySystem);
+        //Then it must stay on screen
+        assertThat(row.mustStayOnScreen()).isTrue();
+        // And when the user has seen it
+        row.markHeadsUpSeen();
+        // Then it should NOT stay on screen anymore
+        assertThat(row.mustStayOnScreen()).isFalse();
+    }
+
+    @Test
+    @DisableFlags(StatusBarNotifChips.FLAG_NAME)
+    public void hasStatusBarChipDuringHeadsUpAnimation_flagOff_false() throws Exception {
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+
+        assertRunnableLogsWtf(() -> row.setHasStatusBarChipDuringHeadsUpAnimation(true));
+
+        assertThat(row.hasStatusBarChipDuringHeadsUpAnimation()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(StatusBarNotifChips.FLAG_NAME)
+    public void hasStatusBarChipDuringHeadsUpAnimation_flagOn_returnsValue() throws Exception {
+        final ExpandableNotificationRow row = mNotificationTestHelper.createRow();
+
+        assertThat(row.hasStatusBarChipDuringHeadsUpAnimation()).isFalse();
+
+        row.setHasStatusBarChipDuringHeadsUpAnimation(true);
+        assertThat(row.hasStatusBarChipDuringHeadsUpAnimation()).isTrue();
+
+        row.setHasStatusBarChipDuringHeadsUpAnimation(false);
+        assertThat(row.hasStatusBarChipDuringHeadsUpAnimation()).isFalse();
     }
 
     private void setDrawableIconsInImageView(CachingIconView icon, Drawable iconDrawable,

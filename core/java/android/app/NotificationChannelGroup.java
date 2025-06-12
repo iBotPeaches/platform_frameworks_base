@@ -221,7 +221,10 @@ public final class NotificationChannelGroup implements Parcelable {
      * @hide
      */
     public void setChannels(List<NotificationChannel> channels) {
-        mChannels = channels;
+        mChannels.clear();
+        if (channels != null) {
+            mChannels.addAll(channels);
+        }
     }
 
     /**
@@ -331,7 +334,9 @@ public final class NotificationChannelGroup implements Parcelable {
         NotificationChannelGroup cloned = new NotificationChannelGroup(getId(), getName());
         cloned.setDescription(getDescription());
         cloned.setBlocked(isBlocked());
-        cloned.setChannels(getChannels());
+        for (NotificationChannel c : mChannels) {
+            cloned.addChannel(c.copy());
+        }
         cloned.lockFields(mUserLockedFields);
         return cloned;
     }

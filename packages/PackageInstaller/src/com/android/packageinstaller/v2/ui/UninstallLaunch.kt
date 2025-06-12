@@ -16,7 +16,6 @@
 
 package com.android.packageinstaller.v2.ui
 
-import android.app.Activity
 import android.app.NotificationManager
 import android.content.Intent
 import android.os.Bundle
@@ -51,6 +50,7 @@ class UninstallLaunch : FragmentActivity(), UninstallActionListener {
             UninstallLaunch::class.java.packageName + ".callingActivityName"
         val LOG_TAG = UninstallLaunch::class.java.simpleName
         private const val TAG_DIALOG = "dialog"
+        private const val ARGS_SAVED_INTENT = "saved_intent"
     }
 
     private var uninstallViewModel: UninstallViewModel? = null
@@ -76,7 +76,15 @@ class UninstallLaunch : FragmentActivity(), UninstallActionListener {
             intent.getStringExtra(EXTRA_CALLING_ACTIVITY_NAME),
             intent.getIntExtra(EXTRA_CALLING_PKG_UID, Process.INVALID_UID)
         )
-        uninstallViewModel!!.preprocessIntent(intent, callerInfo)
+
+        var savedIntent: Intent? = null
+        if (savedInstanceState != null) {
+            savedIntent = savedInstanceState.getParcelable(ARGS_SAVED_INTENT, Intent::class.java)
+        }
+        if (!intent.filterEquals(savedIntent)) {
+            uninstallViewModel!!.preprocessIntent(intent, callerInfo)
+        }
+
         uninstallViewModel!!.currentUninstallStage.observe(this) { uninstallStage: UninstallStage ->
             onUninstallStageChange(uninstallStage)
         }
@@ -93,7 +101,7 @@ class UninstallLaunch : FragmentActivity(), UninstallActionListener {
                 if (aborted.abortReason == UninstallAborted.ABORT_REASON_APP_UNAVAILABLE ||
                     aborted.abortReason == UninstallAborted.ABORT_REASON_USER_NOT_ALLOWED
                 ) {
-                    val errorDialog = UninstallErrorFragment(aborted)
+                    val errorDialog = UninstallErrorFragment.newInstance(aborted)
                     showDialogInner(errorDialog)
                 } else {
                     setResult(aborted.activityResultCode, null, true)
@@ -102,7 +110,7 @@ class UninstallLaunch : FragmentActivity(), UninstallActionListener {
 
             UninstallStage.STAGE_USER_ACTION_REQUIRED -> {
                 val uar = uninstallStage as UninstallUserActionRequired
-                val confirmationDialog = UninstallConfirmationFragment(uar)
+                val confirmationDialog = UninstallConfirmationFragment.newInstance(uar)
                 showDialogInner(confirmationDialog)
             }
 
@@ -112,7 +120,7 @@ class UninstallLaunch : FragmentActivity(), UninstallActionListener {
                 //  And a fragment if the user requests a result back. Should we consolidate and
                 //  show a fragment always?
                 val uninstalling = uninstallStage as UninstallUninstalling
-                val uninstallingDialog = UninstallUninstallingFragment(uninstalling)
+                val uninstallingDialog = UninstallUninstallingFragment.newInstance(uninstalling)
                 showDialogInner(uninstallingDialog)
             }
 
@@ -171,6 +179,11 @@ class UninstallLaunch : FragmentActivity(), UninstallActionListener {
             Log.d(LOG_TAG, "Cancelling uninstall")
         }
         uninstallViewModel!!.cancelUninstall()
-        setResult(Activity.RESULT_FIRST_USER, null, true)
+        setResult(RESULT_FIRST_USER, null, true)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putParcelable(ARGS_SAVED_INTENT, intent)
+        super.onSaveInstanceState(outState)
     }
 }

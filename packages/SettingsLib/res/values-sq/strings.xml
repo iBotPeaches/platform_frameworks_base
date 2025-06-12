@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Aktive (vetëm majtas)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Aktive (vetëm djathtas)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Aktive (majtas dhe djathtas)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Ambienti rrethues nuk mund të përditësohej"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Aktiv (vetëm për media). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Aktiv (vetëm për media). Majtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> bateri, djathtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> bateri."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Pajisja vizitore. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Pajisja vizitore. Majtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> bateri, djathtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> bateri."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Pajisja vizitore (vetëm media). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Pajisja vizitore (vetëm media). Majtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> bateri, djathtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> bateri."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Lidhur (mbështet ndarjen e audios). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Lidhur (mbështet ndarjen e audios). Majtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> bateri, djathtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> bateri."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Lidhur (mbështet ndarjen e audios). Majtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Lidhur (mbështet ndarjen e audios). Djathtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Lidhur (mbështet ndarjen e audios)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Pajisja vizitore (mbështet ndarjen e audios). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> bateri."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Pajisja vizitore (mbështet ndarjen e audios). Majtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g> bateri, djathtas: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> bateri."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Pajisja vizitore (mbështet ndarjen e audios)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Aktiv (vetëm për media)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Pajisja vizitore"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Pajisja vizitore (vetëm media)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Mbështet ndarjen e audios"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Pajisja vizitore. Mbështet ndarjen e audios"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Aktiv (vetëm për media), vetëm majtas"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Aktiv (vetëm për media), vetëm djathtas"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Aktiv (vetëm për media), majtas dhe djathtas"</string>
@@ -185,7 +196,7 @@
     <string name="data_usage_uninstalled_apps" msgid="1933665711856171491">"Aplikacionet e hequra"</string>
     <string name="data_usage_uninstalled_apps_users" msgid="5533981546921913295">"Aplikacionet dhe përdoruesit e hequr"</string>
     <string name="data_usage_ota" msgid="7984667793701597001">"Përditësimet e sistemit"</string>
-    <string name="tether_settings_title_usb" msgid="3728686573430917722">"Ndarje përmes USB-së"</string>
+    <string name="tether_settings_title_usb" msgid="3728686573430917722">"Ndarje interneti përmes USB-së"</string>
     <string name="tether_settings_title_wifi" msgid="4803402057533895526">"Zona e qasjes e lëvizshme"</string>
     <string name="tether_settings_title_bluetooth" msgid="916519902721399656">"Ndarje interneti përmes Bluetooth-it"</string>
     <string name="tether_settings_title_usb_bluetooth" msgid="1727111807207577322">"Ndarja e internetit"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Interpretimi i përshpejtuar i harduerit"</string>
     <string name="media_category" msgid="8122076702526144053">"Media"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Monitorimi"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Menaxhimi i dritareve"</string>
     <string name="strict_mode" msgid="889864762140862437">"Aktivizo modalitetin e rreptë"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Ndriço ekranin kur aplikacionet kryejnë operacione të gjata teksa bashkëveprojnë"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Vendndodhja e treguesit"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Animacioni kalimtar"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Kohëzgjatja e animatorit"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Simulo ekranet dytësore"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Pozicioni i shfaqjes së hijes"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Aplikacionet"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Mos i ruaj aktivitetet"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Fshi çdo aktivitet sapo të largohet përdoruesi"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Zbatimi i WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Cakto zbatimin e WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Kjo zgjedhje nuk është më e vlefshme. Provo përsëri."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"DevTools e WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Paketa e WebView nuk u gjet."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevTools nuk mund të nisej."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Modalitti i ngjyrave të figurës"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Përdor sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Çaktivizuar"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Karikim i shpejtë"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Kontrolluar nga administratori"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Kontrollohet nga \"Cilësimet e kufizuara\""</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Nuk ofrohet gjatë telefonatave"</string>
     <string name="disabled" msgid="8017887509554714950">"Çaktivizuar"</string>
+    <string name="enabled" msgid="3997122818554810678">"Aktivizuar"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Lejohet"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Nuk lejohet"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Instalo aplikacione të panjohura"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Altoparlanti i integruar"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Audioja e televizorit"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Problem me lidhjen. Fike dhe ndize përsëri pajisjen"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Nuk mund të lidhet"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Pajisja audio me tel"</string>
     <string name="help_label" msgid="3528360748637781274">"Ndihma dhe komentet"</string>
     <string name="storage_category" msgid="2287342585424631813">"Hapësira ruajtëse"</string>

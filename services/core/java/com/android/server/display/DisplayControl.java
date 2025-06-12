@@ -29,7 +29,7 @@ import java.util.Objects;
  */
 public class DisplayControl {
     private static native IBinder nativeCreateVirtualDisplay(String name, boolean secure,
-            String uniqueId, float requestedRefreshRate);
+            boolean optimizeForPower, String uniqueId, float requestedRefreshRate);
     private static native void nativeDestroyVirtualDisplay(IBinder displayToken);
     private static native void nativeOverrideHdrTypes(IBinder displayToken, int[] modes);
     private static native long[] nativeGetPhysicalDisplayIds();
@@ -49,7 +49,7 @@ public class DisplayControl {
      */
     public static IBinder createVirtualDisplay(String name, boolean secure) {
         Objects.requireNonNull(name, "name must not be null");
-        return nativeCreateVirtualDisplay(name, secure, "", 0.0f);
+        return nativeCreateVirtualDisplay(name, secure, true, "", 0.0f);
     }
 
     /**
@@ -57,6 +57,10 @@ public class DisplayControl {
      *
      * @param name The name of the virtual display.
      * @param secure Whether this display is secure.
+     * @param optimizeForPower Whether SurfaceFlinger should optimize for power (instead of
+     *                         performance). Such displays will depend on another display for it to
+     *                         be shown and rendered, and that display will optimize for
+     *                         performance when it is on.
      * @param uniqueId The unique ID for the display.
      * @param requestedRefreshRate The requested refresh rate in frames per second.
      * For best results, specify a divisor of the physical refresh rate, e.g., 30 or 60 on
@@ -66,10 +70,11 @@ public class DisplayControl {
      * @return The token reference for the display in SurfaceFlinger.
      */
     public static IBinder createVirtualDisplay(String name, boolean secure,
-            String uniqueId, float requestedRefreshRate) {
+            boolean optimizeForPower, String uniqueId, float requestedRefreshRate) {
         Objects.requireNonNull(name, "name must not be null");
         Objects.requireNonNull(uniqueId, "uniqueId must not be null");
-        return nativeCreateVirtualDisplay(name, secure, uniqueId, requestedRefreshRate);
+        return nativeCreateVirtualDisplay(name, secure, optimizeForPower, uniqueId,
+                requestedRefreshRate);
     }
 
     /**

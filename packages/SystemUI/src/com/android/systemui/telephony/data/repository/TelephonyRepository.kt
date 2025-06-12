@@ -23,7 +23,7 @@ import android.content.pm.PackageManager
 import android.telecom.TelecomManager
 import android.telephony.Annotation
 import android.telephony.TelephonyCallback
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background

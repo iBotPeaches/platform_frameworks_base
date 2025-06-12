@@ -92,7 +92,7 @@ public class BackgroundActivityStartControllerLogTests {
     @Test
     public void intent_visible_noLog() {
         useIntent();
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_VISIBLE_WINDOW, false, "visible");
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_VISIBLE_WINDOW, "visible");
         mState.setResultForCaller(finalVerdict);
         mState.setResultForRealCaller(BalVerdict.BLOCK);
         assertThat(mController.shouldLogStats(finalVerdict, mState)).isFalse();
@@ -101,7 +101,7 @@ public class BackgroundActivityStartControllerLogTests {
     @Test
     public void intent_saw_log() {
         useIntent();
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, false, "SAW");
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, "SAW");
         mState.setResultForCaller(finalVerdict);
         mState.setResultForRealCaller(BalVerdict.BLOCK);
         assertThat(mController.shouldLogStats(finalVerdict, mState)).isTrue();
@@ -111,7 +111,7 @@ public class BackgroundActivityStartControllerLogTests {
     @Test
     public void pendingIntent_callerOnly_saw_log() {
         usePendingIntent();
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, false, "SAW");
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, "SAW");
         mState.setResultForCaller(finalVerdict);
         mState.setResultForRealCaller(BalVerdict.BLOCK);
         assertThat(mController.shouldLogStats(finalVerdict, mState)).isTrue();
@@ -121,7 +121,7 @@ public class BackgroundActivityStartControllerLogTests {
     @Test
     public void pendingIntent_realCallerOnly_saw_log() {
         usePendingIntent();
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, false, "SAW")
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, "SAW")
                 .setBasedOnRealCaller();
         mState.setResultForCaller(BalVerdict.BLOCK);
         mState.setResultForRealCaller(finalVerdict);
@@ -131,7 +131,7 @@ public class BackgroundActivityStartControllerLogTests {
 
     @Test
     public void intent_shouldLogIntentActivity() {
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, false, "SAW");
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, "SAW");
         useIntent(APP1_UID);
         assertThat(mController.shouldLogIntentActivity(finalVerdict, mState)).isFalse();
         useIntent(SYSTEM_UID);
@@ -140,7 +140,7 @@ public class BackgroundActivityStartControllerLogTests {
 
     @Test
     public void pendingIntent_shouldLogIntentActivityForCaller() {
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, false, "SAW");
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, "SAW");
         usePendingIntent(APP1_UID, APP2_UID);
         assertThat(mController.shouldLogIntentActivity(finalVerdict, mState)).isFalse();
         usePendingIntent(SYSTEM_UID, SYSTEM_UID);
@@ -153,7 +153,7 @@ public class BackgroundActivityStartControllerLogTests {
 
     @Test
     public void pendingIntent_shouldLogIntentActivityForRealCaller() {
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION, false,
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_SAW_PERMISSION,
                 "SAW").setBasedOnRealCaller();
         usePendingIntent(APP1_UID, APP2_UID);
         assertThat(mController.shouldLogIntentActivity(finalVerdict, mState)).isFalse();
@@ -168,7 +168,7 @@ public class BackgroundActivityStartControllerLogTests {
     @Test
     public void pendingIntent_realCallerOnly_visible_noLog() {
         usePendingIntent();
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_VISIBLE_WINDOW, false,
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_VISIBLE_WINDOW,
                 "visible").setBasedOnRealCaller();
         mState.setResultForCaller(BalVerdict.BLOCK);
         mState.setResultForRealCaller(finalVerdict);
@@ -178,7 +178,7 @@ public class BackgroundActivityStartControllerLogTests {
     @Test
     public void pendingIntent_callerOnly_visible_noLog() {
         usePendingIntent();
-        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_VISIBLE_WINDOW, false, "visible");
+        BalVerdict finalVerdict = new BalVerdict(BAL_ALLOW_VISIBLE_WINDOW, "visible");
         mState.setResultForCaller(finalVerdict);
         mState.setResultForRealCaller(BalVerdict.BLOCK);
         assertThat(mController.shouldLogStats(finalVerdict, mState)).isTrue();

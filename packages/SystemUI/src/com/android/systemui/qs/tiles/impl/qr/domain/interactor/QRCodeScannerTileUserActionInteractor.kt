@@ -16,19 +16,18 @@
 
 package com.android.systemui.qs.tiles.impl.qr.domain.interactor
 
-import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
-import com.android.systemui.qs.tiles.base.interactor.QSTileInput
-import com.android.systemui.qs.tiles.base.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
+import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.impl.qr.domain.model.QRCodeScannerTileModel
-import com.android.systemui.qs.tiles.viewmodel.QSTileUserAction
 import javax.inject.Inject
 
 /** Handles qr tile clicks. */
 class QRCodeScannerTileUserActionInteractor
 @Inject
-constructor(
-    private val qsTileIntentUserActionHandler: QSTileIntentUserInputHandler,
-) : QSTileUserActionInteractor<QRCodeScannerTileModel> {
+constructor(private val qsTileIntentUserActionHandler: QSTileIntentUserInputHandler) :
+    QSTileUserActionInteractor<QRCodeScannerTileModel> {
 
     override suspend fun handleInput(input: QSTileInput<QRCodeScannerTileModel>): Unit =
         with(input) {
@@ -39,7 +38,7 @@ constructor(
                             qsTileIntentUserActionHandler.handle(
                                 action.expandable,
                                 data.intent,
-                                true
+                                true,
                             )
                         is QRCodeScannerTileModel.TemporarilyUnavailable -> {} // no-op
                     }

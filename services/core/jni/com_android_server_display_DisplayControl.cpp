@@ -24,12 +24,13 @@
 namespace android {
 
 static jobject nativeCreateVirtualDisplay(JNIEnv* env, jclass clazz, jstring nameObj,
-                                          jboolean secure, jstring uniqueIdStr,
-                                          jfloat requestedRefreshRate) {
+                                          jboolean secure, jboolean optimizeForPower,
+                                          jstring uniqueIdStr, jfloat requestedRefreshRate) {
     const ScopedUtfChars name(env, nameObj);
     const ScopedUtfChars uniqueId(env, uniqueIdStr);
     sp<IBinder> token(SurfaceComposerClient::createVirtualDisplay(std::string(name.c_str()),
                                                                   bool(secure),
+                                                                  bool(optimizeForPower),
                                                                   std::string(uniqueId.c_str()),
                                                                   requestedRefreshRate));
     return javaObjectForIBinder(env, token);
@@ -172,9 +173,9 @@ static jlongArray nativeGetPhysicalDisplayIds(JNIEnv* env, jclass clazz) {
 }
 
 static jobject nativeGetPhysicalDisplayToken(JNIEnv* env, jclass clazz, jlong physicalDisplayId) {
-    const auto id = DisplayId::fromValue<PhysicalDisplayId>(physicalDisplayId);
-    if (!id) return nullptr;
-    sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(*id);
+    const PhysicalDisplayId id = PhysicalDisplayId::fromValue(physicalDisplayId);
+    sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(id);
+    if (!token) return nullptr;
     return javaObjectForIBinder(env, token);
 }
 
@@ -182,7 +183,7 @@ static jobject nativeGetPhysicalDisplayToken(JNIEnv* env, jclass clazz, jlong ph
 
 static const JNINativeMethod sDisplayMethods[] = {
         // clang-format off
-    {"nativeCreateVirtualDisplay", "(Ljava/lang/String;ZLjava/lang/String;F)Landroid/os/IBinder;",
+    {"nativeCreateVirtualDisplay", "(Ljava/lang/String;ZZLjava/lang/String;F)Landroid/os/IBinder;",
             (void*)nativeCreateVirtualDisplay },
     {"nativeDestroyVirtualDisplay", "(Landroid/os/IBinder;)V",
             (void*)nativeDestroyVirtualDisplay },

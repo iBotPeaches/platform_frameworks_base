@@ -19,7 +19,7 @@ package com.android.systemui.qs.panels.domain.interactor
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.qs.panels.data.repository.iconAndNameCustomRepository
 import com.android.systemui.qs.panels.data.repository.stockTilesRepository
-import com.android.systemui.qs.tiles.viewmodel.qSTileConfigProvider
+import com.android.systemui.qs.tiles.base.shared.model.qSTileConfigProvider
 
 val Kosmos.editTilesListInteractor by
     Kosmos.Fixture {

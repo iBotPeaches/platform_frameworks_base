@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <chrono>
+#include <thread>
+
 #include "android-base/file.h"
 #include "androidfw/ApkAssets.h"
 #include "androidfw/AssetManager2.h"
@@ -27,6 +30,7 @@
 #include "data/overlayable/R.h"
 #include "data/system/R.h"
 
+using namespace std::chrono_literals;
 using ::testing::NotNull;
 
 namespace overlay = com::android::overlay;
@@ -214,16 +218,40 @@ TEST_F(IdmapTest, OverlayAssetsIsUpToDate) {
 
   auto apk_assets = ApkAssets::LoadOverlay(temp_file.path);
   ASSERT_NE(nullptr, apk_assets);
-  ASSERT_TRUE(apk_assets->IsUpToDate());
+  ASSERT_TRUE(apk_assets->IsOverlay());
+  ASSERT_EQ(UpToDate::True, apk_assets->IsUpToDate());
 
   unlink(temp_file.path);
-  ASSERT_FALSE(apk_assets->IsUpToDate());
-  sleep(2);
+  ASSERT_EQ(UpToDate::False, apk_assets->IsUpToDate());
+
+  const auto sleep_duration =
+      std::chrono::nanoseconds(std::max(kModDateResolutionNs, 1'000'000ull));
+  std::this_thread::sleep_for(sleep_duration);
 
   base::WriteStringToFile("hello", temp_file.path);
-  sleep(2);
+  std::this_thread::sleep_for(sleep_duration);
 
-  ASSERT_FALSE(apk_assets->IsUpToDate());
+  ASSERT_EQ(UpToDate::False, apk_assets->IsUpToDate());
+}
+
+TEST(IdmapTestUpToDate, Combine) {
+  ASSERT_EQ(UpToDate::False, combine(UpToDate::False, [] {
+              ADD_FAILURE();  // Shouldn't get called at all.
+              return UpToDate::False;
+            }));
+
+  ASSERT_EQ(UpToDate::False, combine(UpToDate::True, [] { return UpToDate::False; }));
+
+  ASSERT_EQ(UpToDate::True, combine(UpToDate::True, [] { return UpToDate::True; }));
+  ASSERT_EQ(UpToDate::True, combine(UpToDate::True, [] { return UpToDate::Always; }));
+  ASSERT_EQ(UpToDate::True, combine(UpToDate::Always, [] { return UpToDate::True; }));
+
+  ASSERT_EQ(UpToDate::Always, combine(UpToDate::Always, [] { return UpToDate::Always; }));
+}
+
+TEST(IdmapTestUpToDate, FromBool) {
+  ASSERT_EQ(UpToDate::False, fromBool(false));
+  ASSERT_EQ(UpToDate::True, fromBool(true));
 }
 
 }  // namespace

@@ -22,6 +22,15 @@
         <option name="install-arg" value="-t" />
         <option name="test-file-name" value="MediaProjectionTests.apk" />
     </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
+        <option name="cleanup-apks" value="true" />
+        <option name="force-install-mode" value="FULL"/>ss
+        <option name="test-file-name" value="CtsMediaProjectionTestCasesHelperApp.apk" />
+    </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="run-command" value="input keyevent KEYCODE_WAKEUP" />
+        <option name="run-command" value="wm dismiss-keyguard" />
+    </target_preparer>
 
     <option name="test-tag" value="MediaProjectionTests" />
     <test class="com.android.tradefed.testtype.AndroidJUnitTest">

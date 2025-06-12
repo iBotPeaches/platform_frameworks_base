@@ -147,10 +147,9 @@ class ActivityEmbeddingAnimationAdapter {
     /** To be overridden by subclasses to adjust the animation surface change. */
     void onAnimationUpdateInner(@NonNull SurfaceControl.Transaction t) {
         // Update the surface position and alpha.
-        if (com.android.graphics.libgui.flags.Flags.edgeExtensionShader()
-                && mAnimation.getExtensionEdges() != 0x0
+        if (mAnimation.getExtensionEdges() != 0x0
                 && !(mChange.hasFlags(FLAG_TRANSLUCENT)
-                        && mChange.getActivityComponent() != null)) {
+                && mChange.getActivityComponent() != null)) {
             // Extend non-translucent activities
             t.setEdgeExtensionEffect(mLeash, mAnimation.getExtensionEdges());
         }
@@ -189,8 +188,7 @@ class ActivityEmbeddingAnimationAdapter {
     @CallSuper
     void onAnimationEnd(@NonNull SurfaceControl.Transaction t) {
         onAnimationUpdate(t, mAnimation.getDuration());
-        if (com.android.graphics.libgui.flags.Flags.edgeExtensionShader()
-                && mAnimation.getExtensionEdges() != 0x0) {
+        if (mAnimation.getExtensionEdges() != 0x0) {
             t.setEdgeExtensionEffect(mLeash, /* edge */ 0);
         }
     }

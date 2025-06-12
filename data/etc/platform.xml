@@ -62,6 +62,12 @@
 
     <permission name="android.permission.READ_LOGS" >
         <group gid="log" />
+        <group gid="update_engine_log" />
+    </permission>
+
+    <permission name="android.permission.READ_UPDATE_ENGINE_LOGS"
+                featureFlag="com.android.update_engine.minor_changes_2025q4" >
+        <group gid="update_engine_log" />
     </permission>
 
     <permission name="android.permission.ACCESS_MTP" >

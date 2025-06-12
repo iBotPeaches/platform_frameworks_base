@@ -21,6 +21,7 @@ import static android.service.dreams.Flags.dreamHandlesBeingObscured;
 import static com.android.keyguard.BouncerPanelExpansionCalculator.aboutToShowBouncerProgress;
 import static com.android.keyguard.BouncerPanelExpansionCalculator.getDreamAlphaScaledExpansion;
 import static com.android.keyguard.BouncerPanelExpansionCalculator.getDreamYPositionScaledExpansion;
+import static com.android.systemui.Flags.bouncerUiRevamp;
 import static com.android.systemui.complication.ComplicationLayoutParams.POSITION_BOTTOM;
 import static com.android.systemui.complication.ComplicationLayoutParams.POSITION_TOP;
 import static com.android.systemui.doze.util.BurnInHelperKt.getBurnInOffset;
@@ -51,7 +52,7 @@ import com.android.systemui.dreams.dagger.DreamOverlayModule;
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor;
 import com.android.systemui.keyguard.shared.model.KeyguardState;
 import com.android.systemui.res.R;
-import com.android.systemui.scene.shared.model.Scenes;
+import com.android.systemui.scene.shared.model.Overlays;
 import com.android.systemui.shade.ShadeExpansionChangeEvent;
 import com.android.systemui.shade.domain.interactor.ShadeInteractor;
 import com.android.systemui.statusbar.BlurUtils;
@@ -281,7 +282,7 @@ public class DreamOverlayContainerViewController extends
                     mView,
                     FlowKt.distinctUntilChanged(combineFlows(
                             mKeyguardTransitionInteractor.isFinishedIn(
-                                    Scenes.Bouncer, KeyguardState.PRIMARY_BOUNCER),
+                                    Overlays.Bouncer, KeyguardState.PRIMARY_BOUNCER),
                             mKeyguardTransitionInteractor.isFinishedIn(
                                     KeyguardState.ALTERNATE_BOUNCER),
                             mShadeInteractor.isAnyExpanded(),
@@ -362,9 +363,11 @@ public class DreamOverlayContainerViewController extends
             });
         }
 
-        mBlurUtils.applyBlur(mView.getViewRootImpl(),
-                (int) mBlurUtils.blurRadiusOfRatio(
-                        1 - aboutToShowBouncerProgress(bouncerHideAmount)), false);
+        if (!bouncerUiRevamp()) {
+            mBlurUtils.applyBlur(mView.getViewRootImpl(),
+                    (int) mBlurUtils.blurRadiusOfRatio(
+                            1 - aboutToShowBouncerProgress(bouncerHideAmount)), false);
+        }
     }
 
     private static float getAlpha(int position, float expansion) {

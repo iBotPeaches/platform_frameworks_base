@@ -15,7 +15,7 @@
  */
 #include "ScopedParcel.h"
 
-#ifdef __ANDROID__  // Layoutlib does not support parcel
+#ifdef __linux__  // Only Linux support parcel
 
 using namespace android;
 
@@ -34,6 +34,16 @@ uint32_t ScopedParcel::readUint32() {
     // TODO: This behavior-matches what android::Parcel does
     // but this should probably be better
     if (AParcel_readUint32(mParcel, &temp) != STATUS_OK) {
+        temp = 0;
+    }
+    return temp;
+}
+
+int64_t ScopedParcel::readInt64() {
+    int64_t temp = 0;
+    // TODO: This behavior-matches what android::Parcel does
+    // but this should probably be better
+    if (AParcel_readInt64(mParcel, &temp) != STATUS_OK) {
         temp = 0;
     }
     return temp;
@@ -82,4 +92,4 @@ void ScopedParcel::writeData(const std::optional<sk_sp<SkData>>& optData) {
         AParcel_writeByteArray(mParcel, nullptr, -1);
     }
 }
-#endif  // __ANDROID__ // Layoutlib does not support parcel
+#endif  // __linux__  // Only Linux support parcel

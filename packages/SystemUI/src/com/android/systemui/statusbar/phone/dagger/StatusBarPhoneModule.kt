@@ -15,24 +15,24 @@
  */
 package com.android.systemui.statusbar.phone.dagger
 
-import android.view.Display
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Default
 import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.statusbar.core.CommandQueueInitializer
 import com.android.systemui.statusbar.core.MultiDisplayStatusBarInitializerStore
+import com.android.systemui.statusbar.core.MultiDisplayStatusBarOrchestratorStore
 import com.android.systemui.statusbar.core.MultiDisplayStatusBarStarter
 import com.android.systemui.statusbar.core.SingleDisplayStatusBarInitializerStore
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays
 import com.android.systemui.statusbar.core.StatusBarInitializer
 import com.android.systemui.statusbar.core.StatusBarInitializerImpl
 import com.android.systemui.statusbar.core.StatusBarInitializerStore
-import com.android.systemui.statusbar.core.StatusBarOrchestrator
 import com.android.systemui.statusbar.core.StatusBarRootModernization
+import com.android.systemui.statusbar.data.repository.DarkIconDispatcherStore
 import com.android.systemui.statusbar.data.repository.PrivacyDotViewControllerStoreModule
 import com.android.systemui.statusbar.data.repository.PrivacyDotWindowControllerStoreModule
+import com.android.systemui.statusbar.data.repository.StatusBarConfigurationControllerStore
 import com.android.systemui.statusbar.data.repository.StatusBarModeRepositoryStore
 import com.android.systemui.statusbar.events.PrivacyDotViewControllerModule
 import com.android.systemui.statusbar.phone.AutoHideControllerStore
@@ -48,7 +48,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
-import kotlinx.coroutines.CoroutineScope
 
 /** Similar in purpose to [StatusBarModule], but scoped only to phones */
 @Module(
@@ -107,33 +106,14 @@ interface StatusBarPhoneModule {
             implFactory: StatusBarInitializerImpl.Factory,
             statusBarWindowControllerStore: StatusBarWindowControllerStore,
             statusBarModeRepositoryStore: StatusBarModeRepositoryStore,
+            statusBarConfigurationControllerStore: StatusBarConfigurationControllerStore,
+            darkIconDispatcherStore: DarkIconDispatcherStore,
         ): StatusBarInitializerImpl {
             return implFactory.create(
                 statusBarWindowControllerStore.defaultDisplay,
                 statusBarModeRepositoryStore.defaultDisplay,
-            )
-        }
-
-        @Provides
-        @SysUISingleton
-        @Default // Dagger does not support providing @AssistedInject types without a qualifier
-        fun orchestrator(
-            @Background backgroundApplicationScope: CoroutineScope,
-            statusBarWindowStateRepositoryStore: StatusBarWindowStateRepositoryStore,
-            statusBarModeRepositoryStore: StatusBarModeRepositoryStore,
-            initializerStore: StatusBarInitializerStore,
-            statusBarWindowControllerStore: StatusBarWindowControllerStore,
-            autoHideControllerStore: AutoHideControllerStore,
-            statusBarOrchestratorFactory: StatusBarOrchestrator.Factory,
-        ): StatusBarOrchestrator {
-            return statusBarOrchestratorFactory.create(
-                Display.DEFAULT_DISPLAY,
-                backgroundApplicationScope,
-                statusBarWindowStateRepositoryStore.defaultDisplay,
-                statusBarModeRepositoryStore.defaultDisplay,
-                initializerStore.defaultDisplay,
-                statusBarWindowControllerStore.defaultDisplay,
-                autoHideControllerStore.defaultDisplay,
+                statusBarConfigurationControllerStore.defaultDisplay,
+                darkIconDispatcherStore.defaultDisplay,
             )
         }
 
@@ -211,6 +191,20 @@ interface StatusBarPhoneModule {
         @ClassKey(AutoHideControllerStore::class)
         fun storeAsCoreStartable(
             multiDisplayLazy: Lazy<MultiDisplayAutoHideControllerStore>
+        ): CoreStartable {
+            return if (StatusBarConnectedDisplays.isEnabled) {
+                multiDisplayLazy.get()
+            } else {
+                CoreStartable.NOP
+            }
+        }
+
+        @Provides
+        @SysUISingleton
+        @IntoMap
+        @ClassKey(MultiDisplayStatusBarOrchestratorStore::class)
+        fun orchestratorStoreAsCoreStartable(
+            multiDisplayLazy: Lazy<MultiDisplayStatusBarOrchestratorStore>
         ): CoreStartable {
             return if (StatusBarConnectedDisplays.isEnabled) {
                 multiDisplayLazy.get()

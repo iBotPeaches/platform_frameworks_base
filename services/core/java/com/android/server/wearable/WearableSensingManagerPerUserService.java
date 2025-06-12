@@ -273,6 +273,9 @@ final class WearableSensingManagerPerUserService
 
                                     @Override
                                     public void onError() {
+                                        synchronized (mLock) {
+                                            ensureRemoteServiceInitiated();
+                                        }
                                         synchronized (mSecureChannelLock) {
                                             if (mSecureChannel != null
                                                     && mSecureChannel

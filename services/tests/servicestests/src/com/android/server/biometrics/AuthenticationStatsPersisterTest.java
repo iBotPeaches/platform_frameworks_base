@@ -60,8 +60,13 @@ public class AuthenticationStatsPersisterTest {
     private static final String USER_ID = "user_id";
     private static final String FACE_ATTEMPTS = "face_attempts";
     private static final String FACE_REJECTIONS = "face_rejections";
+    private static final String FACE_LAST_ENROLL_TIME = "face_last_enroll_time";
+    private static final String FACE_LAST_FRR_NOTIFICATION_TIME = "face_last_notification_time";
     private static final String FINGERPRINT_ATTEMPTS = "fingerprint_attempts";
     private static final String FINGERPRINT_REJECTIONS = "fingerprint_rejections";
+    private static final String FINGERPRINT_LAST_ENROLL_TIME = "fingerprint_last_enroll_time";
+    private static final String FINGERPRINT_LAST_FRR_NOTIFICATION_TIME =
+            "fingerprint_last_notification_time";
     private static final String ENROLLMENT_NOTIFICATIONS = "enrollment_notifications";
     private static final String KEY = "frr_stats";
     private static final String THRESHOLD_KEY = "frr_threshold";
@@ -95,10 +100,12 @@ public class AuthenticationStatsPersisterTest {
     public void getAllFrrStats_face_shouldListAllFrrStats() throws JSONException {
         AuthenticationStats stats1 = new AuthenticationStats(USER_ID_1,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 100L /* lastEnrollmentTime */,
+                200L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         AuthenticationStats stats2 = new AuthenticationStats(USER_ID_2,
                 200 /* totalAttempts */, 20 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
+                0 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
         when(mSharedPreferences.getStringSet(eq(KEY), anySet())).thenReturn(
                 Set.of(buildFrrStats(stats1), buildFrrStats(stats2)));
 
@@ -108,7 +115,8 @@ public class AuthenticationStatsPersisterTest {
         assertThat(authenticationStatsList.size()).isEqualTo(2);
         AuthenticationStats expectedStats2 = new AuthenticationStats(USER_ID_2,
                 0 /* totalAttempts */, 0 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 0 /* lastEnrollmentTime */,
+                0 /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         assertThat(authenticationStatsList).contains(stats1);
         assertThat(authenticationStatsList).contains(expectedStats2);
     }
@@ -118,11 +126,13 @@ public class AuthenticationStatsPersisterTest {
         // User 1 with fingerprint authentication stats.
         AuthenticationStats stats1 = new AuthenticationStats(USER_ID_1,
                 200 /* totalAttempts */, 20 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
+                0 /* enrollmentNotifications */, 100L /* lastEnrollmentTime */,
+                200L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
         // User 2 without fingerprint authentication stats.
         AuthenticationStats stats2 = new AuthenticationStats(USER_ID_2,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         when(mSharedPreferences.getStringSet(eq(KEY), anySet())).thenReturn(
                 Set.of(buildFrrStats(stats1), buildFrrStats(stats2)));
 
@@ -133,7 +143,8 @@ public class AuthenticationStatsPersisterTest {
         assertThat(authenticationStatsList.size()).isEqualTo(2);
         AuthenticationStats expectedStats2 = new AuthenticationStats(USER_ID_2,
                 0 /* totalAttempts */, 0 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
+                0 /* enrollmentNotifications */, 0 /* lastEnrollmentTime */,
+                0 /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
         assertThat(authenticationStatsList).contains(stats1);
         assertThat(authenticationStatsList).contains(expectedStats2);
     }
@@ -142,12 +153,15 @@ public class AuthenticationStatsPersisterTest {
     public void persistFrrStats_newUser_face_shouldSuccess() throws JSONException {
         AuthenticationStats authenticationStats = new AuthenticationStats(USER_ID_1,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
 
         mAuthenticationStatsPersister.persistFrrStats(authenticationStats.getUserId(),
                 authenticationStats.getTotalAttempts(),
                 authenticationStats.getRejectedAttempts(),
                 authenticationStats.getEnrollmentNotifications(),
+                authenticationStats.getLastEnrollmentTime(),
+                authenticationStats.getLastFrrNotificationTime(),
                 authenticationStats.getModality());
 
         verify(mEditor).putStringSet(eq(KEY), mStringSetArgumentCaptor.capture());
@@ -159,12 +173,15 @@ public class AuthenticationStatsPersisterTest {
     public void persistFrrStats_newUser_fingerprint_shouldSuccess() throws JSONException {
         AuthenticationStats authenticationStats = new AuthenticationStats(USER_ID_1,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
+                0 /* enrollmentNotifications */, 100L /* lastEnrollmentTime */,
+                200L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
 
         mAuthenticationStatsPersister.persistFrrStats(authenticationStats.getUserId(),
                 authenticationStats.getTotalAttempts(),
                 authenticationStats.getRejectedAttempts(),
                 authenticationStats.getEnrollmentNotifications(),
+                authenticationStats.getLastEnrollmentTime(),
+                authenticationStats.getLastFrrNotificationTime(),
                 authenticationStats.getModality());
 
         verify(mEditor).putStringSet(eq(KEY), mStringSetArgumentCaptor.capture());
@@ -176,10 +193,12 @@ public class AuthenticationStatsPersisterTest {
     public void persistFrrStats_existingUser_shouldUpdateRecord() throws JSONException {
         AuthenticationStats authenticationStats = new AuthenticationStats(USER_ID_1,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 100L /* lastEnrollmentTime */,
+                200L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         AuthenticationStats newAuthenticationStats = new AuthenticationStats(USER_ID_1,
                 500 /* totalAttempts */, 30 /* rejectedAttempts */,
-                1 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                1 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         when(mSharedPreferences.getStringSet(eq(KEY), anySet())).thenReturn(
                 Set.of(buildFrrStats(authenticationStats)));
 
@@ -187,6 +206,8 @@ public class AuthenticationStatsPersisterTest {
                 newAuthenticationStats.getTotalAttempts(),
                 newAuthenticationStats.getRejectedAttempts(),
                 newAuthenticationStats.getEnrollmentNotifications(),
+                newAuthenticationStats.getLastEnrollmentTime(),
+                newAuthenticationStats.getLastFrrNotificationTime(),
                 newAuthenticationStats.getModality());
 
         verify(mEditor).putStringSet(eq(KEY), mStringSetArgumentCaptor.capture());
@@ -200,11 +221,13 @@ public class AuthenticationStatsPersisterTest {
         // User with fingerprint authentication stats.
         AuthenticationStats authenticationStats = new AuthenticationStats(USER_ID_1,
                 200 /* totalAttempts */, 20 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
+                0 /* enrollmentNotifications */, 100L /* lastEnrollmentTime */,
+                200L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
         // The same user with face authentication stats.
         AuthenticationStats newAuthenticationStats = new AuthenticationStats(USER_ID_1,
                 500 /* totalAttempts */, 30 /* rejectedAttempts */,
-                1 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                1 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         when(mSharedPreferences.getStringSet(eq(KEY), anySet())).thenReturn(
                 Set.of(buildFrrStats(authenticationStats)));
 
@@ -212,12 +235,18 @@ public class AuthenticationStatsPersisterTest {
                 newAuthenticationStats.getTotalAttempts(),
                 newAuthenticationStats.getRejectedAttempts(),
                 newAuthenticationStats.getEnrollmentNotifications(),
+                newAuthenticationStats.getLastEnrollmentTime(),
+                newAuthenticationStats.getLastFrrNotificationTime(),
                 newAuthenticationStats.getModality());
 
         String expectedFrrStats = new JSONObject(buildFrrStats(authenticationStats))
                 .put(ENROLLMENT_NOTIFICATIONS, newAuthenticationStats.getEnrollmentNotifications())
                 .put(FACE_ATTEMPTS, newAuthenticationStats.getTotalAttempts())
-                .put(FACE_REJECTIONS, newAuthenticationStats.getRejectedAttempts()).toString();
+                .put(FACE_REJECTIONS, newAuthenticationStats.getRejectedAttempts())
+                .put(FACE_LAST_ENROLL_TIME, newAuthenticationStats.getLastEnrollmentTime())
+                .put(FACE_LAST_FRR_NOTIFICATION_TIME,
+                        newAuthenticationStats.getLastFrrNotificationTime())
+                .toString();
         verify(mEditor).putStringSet(eq(KEY), mStringSetArgumentCaptor.capture());
         assertThat(mStringSetArgumentCaptor.getValue()).contains(expectedFrrStats);
     }
@@ -226,10 +255,12 @@ public class AuthenticationStatsPersisterTest {
     public void persistFrrStats_multiUser_newUser_shouldUpdateRecord() throws JSONException {
         AuthenticationStats authenticationStats1 = new AuthenticationStats(USER_ID_1,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 100L /* lastEnrollmentTime */,
+                200L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         AuthenticationStats authenticationStats2 = new AuthenticationStats(USER_ID_2,
                 100 /* totalAttempts */, 5 /* rejectedAttempts */,
-                1 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
+                1 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FINGERPRINT);
 
         // Sets up the shared preference with user 1 only.
         when(mSharedPreferences.getStringSet(eq(KEY), anySet())).thenReturn(
@@ -240,6 +271,8 @@ public class AuthenticationStatsPersisterTest {
                 authenticationStats2.getTotalAttempts(),
                 authenticationStats2.getRejectedAttempts(),
                 authenticationStats2.getEnrollmentNotifications(),
+                authenticationStats2.getLastEnrollmentTime(),
+                authenticationStats2.getLastFrrNotificationTime(),
                 authenticationStats2.getModality());
 
         verify(mEditor).putStringSet(eq(KEY), mStringSetArgumentCaptor.capture());
@@ -251,7 +284,8 @@ public class AuthenticationStatsPersisterTest {
     public void removeFrrStats_existingUser_shouldUpdateRecord() throws JSONException {
         AuthenticationStats authenticationStats = new AuthenticationStats(USER_ID_1,
                 300 /* totalAttempts */, 10 /* rejectedAttempts */,
-                0 /* enrollmentNotifications */, BiometricsProtoEnums.MODALITY_FACE);
+                0 /* enrollmentNotifications */, 200L /* lastEnrollmentTime */,
+                300L /* lastFrrNotificationTime */, BiometricsProtoEnums.MODALITY_FACE);
         when(mSharedPreferences.getStringSet(eq(KEY), anySet())).thenReturn(
                 Set.of(buildFrrStats(authenticationStats)));
 
@@ -277,6 +311,9 @@ public class AuthenticationStatsPersisterTest {
                     .put(FACE_ATTEMPTS, authenticationStats.getTotalAttempts())
                     .put(FACE_REJECTIONS, authenticationStats.getRejectedAttempts())
                     .put(ENROLLMENT_NOTIFICATIONS, authenticationStats.getEnrollmentNotifications())
+                    .put(FACE_LAST_ENROLL_TIME, authenticationStats.getLastEnrollmentTime())
+                    .put(FACE_LAST_FRR_NOTIFICATION_TIME,
+                            authenticationStats.getLastFrrNotificationTime())
                     .toString();
         } else if (authenticationStats.getModality() == BiometricsProtoEnums.MODALITY_FINGERPRINT) {
             return new JSONObject()
@@ -284,6 +321,9 @@ public class AuthenticationStatsPersisterTest {
                     .put(FINGERPRINT_ATTEMPTS, authenticationStats.getTotalAttempts())
                     .put(FINGERPRINT_REJECTIONS, authenticationStats.getRejectedAttempts())
                     .put(ENROLLMENT_NOTIFICATIONS, authenticationStats.getEnrollmentNotifications())
+                    .put(FINGERPRINT_LAST_ENROLL_TIME, authenticationStats.getLastEnrollmentTime())
+                    .put(FINGERPRINT_LAST_FRR_NOTIFICATION_TIME,
+                            authenticationStats.getLastFrrNotificationTime())
                     .toString();
         }
         return "";

@@ -27,6 +27,7 @@ import libcore.util.EmptyArray;
 
 import java.lang.reflect.Array;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 /* package */ abstract class SpannableStringInternal
 {
     /* package */ SpannableStringInternal(CharSequence source,

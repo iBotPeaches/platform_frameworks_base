@@ -23,6 +23,7 @@ import static android.view.WindowManager.TRANSIT_NONE;
 
 import static com.android.server.wm.ActivityTaskManagerService.POWER_MODE_REASON_CHANGE_DISPLAY;
 
+import android.annotation.ColorInt;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityManager;
@@ -511,9 +512,14 @@ class TransitionController {
         return false;
     }
 
+    /** Returns {@code true} if the display contains a collecting transition. */
+    boolean isCollectingTransitionOnDisplay(@NonNull DisplayContent dc) {
+        return mCollectingTransition != null && mCollectingTransition.isOnDisplay(dc);
+    }
+
     /** Returns {@code true} if the display contains a running or pending transition. */
     boolean isTransitionOnDisplay(@NonNull DisplayContent dc) {
-        if (mCollectingTransition != null && mCollectingTransition.isOnDisplay(dc)) {
+        if (isCollectingTransitionOnDisplay(dc)) {
             return true;
         }
         for (int i = mWaitingTransitions.size() - 1; i >= 0; --i) {
@@ -521,6 +527,19 @@ class TransitionController {
         }
         for (int i = mPlayingTransitions.size() - 1; i >= 0; --i) {
             if (mPlayingTransitions.get(i).isOnDisplay(dc)) return true;
+        }
+        return false;
+    }
+
+    boolean isInAodAppearTransition() {
+        if (mCollectingTransition != null && mCollectingTransition.isInAodAppearTransition()) {
+            return true;
+        }
+        for (int i = mWaitingTransitions.size() - 1; i >= 0; --i) {
+            if (mWaitingTransitions.get(i).isInAodAppearTransition()) return true;
+        }
+        for (int i = mPlayingTransitions.size() - 1; i >= 0; --i) {
+            if (mPlayingTransitions.get(i).isInAodAppearTransition()) return true;
         }
         return false;
     }
@@ -537,6 +556,23 @@ class TransitionController {
             final Task restoreBehindTask = transition.getTransientLaunchRestoreTarget(container);
             if (restoreBehindTask != null) {
                 return new Pair<>(transition, restoreBehindTask);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @return The playing transition that is transiently-hiding the given {@param container}, or
+     *         null if there isn't one
+     * @param container A participant of a transient-hide transition
+     */
+    @Nullable
+    Transition getTransientHideTransitionForContainer(
+            @NonNull WindowContainer container) {
+        for (int i = mPlayingTransitions.size() - 1; i >= 0; --i) {
+            final Transition transition = mPlayingTransitions.get(i);
+            if (transition.isInTransientHide(container)) {
+                return transition;
             }
         }
         return null;
@@ -774,7 +810,7 @@ class TransitionController {
                     "Disabling player for transition #%d because display isn't enabled yet",
                     transition.getSyncId());
             transition.mIsPlayerEnabled = false;
-            transition.mLogger.mRequestTimeNs = SystemClock.uptimeNanos();
+            transition.mLogger.mRequestTimeNs = SystemClock.elapsedRealtimeNanos();
             mAtm.mH.post(() -> mAtm.mWindowOrganizerController.startTransition(
                     transition.getToken(), null));
             return transition;
@@ -921,10 +957,17 @@ class TransitionController {
     }
 
     /** @see Transition#setOverrideAnimation */
-    void setOverrideAnimation(TransitionInfo.AnimationOptions options, ActivityRecord r,
-            @Nullable IRemoteCallback startCallback, @Nullable IRemoteCallback finishCallback) {
+    void setOverrideAnimation(@NonNull TransitionInfo.AnimationOptions options,
+            @NonNull ActivityRecord r, @Nullable IRemoteCallback startCallback,
+            @Nullable IRemoteCallback finishCallback) {
         if (mCollectingTransition == null) return;
         mCollectingTransition.setOverrideAnimation(options, r, startCallback, finishCallback);
+    }
+
+    /** @see Transition#setOverrideBackgroundColor */
+    void setOverrideBackgroundColor(@ColorInt int backgroundColor) {
+        if (mCollectingTransition == null) return;
+        mCollectingTransition.setOverrideBackgroundColor(backgroundColor);
     }
 
     void setNoAnimation(WindowContainer wc) {
@@ -1246,13 +1289,14 @@ class TransitionController {
             // ignore ourself obviously
             if (mPlayingTransitions.get(i) == transition) continue;
             if (getIsIndependent(mPlayingTransitions.get(i), transition)) continue;
-            if (track >= 0) {
+            if (track < 0) {
+                track = mPlayingTransitions.get(i).mAnimationTrack;
+            } else if (track != mPlayingTransitions.get(i).mAnimationTrack) {
                 // At this point, transition overlaps with multiple tracks, so just wait for
                 // everything
                 sync = true;
                 break;
             }
-            track = mPlayingTransitions.get(i).mAnimationTrack;
         }
         if (sync) {
             track = 0;
@@ -1694,6 +1738,7 @@ class TransitionController {
         long mStartTimeNs;
         long mReadyTimeNs;
         long mSendTimeNs;
+        long mTransactionCommitTimeNs;
         long mFinishTimeNs;
         long mAbortTimeNs;
         TransitionRequestInfo mRequest;
@@ -1746,6 +1791,9 @@ class TransitionController {
             sb.append(" started=").append(toMsString(mStartTimeNs - mCreateTimeNs));
             sb.append(" ready=").append(toMsString(mReadyTimeNs - mCreateTimeNs));
             sb.append(" sent=").append(toMsString(mSendTimeNs - mCreateTimeNs));
+            if (mTransactionCommitTimeNs != 0) {
+                sb.append(" commit=").append(toMsString(mTransactionCommitTimeNs - mSendTimeNs));
+            }
             sb.append(" finished=").append(toMsString(mFinishTimeNs - mCreateTimeNs));
             return sb.toString();
         }

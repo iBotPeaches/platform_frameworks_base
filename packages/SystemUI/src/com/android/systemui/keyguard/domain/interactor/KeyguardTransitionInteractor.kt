@@ -19,7 +19,13 @@ package com.android.systemui.keyguard.domain.interactor
 
 import android.annotation.SuppressLint
 import android.util.Log
+import com.android.app.tracing.coroutines.flow.filterTraced
+import com.android.app.tracing.coroutines.flow.shareInTraced
+import com.android.app.tracing.coroutines.flow.stateInTraced
+import com.android.app.tracing.coroutines.flow.traceAs
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.SceneKey
 import com.android.systemui.Flags.keyguardTransitionForceFinishOnScreenOff
@@ -41,7 +47,6 @@ import com.android.systemui.util.kotlin.WithPrev
 import com.android.systemui.util.kotlin.pairwise
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.BufferOverflow
@@ -61,11 +66,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.flow.stateIn
 
 /** Encapsulates business-logic related to the keyguard transitions. */
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class KeyguardTransitionInteractor
 @Inject
@@ -92,6 +94,7 @@ constructor(
                     onBufferOverflow = BufferOverflow.DROP_OLDEST,
                 )
                 .also { it.tryEmit(0f) }
+                .traceAs("KTF-${state.name}")
         }
     }
 
@@ -99,12 +102,18 @@ constructor(
     val transitions = repository.transitions
 
     val transitionState: StateFlow<TransitionStep> =
-        transitions.stateIn(scope, SharingStarted.Eagerly, TransitionStep())
+        transitions.stateInTraced(
+            "KTF-transitionState",
+            scope,
+            SharingStarted.Eagerly,
+            TransitionStep(),
+        )
 
     private val sceneTransitionPair =
         sceneInteractor.transitionState
             .pairwise()
-            .stateIn(
+            .stateInTraced(
+                "KTF-sceneTransitionPair",
                 scope,
                 SharingStarted.Eagerly,
                 WithPrev(
@@ -127,11 +136,16 @@ constructor(
         repository.transitions
             .pairwise()
             .filter { it.newValue.transitionState == TransitionState.STARTED }
-            .shareIn(scope, SharingStarted.Eagerly)
+            .shareInTraced(
+                "KTF-startedStepWithPrecedingStep",
+                scope,
+                SharingStarted.Eagerly,
+                replay = 1,
+            )
 
     init {
         // Collect non-canceled steps and emit transition values.
-        scope.launch {
+        scope.launch("KTF-update-non-canceled") {
             repository.transitions
                 .filter { it.transitionState != TransitionState.CANCELED }
                 .collect { step ->
@@ -142,7 +156,7 @@ constructor(
                 }
         }
 
-        scope.launch {
+        scope.launch("KTF-update-transitionMap") {
             repository.transitions.collect {
                 // FROM->TO
                 transitionMap[Edge.create(it.from, it.to)]?.emit(it)
@@ -157,7 +171,7 @@ constructor(
         // need to ensure we emit transitionValue(A) = 0f, since no further steps will be emitted
         // where the from or to states are A. This would leave transitionValue(A) stuck at an
         // arbitrary non-zero value.
-        scope.launch {
+        scope.launch("KTF-update-canceled") {
             startedStepWithPrecedingStep.collect { (prevStep, startedStep) ->
                 if (
                     prevStep.transitionState == TransitionState.CANCELED &&
@@ -177,7 +191,7 @@ constructor(
         // Safety: When any transition is FINISHED, ensure all other transitionValue flows other
         // than the FINISHED state are reset to a value of 0f. There have been rare but severe
         // bugs that get the device stuck in a bad state when these are not properly reset.
-        scope.launch {
+        scope.launch("KTF-update-finished") {
             repository.transitions
                 .filter { it.transitionState == TransitionState.FINISHED }
                 .collect {
@@ -198,7 +212,7 @@ constructor(
              * If the screen is turning off, finish the current transition immediately. Further
              * frames won't be visible anyway.
              */
-            scope.launch {
+            scope.launch("KTF-force-finish") {
                 powerInteractor.screenPowerState
                     .filter { it == ScreenPowerState.SCREEN_TURNING_OFF }
                     .collect { repository.forceFinishCurrentTransition() }
@@ -224,37 +238,38 @@ constructor(
 
         val flow: Flow<TransitionStep> =
             transitionMap.getOrPut(mappedEdge) {
-                MutableSharedFlow(
-                    extraBufferCapacity = 10,
-                    onBufferOverflow = BufferOverflow.DROP_OLDEST,
-                )
+                MutableSharedFlow<TransitionStep>(
+                        extraBufferCapacity = 10,
+                        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+                    )
+                    .traceAs("KTF-${mappedEdge.from}-to-${mappedEdge.to}")
             }
 
         if (!SceneContainerFlag.isEnabled) {
             return flow
         }
-        if (edge.isSceneWildcardEdge()) {
+        if (edge.isContentWildcardEdge()) {
             return simulateTransitionStepsForSceneTransitions(edge)
         }
-        return flow.filter { step ->
-            val fromScene =
+        return flow.filterTraced("stl-filter") { step ->
+            val fromContent =
                 when (edge) {
-                    is Edge.StateToState -> edge.from?.mapToSceneContainerScene()
-                    is Edge.StateToScene -> edge.from?.mapToSceneContainerScene()
-                    is Edge.SceneToState -> edge.from
+                    is Edge.StateToState -> edge.from?.mapToSceneContainerContent()
+                    is Edge.StateToContent -> edge.from?.mapToSceneContainerContent()
+                    is Edge.ContentToState -> edge.from
                 }
 
-            val toScene =
+            val toContent =
                 when (edge) {
-                    is Edge.StateToState -> edge.to?.mapToSceneContainerScene()
-                    is Edge.StateToScene -> edge.to
-                    is Edge.SceneToState -> edge.to?.mapToSceneContainerScene()
+                    is Edge.StateToState -> edge.to?.mapToSceneContainerContent()
+                    is Edge.StateToContent -> edge.to
+                    is Edge.ContentToState -> edge.to?.mapToSceneContainerContent()
                 }
 
             val isTransitioningBetweenLockscreenStates =
-                fromScene.isLockscreenOrNull() && toScene.isLockscreenOrNull()
+                fromContent.isLockscreenOrNull() && toContent.isLockscreenOrNull()
             val isTransitioningBetweenDesiredScenes =
-                sceneInteractor.transitionState.value.isTransitioning(fromScene, toScene)
+                sceneInteractor.transitionState.value.isTransitioning(fromContent, toContent)
 
             // When in STL A -> B settles in A we can't do the same in KTF as KTF requires us to
             // start B -> A to get back to A. [LockscreenSceneTransitionInteractor] will emit these
@@ -263,8 +278,8 @@ constructor(
             // this condition to not filter out the STARTED and FINISHED step of the "artificially"
             // reversed B -> A transition.
             val belongsToInstantReversedTransition =
-                sceneInteractor.transitionState.value.isIdle(toScene) &&
-                    sceneTransitionPair.value.previousValue.isTransitioning(toScene, fromScene)
+                sceneInteractor.topmostContent.value == toContent &&
+                    sceneTransitionPair.value.previousValue.isTransitioning(toContent, fromContent)
 
             // We can't compare the terminal step with the current sceneTransition because
             // a) STL has no guarantee that it will settle in Idle() when finished/canceled
@@ -273,16 +288,16 @@ constructor(
             val terminalStepBelongsToPreviousTransition =
                 (step.transitionState == TransitionState.FINISHED ||
                     step.transitionState == TransitionState.CANCELED) &&
-                    sceneTransitionPair.value.previousValue.isTransitioning(fromScene, toScene)
+                    sceneTransitionPair.value.previousValue.isTransitioning(fromContent, toContent)
 
-            return@filter isTransitioningBetweenLockscreenStates ||
+            return@filterTraced isTransitioningBetweenLockscreenStates ||
                 isTransitioningBetweenDesiredScenes ||
                 terminalStepBelongsToPreviousTransition ||
                 belongsToInstantReversedTransition
         }
     }
 
-    private fun SceneKey?.isLockscreenOrNull() = this == Scenes.Lockscreen || this == null
+    private fun ContentKey?.isLockscreenOrNull() = this == Scenes.Lockscreen || this == null
 
     /**
      * This function will return a flow that simulates TransitionSteps based on STL movements
@@ -314,8 +329,8 @@ constructor(
                         when (edge) {
                             is Edge.StateToState ->
                                 throw IllegalStateException("Should not be reachable.")
-                            is Edge.SceneToState -> it.isTransitioning(from = edge.from)
-                            is Edge.StateToScene -> it.isTransitioning(to = edge.to)
+                            is Edge.ContentToState -> it.isTransitioning(from = edge.from)
+                            is Edge.StateToContent -> it.isTransitioning(to = edge.to)
                         }
                     if (!isMatchingTransition) {
                         return@flatMapLatestWithFinished flowOf()
@@ -343,6 +358,7 @@ constructor(
                 }
             }
         }
+        .traceAs("KTF-transition-simulator")
 
     /**
      * This function is similar to flatMapLatest but it will additionally emit a FINISHED
@@ -358,40 +374,42 @@ constructor(
      */
     private fun <T> Flow<T>.flatMapLatestWithFinished(
         transform: suspend (T) -> Flow<TransitionStep>
-    ): Flow<TransitionStep> = channelFlow {
-        var job: Job? = null
-        var startedEmitted = false
+    ): Flow<TransitionStep> =
+        channelFlow {
+                var job: Job? = null
+                var startedEmitted = false
 
-        coroutineScope {
-            collect { value ->
-                job?.cancelAndJoin()
+                coroutineScope {
+                    collect { value ->
+                        traceCoroutine("cancelAndJoin") { job?.cancelAndJoin() }
 
-                job = launch {
-                    val innerFlow = transform(value)
-                    try {
-                        innerFlow.collect { step ->
-                            if (step.transitionState == TransitionState.STARTED) {
-                                startedEmitted = true
+                        job =
+                            launch("KTF-flatMapLatestWithFinished") {
+                                val innerFlow = transform(value)
+                                try {
+                                    innerFlow.collect { step ->
+                                        if (step.transitionState == TransitionState.STARTED) {
+                                            startedEmitted = true
+                                        }
+                                        traceCoroutine("send($step)") { send(step) }
+                                    }
+                                } finally {
+                                    if (startedEmitted) {
+                                        val step =
+                                            TransitionStep(
+                                                from = UNDEFINED,
+                                                to = UNDEFINED,
+                                                value = 1f,
+                                                transitionState = TransitionState.FINISHED,
+                                            )
+                                        traceCoroutine("send($step)") { send(step) }
+                                        startedEmitted = false
+                                    }
+                                }
                             }
-                            send(step)
-                        }
-                    } finally {
-                        if (startedEmitted) {
-                            send(
-                                TransitionStep(
-                                    from = UNDEFINED,
-                                    to = UNDEFINED,
-                                    value = 1f,
-                                    transitionState = TransitionState.FINISHED,
-                                )
-                            )
-                            startedEmitted = false
-                        }
                     }
                 }
             }
-        }
-    }
 
     /**
      * Converts old KTF states to UNDEFINED when [SceneContainerFlag] is enabled.
@@ -410,17 +428,17 @@ constructor(
                     from = edge.from?.mapToSceneContainerState(),
                     to = edge.to?.mapToSceneContainerState(),
                 )
-            is Edge.SceneToState -> Edge.create(UNDEFINED, edge.to)
-            is Edge.StateToScene -> Edge.create(edge.from, UNDEFINED)
+            is Edge.ContentToState -> Edge.create(UNDEFINED, edge.to)
+            is Edge.StateToContent -> Edge.create(edge.from, UNDEFINED)
         }
     }
 
     fun transitionValue(
-        scene: SceneKey? = null,
+        content: ContentKey? = null,
         stateWithoutSceneContainer: KeyguardState,
     ): Flow<Float> {
-        return if (SceneContainerFlag.isEnabled && scene != null) {
-            sceneInteractor.transitionProgress(scene)
+        return if (SceneContainerFlag.isEnabled && content != null) {
+            sceneInteractor.transitionProgress(content)
         } else {
             transitionValue(stateWithoutSceneContainer)
         }
@@ -435,7 +453,7 @@ constructor(
     fun transitionValue(state: KeyguardState): Flow<Float> {
         if (SceneContainerFlag.isEnabled && state != state.mapToSceneContainerState()) {
             Log.e(TAG, "SceneContainer is enabled but a deprecated state $state is used.")
-            return transitionValue(state.mapToSceneContainerScene()!!, state)
+            return transitionValue(state.mapToSceneContainerContent()!!, state)
         }
         return getTransitionValueFlow(state)
     }
@@ -444,7 +462,12 @@ constructor(
     val startedKeyguardTransitionStep: StateFlow<TransitionStep> =
         repository.transitions
             .filter { step -> step.transitionState == TransitionState.STARTED }
-            .stateIn(scope, SharingStarted.Eagerly, TransitionStep())
+            .stateInTraced(
+                "KTF-startedKeyguardTransitionStep",
+                scope,
+                SharingStarted.Eagerly,
+                TransitionStep(),
+            )
 
     /**
      * The [KeyguardState] we're currently in.
@@ -510,7 +533,7 @@ constructor(
                     it.from
                 }
             }
-            .stateIn(scope, SharingStarted.Eagerly, OFF)
+            .stateInTraced("KTF-currentKeyguardState", scope, SharingStarted.Eagerly, OFF)
 
     val isInTransition =
         combine(isInTransitionWhere({ true }, { true }), sceneInteractor.transitionState) {
@@ -529,13 +552,13 @@ constructor(
      */
     fun isInTransition(edge: Edge, edgeWithoutSceneContainer: Edge? = null): Flow<Boolean> {
         return if (SceneContainerFlag.isEnabled) {
-                if (edge.isSceneWildcardEdge()) {
+                if (edge.isContentWildcardEdge()) {
                     sceneInteractor.transitionState.map {
                         when (edge) {
                             is Edge.StateToState ->
                                 throw IllegalStateException("Should not be reachable.")
-                            is Edge.SceneToState -> it.isTransitioning(from = edge.from)
-                            is Edge.StateToScene -> it.isTransitioning(to = edge.to)
+                            is Edge.ContentToState -> it.isTransitioning(from = edge.from)
+                            is Edge.StateToContent -> it.isTransitioning(to = edge.to)
                         }
                     }
                 } else {
@@ -547,6 +570,7 @@ constructor(
                 }
             }
             .onStart { emit(false) }
+            .traceAs("isInTransition-$edge-$edgeWithoutSceneContainer")
             .distinctUntilChanged()
     }
 
@@ -576,10 +600,15 @@ constructor(
         return finishedKeyguardState.map { stateMatcher(it) }.distinctUntilChanged()
     }
 
-    fun isFinishedIn(scene: SceneKey, stateWithoutSceneContainer: KeyguardState): Flow<Boolean> {
+    fun isFinishedIn(
+        content: ContentKey,
+        stateWithoutSceneContainer: KeyguardState,
+    ): Flow<Boolean> {
         return if (SceneContainerFlag.isEnabled) {
-                sceneInteractor.transitionState.map {
-                    it.isIdle(scene) || it.isTransitioning(from = scene)
+                combine(sceneInteractor.topmostContent, sceneInteractor.transitionState) {
+                    topmostContent,
+                    state ->
+                    topmostContent == content || state.isTransitioning(from = content)
                 }
             } else {
                 isFinishedIn(stateWithoutSceneContainer)
@@ -616,7 +645,7 @@ constructor(
         repository.transitions
             .filter { it.transitionState == TransitionState.FINISHED }
             .map { it.to }
-            .stateIn(scope, SharingStarted.Eagerly, OFF)
+            .stateInTraced("KTF-finishedKeyguardState", scope, SharingStarted.Eagerly, OFF)
 
     companion object {
         private val TAG = KeyguardTransitionInteractor::class.simpleName

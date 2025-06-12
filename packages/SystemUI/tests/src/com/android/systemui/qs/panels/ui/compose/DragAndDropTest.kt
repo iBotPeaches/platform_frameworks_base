@@ -22,14 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.filter
-import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -37,12 +30,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.FlakyTest
 import androidx.test.filters.SmallTest
+import com.android.compose.theme.PlatformTheme
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.common.shared.model.ContentDescription
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.qs.panels.shared.model.SizedTile
 import com.android.systemui.qs.panels.shared.model.SizedTileImpl
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.DefaultEditTileGrid
+import com.android.systemui.qs.panels.ui.viewmodel.AvailableEditActions
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
@@ -62,18 +57,21 @@ class DragAndDropTest : SysuiTestCase() {
         listState: EditTileListState,
         onSetTiles: (List<TileSpec>) -> Unit,
     ) {
-        DefaultEditTileGrid(
-            listState = listState,
-            otherTiles = listOf(),
-            columns = 4,
-            largeTilesSpan = 4,
-            modifier = Modifier.fillMaxSize(),
-            onRemoveTile = {},
-            onSetTiles = onSetTiles,
-            onResize = { _, _ -> },
-            onStopEditing = {},
-            onReset = null,
-        )
+        PlatformTheme {
+            DefaultEditTileGrid(
+                listState = listState,
+                otherTiles = listOf(),
+                columns = 4,
+                largeTilesSpan = 4,
+                modifier = Modifier.fillMaxSize(),
+                onAddTile = { _, _ -> },
+                onRemoveTile = {},
+                onSetTiles = onSetTiles,
+                onResize = { _, _ -> },
+                onStopEditing = {},
+                onReset = null,
+            )
+        }
     }
 
     @Test
@@ -87,7 +85,7 @@ class DragAndDropTest : SysuiTestCase() {
         }
         composeRule.waitForIdle()
 
-        listState.onStarted(TestEditTiles[0])
+        listState.onStarted(TestEditTiles[0], DragType.Move)
 
         // Tile is being dragged, it should be replaced with a placeholder
         composeRule.onNodeWithContentDescription("tileA").assertDoesNotExist()
@@ -99,7 +97,49 @@ class DragAndDropTest : SysuiTestCase() {
         composeRule.onNodeWithText("Remove").assertExists()
 
         // Every other tile should still be in the same order
-        composeRule.assertTileGridContainsExactly(listOf("tileB", "tileC", "tileD_large", "tileE"))
+        composeRule.assertGridContainsExactly(
+            CURRENT_TILES_GRID_TEST_TAG,
+            listOf("tileB", "tileC", "tileD_large", "tileE"),
+        )
+    }
+
+    @Test
+    fun nonRemovableDraggedTile_removeHeaderShouldNotExist() {
+        val nonRemovableTile = createEditTile("tileA", isRemovable = false)
+        val listState = EditTileListState(listOf(nonRemovableTile), columns = 4, largeTilesSpan = 2)
+        composeRule.setContent { EditTileGridUnderTest(listState) {} }
+        composeRule.waitForIdle()
+
+        listState.onStarted(nonRemovableTile, DragType.Move)
+
+        // Tile is being dragged, it should be replaced with a placeholder
+        composeRule.onNodeWithContentDescription("tileA").assertDoesNotExist()
+
+        // Remove drop zone should not appear
+        composeRule.onNodeWithText("Remove").assertDoesNotExist()
+    }
+
+    @Test
+    fun droppedNonRemovableDraggedTile_shouldStayInGrid() {
+        val nonRemovableTile = createEditTile("tileA", isRemovable = false)
+        val listState = EditTileListState(listOf(nonRemovableTile), columns = 4, largeTilesSpan = 2)
+        composeRule.setContent { EditTileGridUnderTest(listState) {} }
+        composeRule.waitForIdle()
+
+        listState.onStarted(nonRemovableTile, DragType.Move)
+
+        // Tile is being dragged, it should be replaced with a placeholder
+        composeRule.onNodeWithContentDescription("tileA").assertDoesNotExist()
+
+        // Remove drop zone should not appear
+        composeRule.onNodeWithText("Remove").assertDoesNotExist()
+
+        // Drop tile outside of the grid
+        listState.movedOutOfBounds()
+        listState.onDrop()
+
+        // Tile A is still in the grid
+        composeRule.assertGridContainsExactly(CURRENT_TILES_GRID_TEST_TAG, listOf("tileA"))
     }
 
     @Test
@@ -113,8 +153,12 @@ class DragAndDropTest : SysuiTestCase() {
         }
         composeRule.waitForIdle()
 
-        listState.onStarted(TestEditTiles[0])
-        listState.onMoved(1, false)
+        listState.onStarted(TestEditTiles[0], DragType.Move)
+
+        // Remove drop zone should appear
+        composeRule.onNodeWithText("Remove").assertExists()
+
+        listState.onTargeting(1, false)
         listState.onDrop()
 
         // Available tiles should re-appear
@@ -124,8 +168,9 @@ class DragAndDropTest : SysuiTestCase() {
         composeRule.onNodeWithText("Remove").assertDoesNotExist()
 
         // Tile A and B should swap places
-        composeRule.assertTileGridContainsExactly(
-            listOf("tileB", "tileA", "tileC", "tileD_large", "tileE")
+        composeRule.assertGridContainsExactly(
+            CURRENT_TILES_GRID_TEST_TAG,
+            listOf("tileB", "tileA", "tileC", "tileD_large", "tileE"),
         )
     }
 
@@ -140,7 +185,11 @@ class DragAndDropTest : SysuiTestCase() {
         }
         composeRule.waitForIdle()
 
-        listState.onStarted(TestEditTiles[0])
+        listState.onStarted(TestEditTiles[0], DragType.Move)
+
+        // Remove drop zone should appear
+        composeRule.onNodeWithText("Remove").assertExists()
+
         listState.movedOutOfBounds()
         listState.onDrop()
 
@@ -151,7 +200,10 @@ class DragAndDropTest : SysuiTestCase() {
         composeRule.onNodeWithText("Remove").assertDoesNotExist()
 
         // Tile A is gone
-        composeRule.assertTileGridContainsExactly(listOf("tileB", "tileC", "tileD_large", "tileE"))
+        composeRule.assertGridContainsExactly(
+            CURRENT_TILES_GRID_TEST_TAG,
+            listOf("tileB", "tileC", "tileD_large", "tileE"),
+        )
     }
 
     @Test
@@ -165,11 +217,15 @@ class DragAndDropTest : SysuiTestCase() {
         }
         composeRule.waitForIdle()
 
-        listState.onStarted(createEditTile("newTile"))
+        listState.onStarted(createEditTile("tile_new", isRemovable = false), DragType.Add)
+
+        // Remove drop zone should appear
+        composeRule.onNodeWithText("Remove").assertExists()
+
         // Insert after tileD, which is at index 4
         // [ a ] [ b ] [ c ] [ empty ]
         // [ tile d ] [ e ]
-        listState.onMoved(4, insertAfter = true)
+        listState.onTargeting(4, insertAfter = true)
         listState.onDrop()
 
         // Available tiles should re-appear
@@ -178,28 +234,21 @@ class DragAndDropTest : SysuiTestCase() {
         // Remove drop zone should disappear
         composeRule.onNodeWithText("Remove").assertDoesNotExist()
 
-        // newTile is added after tileD
-        composeRule.assertTileGridContainsExactly(
-            listOf("tileA", "tileB", "tileC", "tileD_large", "newTile", "tileE")
+        // tile_new is added after tileD
+        composeRule.assertGridContainsExactly(
+            CURRENT_TILES_GRID_TEST_TAG,
+            listOf("tileA", "tileB", "tileC", "tileD_large", "tile_new", "tileE"),
         )
-    }
-
-    private fun ComposeContentTestRule.assertTileGridContainsExactly(specs: List<String>) {
-        onNodeWithTag(CURRENT_TILES_GRID_TEST_TAG)
-            .onChildren()
-            .filter(SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription))
-            .apply {
-                fetchSemanticsNodes().forEachIndexed { index, _ ->
-                    get(index).assert(hasContentDescription(specs[index]))
-                }
-            }
     }
 
     companion object {
         private const val CURRENT_TILES_GRID_TEST_TAG = "CurrentTilesGrid"
         private const val AVAILABLE_TILES_GRID_TEST_TAG = "AvailableTilesGrid"
 
-        private fun createEditTile(tileSpec: String): SizedTile<EditTileViewModel> {
+        private fun createEditTile(
+            tileSpec: String,
+            isRemovable: Boolean = true,
+        ): SizedTile<EditTileViewModel> {
             return SizedTileImpl(
                 EditTileViewModel(
                     tileSpec = TileSpec.create(tileSpec),
@@ -211,7 +260,8 @@ class DragAndDropTest : SysuiTestCase() {
                     label = AnnotatedString(tileSpec),
                     appName = null,
                     isCurrent = true,
-                    availableEditActions = emptySet(),
+                    availableEditActions =
+                        if (isRemovable) setOf(AvailableEditActions.REMOVE) else emptySet(),
                     category = TileCategory.UNKNOWN,
                 ),
                 getWidth(tileSpec),

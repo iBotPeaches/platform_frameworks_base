@@ -30,7 +30,8 @@
 namespace android {
 namespace uirenderer {
 
-static constexpr size_t UI_THREAD_FRAME_INFO_SIZE = 12;
+// This value must be in sync with `FRAME_INFO_SIZE` in FrameInfo.Java
+static constexpr size_t UI_THREAD_FRAME_INFO_SIZE = 13;
 
 enum class FrameInfoIndex {
     Flags = 0,
@@ -46,6 +47,11 @@ enum class FrameInfoIndex {
     FrameStartTime,
     FrameInterval,
     // End of UI frame info
+
+    // The target workload duration based on the original frame deadline and
+    // and intended vsync. Counted in UI_THREAD_FRAME_INFO_SIZE so its value
+    // can be set in setVsync().
+    WorkloadTarget,
 
     SyncQueued,
 
@@ -78,6 +84,8 @@ enum {
 };
 };
 
+using FrameInfoBuffer = std::array<int64_t, static_cast<size_t>(FrameInfoIndex::NumIndexes)>;
+
 class UiFrameInfoBuilder {
 public:
     static constexpr int64_t INVALID_VSYNC_ID = -1;
@@ -109,6 +117,7 @@ public:
         set(FrameInfoIndex::FrameStartTime) = vsyncTime;
         set(FrameInfoIndex::FrameDeadline) = frameDeadline;
         set(FrameInfoIndex::FrameInterval) = frameInterval;
+        set(FrameInfoIndex::WorkloadTarget) = frameDeadline - intendedVsync;
         return *this;
     }
 
@@ -125,7 +134,7 @@ private:
 
 class FrameInfo {
 public:
-    void importUiThreadInfo(int64_t* info);
+    void importUiThreadInfo(const int64_t* info);
 
     void markSyncStart() { set(FrameInfoIndex::SyncStart) = systemTime(SYSTEM_TIME_MONOTONIC); }
 
@@ -145,7 +154,7 @@ public:
         set(FrameInfoIndex::Flags) |= static_cast<uint64_t>(frameInfoFlag);
     }
 
-    const int64_t* data() const { return mFrameInfo; }
+    const FrameInfoBuffer& data() const { return mFrameInfo; }
 
     inline int64_t operator[](FrameInfoIndex index) const { return get(index); }
 
@@ -194,7 +203,7 @@ public:
     }
 
 private:
-    int64_t mFrameInfo[static_cast<int>(FrameInfoIndex::NumIndexes)];
+    FrameInfoBuffer mFrameInfo;
     std::optional<SkippedFrameReason> mSkippedFrameReason;
 };
 

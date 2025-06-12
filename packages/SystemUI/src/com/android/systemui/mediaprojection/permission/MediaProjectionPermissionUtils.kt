@@ -18,6 +18,7 @@ package com.android.systemui.mediaprojection.permission
 
 import android.content.Context
 import android.media.projection.MediaProjectionConfig
+import com.android.media.projection.flags.Flags
 import com.android.systemui.res.R
 
 /** Various utility methods related to media projection permissions. */
@@ -28,13 +29,27 @@ object MediaProjectionPermissionUtils {
         mediaProjectionConfig: MediaProjectionConfig?,
         overrideDisableSingleAppOption: Boolean,
     ): String? {
-        // The single app option should only be disabled if the client has setup a
-        // MediaProjection with MediaProjectionConfig#createConfigForDefaultDisplay AND
-        // it hasn't been overridden by the OVERRIDE_DISABLE_SINGLE_APP_OPTION per-app override.
+
         val singleAppOptionDisabled =
             !overrideDisableSingleAppOption &&
-                mediaProjectionConfig?.regionToCapture ==
-                    MediaProjectionConfig.CAPTURE_REGION_FIXED_DISPLAY
+                if (Flags.appContentSharing()) {
+                    // The single app option should only be disabled if the client has setup a
+                    // MediaProjection with MediaProjection.isChoiceAppEnabled == false (e.g by
+                    // creating it
+                    // with MediaProjectionConfig#createConfigForDefaultDisplay AND
+                    // it hasn't been overridden by the OVERRIDE_DISABLE_SINGLE_APP_OPTION per-app
+                    // override.
+                    mediaProjectionConfig?.isSourceEnabled(
+                        MediaProjectionConfig.PROJECTION_SOURCE_APP
+                    ) == false
+                } else {
+                    // The single app option should only be disabled if the client has setup a
+                    // MediaProjection with MediaProjectionConfig#createConfigForDefaultDisplay AND
+                    // it hasn't been overridden by the OVERRIDE_DISABLE_SINGLE_APP_OPTION per-app
+                    // override.
+                    mediaProjectionConfig?.regionToCapture ==
+                        MediaProjectionConfig.CAPTURE_REGION_FIXED_DISPLAY
+                }
         return if (singleAppOptionDisabled) {
             context.getString(
                 R.string.media_projection_entry_app_permission_dialog_single_app_disabled,

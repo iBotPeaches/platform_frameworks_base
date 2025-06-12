@@ -13,8 +13,6 @@
  *
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.statusbar.notification.icon.domain.interactor
 
 import com.android.systemui.dagger.qualifiers.Background
@@ -23,16 +21,17 @@ import com.android.systemui.statusbar.data.repository.NotificationListenerSettin
 import com.android.systemui.statusbar.notification.data.repository.NotificationsKeyguardViewStateRepository
 import com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.HeadsUpNotificationIconInteractor
+import com.android.systemui.statusbar.notification.promoted.domain.interactor.AODPromotedNotificationInteractor
 import com.android.systemui.statusbar.notification.shared.ActiveNotificationModel
 import com.android.wm.shell.bubbles.Bubbles
 import java.util.Optional
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlin.jvm.optionals.getOrNull
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 
 /** Domain logic related to notification icons. */
@@ -42,8 +41,21 @@ constructor(
     private val activeNotificationsInteractor: ActiveNotificationsInteractor,
     private val bubbles: Optional<Bubbles>,
     private val headsUpNotificationIconInteractor: HeadsUpNotificationIconInteractor,
+    private val aodPromotedNotificationInteractor: AODPromotedNotificationInteractor,
     private val keyguardViewStateRepository: NotificationsKeyguardViewStateRepository,
 ) {
+    private val aodPromotedKeyToHide: Flow<String?> =
+        combine(
+            aodPromotedNotificationInteractor.content,
+            aodPromotedNotificationInteractor.isPresent,
+        ) { content, isPresent ->
+            when {
+                !isPresent -> null
+                content == null -> null
+                else -> content.identity.key
+            }
+        }
+
     /** Returns a subset of all active notifications based on the supplied filtration parameters. */
     fun filteredNotifSet(
         forceShowHeadsUp: Boolean = false,
@@ -52,12 +64,14 @@ constructor(
         showDismissed: Boolean = true,
         showRepliedMessages: Boolean = true,
         showPulsing: Boolean = true,
+        showAodPromoted: Boolean = true,
     ): Flow<Set<ActiveNotificationModel>> {
         return combine(
             activeNotificationsInteractor.topLevelRepresentativeNotifications,
             headsUpNotificationIconInteractor.isolatedNotification,
+            if (showAodPromoted) flowOf(null) else aodPromotedKeyToHide,
             keyguardViewStateRepository.areNotificationsFullyHidden,
-        ) { notifications, isolatedNotifKey, notifsFullyHidden ->
+        ) { notifications, isolatedNotifKey, aodPromotedKeyToHide, notifsFullyHidden ->
             notifications
                 .asSequence()
                 .filter { model: ActiveNotificationModel ->
@@ -70,6 +84,7 @@ constructor(
                         showRepliedMessages = showRepliedMessages,
                         showPulsing = showPulsing,
                         isolatedNotifKey = isolatedNotifKey,
+                        aodPromotedKeyToHide = aodPromotedKeyToHide,
                         notifsFullyHidden = notifsFullyHidden,
                     )
                 }
@@ -86,6 +101,7 @@ constructor(
         showRepliedMessages: Boolean,
         showPulsing: Boolean,
         isolatedNotifKey: String?,
+        aodPromotedKeyToHide: String?,
         notifsFullyHidden: Boolean,
     ): Boolean {
         return when {
@@ -96,6 +112,7 @@ constructor(
             !showRepliedMessages && model.isLastMessageFromReply -> false
             !showAmbient && model.isSuppressedFromStatusBar -> false
             !showPulsing && model.isPulsing && !notifsFullyHidden -> false
+            model.key == aodPromotedKeyToHide -> false
             bubbles.getOrNull()?.isBubbleExpanded(model.key) == true -> false
             else -> true
         }
@@ -118,6 +135,7 @@ constructor(
                     showDismissed = false,
                     showRepliedMessages = false,
                     showPulsing = !isBypassEnabled,
+                    showAodPromoted = false,
                 )
             }
             .flowOn(bgContext)

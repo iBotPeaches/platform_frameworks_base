@@ -48,6 +48,7 @@ import java.util.Locale;
  *
  * @see TextView#isSuggestionsEnabled()
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class SuggestionSpan extends CharacterStyle implements ParcelableSpan {
 
     private static final String TAG = "SuggestionSpan";

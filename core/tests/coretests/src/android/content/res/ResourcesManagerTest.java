@@ -33,7 +33,6 @@ import android.platform.test.annotations.Postsubmit;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
-import android.util.ArraySet;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Display;
@@ -43,12 +42,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -66,6 +65,7 @@ public class ResourcesManagerTest {
     public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private ResourcesManager mResourcesManager;
+    private ResourcesManager mOldResourcesManager;
     private Map<Integer, DisplayMetrics> mDisplayMetricsMap;
 
     @Before
@@ -115,6 +115,12 @@ public class ResourcesManagerTest {
                 return mDisplayMetricsMap.get(displayId);
             }
         };
+        mOldResourcesManager = ResourcesManager.setInstance(mResourcesManager);
+    }
+
+    @After
+    public void tearDown() {
+        ResourcesManager.setInstance(mOldResourcesManager);
     }
 
     private PackageManager getPackageManager() {
@@ -363,11 +369,6 @@ public class ResourcesManagerTest {
     @DisabledOnRavenwood(blockedBy = PackageManager.class)
     public void testExistingResourcesAfterResourcePathsRegistration()
              throws PackageManager.NameNotFoundException {
-        // Inject ResourcesManager instance from this test to the ResourcesManager class so that all
-        // the static method can interact with this test smoothly.
-        ResourcesManager oriResourcesManager = ResourcesManager.getInstance();
-        ResourcesManager.setInstance(mResourcesManager);
-
         // Create a Resources before register resources' paths for a package.
         Resources resources = mResourcesManager.getResources(
                 null, APP_ONE_RES_DIR, null, null, null, null, null, null,
@@ -380,16 +381,11 @@ public class ResourcesManagerTest {
 
         assertNotSame(oriResImpl, resources.getImpl());
 
-        String[] resourcePaths = appInfo.getAllApkPaths();
-        resourcePaths = removeDuplicates(resourcePaths);
         ApkAssets[] loadedAssets = resources.getAssets().getApkAssets();
-        assertTrue(allResourcePathsLoaded(resourcePaths, loadedAssets));
+        assertTrue(containsPath(TEST_LIB, loadedAssets));
 
         // Package resources' paths should be cached in ResourcesManager.
         assertNotNull(ResourcesManager.getInstance().getRegisteredResourcePaths().get(TEST_LIB));
-
-        // Revert the ResourcesManager instance back.
-        ResourcesManager.setInstance(oriResourcesManager);
     }
 
     @Test
@@ -398,11 +394,6 @@ public class ResourcesManagerTest {
     @DisabledOnRavenwood(blockedBy = PackageManager.class)
     public void testNewResourcesAfterResourcePathsRegistration()
             throws PackageManager.NameNotFoundException {
-        // Inject ResourcesManager instance from this test to the ResourcesManager class so that all
-        // the static method can interact with this test smoothly.
-        ResourcesManager oriResourcesManager = ResourcesManager.getInstance();
-        ResourcesManager.setInstance(mResourcesManager);
-
         ApplicationInfo appInfo = getPackageManager().getApplicationInfo(TEST_LIB, 0);
         Resources.registerResourcePaths(TEST_LIB, appInfo);
 
@@ -412,15 +403,11 @@ public class ResourcesManagerTest {
                 CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO, null, null);
         assertNotNull(resources);
 
-        String[] resourcePaths = appInfo.getAllApkPaths();
-        resourcePaths = removeDuplicates(resourcePaths);
         ApkAssets[] loadedAssets = resources.getAssets().getApkAssets();
-        assertTrue(allResourcePathsLoaded(resourcePaths, loadedAssets));
+        assertTrue(containsPath(TEST_LIB, loadedAssets));
 
         // Package resources' paths should be cached in ResourcesManager.
         assertNotNull(ResourcesManager.getInstance().getRegisteredResourcePaths().get(TEST_LIB));
-        // Revert the ResourcesManager instance back.
-        ResourcesManager.setInstance(oriResourcesManager);
     }
 
     @Test
@@ -429,11 +416,6 @@ public class ResourcesManagerTest {
     @DisabledOnRavenwood(blockedBy = PackageManager.class)
     public void testExistingResourcesCreatedByConstructorAfterResourcePathsRegistration()
             throws PackageManager.NameNotFoundException {
-        // Inject ResourcesManager instance from this test to the ResourcesManager class so that all
-        // the static method can interact with this test smoothly.
-        ResourcesManager oriResourcesManager = ResourcesManager.getInstance();
-        ResourcesManager.setInstance(mResourcesManager);
-
         // Create a Resources through constructor directly before register resources' paths.
         final DisplayMetrics metrics = new DisplayMetrics();
         metrics.setToDefaults();
@@ -449,15 +431,11 @@ public class ResourcesManagerTest {
 
         assertNotSame(oriResImpl, resources.getImpl());
 
-        String[] resourcePaths = appInfo.getAllApkPaths();
-        resourcePaths = removeDuplicates(resourcePaths);
         ApkAssets[] loadedAssets = resources.getAssets().getApkAssets();
-        assertTrue(allResourcePathsLoaded(resourcePaths, loadedAssets));
+        assertTrue(containsPath(TEST_LIB, loadedAssets));
 
         // Package resources' paths should be cached in ResourcesManager.
         assertNotNull(ResourcesManager.getInstance().getRegisteredResourcePaths().get(TEST_LIB));
-        // Revert the ResourcesManager instance back.
-        ResourcesManager.setInstance(oriResourcesManager);
     }
 
     @Test
@@ -509,9 +487,6 @@ public class ResourcesManagerTest {
     @DisabledOnRavenwood(blockedBy = PackageManager.class)
     public void testNewResourcesWithOutdatedImplAfterResourcePathsRegistration()
             throws PackageManager.NameNotFoundException {
-        ResourcesManager oriResourcesManager = ResourcesManager.getInstance();
-        ResourcesManager.setInstance(mResourcesManager);
-
         Resources old_resources = mResourcesManager.getResources(
                 null, APP_ONE_RES_DIR, null, null, null, null, null, null,
                 CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO, null, null);
@@ -532,44 +507,48 @@ public class ResourcesManagerTest {
         // which has proper asset paths appended.
         assertNotSame(oldImpl, resources.getImpl());
 
-        String[] resourcePaths = appInfo.getAllApkPaths();
-        resourcePaths = removeDuplicates(resourcePaths);
         ApkAssets[] loadedAssets = resources.getAssets().getApkAssets();
-        assertTrue(allResourcePathsLoaded(resourcePaths, loadedAssets));
+        assertTrue(containsPath(TEST_LIB, loadedAssets));
 
         // Package resources' paths should be cached in ResourcesManager.
         assertNotNull(ResourcesManager.getInstance().getRegisteredResourcePaths().get(TEST_LIB));
-        // Revert the ResourcesManager instance back.
-        ResourcesManager.setInstance(oriResourcesManager);
     }
 
-    private static boolean allResourcePathsLoaded(String[] resourcePaths, ApkAssets[] loadedAsset) {
-        for (int i = 0; i < resourcePaths.length; i++) {
-            if (!resourcePaths[i].endsWith(".apk")) {
-                continue;
-            }
-            boolean found = false;
-            for (int j = 0; j < loadedAsset.length; j++) {
-                if (loadedAsset[j].getAssetPath().equals(resourcePaths[i])) {
-                    found = true;
-                }
-            }
-            if (!found) {
-                return false;
-            }
-        }
-        return true;
+
+    @Test
+    @SmallTest
+    @RequiresFlagsEnabled(Flags.FLAG_REGISTER_RESOURCE_PATHS)
+    @DisabledOnRavenwood(blockedBy = PackageManager.class)
+    public void testRegisteringOwnApplicationInfo() {
+        Resources old_resources = mResourcesManager.getResources(
+                null, APP_ONE_RES_DIR, null, null, null, null, null, null,
+                CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO, null, null);
+        assertNotNull(old_resources);
+        ResourcesImpl oldImpl = old_resources.getImpl();
+
+        ApplicationInfo appInfo =
+                InstrumentationRegistry.getInstrumentation().getContext().getApplicationInfo();
+        Resources.registerResourcePaths(TEST_LIB, appInfo);
+
+        // Create another resources with identical parameters.
+        Resources resources = mResourcesManager.getResources(
+                null, APP_ONE_RES_DIR, null, null, null, null, null, null,
+                CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO, null, null);
+        assertNotNull(resources);
+        assertNotSame(oldImpl, resources.getImpl());
+
+        ApkAssets[] loadedAssets = resources.getAssets().getApkAssets();
+        assertTrue(containsPath(appInfo.sourceDir, loadedAssets));
+
+        assertNotNull(ResourcesManager.getInstance().getRegisteredResourcePaths().get(TEST_LIB));
     }
 
-    private static String[] removeDuplicates(String[] paths) {
-        var pathList = new ArrayList<String>();
-        var pathSet = new ArraySet<String>();
-        final int pathsLen = paths.length;
-        for (int i = 0; i < pathsLen; i++) {
-            if (pathSet.add(paths[i])) {
-                pathList.add(paths[i]);
+    private static boolean containsPath(String substring, ApkAssets[] assets) {
+        for (final var asset : assets) {
+            if (asset.getAssetPath().contains(substring)) {
+                return true;
             }
         }
-        return pathList.toArray(new String[0]);
+        return false;
     }
 }

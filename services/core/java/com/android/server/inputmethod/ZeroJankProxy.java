@@ -128,9 +128,9 @@ final class ZeroJankProxy implements IInputMethodManagerImpl.Callback {
     }
 
     @Override
-    public void addClient(IInputMethodClient client, IRemoteInputConnection inputConnection,
-            int selfReportedDisplayId) {
-        offload(() -> mInner.addClient(client, inputConnection, selfReportedDisplayId));
+    public void addClient(@NonNull IInputMethodClient client,
+            @NonNull IRemoteInputConnection fallbackInputConnection, int selfReportedDisplayId) {
+        offload(() -> mInner.addClient(client, fallbackInputConnection, selfReportedDisplayId));
     }
 
     @Override
@@ -234,15 +234,15 @@ final class ZeroJankProxy implements IInputMethodManagerImpl.Callback {
             IRemoteInputConnection inputConnection,
             IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
             int unverifiedTargetSdkVersion, @UserIdInt int userId,
-            @NonNull ImeOnBackInvokedDispatcher imeDispatcher, int startInputSeq,
-            boolean useAsyncShowHideMethod) {
+            @NonNull ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible,
+            int startInputSeq, boolean useAsyncShowHideMethod) {
         offload(() -> {
             InputBindResult result = mInner.startInputOrWindowGainedFocus(startInputReason, client,
                     windowToken, startInputFlags, softInputMode, windowFlags,
                     editorInfo,
                     inputConnection, remoteAccessibilityInputConnection,
                     unverifiedTargetSdkVersion,
-                    userId, imeDispatcher);
+                    userId, imeDispatcher, imeRequestedVisible);
             sendOnStartInputResult(client, result, startInputSeq);
             // For first-time client bind, MSG_BIND should arrive after MSG_START_INPUT_RESULT.
             if (result.result == InputBindResult.ResultCode.SUCCESS_WAITING_IME_SESSION) {
@@ -269,7 +269,7 @@ final class ZeroJankProxy implements IInputMethodManagerImpl.Callback {
             IRemoteInputConnection inputConnection,
             IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
             int unverifiedTargetSdkVersion, @UserIdInt int userId,
-            @NonNull ImeOnBackInvokedDispatcher imeDispatcher) {
+            @NonNull ImeOnBackInvokedDispatcher imeDispatcher, boolean imeRequestedVisible) {
         // Should never be called when flag is enabled i.e. when this proxy is used.
         return null;
     }
@@ -302,6 +302,12 @@ final class ZeroJankProxy implements IInputMethodManagerImpl.Callback {
         mInner.onImeSwitchButtonClickFromSystem(displayId);
     }
 
+    @IInputMethodManagerImpl.PermissionVerified(Manifest.permission.TEST_INPUT_METHOD)
+    @Override
+    public boolean shouldShowImeSwitcherButtonForTest() {
+        return mInner.shouldShowImeSwitcherButtonForTest();
+    }
+
     @Override
     public InputMethodSubtype getCurrentInputMethodSubtype(int userId) {
         return mInner.getCurrentInputMethodSubtype(userId);
@@ -325,7 +331,7 @@ final class ZeroJankProxy implements IInputMethodManagerImpl.Callback {
     }
 
     @Override
-    public void reportPerceptibleAsync(IBinder windowToken, boolean perceptible) {
+    public void reportPerceptibleAsync(@NonNull IBinder windowToken, boolean perceptible) {
         // Already async TODO(b/293640003): ordering issues?
         mInner.reportPerceptibleAsync(windowToken, perceptible);
     }
@@ -462,7 +468,7 @@ final class ZeroJankProxy implements IInputMethodManagerImpl.Callback {
             IInputMethodClient client, InputBindResult res, int startInputSeq) {
         synchronized (ImfLock.class) {
             final ClientState cs = mInner.getClientStateLocked(client);
-            if (cs != null && cs.mClient != null) {
+            if (cs != null) {
                 cs.mClient.onStartInputResult(res, startInputSeq);
             } else {
                 // client is unbound.

@@ -20,6 +20,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.telephony.CarrierConfigManager
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
@@ -37,7 +38,6 @@ import com.android.settingslib.mobile.MobileMappings.Config
 import com.android.systemui.Dumpable
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dump.DumpManager
@@ -59,10 +59,10 @@ import com.android.systemui.util.kotlin.pairwise
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import java.io.PrintWriter
 import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -81,7 +81,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
 class MobileConnectionsRepositoryImpl
 @Inject
@@ -96,7 +95,7 @@ constructor(
     broadcastDispatcher: BroadcastDispatcher,
     private val context: Context,
     @Background private val bgDispatcher: CoroutineDispatcher,
-    @Application private val scope: CoroutineScope,
+    @Background private val scope: CoroutineScope,
     @Main private val mainDispatcher: CoroutineDispatcher,
     airplaneModeRepository: AirplaneModeRepository,
     // Some "wifi networks" should be rendered as a mobile connection, which is why the wifi
@@ -109,9 +108,8 @@ constructor(
 ) : MobileConnectionsRepository, Dumpable {
 
     // TODO(b/333912012): for now, we are never invalidating the cache. We can do better though
-    private var subIdRepositoryCache:
-        MutableMap<Int, WeakReference<FullMobileConnectionRepository>> =
-        mutableMapOf()
+    private var subIdRepositoryCache =
+        ConcurrentHashMap<Int, WeakReference<FullMobileConnectionRepository>>()
 
     private val defaultNetworkName =
         NetworkNameModel.Default(
@@ -179,7 +177,7 @@ constructor(
                 val subId =
                     intent.getIntExtra(
                         SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX,
-                        INVALID_SUBSCRIPTION_ID
+                        INVALID_SUBSCRIPTION_ID,
                     )
 
                 // Only emit if the subId is not associated with an active subscription
@@ -194,6 +192,15 @@ constructor(
     override val isDeviceEmergencyCallCapable: StateFlow<Boolean> =
         serviceStateChangedEvent
             .mapLatest {
+                // TODO(b/400460777): check for hasSystemFeature only once
+                val hasRadioAccess: Boolean =
+                    context.packageManager.hasSystemFeature(
+                        PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS
+                    )
+                if (!hasRadioAccess) {
+                    return@mapLatest false
+                }
+
                 val modems = telephonyManager.activeModemCount
                 // Check the service state for every modem. If any state reports emergency calling
                 // capable, then consider the device to have emergency call capabilities
@@ -250,7 +257,7 @@ constructor(
                 tableLogger,
                 LOGGING_PREFIX,
                 columnName = "activeSubId",
-                initialValue = INVALID_SUBSCRIPTION_ID,
+                initialValue = null,
             )
             .stateIn(scope, started = SharingStarted.WhileSubscribed(), null)
 
@@ -265,22 +272,31 @@ constructor(
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), null)
 
-    override val defaultDataSubId: StateFlow<Int> =
+    override val defaultDataSubId: StateFlow<Int?> =
         broadcastDispatcher
             .broadcastFlow(
-                IntentFilter(TelephonyManager.ACTION_DEFAULT_DATA_SUBSCRIPTION_CHANGED),
+                IntentFilter(TelephonyManager.ACTION_DEFAULT_DATA_SUBSCRIPTION_CHANGED)
             ) { intent, _ ->
-                intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY, INVALID_SUBSCRIPTION_ID)
+                val subId =
+                    intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY, INVALID_SUBSCRIPTION_ID)
+                if (subId == INVALID_SUBSCRIPTION_ID) {
+                    null
+                } else {
+                    subId
+                }
             }
             .distinctUntilChanged()
             .logDiffsForTable(
                 tableLogger,
                 LOGGING_PREFIX,
                 columnName = "defaultSubId",
-                initialValue = INVALID_SUBSCRIPTION_ID,
+                initialValue = null,
             )
-            .onStart { emit(subscriptionManagerProxy.getDefaultDataSubscriptionId()) }
-            .stateIn(scope, SharingStarted.WhileSubscribed(), INVALID_SUBSCRIPTION_ID)
+            .onStart {
+                val subId = subscriptionManagerProxy.getDefaultDataSubscriptionId()
+                emit(if (subId == INVALID_SUBSCRIPTION_ID) null else subId)
+            }
+            .stateIn(scope, SharingStarted.WhileSubscribed(), null)
 
     private val carrierConfigChangedEvent =
         broadcastDispatcher
@@ -296,7 +312,7 @@ constructor(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                initialValue = Config.readConfig(context)
+                initialValue = Config.readConfig(context),
             )
 
     override val defaultMobileIconMapping: Flow<Map<String, MobileIconGroup>> =
@@ -374,7 +390,6 @@ constructor(
             .distinctUntilChanged()
             .logDiffsForTable(
                 tableLogger,
-                columnPrefix = "",
                 columnName = "defaultConnectionIsValidated",
                 initialValue = false,
             )

@@ -35,7 +35,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.animation.scene.SceneScope
+import com.android.compose.animation.scene.ContentScope
 import com.android.compose.modifiers.padding
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController
 import com.android.systemui.keyguard.ui.composable.blueprint.ClockElementKeys
@@ -57,7 +57,7 @@ constructor(
     private val aodBurnInViewModel: AodBurnInViewModel,
 ) {
     @Composable
-    fun SceneScope.SmartSpace(
+    fun ContentScope.SmartSpace(
         burnInParams: BurnInParameters,
         onTopChanged: (top: Float?) -> Unit,
         smartSpacePaddingTop: (Resources) -> Int,
@@ -66,64 +66,61 @@ constructor(
         val resources = LocalContext.current.resources
 
         Element(key = ClockElementKeys.smartspaceElementKey, modifier = modifier) {
-            content {
-                Column(
-                    modifier =
-                        modifier
-                            .onTopPlacementChanged(onTopChanged)
-                            .padding(
-                                top = { smartSpacePaddingTop(resources) },
-                                bottom = {
-                                    resources.getDimensionPixelSize(
-                                        R.dimen.keyguard_status_view_bottom_margin
-                                    )
-                                },
-                            )
-                ) {
-                    if (!keyguardSmartspaceViewModel.isSmartspaceEnabled) {
-                        return@Column
-                    }
+            Column(
+                modifier =
+                    modifier
+                        .onTopPlacementChanged(onTopChanged)
+                        .padding(
+                            top = { smartSpacePaddingTop(resources) },
+                            bottom = {
+                                resources.getDimensionPixelSize(
+                                    R.dimen.keyguard_status_view_bottom_margin
+                                )
+                            },
+                        )
+            ) {
+                if (!keyguardSmartspaceViewModel.isSmartspaceEnabled) {
+                    return@Column
+                }
 
-                    val paddingBelowClockStart =
-                        dimensionResource(R.dimen.below_clock_padding_start)
-                    val paddingBelowClockEnd = dimensionResource(R.dimen.below_clock_padding_end)
-                    val paddingCardHorizontal = paddingBelowClockEnd
+                val paddingBelowClockStart = dimensionResource(R.dimen.below_clock_padding_start)
+                val paddingBelowClockEnd = dimensionResource(R.dimen.below_clock_padding_end)
+                val paddingCardHorizontal = paddingBelowClockEnd
 
-                    if (keyguardSmartspaceViewModel.isDateWeatherDecoupled) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier =
-                                Modifier.fillMaxWidth()
-                                    // All items will be constrained to be as tall as the shortest
-                                    // item.
-                                    .height(IntrinsicSize.Min)
-                                    .padding(start = paddingBelowClockStart),
-                        ) {
-                            Date(
-                                modifier =
-                                    Modifier.burnInAware(
-                                        viewModel = aodBurnInViewModel,
-                                        params = burnInParams,
-                                    )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Weather(
-                                modifier =
-                                    Modifier.burnInAware(
-                                        viewModel = aodBurnInViewModel,
-                                        params = burnInParams,
-                                    )
-                            )
-                        }
-                    }
-
-                    Card(
+                if (keyguardSmartspaceViewModel.isDateWeatherDecoupled) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier =
                             Modifier.fillMaxWidth()
-                                .padding(start = paddingCardHorizontal, end = paddingCardHorizontal)
-                                .burnInAware(viewModel = aodBurnInViewModel, params = burnInParams)
-                    )
+                                // All items will be constrained to be as tall as the shortest
+                                // item.
+                                .height(IntrinsicSize.Min)
+                                .padding(start = paddingBelowClockStart),
+                    ) {
+                        Date(
+                            modifier =
+                                Modifier.burnInAware(
+                                    viewModel = aodBurnInViewModel,
+                                    params = burnInParams,
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Weather(
+                            modifier =
+                                Modifier.burnInAware(
+                                    viewModel = aodBurnInViewModel,
+                                    params = burnInParams,
+                                )
+                        )
+                    }
                 }
+
+                Card(
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .padding(start = paddingCardHorizontal, end = paddingCardHorizontal)
+                            .burnInAware(viewModel = aodBurnInViewModel, params = burnInParams)
+                )
             }
         }
     }
@@ -162,7 +159,7 @@ constructor(
             factory = { context ->
                 FrameLayout(context).apply {
                     addView(
-                        lockscreenSmartspaceController.buildAndConnectWeatherView(this).apply {
+                        lockscreenSmartspaceController.buildAndConnectWeatherView(this, false).apply {
                             layoutParams =
                                 FrameLayout.LayoutParams(
                                     FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -187,7 +184,7 @@ constructor(
             factory = { context ->
                 FrameLayout(context).apply {
                     addView(
-                        lockscreenSmartspaceController.buildAndConnectDateView(this).apply {
+                        lockscreenSmartspaceController.buildAndConnectDateView(this, false).apply {
                             layoutParams =
                                 FrameLayout.LayoutParams(
                                     FrameLayout.LayoutParams.WRAP_CONTENT,

@@ -1,26 +1,25 @@
 package com.android.systemui.communal.data.repository
 
+import android.content.res.Configuration
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.compose.animation.scene.SceneKey
 import com.android.compose.animation.scene.TransitionKey
 import com.android.systemui.communal.shared.model.CommunalScenes
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Fake implementation of [CommunalSceneRepository]. */
-@OptIn(ExperimentalCoroutinesApi::class)
 class FakeCommunalSceneRepository(
     private val applicationScope: CoroutineScope,
-    override val currentScene: MutableStateFlow<SceneKey> =
-        MutableStateFlow(CommunalScenes.Default),
+    override val currentScene: MutableStateFlow<SceneKey> = MutableStateFlow(CommunalScenes.Default),
 ) : CommunalSceneRepository {
 
     override fun changeScene(toScene: SceneKey, transitionKey: TransitionKey?) =
@@ -46,5 +45,14 @@ class FakeCommunalSceneRepository(
 
     override fun setTransitionState(transitionState: Flow<ObservableTransitionState>?) {
         _transitionState.value = transitionState
+    }
+
+    private val _communalContainerOrientation =
+        MutableStateFlow(Configuration.ORIENTATION_UNDEFINED)
+    override val communalContainerOrientation: StateFlow<Int> =
+        _communalContainerOrientation.asStateFlow()
+
+    override fun setCommunalContainerOrientation(orientation: Int) {
+        _communalContainerOrientation.value = orientation
     }
 }

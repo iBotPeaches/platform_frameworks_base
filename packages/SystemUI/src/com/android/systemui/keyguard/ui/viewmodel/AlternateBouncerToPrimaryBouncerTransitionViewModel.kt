@@ -16,34 +16,40 @@
 
 package com.android.systemui.keyguard.ui.viewmodel
 
+import com.android.systemui.Flags
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.FromAlternateBouncerTransitionInteractor
 import com.android.systemui.keyguard.shared.model.Edge
 import com.android.systemui.keyguard.shared.model.KeyguardState.ALTERNATE_BOUNCER
 import com.android.systemui.keyguard.shared.model.KeyguardState.PRIMARY_BOUNCER
 import com.android.systemui.keyguard.ui.KeyguardTransitionAnimationFlow
+import com.android.systemui.keyguard.ui.transitions.BlurConfig
 import com.android.systemui.keyguard.ui.transitions.DeviceEntryIconTransition
+import com.android.systemui.keyguard.ui.transitions.PrimaryBouncerTransition
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
-import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.ui.composable.transitions.TO_BOUNCER_FADE_FRACTION
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Breaks down ALTERNATE BOUNCER->PRIMARY BOUNCER transition into discrete steps for corresponding
  * views to consume.
  */
-@ExperimentalCoroutinesApi
 @SysUISingleton
 class AlternateBouncerToPrimaryBouncerTransitionViewModel
 @Inject
-constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTransition {
+constructor(
+    animationFlow: KeyguardTransitionAnimationFlow,
+    blurConfig: BlurConfig,
+    shadeDependentFlows: ShadeDependentFlows,
+) : DeviceEntryIconTransition, PrimaryBouncerTransition {
     private val transitionAnimation =
         animationFlow
             .setup(
                 duration = FromAlternateBouncerTransitionInteractor.TO_PRIMARY_BOUNCER_DURATION,
-                edge = Edge.create(from = ALTERNATE_BOUNCER, to = Scenes.Bouncer),
+                edge = Edge.create(from = ALTERNATE_BOUNCER, to = Overlays.Bouncer),
             )
             .setupWithoutSceneContainer(
                 edge = Edge.create(from = ALTERNATE_BOUNCER, to = PRIMARY_BOUNCER)
@@ -57,12 +63,57 @@ constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTra
             else -> { step -> 1f - step }
         }
 
-    val lockscreenAlpha: Flow<Float> =
+    private val alphaFlow =
         transitionAnimation.sharedFlow(
             duration = FromAlternateBouncerTransitionInteractor.TO_PRIMARY_BOUNCER_DURATION,
             onStep = alphaForAnimationStep,
         )
 
+    val lockscreenAlpha: Flow<Float> = if (Flags.bouncerUiRevamp()) alphaFlow else emptyFlow()
+
+    val notificationAlpha: Flow<Float> =
+        if (Flags.bouncerUiRevamp()) {
+            shadeDependentFlows.transitionFlow(
+                flowWhenShadeIsNotExpanded = lockscreenAlpha,
+                flowWhenShadeIsExpanded = transitionAnimation.immediatelyTransitionTo(1f),
+            )
+        } else {
+            alphaFlow
+        }
+
+    override val notificationBlurRadius: Flow<Float> =
+        if (Flags.bouncerUiRevamp()) {
+            shadeDependentFlows.transitionFlow(
+                flowWhenShadeIsNotExpanded = emptyFlow(),
+                flowWhenShadeIsExpanded =
+                    transitionAnimation.immediatelyTransitionTo(blurConfig.maxBlurRadiusPx),
+            )
+        } else {
+            emptyFlow<Float>()
+        }
+
     override val deviceEntryParentViewAlpha: Flow<Float> =
         transitionAnimation.immediatelyTransitionTo(0f)
+
+    override val windowBlurRadius: Flow<Float> =
+        shadeDependentFlows.transitionFlow(
+            flowWhenShadeIsExpanded =
+                if (Flags.notificationShadeBlur()) {
+                    transitionAnimation.immediatelyTransitionTo(blurConfig.maxBlurRadiusPx)
+                } else {
+                    transitionAnimation.immediatelyTransitionTo(blurConfig.minBlurRadiusPx)
+                },
+            flowWhenShadeIsNotExpanded =
+                transitionAnimation.sharedFlow(
+                    duration = FromAlternateBouncerTransitionInteractor.TO_PRIMARY_BOUNCER_DURATION,
+                    onStep = { step ->
+                        transitionProgressToBlurRadius(
+                            starBlurRadius = blurConfig.minBlurRadiusPx,
+                            endBlurRadius = blurConfig.maxBlurRadiusPx,
+                            transitionProgress = step,
+                        )
+                    },
+                    onFinish = { blurConfig.maxBlurRadiusPx },
+                ),
+        )
 }

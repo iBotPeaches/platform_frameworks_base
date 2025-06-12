@@ -23,6 +23,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Pools.SynchronizedPool;
 
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Region implements Parcelable {
 
     private static final int MAX_POOL_SIZE = 10;

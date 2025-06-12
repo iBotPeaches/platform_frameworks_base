@@ -21,17 +21,12 @@ import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.WindowManager;
 import android.widget.Button;
 
 public class LaunchNewTaskActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        WindowManager.LayoutParams p = getWindow().getAttributes();
-        p.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        getWindow().setAttributes(p);
         setContentView(R.layout.task_button);
 
         Button button = findViewById(R.id.launch_new_task);

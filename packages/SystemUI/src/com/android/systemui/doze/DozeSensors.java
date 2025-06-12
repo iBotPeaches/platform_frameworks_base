@@ -94,6 +94,7 @@ import java.util.function.Consumer;
 public class DozeSensors {
     private static final String TAG = "DozeSensors";
     private static final UiEventLogger UI_EVENT_LOGGER = new UiEventLoggerImpl();
+    private static final String KEY_DOZE_PULSE_ON_AUTH = "doze_pulse_on_auth";
 
     private final AsyncSensorManager mSensorManager;
     private final AmbientDisplayConfiguration mConfig;
@@ -241,7 +242,7 @@ public class DozeSensors {
                 ),
                 new TriggerSensor(
                         findSensor(config.udfpsLongPressSensorType()),
-                        "doze_pulse_on_auth",
+                        KEY_DOZE_PULSE_ON_AUTH,
                         true /* settingDef */,
                         udfpsLongPressConfigured(),
                         DozeLog.REASON_SENSOR_UDFPS_LONG_PRESS,
@@ -421,6 +422,18 @@ public class DozeSensors {
                     && (!s.mRequiresTouchscreen || mListeningTouchScreenSensors)
                     && (!s.mRequiresProx || mListeningProxSensors)
                     && (!s.mRequiresAod || mListeningAodOnlySensors);
+
+            //AOD might be turned off in visual because of BetterySaver or isAlwaysOnSuppressed(),
+            //but AOD isn't really turned off, in these cases, udfpsLongPressSensor should be
+            //unregistered.
+            if (!mListeningAodOnlySensors && KEY_DOZE_PULSE_ON_AUTH.equals(s.mSetting)) {
+                if (mConfig.alwaysOnEnabled(mSelectedUserInteractor.getSelectedUserId())
+                        && !mConfig.screenOffUdfpsEnabled(
+                        mSelectedUserInteractor.getSelectedUserId())) {
+                    listen = false;
+                }
+            }
+
             s.setListening(listen);
             if (listen) {
                 anyListening = true;

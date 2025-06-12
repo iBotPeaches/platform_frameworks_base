@@ -19,28 +19,43 @@ package com.android.systemui.media.controls.ui.animation
 import com.android.systemui.monet.ColorScheme
 
 /** Returns the surface color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun surfaceFromScheme(scheme: ColorScheme) = scheme.accent2.s800 // A2-800
 
 /** Returns the primary accent color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun accentPrimaryFromScheme(scheme: ColorScheme) = scheme.accent1.s100 // A1-100
 
 /** Returns the secondary accent color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun accentSecondaryFromScheme(scheme: ColorScheme) = scheme.accent1.s200 // A1-200
 
 /** Returns the primary text color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun textPrimaryFromScheme(scheme: ColorScheme) = scheme.neutral1.s50 // N1-50
 
 /** Returns the inverse of the primary text color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun textPrimaryInverseFromScheme(scheme: ColorScheme) = scheme.neutral1.s900 // N1-900
 
 /** Returns the secondary text color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun textSecondaryFromScheme(scheme: ColorScheme) = scheme.neutral2.s200 // N2-200
 
 /** Returns the tertiary text color for media controls based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun textTertiaryFromScheme(scheme: ColorScheme) = scheme.neutral2.s400 // N2-400
 
 /** Returns the color for the start of the background gradient based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun backgroundStartFromScheme(scheme: ColorScheme) = scheme.accent2.s700 // A2-700
 
 /** Returns the color for the end of the background gradient based on the scheme. */
+@Deprecated("Remove with media_controls_a11y_colors")
 internal fun backgroundEndFromScheme(scheme: ColorScheme) = scheme.accent1.s700 // A1-700
+
+internal fun backgroundFromScheme(scheme: ColorScheme) = scheme.materialScheme.getOnSurface()
+
+internal fun primaryFromScheme(scheme: ColorScheme) = scheme.materialScheme.getPrimaryFixed()
+
+internal fun onPrimaryFromScheme(scheme: ColorScheme) = scheme.materialScheme.getOnPrimaryFixed()

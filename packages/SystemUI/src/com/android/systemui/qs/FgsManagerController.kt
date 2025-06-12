@@ -67,6 +67,7 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.res.R
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.shade.domain.interactor.ShadeDialogContextInteractor
 import com.android.systemui.shared.system.SysUiStatsLog
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.util.DeviceConfigProxy
@@ -154,6 +155,7 @@ constructor(
     private val broadcastDispatcher: BroadcastDispatcher,
     private val dumpManager: DumpManager,
     private val systemUIDialogFactory: SystemUIDialog.Factory,
+    private val shadeDialogContextRepository: ShadeDialogContextInteractor,
 ) : Dumpable, FgsManagerController {
 
     companion object {
@@ -387,7 +389,7 @@ constructor(
     override fun showDialog(expandable: Expandable?) {
         synchronized(lock) {
             if (dialog == null) {
-                val dialog = systemUIDialogFactory.create()
+                val dialog = systemUIDialogFactory.create(shadeDialogContextRepository.context)
                 dialog.setTitle(R.string.fgs_manager_dialog_title)
                 dialog.setMessage(R.string.fgs_manager_dialog_message)
 

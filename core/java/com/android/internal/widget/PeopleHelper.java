@@ -110,7 +110,7 @@ public class PeopleHelper {
     @NonNull
     public Icon createAvatarSymbol(@NonNull CharSequence name, @NonNull String symbol,
             @ColorInt int layoutColor) {
-        if (symbol.isEmpty() || TextUtils.isDigitsOnly(symbol)
+        if (symbol == null || symbol.isEmpty() || TextUtils.isDigitsOnly(symbol)
                 || SPECIAL_CHAR_PATTERN.matcher(symbol).find()) {
             Icon avatarIcon = Icon.createWithResource(mContext, R.drawable.messaging_user);
             avatarIcon.setTint(findColor(name, layoutColor));

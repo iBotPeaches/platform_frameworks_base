@@ -86,7 +86,10 @@ constructor(
      */
     private fun initializeKeyGestureEventHandler() {
         if (useKeyGestureEventHandler()) {
-            inputManager.registerKeyGestureEventHandler(callbacks)
+            inputManager.registerKeyGestureEventHandler(
+                listOf(KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES),
+                callbacks,
+            )
         }
     }
 
@@ -156,15 +159,8 @@ constructor(
                 controller.updateNoteTaskForCurrentUserAndManagedProfiles()
             }
 
-            override fun handleKeyGestureEvent(
-                event: KeyGestureEvent,
-                focusedToken: IBinder?,
-            ): Boolean {
-                return this@NoteTaskInitializer.handleKeyGestureEvent(event)
-            }
-
-            override fun isKeyGestureSupported(gestureType: Int): Boolean {
-                return this@NoteTaskInitializer.isKeyGestureSupported(gestureType)
+            override fun handleKeyGestureEvent(event: KeyGestureEvent, focusedToken: IBinder?) {
+                this@NoteTaskInitializer.handleKeyGestureEvent(event)
             }
         }
 
@@ -206,27 +202,19 @@ constructor(
         return !isMultiPress && !isLongPress
     }
 
-    private fun handleKeyGestureEvent(event: KeyGestureEvent): Boolean {
-        // This method is on input hot path and should be kept lightweight. Shift all complex
-        // processing onto background executor wherever possible.
+    private fun handleKeyGestureEvent(event: KeyGestureEvent) {
         if (event.keyGestureType != KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES) {
-            return false
+            return
         }
         debugLog {
             "handleKeyGestureEvent: Received OPEN_NOTES gesture event from keycodes: " +
                 event.keycodes.contentToString()
         }
         if (event.keycodes.size == 1 && event.keycodes[0] == KEYCODE_STYLUS_BUTTON_TAIL) {
-            debugLog { "Note task triggered by stylus tail button" }
             backgroundExecutor.execute { controller.showNoteTask(TAIL_BUTTON) }
-            return true
+        } else {
+            backgroundExecutor.execute { controller.showNoteTask(KEYBOARD_SHORTCUT) }
         }
-        backgroundExecutor.execute { controller.showNoteTask(KEYBOARD_SHORTCUT) }
-        return true
-    }
-
-    private fun isKeyGestureSupported(gestureType: Int): Boolean {
-        return gestureType == KeyGestureEvent.KEY_GESTURE_TYPE_OPEN_NOTES
     }
 
     companion object {

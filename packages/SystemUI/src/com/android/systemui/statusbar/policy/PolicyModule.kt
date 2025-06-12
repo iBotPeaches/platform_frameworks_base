@@ -32,45 +32,50 @@ import com.android.systemui.qs.tiles.DndTile
 import com.android.systemui.qs.tiles.FlashlightTile
 import com.android.systemui.qs.tiles.LocationTile
 import com.android.systemui.qs.tiles.MicrophoneToggleTile
+import com.android.systemui.qs.tiles.ModesDndTile
 import com.android.systemui.qs.tiles.ModesTile
 import com.android.systemui.qs.tiles.UiModeNightTile
 import com.android.systemui.qs.tiles.WorkModeTile
-import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
-import com.android.systemui.qs.tiles.base.viewmodel.QSTileViewModelFactory
-import com.android.systemui.qs.tiles.impl.alarm.domain.AlarmTileMapper
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTilePolicy
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.base.ui.viewmodel.StubQSTileViewModel
 import com.android.systemui.qs.tiles.impl.alarm.domain.interactor.AlarmTileDataInteractor
 import com.android.systemui.qs.tiles.impl.alarm.domain.interactor.AlarmTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.alarm.domain.model.AlarmTileModel
-import com.android.systemui.qs.tiles.impl.flashlight.domain.FlashlightMapper
+import com.android.systemui.qs.tiles.impl.alarm.ui.mapper.AlarmTileMapper
 import com.android.systemui.qs.tiles.impl.flashlight.domain.interactor.FlashlightTileDataInteractor
 import com.android.systemui.qs.tiles.impl.flashlight.domain.interactor.FlashlightTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.flashlight.domain.model.FlashlightTileModel
-import com.android.systemui.qs.tiles.impl.location.domain.LocationTileMapper
+import com.android.systemui.qs.tiles.impl.flashlight.ui.mapper.FlashlightMapper
 import com.android.systemui.qs.tiles.impl.location.domain.interactor.LocationTileDataInteractor
 import com.android.systemui.qs.tiles.impl.location.domain.interactor.LocationTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.location.domain.model.LocationTileModel
+import com.android.systemui.qs.tiles.impl.location.ui.mapper.LocationTileMapper
+import com.android.systemui.qs.tiles.impl.modes.domain.interactor.ModesDndTileDataInteractor
+import com.android.systemui.qs.tiles.impl.modes.domain.interactor.ModesDndTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.modes.domain.interactor.ModesTileDataInteractor
 import com.android.systemui.qs.tiles.impl.modes.domain.interactor.ModesTileUserActionInteractor
+import com.android.systemui.qs.tiles.impl.modes.domain.model.ModesDndTileModel
 import com.android.systemui.qs.tiles.impl.modes.domain.model.ModesTileModel
-import com.android.systemui.qs.tiles.impl.modes.ui.ModesTileMapper
-import com.android.systemui.qs.tiles.impl.sensorprivacy.SensorPrivacyToggleTileDataInteractor
-import com.android.systemui.qs.tiles.impl.sensorprivacy.domain.SensorPrivacyToggleTileUserActionInteractor
+import com.android.systemui.qs.tiles.impl.modes.ui.ModesDndTileMapper
+import com.android.systemui.qs.tiles.impl.modes.ui.mapper.ModesTileMapper
+import com.android.systemui.qs.tiles.impl.sensorprivacy.domain.interactor.SensorPrivacyToggleTileDataInteractor
+import com.android.systemui.qs.tiles.impl.sensorprivacy.domain.interactor.SensorPrivacyToggleTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.sensorprivacy.domain.model.SensorPrivacyToggleTileModel
-import com.android.systemui.qs.tiles.impl.sensorprivacy.ui.SensorPrivacyTileResources
-import com.android.systemui.qs.tiles.impl.sensorprivacy.ui.SensorPrivacyToggleTileMapper
-import com.android.systemui.qs.tiles.impl.uimodenight.domain.UiModeNightTileMapper
+import com.android.systemui.qs.tiles.impl.sensorprivacy.ui.mapper.SensorPrivacyToggleTileMapper
+import com.android.systemui.qs.tiles.impl.sensorprivacy.ui.model.SensorPrivacyTileResources
 import com.android.systemui.qs.tiles.impl.uimodenight.domain.interactor.UiModeNightTileDataInteractor
 import com.android.systemui.qs.tiles.impl.uimodenight.domain.interactor.UiModeNightTileUserActionInteractor
-import com.android.systemui.qs.tiles.impl.uimodenight.domain.model.UiModeNightTileModel
+import com.android.systemui.qs.tiles.impl.uimodenight.domain.interactor.model.UiModeNightTileModel
+import com.android.systemui.qs.tiles.impl.uimodenight.ui.mapper.UiModeNightTileMapper
 import com.android.systemui.qs.tiles.impl.work.domain.interactor.WorkModeTileDataInteractor
 import com.android.systemui.qs.tiles.impl.work.domain.interactor.WorkModeTileUserActionInteractor
 import com.android.systemui.qs.tiles.impl.work.domain.model.WorkModeTileModel
-import com.android.systemui.qs.tiles.impl.work.ui.WorkModeTileMapper
-import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTilePolicy
-import com.android.systemui.qs.tiles.viewmodel.QSTileUIConfig
-import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
-import com.android.systemui.qs.tiles.viewmodel.StubQSTileViewModel
+import com.android.systemui.qs.tiles.impl.work.ui.mapper.WorkModeTileMapper
 import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
@@ -132,6 +137,7 @@ interface PolicyModule {
         const val CAMERA_TOGGLE_TILE_SPEC = "cameratoggle"
         const val MIC_TOGGLE_TILE_SPEC = "mictoggle"
         const val DND_TILE_SPEC = "dnd"
+        const val MODES_DND_TILE_SPEC = "modes_dnd"
 
         /** Inject DndTile or ModesTile into tileMap in QSModule based on feature flag */
         @Provides
@@ -145,6 +151,12 @@ interface PolicyModule {
         ): QSTileImpl<*> {
             return if (ModesUi.isEnabled) modesTile.get() else dndTile.get()
         }
+
+        /** Inject ModesDndTile into tileViewModelMap in QSModule */
+        @Provides
+        @IntoMap
+        @StringKey(MODES_DND_TILE_SPEC)
+        fun bindDndModeTile(tile: ModesDndTile): QSTileImpl<*> = tile
 
         /** Inject flashlight config */
         @Provides
@@ -449,6 +461,37 @@ interface PolicyModule {
                     mapper,
                 )
             else StubQSTileViewModel
+
+        @Provides
+        @IntoMap
+        @StringKey(MODES_DND_TILE_SPEC)
+        fun provideDndModeTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(MODES_DND_TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.qs_dnd_icon_off,
+                        labelRes = R.string.quick_settings_dnd_label,
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.CONNECTIVITY,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(MODES_DND_TILE_SPEC)
+        fun provideDndModeTileViewModel(
+            factory: QSTileViewModelFactory.Static<ModesDndTileModel>,
+            mapper: ModesDndTileMapper,
+            stateInteractor: ModesDndTileDataInteractor,
+            userActionInteractor: ModesDndTileUserActionInteractor,
+        ): QSTileViewModel =
+            factory.create(
+                TileSpec.create(MODES_DND_TILE_SPEC),
+                userActionInteractor,
+                stateInteractor,
+                mapper,
+            )
     }
 
     /** Inject FlashlightTile into tileMap in QSModule */

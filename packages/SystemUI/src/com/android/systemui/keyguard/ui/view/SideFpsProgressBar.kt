@@ -26,7 +26,6 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.WindowManager
 import android.widget.ProgressBar
 import androidx.core.view.isGone
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
 import javax.inject.Inject
@@ -38,7 +37,7 @@ class SideFpsProgressBar
 @Inject
 constructor(
     private val layoutInflater: LayoutInflater,
-    private val windowManager: ViewCaptureAwareWindowManager,
+    private val windowManager: WindowManager,
 ) {
     private var overlayView: View? = null
 
@@ -91,7 +90,7 @@ constructor(
     ) {
         if (overlayView == null) {
             overlayView = layoutInflater.inflate(R.layout.sidefps_progress_bar, null, false)
-            windowManager.addView(requireNotNull(overlayView), overlayViewParams)
+            windowManager.addView(overlayView, overlayViewParams)
             progressBar?.pivotX = 0.0f
             progressBar?.pivotY = 0.0f
         }

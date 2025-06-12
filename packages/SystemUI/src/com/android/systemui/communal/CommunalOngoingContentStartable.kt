@@ -16,7 +16,9 @@
 
 package com.android.systemui.communal
 
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.CoreStartable
+import com.android.systemui.communal.dagger.CommunalModule.Companion.SHOW_UMO
 import com.android.systemui.communal.data.repository.CommunalMediaRepository
 import com.android.systemui.communal.data.repository.CommunalSmartspaceRepository
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
@@ -24,8 +26,8 @@ import com.android.systemui.communal.domain.interactor.CommunalSettingsInteracto
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import javax.inject.Inject
+import javax.inject.Named
 import kotlinx.coroutines.CoroutineScope
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 @SysUISingleton
 class CommunalOngoingContentStartable
@@ -36,6 +38,7 @@ constructor(
     private val communalMediaRepository: CommunalMediaRepository,
     private val communalSettingsInteractor: CommunalSettingsInteractor,
     private val communalSmartspaceRepository: CommunalSmartspaceRepository,
+    @Named(SHOW_UMO) private val showUmoOnHub: Boolean,
 ) : CoreStartable {
 
     override fun start() {
@@ -46,10 +49,14 @@ constructor(
         bgScope.launch {
             communalInteractor.isCommunalEnabled.collect { enabled ->
                 if (enabled) {
-                    communalMediaRepository.startListening()
+                    if (showUmoOnHub) {
+                        communalMediaRepository.startListening()
+                    }
                     communalSmartspaceRepository.startListening()
                 } else {
-                    communalMediaRepository.stopListening()
+                    if (showUmoOnHub) {
+                        communalMediaRepository.stopListening()
+                    }
                     communalSmartspaceRepository.stopListening()
                 }
             }

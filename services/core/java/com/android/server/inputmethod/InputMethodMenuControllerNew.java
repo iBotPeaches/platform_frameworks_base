@@ -87,12 +87,14 @@ final class InputMethodMenuControllerNew {
      * @param selectedSubtypeIndex the index of the selected subtype in the input method's array of
      *                             subtypes, or {@link InputMethodUtils#NOT_A_SUBTYPE_INDEX} if no
      *                             subtype is selected.
+     * @param isScreenLocked       whether the screen is current locked.
      * @param displayId            the ID of the display where the menu was requested.
      * @param userId               the ID of the user that requested the menu.
      */
     @RequiresPermission(allOf = {INTERACT_ACROSS_USERS, HIDE_OVERLAY_WINDOWS})
     void show(@NonNull List<ImeSubtypeListItem> items, @Nullable String selectedImeId,
-            int selectedSubtypeIndex, int displayId, @UserIdInt int userId) {
+            int selectedSubtypeIndex, boolean isScreenLocked, int displayId,
+            @UserIdInt int userId) {
         // Hide the menu in case it was already showing.
         hide(displayId, userId);
 
@@ -133,7 +135,7 @@ final class InputMethodMenuControllerNew {
         recyclerView.requestFocus();
 
         final var selectedItem = selectedIndex > -1 ? menuItems.get(selectedIndex) : null;
-        updateLanguageSettingsButton(selectedItem, contentView, displayId, userId);
+        updateLanguageSettingsButton(selectedItem, contentView, isScreenLocked, displayId, userId);
 
         builder.setOnCancelListener(dialog -> hide(displayId, userId));
         mMenuItems = menuItems;
@@ -280,23 +282,24 @@ final class InputMethodMenuControllerNew {
 
     /**
      * Updates the visibility of the Language Settings button to visible if the currently selected
-     * item specifies a (language) settings activity and the device is provisioned. Otherwise,
-     * the button won't be shown.
+     * item specifies a (language) settings activity, the screen is not locked and the device is
+     * provisioned. Otherwise, the button won't be shown.
      *
-     * @param selectedItem the currently selected item, or {@code null} if no item is selected.
-     * @param view         the menu dialog view.
-     * @param displayId    the ID of the display where the menu was requested.
-     * @param userId       the ID of the user that requested the menu.
+     * @param selectedItem   the currently selected item, or {@code null} if no item is selected.
+     * @param view           the menu dialog view.
+     * @param isScreenLocked whether the screen is currently locked.
+     * @param displayId      the ID of the display where the menu was requested.
+     * @param userId         the ID of the user that requested the menu.
      */
     @RequiresPermission(allOf = {INTERACT_ACROSS_USERS})
     private void updateLanguageSettingsButton(@Nullable MenuItem selectedItem, @NonNull View view,
-            int displayId, @UserIdInt int userId) {
+            boolean isScreenLocked, int displayId, @UserIdInt int userId) {
         final var settingsIntent = (selectedItem instanceof SubtypeItem selectedSubtypeItem)
                 ? selectedSubtypeItem.mImi.createImeLanguageSettingsActivityIntent() : null;
         final boolean isDeviceProvisioned = Settings.Global.getInt(
                 view.getContext().getContentResolver(), Settings.Global.DEVICE_PROVISIONED,
                 0) != 0;
-        final boolean hasButton = settingsIntent != null && isDeviceProvisioned;
+        final boolean hasButton = settingsIntent != null && !isScreenLocked && isDeviceProvisioned;
         final View buttonBar = view.requireViewById(com.android.internal.R.id.button_bar);
         final Button button = view.requireViewById(com.android.internal.R.id.button1);
         final RecyclerView recyclerView = view.requireViewById(com.android.internal.R.id.list);

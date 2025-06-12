@@ -32,15 +32,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.graphics.Insets;
 import android.graphics.Point;
 import android.os.Looper;
 import android.platform.test.annotations.RequiresFlagsDisabled;
 import android.platform.test.annotations.RequiresFlagsEnabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.view.IWindowManager;
 import android.view.InsetsSource;
 import android.view.InsetsSourceControl;
@@ -55,7 +53,6 @@ import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.sysui.ShellInit;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -70,9 +67,6 @@ import java.util.concurrent.Executor;
  */
 @SmallTest
 public class DisplayImeControllerTest extends ShellTestCase {
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
-
     @Mock
     private SurfaceControl.Transaction mT;
     @Mock
@@ -114,26 +108,26 @@ public class DisplayImeControllerTest extends ShellTestCase {
     public void insetsControlChanged_schedulesNoWorkOnExecutor() {
         Looper.prepare();
         mPerDisplay.insetsControlChanged(insetsStateWithIme(false), insetsSourceControl());
-        verifyZeroInteractions(mExecutor);
+        verifyNoMoreInteractions(mExecutor);
     }
 
     @Test
     public void insetsChanged_schedulesNoWorkOnExecutor() {
         Looper.prepare();
         mPerDisplay.insetsChanged(insetsStateWithIme(false));
-        verifyZeroInteractions(mExecutor);
+        verifyNoMoreInteractions(mExecutor);
     }
 
     @Test
     public void showInsets_schedulesNoWorkOnExecutor() {
         mPerDisplay.showInsets(ime(), true /* fromIme */, ImeTracker.Token.empty());
-        verifyZeroInteractions(mExecutor);
+        verifyNoMoreInteractions(mExecutor);
     }
 
     @Test
     public void hideInsets_schedulesNoWorkOnExecutor() {
         mPerDisplay.hideInsets(ime(), true /* fromIme */, ImeTracker.Token.empty());
-        verifyZeroInteractions(mExecutor);
+        verifyNoMoreInteractions(mExecutor);
     }
 
     // With the refactor, the control's isInitiallyVisible is used to apply to the IME, therefore
@@ -141,7 +135,7 @@ public class DisplayImeControllerTest extends ShellTestCase {
     @Test
     @RequiresFlagsDisabled(android.view.inputmethod.Flags.FLAG_REFACTOR_INSETS_CONTROLLER)
     public void reappliesVisibilityToChangedLeash() {
-        verifyZeroInteractions(mT);
+        verifyNoMoreInteractions(mT);
         mPerDisplay.mImeShowing = false;
 
         mPerDisplay.insetsControlChanged(insetsStateWithIme(false), insetsSourceControl());

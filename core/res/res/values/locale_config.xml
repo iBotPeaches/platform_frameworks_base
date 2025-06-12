@@ -163,15 +163,18 @@
         <item>en-CM</item> <!-- English (Cameroon) -->
         <item>en-CX</item> <!-- English (Christmas Island) -->
         <item>en-CY</item> <!-- English (Cyprus) -->
+        <item>en-CZ</item> <!-- English (Czechia) -->
         <item>en-DE</item> <!-- English (Germany) -->
         <item>en-DG</item> <!-- English (Diego Garcia) -->
         <item>en-DK</item> <!-- English (Denmark) -->
         <item>en-DM</item> <!-- English (Dominica) -->
         <item>en-ER</item> <!-- English (Eritrea) -->
+        <item>en-ES</item> <!-- English (Spain) -->
         <item>en-FI</item> <!-- English (Finland) -->
         <item>en-FJ</item> <!-- English (Fiji) -->
         <item>en-FK</item> <!-- English (Falkland Islands (Islas Malvinas)) -->
         <item>en-FM</item> <!-- English (Micronesia) -->
+        <item>en-FR</item> <!-- English (France) -->
         <item>en-GB</item> <!-- English (United Kingdom) -->
         <item>en-GD</item> <!-- English (Grenada) -->
         <item>en-GG</item> <!-- English (Guernsey) -->
@@ -181,12 +184,14 @@
         <item>en-GU</item> <!-- English (Guam) -->
         <item>en-GY</item> <!-- English (Guyana) -->
         <item>en-HK</item> <!-- English (Hong Kong) -->
+        <item>en-HU</item> <!-- English (Hungary) -->
         <item>en-ID</item> <!-- English (Indonesia) -->
         <item>en-IE</item> <!-- English (Ireland) -->
         <item>en-IL</item> <!-- English (Israel) -->
         <item>en-IM</item> <!-- English (Isle of Man) -->
         <item>en-IN</item> <!-- English (India) -->
         <item>en-IO</item> <!-- English (British Indian Ocean Territory) -->
+        <item>en-IT</item> <!-- English (Italy) -->
         <item>en-JE</item> <!-- English (Jersey) -->
         <item>en-JM</item> <!-- English (Jamaica) -->
         <item>en-KE</item> <!-- English (Kenya) -->
@@ -210,15 +215,19 @@
         <item>en-NF</item> <!-- English (Norfolk Island) -->
         <item>en-NG</item> <!-- English (Nigeria) -->
         <item>en-NL</item> <!-- English (Netherlands) -->
+        <item>en-NO</item> <!-- English (Norway) -->
         <item>en-NR</item> <!-- English (Nauru) -->
         <item>en-NU</item> <!-- English (Niue) -->
         <item>en-NZ</item> <!-- English (New Zealand) -->
         <item>en-PG</item> <!-- English (Papua New Guinea) -->
         <item>en-PH</item> <!-- English (Philippines) -->
         <item>en-PK</item> <!-- English (Pakistan) -->
+        <item>en-PL</item> <!-- English (Poland) -->
         <item>en-PN</item> <!-- English (Pitcairn Islands) -->
         <item>en-PR</item> <!-- English (Puerto Rico) -->
+        <item>en-PT</item> <!-- English (Portugal) -->
         <item>en-PW</item> <!-- English (Palau) -->
+        <item>en-RO</item> <!-- English (Romania) -->
         <item>en-RW</item> <!-- English (Rwanda) -->
         <item>en-SB</item> <!-- English (Solomon Islands) -->
         <item>en-SC</item> <!-- English (Seychelles) -->
@@ -227,6 +236,7 @@
         <item>en-SG</item> <!-- English (Singapore) -->
         <item>en-SH</item> <!-- English (St. Helena) -->
         <item>en-SI</item> <!-- English (Slovenia) -->
+        <item>en-SK</item> <!-- English (Slovakia) -->
         <item>en-SL</item> <!-- English (Sierra Leone) -->
         <item>en-SS</item> <!-- English (South Sudan) -->
         <item>en-SX</item> <!-- English (Sint Maarten) -->

@@ -20,4 +20,6 @@ import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.settings.brightness.data.repository.brightnessMirrorShowingRepository
 
 val Kosmos.brightnessMirrorShowingInteractor by
-    Kosmos.Fixture { BrightnessMirrorShowingInteractor(brightnessMirrorShowingRepository) }
+    Kosmos.Fixture {
+        BrightnessMirrorShowingInteractorPassThrough(brightnessMirrorShowingRepository)
+    }

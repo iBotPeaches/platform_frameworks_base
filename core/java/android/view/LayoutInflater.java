@@ -516,8 +516,9 @@ public abstract class LayoutInflater {
             mConstructorArgs[0] = inflaterContext;
             View result = root;
 
-            if (root != null && root.getViewRootImpl() != null) {
-                root.getViewRootImpl().notifyRendererOfExpensiveFrame();
+            ViewRootImpl viewRootImpl = root != null ? root.getViewRootImpl() : null;
+            if (viewRootImpl != null) {
+                viewRootImpl.notifyRendererOfExpensiveFrame();
             }
 
             try {

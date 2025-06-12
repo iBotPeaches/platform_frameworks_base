@@ -52,10 +52,14 @@ public interface WindowWakeUpPolicyInternal {
          * @param eventTime the timestamp of the event in {@link SystemClock#uptimeMillis()}.
          * @param source the {@link android.view.InputDevice} source that caused the event.
          * @param isDown {@code true} if the event's action is {@link MotionEvent#ACTION_DOWN}.
+         * @param deviceGoingToSleep {@code true} if the device is in the middle of going to sleep.
+         *      This will be {@code false} if the device is currently fully awake or is fully
+         *      asleep (i.e. not trying to go to sleep)
          * @return {@code true} if the delegate handled the wake up. {@code false} if the delegate
          *      decided not to handle the wake up. The policy will execute the wake up in this case.
          */
-        boolean wakeUpFromMotion(long eventTime, int source, boolean isDown);
+        boolean wakeUpFromMotion(
+                long eventTime, int source, boolean isDown, boolean deviceGoingToSleep);
     }
 
     /**

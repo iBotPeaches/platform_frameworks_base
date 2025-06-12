@@ -208,6 +208,8 @@ public class DimmerAnimationHelper {
                         setCurrentAlphaBlur(dim, finishTransaction);
                         if (targetAlpha == 0f && !dim.isDimming()) {
                             dim.remove(finishTransaction);
+                            // Ensure the finishTransaction is applied if pending
+                            dim.mHostContainer.scheduleAnimation();
                         }
                         mLocalAnimationAdapter = null;
                         mAlphaAnimationSpec = null;

@@ -26,11 +26,13 @@ import com.android.internal.widget.remotecompose.core.VariableSupport;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
+import com.android.internal.widget.remotecompose.core.serialize.Serializable;
 
 import java.util.List;
 
 /** Draw text along a path. */
-public class DrawTextOnPath extends PaintOperation implements VariableSupport {
+public class DrawTextOnPath extends PaintOperation implements VariableSupport, Serializable {
     private static final int OP_CODE = Operations.DRAW_TEXT_ON_PATH;
     private static final String CLASS_NAME = "DrawTextOnPath";
     int mPathId;
@@ -117,6 +119,15 @@ public class DrawTextOnPath extends PaintOperation implements VariableSupport {
         return Operations.DRAW_TEXT_ON_PATH;
     }
 
+    /**
+     * add a draw text on path operation to the buffer
+     *
+     * @param buffer the buffer to add to
+     * @param textId the id of the text string
+     * @param pathId the id of the path
+     * @param hOffset the horizontal offset to position the string
+     * @param vOffset the vertical offset to position the string
+     */
     public static void apply(
             @NonNull WireBuffer buffer, int textId, int pathId, float hOffset, float vOffset) {
         buffer.start(OP_CODE);
@@ -143,5 +154,15 @@ public class DrawTextOnPath extends PaintOperation implements VariableSupport {
     @Override
     public void paint(@NonNull PaintContext context) {
         context.drawTextOnPath(mTextId, mPathId, mOutHOffset, mOutVOffset);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serializer
+                .addType(CLASS_NAME)
+                .add("pathId", mPathId)
+                .add("textId", mTextId)
+                .add("vOffset", mVOffset, mOutVOffset)
+                .add("hOffset", mHOffset, mOutHOffset);
     }
 }

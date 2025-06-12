@@ -75,6 +75,7 @@ public class GroupEntry extends ListEntry {
         return mChildren;
     }
 
+    // TODO(b/394483200) Change ROOT_ENTRY to PipelineEntry
     public static final GroupEntry ROOT_ENTRY = new GroupEntry("<root>", 0);
 
 }

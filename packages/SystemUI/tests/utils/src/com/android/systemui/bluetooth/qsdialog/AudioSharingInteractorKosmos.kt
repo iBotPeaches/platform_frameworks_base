@@ -26,6 +26,7 @@ val Kosmos.audioSharingInteractor: AudioSharingInteractor by
             applicationContext,
             localBluetoothManager,
             bluetoothTileDialogAudioSharingRepository,
+            bluetoothTileDialogLogger,
             testDispatcher,
         )
     }

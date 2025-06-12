@@ -21,7 +21,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.Presubmit;
@@ -105,7 +105,7 @@ public class FullBackupUtilsTest {
         } catch (EOFException expected) {
         }
 
-        verifyZeroInteractions(mOutputStreamMock);
+        verifyNoMoreInteractions(mOutputStreamMock);
         assertThat(mTemporaryFileDescriptor.getFileDescriptor().valid()).isTrue();
     }
 
@@ -126,7 +126,7 @@ public class FullBackupUtilsTest {
         } catch (EOFException expected) {
         }
 
-        verifyZeroInteractions(mOutputStreamMock);
+        verifyNoMoreInteractions(mOutputStreamMock);
         assertThat(mTemporaryFileDescriptor.getFileDescriptor().valid()).isTrue();
     }
 
@@ -141,7 +141,7 @@ public class FullBackupUtilsTest {
 
         FullBackupUtils.routeSocketDataToOutput(mTemporaryFileDescriptor, mOutputStreamMock);
 
-        verifyZeroInteractions(mOutputStreamMock);
+        verifyNoMoreInteractions(mOutputStreamMock);
         assertThat(mTemporaryFileDescriptor.getFileDescriptor().valid()).isTrue();
     }
 

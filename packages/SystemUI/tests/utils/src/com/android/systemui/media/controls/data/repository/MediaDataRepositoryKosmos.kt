@@ -19,8 +19,5 @@ package com.android.systemui.media.controls.data.repository
 import com.android.systemui.dump.dumpManager
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
-import com.android.systemui.media.controls.util.mediaFlags
 
-val Kosmos.mediaDataRepository by Fixture {
-    MediaDataRepository(mediaFlags = mediaFlags, dumpManager = dumpManager)
-}
+val Kosmos.mediaDataRepository by Fixture { MediaDataRepository(dumpManager = dumpManager) }

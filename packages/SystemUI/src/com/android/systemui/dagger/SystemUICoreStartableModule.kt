@@ -18,6 +18,7 @@ package com.android.systemui.dagger
 
 import com.android.keyguard.KeyguardBiometricLockoutLogger
 import com.android.systemui.CoreStartable
+import com.android.systemui.Flags.unfoldLatencyTrackingFix
 import com.android.systemui.LatencyTester
 import com.android.systemui.SliceBroadcastRelayHandler
 import com.android.systemui.accessibility.Magnification
@@ -60,6 +61,7 @@ import com.android.systemui.stylus.StylusUsiPowerStartable
 import com.android.systemui.temporarydisplay.chipbar.ChipbarCoordinator
 import com.android.systemui.theme.ThemeOverlayController
 import com.android.systemui.unfold.DisplaySwitchLatencyTracker
+import com.android.systemui.unfold.NoCooldownDisplaySwitchLatencyTracker
 import com.android.systemui.usb.StorageNotification
 import com.android.systemui.util.NotificationChannels
 import com.android.systemui.util.StartBinderLoggerModule
@@ -67,8 +69,10 @@ import com.android.systemui.wallpapers.dagger.WallpaperModule
 import com.android.systemui.wmshell.WMShell
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
+import javax.inject.Provider
 
 /**
  * DEPRECATED: DO NOT ADD THINGS TO THIS FILE.
@@ -147,12 +151,6 @@ abstract class SystemUICoreStartableModule {
     @IntoMap
     @ClassKey(LatencyTester::class)
     abstract fun bindLatencyTester(sysui: LatencyTester): CoreStartable
-
-    /** Inject into DisplaySwitchLatencyTracker. */
-    @Binds
-    @IntoMap
-    @ClassKey(DisplaySwitchLatencyTracker::class)
-    abstract fun bindDisplaySwitchLatencyTracker(sysui: DisplaySwitchLatencyTracker): CoreStartable
 
     /** Inject into NotificationChannels. */
     @Binds
@@ -353,4 +351,15 @@ abstract class SystemUICoreStartableModule {
     @IntoMap
     @ClassKey(ComplicationTypesUpdater::class)
     abstract fun bindComplicationTypesUpdater(updater: ComplicationTypesUpdater): CoreStartable
+
+    companion object {
+        @Provides
+        @IntoMap
+        @ClassKey(DisplaySwitchLatencyTracker::class)
+        fun provideDisplaySwitchLatencyTracker(
+            noCoolDownVariant: Provider<NoCooldownDisplaySwitchLatencyTracker>,
+            coolDownVariant: Provider<DisplaySwitchLatencyTracker>,
+        ): CoreStartable =
+            if (unfoldLatencyTrackingFix()) coolDownVariant.get() else noCoolDownVariant.get()
+    }
 }

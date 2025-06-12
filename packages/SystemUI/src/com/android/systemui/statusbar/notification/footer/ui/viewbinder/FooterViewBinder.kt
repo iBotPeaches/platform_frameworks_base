@@ -20,6 +20,7 @@ import android.view.View
 import androidx.lifecycle.lifecycleScope
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.internal.jank.InteractionJankMonitor
+import com.android.systemui.Flags.notificationShadeBlur
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.statusbar.notification.NotificationActivityStarter
 import com.android.systemui.statusbar.notification.NotificationActivityStarter.SettingsIntent
@@ -81,6 +82,14 @@ object FooterViewBinder {
             launch { bindHistoryButton(footer, viewModel, notificationActivityStarter) }
         }
         launch { bindMessage(footer, viewModel) }
+
+        if (notificationShadeBlur()) {
+            launch {
+                viewModel.isBlurSupported.collect { supported ->
+                    footer.setIsBlurSupported(supported)
+                }
+            }
+        }
     }
 
     private suspend fun bindClearAllButton(

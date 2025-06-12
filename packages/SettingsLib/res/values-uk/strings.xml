@@ -81,7 +81,7 @@
     <string name="speed_label_fast" msgid="2677719134596044051">"Швидка"</string>
     <string name="speed_label_very_fast" msgid="8215718029533182439">"Дуже швидка"</string>
     <string name="wifi_passpoint_expired" msgid="6540867261754427561">"Термін дії минув"</string>
-    <string name="preference_summary_default_combination" msgid="2644094566845577901">"<xliff:g id="STATE">%1$s</xliff:g>: <xliff:g id="DESCRIPTION">%2$s</xliff:g>"</string>
+    <string name="preference_summary_default_combination" msgid="2644094566845577901">"<xliff:g id="STATE">%1$s</xliff:g> / <xliff:g id="DESCRIPTION">%2$s</xliff:g>"</string>
     <string name="bluetooth_disconnected" msgid="7739366554710388701">"Роз’єднано"</string>
     <string name="bluetooth_disconnecting" msgid="7638892134401574338">"Відключення..."</string>
     <string name="bluetooth_connecting" msgid="5871702668260192755">"Підключення…"</string>
@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Активовано (лише лівий)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Активовано (лише правий)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Активовано (лівий і правий)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Не вдалось оновити стан оточення"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Активне з’єднання (лише для мультимедіа). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Активне з’єднання (лише для мультимедіа). Рівень заряду: лівий <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, правий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g>."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Гостьовий пристрій. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Гостьовий пристрій. Лівий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, правий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> заряду акумулятора."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Гостьовий пристрій (лише для мультимедіа). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Гостьовий пристрій (лише для мультимедіа). Лівий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, правий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> заряду акумулятора."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Підключено (підтримує надсилання аудіо). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Підключено (підтримує надсилання аудіо). Лівий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, правий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> заряду акумулятора."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Підключено (підтримує надсилання аудіо). Лівий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Підключено (підтримує надсилання аудіо). Правий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Підключено (підтримує надсилання аудіо)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Гостьовий пристрій (підтримує надсилання аудіо). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> заряду акумулятора."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Гостьовий пристрій (підтримує надсилання аудіо). Лівий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, правий: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> заряду акумулятора."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Гостьовий пристрій (підтримує надсилання аудіо)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Активно (лише для мультимедіа)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Гостьовий пристрій"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Гостьовий пристрій (лише для мультимедіа)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Підтримує надсилання аудіо"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Гостьовий пристрій. Підтримує надсилання аудіо."</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Активно (лише для мультимедіа); лише лівий"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Активно (лише для мультимедіа); лише правий"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Активно (лише для мультимедіа); лівий і правий"</string>
@@ -320,8 +331,8 @@
     <string name="select_private_dns_configuration_dialog_title" msgid="3731422918335951912">"Режим приватного DNS-сервера"</string>
     <string name="private_dns_mode_off" msgid="7065962499349997041">"Вимкнено"</string>
     <string name="private_dns_mode_opportunistic" msgid="1947864819060442354">"Автоматично"</string>
-    <string name="private_dns_mode_provider" msgid="3619040641762557028">"Ім’я хосту постачальника приватного DNS-сервера"</string>
-    <string name="private_dns_mode_provider_hostname_hint" msgid="6564868953748514595">"Введіть ім’я хосту постачальника послуг DNS"</string>
+    <string name="private_dns_mode_provider" msgid="3619040641762557028">"Ім’я хоста постачальника приватного DNS-сервера"</string>
+    <string name="private_dns_mode_provider_hostname_hint" msgid="6564868953748514595">"Введіть ім’я хоста постачальника послуг DNS"</string>
     <string name="private_dns_mode_provider_failure" msgid="8356259467861515108">"Не вдалося під’єднатися"</string>
     <string name="wifi_display_certification_summary" msgid="8111151348106907513">"Показати параметри сертифікації бездротового екрана"</string>
     <string name="wifi_verbose_logging_summary" msgid="4993823188807767892">"Показувати в журналі RSSI для кожного SSID під час вибору Wi-Fi"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Апаратне прискорення"</string>
     <string name="media_category" msgid="8122076702526144053">"Медіа"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Моніторинг"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Керування вікнами"</string>
     <string name="strict_mode" msgid="889864762140862437">"Строгий режим увімкнено"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Підсвічувати екран під час довгострокових операцій"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Розташування курсора"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Анімація переходів"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Тривалість анімації"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Імітувати додаткові екрани"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Місце відображення панелі"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Додатки"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Не зберігати дії"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Видаляти зведення дій після їх завершення"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"Застосування WebView"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"Налаштувати застосування WebView"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Ця опція більше не дійсна. Повторіть спробу."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"Інструменти розробника WebView"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"Пакет WebView не знайдено."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"Не вдалося запустити Інструменти розробника."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"Режим кольору"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"Використовувати sRGB"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Вимкнено"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Швидке заряджання"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Керується адміністратором"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Керується налаштуваннями з обмеженнями"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Недоступно під час викликів"</string>
     <string name="disabled" msgid="8017887509554714950">"Вимкнено"</string>
+    <string name="enabled" msgid="3997122818554810678">"Увімкнено"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Дозволено"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Заборонено"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Встановлювати невідомі додатки"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Вбудований динамік"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"Аудіо з телевізора"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Не вдається підключитися. Перезавантажте пристрій."</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Не вдається підключитися"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Дротовий аудіопристрій"</string>
     <string name="help_label" msgid="3528360748637781274">"Довідка й відгуки"</string>
     <string name="storage_category" msgid="2287342585424631813">"Сховище"</string>

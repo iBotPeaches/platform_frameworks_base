@@ -45,6 +45,10 @@ class AdvancedProtectionShellCommand extends ShellCommand {
                     return setProtectionEnabled();
                 case "is-protection-enabled":
                     return isProtectionEnabled(pw);
+                case "set-usb-data-protection-enabled":
+                    return setUsbDataProtectedEnabled();
+                case "is-usb-data-protection-enabled":
+                    return isUsbDataProtectedEnabled(pw);
             }
         } catch (RemoteException e) {
             pw.println("Remote exception: " + e);
@@ -64,6 +68,10 @@ class AdvancedProtectionShellCommand extends ShellCommand {
         pw.println("      Print this help text.");
         pw.println("  set-protection-enabled [true|false]");
         pw.println("  is-protection-enabled");
+        if(android.security.Flags.aapmFeatureUsbDataProtection()) {
+            pw.println("  set-usb-data-protection-enabled [true|false]");
+            pw.println("  is-usb-data-protection-enabled");
+        }
     }
 
     @SuppressLint("AndroidFrameworkRequiresPermission")
@@ -77,6 +85,24 @@ class AdvancedProtectionShellCommand extends ShellCommand {
     private int isProtectionEnabled(@NonNull PrintWriter pw) throws RemoteException {
         boolean protectionMode = mService.isAdvancedProtectionEnabled();
         pw.println(protectionMode);
+        return 0;
+    }
+
+    @SuppressLint("AndroidFrameworkRequiresPermission")
+    private int setUsbDataProtectedEnabled() throws RemoteException {
+        if(android.security.Flags.aapmFeatureUsbDataProtection()) {
+            String protectionMode = getNextArgRequired();
+            mService.setUsbDataProtectionEnabled(Boolean.parseBoolean(protectionMode));
+        }
+        return 0;
+    }
+
+    @SuppressLint("AndroidFrameworkRequiresPermission")
+    private int isUsbDataProtectedEnabled(@NonNull PrintWriter pw) throws RemoteException {
+        if(android.security.Flags.aapmFeatureUsbDataProtection()) {
+            boolean protectionMode = mService.isUsbDataProtectionEnabled();
+            pw.println(protectionMode);
+        }
         return 0;
     }
 }

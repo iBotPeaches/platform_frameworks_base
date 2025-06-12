@@ -92,4 +92,7 @@ internal class DecorThemeUtil(private val context: Context) {
         Theme.LIGHT -> lightColors
         Theme.DARK -> darkColors
     }
+
+    fun getColorScheme(isDarkMode: Boolean): ColorScheme =
+        if (isDarkMode) darkColors else lightColors
 }

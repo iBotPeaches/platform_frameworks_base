@@ -689,7 +689,7 @@ abstract class PackageManagerInternalBase extends PackageManagerInternal {
         final int suspendingUserId =
                 crossUserSuspensionEnabledRo() ? UserHandle.USER_SYSTEM : affectedUser;
         mService.unsuspendForSuspendingPackage(
-                snapshot(), PLATFORM_PACKAGE_NAME, suspendingUserId, /* inAllUsers= */ false);
+                snapshot(), PLATFORM_PACKAGE_NAME, suspendingUserId, affectedUser);
     }
 
     @Override

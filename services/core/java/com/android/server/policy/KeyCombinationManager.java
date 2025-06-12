@@ -148,19 +148,19 @@ public class KeyCombinationManager {
      * to a window.
      * Return true if any active rule could be triggered by the key event, otherwise false.
      */
-    public boolean interceptKey(KeyEvent event, boolean interactive) {
+    public boolean interceptKey(KeyEvent event, boolean isDefaultDisplayInteractive) {
         synchronized (mLock) {
-            return interceptKeyLocked(event, interactive);
+            return interceptKeyLocked(event, isDefaultDisplayInteractive);
         }
     }
 
-    private boolean interceptKeyLocked(KeyEvent event, boolean interactive) {
+    private boolean interceptKeyLocked(KeyEvent event, boolean isDefaultDisplayInteractive) {
         final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
         final int keyCode = event.getKeyCode();
         final int count = mActiveRules.size();
         final long eventTime = event.getEventTime();
 
-        if (interactive && down) {
+        if (isDefaultDisplayInteractive && down) {
             if (mDownTimes.size() > 0) {
                 if (count > 0
                         && eventTime > mDownTimes.valueAt(0) + COMBINE_KEY_DELAY_MILLIS) {

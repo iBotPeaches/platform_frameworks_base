@@ -19,6 +19,7 @@ package com.android.internal.protolog;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.endsWith;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.times;
 
@@ -157,13 +158,15 @@ public class ProtoLogCommandHandlerTest {
 
         cmdHandler.exec(mMockBinder, FileDescriptor.in, FileDescriptor.out,
                 FileDescriptor.err, new String[] { "logcat", "enable", "MY_GROUP" });
-        Mockito.verify(mProtoLogConfigurationService).enableProtoLogToLogcat("MY_GROUP");
+        Mockito.verify(mProtoLogConfigurationService)
+                .enableProtoLogToLogcat(Mockito.any(), eq("MY_GROUP"));
 
         cmdHandler.exec(mMockBinder, FileDescriptor.in, FileDescriptor.out,
                 FileDescriptor.err,
                 new String[] { "logcat", "enable", "MY_GROUP", "MY_OTHER_GROUP" });
         Mockito.verify(mProtoLogConfigurationService)
-                .enableProtoLogToLogcat("MY_GROUP", "MY_OTHER_GROUP");
+                .enableProtoLogToLogcat(Mockito.any(),
+                        eq("MY_GROUP"), eq("MY_OTHER_GROUP"));
     }
 
     @Test
@@ -173,13 +176,15 @@ public class ProtoLogCommandHandlerTest {
 
         cmdHandler.exec(mMockBinder, FileDescriptor.in, FileDescriptor.out,
                 FileDescriptor.err, new String[] { "logcat", "disable", "MY_GROUP" });
-        Mockito.verify(mProtoLogConfigurationService).disableProtoLogToLogcat("MY_GROUP");
+        Mockito.verify(mProtoLogConfigurationService)
+                .disableProtoLogToLogcat(Mockito.any(), eq("MY_GROUP"));
 
         cmdHandler.exec(mMockBinder, FileDescriptor.in, FileDescriptor.out,
                 FileDescriptor.err,
                 new String[] { "logcat", "disable", "MY_GROUP", "MY_OTHER_GROUP" });
         Mockito.verify(mProtoLogConfigurationService)
-                .disableProtoLogToLogcat("MY_GROUP", "MY_OTHER_GROUP");
+                .disableProtoLogToLogcat(Mockito.any(),
+                        eq("MY_GROUP"), eq("MY_OTHER_GROUP"));
     }
 
     @Test

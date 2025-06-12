@@ -733,11 +733,12 @@ public final class SplashScreenView extends FrameLayout {
                 mIconBitmap = iconView != null
                         ? copyDrawable(((ImageView) view.getIconView()).getDrawable()) : null;
             }
-            mBrandingBitmap = copyDrawable(view.getBrandingView().getBackground());
 
-            ViewGroup.LayoutParams params = view.getBrandingView().getLayoutParams();
+            final ViewGroup.LayoutParams params = view.getBrandingView().getLayoutParams();
             mBrandingWidth = params.width;
             mBrandingHeight = params.height;
+            mBrandingBitmap = copyDrawableWithSize(view.getBrandingView().getBackground(),
+                    mBrandingWidth, mBrandingHeight);
 
             if (view.getIconAnimationStart() != null) {
                 mIconAnimationStartMillis = view.getIconAnimationStart().toEpochMilli();
@@ -752,6 +753,13 @@ public final class SplashScreenView extends FrameLayout {
                 final Rect initialBounds = drawable.copyBounds();
                 final int width = initialBounds.width();
                 final int height = initialBounds.height();
+                return copyDrawableWithSize(drawable, width, height);
+            }
+            return null;
+        }
+
+        private Bitmap copyDrawableWithSize(Drawable drawable, int width, int height) {
+            if (drawable != null) {
                 if (width <= 0 || height <= 0) {
                     return null;
                 }

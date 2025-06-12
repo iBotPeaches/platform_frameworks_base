@@ -22,13 +22,12 @@ import android.testing.TestableLooper
 import androidx.test.filters.SmallTest
 import com.android.systemui.Flags
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.testKosmos
 import com.android.systemui.util.settings.SecureSettings
 import com.android.systemui.util.settings.fakeSettings
 import com.google.common.truth.Truth.assertThat
 import junit.framework.Assert.fail
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -40,7 +39,6 @@ import platform.test.runner.parameterized.Parameters
 
 private typealias Callback = (Int, Boolean) -> Unit
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
 @TestableLooper.RunWithLooper
@@ -66,7 +64,7 @@ class UserSettingObserverTest(flags: FlagsParameterization) : SysuiTestCase() {
         mSetFlagsRule.setFlagsParameterization(flags)
     }
 
-    private val kosmos = Kosmos()
+    private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
 
     private lateinit var testableLooper: TestableLooper
@@ -87,7 +85,7 @@ class UserSettingObserverTest(flags: FlagsParameterization) : SysuiTestCase() {
                     Handler(testableLooper.looper),
                     TEST_SETTING,
                     USER,
-                    DEFAULT_VALUE
+                    DEFAULT_VALUE,
                 ) {
                 override fun handleValueChanged(value: Int, observedChange: Boolean) {
                     callback(value, observedChange)

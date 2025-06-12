@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.android.systemui.shade
 
 import android.annotation.SuppressLint
@@ -41,8 +39,10 @@ import com.android.systemui.scene.shared.model.SceneContainerConfig
 import com.android.systemui.scene.shared.model.SceneDataSourceDelegator
 import com.android.systemui.scene.ui.composable.Overlay
 import com.android.systemui.scene.ui.composable.Scene
+import com.android.systemui.scene.ui.view.SceneJankMonitor
 import com.android.systemui.scene.ui.view.SceneWindowRootView
 import com.android.systemui.scene.ui.view.WindowRootView
+import com.android.systemui.scene.ui.view.WindowRootViewKeyEventHandler
 import com.android.systemui.scene.ui.viewmodel.SceneContainerViewModel
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.statusbar.LightRevealScrim
@@ -50,7 +50,6 @@ import com.android.systemui.statusbar.NotificationInsetsController
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout
 import com.android.systemui.statusbar.notification.stack.ui.view.NotificationScrollView
 import com.android.systemui.statusbar.notification.stack.ui.view.SharedNotificationContainer
-import com.android.systemui.statusbar.phone.KeyguardBottomAreaView
 import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.phone.StatusIconContainer
 import com.android.systemui.statusbar.phone.TapAgainView
@@ -62,7 +61,6 @@ import dagger.Module
 import dagger.Provides
 import javax.inject.Named
 import javax.inject.Provider
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 /** Module for providing views related to the shade. */
 @Module
@@ -90,6 +88,8 @@ abstract class ShadeViewProviderModule {
             layoutInsetController: NotificationInsetsController,
             sceneDataSourceDelegator: Provider<SceneDataSourceDelegator>,
             qsSceneAdapter: Provider<QSSceneAdapter>,
+            sceneJankMonitorFactory: SceneJankMonitor.Factory,
+            windowRootViewKeyEventHandler: WindowRootViewKeyEventHandler,
         ): WindowRootView {
             return if (SceneContainerFlag.isEnabled) {
                 checkNoSceneDuplicates(scenesProvider.get())
@@ -105,6 +105,8 @@ abstract class ShadeViewProviderModule {
                     layoutInsetController = layoutInsetController,
                     sceneDataSourceDelegator = sceneDataSourceDelegator.get(),
                     qsSceneAdapter = qsSceneAdapter,
+                    sceneJankMonitorFactory = sceneJankMonitorFactory,
+                    windowRootViewKeyEventHandler = windowRootViewKeyEventHandler,
                 )
                 sceneWindowRootView
             } else {
@@ -143,20 +145,6 @@ abstract class ShadeViewProviderModule {
             notificationShadeWindowView: NotificationShadeWindowView
         ): NotificationPanelView {
             return notificationShadeWindowView.requireViewById(R.id.notification_panel)
-        }
-
-        /**
-         * Constructs a new, unattached [KeyguardBottomAreaView].
-         *
-         * Note that this is explicitly _not_ a singleton, as we want to be able to reinflate it
-         */
-        @Provides
-        fun providesKeyguardBottomAreaView(
-            npv: NotificationPanelView,
-            @ShadeDisplayAware layoutInflater: LayoutInflater,
-        ): KeyguardBottomAreaView {
-            return layoutInflater.inflate(R.layout.keyguard_bottom_area, npv, false)
-                as KeyguardBottomAreaView
         }
 
         @Provides

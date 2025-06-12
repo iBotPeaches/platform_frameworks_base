@@ -348,6 +348,7 @@ filegroup {
         "idmap2d/aidl/core/android/os/FabricatedOverlayInternal.aidl",
         "idmap2d/aidl/core/android/os/FabricatedOverlayInternalEntry.aidl",
         "idmap2d/aidl/core/android/os/FabricatedOverlayInfo.aidl",
+        "idmap2d/aidl/core/android/os/OverlayConstraint.aidl",
     ],
     path: "idmap2d/aidl/core/",
 }

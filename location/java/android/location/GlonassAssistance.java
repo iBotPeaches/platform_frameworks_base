@@ -19,7 +19,6 @@ package android.location;
 import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.location.GnssAssistance.GnssSatelliteCorrections;
 import android.location.flags.Flags;
@@ -45,6 +44,9 @@ public final class GlonassAssistance implements Parcelable {
     /** The UTC model. */
     @Nullable private final UtcModel mUtcModel;
 
+    /** The list of auxiliary informations. */
+    @NonNull private final List<AuxiliaryInformation> mAuxiliaryInformation;
+
     /** The list of time models. */
     @NonNull private final List<TimeModel> mTimeModels;
 
@@ -54,9 +56,18 @@ public final class GlonassAssistance implements Parcelable {
     /** The list of Glonass satellite corrections. */
     @NonNull private final List<GnssSatelliteCorrections> mSatelliteCorrections;
 
+    /** The list of real time integrity models. */
+    @NonNull private final List<RealTimeIntegrityModel> mRealTimeIntegrityModels;
+
     private GlonassAssistance(Builder builder) {
         mAlmanac = builder.mAlmanac;
         mUtcModel = builder.mUtcModel;
+        if (builder.mAuxiliaryInformation != null) {
+            mAuxiliaryInformation =
+                    Collections.unmodifiableList(new ArrayList<>(builder.mAuxiliaryInformation));
+        } else {
+            mAuxiliaryInformation = new ArrayList<>();
+        }
         if (builder.mTimeModels != null) {
             mTimeModels = Collections.unmodifiableList(new ArrayList<>(builder.mTimeModels));
         } else {
@@ -73,6 +84,12 @@ public final class GlonassAssistance implements Parcelable {
                     Collections.unmodifiableList(new ArrayList<>(builder.mSatelliteCorrections));
         } else {
             mSatelliteCorrections = new ArrayList<>();
+        }
+        if (builder.mRealTimeIntegrityModels != null) {
+            mRealTimeIntegrityModels =
+                    Collections.unmodifiableList(new ArrayList<>(builder.mRealTimeIntegrityModels));
+        } else {
+            mRealTimeIntegrityModels = new ArrayList<>();
         }
     }
 
@@ -106,6 +123,18 @@ public final class GlonassAssistance implements Parcelable {
         return mSatelliteCorrections;
     }
 
+    /** Returns the list of real time integrity models. */
+    @NonNull
+    public List<RealTimeIntegrityModel> getRealTimeIntegrityModels() {
+        return mRealTimeIntegrityModels;
+    }
+
+    /** Returns the list of auxiliary informations. */
+    @NonNull
+    public List<AuxiliaryInformation> getAuxiliaryInformation() {
+        return mAuxiliaryInformation;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -115,9 +144,11 @@ public final class GlonassAssistance implements Parcelable {
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         dest.writeTypedObject(mAlmanac, flags);
         dest.writeTypedObject(mUtcModel, flags);
+        dest.writeTypedList(mAuxiliaryInformation);
         dest.writeTypedList(mTimeModels);
         dest.writeTypedList(mSatelliteEphemeris);
         dest.writeTypedList(mSatelliteCorrections);
+        dest.writeTypedList(mRealTimeIntegrityModels);
     }
 
     @Override
@@ -126,9 +157,11 @@ public final class GlonassAssistance implements Parcelable {
         StringBuilder builder = new StringBuilder("GlonassAssistance[");
         builder.append("almanac = ").append(mAlmanac);
         builder.append(", utcModel = ").append(mUtcModel);
+        builder.append(", auxiliaryInformation = ").append(mAuxiliaryInformation);
         builder.append(", timeModels = ").append(mTimeModels);
         builder.append(", satelliteEphemeris = ").append(mSatelliteEphemeris);
         builder.append(", satelliteCorrections = ").append(mSatelliteCorrections);
+        builder.append(", realTimeIntegrityModels = ").append(mRealTimeIntegrityModels);
         builder.append("]");
         return builder.toString();
     }
@@ -140,11 +173,15 @@ public final class GlonassAssistance implements Parcelable {
                     return new GlonassAssistance.Builder()
                             .setAlmanac(in.readTypedObject(GlonassAlmanac.CREATOR))
                             .setUtcModel(in.readTypedObject(UtcModel.CREATOR))
+                            .setAuxiliaryInformation(
+                                    in.createTypedArrayList(AuxiliaryInformation.CREATOR))
                             .setTimeModels(in.createTypedArrayList(TimeModel.CREATOR))
                             .setSatelliteEphemeris(
                                     in.createTypedArrayList(GlonassSatelliteEphemeris.CREATOR))
                             .setSatelliteCorrections(
                                     in.createTypedArrayList(GnssSatelliteCorrections.CREATOR))
+                            .setRealTimeIntegrityModels(
+                                    in.createTypedArrayList(RealTimeIntegrityModel.CREATOR))
                             .build();
                 }
 
@@ -158,30 +195,37 @@ public final class GlonassAssistance implements Parcelable {
     public static final class Builder {
         private GlonassAlmanac mAlmanac;
         private UtcModel mUtcModel;
+        private List<AuxiliaryInformation> mAuxiliaryInformation;
         private List<TimeModel> mTimeModels;
         private List<GlonassSatelliteEphemeris> mSatelliteEphemeris;
         private List<GnssSatelliteCorrections> mSatelliteCorrections;
+        private List<RealTimeIntegrityModel> mRealTimeIntegrityModels;
 
         /** Sets the Glonass almanac. */
         @NonNull
-        public Builder setAlmanac(
-                @Nullable @SuppressLint("NullableCollection") GlonassAlmanac almanac) {
+        public Builder setAlmanac(@Nullable GlonassAlmanac almanac) {
             mAlmanac = almanac;
             return this;
         }
 
         /** Sets the UTC model. */
         @NonNull
-        public Builder setUtcModel(
-                @Nullable @SuppressLint("NullableCollection") UtcModel utcModel) {
+        public Builder setUtcModel(@Nullable UtcModel utcModel) {
             mUtcModel = utcModel;
+            return this;
+        }
+
+        /** Sets the list of auxiliary informations. */
+        @NonNull
+        public Builder setAuxiliaryInformation(
+                @NonNull List<AuxiliaryInformation> auxiliaryInformation) {
+            mAuxiliaryInformation = auxiliaryInformation;
             return this;
         }
 
         /** Sets the list of time models. */
         @NonNull
-        public Builder setTimeModels(
-                @Nullable @SuppressLint("NullableCollection") List<TimeModel> timeModels) {
+        public Builder setTimeModels(@NonNull List<TimeModel> timeModels) {
             mTimeModels = timeModels;
             return this;
         }
@@ -189,8 +233,7 @@ public final class GlonassAssistance implements Parcelable {
         /** Sets the list of Glonass satellite ephemeris. */
         @NonNull
         public Builder setSatelliteEphemeris(
-                @Nullable @SuppressLint("NullableCollection")
-                        List<GlonassSatelliteEphemeris> satelliteEphemeris) {
+                @NonNull List<GlonassSatelliteEphemeris> satelliteEphemeris) {
             mSatelliteEphemeris = satelliteEphemeris;
             return this;
         }
@@ -198,9 +241,16 @@ public final class GlonassAssistance implements Parcelable {
         /** Sets the list of Glonass satellite corrections. */
         @NonNull
         public Builder setSatelliteCorrections(
-                @Nullable @SuppressLint("NullableCollection")
-                        List<GnssSatelliteCorrections> satelliteCorrections) {
+                @NonNull List<GnssSatelliteCorrections> satelliteCorrections) {
             mSatelliteCorrections = satelliteCorrections;
+            return this;
+        }
+
+        /** Sets the list of real time integrity models. */
+        @NonNull
+        public Builder setRealTimeIntegrityModels(
+                @NonNull List<RealTimeIntegrityModel> realTimeIntegrityModels) {
+            mRealTimeIntegrityModels = realTimeIntegrityModels;
             return this;
         }
 

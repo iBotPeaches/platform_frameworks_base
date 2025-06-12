@@ -97,6 +97,8 @@ public class AccessibilityShortcutController {
             new ComponentName("com.android.server.accessibility", "ReduceBrightColors");
     public static final ComponentName FONT_SIZE_COMPONENT_NAME =
             new ComponentName("com.android.server.accessibility", "FontSize");
+    public static final ComponentName AUTOCLICK_COMPONENT_NAME =
+            new ComponentName("com.android.server.accessibility", "Autoclick");
 
     // The component name for the sub setting of Accessibility button in Accessibility settings
     public static final ComponentName ACCESSIBILITY_BUTTON_COMPONENT_NAME =
@@ -134,7 +136,8 @@ public class AccessibilityShortcutController {
 
     private final Context mContext;
     private final Handler mHandler;
-    private final UserSetupCompleteObserver  mUserSetupCompleteObserver;
+    @VisibleForTesting
+    public final UserSetupCompleteObserver  mUserSetupCompleteObserver;
 
     private AlertDialog mAlertDialog;
     private boolean mIsShortcutEnabled;
@@ -163,7 +166,7 @@ public class AccessibilityShortcutController {
             getFrameworkShortcutFeaturesMap() {
 
         if (sFrameworkShortcutFeaturesMap == null) {
-            Map<ComponentName, FrameworkFeatureInfo> featuresMap = new ArrayMap<>(4);
+            Map<ComponentName, FrameworkFeatureInfo> featuresMap = new ArrayMap<>(8);
             featuresMap.put(COLOR_INVERSION_COMPONENT_NAME,
                     new ToggleableFrameworkFeatureInfo(
                             Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED,
@@ -174,6 +177,11 @@ public class AccessibilityShortcutController {
                             Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED,
                             "1" /* Value to enable */, "0" /* Value to disable */,
                             R.string.color_correction_feature_name));
+            featuresMap.put(AUTOCLICK_COMPONENT_NAME,
+                    new ToggleableFrameworkFeatureInfo(
+                            Settings.Secure.ACCESSIBILITY_AUTOCLICK_ENABLED,
+                            "1" /* Value to enable */, "0" /* Value to disable */,
+                            R.string.autoclick_feature_name));
             if (SUPPORT_ONE_HANDED_MODE) {
                 featuresMap.put(ONE_HANDED_COMPONENT_NAME,
                         new ToggleableFrameworkFeatureInfo(
@@ -464,7 +472,7 @@ public class AccessibilityShortcutController {
         AccessibilityManager accessibilityManager =
                 mFrameworkObjectProvider.getAccessibilityManagerInstance(mContext);
         return accessibilityManager.getEnabledAccessibilityServiceList(
-                FEEDBACK_ALL_MASK).contains(serviceInfo);
+                FEEDBACK_ALL_MASK, mUserId).contains(serviceInfo);
     }
 
     private boolean hasFeatureLeanback() {
@@ -669,7 +677,8 @@ public class AccessibilityShortcutController {
         }
     }
 
-    private class UserSetupCompleteObserver extends ContentObserver {
+    @VisibleForTesting
+    public class UserSetupCompleteObserver extends ContentObserver {
 
         private boolean mIsRegistered = false;
         private int mUserId;
@@ -742,7 +751,8 @@ public class AccessibilityShortcutController {
                     R.string.config_defaultAccessibilityService);
             final List<AccessibilityServiceInfo> enabledServices =
                     mFrameworkObjectProvider.getAccessibilityManagerInstance(
-                            mContext).getEnabledAccessibilityServiceList(FEEDBACK_ALL_MASK);
+                            mContext).getEnabledAccessibilityServiceList(
+                                    FEEDBACK_ALL_MASK, mUserId);
             for (int i = enabledServices.size() - 1; i >= 0; i--) {
                 if (TextUtils.equals(defaultShortcutTarget, enabledServices.get(i).getId())) {
                     return;

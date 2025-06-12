@@ -17,6 +17,7 @@
 package com.android.systemui.media.dialog;
 
 import static com.android.settingslib.flags.Flags.legacyLeAudioSharing;
+import static com.android.media.flags.Flags.enableOutputSwitcherRedesign;
 
 import android.content.Context;
 import android.os.Bundle;
@@ -34,6 +35,8 @@ import com.android.systemui.broadcast.BroadcastSender;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.res.R;
 
+import java.util.concurrent.Executor;
+
 /**
  * Dialog for media output transferring.
  */
@@ -49,11 +52,16 @@ public class MediaOutputDialog extends MediaOutputBaseDialog {
             MediaSwitchingController mediaSwitchingController,
             DialogTransitionAnimator dialogTransitionAnimator,
             UiEventLogger uiEventLogger,
+            Executor mainExecutor,
+            Executor backgroundExecutor,
             boolean includePlaybackAndAppMetadata) {
         super(context, broadcastSender, mediaSwitchingController, includePlaybackAndAppMetadata);
         mDialogTransitionAnimator = dialogTransitionAnimator;
         mUiEventLogger = uiEventLogger;
-        mAdapter = new MediaOutputAdapter(mMediaSwitchingController);
+        mAdapter = enableOutputSwitcherRedesign()
+                ? new MediaOutputAdapter(mMediaSwitchingController)
+                : new MediaOutputAdapterLegacy(mMediaSwitchingController, mainExecutor,
+                        backgroundExecutor);
         if (!aboveStatusbar) {
             getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
@@ -73,12 +81,6 @@ public class MediaOutputDialog extends MediaOutputBaseDialog {
     @Override
     IconCompat getHeaderIcon() {
         return mMediaSwitchingController.getHeaderIcon();
-    }
-
-    @Override
-    int getHeaderIconSize() {
-        return mContext.getResources().getDimensionPixelSize(
-                R.dimen.media_output_dialog_header_album_icon_size);
     }
 
     @Override

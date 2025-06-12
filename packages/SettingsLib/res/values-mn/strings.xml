@@ -110,15 +110,26 @@
     <string name="bluetooth_hearing_aid_left_active" msgid="8330226430756799572">"Идэвхтэй (зөвхөн зүүн тал)"</string>
     <string name="bluetooth_hearing_aid_right_active" msgid="2244728507170385397">"Идэвхтэй (зөвхөн баруун тал)"</string>
     <string name="bluetooth_hearing_aid_left_and_right_active" msgid="4294571497939983181">"Идэвхтэй (зүүн, баруун тал)"</string>
+    <string name="bluetooth_hearing_device_ambient_error" msgid="6035857289108813878">"Орчин тойрныг шинэчилж чадсангүй"</string>
     <string name="bluetooth_active_media_only_battery_level" msgid="7772517511061834073">"Идэвхтэй (зөвхөн медиа). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарей."</string>
     <string name="bluetooth_active_media_only_battery_level_untethered" msgid="7444753133664620926">"Идэвхтэй (зөвхөн медиа). З: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Б: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> батарей."</string>
+    <string name="bluetooth_guest_battery_level" msgid="2820003593899467676">"Зочин төхөөрөмж. <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарейн цэнэгтэй."</string>
+    <string name="bluetooth_guest_battery_level_untethered" msgid="5404013822067644960">"Зочин төхөөрөмж. З: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Б: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> батарейн цэнэгтэй."</string>
+    <string name="bluetooth_guest_media_only_battery_level" msgid="7928347900623812299">"Зочин төхөөрөмж (зөвхөн медиа). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарейн цэнэгтэй."</string>
+    <string name="bluetooth_guest_media_only_battery_level_untethered" msgid="4458143141394300892">"Зочин төхөөрөмж (зөвхөн медиа). З: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Б: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> батарейн цэнэгтэй."</string>
     <string name="bluetooth_battery_level_lea_support" msgid="5968584103507988820">"Холбогдсон (аудио хуваалцахыг дэмждэг). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарей."</string>
     <string name="bluetooth_battery_level_untethered_lea_support" msgid="803110681688633362">"Холбогдсон (аудио хуваалцахыг дэмждэг). З: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Б: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> батарей."</string>
     <string name="bluetooth_battery_level_untethered_left_lea_support" msgid="7707464334346454950">"Холбогдсон (аудио хуваалцахыг дэмждэг). Зүүн: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарей."</string>
     <string name="bluetooth_battery_level_untethered_right_lea_support" msgid="8941549024377771038">"Холбогдсон (аудио хуваалцахыг дэмждэг). Баруун: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарей."</string>
     <string name="bluetooth_no_battery_level_lea_support" msgid="5721725041048434075">"Холбогдсон (аудио хуваалцахыг дэмждэг)"</string>
+    <string name="bluetooth_guest_battery_level_lea_support" msgid="8098327939585013928">"Зочин төхөөрөмж (аудио хуваалцахыг дэмждэг). <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE">%1$s</xliff:g> батарейн цэнэгтэй."</string>
+    <string name="bluetooth_guest_battery_level_untethered_lea_support" msgid="3701035025565668360">"Зочин төхөөрөмж (аудио хуваалцахыг дэмждэг). З: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_0">%1$s</xliff:g>, Б: <xliff:g id="BATTERY_LEVEL_AS_PERCENTAGE_1">%2$s</xliff:g> батарейн цэнэгтэй."</string>
+    <string name="bluetooth_guest_no_battery_level_lea_support" msgid="2977038548753103470">"Зочин төхөөрөмж (аудио хуваалцахыг дэмждэг)"</string>
     <string name="bluetooth_active_media_only_no_battery_level" msgid="71106861912593126">"Идэвхтэй (зөвхөн медиа)"</string>
+    <string name="bluetooth_guest_no_battery_level" msgid="9122974160381136920">"Зочин төхөөрөмж"</string>
+    <string name="bluetooth_guest_media_only_no_battery_level" msgid="7666347601796705721">"Зочин төхөөрөмж (зөвхөн медиа)"</string>
     <string name="bluetooth_saved_device_lea_support" msgid="7231323139968285768">"Аудио хуваалцахыг дэмждэг"</string>
+    <string name="bluetooth_guest_saved_device_lea_support" msgid="5621291599518569876">"Зочин төхөөрөмж. Аудио хуваалцахыг дэмждэг"</string>
     <string name="bluetooth_hearing_aid_media_only_left_active" msgid="1632152540901488645">"Идэвхтэй (зөвхөн медиа), зөвхөн зүүн"</string>
     <string name="bluetooth_hearing_aid_media_only_right_active" msgid="3854140683042617230">"Идэвхтэй (зөвхөн медиа), зөвхөн баруун"</string>
     <string name="bluetooth_hearing_aid_media_only_left_and_right_active" msgid="1299913413062528417">"Идэвхтэй (зөвхөн медиа), зүүн болон баруун"</string>
@@ -375,6 +386,7 @@
     <string name="debug_hw_drawing_category" msgid="5830815169336975162">"Техник хангамжийн хурдасгасан үзүүлэлт"</string>
     <string name="media_category" msgid="8122076702526144053">"Медиа"</string>
     <string name="debug_monitoring_category" msgid="1597387133765424994">"Мониторинг"</string>
+    <string name="window_management_category" msgid="2015535427098365170">"Цонхны удирдлага"</string>
     <string name="strict_mode" msgid="889864762140862437">"Хатуу горимыг идэвхжүүлсэн"</string>
     <string name="strict_mode_summary" msgid="1838248687233554654">"Аппууд үндсэн хэлхээс дээр удаан хугацаанд үйлдлүүд хийх үед дэлгэцийг анивчуулах"</string>
     <string name="pointer_location" msgid="7516929526199520173">"Чиглүүлэгчийн байршил"</string>
@@ -423,6 +435,7 @@
     <string name="transition_animation_scale_title" msgid="1278477690695439337">"Шилжилтийн анимацийн масштаб"</string>
     <string name="animator_duration_scale_title" msgid="7082913931326085176">"Анимацийн хугацааны масштаб"</string>
     <string name="overlay_display_devices_title" msgid="5411894622334469607">"Хоёр дахь дэлгэцийн симуляци хийх"</string>
+    <string name="shade_display_awareness_title" msgid="8000009404669495876">"Сүүдрийн дэлгэцийн байрлал"</string>
     <string name="debug_applications_category" msgid="5394089406638954196">"Апп"</string>
     <string name="immediately_destroy_activities" msgid="1826287490705167403">"Үйлдлүүдийг хадгалахгүй"</string>
     <string name="immediately_destroy_activities_summary" msgid="6289590341144557614">"Үйлдэл бүрийг хэрэглэгч орхимогц нь устгах"</string>
@@ -468,6 +481,9 @@
     <string name="select_webview_provider_title" msgid="3917815648099445503">"WebView хэрэгжилт"</string>
     <string name="select_webview_provider_dialog_title" msgid="2444261109877277714">"WebView хэрэгжилтийг тохируулах"</string>
     <string name="select_webview_provider_toast_text" msgid="8512254949169359848">"Энэ сонголт хүчингүй байна. Дахин оролдоно уу."</string>
+    <string name="webview_launch_devtools_title" msgid="8009687433555367112">"WebView-н DevTools"</string>
+    <string name="webview_launch_devtools_no_package" msgid="3182544553665113721">"WebView-н багц олдсонгүй."</string>
+    <string name="webview_launch_devtools_no_activity" msgid="4066006313619617140">"DevTools-г эхлүүлж чадсангүй."</string>
     <string name="picture_color_mode" msgid="1013807330552931903">"\"Зургийн өнгө\" горим"</string>
     <string name="picture_color_mode_desc" msgid="151780973768136200">"sRGB-г ашиглах"</string>
     <string name="daltonizer_mode_disabled" msgid="403424372812399228">"Идэвхгүй болсон"</string>
@@ -475,7 +491,7 @@
     <string name="daltonizer_mode_deuteranomaly" msgid="3507284319584683963">"Дьютераномаль (улаан-ногоон)"</string>
     <string name="daltonizer_mode_protanomaly" msgid="7805583306666608440">"Протаномаль (улаан-ногоон)"</string>
     <string name="daltonizer_mode_tritanomaly" msgid="7135266249220732267">"Тританомаль (цэнхэр-шар)"</string>
-    <string name="accessibility_display_daltonizer_preference_title" msgid="1810693571332381974">"Өнгө тохируулга"</string>
+    <string name="accessibility_display_daltonizer_preference_title" msgid="1810693571332381974">"Өнгө засах"</string>
     <string name="accessibility_display_daltonizer_preference_subtitle" msgid="1522101114585266455">"Өнгө засах нь таныг дараахыг хийхийг хүсэх үед хэрэгтэй байж болно:&lt;br/&gt; &lt;ol&gt; &lt;li&gt; Өнгөнүүдийг илүү нарийвчилж харах&lt;/li&gt; &lt;li&gt; Төвлөрөхийн тулд өнгөнүүдийг хасах&lt;/li&gt; &lt;/ol&gt;"</string>
     <string name="daltonizer_type_overridden" msgid="4509604753672535721">"Давхарласан <xliff:g id="TITLE">%1$s</xliff:g>"</string>
     <string name="power_remaining_settings_home_page" msgid="4885165789445462557">"<xliff:g id="PERCENTAGE">%1$s</xliff:g> - <xliff:g id="TIME_STRING">%2$s</xliff:g>"</string>
@@ -521,7 +537,9 @@
     <string name="battery_info_status_charging_fast_v2" msgid="1825439848151256589">"Шуурхай цэнэглэх"</string>
     <string name="disabled_by_admin_summary_text" msgid="5343911767402923057">"Админ удирдсан"</string>
     <string name="disabled_by_app_ops_text" msgid="8373595926549098012">"Хязгаарлагдсан тохиргоогоор хянадаг"</string>
+    <string name="disabled_in_phone_call_text" msgid="6568931334337318320">"Дуудлагын үер боломжгүй"</string>
     <string name="disabled" msgid="8017887509554714950">"Идэвхгүйжүүлсэн"</string>
+    <string name="enabled" msgid="3997122818554810678">"Идэвхжүүлсэн"</string>
     <string name="external_source_trusted" msgid="1146522036773132905">"Зөвшөөрсөн"</string>
     <string name="external_source_untrusted" msgid="5037891688911672227">"Зөвшөөрөөгүй"</string>
     <string name="install_other_apps" msgid="3232595082023199454">"Тодорхойгүй апп суулгах"</string>
@@ -609,6 +627,7 @@
     <string name="tv_media_transfer_internal_speakers" msgid="4662765121700213785">"Бүрэлдэхүүн чанга яригч"</string>
     <string name="tv_media_transfer_hdmi_title" msgid="6715658310934507444">"ТВ-ийн аудио"</string>
     <string name="profile_connect_timeout_subtext" msgid="4043408193005851761">"Холбогдоход асуудал гарлаа. Төхөөрөмжийг унтраагаад дахин асаана уу"</string>
+    <string name="bluetooth_key_missing_subtext" msgid="1003639333895028298">"Холбогдох боломжгүй байна"</string>
     <string name="media_transfer_wired_device_name" msgid="4447880899964056007">"Утастай аудио төхөөрөмж"</string>
     <string name="help_label" msgid="3528360748637781274">"Тусламж, санал хүсэлт"</string>
     <string name="storage_category" msgid="2287342585424631813">"Хадгалах сан"</string>
@@ -688,7 +707,7 @@
     <string name="cached_apps_freezer_device_default" msgid="2616594131750144342">"Төхөөрөмжийн өгөгдмөл"</string>
     <string name="cached_apps_freezer_disabled" msgid="4816382260660472042">"Идэвхгүй болгосон"</string>
     <string name="cached_apps_freezer_enabled" msgid="8866703500183051546">"Идэвхжүүлсэн"</string>
-    <string name="cached_apps_freezer_reboot_dialog_text" msgid="695330563489230096">"Энэ өөрчлөлтийг хэрэгжүүлэхийн тулд таны төхөөрөмжийг дахин асаах ёстой. Одоо дахин асаах эсвэл цуцлана уу."</string>
+    <string name="cached_apps_freezer_reboot_dialog_text" msgid="695330563489230096">"Энэ өөрчлөлтийг хэрэгжүүлэхийн тулд таны төхөөрөмжийг дахин асаах ёстой. Одоо дахин асаах эсвэл цуцална уу."</string>
     <string name="media_transfer_wired_headphone_name" msgid="8698668536022665254">"Утастай чихэвч"</string>
     <string name="media_transfer_headphone_name" msgid="1157798825650178478">"Утастай аудио"</string>
     <string name="media_transfer_usb_audio_name" msgid="1789292056757821355">"USB аудио"</string>

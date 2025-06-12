@@ -17,13 +17,14 @@
 <com.android.internal.widget.NotificationCloseButton
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/close_button"
+    android:background="@drawable/close_button_bg"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_gravity="top|end"
     android:contentDescription="@string/close_button_text"
     android:visibility="gone"
     android:src="@drawable/notification_close_button_icon"
-    android:padding="2dp"
+    android:padding="@dimen/notification_close_button_padding"
     android:scaleType="fitCenter"
     android:importantForAccessibility="no"
     >

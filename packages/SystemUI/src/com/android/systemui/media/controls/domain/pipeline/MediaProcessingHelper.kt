@@ -24,7 +24,6 @@ import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.BadParcelableException
 import android.util.Log
-import com.android.systemui.Flags.mediaControlsPostsOptimization
 import com.android.systemui.biometrics.Utils.toBitmap
 import com.android.systemui.media.controls.shared.model.MediaData
 
@@ -45,7 +44,7 @@ fun isSameMediaData(
     new: MediaData,
     old: MediaData?,
 ): Boolean {
-    if (old == null || !mediaControlsPostsOptimization()) return false
+    if (old == null) return false
 
     return new.userId == old.userId &&
         new.app == old.app &&

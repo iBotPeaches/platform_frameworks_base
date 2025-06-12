@@ -106,12 +106,13 @@ struct SurfaceControlActivePictureListener : public gui::BnActivePictureListener
     }
 
     status_t startListening() {
-        // TODO(b/337330263): Make SF multiple-listener capable
-        return SurfaceComposerClient::setActivePictureListener(sp<SurfaceControlActivePictureListener>::fromExisting(this));
+        return SurfaceComposerClient::addActivePictureListener(
+                sp<SurfaceControlActivePictureListener>::fromExisting(this));
     }
 
     status_t stopListening() {
-        return SurfaceComposerClient::setActivePictureListener(nullptr);
+        return SurfaceComposerClient::removeActivePictureListener(
+                sp<SurfaceControlActivePictureListener>::fromExisting(this));
     }
 
 protected:

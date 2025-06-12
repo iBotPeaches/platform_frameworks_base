@@ -44,6 +44,7 @@ import android.text.TextUtils;
  * <img src="{@docRoot}reference/android/images/text/style/stylespan.png" />
  * <figcaption>Text styled bold and italic with the <code>StyleSpan</code>.</figcaption>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class StyleSpan extends MetricAffectingSpan implements ParcelableSpan {
 
     private final int mStyle;

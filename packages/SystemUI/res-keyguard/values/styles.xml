@@ -23,13 +23,13 @@
     <style name="Keyguard.TextView" parent="@android:style/Widget.DeviceDefault.TextView">
         <item name="android:textSize">@dimen/kg_status_line_font_size</item>
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
     </style>
     <style name="Keyguard.Bouncer.PrimaryMessage" parent="Theme.SystemUI">
         <item name="android:textSize">18sp</item>
         <item name="android:lineHeight">24dp</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurface</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurface</item>
         <item name="android:singleLine">true</item>
         <item name="android:textAlignment">center</item>
         <item name="android:ellipsize">marquee</item>
@@ -41,10 +41,10 @@
         <item name="android:textAlignment">center</item>
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
         <item name="android:ellipsize">end</item>
-        <item name="android:textColor">?androidprv:attr/materialColorOnSurfaceVariant</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnSurfaceVariant</item>
     </style>
     <style name="Keyguard.TextView.EmergencyButton" parent="Theme.SystemUI">
-        <item name="android:textColor">?androidprv:attr/materialColorOnTertiaryFixed</item>
+        <item name="android:textColor">@androidprv:color/materialColorOnTertiaryFixed</item>
         <item name="android:textSize">16sp</item>
         <item name="android:background">@drawable/kg_emergency_button_background</item>
         <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
@@ -128,7 +128,7 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
-        <item name="android:colorBackground">@*android:color/background_material_dark</item>
+        <item name="android:colorBackground">@android:color/transparent</item>
     </style>
 
     <style name="TextAppearance.Keyguard">
@@ -137,7 +137,13 @@
         <item name="android:gravity">start</item>
         <item name="android:ellipsize">end</item>
         <item name="android:maxLines">2</item>
-        <item name="android:fontFamily">@*android:string/config_headlineFontFamily</item>
+        <item name="android:fontFamily" android:featureFlag="!com.android.systemui.lockscreen_font">
+          @*android:string/config_headlineFontFamily
+        </item>
+        <item name="android:fontFamily" android:featureFlag="com.android.systemui.lockscreen_font">
+          variable-title-small
+        </item>
+        <item name="android:fontFamily"></item>
         <item name="android:shadowColor">@color/keyguard_shadow_color</item>
         <item name="android:shadowRadius">?attr/shadowRadius</item>
     </style>
@@ -157,6 +163,17 @@
         <item name="android:textColor">?attr/wallpaperTextColor</item>
         <item name="android:shadowColor">@color/keyguard_shadow_color</item>
         <item name="android:shadowRadius">?attr/shadowRadius</item>
+    </style>
+
+    <style name="TextAppearance.Keyguard.BottomArea.DoubleShadow">
+        <item name="keyShadowBlur">0.5dp</item>
+        <item name="keyShadowOffsetX">0.5dp</item>
+        <item name="keyShadowOffsetY">0.5dp</item>
+        <item name="keyShadowAlpha">0.8</item>
+        <item name="ambientShadowBlur">0.5dp</item>
+        <item name="ambientShadowOffsetX">0.5dp</item>
+        <item name="ambientShadowOffsetY">0.5dp</item>
+        <item name="ambientShadowAlpha">0.6</item>
     </style>
 
     <style name="TextAppearance.Keyguard.BottomArea.Button">

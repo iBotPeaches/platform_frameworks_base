@@ -16,30 +16,36 @@
 package com.android.systemui.deviceentry.domain.interactor
 
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.keyguard.shared.model.BiometricUnlockSource
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 
 /** Business logic for device entry auth ripple interactions. */
-@ExperimentalCoroutinesApi
 @SysUISingleton
 class AuthRippleInteractor
 @Inject
 constructor(
     deviceEntrySourceInteractor: DeviceEntrySourceInteractor,
     deviceEntryUdfpsInteractor: DeviceEntryUdfpsInteractor,
+    keyguardInteractor: KeyguardInteractor,
 ) {
+    private val successfulEntryFromDeviceEntryIcon: Flow<Unit> =
+        deviceEntrySourceInteractor.attemptEnterDeviceFromDeviceEntryIcon
+            .map { keyguardInteractor.isKeyguardDismissible.value }
+            .filter { it } // only emit events if the keyguard is dismissible
+            // map to Unit
+            .map {}
+
     private val showUnlockRippleFromDeviceEntryIcon: Flow<BiometricUnlockSource> =
         deviceEntryUdfpsInteractor.isUdfpsSupported.flatMapLatest { isUdfpsSupported ->
             if (isUdfpsSupported) {
-                deviceEntrySourceInteractor.deviceEntryFromDeviceEntryIcon.map {
-                    BiometricUnlockSource.FINGERPRINT_SENSOR
-                }
+                successfulEntryFromDeviceEntryIcon.map { BiometricUnlockSource.FINGERPRINT_SENSOR }
             } else {
                 emptyFlow()
             }
@@ -48,8 +54,5 @@ constructor(
     private val showUnlockRippleFromBiometricUnlock: Flow<BiometricUnlockSource> =
         deviceEntrySourceInteractor.deviceEntryFromBiometricSource
     val showUnlockRipple: Flow<BiometricUnlockSource> =
-        merge(
-            showUnlockRippleFromDeviceEntryIcon,
-            showUnlockRippleFromBiometricUnlock,
-        )
+        merge(showUnlockRippleFromDeviceEntryIcon, showUnlockRippleFromBiometricUnlock)
 }

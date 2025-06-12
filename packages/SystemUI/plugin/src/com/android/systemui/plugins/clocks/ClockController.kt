@@ -37,8 +37,17 @@ interface ClockController {
     val events: ClockEvents
 
     /** Initializes various rendering parameters. If never called, provides reasonable defaults. */
-    fun initialize(isDarkTheme: Boolean, dozeFraction: Float, foldFraction: Float)
+    fun initialize(
+        isDarkTheme: Boolean,
+        dozeFraction: Float,
+        foldFraction: Float,
+        clockListener: ClockEventListener?,
+    )
 
     /** Optional method for dumping debug information */
     fun dump(pw: PrintWriter)
+}
+
+interface ClockEventListener {
+    fun onBoundsChanged(bounds: VRectF)
 }

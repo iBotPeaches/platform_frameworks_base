@@ -47,6 +47,13 @@ import com.android.server.companion.transport.CompanionTransportManager;
 @SuppressLint("LongLogTag")
 public class DisassociationProcessor {
 
+    public static final String REASON_REVOKED = "revoked";
+    public static final String REASON_SELF_IDLE = "self-idle";
+    public static final String REASON_SHELL = "shell";
+    public static final String REASON_LEGACY = "legacy";
+    public static final String REASON_API = "api";
+    public static final String REASON_PKG_DATA_CLEARED = "pkg-data-cleared";
+
     private static final String TAG = "CDM_DisassociationProcessor";
 
     private static final String SYS_PROP_DEBUG_REMOVAL_TIME_WINDOW =
@@ -94,7 +101,7 @@ public class DisassociationProcessor {
      * Disassociate an association by id.
      */
     // TODO: also revoke notification access
-    public void disassociate(int id) {
+    public void disassociate(int id, String reason) {
         Slog.i(TAG, "Disassociating id=[" + id + "]...");
 
         final AssociationInfo association = mAssociationStore.getAssociationWithCallerChecks(id);
@@ -126,7 +133,7 @@ public class DisassociationProcessor {
 
         // Association cleanup.
         mSystemDataTransferRequestStore.removeRequestsByAssociationId(userId, id);
-        mAssociationStore.removeAssociation(association.getId());
+        mAssociationStore.removeAssociation(association.getId(), reason);
 
         // If role is not in use by other associations, revoke the role.
         // Do not need to remove the system role since it was pre-granted by the system.
@@ -151,7 +158,7 @@ public class DisassociationProcessor {
     }
 
     /**
-     * @deprecated Use {@link #disassociate(int)} instead.
+     * @deprecated Use {@link #disassociate(int, String)} instead.
      */
     @Deprecated
     public void disassociate(int userId, String packageName, String macAddress) {
@@ -165,7 +172,7 @@ public class DisassociationProcessor {
 
         mAssociationStore.getAssociationWithCallerChecks(association.getId());
 
-        disassociate(association.getId());
+        disassociate(association.getId(), REASON_LEGACY);
     }
 
     @SuppressLint("MissingPermission")
@@ -223,7 +230,7 @@ public class DisassociationProcessor {
 
             Slog.i(TAG, "Removing inactive self-managed association=[" + association.toShortString()
                     + "].");
-            disassociate(id);
+            disassociate(id, REASON_SELF_IDLE);
         }
     }
 
@@ -234,7 +241,7 @@ public class DisassociationProcessor {
      *
      * Lastly remove the role holder for the revoked associations for the same packages.
      *
-     * @see #disassociate(int)
+     * @see #disassociate(int, String)
      */
     private class OnPackageVisibilityChangeListener implements
             ActivityManager.OnUidImportanceListener {
@@ -260,7 +267,7 @@ public class DisassociationProcessor {
             int userId = UserHandle.getUserId(uid);
             for (AssociationInfo association : mAssociationStore.getRevokedAssociations(userId,
                     packageName)) {
-                disassociate(association.getId());
+                disassociate(association.getId(), REASON_REVOKED);
             }
 
             if (mAssociationStore.getRevokedAssociations().isEmpty()) {

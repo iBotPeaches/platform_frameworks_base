@@ -21,6 +21,7 @@ import com.android.systemui.keyguard.data.repository.keyguardRepository
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
 import com.android.systemui.power.domain.interactor.powerInteractor
+import com.android.systemui.shade.domain.interactor.shadeModeInteractor
 import com.android.systemui.statusbar.lockscreenShadeTransitionController
 
 val Kosmos.notificationShelfInteractor by Fixture {
@@ -28,6 +29,7 @@ val Kosmos.notificationShelfInteractor by Fixture {
         keyguardRepository = keyguardRepository,
         deviceEntryFaceAuthRepository = deviceEntryFaceAuthRepository,
         powerInteractor = powerInteractor,
+        shadeModeInteractor = shadeModeInteractor,
         keyguardTransitionController = lockscreenShadeTransitionController,
     )
 }

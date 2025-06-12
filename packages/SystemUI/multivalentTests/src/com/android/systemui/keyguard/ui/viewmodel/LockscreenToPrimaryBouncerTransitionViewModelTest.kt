@@ -16,12 +16,17 @@
 
 package com.android.systemui.keyguard.ui.viewmodel
 
+import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.FlagsParameterization
 import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.ObservableTransitionState
+import com.android.systemui.Flags.FLAG_BOUNCER_UI_REVAMP
+import com.android.systemui.Flags.FLAG_NOTIFICATION_SHADE_BLUR
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
+import com.android.systemui.coroutines.collectValues
 import com.android.systemui.flags.BrokenWithSceneContainer
+import com.android.systemui.flags.DisableSceneContainer
 import com.android.systemui.flags.Flags
 import com.android.systemui.flags.andSceneContainer
 import com.android.systemui.flags.fakeFeatureFlagsClassic
@@ -31,15 +36,16 @@ import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.shared.model.StatusBarState
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.shared.model.TransitionStep
+import com.android.systemui.keyguard.ui.transitions.blurConfig
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.scene.data.repository.sceneContainerRepository
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.shade.shadeTestUtil
 import com.android.systemui.testKosmos
 import com.google.common.collect.Range
-import com.google.common.truth.Truth
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runCurrent
@@ -50,7 +56,6 @@ import org.junit.runner.RunWith
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
-@ExperimentalCoroutinesApi
 @SmallTest
 @RunWith(ParameterizedAndroidJunit4::class)
 class LockscreenToPrimaryBouncerTransitionViewModelTest(flags: FlagsParameterization) :
@@ -97,20 +102,30 @@ class LockscreenToPrimaryBouncerTransitionViewModelTest(flags: FlagsParameteriza
 
             // immediately 0f
             repository.sendTransitionStep(step(0f, TransitionState.STARTED))
-            runCurrent()
-            Truth.assertThat(actual).isEqualTo(0f)
+            assertThat(actual).isEqualTo(0f)
 
             repository.sendTransitionStep(step(.2f))
-            runCurrent()
-            Truth.assertThat(actual).isEqualTo(0f)
+            assertThat(actual).isEqualTo(0f)
 
             repository.sendTransitionStep(step(0.8f))
-            runCurrent()
-            Truth.assertThat(actual).isEqualTo(0f)
+            assertThat(actual).isEqualTo(0f)
 
             repository.sendTransitionStep(step(1f, TransitionState.FINISHED))
+            assertThat(actual).isEqualTo(0f)
+        }
+
+    @Test
+    @DisableSceneContainer
+    fun lockscreenAlphaEndsWithZero() =
+        testScope.runTest {
+            val alpha by collectLastValue(underTest.lockscreenAlpha)
+
+            repository.sendTransitionStep(step(0f, TransitionState.STARTED))
             runCurrent()
-            Truth.assertThat(actual).isEqualTo(0f)
+
+            // Jump right to the end and validate the value
+            repository.sendTransitionStep(step(1f, TransitionState.FINISHED))
+            assertThat(alpha).isEqualTo(0f)
         }
 
     @Test
@@ -122,32 +137,101 @@ class LockscreenToPrimaryBouncerTransitionViewModelTest(flags: FlagsParameteriza
 
             kosmos.sceneContainerRepository.setTransitionState(transitionState)
             transitionState.value =
-                ObservableTransitionState.Transition(
+                ObservableTransitionState.Transition.showOverlay(
+                    overlay = Overlays.Bouncer,
                     fromScene = Scenes.Lockscreen,
-                    toScene = Scenes.Bouncer,
-                    emptyFlow(),
-                    emptyFlow(),
-                    false,
-                    emptyFlow()
+                    currentOverlays = emptyFlow(),
+                    progress = emptyFlow(),
+                    isInitiatedByUserInput = false,
+                    isUserInputOngoing = emptyFlow(),
                 )
+
             runCurrent()
             // fade out
             repository.sendTransitionStep(step(0f, TransitionState.STARTED))
-            runCurrent()
-            Truth.assertThat(actual).isEqualTo(1f)
+            assertThat(actual).isEqualTo(1f)
 
             repository.sendTransitionStep(step(.1f))
-            runCurrent()
-            Truth.assertThat(actual).isIn(Range.open(.1f, .9f))
+            assertThat(actual).isIn(Range.open(.1f, .9f))
 
             // alpha is 1f before the full transition starts ending
             repository.sendTransitionStep(step(0.8f))
-            runCurrent()
-            Truth.assertThat(actual).isEqualTo(0f)
+            assertThat(actual).isEqualTo(0f)
 
             repository.sendTransitionStep(step(1f, TransitionState.FINISHED))
+            assertThat(actual).isEqualTo(0f)
+        }
+
+    @Test
+    @EnableFlags(FLAG_NOTIFICATION_SHADE_BLUR)
+    @BrokenWithSceneContainer(388068805)
+    fun blurRadiusIsMaxWhenShadeIsExpanded() =
+        testScope.runTest {
+            val values by collectValues(underTest.windowBlurRadius)
+            kosmos.keyguardWindowBlurTestUtil.shadeExpanded(true)
+
+            kosmos.keyguardWindowBlurTestUtil.assertTransitionToBlurRadius(
+                transitionProgress = listOf(0.0f, 0.2f, 0.3f, 0.65f, 0.7f, 1.0f),
+                startValue = kosmos.blurConfig.maxBlurRadiusPx,
+                endValue = kosmos.blurConfig.maxBlurRadiusPx,
+                actualValuesProvider = { values },
+                transitionFactory = ::step,
+                checkInterpolatedValues = false,
+            )
+        }
+
+    @Test
+    @BrokenWithSceneContainer(388068805)
+    fun blurRadiusGoesFromMinToMaxWhenShadeIsNotExpanded() =
+        testScope.runTest {
+            val values by collectValues(underTest.windowBlurRadius)
+            kosmos.keyguardWindowBlurTestUtil.shadeExpanded(false)
+
+            kosmos.keyguardWindowBlurTestUtil.assertTransitionToBlurRadius(
+                transitionProgress = listOf(0.0f, 0.2f, 0.3f, 0.65f, 0.7f, 1.0f),
+                startValue = kosmos.blurConfig.minBlurRadiusPx,
+                endValue = kosmos.blurConfig.maxBlurRadiusPx,
+                actualValuesProvider = { values },
+                transitionFactory = ::step,
+            )
+        }
+
+    @Test
+    @EnableFlags(FLAG_BOUNCER_UI_REVAMP)
+    @BrokenWithSceneContainer(388068805)
+    fun notificationBlur_isNonZero_whenShadeIsExpanded() =
+        testScope.runTest {
+            val values by collectValues(underTest.notificationBlurRadius)
+            kosmos.keyguardWindowBlurTestUtil.shadeExpanded(true)
             runCurrent()
-            Truth.assertThat(actual).isEqualTo(0f)
+
+            kosmos.keyguardWindowBlurTestUtil.assertTransitionToBlurRadius(
+                transitionProgress = listOf(0f, 0f, 0.1f, 0.2f, 0.3f, 1f),
+                startValue = kosmos.blurConfig.maxBlurRadiusPx,
+                endValue = kosmos.blurConfig.maxBlurRadiusPx,
+                transitionFactory = ::step,
+                actualValuesProvider = { values },
+                checkInterpolatedValues = false,
+            )
+        }
+
+    @Test
+    @EnableFlags(FLAG_BOUNCER_UI_REVAMP)
+    @BrokenWithSceneContainer(388068805)
+    fun notifications_areFullyVisible_whenShadeIsExpanded() =
+        testScope.runTest {
+            val values by collectValues(underTest.notificationAlpha)
+            kosmos.keyguardWindowBlurTestUtil.shadeExpanded(true)
+            runCurrent()
+
+            kosmos.keyguardWindowBlurTestUtil.assertTransitionToBlurRadius(
+                transitionProgress = listOf(0f, 0f, 0.1f, 0.2f, 0.3f, 1f),
+                startValue = 1.0f,
+                endValue = 1.0f,
+                transitionFactory = ::step,
+                actualValuesProvider = { values },
+                checkInterpolatedValues = false,
+            )
         }
 
     private fun step(
@@ -161,7 +245,7 @@ class LockscreenToPrimaryBouncerTransitionViewModelTest(flags: FlagsParameteriza
                 else KeyguardState.PRIMARY_BOUNCER,
             value = value,
             transitionState = state,
-            ownerName = "LockscreenToPrimaryBouncerTransitionViewModelTest"
+            ownerName = "LockscreenToPrimaryBouncerTransitionViewModelTest",
         )
     }
 

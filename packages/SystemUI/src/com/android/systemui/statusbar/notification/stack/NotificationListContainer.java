@@ -113,10 +113,9 @@ public interface NotificationListContainer extends
     /**
      * Get the view parent for a notification entry. For example, NotificationStackScrollLayout.
      *
-     * @param entry entry to get the view parent for
      * @return the view parent for entry
      */
-    ViewGroup getViewParentForNotification(NotificationEntry entry);
+    ViewGroup getViewParentForNotification();
 
     /**
      * Resets the currently exposed menu view.

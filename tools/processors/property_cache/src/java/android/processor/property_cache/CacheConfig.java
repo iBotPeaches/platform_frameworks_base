@@ -46,7 +46,7 @@ public class CacheConfig {
                 : methodAnnotation.module();
         mClassName = classElement.getSimpleName().toString();
         mQualifiedName = classElement.getQualifiedName().toString();
-        mModifiers = new CacheModifiers(methodAnnotation.modsFlagOnOrNone());
+        mModifiers = new CacheModifiers(methodAnnotation.mods());
         mMethodName = method.getSimpleName().toString();
         mPropertyName = getPropertyName(mMethodName);
         mApiName = methodAnnotation.api().isEmpty() ? getUniqueApiName(mClassName, mPropertyName)

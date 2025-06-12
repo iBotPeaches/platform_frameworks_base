@@ -26,12 +26,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-
 import androidx.core.os.CancellationSignal;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.internal.util.NotificationMessagingUtil;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
@@ -51,7 +49,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @SmallTest
 public class HeadsUpViewBinderTest extends SysuiTestCase {
     private HeadsUpViewBinder mViewBinder;
-    @Mock private NotificationMessagingUtil mNotificationMessagingUtil;
     @Mock private RowContentBindStage mBindStage;
     private final HeadsUpViewBinderLogger mLogger = spy(
             new HeadsUpViewBinderLogger(logcatLogBuffer()));
@@ -61,7 +58,7 @@ public class HeadsUpViewBinderTest extends SysuiTestCase {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        mViewBinder = new HeadsUpViewBinder(mNotificationMessagingUtil, mBindStage, mLogger);
+        mViewBinder = new HeadsUpViewBinder(mBindStage, mLogger);
         when(mEntry.getKey()).thenReturn("key");
         when(mEntry.getRow()).thenReturn(mRow);
         when(mBindStage.getStageParams(eq(mEntry))).thenReturn(new RowContentBindParams());
@@ -75,8 +72,8 @@ public class HeadsUpViewBinderTest extends SysuiTestCase {
             return new CancellationSignal();
         });
 
-        mViewBinder.bindHeadsUpView(mEntry, null);
-        verify(mLogger).startBindingHun(eq(mEntry));
+        mViewBinder.bindHeadsUpView(mEntry, /* isPinnedByUser= */ false, null);
+        verify(mLogger).startBindingHun(mEntry, /* isPinnedByUser= */ false);
         verifyNoMoreInteractions(mLogger);
         clearInvocations(mLogger);
 
@@ -85,8 +82,8 @@ public class HeadsUpViewBinderTest extends SysuiTestCase {
         verifyNoMoreInteractions(mLogger);
         clearInvocations(mLogger);
 
-        mViewBinder.bindHeadsUpView(mEntry, null);
-        verify(mLogger).startBindingHun(eq(mEntry));
+        mViewBinder.bindHeadsUpView(mEntry, /* isPinnedByUser= */ true, null);
+        verify(mLogger).startBindingHun(mEntry, /* isPinnedByUser= */ true);
         verifyNoMoreInteractions(mLogger);
         clearInvocations(mLogger);
 
@@ -116,8 +113,8 @@ public class HeadsUpViewBinderTest extends SysuiTestCase {
             return new CancellationSignal();
         });
 
-        mViewBinder.bindHeadsUpView(mEntry, null);
-        verify(mLogger).startBindingHun(eq(mEntry));
+        mViewBinder.bindHeadsUpView(mEntry, /* isPinnedByUser= */ false, null);
+        verify(mLogger).startBindingHun(mEntry, /* isPinnedByUser= */ false);
         verifyNoMoreInteractions(mLogger);
         clearInvocations(mLogger);
 
@@ -140,8 +137,8 @@ public class HeadsUpViewBinderTest extends SysuiTestCase {
             return new CancellationSignal();
         });
 
-        mViewBinder.bindHeadsUpView(mEntry, null);
-        verify(mLogger).startBindingHun(eq(mEntry));
+        mViewBinder.bindHeadsUpView(mEntry, /* isPinnedByUser= */ true, null);
+        verify(mLogger).startBindingHun(mEntry, /* isPinnedByUser= */ true);
         verifyNoMoreInteractions(mLogger);
         clearInvocations(mLogger);
 
@@ -167,8 +164,8 @@ public class HeadsUpViewBinderTest extends SysuiTestCase {
             return new CancellationSignal();
         });
 
-        mViewBinder.bindHeadsUpView(mEntry, null);
-        verify(mLogger).startBindingHun(eq(mEntry));
+        mViewBinder.bindHeadsUpView(mEntry, /* isPinnedByUser= */ false, null);
+        verify(mLogger).startBindingHun(mEntry, /* isPinnedByUser= */ false);
         verifyNoMoreInteractions(mLogger);
         clearInvocations(mLogger);
 

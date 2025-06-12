@@ -9,6 +9,10 @@ package {
 
 android_test {
     name: "MediaRouterServiceTests",
+    defaults: [
+        // For ExtendedMockito dependencies.
+        "modules-utils-testable-device-config-defaults",
+    ],
     srcs: [
         "src/**/*.java",
     ],
@@ -23,12 +27,17 @@ android_test {
         "services.core",
         "truth",
     ],
+    libs: [
+        "android.test.base.stubs",
+        "android.test.runner.stubs",
+    ],
 
     platform_apis: true,
 
     test_suites: [
         // "device-tests",
         "general-tests",
+        "mts-statsd",
     ],
 
     certificate: "platform",
@@ -36,4 +45,5 @@ android_test {
     optimize: {
         enabled: false,
     },
+    min_sdk_version: "30",
 }

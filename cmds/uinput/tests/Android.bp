@@ -18,3 +18,17 @@ android_test {
         "device-tests",
     ],
 }
+
+android_ravenwood_test {
+    name: "UinputTestsRavenwood",
+    srcs: [
+        "src/**/*.java",
+    ],
+    static_libs: [
+        "androidx.test.runner",
+        "frameworks-base-testutils",
+        "platform-test-annotations",
+        "truth",
+        "uinput",
+    ],
+}

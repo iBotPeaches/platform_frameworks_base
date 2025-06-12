@@ -25,6 +25,7 @@ import static com.android.server.pm.PackageManagerService.DEBUG_PREFERRED;
 import static com.android.server.pm.PackageManagerService.TAG;
 
 import android.annotation.NonNull;
+import android.annotation.SpecialUsers.CanBeALL;
 import android.annotation.UserIdInt;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -115,7 +116,8 @@ final class PreferredActivityHelper {
     }
 
     /** This method takes a specific user id as well as UserHandle.USER_ALL. */
-    public void clearPackagePreferredActivities(String packageName, int userId) {
+    public void clearPackagePreferredActivities(String packageName,
+            @CanBeALL @UserIdInt int userId) {
         final SparseBooleanArray changedUsers = new SparseBooleanArray();
         synchronized (mPm.mLock) {
             mPm.clearPackagePreferredActivitiesLPw(packageName, changedUsers, userId);

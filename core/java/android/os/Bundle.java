@@ -141,6 +141,8 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
         STRIPPED.putInt("STRIPPED", 1);
     }
 
+    private boolean isFirstRetrievedFromABundle = false;
+
     /**
      * Constructs a new, empty Bundle.
      */
@@ -382,7 +384,15 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
         bundle.unparcel();
         mOwnsLazyValues = false;
         bundle.mOwnsLazyValues = false;
-        mMap.putAll(bundle.mMap);
+        int N = bundle.mMap.size();
+        for (int i = 0; i < N; i++) {
+            String key = bundle.mMap.keyAt(i);
+            Object value = bundle.mMap.valueAt(i);
+            if (value instanceof Bundle) {
+                ((Bundle) value).isFirstRetrievedFromABundle = true;
+            }
+            mMap.put(key, value);
+        }
 
         // FD and Binders state is now known if and only if both bundles already knew
         if ((bundle.mFlags & FLAG_HAS_FDS) != 0) {
@@ -398,7 +408,7 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
         if ((bundle.mFlags & FLAG_HAS_BINDERS_KNOWN) == 0) {
             mFlags &= ~FLAG_HAS_BINDERS_KNOWN;
         }
-        mFlags |= bundle.mFlags & FLAG_HAS_INTENT;
+        setHasIntent(hasIntent() || bundle.hasIntent());
     }
 
     /**
@@ -465,7 +475,7 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
      * @hide
      */
     public boolean hasIntent() {
-        return (mFlags & FLAG_HAS_INTENT) != 0;
+        return super.hasIntent();
     }
 
     /** {@hide} */
@@ -591,7 +601,9 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
         mFlags &= ~FLAG_HAS_FDS_KNOWN;
         mFlags &= ~FLAG_HAS_BINDERS_KNOWN;
         if (intentClass != null && intentClass.isInstance(value)) {
-            mFlags |= FLAG_HAS_INTENT;
+            setHasIntent(true);
+        } else if (value instanceof Bundle) {
+            ((Bundle) value).isFirstRetrievedFromABundle = true;
         }
     }
 
@@ -793,6 +805,9 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
      */
     public void putBundle(@Nullable String key, @Nullable Bundle value) {
         unparcel();
+        if (value != null) {
+            value.isFirstRetrievedFromABundle = true;
+        }
         mMap.put(key, value);
     }
 
@@ -1020,10 +1035,27 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
             return null;
         }
         try {
-            return (Bundle) o;
+            Bundle bundle = (Bundle) o;
+            bundle.setClassLoaderSameAsContainerBundleWhenRetrievedFirstTime(this);
+            return bundle;
         } catch (ClassCastException e) {
             typeWarning(key, o, "Bundle", e);
             return null;
+        }
+    }
+
+    /**
+     * Set the ClassLoader of a bundle to its container bundle. This is necessary so that when a
+     * bundle's ClassLoader is changed, it can be propagated to its children. Do this only when it
+     * is retrieved from the container bundle first time though. Once it is accessed outside of its
+     * container, its ClassLoader should no longer be changed by its container anymore.
+     *
+     * @param containerBundle the bundle this bundle is retrieved from.
+     */
+    void setClassLoaderSameAsContainerBundleWhenRetrievedFirstTime(BaseBundle containerBundle) {
+        if (!isFirstRetrievedFromABundle) {
+            setClassLoader(containerBundle.getClassLoader());
+            isFirstRetrievedFromABundle = true;
         }
     }
 

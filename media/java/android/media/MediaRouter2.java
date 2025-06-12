@@ -22,6 +22,7 @@ import static com.android.media.flags.Flags.FLAG_ENABLE_GET_TRANSFERABLE_ROUTES;
 import static com.android.media.flags.Flags.FLAG_ENABLE_PRIVILEGED_ROUTING_FOR_MEDIA_ROUTING_CONTROL;
 import static com.android.media.flags.Flags.FLAG_ENABLE_RLP_CALLBACKS_IN_MEDIA_ROUTER2;
 import static com.android.media.flags.Flags.FLAG_ENABLE_SCREEN_OFF_SCANNING;
+import static com.android.media.flags.Flags.FLAG_ENABLE_SUGGESTED_DEVICE_API;
 
 import android.Manifest;
 import android.annotation.CallbackExecutor;
@@ -159,6 +160,8 @@ public final class MediaRouter2 {
             new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<ControllerCallbackRecord> mControllerCallbackRecords =
             new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<DeviceSuggestionsCallbackRecord>
+            mDeviceSuggestionsCallbackRecords = new CopyOnWriteArrayList<>();
 
     private final CopyOnWriteArrayList<ControllerCreationRequest> mControllerCreationRequests =
             new CopyOnWriteArrayList<>();
@@ -197,6 +200,10 @@ public final class MediaRouter2 {
     @GuardedBy("mLock")
     @Nullable
     private RouteListingPreference mRouteListingPreference;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private Map<String, List<SuggestedDeviceInfo>> mSuggestedDeviceInfo = new HashMap<>();
 
     /**
      * Stores an auxiliary copy of {@link #mFilteredRoutes} at the time of the last route callback
@@ -281,7 +288,7 @@ public final class MediaRouter2 {
                     /* executor */ null,
                     /* onInstanceInvalidatedListener */ null);
         } catch (IllegalArgumentException ex) {
-            Log.e(TAG, "Package " + clientPackageName + " not found. Ignoring.");
+            Log.e(TAG, "Failed to create proxy router for package '" + clientPackageName + "'", ex);
             return null;
         }
     }
@@ -760,6 +767,27 @@ public final class MediaRouter2 {
     }
 
     /**
+     * Registers the given callback to be invoked when the {@link SuggestedDeviceInfo} of the target
+     * router changes.
+     *
+     * <p>Calls using a previously registered callback will overwrite the previous executor.
+     *
+     * @hide
+     */
+    public void registerDeviceSuggestionsCallback(
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull DeviceSuggestionsCallback deviceSuggestionsCallback) {
+        Objects.requireNonNull(executor, "executor must not be null");
+        Objects.requireNonNull(deviceSuggestionsCallback, "callback must not be null");
+
+        DeviceSuggestionsCallbackRecord record =
+                new DeviceSuggestionsCallbackRecord(executor, deviceSuggestionsCallback);
+
+        mDeviceSuggestionsCallbackRecords.remove(record);
+        mDeviceSuggestionsCallbackRecords.add(record);
+    }
+
+    /**
      * Unregisters the given callback to not receive {@link RouteListingPreference} change events.
      *
      * @see #registerRouteListingPreferenceUpdatedCallback(Executor, Consumer)
@@ -775,6 +803,21 @@ public final class MediaRouter2 {
                     TAG,
                     "unregisterRouteListingPreferenceUpdatedCallback: Ignoring an unknown"
                         + " callback");
+        }
+    }
+
+    /**
+     * Unregisters the given callback to not receive {@link SuggestedDeviceInfo} change events.
+     *
+     * @see #registerDeviceSuggestionsCallback(Executor, DeviceSuggestionsCallback)
+     * @hide
+     */
+    public void unregisterDeviceSuggestionsCallback(@NonNull DeviceSuggestionsCallback callback) {
+        Objects.requireNonNull(callback, "callback must not be null");
+
+        if (!mDeviceSuggestionsCallbackRecords.remove(
+                new DeviceSuggestionsCallbackRecord(/* executor */ null, callback))) {
+            Log.w(TAG, "unregisterDeviceSuggestionsCallback: Ignoring an unknown" + " callback");
         }
     }
 
@@ -809,7 +852,7 @@ public final class MediaRouter2 {
      * updates} in order to keep the system UI in a consistent state. You can also call this method
      * at any other point to update the listing preference dynamically.
      *
-     * <p>Any calls to this method from a privileged router will throw an {@link
+     * <p>Calling this method on a proxy router instance will throw an {@link
      * UnsupportedOperationException}.
      *
      * <p>Notes:
@@ -829,6 +872,36 @@ public final class MediaRouter2 {
      */
     public void setRouteListingPreference(@Nullable RouteListingPreference routeListingPreference) {
         mImpl.setRouteListingPreference(routeListingPreference);
+    }
+
+    /**
+     * Sets the suggested devices.
+     *
+     * <p>Use this method to inform the system UI that this device is suggested in the Output
+     * Switcher and media controls.
+     *
+     * <p>You should pass null to this method to clear a previously set suggestion without setting a
+     * new one.
+     *
+     * @param suggestedDeviceInfo The {@link SuggestedDeviceInfo} the router suggests should be
+     *     provided to the user.
+     * @hide
+     */
+    @FlaggedApi(FLAG_ENABLE_SUGGESTED_DEVICE_API)
+    public void setDeviceSuggestions(@Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo) {
+        mImpl.setDeviceSuggestions(suggestedDeviceInfo);
+    }
+
+    /**
+     * Gets the current suggested devices.
+     *
+     * @return the suggested devices, keyed by the package name providing each suggestion list.
+     * @hide
+     */
+    @FlaggedApi(FLAG_ENABLE_SUGGESTED_DEVICE_API)
+    @Nullable
+    public Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestions() {
+        return mImpl.getDeviceSuggestions();
     }
 
     /**
@@ -1385,14 +1458,21 @@ public final class MediaRouter2 {
                         "requestCreateSessionByManager | requestId: %d, oldSession: %s, route: %s",
                         managerRequestId, oldSession, route));
         RoutingController controller;
+        String oldSessionId = oldSession.getId();
         if (oldSession.isSystemSession()) {
             controller = getSystemController();
         } else {
             synchronized (mLock) {
-                controller = mNonSystemRoutingControllers.get(oldSession.getId());
+                controller = mNonSystemRoutingControllers.get(oldSessionId);
             }
         }
         if (controller == null) {
+            Log.w(
+                    TAG,
+                    TextUtils.formatSimple(
+                            "Ignoring requestCreateSessionByManager (requestId: %d) because no"
+                                + " controller for old session (id: %s) was found.",
+                            managerRequestId, oldSessionId));
             return;
         }
         requestCreateController(controller, route, managerRequestId);
@@ -1412,7 +1492,8 @@ public final class MediaRouter2 {
         ArrayList<MediaRoute2Info> sortedRoutes = new ArrayList<>(routes);
         // take the negative for descending order
         sortedRoutes.sort(
-                Comparator.comparingInt(r -> -packagePriority.getOrDefault(r.getPackageName(), 0)));
+                Comparator.comparingInt(
+                        r -> -packagePriority.getOrDefault(r.getProviderPackageName(), 0)));
         return sortedRoutes;
     }
 
@@ -1429,10 +1510,10 @@ public final class MediaRouter2 {
                 continue;
             }
             if (!mDiscoveryPreference.getAllowedPackages().isEmpty()
-                    && (route.getPackageName() == null
+                    && (route.getProviderPackageName() == null
                             || !mDiscoveryPreference
                                     .getAllowedPackages()
-                                    .contains(route.getPackageName()))) {
+                                    .contains(route.getProviderPackageName()))) {
                 continue;
             }
             if (mDiscoveryPreference.shouldRemoveDuplicates()) {
@@ -1510,6 +1591,17 @@ public final class MediaRouter2 {
         }
     }
 
+    private void notifyDeviceSuggestionsUpdated(
+            @NonNull String suggestingPackageName,
+            @Nullable List<SuggestedDeviceInfo> deviceSuggestions) {
+        for (DeviceSuggestionsCallbackRecord record : mDeviceSuggestionsCallbackRecords) {
+            record.mExecutor.execute(
+                    () ->
+                            record.mDeviceSuggestionsCallback.onSuggestionUpdated(
+                                    suggestingPackageName, deviceSuggestions));
+        }
+    }
+
     private void notifyTransfer(RoutingController oldController, RoutingController newController) {
         for (TransferCallbackRecord record : mTransferCallbackRecords) {
             record.mExecutor.execute(
@@ -1558,6 +1650,25 @@ public final class MediaRouter2 {
         return new RoutingSessionInfo.Builder(sessionInfo)
                 .setClientPackageName(packageName)
                 .build();
+    }
+
+    /**
+     * Callback for receiving events about device suggestions
+     *
+     * @hide
+     */
+    public interface DeviceSuggestionsCallback {
+
+        /**
+         * Called when suggestions are updated. Whenever you register a callback, this will be
+         * invoked with the current suggestions.
+         *
+         * @param suggestingPackageName the package that provided the suggestions.
+         * @param suggestedDeviceInfo the suggestions provided by the package.
+         */
+        void onSuggestionUpdated(
+                @NonNull String suggestingPackageName,
+                @Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo);
     }
 
     /** Callback for receiving events about media route discovery. */
@@ -2318,6 +2429,35 @@ public final class MediaRouter2 {
         }
     }
 
+    private static final class DeviceSuggestionsCallbackRecord {
+        public final Executor mExecutor;
+        public final DeviceSuggestionsCallback mDeviceSuggestionsCallback;
+
+        /* package */ DeviceSuggestionsCallbackRecord(
+                @NonNull Executor executor,
+                @NonNull DeviceSuggestionsCallback deviceSuggestionsCallback) {
+            mExecutor = executor;
+            mDeviceSuggestionsCallback = deviceSuggestionsCallback;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof DeviceSuggestionsCallbackRecord)) {
+                return false;
+            }
+            return mDeviceSuggestionsCallback
+                    == ((DeviceSuggestionsCallbackRecord) obj).mDeviceSuggestionsCallback;
+        }
+
+        @Override
+        public int hashCode() {
+            return mDeviceSuggestionsCallback.hashCode();
+        }
+    }
+
     static final class TransferCallbackRecord {
         public final Executor mExecutor;
         public final TransferCallback mTransferCallback;
@@ -2438,6 +2578,17 @@ public final class MediaRouter2 {
         }
 
         @Override
+        public void notifyDeviceSuggestionsUpdated(
+                String suggestingPackageName, List<SuggestedDeviceInfo> suggestions) {
+            mHandler.sendMessage(
+                    obtainMessage(
+                            MediaRouter2::notifyDeviceSuggestionsUpdated,
+                            MediaRouter2.this,
+                            suggestingPackageName,
+                            suggestions));
+        }
+
+        @Override
         public void requestCreateSessionByManager(
                 long managerRequestId, RoutingSessionInfo oldSession, MediaRoute2Info route) {
             mHandler.sendMessage(
@@ -2478,6 +2629,11 @@ public final class MediaRouter2 {
         void unregisterRouteCallback();
 
         void setRouteListingPreference(@Nullable RouteListingPreference preference);
+
+        void setDeviceSuggestions(@Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo);
+
+        @Nullable
+        Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestions();
 
         boolean showSystemOutputSwitcher();
 
@@ -2675,7 +2831,30 @@ public final class MediaRouter2 {
         @Override
         public void setRouteListingPreference(@Nullable RouteListingPreference preference) {
             throw new UnsupportedOperationException(
-                    "RouteListingPreference cannot be set by a privileged MediaRouter2 instance.");
+                    "RouteListingPreference cannot be set by a proxy MediaRouter2 instance.");
+        }
+
+        @Override
+        public void setDeviceSuggestions(@Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo) {
+            synchronized (mLock) {
+                try {
+                    mMediaRouterService.setDeviceSuggestionsWithManager(
+                            mClient, suggestedDeviceInfo);
+                } catch (RemoteException ex) {
+                    ex.rethrowFromSystemServer();
+                }
+            }
+        }
+
+        @Override
+        public Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestions() {
+            synchronized (mLock) {
+                try {
+                    return mMediaRouterService.getDeviceSuggestionsWithManager(mClient);
+                } catch (RemoteException ex) {
+                    throw ex.rethrowFromSystemServer();
+                }
+            }
         }
 
         @Override
@@ -3288,6 +3467,23 @@ public final class MediaRouter2 {
             notifyRouteListingPreferenceUpdated(routeListingPreference);
         }
 
+        private void onDeviceSuggestionsChangeHandler(
+                @NonNull String packageName,
+                @NonNull String suggestingPackageName,
+                @Nullable List<SuggestedDeviceInfo> suggestedDeviceInfo) {
+            if (!TextUtils.equals(getClientPackageName(), packageName)) {
+                return;
+            }
+            synchronized (mLock) {
+                if (Objects.equals(
+                        mSuggestedDeviceInfo.get(suggestingPackageName), suggestedDeviceInfo)) {
+                    return;
+                }
+                mSuggestedDeviceInfo.put(suggestingPackageName, suggestedDeviceInfo);
+            }
+            notifyDeviceSuggestionsUpdated(suggestingPackageName, suggestedDeviceInfo);
+        }
+
         private void onRequestFailedOnHandler(int requestId, int reason) {
             MediaRouter2Manager.TransferRequest matchingRequest = null;
             for (MediaRouter2Manager.TransferRequest request : mTransferRequests) {
@@ -3379,6 +3575,20 @@ public final class MediaRouter2 {
                                 ProxyMediaRouter2Impl.this,
                                 packageName,
                                 routeListingPreference));
+            }
+
+            @Override
+            public void notifyDeviceSuggestionsUpdated(
+                    String packageName,
+                    String suggestingPackageName,
+                    @Nullable List<SuggestedDeviceInfo> deviceSuggestions) {
+                mHandler.sendMessage(
+                        obtainMessage(
+                                ProxyMediaRouter2Impl::onDeviceSuggestionsChangeHandler,
+                                ProxyMediaRouter2Impl.this,
+                                packageName,
+                                suggestingPackageName,
+                                deviceSuggestions));
             }
 
             @Override
@@ -3545,6 +3755,30 @@ public final class MediaRouter2 {
         }
 
         @Override
+        public void setDeviceSuggestions(@Nullable List<SuggestedDeviceInfo> deviceSuggestions) {
+            synchronized (mLock) {
+                try {
+                    registerRouterStubIfNeededLocked();
+                    mMediaRouterService.setDeviceSuggestionsWithRouter2(mStub, deviceSuggestions);
+                } catch (RemoteException ex) {
+                    ex.rethrowFromSystemServer();
+                }
+            }
+        }
+
+        @Override
+        @Nullable
+        public Map<String, List<SuggestedDeviceInfo>> getDeviceSuggestions() {
+            synchronized (mLock) {
+                try {
+                    return mMediaRouterService.getDeviceSuggestionsWithRouter2(mStub);
+                } catch (RemoteException ex) {
+                    throw ex.rethrowFromSystemServer();
+                }
+            }
+        }
+
+        @Override
         public boolean showSystemOutputSwitcher() {
             synchronized (mLock) {
                 try {
@@ -3652,10 +3886,10 @@ public final class MediaRouter2 {
                     continue;
                 }
                 if (!discoveryPreference.getAllowedPackages().isEmpty()
-                        && (route.getPackageName() == null
+                        && (route.getProviderPackageName() == null
                                 || !discoveryPreference
                                         .getAllowedPackages()
-                                        .contains(route.getPackageName()))) {
+                                        .contains(route.getProviderPackageName()))) {
                     continue;
                 }
                 filteredRoutes.add(route);

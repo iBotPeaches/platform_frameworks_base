@@ -224,6 +224,10 @@ public class FingerprintSensorConfigurations implements Parcelable {
         } catch (RemoteException e) {
             Log.d(TAG, "Unable to get sensor properties!");
         }
+
+        if (props == null) {
+            props = new SensorProps[]{};
+        }
         return props;
     }
 }

@@ -71,6 +71,7 @@ import android.view.View;
  * }
  * </code>
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public abstract class MetaKeyKeyListener {
     /**
      * Flag that indicates that the SHIFT key is on.

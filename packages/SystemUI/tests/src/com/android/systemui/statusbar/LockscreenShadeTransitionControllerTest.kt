@@ -35,7 +35,7 @@ import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.mock
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.android.systemui.util.mockito.nullable
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -62,14 +62,9 @@ import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.Mockito.`when` as whenever
 import org.mockito.junit.MockitoJUnit
 
-private fun <T> anyObject(): T {
-    return Mockito.anyObject<T>()
-}
-
 @SmallTest
 @RunWithLooper(setAsMainLooper = true)
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class LockscreenShadeTransitionControllerTest : SysuiTestCase() {
     private val kosmos =
         testKosmos().apply {
@@ -267,7 +262,7 @@ class LockscreenShadeTransitionControllerTest : SysuiTestCase() {
             verify(statusbarStateController, never()).setState(anyInt())
             verify(statusbarStateController).setLeaveOpenOnKeyguardHide(true)
             verify(centralSurfaces)
-                .showBouncerWithDimissAndCancelIfKeyguard(anyObject(), anyObject())
+                .showBouncerWithDimissAndCancelIfKeyguard(nullable(), nullable())
         }
 
     @Test
@@ -361,79 +356,6 @@ class LockscreenShadeTransitionControllerTest : SysuiTestCase() {
             transitionController.dragDownAmount = 10f
 
             verify(depthController).transitionToFullShadeProgress = 0.1f
-        }
-
-    @Test
-    fun setDragAmount_setsKeyguardTransitionProgress() =
-        testScope.runTest {
-            transitionController.dragDownAmount = 10f
-
-            verify(shadeLockscreenInteractor).setKeyguardTransitionProgress(anyFloat(), anyInt())
-        }
-
-    @Test
-    fun setDragAmount_setsKeyguardAlphaBasedOnDistance() =
-        testScope.runTest {
-            val alphaDistance =
-                context.resources.getDimensionPixelSize(
-                    R.dimen.lockscreen_shade_npvc_keyguard_content_alpha_transition_distance
-                )
-            transitionController.dragDownAmount = 10f
-
-            val expectedAlpha = 1 - 10f / alphaDistance
-            verify(shadeLockscreenInteractor)
-                .setKeyguardTransitionProgress(eq(expectedAlpha), anyInt())
-        }
-
-    @Test
-    fun setDragAmount_notInSplitShade_setsKeyguardTranslationToZero() =
-        testScope.runTest {
-            val mediaTranslationY = 123
-            disableSplitShade()
-            whenever(mediaHierarchyManager.isCurrentlyInGuidedTransformation()).thenReturn(true)
-            whenever(mediaHierarchyManager.getGuidedTransformationTranslationY())
-                .thenReturn(mediaTranslationY)
-
-            transitionController.dragDownAmount = 10f
-
-            verify(shadeLockscreenInteractor).setKeyguardTransitionProgress(anyFloat(), eq(0))
-        }
-
-    @Test
-    fun setDragAmount_inSplitShade_setsKeyguardTranslationBasedOnMediaTranslation() =
-        testScope.runTest {
-            val mediaTranslationY = 123
-            enableSplitShade()
-            whenever(mediaHierarchyManager.isCurrentlyInGuidedTransformation()).thenReturn(true)
-            whenever(mediaHierarchyManager.getGuidedTransformationTranslationY())
-                .thenReturn(mediaTranslationY)
-
-            transitionController.dragDownAmount = 10f
-
-            verify(shadeLockscreenInteractor)
-                .setKeyguardTransitionProgress(anyFloat(), eq(mediaTranslationY))
-        }
-
-    @Test
-    fun setDragAmount_inSplitShade_mediaNotShowing_setsKeyguardTranslationBasedOnDistance() =
-        testScope.runTest {
-            enableSplitShade()
-            whenever(mediaHierarchyManager.isCurrentlyInGuidedTransformation()).thenReturn(false)
-            whenever(mediaHierarchyManager.getGuidedTransformationTranslationY()).thenReturn(123)
-
-            transitionController.dragDownAmount = 10f
-
-            val distance =
-                context.resources.getDimensionPixelSize(
-                    R.dimen.lockscreen_shade_keyguard_transition_distance
-                )
-            val offset =
-                context.resources.getDimensionPixelSize(
-                    R.dimen.lockscreen_shade_keyguard_transition_vertical_offset
-                )
-            val expectedTranslation = 10f / distance * offset
-            verify(shadeLockscreenInteractor)
-                .setKeyguardTransitionProgress(anyFloat(), eq(expectedTranslation.toInt()))
         }
 
     @Test

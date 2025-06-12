@@ -16,9 +16,7 @@
 
 package com.android.systemui.media.controls.domain.interactor
 
-import android.R
 import android.app.PendingIntent
-import android.graphics.drawable.Icon
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
@@ -32,7 +30,6 @@ import com.android.systemui.bluetooth.mockBroadcastDialogController
 import com.android.systemui.concurrency.fakeExecutor
 import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.media.controls.MediaTestHelper
 import com.android.systemui.media.controls.data.repository.mediaDataRepository
 import com.android.systemui.media.controls.domain.pipeline.MediaDataFilterImpl
 import com.android.systemui.media.controls.domain.pipeline.MediaDataProcessor
@@ -41,12 +38,7 @@ import com.android.systemui.media.controls.domain.pipeline.interactor.mediaContr
 import com.android.systemui.media.controls.domain.pipeline.mediaDataFilter
 import com.android.systemui.media.controls.domain.pipeline.mediaDataProcessor
 import com.android.systemui.media.controls.shared.model.MediaData
-import com.android.systemui.media.controls.shared.model.SmartspaceMediaData
-import com.android.systemui.media.controls.util.MediaSmartspaceLogger.Companion.SMARTSPACE_CARD_CLICK_EVENT
-import com.android.systemui.media.controls.util.MediaSmartspaceLogger.Companion.SMARTSPACE_CARD_DISMISS_EVENT
 import com.android.systemui.media.controls.util.mediaInstanceId
-import com.android.systemui.media.controls.util.mediaSmartspaceLogger
-import com.android.systemui.media.controls.util.mockMediaSmartspaceLogger
 import com.android.systemui.media.mediaOutputDialogManager
 import com.android.systemui.mockActivityIntentHelper
 import com.android.systemui.plugins.activityStarter
@@ -57,8 +49,6 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.anyBoolean
-import org.mockito.Mockito.anyInt
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
@@ -73,23 +63,11 @@ class MediaControlInteractorTest : SysuiTestCase() {
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
 
-    private val mediaDataFilter: MediaDataFilterImpl =
-        with(kosmos) {
-            mediaSmartspaceLogger = mockMediaSmartspaceLogger
-            mediaDataFilter
-        }
+    private val mediaDataFilter: MediaDataFilterImpl = with(kosmos) { mediaDataFilter }
     private val activityStarter = kosmos.activityStarter
     private val keyguardStateController = kosmos.keyguardStateController
     private val instanceId: InstanceId = kosmos.mediaInstanceId
     private val notificationLockscreenUserManager = kosmos.notificationLockscreenUserManager
-    private val smartspaceLogger = kosmos.mockMediaSmartspaceLogger
-    private val icon = Icon.createWithResource(context, R.drawable.ic_media_play)
-    private val mediaRecommendation =
-        SmartspaceMediaData(
-            targetId = KEY_MEDIA_SMARTSPACE,
-            isActive = true,
-            recommendations = MediaTestHelper.getValidRecommendationList(icon),
-        )
 
     private val underTest: MediaControlInteractor =
         with(kosmos) {
@@ -148,7 +126,7 @@ class MediaControlInteractorTest : SysuiTestCase() {
         val activityController = mock<ActivityTransitionAnimator.Controller>()
         whenever(expandable.activityTransitionController(any())).thenReturn(activityController)
 
-        underTest.startClickIntent(expandable, clickIntent, SMARTSPACE_CARD_CLICK_EVENT, 1)
+        underTest.startClickIntent(expandable, clickIntent)
 
         verify(activityStarter)
             .startPendingIntentMaybeDismissingKeyguard(
@@ -170,19 +148,9 @@ class MediaControlInteractorTest : SysuiTestCase() {
         whenever(expandable.activityTransitionController(any())).thenReturn(activityController)
 
         val mediaData = MediaData(userId = USER_ID, instanceId = instanceId, artist = ARTIST)
-        mediaDataFilter.onSmartspaceMediaDataLoaded(KEY_MEDIA_SMARTSPACE, mediaRecommendation, true)
         mediaDataFilter.onMediaDataLoaded(KEY, null, mediaData)
-        underTest.startClickIntent(expandable, clickIntent, SMARTSPACE_CARD_CLICK_EVENT, 1)
+        underTest.startClickIntent(expandable, clickIntent)
 
-        verify(smartspaceLogger)
-            .logSmartspaceCardUIEvent(
-                SMARTSPACE_CARD_CLICK_EVENT,
-                mediaData.smartspaceId,
-                mediaData.appUid,
-                surface = SURFACE,
-                cardinality = 2,
-                rank = 1,
-            )
         verify(activityStarter)
             .postStartActivityDismissingKeyguard(eq(clickIntent), eq(activityController))
     }
@@ -260,7 +228,7 @@ class MediaControlInteractorTest : SysuiTestCase() {
     }
 
     @Test
-    fun removeMediaControl_noRecommendation() {
+    fun removeMediaControl() {
         whenever(notificationLockscreenUserManager.isCurrentProfile(USER_ID)).thenReturn(true)
         whenever(notificationLockscreenUserManager.isProfileAvailable(USER_ID)).thenReturn(true)
         val listener = mock<MediaDataProcessor.Listener>()
@@ -270,52 +238,10 @@ class MediaControlInteractorTest : SysuiTestCase() {
         kosmos.mediaDataRepository.addMediaEntry(KEY, mediaData)
         kosmos.mediaDataFilter.onMediaDataLoaded(KEY, null, mediaData)
 
-        underTest.removeMediaControl(null, instanceId, 0L, SMARTSPACE_CARD_DISMISS_EVENT, 1)
+        underTest.removeMediaControl(null, instanceId, 0L)
         kosmos.fakeExecutor.advanceClockToNext()
         kosmos.fakeExecutor.runAllReady()
 
-        verify(smartspaceLogger, never())
-            .logSmartspaceCardUIEvent(
-                anyInt(),
-                anyInt(),
-                anyInt(),
-                anyInt(),
-                anyInt(),
-                anyBoolean(),
-                anyBoolean(),
-                anyInt(),
-                anyInt(),
-                anyInt(),
-                anyBoolean(),
-            )
-        verify(listener).onMediaDataRemoved(eq(KEY), eq(true))
-    }
-
-    @Test
-    fun removeMediaControl_recommendationsExist() {
-        whenever(notificationLockscreenUserManager.isCurrentProfile(USER_ID)).thenReturn(true)
-        whenever(notificationLockscreenUserManager.isProfileAvailable(USER_ID)).thenReturn(true)
-        val listener = mock<MediaDataProcessor.Listener>()
-        kosmos.mediaDataProcessor.addInternalListener(listener)
-
-        val mediaData = MediaData(userId = USER_ID, instanceId = instanceId, artist = ARTIST)
-        kosmos.mediaDataRepository.addMediaEntry(KEY, mediaData)
-        mediaDataFilter.onSmartspaceMediaDataLoaded(KEY_MEDIA_SMARTSPACE, mediaRecommendation, true)
-        mediaDataFilter.onMediaDataLoaded(KEY, null, mediaData)
-
-        underTest.removeMediaControl(null, instanceId, 0L, SMARTSPACE_CARD_DISMISS_EVENT, 1)
-        kosmos.fakeExecutor.advanceClockToNext()
-        kosmos.fakeExecutor.runAllReady()
-
-        verify(smartspaceLogger)
-            .logSmartspaceCardUIEvent(
-                SMARTSPACE_CARD_DISMISS_EVENT,
-                mediaData.smartspaceId,
-                mediaData.appUid,
-                surface = SURFACE,
-                cardinality = 2,
-                rank = 1,
-            )
         verify(listener).onMediaDataRemoved(eq(KEY), eq(true))
     }
 
@@ -326,7 +252,5 @@ class MediaControlInteractorTest : SysuiTestCase() {
         private const val APP_NAME = "app"
         private const val ARTIST = "artist"
         private const val ARTIST_2 = "artist2"
-        private const val KEY_MEDIA_SMARTSPACE = "MEDIA_SMARTSPACE_ID"
-        private const val SURFACE = 4
     }
 }

@@ -60,6 +60,7 @@ import com.android.server.wm.ActivityStarter.DefaultFactory;
 import com.android.server.wm.ActivityStarter.Factory;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -96,6 +97,9 @@ public class ActivityStartController {
 
     /** Whether an {@link ActivityStarter} is currently executing (starting an Activity). */
     private boolean mInExecution = false;
+
+    /** The {@link TaskDisplayArea}s that are currently starting home activity. */
+    private ArrayList<TaskDisplayArea> mHomeLaunchingTaskDisplayAreas = new ArrayList<>();
 
     /**
      * TODO(b/64750076): Capture information necessary for dump and
@@ -162,6 +166,11 @@ public class ActivityStartController {
 
     void startHomeActivity(Intent intent, ActivityInfo aInfo, String reason,
             TaskDisplayArea taskDisplayArea) {
+        if (mHomeLaunchingTaskDisplayAreas.contains(taskDisplayArea)) {
+            Slog.e(TAG, "Abort starting home on " + taskDisplayArea + " recursively.");
+            return;
+        }
+
         final ActivityOptions options = ActivityOptions.makeBasic();
         options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
         if (!ActivityRecord.isResolverActivity(aInfo.name)) {
@@ -186,13 +195,18 @@ public class ActivityStartController {
             mSupervisor.endDeferResume();
         }
 
-        mLastHomeActivityStartResult = obtainStarter(intent, "startHomeActivity: " + reason)
-                .setOutActivity(tmpOutRecord)
-                .setCallingUid(0)
-                .setActivityInfo(aInfo)
-                .setActivityOptions(options.toBundle(),
-                        Binder.getCallingPid(), Binder.getCallingUid())
-                .execute();
+        try {
+            mHomeLaunchingTaskDisplayAreas.add(taskDisplayArea);
+            mLastHomeActivityStartResult = obtainStarter(intent, "startHomeActivity: " + reason)
+                    .setOutActivity(tmpOutRecord)
+                    .setCallingUid(0)
+                    .setActivityInfo(aInfo)
+                    .setActivityOptions(options.toBundle(),
+                            Binder.getCallingPid(), Binder.getCallingUid())
+                    .execute();
+        } finally {
+            mHomeLaunchingTaskDisplayAreas.remove(taskDisplayArea);
+        }
         mLastHomeActivityStartRecord = tmpOutRecord[0];
         if (rootHomeTask.mInResumeTopActivity) {
             // If we are in resume section already, home activity will be initialized, but not
@@ -479,9 +493,9 @@ public class ActivityStartController {
                             }
                         } catch (SecurityException securityException) {
                             ActivityStarter.logAndThrowExceptionForIntentRedirect(mService.mContext,
-                                    "Creator URI Grant Caused Exception.", intent, creatorUid,
-                                    creatorPackage, filterCallingUid, callingPackage,
-                                    securityException);
+                                    ActivityStarter.INTENT_REDIRECT_EXCEPTION_GRANT_URI_PERMISSION,
+                                    intent, creatorUid, creatorPackage, filterCallingUid,
+                                    callingPackage, securityException);
                         }
                     }
                     if ((aInfo.applicationInfo.privateFlags
@@ -718,6 +732,12 @@ public class ActivityStartController {
                     return;
                 }
             }
+        }
+
+        if (!mHomeLaunchingTaskDisplayAreas.isEmpty()) {
+            dumped = true;
+            pw.print(prefix);
+            pw.println("mHomeLaunchingTaskDisplayAreas:" + mHomeLaunchingTaskDisplayAreas);
         }
 
         if (!dumped) {

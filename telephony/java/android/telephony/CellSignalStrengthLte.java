@@ -614,7 +614,7 @@ public final class CellSignalStrengthLte extends CellSignalStrength implements P
 
     /** @hide */
     public static int convertRssiAsuToDBm(int rssiAsu) {
-        if (rssiAsu == SIGNAL_STRENGTH_LTE_RSSI_ASU_UNKNOWN) {
+        if (rssiAsu == SIGNAL_STRENGTH_LTE_RSSI_ASU_UNKNOWN || rssiAsu == Integer.MAX_VALUE) {
             return CellInfo.UNAVAILABLE;
         }
         if ((rssiAsu < SIGNAL_STRENGTH_LTE_RSSI_VALID_ASU_MIN_VALUE

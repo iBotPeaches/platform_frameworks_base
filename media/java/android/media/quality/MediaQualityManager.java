@@ -18,6 +18,7 @@ package android.media.quality;
 
 import android.annotation.CallbackExecutor;
 import android.annotation.FlaggedApi;
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
@@ -25,6 +26,9 @@ import android.annotation.SystemApi;
 import android.annotation.SystemService;
 import android.content.Context;
 import android.media.tv.flags.Flags;
+import android.os.Bundle;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.UserHandle;
 
@@ -32,10 +36,13 @@ import androidx.annotation.RequiresPermission;
 
 import com.android.internal.util.Preconditions;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * Central system API to the overall media quality, which arbitrates interaction between
@@ -44,22 +51,63 @@ import java.util.concurrent.Executor;
 @FlaggedApi(Flags.FLAG_MEDIA_QUALITY_FW)
 @SystemService(Context.MEDIA_QUALITY_SERVICE)
 public final class MediaQualityManager {
-    // TODO: unhide the APIs for api review
     private static final String TAG = "MediaQualityManager";
 
     private final IMediaQualityManager mService;
     private final Context mContext;
     private final UserHandle mUserHandle;
-    private final Object mLock = new Object();
-    // @GuardedBy("mLock")
+    private final Object mPpLock = new Object();
+    private final Object mSpLock = new Object();
+    private final Object mAbLock = new Object();
+    private final Object mApLock = new Object();
+    // @GuardedBy("mPpLock")
     private final List<PictureProfileCallbackRecord> mPpCallbackRecords = new ArrayList<>();
-    // @GuardedBy("mLock")
+    // @GuardedBy("mSpLock")
     private final List<SoundProfileCallbackRecord> mSpCallbackRecords = new ArrayList<>();
-    // @GuardedBy("mLock")
+    // @GuardedBy("mAbLock")
     private final List<AmbientBacklightCallbackRecord> mAbCallbackRecords = new ArrayList<>();
-    // @GuardedBy("mLock")
+    // @GuardedBy("mApLock")
     private final List<ActiveProcessingPictureListenerRecord> mApListenerRecords =
             new ArrayList<>();
+
+    /**
+     * A query option to include parameters in the profile. The default value is {@code false}.
+     * @hide
+     */
+    public static final String OPTION_INCLUDE_PARAMETERS = "include_parameters";
+
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({AMBIENT_BACKLIGHT_EVENT_ENABLED, AMBIENT_BACKLIGHT_EVENT_DISABLED,
+            AMBIENT_BACKLIGHT_EVENT_METADATA,
+            AMBIENT_BACKLIGHT_EVENT_INTERRUPTED})
+    public @interface AmbientBacklightEventTypes {}
+
+    /**
+     * Event type for ambient backlight events. The ambient backlight is enabled.
+     * @hide
+     */
+    public static final int AMBIENT_BACKLIGHT_EVENT_ENABLED = 1;
+
+    /**
+     * Event type for ambient backlight events. The ambient backlight is disabled.
+     * @hide
+     */
+    public static final int AMBIENT_BACKLIGHT_EVENT_DISABLED = 2;
+
+    /**
+     * Event type for ambient backlight events. The ambient backlight metadata is
+     * available.
+     * @hide
+     */
+    public static final int AMBIENT_BACKLIGHT_EVENT_METADATA = 3;
+
+    /**
+     * Event type for ambient backlight events. The ambient backlight event is
+     * preempted by another application.
+     * @hide
+     */
+    public static final int AMBIENT_BACKLIGHT_EVENT_INTERRUPTED = 4;
 
 
     /**
@@ -72,45 +120,41 @@ public final class MediaQualityManager {
         IPictureProfileCallback ppCallback = new IPictureProfileCallback.Stub() {
             @Override
             public void onPictureProfileAdded(String profileId, PictureProfile profile) {
-                synchronized (mLock) {
+                synchronized (mPpLock) {
                     for (PictureProfileCallbackRecord record : mPpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postPictureProfileAdded(profileId, profile);
                     }
                 }
             }
             @Override
             public void onPictureProfileUpdated(String profileId, PictureProfile profile) {
-                synchronized (mLock) {
+                synchronized (mPpLock) {
                     for (PictureProfileCallbackRecord record : mPpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postPictureProfileUpdated(profileId, profile);
                     }
                 }
             }
             @Override
             public void onPictureProfileRemoved(String profileId, PictureProfile profile) {
-                synchronized (mLock) {
+                synchronized (mPpLock) {
                     for (PictureProfileCallbackRecord record : mPpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postPictureProfileRemoved(profileId, profile);
                     }
                 }
             }
             @Override
-            public void onParamCapabilitiesChanged(String profileId, List<ParamCapability> caps) {
-                synchronized (mLock) {
+            public void onParameterCapabilitiesChanged(
+                    String profileId, List<ParameterCapability> caps) {
+                synchronized (mPpLock) {
                     for (PictureProfileCallbackRecord record : mPpCallbackRecords) {
-                        // TODO: filter callback record
-                        record.postParamCapabilitiesChanged(profileId, caps);
+                        record.postParameterCapabilitiesChanged(profileId, caps);
                     }
                 }
             }
             @Override
             public void onError(String profileId, int err) {
-                synchronized (mLock) {
+                synchronized (mPpLock) {
                     for (PictureProfileCallbackRecord record : mPpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postError(profileId, err);
                     }
                 }
@@ -119,45 +163,41 @@ public final class MediaQualityManager {
         ISoundProfileCallback spCallback = new ISoundProfileCallback.Stub() {
             @Override
             public void onSoundProfileAdded(String profileId, SoundProfile profile) {
-                synchronized (mLock) {
+                synchronized (mSpLock) {
                     for (SoundProfileCallbackRecord record : mSpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postSoundProfileAdded(profileId, profile);
                     }
                 }
             }
             @Override
             public void onSoundProfileUpdated(String profileId, SoundProfile profile) {
-                synchronized (mLock) {
+                synchronized (mSpLock) {
                     for (SoundProfileCallbackRecord record : mSpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postSoundProfileUpdated(profileId, profile);
                     }
                 }
             }
             @Override
             public void onSoundProfileRemoved(String profileId, SoundProfile profile) {
-                synchronized (mLock) {
+                synchronized (mSpLock) {
                     for (SoundProfileCallbackRecord record : mSpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postSoundProfileRemoved(profileId, profile);
                     }
                 }
             }
             @Override
-            public void onParamCapabilitiesChanged(String profileId, List<ParamCapability> caps) {
-                synchronized (mLock) {
+            public void onParameterCapabilitiesChanged(
+                    String profileId, List<ParameterCapability> caps) {
+                synchronized (mSpLock) {
                     for (SoundProfileCallbackRecord record : mSpCallbackRecords) {
-                        // TODO: filter callback record
-                        record.postParamCapabilitiesChanged(profileId, caps);
+                        record.postParameterCapabilitiesChanged(profileId, caps);
                     }
                 }
             }
             @Override
             public void onError(String profileId, int err) {
-                synchronized (mLock) {
+                synchronized (mSpLock) {
                     for (SoundProfileCallbackRecord record : mSpCallbackRecords) {
-                        // TODO: filter callback record
                         record.postError(profileId, err);
                     }
                 }
@@ -166,9 +206,28 @@ public final class MediaQualityManager {
         IAmbientBacklightCallback abCallback = new IAmbientBacklightCallback.Stub() {
             @Override
             public void onAmbientBacklightEvent(AmbientBacklightEvent event) {
-                synchronized (mLock) {
+                synchronized (mAbLock) {
                     for (AmbientBacklightCallbackRecord record : mAbCallbackRecords) {
                         record.postAmbientBacklightEvent(event);
+                    }
+                }
+            }
+        };
+
+        IActiveProcessingPictureListener apListener = new IActiveProcessingPictureListener.Stub() {
+            @Override
+            public void onActiveProcessingPicturesChanged(List<ActiveProcessingPicture> aps) {
+                List<ActiveProcessingPicture> nonGlobal = new ArrayList<>();
+                for (ActiveProcessingPicture ap : aps) {
+                    if (!ap.isForGlobal()) {
+                        nonGlobal.add(ap);
+                    }
+                }
+                for (ActiveProcessingPictureListenerRecord record : mApListenerRecords) {
+                    if (record.mIsGlobal) {
+                        record.postActiveProcessingPicturesChanged(aps);
+                    } else {
+                        record.postActiveProcessingPicturesChanged(nonGlobal);
                     }
                 }
             }
@@ -179,6 +238,7 @@ public final class MediaQualityManager {
                 mService.registerPictureProfileCallback(ppCallback);
                 mService.registerSoundProfileCallback(spCallback);
                 mService.registerAmbientBacklightCallback(abCallback);
+                mService.registerActiveProcessingPictureListener(apListener);
             }
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
@@ -193,7 +253,7 @@ public final class MediaQualityManager {
             @NonNull PictureProfileCallback callback) {
         Preconditions.checkNotNull(callback);
         Preconditions.checkNotNull(executor);
-        synchronized (mLock) {
+        synchronized (mPpLock) {
             mPpCallbackRecords.add(new PictureProfileCallbackRecord(callback, executor));
         }
     }
@@ -203,7 +263,7 @@ public final class MediaQualityManager {
      */
     public void unregisterPictureProfileCallback(@NonNull final PictureProfileCallback callback) {
         Preconditions.checkNotNull(callback);
-        synchronized (mLock) {
+        synchronized (mPpLock) {
             for (Iterator<PictureProfileCallbackRecord> it = mPpCallbackRecords.iterator();
                     it.hasNext(); ) {
                 PictureProfileCallbackRecord record = it.next();
@@ -218,18 +278,25 @@ public final class MediaQualityManager {
     /**
      * Gets picture profile by given profile type and name.
      *
+     * <p>If {@link ProfileQueryParams#areParametersIncluded()} is {@code false},
+     * {@link PictureProfile#getParameters()} of the returned profile is an empty bundle.
+     *
      * @param type the type of the profile.
      * @param name the name of the profile.
-     * @param includeParams {@code true} to include parameters in the profile; {@code false}
-     *                      otherwise.
+     * @param options the options of the query. {@code null} if default options are used.
+     *
      * @return the corresponding picture profile if available; {@code null} if the name doesn't
      * exist.
      */
     @Nullable
     public PictureProfile getPictureProfile(
-            @PictureProfile.ProfileType int type, @NonNull String name, boolean includeParams) {
+            @PictureProfile.ProfileType int type,
+            @NonNull String name,
+            @Nullable ProfileQueryParams options) {
         try {
-            return mService.getPictureProfile(type, name, includeParams, mUserHandle);
+            boolean includeParams = options == null || options.mParametersIncluded;
+            return mService.getPictureProfile(
+                    type, name, includeParams, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -239,18 +306,22 @@ public final class MediaQualityManager {
     /**
      * Gets profiles that available to the given package.
      *
+     * <p>If {@link ProfileQueryParams#areParametersIncluded()} is {@code false},
+     * {@link PictureProfile#getParameters()} of the returned profiles are empty bundles.
+     *
      * @param packageName the package name of the profiles.
-     * @param includeParams {@code true} to include parameters in the profile; {@code false}
-     *                      otherwise.
+     * @param options the options of the query. {@code null} if default options are used.
      * @hide
      */
     @SystemApi
     @NonNull
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
     public List<PictureProfile> getPictureProfilesByPackage(
-            @NonNull String packageName, boolean includeParams) {
+            @NonNull String packageName, @Nullable ProfileQueryParams options) {
         try {
-            return mService.getPictureProfilesByPackage(packageName, includeParams, mUserHandle);
+            boolean includeParams = options == null || options.mParametersIncluded;
+            return mService.getPictureProfilesByPackage(
+                    packageName, includeParams, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -259,15 +330,18 @@ public final class MediaQualityManager {
     /**
      * Gets profiles that available to the caller.
      *
-     * @param includeParams {@code true} to include parameters in the profile; {@code false}
-     *                      otherwise.
+     * <p>If {@link ProfileQueryParams#areParametersIncluded()} is {@code false},
+     * {@link PictureProfile#getParameters()} of the returned profiles are empty bundles.
+     *
+     * @param options the options of the query. {@code null} if default options are used.
      * @return the corresponding picture profile if available; {@code null} if the name doesn't
      * exist.
      */
     @NonNull
-    public List<PictureProfile> getAvailablePictureProfiles(boolean includeParams) {
+    public List<PictureProfile> getAvailablePictureProfiles(@Nullable ProfileQueryParams options) {
         try {
-            return mService.getAvailablePictureProfiles(includeParams, mUserHandle);
+            boolean includeParams = options == null || options.mParametersIncluded;
+            return mService.getAvailablePictureProfiles(includeParams, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -276,16 +350,19 @@ public final class MediaQualityManager {
     /**
      * Sets preferred default picture profile.
      *
-     * @param id the ID of the default profile. {@code null} to unset the default profile.
+     * @param pictureProfileId the ID of the default profile. {@code null} to unset the default
+     *                         profile.
      * @return {@code true} if it's set successfully; {@code false} otherwise.
+     *
+     * @see PictureProfile#getProfileId()
      *
      * @hide
      */
     @SystemApi
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
-    public boolean setDefaultPictureProfile(@Nullable String id) {
+    public boolean setDefaultPictureProfile(@Nullable String pictureProfileId) {
         try {
-            return mService.setDefaultPictureProfile(id, mUserHandle);
+            return mService.setDefaultPictureProfile(pictureProfileId, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -302,7 +379,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
     public List<String> getPictureProfilePackageNames() {
         try {
-            return mService.getPictureProfilePackageNames(mUserHandle);
+            return mService.getPictureProfilePackageNames(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -314,7 +391,19 @@ public final class MediaQualityManager {
      */
     public List<PictureProfileHandle> getPictureProfileHandle(String[] id) {
         try {
-            return mService.getPictureProfileHandle(id, mUserHandle);
+            return mService.getPictureProfileHandle(id, mUserHandle.getIdentifier());
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
+     * Gets picture profile handle for TV input.
+     * @hide
+     */
+    public long getPictureProfileForTvInput(String inputId) {
+        try {
+            return mService.getPictureProfileForTvInput(inputId, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -326,7 +415,7 @@ public final class MediaQualityManager {
      */
     public List<SoundProfileHandle> getSoundProfileHandle(String[] id) {
         try {
-            return mService.getSoundProfileHandle(id, mUserHandle);
+            return mService.getSoundProfileHandle(id, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -342,7 +431,7 @@ public final class MediaQualityManager {
      */
     public void createPictureProfile(@NonNull PictureProfile pp) {
         try {
-            mService.createPictureProfile(pp, mUserHandle);
+            mService.createPictureProfile(pp, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -357,7 +446,7 @@ public final class MediaQualityManager {
      */
     public void updatePictureProfile(@NonNull String profileId, @NonNull PictureProfile pp) {
         try {
-            mService.updatePictureProfile(profileId, pp, mUserHandle);
+            mService.updatePictureProfile(profileId, pp, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -371,7 +460,7 @@ public final class MediaQualityManager {
      */
     public void removePictureProfile(@NonNull String profileId) {
         try {
-            mService.removePictureProfile(profileId, mUserHandle);
+            mService.removePictureProfile(profileId, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -385,7 +474,7 @@ public final class MediaQualityManager {
             @NonNull SoundProfileCallback callback) {
         Preconditions.checkNotNull(callback);
         Preconditions.checkNotNull(executor);
-        synchronized (mLock) {
+        synchronized (mSpLock) {
             mSpCallbackRecords.add(new SoundProfileCallbackRecord(callback, executor));
         }
     }
@@ -395,7 +484,7 @@ public final class MediaQualityManager {
      */
     public void unregisterSoundProfileCallback(@NonNull final SoundProfileCallback callback) {
         Preconditions.checkNotNull(callback);
-        synchronized (mLock) {
+        synchronized (mSpLock) {
             for (Iterator<SoundProfileCallbackRecord> it = mSpCallbackRecords.iterator();
                     it.hasNext(); ) {
                 SoundProfileCallbackRecord record = it.next();
@@ -410,17 +499,23 @@ public final class MediaQualityManager {
     /**
      * Gets sound profile by given profile type and name.
      *
+     * <p>If {@link ProfileQueryParams#areParametersIncluded()} is {@code false},
+     * {@link SoundProfile#getParameters()} of the returned profile is an empty bundle.
+     *
      * @param type the type of the profile.
      * @param name the name of the profile.
-     * @param includeParams {@code true} to include parameters in the profile; {@code false}
-     *                      otherwise.
+     * @param options the options of the query. {@code null} if default options are used.
+     *
      * @return the corresponding sound profile if available; {@code null} if the name doesn't exist.
      */
     @Nullable
     public SoundProfile getSoundProfile(
-            @SoundProfile.ProfileType int type, @NonNull String name, boolean includeParams) {
+            @SoundProfile.ProfileType int type,
+            @NonNull String name,
+            @Nullable ProfileQueryParams options) {
         try {
-            return mService.getSoundProfile(type, name, includeParams, mUserHandle);
+            boolean includeParams = options == null || options.mParametersIncluded;
+            return mService.getSoundProfile(type, name, includeParams, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -430,18 +525,23 @@ public final class MediaQualityManager {
     /**
      * Gets profiles that available to the given package.
      *
+     * <p>If {@link ProfileQueryParams#areParametersIncluded()} is {@code false},
+     * {@link SoundProfile#getParameters()} of the returned profiles are empty bundles.
+     *
      * @param packageName the package name of the profiles.
-     * @param includeParams {@code true} to include parameters in the profile; {@code false}
-     *                      otherwise.
+     * @param options the options of the query. {@code null} if default options are used.
+     *
      * @hide
      */
     @SystemApi
     @NonNull
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_SOUND_QUALITY_SERVICE)
     public List<SoundProfile> getSoundProfilesByPackage(
-            @NonNull String packageName, boolean includeParams) {
+            @NonNull String packageName, @Nullable ProfileQueryParams options) {
         try {
-            return mService.getSoundProfilesByPackage(packageName, includeParams, mUserHandle);
+            boolean includeParams = options == null || options.mParametersIncluded;
+            return mService.getSoundProfilesByPackage(
+                    packageName, includeParams, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -450,15 +550,18 @@ public final class MediaQualityManager {
     /**
      * Gets profiles that available to the caller package.
      *
-     * @param includeParams {@code true} to include parameters in the profile; {@code false}
-     *                      otherwise.
+     * <p>If {@link ProfileQueryParams#areParametersIncluded()} is {@code false},
+     * {@link SoundProfile#getParameters()} of the returned profiles are empty bundles.
+     *
+     * @param options the options of the query. {@code null} if default options are used.
      *
      * @return the corresponding sound profile if available; {@code null} if the none available.
      */
     @NonNull
-    public List<SoundProfile> getAvailableSoundProfiles(boolean includeParams) {
+    public List<SoundProfile> getAvailableSoundProfiles(@Nullable ProfileQueryParams options) {
         try {
-            return mService.getAvailableSoundProfiles(includeParams, mUserHandle);
+            boolean includeParams = options == null || options.mParametersIncluded;
+            return mService.getAvailableSoundProfiles(includeParams, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -467,16 +570,19 @@ public final class MediaQualityManager {
     /**
      * Sets preferred default sound profile.
      *
-     * @param id the ID of the default profile. {@code null} to unset the default profile.
+     * @param soundProfileId the ID of the default profile. {@code null} to unset the default
+     *                       profile.
      * @return {@code true} if it's set successfully; {@code false} otherwise.
+     *
+     * @see SoundProfile#getProfileId()
      *
      * @hide
      */
     @SystemApi
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_SOUND_QUALITY_SERVICE)
-    public boolean setDefaultSoundProfile(@Nullable String id) {
+    public boolean setDefaultSoundProfile(@Nullable String soundProfileId) {
         try {
-            return mService.setDefaultSoundProfile(id, mUserHandle);
+            return mService.setDefaultSoundProfile(soundProfileId, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -494,7 +600,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_SOUND_QUALITY_SERVICE)
     public List<String> getSoundProfilePackageNames() {
         try {
-            return mService.getSoundProfilePackageNames(mUserHandle);
+            return mService.getSoundProfilePackageNames(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -511,7 +617,7 @@ public final class MediaQualityManager {
      */
     public void createSoundProfile(@NonNull SoundProfile sp) {
         try {
-            mService.createSoundProfile(sp, mUserHandle);
+            mService.createSoundProfile(sp, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -526,7 +632,7 @@ public final class MediaQualityManager {
      */
     public void updateSoundProfile(@NonNull String profileId, @NonNull SoundProfile sp) {
         try {
-            mService.updateSoundProfile(profileId, sp, mUserHandle);
+            mService.updateSoundProfile(profileId, sp, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -540,7 +646,7 @@ public final class MediaQualityManager {
      */
     public void removeSoundProfile(@NonNull String profileId) {
         try {
-            mService.removeSoundProfile(profileId, mUserHandle);
+            mService.removeSoundProfile(profileId, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -548,11 +654,17 @@ public final class MediaQualityManager {
 
     /**
      * Gets capability information of the given parameters.
+     *
+     * <p>If a name isn't found, a corresponding {@link ParameterCapability} instance is in the
+     * return list, and {@link ParameterCapability#isSupported()} is {@code false}.
+     *
+     * @param names the parameter names. Commonly used names can be found in
+     * {@link MediaQualityContract}. Vendor-defined names are also permitted.
      */
     @NonNull
-    public List<ParamCapability> getParamCapabilities(@NonNull List<String> names) {
+    public List<ParameterCapability> getParameterCapabilities(@NonNull List<String> names) {
         try {
-            return mService.getParamCapabilities(names, mUserHandle);
+            return mService.getParameterCapabilities(names, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -570,7 +682,7 @@ public final class MediaQualityManager {
     @NonNull
     public List<String> getPictureProfileAllowList() {
         try {
-            return mService.getPictureProfileAllowList(mUserHandle);
+            return mService.getPictureProfileAllowList(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -584,7 +696,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
     public void setPictureProfileAllowList(@NonNull List<String> packageNames) {
         try {
-            mService.setPictureProfileAllowList(packageNames, mUserHandle);
+            mService.setPictureProfileAllowList(packageNames, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -602,7 +714,7 @@ public final class MediaQualityManager {
     @NonNull
     public List<String> getSoundProfileAllowList() {
         try {
-            return mService.getSoundProfileAllowList(mUserHandle);
+            return mService.getSoundProfileAllowList(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -616,7 +728,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_SOUND_QUALITY_SERVICE)
     public void setSoundProfileAllowList(@NonNull List<String> packageNames) {
         try {
-            mService.setSoundProfileAllowList(packageNames, mUserHandle);
+            mService.setSoundProfileAllowList(packageNames, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -628,7 +740,7 @@ public final class MediaQualityManager {
      */
     public boolean isSupported() {
         try {
-            return mService.isSupported(mUserHandle);
+            return mService.isSupported(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -646,7 +758,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
     public void setAutoPictureQualityEnabled(boolean enabled) {
         try {
-            mService.setAutoPictureQualityEnabled(enabled, mUserHandle);
+            mService.setAutoPictureQualityEnabled(enabled, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -657,7 +769,7 @@ public final class MediaQualityManager {
      */
     public boolean isAutoPictureQualityEnabled() {
         try {
-            return mService.isAutoPictureQualityEnabled(mUserHandle);
+            return mService.isAutoPictureQualityEnabled(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -674,7 +786,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
     public void setSuperResolutionEnabled(boolean enabled) {
         try {
-            mService.setSuperResolutionEnabled(enabled, mUserHandle);
+            mService.setSuperResolutionEnabled(enabled, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -685,7 +797,7 @@ public final class MediaQualityManager {
      */
     public boolean isSuperResolutionEnabled() {
         try {
-            return mService.isSuperResolutionEnabled(mUserHandle);
+            return mService.isSuperResolutionEnabled(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -703,7 +815,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_SOUND_QUALITY_SERVICE)
     public void setAutoSoundQualityEnabled(boolean enabled) {
         try {
-            mService.setAutoSoundQualityEnabled(enabled, mUserHandle);
+            mService.setAutoSoundQualityEnabled(enabled, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -714,7 +826,7 @@ public final class MediaQualityManager {
      */
     public boolean isAutoSoundQualityEnabled() {
         try {
-            return mService.isAutoSoundQualityEnabled(mUserHandle);
+            return mService.isAutoSoundQualityEnabled(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -729,7 +841,7 @@ public final class MediaQualityManager {
             @NonNull AmbientBacklightCallback callback) {
         Preconditions.checkNotNull(callback);
         Preconditions.checkNotNull(executor);
-        synchronized (mLock) {
+        synchronized (mAbLock) {
             mAbCallbackRecords.add(new AmbientBacklightCallbackRecord(callback, executor));
         }
     }
@@ -741,7 +853,7 @@ public final class MediaQualityManager {
     public void unregisterAmbientBacklightCallback(
             @NonNull final AmbientBacklightCallback callback) {
         Preconditions.checkNotNull(callback);
-        synchronized (mLock) {
+        synchronized (mAbLock) {
             for (Iterator<AmbientBacklightCallbackRecord> it = mAbCallbackRecords.iterator();
                     it.hasNext(); ) {
                 AmbientBacklightCallbackRecord record = it.next();
@@ -763,7 +875,7 @@ public final class MediaQualityManager {
             @NonNull AmbientBacklightSettings settings) {
         Preconditions.checkNotNull(settings);
         try {
-            mService.setAmbientBacklightSettings(settings, mUserHandle);
+            mService.setAmbientBacklightSettings(settings, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -774,7 +886,7 @@ public final class MediaQualityManager {
      */
     public boolean isAmbientBacklightEnabled() {
         try {
-            return mService.isAmbientBacklightEnabled(mUserHandle);
+            return mService.isAmbientBacklightEnabled(mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -788,7 +900,7 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.READ_COLOR_ZONES)
     public void setAmbientBacklightEnabled(boolean enabled) {
         try {
-            mService.setAmbientBacklightEnabled(enabled, mUserHandle);
+            mService.setAmbientBacklightEnabled(enabled, mUserHandle.getIdentifier());
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -836,11 +948,12 @@ public final class MediaQualityManager {
             });
         }
 
-        public void postParamCapabilitiesChanged(final String id, List<ParamCapability> caps) {
+        public void postParameterCapabilitiesChanged(
+                final String id, List<ParameterCapability> caps) {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    mCallback.onParamCapabilitiesChanged(id, caps);
+                    mCallback.onParameterCapabilitiesChanged(id, caps);
                 }
             });
         }
@@ -896,11 +1009,12 @@ public final class MediaQualityManager {
             });
         }
 
-        public void postParamCapabilitiesChanged(final String id, List<ParamCapability> caps) {
+        public void postParameterCapabilitiesChanged(
+                final String id, List<ParameterCapability> caps) {
             mExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    mCallback.onParamCapabilitiesChanged(id, caps);
+                    mCallback.onParameterCapabilitiesChanged(id, caps);
                 }
             });
         }
@@ -990,8 +1104,8 @@ public final class MediaQualityManager {
          *                  is no associated profile
          * @param updatedCaps the updated capabilities.
          */
-        public void onParamCapabilitiesChanged(
-                @Nullable String profileId, @NonNull List<ParamCapability> updatedCaps) {
+        public void onParameterCapabilitiesChanged(
+                @Nullable String profileId, @NonNull List<ParameterCapability> updatedCaps) {
         }
     }
 
@@ -1047,33 +1161,19 @@ public final class MediaQualityManager {
          *                  is no associated profile
          * @param updatedCaps the updated capabilities.
          */
-        public void onParamCapabilitiesChanged(
-                @Nullable String profileId, @NonNull List<ParamCapability> updatedCaps) {
+        public void onParameterCapabilitiesChanged(
+                @Nullable String profileId, @NonNull List<ParameterCapability> updatedCaps) {
         }
     }
 
     /**
      * Callback used to monitor status of ambient backlight.
      */
-    public abstract static class AmbientBacklightCallback {
+    public interface AmbientBacklightCallback {
         /**
          * Called when new ambient backlight event is emitted.
          */
-        public void onAmbientBacklightEvent(@NonNull AmbientBacklightEvent event) {
-        }
-    }
-
-    /**
-     * Listener used to monitor status of active pictures.
-     */
-    public interface ActiveProcessingPictureListener {
-        /**
-         * Called when active pictures are changed.
-         *
-         * @param activeProcessingPictures contents currently undergoing picture processing.
-         */
-        void onActiveProcessingPicturesChanged(
-                @NonNull List<ActiveProcessingPicture> activeProcessingPictures);
+        void onAmbientBacklightEvent(@NonNull AmbientBacklightEvent event);
     }
 
     /**
@@ -1081,10 +1181,10 @@ public final class MediaQualityManager {
      */
     public void addActiveProcessingPictureListener(
             @CallbackExecutor @NonNull Executor executor,
-            @NonNull ActiveProcessingPictureListener listener) {
+            @NonNull Consumer<List<ActiveProcessingPicture>> listener) {
         Preconditions.checkNotNull(listener);
         Preconditions.checkNotNull(executor);
-        synchronized (mLock) {
+        synchronized (mApLock) {
             mApListenerRecords.add(
                     new ActiveProcessingPictureListenerRecord(listener, executor, false));
         }
@@ -1100,10 +1200,10 @@ public final class MediaQualityManager {
     @RequiresPermission(android.Manifest.permission.MANAGE_GLOBAL_PICTURE_QUALITY_SERVICE)
     public void addGlobalActiveProcessingPictureListener(
             @NonNull Executor executor,
-            @NonNull ActiveProcessingPictureListener listener) {
+            @NonNull Consumer<List<ActiveProcessingPicture>> listener) {
         Preconditions.checkNotNull(listener);
         Preconditions.checkNotNull(executor);
-        synchronized (mLock) {
+        synchronized (mApLock) {
             mApListenerRecords.add(
                     new ActiveProcessingPictureListenerRecord(listener, executor, true));
         }
@@ -1114,9 +1214,9 @@ public final class MediaQualityManager {
      * Removes an active picture listener for the contents.
      */
     public void removeActiveProcessingPictureListener(
-            @NonNull ActiveProcessingPictureListener listener) {
+            @NonNull Consumer<List<ActiveProcessingPicture>> listener) {
         Preconditions.checkNotNull(listener);
-        synchronized (mLock) {
+        synchronized (mApLock) {
             for (Iterator<ActiveProcessingPictureListenerRecord> it = mApListenerRecords.iterator();
                     it.hasNext(); ) {
                 ActiveProcessingPictureListenerRecord record = it.next();
@@ -1129,19 +1229,116 @@ public final class MediaQualityManager {
     }
 
     private static final class ActiveProcessingPictureListenerRecord {
-        private final ActiveProcessingPictureListener mListener;
+        private final Consumer<List<ActiveProcessingPicture>> mListener;
         private final Executor mExecutor;
         private final boolean mIsGlobal;
 
         ActiveProcessingPictureListenerRecord(
-                ActiveProcessingPictureListener listener, Executor executor, boolean isGlobal) {
+                Consumer<List<ActiveProcessingPicture>> listener,
+                Executor executor,
+                boolean isGlobal) {
             mListener = listener;
             mExecutor = executor;
             mIsGlobal = isGlobal;
         }
 
-        public ActiveProcessingPictureListener getListener() {
+        public Consumer<List<ActiveProcessingPicture>> getListener() {
             return mListener;
+        }
+
+        public void postActiveProcessingPicturesChanged(List<ActiveProcessingPicture> aps) {
+            mExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mListener.accept(aps);
+                }
+            });
+        }
+    }
+
+    /**
+     * Options for profile queries.
+     */
+    public static final class ProfileQueryParams implements Parcelable {
+
+        private final boolean mParametersIncluded;
+        private static final ProfileQueryParams DEFAULT = new Builder().build();
+
+        private ProfileQueryParams(Parcel in) {
+            mParametersIncluded = in.readBoolean();
+        }
+
+        /** @hide */
+        public ProfileQueryParams(boolean parametersIncluded) {
+            mParametersIncluded = parametersIncluded;
+        }
+
+        @NonNull
+        public static final Creator<ProfileQueryParams> CREATOR =
+                new Creator<ProfileQueryParams>() {
+                    @Override
+                    public ProfileQueryParams createFromParcel(Parcel in) {
+                        return new ProfileQueryParams(in);
+                    }
+
+                    @Override
+                    public ProfileQueryParams[] newArray(int size) {
+                        return new ProfileQueryParams[size];
+                    }
+                };
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        @Override
+        public void writeToParcel(@NonNull Parcel dest, int flags) {
+            dest.writeBoolean(mParametersIncluded);
+        }
+
+        /**
+         * Returns {@code true} if the parameters need to be included in query results.
+         * {@code false} otherwise.
+         */
+        public boolean areParametersIncluded() {
+            return mParametersIncluded;
+        }
+
+        private Bundle toBundle() {
+            Bundle bundle = new Bundle();
+            bundle.putBoolean(OPTION_INCLUDE_PARAMETERS, mParametersIncluded);
+            return bundle;
+        }
+
+        /**
+         * A builder for {@link ProfileQueryParams}.
+         */
+        public static final class Builder {
+            private boolean mParametersIncluded;
+
+            /**
+             * Sets the query option to include parameters in the profile or not.
+             *
+             * <p>The default value is {@code false}.
+             *
+             * @see ProfileQueryParams#areParametersIncluded()
+             */
+            @SuppressLint("MissingGetterMatchingBuilder")
+            @NonNull
+            public Builder setParametersIncluded(boolean included) {
+                mParametersIncluded = included;
+                return this;
+            }
+
+
+            /**
+             * Builds the instance.
+             */
+            @NonNull
+            public ProfileQueryParams build() {
+                return new ProfileQueryParams(mParametersIncluded);
+            }
         }
     }
 }

@@ -20,10 +20,12 @@ import android.content.Context
 import android.hardware.input.InputManager
 import android.hardware.input.KeyGestureEvent
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
@@ -68,7 +70,7 @@ interface ContextualEducationRepository {
 
     suspend fun updateGestureEduModel(
         gestureType: GestureType,
-        transform: (GestureEduModel) -> GestureEduModel
+        transform: (GestureEduModel) -> GestureEduModel,
     )
 
     suspend fun updateEduDeviceConnectionTime(
@@ -111,7 +113,6 @@ constructor(
 
     private val datastore = MutableStateFlow<DataStore<Preferences>?>(null)
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val prefData: Flow<Preferences> = datastore.filterNotNull().flatMapLatest { it.data }
 
     override val keyboardShortcutTriggered: Flow<GestureType> =
@@ -120,16 +121,8 @@ constructor(
                     InputManager.KeyGestureEventListener { event ->
                         // Only store keyboard shortcut time for gestures providing keyboard
                         // education
-                        val shortcutType =
-                            when (event.keyGestureType) {
-                                KeyGestureEvent.KEY_GESTURE_TYPE_ACCESSIBILITY_ALL_APPS,
-                                KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS -> ALL_APPS
-
-                                else -> null
-                            }
-
-                        if (shortcutType != null) {
-                            trySendWithFailureLogging(shortcutType, TAG)
+                        if (event.keyGestureType == KeyGestureEvent.KEY_GESTURE_TYPE_ALL_APPS) {
+                            trySendWithFailureLogging(ALL_APPS, TAG)
                         }
                     }
 
@@ -149,6 +142,8 @@ constructor(
                         String.format(DATASTORE_DIR, userId)
                     )
                 },
+                corruptionHandler =
+                    ReplaceFileCorruptionHandler(produceNewData = { emptyPreferences() }),
                 scope = newDsScope,
             )
         dataStoreScope = newDsScope
@@ -159,7 +154,7 @@ constructor(
 
     private fun getGestureEduModel(
         gestureType: GestureType,
-        preferences: Preferences
+        preferences: Preferences,
     ): GestureEduModel {
         return GestureEduModel(
             signalCount = preferences[getSignalCountKey(gestureType)] ?: 0,
@@ -183,7 +178,7 @@ constructor(
 
     override suspend fun updateGestureEduModel(
         gestureType: GestureType,
-        transform: (GestureEduModel) -> GestureEduModel
+        transform: (GestureEduModel) -> GestureEduModel,
     ) {
         datastore.filterNotNull().first().edit { preferences ->
             val currentModel = getGestureEduModel(gestureType, preferences)
@@ -193,17 +188,17 @@ constructor(
             setInstant(
                 preferences,
                 updatedModel.lastShortcutTriggeredTime,
-                getLastShortcutTriggeredTimeKey(gestureType)
+                getLastShortcutTriggeredTimeKey(gestureType),
             )
             setInstant(
                 preferences,
                 updatedModel.usageSessionStartTime,
-                getUsageSessionStartTimeKey(gestureType)
+                getUsageSessionStartTimeKey(gestureType),
             )
             setInstant(
                 preferences,
                 updatedModel.lastEducationTime,
-                getLastEducationTimeKey(gestureType)
+                getLastEducationTimeKey(gestureType),
             )
         }
     }
@@ -220,12 +215,12 @@ constructor(
             setInstant(
                 preferences,
                 updatedModel.keyboardFirstConnectionTime,
-                getKeyboardFirstConnectionTimeKey()
+                getKeyboardFirstConnectionTimeKey(),
             )
             setInstant(
                 preferences,
                 updatedModel.touchpadFirstConnectionTime,
-                getTouchpadFirstConnectionTimeKey()
+                getTouchpadFirstConnectionTimeKey(),
             )
         }
     }
@@ -235,7 +230,7 @@ constructor(
             keyboardFirstConnectionTime =
                 preferences[getKeyboardFirstConnectionTimeKey()]?.let { Instant.ofEpochSecond(it) },
             touchpadFirstConnectionTime =
-                preferences[getTouchpadFirstConnectionTimeKey()]?.let { Instant.ofEpochSecond(it) }
+                preferences[getTouchpadFirstConnectionTimeKey()]?.let { Instant.ofEpochSecond(it) },
         )
     }
 
@@ -263,7 +258,7 @@ constructor(
     private fun setInstant(
         preferences: MutablePreferences,
         instant: Instant?,
-        key: Preferences.Key<Long>
+        key: Preferences.Key<Long>,
     ) {
         if (instant != null) {
             // Use epochSecond because an instant is defined as a signed long (64bit number) of

@@ -28,7 +28,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.Notification;
@@ -445,6 +444,15 @@ public class BubbleDataTest extends ShellTestCase {
         assertThat(update.updatedBubble.showFlyout()).isFalse();
     }
 
+    @Test
+    public void getOrCreateBubble_withIntent_usesCorrectUser() {
+        Intent intent = new Intent();
+        intent.setPackage(mContext.getPackageName());
+        Bubble b = mBubbleData.getOrCreateBubble(intent, UserHandle.of(/* userId= */ 10));
+
+        assertThat(b.getUser().getIdentifier()).isEqualTo(10);
+    }
+
     //
     // Overflow
     //
@@ -561,6 +569,22 @@ public class BubbleDataTest extends ShellTestCase {
         verifyUpdateReceived();
         BubbleData.Update update = mUpdateCaptor.getValue();
         assertThat(update.shouldShowEducation).isTrue();
+    }
+
+    /** Verifies that the update should contain the bubble bar location. */
+    @Test
+    public void test_shouldUpdateBubbleBarLocation() {
+        // Setup
+        mBubbleData.setListener(mListener);
+
+        // Test
+        mBubbleData.notificationEntryUpdated(mBubbleA1, /* suppressFlyout */ true, /* showInShade */
+                true, BubbleBarLocation.LEFT);
+
+        // Verify
+        verifyUpdateReceived();
+        BubbleData.Update update = mUpdateCaptor.getValue();
+        assertThat(update.mBubbleBarLocation).isEqualTo(BubbleBarLocation.LEFT);
     }
 
     /**
@@ -779,7 +803,7 @@ public class BubbleDataTest extends ShellTestCase {
         mBubbleData.setListener(mListener);
 
         changeExpandedStateAtTime(true, 2000L);
-        verifyZeroInteractions(mListener);
+        verifyNoMoreInteractions(mListener);
     }
 
     /**
@@ -1358,6 +1382,20 @@ public class BubbleDataTest extends ShellTestCase {
     }
 
     @Test
+    public void setSelectedBubbleAndExpandStackWithLocation() {
+        sendUpdatedEntryAtTime(mEntryA1, 1000);
+        sendUpdatedEntryAtTime(mEntryA2, 2000);
+        mBubbleData.setListener(mListener);
+
+        mBubbleData.setSelectedBubbleAndExpandStack(mBubbleA1, BubbleBarLocation.LEFT);
+
+        verifyUpdateReceived();
+        assertSelectionChangedTo(mBubbleA1);
+        assertExpandedChangedTo(true);
+        assertLocationChangedTo(BubbleBarLocation.LEFT);
+    }
+
+    @Test
     public void testShowOverflowChanged_hasOverflowBubbles() {
         assertThat(mBubbleData.getOverflowBubbles()).isEmpty();
         sendUpdatedEntryAtTime(mEntryA1, 1000);
@@ -1441,10 +1479,10 @@ public class BubbleDataTest extends ShellTestCase {
         assertWithMessage("selectedBubble").that(update.selectedBubble).isEqualTo(bubble);
     }
 
-    private void assertSelectionCleared() {
+    private void assertLocationChangedTo(BubbleBarLocation location) {
         BubbleData.Update update = mUpdateCaptor.getValue();
-        assertWithMessage("selectionChanged").that(update.selectionChanged).isTrue();
-        assertWithMessage("selectedBubble").that(update.selectedBubble).isNull();
+        assertWithMessage("locationChanged").that(update.mBubbleBarLocation)
+                .isEqualTo(location);
     }
 
     private void assertExpandedChangedTo(boolean expected) {

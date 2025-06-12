@@ -17,8 +17,12 @@
 package com.android.systemui.keyguard.domain.interactor
 
 import android.animation.ValueAnimator
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.bouncer.domain.interactor.PrimaryBouncerInteractor
 import com.android.systemui.communal.domain.interactor.CommunalInteractor
+import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor
+import com.android.systemui.communal.domain.interactor.CommunalSettingsInteractor
+import com.android.systemui.communal.shared.model.CommunalScenes
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
@@ -46,7 +50,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import com.android.app.tracing.coroutines.launchTraced as launch
 
 @SysUISingleton
 class FromAlternateBouncerTransitionInteractor
@@ -60,6 +63,8 @@ constructor(
     @Main mainDispatcher: CoroutineDispatcher,
     keyguardInteractor: KeyguardInteractor,
     private val communalInteractor: CommunalInteractor,
+    private val communalSettingsInteractor: CommunalSettingsInteractor,
+    private val communalSceneInteractor: CommunalSceneInteractor,
     powerInteractor: PowerInteractor,
     keyguardOcclusionInteractor: KeyguardOcclusionInteractor,
     private val primaryBouncerInteractor: PrimaryBouncerInteractor,
@@ -86,7 +91,7 @@ constructor(
             .transition(
                 edge = Edge.create(from = KeyguardState.ALTERNATE_BOUNCER, to = Scenes.Gone),
                 edgeWithoutSceneContainer =
-                    Edge.create(from = KeyguardState.ALTERNATE_BOUNCER, to = KeyguardState.GONE)
+                    Edge.create(from = KeyguardState.ALTERNATE_BOUNCER, to = KeyguardState.GONE),
             )
             .map {
                 // The alt bouncer is pretty fast to hide, so start the surface behind animation
@@ -112,27 +117,21 @@ constructor(
                     keyguardInteractor.primaryBouncerShowing,
                     powerInteractor.isAwake,
                     keyguardInteractor.isAodAvailable,
-                    communalInteractor.isIdleOnCommunal,
-                    communalInteractor.editModeOpen,
+                    communalSceneInteractor.isIdleOnCommunal,
+                    keyguardInteractor.isDreaming,
                     keyguardInteractor.isKeyguardOccluded,
                 )
                 .filterRelevantKeyguardStateAnd {
-                    (isAlternateBouncerShowing, isPrimaryBouncerShowing, _, _, _) ->
+                    (isAlternateBouncerShowing, isPrimaryBouncerShowing, _, _, _, _) ->
                     !isAlternateBouncerShowing && !isPrimaryBouncerShowing
                 }
-                .collect {
-                    (
-                        _,
-                        _,
-                        isAwake,
-                        isAodAvailable,
-                        isIdleOnCommunal,
-                        isCommunalEditMode,
-                        isOccluded) ->
+                .collect { (_, _, isAwake, isAodAvailable, isIdleOnCommunal, isDreaming, isOccluded)
+                    ->
                     // When unlocking over glanceable hub to enter edit mode, transitioning directly
                     // to GONE prevents the lockscreen flash. Let listenForAlternateBouncerToGone
                     // handle it.
-                    if (isCommunalEditMode) return@collect
+                    if (communalInteractor.editModeOpen.value) return@collect
+                    val hubV2 = communalSettingsInteractor.isV2FlagEnabled()
                     val to =
                         if (!isAwake) {
                             if (isAodAvailable) {
@@ -141,16 +140,32 @@ constructor(
                                 KeyguardState.DOZING
                             }
                         } else {
-                            if (isIdleOnCommunal) {
+                            if (!hubV2 && isIdleOnCommunal) {
                                 if (SceneContainerFlag.isEnabled) return@collect
                                 KeyguardState.GLANCEABLE_HUB
-                            } else if (isOccluded) {
+                            } else if (isOccluded && !isDreaming) {
                                 KeyguardState.OCCLUDED
+                            } else if (isDreaming) {
+                                KeyguardState.DREAMING
+                            } else if (hubV2 && isIdleOnCommunal) {
+                                if (SceneContainerFlag.isEnabled) return@collect
+                                KeyguardState.GLANCEABLE_HUB
                             } else {
                                 KeyguardState.LOCKSCREEN
                             }
                         }
-                    startTransitionTo(to)
+
+                    if (hubV2 && to != KeyguardState.GLANCEABLE_HUB && isIdleOnCommunal) {
+                        // If bouncer is showing over the hub, we need to make sure we
+                        // properly dismiss the hub when transitioning away.
+                        communalSceneInteractor.changeScene(
+                            newScene = CommunalScenes.Blank,
+                            loggingReason = "alternate bouncer no longer showing over GH",
+                            keyguardState = to,
+                        )
+                    } else {
+                        startTransitionTo(to)
+                    }
                 }
         }
     }
@@ -173,7 +188,7 @@ constructor(
                         } else {
                             emptyFlow()
                         }
-                    }
+                    },
                 )
                 .filterRelevantKeyguardState()
                 .collect { startTransitionTo(KeyguardState.GONE) }

@@ -120,12 +120,21 @@ final class InputMethodBindingController {
      * Binding flags for establishing connection to the {@link InputMethodService}.
      */
     @VisibleForTesting
-    static final int IME_CONNECTION_BIND_FLAGS =
-            Context.BIND_AUTO_CREATE
+    static final int IME_CONNECTION_BIND_FLAGS;
+    static {
+        if (android.view.inputmethod.Flags.lowerImeOomImportance()) {
+            IME_CONNECTION_BIND_FLAGS = Context.BIND_AUTO_CREATE
+                    | Context.BIND_ALMOST_PERCEPTIBLE
+                    | Context.BIND_IMPORTANT_BACKGROUND
+                    | Context.BIND_SCHEDULE_LIKE_TOP_APP;
+        } else {
+            IME_CONNECTION_BIND_FLAGS = Context.BIND_AUTO_CREATE
                     | Context.BIND_NOT_VISIBLE
                     | Context.BIND_NOT_FOREGROUND
                     | Context.BIND_IMPORTANT_BACKGROUND
                     | Context.BIND_SCHEDULE_LIKE_TOP_APP;
+        }
+    }
 
     private final int mImeConnectionBindFlags;
 
@@ -492,8 +501,8 @@ final class InputMethodBindingController {
         }
 
         if (getCurToken() != null) {
-            removeCurrentToken();
             mService.resetSystemUiLocked(this);
+            removeCurrentToken();
             mAutofillController.onResetSystemUi();
         }
 

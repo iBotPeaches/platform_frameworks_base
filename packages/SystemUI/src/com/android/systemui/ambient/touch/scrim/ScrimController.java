@@ -25,8 +25,9 @@ import com.android.systemui.shade.ShadeExpansionChangeEvent;
 public interface ScrimController {
     /**
      * Called at the start of expansion before any expansion amount updates.
+     * @param scrimmed true when the bouncer should show scrimmed, false when user will be dragging.
      */
-    default void show() {
+    default void show(boolean scrimmed) {
     }
 
     /**

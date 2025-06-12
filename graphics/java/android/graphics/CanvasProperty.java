@@ -25,6 +25,7 @@ import com.android.internal.util.VirtualRefBasePtr;
  * TODO: Make public?
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public final class CanvasProperty<T> {
 
     private VirtualRefBasePtr mProperty;

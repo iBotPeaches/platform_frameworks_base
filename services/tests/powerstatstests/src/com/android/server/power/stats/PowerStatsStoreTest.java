@@ -21,7 +21,6 @@ import static com.google.common.truth.Truth.assertThat;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.runner.AndroidJUnit4;
 
@@ -29,7 +28,6 @@ import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.xmlpull.v1.XmlPullParser;
@@ -44,11 +42,6 @@ import java.util.List;
 @SuppressWarnings("GuardedBy")
 public class PowerStatsStoreTest {
     private static final long MAX_BATTERY_STATS_SNAPSHOT_STORAGE_BYTES = 2 * 1024;
-
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     private PowerStatsStore mPowerStatsStore;
     private File mStoreDirectory;

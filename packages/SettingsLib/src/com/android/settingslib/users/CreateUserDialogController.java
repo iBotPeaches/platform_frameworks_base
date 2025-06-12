@@ -242,7 +242,7 @@ public class CreateUserDialogController {
                         .setMessage(messageResId)
                         .setNegativeButtonText(R.string.cancel)
                         .setPositiveButtonText(R.string.next);
-                mCustomDialogHelper.requestFocusOnTitle();
+                focus();
                 break;
             case GRANT_ADMIN_DIALOG:
                 mEditUserInfoView.setVisibility(View.GONE);
@@ -255,7 +255,7 @@ public class CreateUserDialogController {
                         .setMessage(R.string.user_grant_admin_message)
                         .setNegativeButtonText(R.string.back)
                         .setPositiveButtonText(R.string.next);
-                mCustomDialogHelper.requestFocusOnTitle();
+                focus();
                 if (mIsAdmin == null) {
                     mCustomDialogHelper.setButtonEnabled(false);
                 }
@@ -267,7 +267,7 @@ public class CreateUserDialogController {
                         .setTitle(R.string.user_info_settings_title)
                         .setNegativeButtonText(R.string.back)
                         .setPositiveButtonText(R.string.done);
-                mCustomDialogHelper.requestFocusOnTitle();
+                focus();
                 mEditUserInfoView.setVisibility(View.VISIBLE);
                 mGrantAdminView.setVisibility(View.GONE);
                 break;
@@ -282,7 +282,7 @@ public class CreateUserDialogController {
                 mCustomDialogHelper.getDialog().dismiss();
                 break;
             case EXIT_DIALOG:
-                mCustomDialogHelper.getDialog().dismiss();
+                mUserCreationDialog.dismiss();
                 break;
             default:
                 if (mCurrentState < EXIT_DIALOG) {
@@ -394,13 +394,21 @@ public class CreateUserDialogController {
         return mCustomDialogHelper != null && mCustomDialogHelper.getDialog() != null;
     }
 
+    void focus() {
+        mCustomDialogHelper.requestFocusOnTitle();
+    }
+
     /**
      * Runs callback and clears saved values after dialog is dismissed.
      */
     public void finish() {
         if (mCurrentState == CREATE_USER_AND_CLOSE) {
             if (mSuccessCallback != null) {
-                mSuccessCallback.onSuccess(mUserName, mNewUserIcon, Boolean.TRUE.equals(mIsAdmin));
+                if (mEditUserPhotoController != null && mCachedDrawablePath == null) {
+                    mCachedDrawablePath = mEditUserPhotoController.getCachedDrawablePath();
+                }
+                mSuccessCallback.onSuccess(mUserName, mNewUserIcon, mCachedDrawablePath,
+                        Boolean.TRUE.equals(mIsAdmin));
             }
         } else {
             if (mCancelCallback != null) {

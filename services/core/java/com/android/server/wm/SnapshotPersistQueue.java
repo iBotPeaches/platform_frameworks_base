@@ -24,6 +24,10 @@ import static com.android.server.wm.WindowManagerDebugConfig.TAG_WM;
 
 import android.annotation.NonNull;
 import android.graphics.Bitmap;
+import android.graphics.PixelFormat;
+import android.hardware.HardwareBuffer;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Process;
 import android.os.SystemClock;
 import android.os.Trace;
@@ -33,10 +37,12 @@ import android.window.TaskSnapshot;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.policy.TransitionAnimation;
 import com.android.server.LocalServices;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.BaseAppSnapshotPersister.PersistInfoProvider;
 import com.android.server.wm.nano.WindowManagerProtos.TaskSnapshotProto;
+import com.android.window.flags.Flags;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -231,8 +237,13 @@ class SnapshotPersistQueue {
                             if (next.isReady(mUserManagerInternal)) {
                                 isReadyToWrite = true;
                                 next.onDequeuedLocked();
-                            } else {
+                            } else if (!mShutdown) {
                                 mWriteQueue.addLast(next);
+                            } else {
+                                // User manager is locked and device is shutting down, skip writing
+                                // this item.
+                                next.onDequeuedLocked();
+                                next = null;
                             }
                         }
                     }
@@ -314,7 +325,13 @@ class SnapshotPersistQueue {
         @Override
         void onQueuedLocked() {
             // Remove duplicate request.
-            mStoreQueueItems.remove(this);
+            mStoreQueueItems.removeIf(item -> {
+                if (item.equals(this) && item.mSnapshot != mSnapshot) {
+                    item.mSnapshot.removeReference(TaskSnapshot.REFERENCE_PERSIST);
+                    return true;
+                }
+                return false;
+            });
             mStoreQueueItems.offer(this);
         }
 
@@ -389,23 +406,20 @@ class SnapshotPersistQueue {
                 Slog.e(TAG, "Invalid task snapshot hw buffer, taskId=" + mId);
                 return false;
             }
-            final Bitmap bitmap = Bitmap.wrapHardwareBuffer(
-                    mSnapshot.getHardwareBuffer(), mSnapshot.getColorSpace());
-            if (bitmap == null) {
-                Slog.e(TAG, "Invalid task snapshot hw bitmap");
-                return false;
-            }
 
-            final Bitmap swBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false /* isMutable */);
+            final HardwareBuffer hwBuffer = mSnapshot.getHardwareBuffer();
+            final int width = hwBuffer.getWidth();
+            final int height = hwBuffer.getHeight();
+            final int pixelFormat = hwBuffer.getFormat();
+            final Bitmap swBitmap = !Flags.reduceTaskSnapshotMemoryUsage()
+                    || (pixelFormat != PixelFormat.RGB_565 && pixelFormat != PixelFormat.RGBA_8888)
+                    || !mSnapshot.isRealSnapshot()
+                    || TransitionAnimation.hasProtectedContent(hwBuffer)
+                    ? copyToSwBitmapReadBack()
+                    : copyToSwBitmapDirect(width, height, pixelFormat);
             if (swBitmap == null) {
-                Slog.e(TAG, "Bitmap conversion from (config=" + bitmap.getConfig() + ", isMutable="
-                        + bitmap.isMutable() + ") to (config=ARGB_8888, isMutable=false) failed.");
                 return false;
             }
-            final int width = bitmap.getWidth();
-            final int height = bitmap.getHeight();
-            bitmap.recycle();
-
             final File file = mPersistInfoProvider.getHighResolutionBitmapFile(mId, mUserId);
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 swBitmap.compress(JPEG, COMPRESS_QUALITY, fos);
@@ -435,6 +449,58 @@ class SnapshotPersistQueue {
             lowResBitmap.recycle();
 
             return true;
+        }
+
+        private Bitmap copyToSwBitmapReadBack() {
+            final Bitmap bitmap = Bitmap.wrapHardwareBuffer(
+                    mSnapshot.getHardwareBuffer(), mSnapshot.getColorSpace());
+            if (bitmap == null) {
+                Slog.e(TAG, "Invalid task snapshot hw bitmap");
+                return null;
+            }
+
+            final Bitmap swBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false /* isMutable */);
+            if (swBitmap == null) {
+                Slog.e(TAG, "Bitmap conversion from (config=" + bitmap.getConfig()
+                        + ", isMutable=" + bitmap.isMutable()
+                        + ") to (config=ARGB_8888, isMutable=false) failed.");
+                return null;
+            }
+            bitmap.recycle();
+            return swBitmap;
+        }
+
+        /**
+         * Use ImageReader to create the software bitmap, so SkImage won't create an extra texture.
+         */
+        private Bitmap copyToSwBitmapDirect(int width, int height, int pixelFormat) {
+            try (ImageReader ir = ImageReader.newInstance(width, height,
+                    pixelFormat, 1 /* maxImages */)) {
+                ir.getSurface().attachAndQueueBufferWithColorSpace(mSnapshot.getHardwareBuffer(),
+                        mSnapshot.getColorSpace());
+                try (Image image = ir.acquireLatestImage()) {
+                    if (image == null || image.getPlaneCount() < 1) {
+                        Slog.e(TAG, "Image reader cannot acquire image");
+                        return null;
+                    }
+
+                    final Image.Plane[] planes = image.getPlanes();
+                    if (planes.length != 1) {
+                        Slog.e(TAG, "Image reader cannot get plane");
+                        return null;
+                    }
+                    final Image.Plane plane = planes[0];
+                    final int rowPadding = plane.getRowStride() - plane.getPixelStride()
+                            * image.getWidth();
+                    final Bitmap swBitmap = Bitmap.createBitmap(
+                            image.getWidth() + rowPadding / plane.getPixelStride() /* width */,
+                            image.getHeight() /* height */,
+                            pixelFormat == PixelFormat.RGB_565
+                                    ? Bitmap.Config.RGB_565 : Bitmap.Config.ARGB_8888);
+                    swBitmap.copyPixelsFromBuffer(plane.getBuffer());
+                    return swBitmap;
+                }
+            }
         }
 
         @Override

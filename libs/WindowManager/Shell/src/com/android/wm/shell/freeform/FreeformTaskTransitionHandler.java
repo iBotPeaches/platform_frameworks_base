@@ -25,10 +25,12 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.ActivityManager;
 import android.app.WindowConfiguration;
+import android.content.Context;
 import android.graphics.Rect;
+import android.os.Handler;
 import android.os.IBinder;
 import android.util.ArrayMap;
-import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.SurfaceControl;
 import android.view.WindowManager;
 import android.window.TransitionInfo;
@@ -38,6 +40,7 @@ import android.window.WindowContainerTransaction;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.internal.jank.InteractionJankMonitor;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.shared.animation.MinimizeAnimator;
@@ -52,11 +55,13 @@ import java.util.List;
  */
 public class FreeformTaskTransitionHandler
         implements Transitions.TransitionHandler, FreeformTaskTransitionStarter {
+    private static final String TAG = "FreeformTaskTransitionHandler";
     private static final int CLOSE_ANIM_DURATION = 400;
     private final Transitions mTransitions;
     private final DisplayController mDisplayController;
     private final ShellExecutor mMainExecutor;
     private final ShellExecutor mAnimExecutor;
+    private final Handler mAnimHandler;
 
     private final List<IBinder> mPendingTransitionTokens = new ArrayList<>();
 
@@ -66,11 +71,13 @@ public class FreeformTaskTransitionHandler
             Transitions transitions,
             DisplayController displayController,
             ShellExecutor mainExecutor,
-            ShellExecutor animExecutor) {
+            ShellExecutor animExecutor,
+            Handler animHandler) {
         mTransitions = transitions;
         mDisplayController = displayController;
         mMainExecutor = mainExecutor;
         mAnimExecutor = animExecutor;
+        mAnimHandler = animHandler;
     }
 
     @Override
@@ -93,7 +100,8 @@ public class FreeformTaskTransitionHandler
     }
 
     @Override
-    public IBinder startMinimizedModeTransition(WindowContainerTransaction wct) {
+    public IBinder startMinimizedModeTransition(
+            WindowContainerTransaction wct, int taskId, boolean isLastTask) {
         final int type = Transitions.TRANSIT_MINIMIZE;
         final IBinder token = mTransitions.startTransition(type, wct, this);
         mPendingTransitionTokens.add(token);
@@ -122,13 +130,11 @@ public class FreeformTaskTransitionHandler
             @NonNull Transitions.TransitionFinishCallback finishCallback) {
         boolean transitionHandled = false;
         final ArrayList<Animator> animations = new ArrayList<>();
-        final Runnable onAnimFinish = () -> {
+        final Runnable onAnimFinish = () -> mMainExecutor.execute(() -> {
             if (!animations.isEmpty()) return;
-            mMainExecutor.execute(() -> {
-                mAnimations.remove(transition);
-                finishCallback.onTransitionFinished(null /* wct */);
-            });
-        };
+            mAnimations.remove(transition);
+            finishCallback.onTransitionFinished(null /* wct */);
+        });
         for (TransitionInfo.Change change : info.getChanges()) {
             if ((change.getFlags() & TransitionInfo.FLAG_IS_WALLPAPER) != 0) {
                 continue;
@@ -175,7 +181,9 @@ public class FreeformTaskTransitionHandler
 
     @Override
     public void mergeAnimation(@NonNull IBinder transition, @NonNull TransitionInfo info,
-            @NonNull SurfaceControl.Transaction t, @NonNull IBinder mergeTarget,
+            @NonNull SurfaceControl.Transaction startT,
+            @NonNull SurfaceControl.Transaction finishT,
+            @NonNull IBinder mergeTarget,
             @NonNull Transitions.TransitionFinishCallback finishCallback) {
         ArrayList<Animator> animations = mAnimations.get(mergeTarget);
         if (animations == null) return;
@@ -231,18 +239,25 @@ public class FreeformTaskTransitionHandler
         SurfaceControl.Transaction t = new SurfaceControl.Transaction();
         SurfaceControl sc = change.getLeash();
         finishT.hide(sc);
-        final DisplayMetrics displayMetrics =
-                mDisplayController
-                        .getDisplayContext(taskInfo.displayId).getResources().getDisplayMetrics();
+        final Context displayContext =
+                mDisplayController.getDisplayContext(taskInfo.displayId);
+        if (displayContext == null) {
+            Log.w(TAG, "No displayContext for displayId=" + taskInfo.displayId);
+            return false;
+        }
         final Animator animator = MinimizeAnimator.create(
-                displayMetrics,
+                displayContext,
                 change,
                 t,
                 (anim) -> {
-                    animations.remove(anim);
-                    onAnimFinish.run();
+                    mMainExecutor.execute(() -> {
+                        animations.remove(anim);
+                        onAnimFinish.run();
+                    });
                     return null;
-                });
+                },
+                InteractionJankMonitor.getInstance(),
+                mAnimHandler);
         animations.add(animator);
         return true;
     }
@@ -274,8 +289,10 @@ public class FreeformTaskTransitionHandler
                 new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
-                        animations.remove(animator);
-                        onAnimFinish.run();
+                        mMainExecutor.execute(() -> {
+                            animations.remove(animator);
+                            onAnimFinish.run();
+                        });
                     }
                 });
         animations.add(animator);

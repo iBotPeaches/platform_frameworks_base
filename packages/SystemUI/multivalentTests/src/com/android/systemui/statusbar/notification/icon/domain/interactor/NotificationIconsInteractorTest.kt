@@ -15,6 +15,7 @@
 
 package com.android.systemui.statusbar.notification.icon.domain.interactor
 
+import android.platform.test.annotations.DisableFlags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
@@ -24,14 +25,21 @@ import com.android.systemui.deviceentry.domain.interactor.deviceEntryInteractor
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.statusbar.data.repository.notificationListenerSettingsRepository
+import com.android.systemui.statusbar.headsup.shared.StatusBarNoHunBehavior
 import com.android.systemui.statusbar.notification.data.model.activeNotificationModel
 import com.android.systemui.statusbar.notification.data.repository.ActiveNotificationsStore
 import com.android.systemui.statusbar.notification.data.repository.activeNotificationListRepository
 import com.android.systemui.statusbar.notification.data.repository.notificationsKeyguardViewStateRepository
 import com.android.systemui.statusbar.notification.domain.interactor.activeNotificationsInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.headsUpNotificationIconInteractor
+import com.android.systemui.statusbar.notification.promoted.domain.interactor.aodPromotedNotificationInteractor
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentBuilder
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel.Style.Base
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModels
 import com.android.systemui.statusbar.notification.shared.byIsAmbient
 import com.android.systemui.statusbar.notification.shared.byIsLastMessageFromReply
+import com.android.systemui.statusbar.notification.shared.byIsPromoted
 import com.android.systemui.statusbar.notification.shared.byIsPulsing
 import com.android.systemui.statusbar.notification.shared.byIsRowDismissed
 import com.android.systemui.statusbar.notification.shared.byIsSilent
@@ -44,7 +52,6 @@ import com.android.systemui.util.mockito.whenever
 import com.android.wm.shell.bubbles.bubbles
 import com.android.wm.shell.bubbles.bubblesOptional
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -57,13 +64,15 @@ class NotificationIconsInteractorTest : SysuiTestCase() {
     private val testScope = kosmos.testScope
     private val activeNotificationListRepository = kosmos.activeNotificationListRepository
     private val notificationsKeyguardInteractor = kosmos.notificationsKeyguardInteractor
+    private val aodPromotedNotificationInteractor = kosmos.aodPromotedNotificationInteractor
 
     private val underTest =
         NotificationIconsInteractor(
             kosmos.activeNotificationsInteractor,
             kosmos.bubblesOptional,
             kosmos.headsUpNotificationIconInteractor,
-            kosmos.notificationsKeyguardViewStateRepository
+            kosmos.aodPromotedNotificationInteractor,
+            kosmos.notificationsKeyguardViewStateRepository,
         )
 
     @Before
@@ -140,9 +149,24 @@ class NotificationIconsInteractorTest : SysuiTestCase() {
             notificationsKeyguardInteractor.setNotificationsFullyHidden(true)
             assertThat(filteredSet).comparingElementsUsing(byIsPulsing).contains(true)
         }
+
+    @Test
+    fun filteredEntrySet_showAodPromoted() {
+        testScope.runTest {
+            val filteredSet by collectLastValue(underTest.filteredNotifSet(showAodPromoted = true))
+            assertThat(filteredSet).comparingElementsUsing(byIsPromoted).contains(true)
+        }
+    }
+
+    @Test
+    fun filteredEntrySet_noAodPromoted() {
+        testScope.runTest {
+            val filteredSet by collectLastValue(underTest.filteredNotifSet(showAodPromoted = false))
+            assertThat(filteredSet).comparingElementsUsing(byIsPromoted).doesNotContain(true)
+        }
+    }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class AlwaysOnDisplayNotificationIconsInteractorTest : SysuiTestCase() {
@@ -308,6 +332,7 @@ class StatusBarNotificationIconsInteractorTest : SysuiTestCase() {
         }
 
     @Test
+    @DisableFlags(StatusBarNoHunBehavior.FLAG_NAME)
     fun filteredEntrySet_includesIsolatedIcon() =
         testScope.runTest {
             val filteredSet by collectLastValue(underTest.statusBarNotifs)
@@ -318,31 +343,19 @@ class StatusBarNotificationIconsInteractorTest : SysuiTestCase() {
 
 private val testIcons =
     listOf(
-        activeNotificationModel(
-            key = "notif1",
-        ),
-        activeNotificationModel(
-            key = "notif2",
-            isAmbient = true,
-        ),
-        activeNotificationModel(
-            key = "notif3",
-            isRowDismissed = true,
-        ),
-        activeNotificationModel(
-            key = "notif4",
-            isSilent = true,
-        ),
-        activeNotificationModel(
-            key = "notif5",
-            isLastMessageFromReply = true,
-        ),
-        activeNotificationModel(
-            key = "notif6",
-            isSuppressedFromStatusBar = true,
-        ),
-        activeNotificationModel(
-            key = "notif7",
-            isPulsing = true,
-        ),
+        activeNotificationModel(key = "notif1"),
+        activeNotificationModel(key = "notif2", isAmbient = true),
+        activeNotificationModel(key = "notif3", isRowDismissed = true),
+        activeNotificationModel(key = "notif4", isSilent = true),
+        activeNotificationModel(key = "notif5", isLastMessageFromReply = true),
+        activeNotificationModel(key = "notif6", isSuppressedFromStatusBar = true),
+        activeNotificationModel(key = "notif7", isPulsing = true),
+        activeNotificationModel(key = "notif8", promotedContent = promotedContent("notif8", Base)),
     )
+
+private fun promotedContent(
+    key: String,
+    style: PromotedNotificationContentModel.Style,
+): PromotedNotificationContentModels {
+    return PromotedNotificationContentBuilder(key).applyToShared { this.style = style }.build()
+}

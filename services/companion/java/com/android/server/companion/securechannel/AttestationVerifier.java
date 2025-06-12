@@ -16,7 +16,9 @@
 
 package com.android.server.companion.securechannel;
 
+import static android.companion.CompanionDeviceManager.TRANSPORT_FLAG_EXTEND_PATCH_DIFF;
 import static android.security.attestationverification.AttestationVerificationManager.PARAM_CHALLENGE;
+import static android.security.attestationverification.AttestationVerificationManager.PARAM_MAX_PATCH_LEVEL_DIFF_MONTHS;
 import static android.security.attestationverification.AttestationVerificationManager.PROFILE_PEER_DEVICE;
 import static android.security.attestationverification.AttestationVerificationManager.TYPE_CHALLENGE;
 
@@ -34,15 +36,21 @@ import java.util.function.BiConsumer;
 
 /**
  * Helper class to perform attestation verification synchronously.
+ *
+ * @hide
  */
 public class AttestationVerifier {
     private static final long ATTESTATION_VERIFICATION_TIMEOUT_SECONDS = 10; // 10 seconds
     private static final String PARAM_OWNED_BY_SYSTEM = "android.key_owned_by_system";
 
-    private final Context mContext;
+    private static final int EXTENDED_PATCH_LEVEL_DIFF_MONTHS = 24; // 2 years
 
-    AttestationVerifier(Context context) {
+    private final Context mContext;
+    private final int mFlags;
+
+    AttestationVerifier(Context context, int flags) {
         this.mContext = context;
+        this.mFlags = flags;
     }
 
     /**
@@ -59,9 +67,12 @@ public class AttestationVerifier {
             @NonNull byte[] remoteAttestation,
             @NonNull byte[] attestationChallenge
     ) throws SecureChannelException {
-        Bundle requirements = new Bundle();
+        final Bundle requirements = new Bundle();
         requirements.putByteArray(PARAM_CHALLENGE, attestationChallenge);
         requirements.putBoolean(PARAM_OWNED_BY_SYSTEM, true); // Custom parameter for CDM
+
+        // Apply flags to verifier requirements
+        updateRequirements(requirements);
 
         // Synchronously execute attestation verification.
         AtomicInteger verificationResult = new AtomicInteger(0);
@@ -95,5 +106,16 @@ public class AttestationVerifier {
         }
 
         return verificationResult.get();
+    }
+
+    private void updateRequirements(Bundle requirements) {
+        if (mFlags == 0) {
+            return;
+        }
+
+        if ((mFlags & TRANSPORT_FLAG_EXTEND_PATCH_DIFF) > 0) {
+            requirements.putInt(PARAM_MAX_PATCH_LEVEL_DIFF_MONTHS,
+                    EXTENDED_PATCH_LEVEL_DIFF_MONTHS);
+        }
     }
 }

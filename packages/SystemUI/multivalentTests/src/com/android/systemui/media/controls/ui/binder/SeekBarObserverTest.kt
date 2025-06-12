@@ -61,11 +61,11 @@ class SeekBarObserverTest : SysuiTestCase() {
     fun setUp() {
         context.orCreateTestableResources.addOverride(
             R.dimen.qs_media_enabled_seekbar_height,
-            enabledHeight
+            enabledHeight,
         )
         context.orCreateTestableResources.addOverride(
             R.dimen.qs_media_disabled_seekbar_height,
-            disabledHeight
+            disabledHeight,
         )
 
         seekBarView = SeekBar(context)
@@ -116,9 +116,6 @@ class SeekBarObserverTest : SysuiTestCase() {
         // THEN seek bar shows the progress
         assertThat(seekBarView.progress).isEqualTo(3000)
         assertThat(seekBarView.max).isEqualTo(120000)
-
-        val desc = context.getString(R.string.controls_media_seekbar_description, "00:03", "02:00")
-        assertThat(seekBarView.contentDescription).isEqualTo(desc)
     }
 
     @Test

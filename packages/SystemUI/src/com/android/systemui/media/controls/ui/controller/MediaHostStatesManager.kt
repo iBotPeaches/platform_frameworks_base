@@ -17,11 +17,16 @@
 package com.android.systemui.media.controls.ui.controller
 
 import com.android.app.tracing.traceSection
+import com.android.systemui.Dumpable
 import com.android.systemui.Flags.mediaControlsUmoInflationInBackground
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dump.DumpManager
 import com.android.systemui.media.controls.ui.view.MediaHostState
 import com.android.systemui.util.animation.MeasurementOutput
+import java.io.PrintWriter
 import javax.inject.Inject
+
+private val TAG = "MediaHostStatesManager"
 
 /**
  * A class responsible for managing all media host states of the various host locations and
@@ -29,7 +34,7 @@ import javax.inject.Inject
  * date state for any location.
  */
 @SysUISingleton
-class MediaHostStatesManager @Inject constructor() {
+class MediaHostStatesManager @Inject constructor(dumpManager: DumpManager) : Dumpable {
 
     private val callbacks: MutableSet<Callback> = mutableSetOf()
     private val controllers: MutableSet<MediaViewController> = mutableSetOf()
@@ -42,6 +47,10 @@ class MediaHostStatesManager @Inject constructor() {
 
     /** A map with all media states of all locations. */
     val mediaHostStates: MutableMap<Int, MediaHostState> = mutableMapOf()
+
+    init {
+        dumpManager.registerNormalDumpable(TAG, this)
+    }
 
     /**
      * Notify that a media state for a given location has changed. Should only be called from Media
@@ -123,6 +132,19 @@ class MediaHostStatesManager @Inject constructor() {
     /** Notify the manager about the removal of a controller. */
     fun removeController(controller: MediaViewController) {
         controllers.remove(controller)
+    }
+
+    override fun dump(pw: PrintWriter, args: Array<out String>) {
+        pw.apply {
+            println("Controllers: $controllers")
+            println("Callbacks: $callbacks")
+            for ((location, size) in carouselSizes) {
+                println("Size $location: ${size.measuredWidth} x ${size.measuredHeight}")
+            }
+            for ((location, state) in mediaHostStates) {
+                println("Host $location: visible ${state.visible}")
+            }
+        }
     }
 
     interface Callback {

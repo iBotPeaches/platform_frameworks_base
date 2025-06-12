@@ -36,7 +36,7 @@ import com.android.credentialmanager.model.get.CredentialEntryInfo
 import com.android.credentialmanager.ui.components.CredentialsScreenChipSpacer
 import com.google.android.horologist.annotations.ExperimentalHorologistApi
 import com.google.android.horologist.compose.layout.ScalingLazyColumn
-import com.google.android.horologist.compose.layout.rememberColumnState
+import com.google.android.horologist.compose.layout.ScalingLazyColumnState
 import com.google.android.horologist.compose.layout.ScalingLazyColumnDefaults
 import androidx.compose.ui.text.style.TextAlign
 import androidx.wear.compose.material.MaterialTheme as WearMaterialTheme
@@ -45,6 +45,7 @@ import androidx.wear.compose.material.MaterialTheme as WearMaterialTheme
  * Screen that shows multiple credentials to select from, grouped by accounts
  *
  * @param credentialSelectorUiState The app bar view model.
+ * @param columnState ScalingLazyColumn configuration to be be applied
  * @param modifier styling for composable
  * @param flowEngine [FlowEngine] that updates ui state for this screen
  */
@@ -52,15 +53,14 @@ import androidx.wear.compose.material.MaterialTheme as WearMaterialTheme
 @Composable
 fun MultiCredentialsFlattenScreen(
     credentialSelectorUiState: MultipleEntry,
+    columnState: ScalingLazyColumnState,
     flowEngine: FlowEngine,
 ) {
     val selectEntry = flowEngine.getEntrySelector()
     Row {
         Spacer(Modifier.weight(0.052f)) // 5.2% side margin
         ScalingLazyColumn(
-            columnState = rememberColumnState(
-                ScalingLazyColumnDefaults.belowTimeText(horizontalAlignment = Alignment.Start),
-            ),
+            columnState = columnState,
             modifier = Modifier.weight(0.896f).fillMaxSize(), // 5.2% side margin
         ) {
 

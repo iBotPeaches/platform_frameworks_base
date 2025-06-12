@@ -217,7 +217,7 @@ public class SystemVibratorManager extends VibratorManager {
                 new VendorVibrationSessionCallbackDelegate(executor, callback);
         if (mService == null) {
             Log.w(TAG, "Failed to start vibration session; no vibrator manager service.");
-            callbackDelegate.onFinished(VendorVibrationSession.STATUS_UNKNOWN_ERROR);
+            callbackDelegate.onFinished(VendorVibrationSession.STATUS_UNSUPPORTED);
             return;
         }
         try {

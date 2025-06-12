@@ -25,11 +25,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class LockscreenSceneTransitionRepository @Inject constructor() {
 
     /**
-     * This [KeyguardState] will indicate which sub state within KTF should be navigated to when the
-     * next transition into the Lockscreen scene is started. It will be consumed exactly once and
-     * after that the state will be set back to [DEFAULT_STATE].
+     * This [KeyguardState] will indicate which sub-state within KTF should be navigated to next.
+     *
+     * This can be either starting a transition to the `Lockscreen` scene or cancelling a transition
+     * from the `Lockscreen` scene and returning back to it.
+     *
+     * A `null` value means that no explicit target state was set and therefore the [DEFAULT_STATE]
+     * should be used.
+     *
+     * Once consumed, this state should be reset to `null`.
      */
-    val nextLockscreenTargetState: MutableStateFlow<KeyguardState> = MutableStateFlow(DEFAULT_STATE)
+    val nextLockscreenTargetState: MutableStateFlow<KeyguardState?> = MutableStateFlow(null)
 
     companion object {
         val DEFAULT_STATE = KeyguardState.LOCKSCREEN

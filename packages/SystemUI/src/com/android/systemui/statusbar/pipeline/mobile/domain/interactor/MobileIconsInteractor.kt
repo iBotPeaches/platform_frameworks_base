@@ -23,15 +23,18 @@ import android.telephony.SubscriptionManager.PROFILE_CLASS_PROVISIONING
 import com.android.settingslib.SignalIcon.MobileIconGroup
 import com.android.settingslib.mobile.TelephonyIcons
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.flags.FeatureFlagsClassic
 import com.android.systemui.flags.Flags.FILTER_PROVISIONING_NETWORK_SUBSCRIPTIONS
 import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.log.table.logDiffsForTable
+import com.android.systemui.statusbar.core.NewStatusBarIcons
+import com.android.systemui.statusbar.core.StatusBarRootModernization
 import com.android.systemui.statusbar.pipeline.dagger.MobileSummaryLog
 import com.android.systemui.statusbar.pipeline.mobile.data.model.SubscriptionModel
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepository
+import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
 import com.android.systemui.statusbar.pipeline.shared.data.model.ConnectivitySlot
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.policy.data.repository.UserSetupRepository
@@ -71,18 +74,30 @@ interface MobileIconsInteractor {
     /** List of subscriptions, potentially filtered for CBRS */
     val filteredSubscriptions: Flow<List<SubscriptionModel>>
 
+    /** Subscription ID of the current default data subscription */
+    val defaultDataSubId: Flow<Int?>
+
     /**
      * The current list of [MobileIconInteractor]s associated with the current list of
      * [filteredSubscriptions]
      */
     val icons: StateFlow<List<MobileIconInteractor>>
 
+    /** Whether the mobile icons can be stacked vertically. */
+    val isStackable: Flow<Boolean>
+
+    /**
+     * Observable for the subscriptionId of the current mobile data connection. Null if we don't
+     * have a valid subscription id
+     */
+    val activeMobileDataSubscriptionId: StateFlow<Int?>
+
     /** True if the active mobile data subscription has data enabled */
     val activeDataConnectionHasDataEnabled: StateFlow<Boolean>
 
     /**
      * Flow providing a reference to the Interactor for the active data subId. This represents the
-     * [MobileConnectionInteractor] responsible for the active data connection, if any.
+     * [MobileIconInteractor] responsible for the active data connection, if any.
      */
     val activeDataIconInteractor: StateFlow<MobileIconInteractor?>
 
@@ -124,8 +139,8 @@ interface MobileIconsInteractor {
     fun getMobileConnectionInteractorForSubId(subId: Int): MobileIconInteractor
 }
 
-@Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
 @SysUISingleton
 class MobileIconsInteractorImpl
 @Inject
@@ -135,7 +150,7 @@ constructor(
     @MobileSummaryLog private val tableLogger: TableLogBuffer,
     connectivityRepository: ConnectivityRepository,
     userSetupRepo: UserSetupRepository,
-    @Application private val scope: CoroutineScope,
+    @Background private val scope: CoroutineScope,
     private val context: Context,
     private val featureFlagsClassic: FeatureFlagsClassic,
 ) : MobileIconsInteractor {
@@ -159,6 +174,9 @@ constructor(
                 initialValue = false,
             )
             .stateIn(scope, SharingStarted.WhileSubscribed(), false)
+
+    override val activeMobileDataSubscriptionId: StateFlow<Int?> =
+        mobileConnectionsRepo.activeMobileDataSubscriptionId
 
     override val activeDataConnectionHasDataEnabled: StateFlow<Boolean> =
         mobileConnectionsRepo.activeMobileDataRepository
@@ -280,12 +298,31 @@ constructor(
         }
     }
 
+    override val defaultDataSubId = mobileConnectionsRepo.defaultDataSubId
+
     override val icons =
         filteredSubscriptions
             .mapLatest { subs ->
                 subs.map { getMobileConnectionInteractorForSubId(it.subscriptionId) }
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), emptyList())
+
+    override val isStackable =
+        if (NewStatusBarIcons.isEnabled && StatusBarRootModernization.isEnabled) {
+            icons.flatMapLatest { icons ->
+                combine(icons.map { it.signalLevelIcon }) { signalLevelIcons ->
+                    // These are only stackable if:
+                    // - They are cellular
+                    // - There's exactly two
+                    // - They have the same number of levels
+                    signalLevelIcons.filterIsInstance<SignalIconModel.Cellular>().let {
+                        it.size == 2 && it[0].numberOfLevels == it[1].numberOfLevels
+                    }
+                }
+            }
+        } else {
+            flowOf(false)
+        }
 
     /**
      * Copied from the old pipeline. We maintain a 2s period of time where we will keep the
@@ -321,7 +358,7 @@ constructor(
         mobileConnectionsRepo.defaultMobileIconMapping.stateIn(
             scope,
             SharingStarted.WhileSubscribed(),
-            initialValue = mapOf()
+            initialValue = mapOf(),
         )
 
     override val alwaysShowDataRatIcon: StateFlow<Boolean> =
@@ -350,7 +387,7 @@ constructor(
         mobileConnectionsRepo.defaultMobileIconGroup.stateIn(
             scope,
             SharingStarted.WhileSubscribed(),
-            initialValue = TelephonyIcons.G
+            initialValue = TelephonyIcons.G,
         )
 
     /**

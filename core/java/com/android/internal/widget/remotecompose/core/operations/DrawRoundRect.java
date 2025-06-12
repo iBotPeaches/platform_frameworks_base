@@ -23,6 +23,7 @@ import com.android.internal.widget.remotecompose.core.PaintContext;
 import com.android.internal.widget.remotecompose.core.WireBuffer;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentationBuilder;
 import com.android.internal.widget.remotecompose.core.documentation.DocumentedOperation;
+import com.android.internal.widget.remotecompose.core.serialize.MapSerializer;
 
 import java.util.List;
 
@@ -109,7 +110,7 @@ public class DrawRoundRect extends DrawBase6 {
                         "The x-radius of the oval used to round the corners")
                 .field(
                         DocumentedOperation.FLOAT,
-                        "sweepAngle",
+                        "ry",
                         "The y-radius of the oval used to round the corners");
     }
 
@@ -121,5 +122,10 @@ public class DrawRoundRect extends DrawBase6 {
     @Override
     public void paint(@NonNull PaintContext context) {
         context.drawRoundRect(mV1, mV2, mV3, mV4, mV5, mV6);
+    }
+
+    @Override
+    public void serialize(MapSerializer serializer) {
+        serialize(serializer, "left", "top", "right", "bottom", "rx", "ry").addType(CLASS_NAME);
     }
 }

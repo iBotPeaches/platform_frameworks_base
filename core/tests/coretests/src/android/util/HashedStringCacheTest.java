@@ -26,7 +26,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Environment;
 import android.os.storage.StorageManager;
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import androidx.test.InstrumentationRegistry;
@@ -40,7 +40,7 @@ import java.io.File;
 /**
  * Unit tests for {@link HashedStringCache}.
  */
-@IgnoreUnderRavenwood(blockedBy = HashedStringCache.class)
+@DisabledOnRavenwood(blockedBy = HashedStringCache.class)
 public class HashedStringCacheTest {
     private static final String TAG = "HashedStringCacheTest";
     private Context mContext;
@@ -51,7 +51,7 @@ public class HashedStringCacheTest {
 
     @Before
     public void setup() {
-        if (!RavenwoodRule.isUnderRavenwood()) {
+        if (!RavenwoodRule.isOnRavenwood()) {
             mContext = InstrumentationRegistry.getContext();
             clearSharedPreferences();
         } else {

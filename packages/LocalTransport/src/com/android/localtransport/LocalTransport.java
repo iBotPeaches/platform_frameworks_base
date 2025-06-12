@@ -23,6 +23,7 @@ import android.app.backup.BackupAnnotations;
 import android.app.backup.BackupDataInput;
 import android.app.backup.BackupDataOutput;
 import android.app.backup.BackupManagerMonitor;
+import android.app.backup.BackupRestoreEventLogger;
 import android.app.backup.BackupRestoreEventLogger.DataTypeResult;
 import android.app.backup.BackupTransport;
 import android.app.backup.RestoreDescription;
@@ -38,6 +39,7 @@ import android.system.Os;
 import android.system.StructStat;
 import android.util.ArrayMap;
 import android.util.Base64;
+import android.util.Dumpable;
 import android.util.Log;
 
 import com.android.tools.r8.keepanno.annotations.KeepTarget;
@@ -51,6 +53,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,11 +63,14 @@ import java.util.List;
 /**
  * Backup transport for stashing stuff into a known location on disk, and
  * later restoring from there.  For testing only.
+ *
+ * <p>Note: the quickest way to build and sync this class is:
+ * {@code m LocalTransport && adb install $OUT/system/priv-app/LocalTransport/LocalTransport.apk}
  */
 
 public class LocalTransport extends BackupTransport {
-    private static final String TAG = "LocalTransport";
-    private static final boolean DEBUG = false;
+    static final String TAG = "LocalTransport";
+    static final boolean DEBUG = Log.isLoggable(TAG, Log.VERBOSE);
 
     private static final String TRANSPORT_DIR_NAME
             = "com.android.localtransport.LocalTransport";
@@ -124,6 +131,8 @@ public class LocalTransport extends BackupTransport {
     }
 
     public LocalTransport(Context context, LocalTransportParameters parameters) {
+        Log.i(TAG, "Creating LocalTransport for user " + context.getUserId()
+                + " (DEBUG=" + DEBUG + ")");
         mContext = context;
         mParameters = parameters;
         makeDataDirs();
@@ -910,35 +919,68 @@ public class LocalTransport extends BackupTransport {
         return mMonitor;
     }
 
-    private class TestBackupManagerMonitor extends BackupManagerMonitor {
+    private class TestBackupManagerMonitor extends BackupManagerMonitor implements Dumpable {
+
+        private final List<DataTypeResult> mReceivedResults = new ArrayList<>();
+        private int mNumberReceivedEvents;
+
         @Override
         public void onEvent(Bundle event) {
-            if (event == null || !mParameters.logAgentResults()) {
+            if (event == null) {
+                if (DEBUG) {
+                    Log.w(TAG, "onEvent() called with null");
+                }
                 return;
             }
-
-            if (event.getInt(BackupManagerMonitor.EXTRA_LOG_EVENT_ID)
-                    == BackupManagerMonitor.LOG_EVENT_ID_AGENT_LOGGING_RESULTS) {
-                Log.i(TAG, "agent_logging_results {");
-                ArrayList<DataTypeResult> results = event.getParcelableArrayList(
-                        BackupManagerMonitor.EXTRA_LOG_AGENT_LOGGING_RESULTS,
-                        DataTypeResult.class);
-                for (DataTypeResult result : results) {
-                    Log.i(TAG, "\tdataType: " + result.getDataType());
-                    Log.i(TAG, "\tsuccessCount: " + result.getSuccessCount());
-                    Log.i(TAG, "\tfailCount: " + result.getFailCount());
-                    Log.i(TAG, "\tmetadataHash: " + Arrays.toString(result.getMetadataHash()));
-
-                    if (!result.getErrors().isEmpty()) {
-                        Log.i(TAG, "\terrors {");
-                        for (String error : result.getErrors().keySet()) {
-                            Log.i(TAG, "\t\t" + error + ": " + result.getErrors().get(error));
-                        }
-                        Log.i(TAG, "\t}");
-                    }
-
-                    Log.i(TAG, "}");
+            int eventId = event.getInt(BackupManagerMonitor.EXTRA_LOG_EVENT_ID);
+            if (eventId != BackupManagerMonitor.LOG_EVENT_ID_AGENT_LOGGING_RESULTS) {
+                if (DEBUG) Log.v(TAG, "ignoring event with id " + eventId);
+                return;
+            }
+            mNumberReceivedEvents++;
+            boolean logResults = mParameters.logAgentResults();
+            ArrayList<DataTypeResult> results = event.getParcelableArrayList(
+                    BackupManagerMonitor.EXTRA_LOG_AGENT_LOGGING_RESULTS,
+                    DataTypeResult.class);
+            int size = results.size();
+            if (size == 0) {
+                if (logResults) {
+                    Log.i(TAG, "no agent_logging_results on event #" + mNumberReceivedEvents);
                 }
+                return;
+            }
+            if (logResults) {
+                Log.i(TAG, "agent_logging_results {");
+            }
+            for (int i = 0; i < size; i++) {
+                var result = results.get(i);
+                mReceivedResults.add(result);
+                if (logResults) {
+                    Log.i(TAG, "\t" + BackupRestoreEventLogger.toString(result));
+                }
+            }
+            if (logResults) {
+                Log.i(TAG, "}");
+            }
+        }
+
+        @Override
+        public void dump(PrintWriter pw, String[] args) {
+            pw.println("TestBackupManagerMonitor");
+            pw.printf("%d events received", mNumberReceivedEvents);
+            if (mNumberReceivedEvents == 0) {
+                pw.println();
+                return;
+            }
+            int size = mReceivedResults.size();
+            if (size == 0) {
+                pw.println("; no results on them");
+                return;
+            }
+            pw.printf("; %d results on them:\n", size);
+            for (int i = 0; i < size; i++) {
+                DataTypeResult result = mReceivedResults.get(i);
+                pw.printf("  #%d: %s\n", i, BackupRestoreEventLogger.toString(result));
             }
         }
     }
@@ -952,5 +994,61 @@ public class LocalTransport extends BackupTransport {
             Log.d(TAG, "No restricted mode packages: " + mParameters.noRestrictedModePackages());
         }
         return mParameters.noRestrictedModePackages();
+    }
+
+    @Override
+    public String toString() {
+        try {
+            try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
+                dump(pw, /* args= */ null);
+                pw.flush();
+                return sw.toString();
+            }
+        } catch (IOException e) {
+            // Shouldn't happen...
+            Log.e(TAG, "toString(): failed to dump", e);
+            return super.toString();
+        }
+    }
+
+    void dump(PrintWriter pw, String[] args) {
+        pw.printf("mDataDir: %s\n", mDataDir);
+        pw.printf("mCurrentSetDir: %s\n", mCurrentSetDir);
+        pw.printf("mCurrentSetIncrementalDir: %s\n", mCurrentSetIncrementalDir);
+        pw.printf("mCurrentSetFullDir: %s\n", mCurrentSetFullDir);
+
+        pw.printf("mRestorePackages: %s\n", Arrays.toString(mRestorePackages));
+        pw.printf("mRestorePackage: %d\n", mRestorePackage);
+        pw.printf("mRestoreType: %d\n", mRestoreType);
+        pw.printf("mRestoreSetDir: %s\n", mRestoreSetDir);
+        pw.printf("mRestoreSetIncrementalDir: %s\n", mRestoreSetIncrementalDir);
+        pw.printf("mRestoreSetFullDir: %s\n", mRestoreSetFullDir);
+
+        pw.printf("mFullTargetPackage: %s\n", mFullTargetPackage);
+        pw.printf("mSocket: %s\n", mSocket);
+        pw.printf("mSocketInputStream: %s\n", mSocketInputStream);
+        pw.printf("mFullBackupOutputStream: %s\n", mFullBackupOutputStream);
+        dumpByteArray(pw, "mFullBackupBuffer", mFullBackupBuffer);
+        pw.printf("mFullBackupSize: %d\n", mFullBackupSize);
+
+        pw.printf("mCurFullRestoreStream: %s\n", mCurFullRestoreStream);
+        dumpByteArray(pw, "mFullRestoreBuffer", mFullRestoreBuffer);
+        if (mParameters == null) {
+            pw.println("No LocalTransportParameters");
+        } else {
+            pw.println(mParameters);
+        }
+        if (mMonitor instanceof Dumpable) {
+            ((Dumpable) mMonitor).dump(pw, args);
+        }
+
+        pw.printf("currentDestinationString(): %s\n", currentDestinationString());
+        pw.printf("dataManagementIntent(): %s\n", dataManagementIntent());
+        pw.printf("dataManagementIntentLabel(): %s\n", dataManagementIntentLabel());
+        pw.printf("transportDirName(): %s\n", transportDirName());
+    }
+
+    private void dumpByteArray(PrintWriter pw, String name, byte[] array) {
+        pw.printf("%s size: %d\n", name, (array == null ? 0 : array.length));
     }
 }

@@ -1697,14 +1697,12 @@ public class SystemConfig {
                         }
                     } break;
                     case "require-strict-signature": {
-                        if (android.security.Flags.extendVbChainToUpdatedApk()) {
-                            String packageName = parser.getAttributeValue(null, "package");
-                            if (TextUtils.isEmpty(packageName)) {
-                                Slog.w(TAG, "<" + name + "> without valid package in " + permFile
-                                        + " at " + parser.getPositionDescription());
-                            } else {
-                                mPreinstallPackagesWithStrictSignatureCheck.add(packageName);
-                            }
+                        String packageName = parser.getAttributeValue(null, "package");
+                        if (TextUtils.isEmpty(packageName)) {
+                            Slog.w(TAG, "<" + name + "> without valid package in " + permFile
+                                    + " at " + parser.getPositionDescription());
+                        } else {
+                            mPreinstallPackagesWithStrictSignatureCheck.add(packageName);
                         }
                     } break;
                     case "oem-defined-uid": {

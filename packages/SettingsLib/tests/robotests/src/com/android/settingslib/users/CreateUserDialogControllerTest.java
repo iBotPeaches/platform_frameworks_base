@@ -211,7 +211,7 @@ public class CreateUserDialogControllerTest {
         editText.setText(expectedNewName);
         next.performClick();
         verify(successCallback, times(1))
-                .onSuccess(expectedNewName, null, true);
+                .onSuccess(expectedNewName, null, null, true);
         verifyNoInteractions(cancelCallback);
     }
 
@@ -233,7 +233,7 @@ public class CreateUserDialogControllerTest {
         editText.setText(expectedNewName);
         next.performClick();
         verify(successCallback, times(1))
-                .onSuccess(expectedNewName, null, false);
+                .onSuccess(expectedNewName, null, null, false);
         verifyNoInteractions(cancelCallback);
     }
 

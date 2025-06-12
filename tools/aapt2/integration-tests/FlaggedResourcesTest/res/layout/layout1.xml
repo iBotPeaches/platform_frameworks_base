@@ -6,12 +6,14 @@
 
     <TextView android:id="@+id/text1"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content"
+        android:featureFlag="test.package.readWriteFlag"/>
     <TextView android:id="@+id/disabled_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:featureFlag="test.package.falseFlag" />
     <TextView android:id="@+id/text2"
+        android:text="FIND_ME"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:featureFlag="test.package.trueFlag" />

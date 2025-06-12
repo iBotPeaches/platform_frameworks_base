@@ -18,46 +18,43 @@ package com.android.systemui.keyguard.ui.composable.section
 
 import android.view.ViewGroup
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.compose.animation.scene.SceneScope
-import com.android.compose.modifiers.thenIf
+import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.common.ui.ConfigurationState
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.keyguard.MigrateClocksToBlueprint
-import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
 import com.android.systemui.keyguard.ui.composable.blueprint.rememberBurnIn
 import com.android.systemui.keyguard.ui.composable.modifier.burnInAware
 import com.android.systemui.keyguard.ui.viewmodel.AodBurnInViewModel
 import com.android.systemui.keyguard.ui.viewmodel.BurnInParameters
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardRootViewModel
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.notifications.ui.composable.ConstrainedNotificationStack
 import com.android.systemui.notifications.ui.composable.SnoozeableHeadsUpNotificationSpace
 import com.android.systemui.res.R
-import com.android.systemui.shade.LargeScreenHeaderHelper
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.AlwaysOnDisplayNotificationIconViewStore
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.NotificationIconContainerViewBinder
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.StatusBarIconViewBindingFailureTracker
 import com.android.systemui.statusbar.notification.icon.ui.viewmodel.NotificationIconContainerAlwaysOnDisplayViewModel
+import com.android.systemui.statusbar.notification.promoted.AODPromotedNotification
+import com.android.systemui.statusbar.notification.promoted.PromotedNotificationUi
+import com.android.systemui.statusbar.notification.promoted.ui.viewmodel.AODPromotedNotificationViewModel
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout
 import com.android.systemui.statusbar.notification.stack.ui.view.NotificationScrollView
 import com.android.systemui.statusbar.notification.stack.ui.view.SharedNotificationContainer
@@ -89,19 +86,16 @@ constructor(
     private val iconBindingFailureTracker: StatusBarIconViewBindingFailureTracker,
     private val nicAodViewModel: NotificationIconContainerAlwaysOnDisplayViewModel,
     private val nicAodIconViewStore: AlwaysOnDisplayNotificationIconViewStore,
+    private val aodPromotedNotificationViewModelFactory: AODPromotedNotificationViewModel.Factory,
     private val systemBarUtilsState: SystemBarUtilsState,
-    private val clockInteractor: KeyguardClockInteractor,
+    private val keyguardClockViewModel: KeyguardClockViewModel,
 ) {
 
     init {
-        if (!MigrateClocksToBlueprint.isEnabled) {
-            throw IllegalStateException("this requires MigrateClocksToBlueprint.isEnabled")
-        }
         // This scene container section moves the NSSL to the SharedNotificationContainer.
         // This also requires that SharedNotificationContainer gets moved to the
         // SceneWindowRootView by the SceneWindowRootViewBinder. Prior to Scene Container,
-        // but when the KeyguardShadeMigrationNssl flag is enabled, NSSL is moved into this
-        // container by the NotificationStackScrollLayoutSection.
+        // NSSL is moved into this container by the NotificationStackScrollLayoutSection.
         // Ensure stackScrollLayout is a child of sharedNotificationContainer.
 
         if (stackScrollLayout.parent != sharedNotificationContainer) {
@@ -116,6 +110,33 @@ constructor(
     }
 
     @Composable
+    fun AodPromotedNotificationArea(modifier: Modifier = Modifier) {
+        if (!PromotedNotificationUi.isEnabled) {
+            return
+        }
+
+        val isVisible by
+            keyguardRootViewModel.isAodPromotedNotifVisible.collectAsStateWithLifecycle()
+        val transitionState = remember { MutableTransitionState(isVisible.value) }
+        LaunchedEffect(key1 = isVisible, key2 = transitionState.isIdle) {
+            transitionState.targetState = isVisible.value
+            if (isVisible.isAnimating && transitionState.isIdle) {
+                isVisible.stopAnimating()
+            }
+        }
+        val burnIn = rememberBurnIn(keyguardClockViewModel)
+
+        AnimatedVisibility(
+            visibleState = transitionState,
+            enter = if (isVisible.isAnimating) fadeIn() else EnterTransition.None,
+            exit = if (isVisible.isAnimating) fadeOut() else ExitTransition.None,
+            modifier = modifier.burnInAware(aodBurnInViewModel, burnIn.parameters),
+        ) {
+            AODPromotedNotification(aodPromotedNotificationViewModelFactory)
+        }
+    }
+
+    @Composable
     fun AodNotificationIcons(modifier: Modifier = Modifier) {
         val isVisible by
             keyguardRootViewModel.isNotifIconContainerVisible.collectAsStateWithLifecycle()
@@ -126,7 +147,7 @@ constructor(
                 isVisible.stopAnimating()
             }
         }
-        val burnIn = rememberBurnIn(clockInteractor)
+        val burnIn = rememberBurnIn(keyguardClockViewModel)
         AnimatedVisibility(
             visibleState = transitionState,
             enter = fadeIn(),
@@ -157,7 +178,7 @@ constructor(
     }
 
     @Composable
-    fun SceneScope.HeadsUpNotifications() {
+    fun ContentScope.HeadsUpNotifications() {
         SnoozeableHeadsUpNotificationSpace(
             stackScrollView = stackScrollView.get(),
             viewModel = rememberViewModel("HeadsUpNotifications") { viewModelFactory.create() },
@@ -169,9 +190,8 @@ constructor(
      *   adjustment
      */
     @Composable
-    fun SceneScope.Notifications(
+    fun ContentScope.Notifications(
         areNotificationsVisible: Boolean,
-        isShadeLayoutWide: Boolean,
         burnInParams: BurnInParameters?,
         modifier: Modifier = Modifier,
     ) {
@@ -179,23 +199,17 @@ constructor(
             return
         }
 
-        val splitShadeTopMargin: Dp =
-            LargeScreenHeaderHelper.getLargeScreenHeaderHeight(LocalContext.current).dp
-
         ConstrainedNotificationStack(
             stackScrollView = stackScrollView.get(),
             viewModel = rememberViewModel("Notifications") { viewModelFactory.create() },
             modifier =
-                modifier
-                    .fillMaxWidth()
-                    .thenIf(isShadeLayoutWide) { Modifier.padding(top = splitShadeTopMargin) }
-                    .let {
-                        if (burnInParams == null) {
-                            it
-                        } else {
-                            it.burnInAware(viewModel = aodBurnInViewModel, params = burnInParams)
-                        }
-                    },
+                modifier.fillMaxWidth().let {
+                    if (burnInParams == null) {
+                        it
+                    } else {
+                        it.burnInAware(viewModel = aodBurnInViewModel, params = burnInParams)
+                    }
+                },
         )
     }
 }

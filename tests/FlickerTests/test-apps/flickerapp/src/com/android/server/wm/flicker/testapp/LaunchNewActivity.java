@@ -19,17 +19,12 @@ package com.android.server.wm.flicker.testapp;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.WindowManager;
 import android.widget.Button;
 
 public class LaunchNewActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        WindowManager.LayoutParams p = getWindow().getAttributes();
-        p.layoutInDisplayCutoutMode = WindowManager.LayoutParams
-                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        getWindow().setAttributes(p);
         setContentView(R.layout.activity_launch_new);
 
         Button button = findViewById(R.id.launch_second_activity);

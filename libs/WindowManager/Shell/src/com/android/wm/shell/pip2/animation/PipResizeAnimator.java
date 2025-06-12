@@ -173,7 +173,7 @@ public class PipResizeAnimator extends ValueAnimator {
         transformTensor.postRotate(degrees, targetBounds.centerX(), targetBounds.centerY());
 
         tx.setMatrix(leash, transformTensor, mMatrixTmp)
-                .setCornerRadius(leash, cornerRadius)
+                .setCornerRadius(leash, cornerRadius / scaleX)
                 .setShadowRadius(leash, shadowRadius);
     }
 

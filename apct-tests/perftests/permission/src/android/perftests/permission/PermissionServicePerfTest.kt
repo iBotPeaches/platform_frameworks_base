@@ -28,24 +28,26 @@ import com.android.compatibility.common.util.AdoptShellPermissionsRule
 import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.google.common.truth.Truth.assertThat
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 import java.util.function.BiConsumer
 import org.junit.Ignore
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PermissionServicePerfTest {
     @get:Rule val mPerfManualStatusReporter = PerfManualStatusReporter()
-    @get:Rule val mAdoptShellPermissionsRule = AdoptShellPermissionsRule(
-        InstrumentationRegistry.getInstrumentation().getUiAutomation(),
-        Manifest.permission.INSTALL_PACKAGES,
-        Manifest.permission.DELETE_PACKAGES
-    )
+    @get:Rule
+    val mAdoptShellPermissionsRule =
+        AdoptShellPermissionsRule(
+            InstrumentationRegistry.getInstrumentation().getUiAutomation(),
+            Manifest.permission.INSTALL_PACKAGES,
+            Manifest.permission.DELETE_PACKAGES,
+        )
     val mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation()
 
     @Test
@@ -95,13 +97,14 @@ class PermissionServicePerfTest {
 
     private fun dumpResult(
         parser: TraceMarkParser,
-        handler: BiConsumer<String, List<TraceMarkParser.TraceMarkSlice>>
+        handler: BiConsumer<String, List<TraceMarkParser.TraceMarkSlice>>,
     ) {
         parser.reset()
         try {
-            val inputStream = ParcelFileDescriptor.AutoCloseInputStream(
-                mUiAutomation.executeShellCommand(COMMAND_TRACE_DUMP)
-            )
+            val inputStream =
+                ParcelFileDescriptor.AutoCloseInputStream(
+                    mUiAutomation.executeShellCommand(COMMAND_TRACE_DUMP)
+                )
             val reader = BufferedReader(InputStreamReader(inputStream))
             var line = reader.readLine()
             while (line != null) {

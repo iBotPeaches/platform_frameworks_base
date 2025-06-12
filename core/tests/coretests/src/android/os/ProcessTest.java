@@ -18,15 +18,18 @@
 package android.os;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.IgnoreUnderRavenwood;
+import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import org.junit.Rule;
 import org.junit.Test;
 
-@IgnoreUnderRavenwood(blockedBy = Process.class)
+import java.util.Arrays;
+
+@DisabledOnRavenwood(blockedBy = Process.class)
 public class ProcessTest {
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule();
@@ -91,5 +94,20 @@ public class ProcessTest {
     public void testGetAdvertisedMem() {
         assertTrue(Process.getAdvertisedMem() > 0);
         assertTrue(Process.getTotalMemory() <= Process.getAdvertisedMem());
+    }
+
+    @Test
+    public void testGetSchedAffinity() {
+        long[] tidMasks = Process.getSchedAffinity(Process.myTid());
+        long[] pidMasks = Process.getSchedAffinity(Process.myPid());
+        checkAffinityMasks(tidMasks);
+        checkAffinityMasks(pidMasks);
+    }
+
+    static void checkAffinityMasks(long[] masks) {
+        assertNotNull(masks);
+        assertTrue(masks.length > 0);
+        assertTrue("At least one of the affinity mask should be non-zero but got "
+                + Arrays.toString(masks), Arrays.stream(masks).anyMatch(value -> value > 0));
     }
 }

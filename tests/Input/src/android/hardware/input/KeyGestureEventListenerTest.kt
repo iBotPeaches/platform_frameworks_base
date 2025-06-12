@@ -43,8 +43,7 @@ import org.mockito.junit.MockitoJUnitRunner
 /**
  * Tests for [InputManager.KeyGestureEventListener].
  *
- * Build/Install/Run:
- * atest InputTests:KeyGestureEventListenerTest
+ * Build/Install/Run: atest InputTests:KeyGestureEventListenerTest
  */
 @Presubmit
 @RunWith(MockitoJUnitRunner::class)
@@ -52,18 +51,17 @@ class KeyGestureEventListenerTest {
 
     companion object {
         const val DEVICE_ID = 1
-        val HOME_GESTURE_EVENT = KeyGestureEvent.Builder()
-            .setDeviceId(DEVICE_ID)
-            .setKeycodes(intArrayOf(KeyEvent.KEYCODE_H))
-            .setModifierState(KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON)
-            .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
-            .build()
+        val HOME_GESTURE_EVENT =
+            KeyGestureEvent.Builder()
+                .setDeviceId(DEVICE_ID)
+                .setKeycodes(intArrayOf(KeyEvent.KEYCODE_H))
+                .setModifierState(KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON)
+                .setKeyGestureType(KeyGestureEvent.KEY_GESTURE_TYPE_HOME)
+                .build()
     }
 
-    @get:Rule
-    val rule = SetFlagsRule()
-    @get:Rule
-    val inputManagerRule = MockInputManagerRule()
+    @get:Rule val rule = SetFlagsRule()
+    @get:Rule val inputManagerRule = MockInputManagerRule()
 
     private val testLooper = TestLooper()
     private val executor = HandlerExecutor(Handler(testLooper.looper))
@@ -75,31 +73,38 @@ class KeyGestureEventListenerTest {
     fun setUp() {
         context = Mockito.spy(ContextWrapper(ApplicationProvider.getApplicationContext()))
         inputManager = InputManager(context)
-        `when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE)))
-                .thenReturn(inputManager)
+        `when`(context.getSystemService(Mockito.eq(Context.INPUT_SERVICE))).thenReturn(inputManager)
 
         // Handle key gesture event listener registration.
         doAnswer {
-            val listener = it.getArgument(0) as IKeyGestureEventListener
-            if (registeredListener != null &&
-                    registeredListener!!.asBinder() != listener.asBinder()) {
-                // There can only be one registered key gesture event listener per process.
-                fail("Trying to register a new listener when one already exists")
+                val listener = it.getArgument(0) as IKeyGestureEventListener
+                if (
+                    registeredListener != null &&
+                        registeredListener!!.asBinder() != listener.asBinder()
+                ) {
+                    // There can only be one registered key gesture event listener per process.
+                    fail("Trying to register a new listener when one already exists")
+                }
+                registeredListener = listener
+                null
             }
-            registeredListener = listener
-            null
-        }.`when`(inputManagerRule.mock).registerKeyGestureEventListener(any())
+            .`when`(inputManagerRule.mock)
+            .registerKeyGestureEventListener(any())
 
         // Handle key gesture event listener being unregistered.
         doAnswer {
-            val listener = it.getArgument(0) as IKeyGestureEventListener
-            if (registeredListener == null ||
-                    registeredListener!!.asBinder() != listener.asBinder()) {
-                fail("Trying to unregister a listener that is not registered")
+                val listener = it.getArgument(0) as IKeyGestureEventListener
+                if (
+                    registeredListener == null ||
+                        registeredListener!!.asBinder() != listener.asBinder()
+                ) {
+                    fail("Trying to unregister a listener that is not registered")
+                }
+                registeredListener = null
+                null
             }
-            registeredListener = null
-            null
-        }.`when`(inputManagerRule.mock).unregisterKeyGestureEventListener(any())
+            .`when`(inputManagerRule.mock)
+            .unregisterKeyGestureEventListener(any())
     }
 
     private fun notifyKeyGestureEvent(event: KeyGestureEvent) {
@@ -119,8 +124,7 @@ class KeyGestureEventListenerTest {
         var callbackCount = 0
 
         // Add a key gesture event listener
-        inputManager.registerKeyGestureEventListener(executor) {
-            event: KeyGestureEvent ->
+        inputManager.registerKeyGestureEventListener(executor) { event: KeyGestureEvent ->
             assertEquals(HOME_GESTURE_EVENT, event)
             callbackCount++
         }

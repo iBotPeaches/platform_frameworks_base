@@ -23,15 +23,21 @@ import static com.android.server.alarm.UserWakeupStore.USER_START_TIME_DEVIATION
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import android.content.res.AssetManager;
+import android.content.res.XmlResourceParser;
 import android.os.Environment;
 import android.os.FileUtils;
 import android.os.SystemClock;
+import android.util.Xml;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.internal.os.BackgroundThread;
+import com.android.internal.util.XmlUtils;
+import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.testing.ExtendedMockitoRule;
 
 import org.junit.After;
@@ -40,8 +46,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +64,7 @@ public class UserWakeupStoreTest {
     private static final File TEST_SYSTEM_DIR = new File(InstrumentationRegistry
             .getInstrumentation().getContext().getDataDir(), "alarmsTestDir");
     private static final File ROOT_DIR = new File(TEST_SYSTEM_DIR, UserWakeupStore.ROOT_DIR_NAME);
+    private static final String USERS_FILE_NAME = "usersWithAlarmClocks.xml";
     private ExecutorService mMockExecutorService = null;
     UserWakeupStore mUserWakeupStore;
 
@@ -105,7 +115,7 @@ public class UserWakeupStoreTest {
         Collections.sort(userWakeups);
         assertEquals(userIds, userWakeups);
 
-        final File file = new File(ROOT_DIR , "usersWithAlarmClocks.xml");
+        final File file = new File(ROOT_DIR, USERS_FILE_NAME);
         assertTrue(file.exists());
     }
 
@@ -178,5 +188,47 @@ public class UserWakeupStoreTest {
         assertTrue(mUserWakeupStore.getWakeupTimeForUser(USER_ID_2) - realtime
                 < 3 * BUFFER_TIME_MS + USER_START_TIME_DEVIATION_LIMIT_MS);
     }
-    //TODO: b/330264023 - Add tests for I/O in usersWithAlarmClocks.xml.
+
+    @Test
+    public void testWriteWakeups_xmlIsOrdered() {
+        mUserWakeupStore.addUserWakeup(USER_ID_1, TEST_TIMESTAMP - 19_000);
+        mUserWakeupStore.addUserWakeup(USER_ID_2, TEST_TIMESTAMP - 7_000);
+        assertFileContentsMatchExpectedXml("res/xml/expectedUserWakeupList_1.xml");
+    }
+
+    @Test
+    public void testWriteWakeups_containsOneEntryPerUser() {
+        mUserWakeupStore.addUserWakeup(USER_ID_1, TEST_TIMESTAMP - 19_000);
+        mUserWakeupStore.addUserWakeup(USER_ID_1, TEST_TIMESTAMP - 7_000);
+        assertFileContentsMatchExpectedXml("res/xml/expectedUserWakeupList_2.xml");
+    }
+
+    private static void assertFileContentsMatchExpectedXml(String expectedContentsFile) {
+        final File actual = new File(ROOT_DIR, USERS_FILE_NAME);
+        AssetManager assetManager =
+                InstrumentationRegistry.getInstrumentation().getContext().getAssets();
+        try (FileInputStream actualFis = new FileInputStream(actual)) {
+            final TypedXmlPullParser actualParser = Xml.resolvePullParser(actualFis);
+            final XmlResourceParser expectedParser = assetManager.openXmlResourceParser(
+                    expectedContentsFile);
+            for (XmlUtils.nextElement(expectedParser), XmlUtils.nextElement(actualParser);
+                    actualParser.getEventType() != XmlResourceParser.END_DOCUMENT
+                            && expectedParser.getEventType() != XmlResourceParser.END_DOCUMENT;
+                    XmlUtils.nextElement(actualParser), XmlUtils.nextElement(expectedParser)) {
+                assertEquals("Event types differ ", expectedParser.getEventType(),
+                        actualParser.getEventType());
+                for (int i = 0; i < expectedParser.getAttributeCount(); i++) {
+                    assertEquals("Attribute names differ at index " + i,
+                            expectedParser.getAttributeName(i), actualParser.getAttributeName(i));
+                    assertEquals("Attribute values differ at index " + i,
+                            expectedParser.getAttributeValue(i), actualParser.getAttributeValue(i));
+                }
+            }
+            // Ensure they are both at the end of document
+            assertEquals("One of the parsers has not reached the EOF",
+                    expectedParser.getEventType(), actualParser.getEventType());
+        } catch (IOException | XmlPullParserException e) {
+            fail(e.getLocalizedMessage());
+        }
+    }
 }

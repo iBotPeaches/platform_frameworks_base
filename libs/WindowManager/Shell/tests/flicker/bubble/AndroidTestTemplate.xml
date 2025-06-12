@@ -50,13 +50,17 @@
         <option name="run-command" value="rm -rf /data/user/%TEST_USER%/files/*"/>
         <!-- Disable AOD -->
         <option name="run-command" value="settings put secure doze_always_on 0"/>
+        <!-- Disable explore hub mode -->
+        <option name="run-command" value="settings put secure glanceable_hub_enabled 0"/>
         <option name="run-command" value="settings put secure show_ime_with_hard_keyboard 1"/>
         <option name="run-command" value="settings put system show_touches 1"/>
         <option name="run-command" value="settings put system pointer_location 1"/>
+        <option name="run-command" value="settings put secure glanceable_hub_enabled 0"/>
         <option name="teardown-command"
                 value="settings delete secure show_ime_with_hard_keyboard"/>
         <option name="teardown-command" value="settings delete system show_touches"/>
         <option name="teardown-command" value="settings delete system pointer_location"/>
+        <option name="teardown-command" value="settings delete secure glanceable_hub_enabled"/>
         <option name="teardown-command"
                 value="cmd overlay enable com.android.internal.systemui.navbar.gestural"/>
     </target_preparer>

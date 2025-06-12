@@ -121,6 +121,13 @@ genrule {
     out: ["com/android/server/location/contexthub/ContextHubStatsLog.java"],
 }
 
+genrule {
+    name: "statslog-mediarouter-java-gen",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --java $(out) --module mediarouter --javaPackage com.android.server.media --javaClass MediaRouterStatsLog",
+    out: ["com/android/server/media/MediaRouterStatsLog.java"],
+}
+
 java_library_static {
     name: "services.core.unboosted",
     defaults: [
@@ -131,10 +138,13 @@ java_library_static {
         "ondeviceintelligence_conditionally",
     ],
     srcs: [
+        ":android.hardware.audio.effect-V1-java-source",
         ":android.hardware.tv.hdmi.connection-V1-java-source",
         ":android.hardware.tv.hdmi.earc-V1-java-source",
+        ":android.hardware.tv.mediaquality-V1-java-source",
         ":statslog-art-java-gen",
         ":statslog-contexthub-java-gen",
+        ":statslog-mediarouter-java-gen",
         ":services.core-aidl-sources",
         ":services.core-sources",
         ":services.core.protologsrc",
@@ -142,6 +152,7 @@ java_library_static {
         ":platform-compat-overrides",
         ":display-device-config",
         ":display-layout-config",
+        ":display-topology",
         ":device-state-config",
         "java/com/android/server/EventLogTags.logtags",
         "java/com/android/server/am/EventLogTags.logtags",
@@ -225,12 +236,13 @@ java_library_static {
         "com.android.sysprop.watchdog",
         "securebox",
         "apache-commons-math",
+        "apache-commons-compress",
         "battery_saver_flag_lib",
         "notification_flags_lib",
         "power_hint_flags_lib",
         "biometrics_flags_lib",
+        "aconfig_settings_flags_lib",
         "am_flags_lib",
-        "updates_flags_lib",
         "com_android_server_accessibility_flags_lib",
         "//frameworks/libs/systemui:com_android_systemui_shared_flags_lib",
         "com_android_launcher3_flags_lib",
@@ -246,12 +258,12 @@ java_library_static {
         "dreams_flags_lib",
         "aconfig_new_storage_flags_lib",
         "powerstats_flags_lib",
-        "locksettings_flags_lib",
         "MmdProperties",
         "mmd_flags_lib",
         "profiling_flags_lib",
         "android.adpf.sessionmanager_aidl-java",
         "uprobestats_flags_java_lib",
+        "clipboard_flags_lib",
     ],
     javac_shard_size: 50,
     javacflags: [

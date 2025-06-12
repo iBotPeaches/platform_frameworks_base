@@ -21,6 +21,7 @@ package android.graphics;
  * generate a matrix that can be applied, for instance, on a
  * {@link Canvas}.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Camera {
     /**
      * Creates a new camera, with empty transformations.

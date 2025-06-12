@@ -19,11 +19,11 @@ package com.android.server.wm;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
 import static android.content.pm.ActivityInfo.INSETS_DECOUPLED_CONFIGURATION_ENFORCED;
+import static android.content.pm.ActivityInfo.OVERRIDE_ENABLE_INSETS_DECOUPLED_CONFIGURATION;
 import static android.content.res.Configuration.GRAMMATICAL_GENDER_NOT_SPECIFIED;
 import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.never;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
@@ -33,9 +33,11 @@ import static com.android.server.wm.ActivityRecord.State.RESUMED;
 import static com.android.server.wm.ActivityRecord.State.STARTED;
 import static com.android.server.wm.ActivityRecord.State.STOPPED;
 import static com.android.server.wm.ActivityRecord.State.STOPPING;
+import static com.android.server.wm.ConfigurationContainer.applySizeOverrideIfNeeded;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,6 +60,7 @@ import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.os.LocaleList;
 import android.os.RemoteException;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 
 import org.junit.Before;
@@ -291,7 +294,7 @@ public class WindowProcessControllerTests extends WindowTestsBase {
 
     @Test
     public void testCachedStateConfigurationChange() throws RemoteException {
-        doNothing().when(mClientLifecycleManager).scheduleTransactionItemNow(any(), any());
+        doReturn(true).when(mClientLifecycleManager).scheduleTransactionItemNow(any(), any());
         final IApplicationThread thread = mWpc.getThread();
         final Configuration newConfig = new Configuration(mWpc.getConfiguration());
         newConfig.densityDpi += 100;
@@ -379,12 +382,17 @@ public class WindowProcessControllerTests extends WindowTestsBase {
         assertFalse(tracker.hasResumedActivity(mWpc.mUid));
         assertTrue(mWpc.hasForegroundActivities());
 
-        activity.setVisibility(false);
         activity.setVisibleRequested(false);
-        activity.setState(STOPPED, "test");
-
+        if (com.android.window.flags.Flags.useVisibleRequestedForProcessTracker()) {
+            assertTrue("PAUSING is visible", mWpc.hasVisibleActivities());
+            activity.setState(PAUSED, "test");
+        } else {
+            activity.setVisible(false);
+        }
         verify(tracker).onAllActivitiesInvisible(mWpc);
         assertFalse(mWpc.hasVisibleActivities());
+
+        activity.setState(STOPPED, "test");
         assertFalse(mWpc.hasForegroundActivities());
     }
 
@@ -451,6 +459,56 @@ public class WindowProcessControllerTests extends WindowTestsBase {
         mWpc.addActivityIfNeeded(bottomRecord);
 
         assertEquals(topDisplayArea, mWpc.getTopActivityDisplayArea());
+    }
+
+    @Test
+    @EnableFlags(com.android.window.flags.Flags.FLAG_INSETS_DECOUPLED_CONFIGURATION)
+    public void testOverrideConfigurationApplied() {
+        final DisplayContent displayContent = new TestDisplayContent.Builder(mAtm, 1000, 1500)
+                .setSystemDecorations(true).setDensityDpi(160).build();
+        final DisplayPolicy displayPolicy = displayContent.getDisplayPolicy();
+        // Setup the decor insets info.
+        final DisplayPolicy.DecorInsets.Info decorInsetsInfo = new DisplayPolicy.DecorInsets.Info();
+        final Rect emptyRect = new Rect();
+        decorInsetsInfo.mNonDecorInsets.set(emptyRect);
+        decorInsetsInfo.mConfigInsets.set(emptyRect);
+        decorInsetsInfo.mOverrideConfigInsets.set(new Rect(0, 100, 0, 200));
+        decorInsetsInfo.mOverrideNonDecorInsets.set(new Rect(0, 0, 0, 200));
+        decorInsetsInfo.mNonDecorFrame.set(new Rect(0, 0, 1000, 1500));
+        decorInsetsInfo.mConfigFrame.set(new Rect(0, 0, 1000, 1500));
+        decorInsetsInfo.mOverrideConfigFrame.set(new Rect(0, 100, 1000, 1300));
+        decorInsetsInfo.mOverrideNonDecorFrame.set(new Rect(0, 0, 1000, 1300));
+        doReturn(decorInsetsInfo).when(displayPolicy)
+                .getDecorInsetsInfo(anyInt(), anyInt(), anyInt());
+
+        final Configuration newParentConfig = displayContent.getConfiguration();
+        final Configuration resolvedConfig = new Configuration();
+
+        // Mock the app info to not enforce the decoupled configuration to apply the override.
+        final ApplicationInfo appInfo = mock(ApplicationInfo.class);
+        doReturn(false).when(appInfo)
+                .isChangeEnabled(INSETS_DECOUPLED_CONFIGURATION_ENFORCED);
+        doReturn(false).when(appInfo)
+                .isChangeEnabled(OVERRIDE_ENABLE_INSETS_DECOUPLED_CONFIGURATION);
+
+        // No value should be set before override.
+        assertNull(resolvedConfig.windowConfiguration.getAppBounds());
+        applySizeOverrideIfNeeded(
+                displayContent,
+                appInfo,
+                newParentConfig,
+                resolvedConfig,
+                false /* optsOutEdgeToEdge */,
+                false /* hasFixedRotationTransform */,
+                false /* hasCompatDisplayInsets */,
+                null /* task */);
+
+        // Assert the override config insets are applied.
+        // Status bars, and all non-decor insets should be deducted for the config screen size.
+        assertEquals(1200, resolvedConfig.screenHeightDp);
+        // Only the non-decor insets should be deducted for the app bounds.
+        assertNotNull(resolvedConfig.windowConfiguration.getAppBounds());
+        assertEquals(1300, resolvedConfig.windowConfiguration.getAppBounds().height());
     }
 
     private TestDisplayContent createTestDisplayContentInContainer() {

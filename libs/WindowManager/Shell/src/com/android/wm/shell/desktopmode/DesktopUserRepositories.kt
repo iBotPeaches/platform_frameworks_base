@@ -21,25 +21,31 @@ import android.content.Context
 import android.content.pm.UserInfo
 import android.os.UserManager
 import android.util.SparseArray
+import android.window.DesktopExperienceFlags
+import android.window.DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_HSUM
+import androidx.core.util.forEach
 import com.android.internal.protolog.ProtoLog
-import com.android.window.flags.Flags
 import com.android.wm.shell.desktopmode.persistence.DesktopPersistentRepository
 import com.android.wm.shell.desktopmode.persistence.DesktopRepositoryInitializer
 import com.android.wm.shell.protolog.ShellProtoLogGroup.WM_SHELL_DESKTOP_MODE
 import com.android.wm.shell.shared.annotations.ShellMainThread
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
+import com.android.wm.shell.sysui.ShellController
 import com.android.wm.shell.sysui.ShellInit
 import com.android.wm.shell.sysui.UserChangeListener
+import java.io.PrintWriter
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /** Manages per-user DesktopRepository instances. */
 class DesktopUserRepositories(
     context: Context,
     shellInit: ShellInit,
+    private val shellController: ShellController,
     private val persistentRepository: DesktopPersistentRepository,
     private val repositoryInitializer: DesktopRepositoryInitializer,
     @ShellMainThread private val mainCoroutineScope: CoroutineScope,
-    userManager: UserManager,
+    private val userManager: UserManager,
 ) : UserChangeListener {
     private var userId: Int
     private var userIdToProfileIdsMap: MutableMap<Int, List<Int>> = mutableMapOf()
@@ -61,20 +67,31 @@ class DesktopUserRepositories(
     init {
         userId = ActivityManager.getCurrentUser()
         if (DesktopModeStatus.canEnterDesktopMode(context)) {
-            shellInit.addInitCallback(::initRepoFromPersistentStorage, this)
+            shellInit.addInitCallback(::onInit, this)
         }
-        if (Flags.enableDesktopWindowingHsum()) {
+        if (
+            ENABLE_DESKTOP_WINDOWING_HSUM.isTrue() &&
+                !DesktopExperienceFlags.ENABLE_MULTIPLE_DESKTOPS_BACKEND.isTrue
+        ) {
             userIdToProfileIdsMap[userId] = userManager.getProfiles(userId).map { it.id }
         }
     }
 
-    private fun initRepoFromPersistentStorage() {
+    private fun onInit() {
         repositoryInitializer.initialize(this)
+        shellController.addUserChangeListener(this)
+        if (
+            ENABLE_DESKTOP_WINDOWING_HSUM.isTrue() &&
+                DesktopExperienceFlags.ENABLE_MULTIPLE_DESKTOPS_BACKEND.isTrue
+        ) {
+            userId = ActivityManager.getCurrentUser()
+            userIdToProfileIdsMap[userId] = userManager.getProfiles(userId).map { it.id }
+        }
     }
 
     /** Returns [DesktopRepository] for the parent user id. */
     fun getProfile(profileId: Int): DesktopRepository {
-        if (Flags.enableDesktopWindowingHsum()) {
+        if (ENABLE_DESKTOP_WINDOWING_HSUM.isTrue()) {
             for ((uid, profileIds) in userIdToProfileIdsMap) {
                 if (profileId in profileIds) {
                     return desktopRepoByUserId.getOrCreate(uid)
@@ -84,21 +101,61 @@ class DesktopUserRepositories(
         return desktopRepoByUserId.getOrCreate(profileId)
     }
 
+    fun getUserIdForProfile(profileId: Int): Int {
+        if (userIdToProfileIdsMap[userId]?.contains(profileId) == true) return userId
+        else return profileId
+    }
+
+    /** Dumps [DesktopRepository] for each user. */
+    fun dump(pw: PrintWriter, prefix: String) {
+        val innerPrefix = "$prefix    "
+        pw.println("${prefix}DesktopUserRepositories:")
+        pw.println("${innerPrefix}currentUserId=$userId")
+        desktopRepoByUserId.forEach { key, value -> value.dump(pw, innerPrefix) }
+    }
+
     override fun onUserChanged(newUserId: Int, userContext: Context) {
         logD("onUserChanged previousUserId=%d, newUserId=%d", userId, newUserId)
         userId = newUserId
+        if (ENABLE_DESKTOP_WINDOWING_HSUM.isTrue()) {
+            sanitizeUsers()
+        }
     }
 
     override fun onUserProfilesChanged(profiles: MutableList<UserInfo>) {
         logD("onUserProfilesChanged profiles=%s", profiles.toString())
-        if (Flags.enableDesktopWindowingHsum()) {
+        if (ENABLE_DESKTOP_WINDOWING_HSUM.isTrue()) {
             // TODO(b/366397912): Remove all persisted profile data when the profile changes.
             userIdToProfileIdsMap[userId] = profiles.map { it.id }
         }
     }
 
+    private fun sanitizeUsers() {
+        val aliveUserIds = userManager.getAliveUsers().map { it.id }
+        val usersToDelete = userIdToProfileIdsMap.keys.filterNot { it in aliveUserIds }
+
+        usersToDelete.forEach { uid ->
+            userIdToProfileIdsMap.remove(uid)
+            desktopRepoByUserId.remove(uid)
+        }
+        mainCoroutineScope.launch {
+            try {
+                persistentRepository.removeUsers(usersToDelete)
+            } catch (exception: Exception) {
+                logE(
+                    "An exception occurred while updating the persistent repository \n%s",
+                    exception.stackTrace,
+                )
+            }
+        }
+    }
+
     private fun logD(msg: String, vararg arguments: Any?) {
         ProtoLog.d(WM_SHELL_DESKTOP_MODE, "%s: $msg", TAG, *arguments)
+    }
+
+    private fun logE(msg: String, vararg arguments: Any?) {
+        ProtoLog.e(WM_SHELL_DESKTOP_MODE, "%s: $msg", TAG, *arguments)
     }
 
     companion object {

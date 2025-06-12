@@ -16,23 +16,21 @@
 
 package com.android.systemui.navigationbar;
 
-import static com.android.systemui.Flags.enableViewCaptureTracing;
-import static com.android.systemui.util.ConvenienceExtensionsKt.toKotlinLazy;
-
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 
-import com.android.app.viewcapture.ViewCapture;
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
+import com.android.app.displaylib.PerDisplayRepository;
 import com.android.systemui.dagger.qualifiers.DisplayId;
+import com.android.systemui.model.SysUiState;
 import com.android.systemui.navigationbar.NavigationBarComponent.NavigationBarScope;
 import com.android.systemui.navigationbar.views.NavigationBarFrame;
 import com.android.systemui.navigationbar.views.NavigationBarView;
 import com.android.systemui.res.R;
+import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround;
+import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
-import dagger.Lazy;
 import dagger.Module;
 import dagger.Provides;
 
@@ -67,18 +65,22 @@ public interface NavigationBarModule {
     @Provides
     @NavigationBarScope
     @DisplayId
-    static WindowManager provideWindowManager(@DisplayId Context context) {
-        return context.getSystemService(WindowManager.class);
+    static WindowManager provideWindowManager(@DisplayId Context context,
+            WindowManagerProvider windowManagerProvider) {
+        return windowManagerProvider.getWindowManager(context);
     }
 
-    /** A ViewCaptureAwareWindowManager specific to the display's context. */
+    /** A SysUiState for the navigation bar display. */
     @Provides
     @NavigationBarScope
     @DisplayId
-    static ViewCaptureAwareWindowManager provideViewCaptureAwareWindowManager(
-            @DisplayId WindowManager windowManager, Lazy<ViewCapture> daggerLazyViewCapture) {
-        return new ViewCaptureAwareWindowManager(windowManager,
-                /* lazyViewCapture= */ toKotlinLazy(daggerLazyViewCapture),
-                /* isViewCaptureEnabled= */ enableViewCaptureTracing());
+    static SysUiState provideSysUiState(@DisplayId Context context,
+            SysUiState defaultState,
+            PerDisplayRepository<SysUiState> repository) {
+        if (ShadeWindowGoesAround.isEnabled()) {
+            return repository.get(context.getDisplayId());
+        } else {
+            return defaultState;
+        }
     }
 }

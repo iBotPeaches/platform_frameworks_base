@@ -42,7 +42,6 @@ import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener
 import androidx.annotation.VisibleForTesting
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.animation.ActivityTransitionAnimator
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
@@ -69,7 +68,6 @@ import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import dagger.Lazy
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -83,14 +81,13 @@ private const val TAG = "UdfpsControllerOverlay"
  * Keeps track of the overlay state and UI resources associated with a single FingerprintService
  * request. This state can persist across configuration changes via the [show] and [hide] methods.
  */
-@ExperimentalCoroutinesApi
 @UiThread
 class UdfpsControllerOverlay
 @JvmOverloads
 constructor(
     private val context: Context,
     private val inflater: LayoutInflater,
-    private val windowManager: ViewCaptureAwareWindowManager,
+    private val windowManager: WindowManager,
     private val accessibilityManager: AccessibilityManager,
     private val statusBarStateController: StatusBarStateController,
     private val statusBarKeyguardViewManager: StatusBarKeyguardViewManager,
@@ -109,7 +106,6 @@ constructor(
     private val primaryBouncerInteractor: PrimaryBouncerInteractor,
     private val alternateBouncerInteractor: AlternateBouncerInteractor,
     private val isDebuggable: Boolean = Build.IS_DEBUGGABLE,
-    private val udfpsKeyguardAccessibilityDelegate: UdfpsKeyguardAccessibilityDelegate,
     private val transitionInteractor: KeyguardTransitionInteractor,
     private val selectedUserInteractor: SelectedUserInteractor,
     private val deviceEntryUdfpsTouchOverlayViewModel: Lazy<DeviceEntryUdfpsTouchOverlayViewModel>,
@@ -155,9 +151,7 @@ constructor(
                 gravity = android.view.Gravity.TOP or android.view.Gravity.LEFT
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                flags =
-                    (Utils.FINGERPRINT_OVERLAY_LAYOUT_PARAM_FLAGS or
-                        WindowManager.LayoutParams.FLAG_SPLIT_TOUCH)
+                flags = Utils.FINGERPRINT_OVERLAY_LAYOUT_PARAM_FLAGS
                 privateFlags =
                     WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERLAY or
                         WindowManager.LayoutParams.PRIVATE_FLAG_EXCLUDE_FROM_SCREEN_MAGNIFICATION

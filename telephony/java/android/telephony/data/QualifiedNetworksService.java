@@ -17,7 +17,6 @@
 package android.telephony.data;
 
 import android.annotation.CallbackExecutor;
-import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.app.Service;
@@ -41,7 +40,6 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.IIntegerConsumer;
 import com.android.internal.telephony.flags.FeatureFlags;
 import com.android.internal.telephony.flags.FeatureFlagsImpl;
-import com.android.internal.telephony.flags.Flags;
 import com.android.internal.util.FunctionalUtils;
 import com.android.telephony.Rlog;
 
@@ -290,22 +288,12 @@ public abstract class QualifiedNetworksService extends Service {
          * @param resultCodeCallback A callback to determine whether the request was successfully
          *     submitted or not.
          */
-        @FlaggedApi(Flags.FLAG_NETWORK_VALIDATION)
         public void requestNetworkValidation(
                 @NetCapability int networkCapability,
                 @NonNull @CallbackExecutor Executor executor,
                 @NonNull @DataServiceCallback.ResultCode Consumer<Integer> resultCodeCallback) {
             Objects.requireNonNull(executor, "executor cannot be null");
             Objects.requireNonNull(resultCodeCallback, "resultCodeCallback cannot be null");
-
-            if (!sFeatureFlag.networkValidation()) {
-                loge("networkValidation feature is disabled");
-                executor.execute(
-                        () ->
-                                resultCodeCallback.accept(
-                                        DataServiceCallback.RESULT_ERROR_UNSUPPORTED));
-                return;
-            }
 
             IIntegerConsumer callback = new IIntegerConsumer.Stub() {
                 @Override

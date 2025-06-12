@@ -32,7 +32,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import android.app.backup.IBackupManagerMonitor;
@@ -239,7 +238,7 @@ public class TarBackupReaderTest {
                 mMockPackageManagerInternal, mUserId, mContext);
 
         assertThat(policy).isEqualTo(RestorePolicy.IGNORE);
-        verifyZeroInteractions(mBackupManagerMonitorMock);
+        verifyNoMoreInteractions(mBackupManagerMonitorMock);
     }
 
     @Test

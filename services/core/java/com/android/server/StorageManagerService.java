@@ -49,7 +49,6 @@ import static com.android.internal.util.XmlUtils.writeStringAttribute;
 import static org.xmlpull.v1.XmlPullParser.END_DOCUMENT;
 import static org.xmlpull.v1.XmlPullParser.START_TAG;
 
-import android.annotation.EnforcePermission;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -161,8 +160,13 @@ import com.android.server.memory.ZramMaintenance;
 import com.android.server.pm.Installer;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.storage.AppFuseBridge;
+import com.android.server.storage.ImmutableVolumeInfo;
 import com.android.server.storage.StorageSessionController;
 import com.android.server.storage.StorageSessionController.ExternalStorageServiceException;
+import com.android.server.storage.WatchedVolumeInfo;
+import com.android.server.utils.Watchable;
+import com.android.server.utils.WatchedArrayMap;
+import com.android.server.utils.Watcher;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerInternal.ScreenObserver;
 
@@ -401,6 +405,10 @@ class StorageManagerService extends IStorageManager.Stub
      * value in the array changes, then the binder cache for {@link UserManager#isUserUnlocked} must
      * be invalidated.  When adding mutating methods to this class, be sure to invalidate the cache
      * in the new methods.
+     *
+     * Since we could report mounting state of already mounted emulated volume as unmounted
+     * in getVolumeList method if it belongs to not unlocked users,
+     * we also need to invalidate VolumeListCache when mutation happens to CE unlocked users array.
      */
     private static class WatchedUnlockedUsers {
         private int[] users = EmptyArray.INT;
@@ -410,16 +418,19 @@ class StorageManagerService extends IStorageManager.Stub
         public void append(int userId) {
             users = ArrayUtils.appendInt(users, userId);
             invalidateIsUserUnlockedCache();
+            StorageManager.invalidateVolumeListCache();
         }
         public void appendAll(int[] userIds) {
             for (int userId : userIds) {
                 users = ArrayUtils.appendInt(users, userId);
             }
             invalidateIsUserUnlockedCache();
+            StorageManager.invalidateVolumeListCache();
         }
         public void remove(int userId) {
             users = ArrayUtils.removeInt(users, userId);
             invalidateIsUserUnlockedCache();
+            StorageManager.invalidateVolumeListCache();
         }
         public boolean contains(int userId) {
             return ArrayUtils.contains(users, userId);
@@ -452,7 +463,7 @@ class StorageManagerService extends IStorageManager.Stub
     private ArrayMap<String, DiskInfo> mDisks = new ArrayMap<>();
     /** Map from volume ID to disk */
     @GuardedBy("mLock")
-    private final ArrayMap<String, VolumeInfo> mVolumes = new ArrayMap<>();
+    private final WatchedArrayMap<String, WatchedVolumeInfo> mVolumes = new WatchedArrayMap<>();
 
     /** Map from UUID to record */
     @GuardedBy("mLock")
@@ -503,9 +514,9 @@ class StorageManagerService extends IStorageManager.Stub
             "(?i)(^/storage/[^/]+/(?:([0-9]+)/)?Android/(?:data|media|obb|sandbox)/)([^/]+)(/.*)?");
 
 
-    private VolumeInfo findVolumeByIdOrThrow(String id) {
+    private WatchedVolumeInfo findVolumeByIdOrThrow(String id) {
         synchronized (mLock) {
-            final VolumeInfo vol = mVolumes.get(id);
+            final WatchedVolumeInfo vol = mVolumes.get(id);
             if (vol != null) {
                 return vol;
             }
@@ -516,9 +527,9 @@ class StorageManagerService extends IStorageManager.Stub
     private VolumeRecord findRecordForPath(String path) {
         synchronized (mLock) {
             for (int i = 0; i < mVolumes.size(); i++) {
-                final VolumeInfo vol = mVolumes.valueAt(i);
-                if (vol.path != null && path.startsWith(vol.path)) {
-                    return mRecords.get(vol.fsUuid);
+                final WatchedVolumeInfo vol = mVolumes.valueAt(i);
+                if (vol.getFsPath() != null && path.startsWith(vol.getFsPath())) {
+                    return mRecords.get(vol.getFsUuid());
                 }
             }
         }
@@ -764,7 +775,7 @@ class StorageManagerService extends IStorageManager.Stub
                     break;
                 }
                 case H_VOLUME_MOUNT: {
-                    final VolumeInfo vol = (VolumeInfo) msg.obj;
+                    final WatchedVolumeInfo vol = (WatchedVolumeInfo) msg.obj;
                     if (isMountDisallowed(vol)) {
                         Slog.i(TAG, "Ignoring mount " + vol.getId() + " due to policy");
                         break;
@@ -774,7 +785,7 @@ class StorageManagerService extends IStorageManager.Stub
                     break;
                 }
                 case H_VOLUME_UNMOUNT: {
-                    final VolumeInfo vol = (VolumeInfo) msg.obj;
+                    final ImmutableVolumeInfo vol = (ImmutableVolumeInfo) msg.obj;
                     unmount(vol);
                     break;
                 }
@@ -828,7 +839,8 @@ class StorageManagerService extends IStorageManager.Stub
                 }
                 case H_VOLUME_STATE_CHANGED: {
                     final SomeArgs args = (SomeArgs) msg.obj;
-                    onVolumeStateChangedAsync((VolumeInfo) args.arg1, args.argi1, args.argi2);
+                    onVolumeStateChangedAsync((WatchedVolumeInfo) args.arg1, args.argi1,
+                            args.argi2);
                     args.recycle();
                     break;
                 }
@@ -892,10 +904,16 @@ class StorageManagerService extends IStorageManager.Stub
                     synchronized (mLock) {
                         final int size = mVolumes.size();
                         for (int i = 0; i < size; i++) {
-                            final VolumeInfo vol = mVolumes.valueAt(i);
-                            if (vol.mountUserId == userId) {
-                                vol.mountUserId = UserHandle.USER_NULL;
-                                mHandler.obtainMessage(H_VOLUME_UNMOUNT, vol).sendToTarget();
+                            final WatchedVolumeInfo vol = mVolumes.valueAt(i);
+                            if (vol.getMountUserId() == userId) {
+                                // Capture the volume before we set mount user id to null,
+                                // so that StorageSessionController remove the session from
+                                // the correct user (old mount user id)
+                                final ImmutableVolumeInfo volToUnmount
+                                        = vol.getClonedImmutableVolumeInfo();
+                                vol.setMountUserId(UserHandle.USER_NULL);
+                                mHandler.obtainMessage(H_VOLUME_UNMOUNT, volToUnmount)
+                                        .sendToTarget();
                             }
                         }
                     }
@@ -1084,7 +1102,7 @@ class StorageManagerService extends IStorageManager.Stub
                 VolumeInfo.TYPE_PRIVATE, null, null);
         internal.state = VolumeInfo.STATE_MOUNTED;
         internal.path = Environment.getDataDirectory().getAbsolutePath();
-        mVolumes.put(internal.id, internal);
+        mVolumes.put(internal.id, WatchedVolumeInfo.fromVolumeInfo(internal));
     }
 
     private void resetIfBootedAndConnected() {
@@ -1242,7 +1260,7 @@ class StorageManagerService extends IStorageManager.Stub
                 }
             }
             for (int i = 0; i < mVolumes.size(); i++) {
-                final VolumeInfo vol = mVolumes.valueAt(i);
+                final WatchedVolumeInfo vol = mVolumes.valueAt(i);
                 if (vol.isVisibleForUser(userId) && vol.isMountedReadable()) {
                     final StorageVolume userVol = vol.buildStorageVolume(mContext, userId, false);
                     mHandler.obtainMessage(H_VOLUME_BROADCAST, userVol).sendToTarget();
@@ -1253,6 +1271,11 @@ class StorageManagerService extends IStorageManager.Stub
             }
             mSystemUnlockedUsers = ArrayUtils.appendInt(mSystemUnlockedUsers, userId);
         }
+        // Invalidate the StorageManager cache to ensure that
+        // getVolumeList function returns the latest volumes.
+        // This is needed as we intentionally report the volume as unmounted in getVolumeList,
+        // if the user is not unlocked, even though it might have been mounted already.
+        StorageManager.invalidateVolumeListCache();
     }
 
     private void extendWatchdogTimeout(String reason) {
@@ -1291,24 +1314,32 @@ class StorageManagerService extends IStorageManager.Stub
     }
 
     private void maybeRemountVolumes(int userId) {
-        List<VolumeInfo> volumesToRemount = new ArrayList<>();
+        // We need to keep 2 lists
+        // 1. List of volumes before we set the mount user Id so that
+        // StorageSessionController is able to remove the session from the correct user (old one)
+        // 2. List of volumes to mount which should have the up to date info
+        List<ImmutableVolumeInfo> volumesToUnmount = new ArrayList<>();
+        List<WatchedVolumeInfo> volumesToMount = new ArrayList<>();
         synchronized (mLock) {
             for (int i = 0; i < mVolumes.size(); i++) {
-                final VolumeInfo vol = mVolumes.valueAt(i);
+                final WatchedVolumeInfo vol = mVolumes.valueAt(i);
                 if (!vol.isPrimary() && vol.isMountedWritable() && vol.isVisible()
                         && vol.getMountUserId() != mCurrentUserId) {
                     // If there's a visible secondary volume mounted,
                     // we need to update the currentUserId and remount
-                    vol.mountUserId = mCurrentUserId;
-                    volumesToRemount.add(vol);
+                    // But capture the volume with the old user id first to use it in unmounting
+                    volumesToUnmount.add(vol.getClonedImmutableVolumeInfo());
+                    vol.setMountUserId(mCurrentUserId);
+                    volumesToMount.add(vol);
                 }
             }
         }
 
-        for (VolumeInfo vol : volumesToRemount) {
-            Slog.i(TAG, "Remounting volume for user: " + userId + ". Volume: " + vol);
-            mHandler.obtainMessage(H_VOLUME_UNMOUNT, vol).sendToTarget();
-            mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
+        for (int i = 0; i < volumesToMount.size(); i++) {
+            Slog.i(TAG, "Remounting volume for user: " + userId + ". Volume: "
+                    + volumesToUnmount.get(i));
+            mHandler.obtainMessage(H_VOLUME_UNMOUNT, volumesToUnmount.get(i)).sendToTarget();
+            mHandler.obtainMessage(H_VOLUME_MOUNT, volumesToMount.get(i)).sendToTarget();
         }
     }
 
@@ -1317,12 +1348,12 @@ class StorageManagerService extends IStorageManager.Stub
      * trying to mount doesn't have the same mount user id as the current user being maintained by
      * StorageManagerService and change the mount Id. The checks are same as
      * {@link StorageManagerService#maybeRemountVolumes(int)}
-     * @param VolumeInfo object to consider for changing the mountId
+     * @param vol {@link WatchedVolumeInfo} object to consider for changing the mountId
      */
-    private void updateVolumeMountIdIfRequired(VolumeInfo vol) {
+    private void updateVolumeMountIdIfRequired(WatchedVolumeInfo vol) {
         synchronized (mLock) {
             if (!vol.isPrimary() && vol.isVisible() && vol.getMountUserId() != mCurrentUserId) {
-                vol.mountUserId = mCurrentUserId;
+                vol.setMountUserId(mCurrentUserId);
             }
         }
     }
@@ -1485,20 +1516,21 @@ class StorageManagerService extends IStorageManager.Stub
                 final DiskInfo disk = mDisks.get(diskId);
                 final VolumeInfo vol = new VolumeInfo(volId, type, disk, partGuid);
                 vol.mountUserId = userId;
-                mVolumes.put(volId, vol);
-                onVolumeCreatedLocked(vol);
+                WatchedVolumeInfo watchedVol = WatchedVolumeInfo.fromVolumeInfo(vol);
+                mVolumes.put(volId, watchedVol);
+                onVolumeCreatedLocked(watchedVol);
             }
         }
 
         @Override
         public void onVolumeStateChanged(String volId, final int newState, final int userId) {
             synchronized (mLock) {
-                final VolumeInfo vol = mVolumes.get(volId);
+                final WatchedVolumeInfo vol = mVolumes.get(volId);
                 if (vol != null) {
-                    final int oldState = vol.state;
-                    vol.state = newState;
-                    final VolumeInfo vInfo = new VolumeInfo(vol);
-                    vInfo.mountUserId = userId;
+                    final int oldState = vol.getState();
+                    vol.setState(newState);
+                    final WatchedVolumeInfo vInfo = new WatchedVolumeInfo(vol);
+                    vInfo.setMountUserId(userId);
                     final SomeArgs args = SomeArgs.obtain();
                     args.arg1 = vInfo;
                     args.argi1 = oldState;
@@ -1513,11 +1545,11 @@ class StorageManagerService extends IStorageManager.Stub
         public void onVolumeMetadataChanged(String volId, String fsType, String fsUuid,
                 String fsLabel) {
             synchronized (mLock) {
-                final VolumeInfo vol = mVolumes.get(volId);
+                final WatchedVolumeInfo vol = mVolumes.get(volId);
                 if (vol != null) {
-                    vol.fsType = fsType;
-                    vol.fsUuid = fsUuid;
-                    vol.fsLabel = fsLabel;
+                    vol.setFsType(fsType);
+                    vol.setFsUuid(fsUuid);
+                    vol.setFsLabel(fsLabel);
                 }
             }
         }
@@ -1525,9 +1557,9 @@ class StorageManagerService extends IStorageManager.Stub
         @Override
         public void onVolumePathChanged(String volId, String path) {
             synchronized (mLock) {
-                final VolumeInfo vol = mVolumes.get(volId);
+                final WatchedVolumeInfo vol = mVolumes.get(volId);
                 if (vol != null) {
-                    vol.path = path;
+                    vol.setFsPath(path);
                 }
             }
         }
@@ -1535,24 +1567,24 @@ class StorageManagerService extends IStorageManager.Stub
         @Override
         public void onVolumeInternalPathChanged(String volId, String internalPath) {
             synchronized (mLock) {
-                final VolumeInfo vol = mVolumes.get(volId);
+                final WatchedVolumeInfo vol = mVolumes.get(volId);
                 if (vol != null) {
-                    vol.internalPath = internalPath;
+                    vol.setInternalPath(internalPath);
                 }
             }
         }
 
         @Override
         public void onVolumeDestroyed(String volId) {
-            VolumeInfo vol = null;
+            WatchedVolumeInfo vol = null;
             synchronized (mLock) {
                 vol = mVolumes.remove(volId);
             }
 
             if (vol != null) {
-                mStorageSessionController.onVolumeRemove(vol);
+                mStorageSessionController.onVolumeRemove(vol.getImmutableVolumeInfo());
                 try {
-                    if (vol.type == VolumeInfo.TYPE_PRIVATE) {
+                    if (vol.getType() == VolumeInfo.TYPE_PRIVATE) {
                         mInstaller.onPrivateVolumeRemoved(vol.getFsUuid());
                     }
                 } catch (Installer.InstallerException e) {
@@ -1566,7 +1598,7 @@ class StorageManagerService extends IStorageManager.Stub
     private void onDiskScannedLocked(DiskInfo disk) {
         int volumeCount = 0;
         for (int i = 0; i < mVolumes.size(); i++) {
-            final VolumeInfo vol = mVolumes.valueAt(i);
+            final WatchedVolumeInfo vol = mVolumes.valueAt(i);
             if (Objects.equals(disk.id, vol.getDiskId())) {
                 volumeCount++;
             }
@@ -1589,19 +1621,19 @@ class StorageManagerService extends IStorageManager.Stub
     }
 
     @GuardedBy("mLock")
-    private void onVolumeCreatedLocked(VolumeInfo vol) {
+    private void onVolumeCreatedLocked(WatchedVolumeInfo vol) {
         final ActivityManagerInternal amInternal =
                 LocalServices.getService(ActivityManagerInternal.class);
 
-        if (vol.mountUserId >= 0 && !amInternal.isUserRunning(vol.mountUserId, 0)) {
+        if (vol.getMountUserId() >= 0 && !amInternal.isUserRunning(vol.getMountUserId(), 0)) {
             Slog.d(TAG, "Ignoring volume " + vol.getId() + " because user "
-                    + Integer.toString(vol.mountUserId) + " is no longer running.");
+                    + Integer.toString(vol.getMountUserId()) + " is no longer running.");
             return;
         }
 
-        if (vol.type == VolumeInfo.TYPE_EMULATED) {
+        if (vol.getType() == VolumeInfo.TYPE_EMULATED) {
             final Context volumeUserContext = mContext.createContextAsUser(
-                    UserHandle.of(vol.mountUserId), 0);
+                    UserHandle.of(vol.getMountUserId()), 0);
 
             boolean isMediaSharedWithParent =
                     (volumeUserContext != null) ? volumeUserContext.getSystemService(
@@ -1611,60 +1643,60 @@ class StorageManagerService extends IStorageManager.Stub
             // should not be skipped even if media provider instance is not running in that user
             // space
             if (!isMediaSharedWithParent
-                    && !mStorageSessionController.supportsExternalStorage(vol.mountUserId)) {
+                    && !mStorageSessionController.supportsExternalStorage(vol.getMountUserId())) {
                 Slog.d(TAG, "Ignoring volume " + vol.getId() + " because user "
-                        + Integer.toString(vol.mountUserId)
+                        + Integer.toString(vol.getMountUserId())
                         + " does not support external storage.");
                 return;
             }
 
             final StorageManager storage = mContext.getSystemService(StorageManager.class);
-            final VolumeInfo privateVol = storage.findPrivateForEmulated(vol);
+            final VolumeInfo privateVol = storage.findPrivateForEmulated(vol.getVolumeInfo());
 
             if ((Objects.equals(StorageManager.UUID_PRIVATE_INTERNAL, mPrimaryStorageUuid)
                     && VolumeInfo.ID_PRIVATE_INTERNAL.equals(privateVol.id))
-                    || Objects.equals(privateVol.fsUuid, mPrimaryStorageUuid)) {
+                    || Objects.equals(privateVol.getFsUuid(), mPrimaryStorageUuid)) {
                 Slog.v(TAG, "Found primary storage at " + vol);
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_PRIMARY;
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE;
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_PRIMARY);
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE);
                 mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
             }
 
-        } else if (vol.type == VolumeInfo.TYPE_PUBLIC) {
+        } else if (vol.getType() == VolumeInfo.TYPE_PUBLIC) {
             // TODO: only look at first public partition
             if (Objects.equals(StorageManager.UUID_PRIMARY_PHYSICAL, mPrimaryStorageUuid)
-                    && vol.disk.isDefaultPrimary()) {
+                    && vol.getDisk().isDefaultPrimary()) {
                 Slog.v(TAG, "Found primary storage at " + vol);
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_PRIMARY;
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE;
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_PRIMARY);
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE);
             }
 
             // Adoptable public disks are visible to apps, since they meet
             // public API requirement of being in a stable location.
-            if (vol.disk.isAdoptable()) {
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE;
+            if (vol.getDisk().isAdoptable()) {
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE);
             }
 
-            vol.mountUserId = mCurrentUserId;
+            vol.setMountUserId(mCurrentUserId);
             mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
 
-        } else if (vol.type == VolumeInfo.TYPE_PRIVATE) {
+        } else if (vol.getType() == VolumeInfo.TYPE_PRIVATE) {
             mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
 
-        } else if (vol.type == VolumeInfo.TYPE_STUB) {
-            if (vol.disk.isStubVisible()) {
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE;
+        } else if (vol.getType() == VolumeInfo.TYPE_STUB) {
+            if (vol.getDisk().isStubVisible()) {
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE);
             } else {
-                vol.mountFlags |= VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_READ;
+                vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_READ);
             }
-            vol.mountUserId = mCurrentUserId;
+            vol.setMountUserId(mCurrentUserId);
             mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
         } else {
             Slog.d(TAG, "Skipping automatic mounting of " + vol);
         }
     }
 
-    private boolean isBroadcastWorthy(VolumeInfo vol) {
+    private boolean isBroadcastWorthy(WatchedVolumeInfo vol) {
         switch (vol.getType()) {
             case VolumeInfo.TYPE_PRIVATE:
             case VolumeInfo.TYPE_PUBLIC:
@@ -1691,8 +1723,8 @@ class StorageManagerService extends IStorageManager.Stub
     }
 
     @GuardedBy("mLock")
-    private void onVolumeStateChangedLocked(VolumeInfo vol, int newState) {
-        if (vol.type == VolumeInfo.TYPE_EMULATED) {
+    private void onVolumeStateChangedLocked(WatchedVolumeInfo vol, int newState) {
+        if (vol.getType() == VolumeInfo.TYPE_EMULATED) {
             if (newState != VolumeInfo.STATE_MOUNTED) {
                 mFuseMountedUser.remove(vol.getMountUserId());
             } else if (mVoldAppDataIsolationEnabled){
@@ -1741,7 +1773,7 @@ class StorageManagerService extends IStorageManager.Stub
         }
     }
 
-    private void onVolumeStateChangedAsync(VolumeInfo vol, int oldState, int newState) {
+    private void onVolumeStateChangedAsync(WatchedVolumeInfo vol, int oldState, int newState) {
         if (newState == VolumeInfo.STATE_MOUNTED) {
             // Private volumes can be unmounted and re-mounted even after a user has
             // been unlocked; on devices that support encryption keys tied to the filesystem,
@@ -1751,7 +1783,7 @@ class StorageManagerService extends IStorageManager.Stub
             } catch (Exception e) {
                 // Unusable partition, unmount.
                 try {
-                    mVold.unmount(vol.id);
+                    mVold.unmount(vol.getId());
                 } catch (Exception ee) {
                     Slog.wtf(TAG, ee);
                 }
@@ -1762,20 +1794,20 @@ class StorageManagerService extends IStorageManager.Stub
         synchronized (mLock) {
             // Remember that we saw this volume so we're ready to accept user
             // metadata, or so we can annoy them when a private volume is ejected
-            if (!TextUtils.isEmpty(vol.fsUuid)) {
-                VolumeRecord rec = mRecords.get(vol.fsUuid);
+            if (!TextUtils.isEmpty(vol.getFsUuid())) {
+                VolumeRecord rec = mRecords.get(vol.getFsUuid());
                 if (rec == null) {
-                    rec = new VolumeRecord(vol.type, vol.fsUuid);
-                    rec.partGuid = vol.partGuid;
+                    rec = new VolumeRecord(vol.getType(), vol.getFsUuid());
+                    rec.partGuid = vol.getPartGuid();
                     rec.createdMillis = System.currentTimeMillis();
-                    if (vol.type == VolumeInfo.TYPE_PRIVATE) {
-                        rec.nickname = vol.disk.getDescription();
+                    if (vol.getType() == VolumeInfo.TYPE_PRIVATE) {
+                        rec.nickname = vol.getDisk().getDescription();
                     }
                     mRecords.put(rec.fsUuid, rec);
                 } else {
                     // Handle upgrade case where we didn't store partition GUID
                     if (TextUtils.isEmpty(rec.partGuid)) {
-                        rec.partGuid = vol.partGuid;
+                        rec.partGuid = vol.getPartGuid();
                     }
                 }
 
@@ -1788,7 +1820,7 @@ class StorageManagerService extends IStorageManager.Stub
         // before notifying other listeners.
         // Intentionally called without the mLock to avoid deadlocking from the Storage Service.
         try {
-            mStorageSessionController.notifyVolumeStateChanged(vol);
+            mStorageSessionController.notifyVolumeStateChanged(vol.getImmutableVolumeInfo());
         } catch (ExternalStorageServiceException e) {
             Log.e(TAG, "Failed to notify volume state changed to the Storage Service", e);
         }
@@ -1799,9 +1831,9 @@ class StorageManagerService extends IStorageManager.Stub
             // processes that receive the intent unnecessarily.
             if (mBootCompleted && isBroadcastWorthy(vol)) {
                 final Intent intent = new Intent(VolumeInfo.ACTION_VOLUME_STATE_CHANGED);
-                intent.putExtra(VolumeInfo.EXTRA_VOLUME_ID, vol.id);
+                intent.putExtra(VolumeInfo.EXTRA_VOLUME_ID, vol.getId());
                 intent.putExtra(VolumeInfo.EXTRA_VOLUME_STATE, newState);
-                intent.putExtra(VolumeRecord.EXTRA_FS_UUID, vol.fsUuid);
+                intent.putExtra(VolumeRecord.EXTRA_FS_UUID, vol.getFsUuid());
                 intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT
                         | Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND);
                 mHandler.obtainMessage(H_INTERNAL_BROADCAST, intent).sendToTarget();
@@ -1826,8 +1858,8 @@ class StorageManagerService extends IStorageManager.Stub
                 }
             }
 
-            if ((vol.type == VolumeInfo.TYPE_PUBLIC || vol.type == VolumeInfo.TYPE_STUB)
-                    && vol.state == VolumeInfo.STATE_EJECTING) {
+            if ((vol.getType() == VolumeInfo.TYPE_PUBLIC || vol.getType() == VolumeInfo.TYPE_STUB)
+                    && vol.getState() == VolumeInfo.STATE_EJECTING) {
                 // TODO: this should eventually be handled by new ObbVolume state changes
                 /*
                  * Some OBBs might have been unmounted when this volume was
@@ -1835,7 +1867,7 @@ class StorageManagerService extends IStorageManager.Stub
                  * remove those from the list of mounted OBBS.
                  */
                 mObbActionHandler.sendMessage(mObbActionHandler.obtainMessage(
-                        OBB_FLUSH_MOUNT_STATE, vol.path));
+                        OBB_FLUSH_MOUNT_STATE, vol.getFsPath()));
             }
             maybeLogMediaMount(vol, newState);
         }
@@ -1860,7 +1892,7 @@ class StorageManagerService extends IStorageManager.Stub
         }
     }
 
-    private void maybeLogMediaMount(VolumeInfo vol, int newState) {
+    private void maybeLogMediaMount(WatchedVolumeInfo vol, int newState) {
         if (!SecurityLog.isLoggingEnabled()) {
             return;
         }
@@ -1875,10 +1907,10 @@ class StorageManagerService extends IStorageManager.Stub
 
         if (newState == VolumeInfo.STATE_MOUNTED
                 || newState == VolumeInfo.STATE_MOUNTED_READ_ONLY) {
-            SecurityLog.writeEvent(SecurityLog.TAG_MEDIA_MOUNT, vol.path, label);
+            SecurityLog.writeEvent(SecurityLog.TAG_MEDIA_MOUNT, vol.getFsPath(), label);
         } else if (newState == VolumeInfo.STATE_UNMOUNTED
                 || newState == VolumeInfo.STATE_BAD_REMOVAL) {
-            SecurityLog.writeEvent(SecurityLog.TAG_MEDIA_UNMOUNT, vol.path, label);
+            SecurityLog.writeEvent(SecurityLog.TAG_MEDIA_UNMOUNT, vol.getFsPath(), label);
         }
     }
 
@@ -1920,18 +1952,18 @@ class StorageManagerService extends IStorageManager.Stub
     /**
      * Decide if volume is mountable per device policies.
      */
-    private boolean isMountDisallowed(VolumeInfo vol) {
+    private boolean isMountDisallowed(WatchedVolumeInfo vol) {
         UserManager userManager = mContext.getSystemService(UserManager.class);
 
         boolean isUsbRestricted = false;
-        if (vol.disk != null && vol.disk.isUsb()) {
+        if (vol.getDisk() != null && vol.getDisk().isUsb()) {
             isUsbRestricted = userManager.hasUserRestriction(UserManager.DISALLOW_USB_FILE_TRANSFER,
                     Binder.getCallingUserHandle());
         }
 
         boolean isTypeRestricted = false;
-        if (vol.type == VolumeInfo.TYPE_PUBLIC || vol.type == VolumeInfo.TYPE_PRIVATE
-                || vol.type == VolumeInfo.TYPE_STUB) {
+        if (vol.getType() == VolumeInfo.TYPE_PUBLIC || vol.getType() == VolumeInfo.TYPE_PRIVATE
+                || vol.getType() == VolumeInfo.TYPE_STUB) {
             isTypeRestricted = userManager
                     .hasUserRestriction(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA,
                     Binder.getCallingUserHandle());
@@ -1967,6 +1999,13 @@ class StorageManagerService extends IStorageManager.Stub
         mContext = context;
         mCallbacks = new Callbacks(FgThread.get().getLooper());
 
+        mVolumes.registerObserver(new Watcher() {
+            @Override
+            public void onChange(Watchable what) {
+                // When we change the list or any volume contained in it, invalidate the cache
+                StorageManager.invalidateVolumeListCache();
+            }
+        });
         HandlerThread hthread = new HandlerThread(TAG);
         hthread.start();
         mHandler = new StorageManagerServiceHandler(hthread.getLooper());
@@ -2339,7 +2378,7 @@ class StorageManagerService extends IStorageManager.Stub
 
         super.mount_enforcePermission();
 
-        final VolumeInfo vol = findVolumeByIdOrThrow(volId);
+        final WatchedVolumeInfo vol = findVolumeByIdOrThrow(volId);
         if (isMountDisallowed(vol)) {
             throw new SecurityException("Mounting " + volId + " restricted by policy");
         }
@@ -2365,23 +2404,24 @@ class StorageManagerService extends IStorageManager.Stub
         }
     }
 
-    private void mount(VolumeInfo vol) {
+    private void mount(WatchedVolumeInfo vol) {
         try {
-            Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, "SMS.mount: " + vol.id);
+            Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, "SMS.mount: " + vol.getId());
             // TODO(b/135341433): Remove cautious logging when FUSE is stable
             Slog.i(TAG, "Mounting volume " + vol);
             extendWatchdogTimeout("#mount might be slow");
-            mVold.mount(vol.id, vol.mountFlags, vol.mountUserId, new IVoldMountCallback.Stub() {
+            mVold.mount(vol.getId(), vol.getMountFlags(), vol.getMountUserId(),
+                    new IVoldMountCallback.Stub() {
                 @Override
                 public boolean onVolumeChecking(FileDescriptor fd, String path,
                         String internalPath) {
-                    vol.path = path;
-                    vol.internalPath = internalPath;
+                    vol.setFsPath(path);
+                    vol.setInternalPath(internalPath);
                     ParcelFileDescriptor pfd = new ParcelFileDescriptor(fd);
                     try {
                         Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER,
-                                "SMS.startFuseFileSystem: " + vol.id);
-                        mStorageSessionController.onVolumeMount(pfd, vol);
+                                "SMS.startFuseFileSystem: " + vol.getId());
+                        mStorageSessionController.onVolumeMount(pfd, vol.getImmutableVolumeInfo());
                         return true;
                     } catch (ExternalStorageServiceException e) {
                         Slog.e(TAG, "Failed to mount volume " + vol, e);
@@ -2416,20 +2456,21 @@ class StorageManagerService extends IStorageManager.Stub
 
         super.unmount_enforcePermission();
 
-        final VolumeInfo vol = findVolumeByIdOrThrow(volId);
-        unmount(vol);
+        final WatchedVolumeInfo vol = findVolumeByIdOrThrow(volId);
+        unmount(vol.getClonedImmutableVolumeInfo());
     }
 
-    private void unmount(VolumeInfo vol) {
+    private void unmount(ImmutableVolumeInfo vol) {
         try {
             try {
-                if (vol.type == VolumeInfo.TYPE_PRIVATE) {
+                if (vol.getType() == VolumeInfo.TYPE_PRIVATE) {
                     mInstaller.onPrivateVolumeRemoved(vol.getFsUuid());
                 }
             } catch (Installer.InstallerException e) {
                 Slog.e(TAG, "Failed unmount mirror data", e);
             }
-            mVold.unmount(vol.id);
+            extendWatchdogTimeout("#unmount might be slow");
+            mVold.unmount(vol.getId());
             mStorageSessionController.onVolumeUnmount(vol);
         } catch (Exception e) {
             Slog.wtf(TAG, e);
@@ -2442,10 +2483,10 @@ class StorageManagerService extends IStorageManager.Stub
 
         super.format_enforcePermission();
 
-        final VolumeInfo vol = findVolumeByIdOrThrow(volId);
-        final String fsUuid = vol.fsUuid;
+        final WatchedVolumeInfo vol = findVolumeByIdOrThrow(volId);
+        final String fsUuid = vol.getFsUuid();
         try {
-            mVold.format(vol.id, "auto");
+            mVold.format(vol.getId(), "auto");
 
             // After a successful format above, we should forget about any
             // records for the old partition, since it'll never appear again
@@ -3105,7 +3146,7 @@ class StorageManagerService extends IStorageManager.Stub
     private void warnOnNotMounted() {
         synchronized (mLock) {
             for (int i = 0; i < mVolumes.size(); i++) {
-                final VolumeInfo vol = mVolumes.valueAt(i);
+                final WatchedVolumeInfo vol = mVolumes.valueAt(i);
                 if (vol.isPrimary() && vol.isMountedWritable()) {
                     // Cool beans, we have a mounted primary volume
                     return;
@@ -3392,8 +3433,8 @@ class StorageManagerService extends IStorageManager.Stub
         }
     }
 
-    private void prepareUserStorageIfNeeded(VolumeInfo vol) throws Exception {
-        if (vol.type != VolumeInfo.TYPE_PRIVATE) {
+    private void prepareUserStorageIfNeeded(WatchedVolumeInfo vol) throws Exception {
+        if (vol.getType() != VolumeInfo.TYPE_PRIVATE) {
             return;
         }
 
@@ -3411,7 +3452,7 @@ class StorageManagerService extends IStorageManager.Stub
                 continue;
             }
 
-            prepareUserStorageInternal(vol.fsUuid, user.id, flags);
+            prepareUserStorageInternal(vol.getFsUuid(), user.id, flags);
         }
     }
 
@@ -3960,7 +4001,7 @@ class StorageManagerService extends IStorageManager.Stub
         synchronized (mLock) {
             for (int i = 0; i < mVolumes.size(); i++) {
                 final String volId = mVolumes.keyAt(i);
-                final VolumeInfo vol = mVolumes.valueAt(i);
+                final WatchedVolumeInfo vol = mVolumes.valueAt(i);
                 switch (vol.getType()) {
                     case VolumeInfo.TYPE_PUBLIC:
                     case VolumeInfo.TYPE_STUB:
@@ -4112,7 +4153,7 @@ class StorageManagerService extends IStorageManager.Stub
         synchronized (mLock) {
             final VolumeInfo[] res = new VolumeInfo[mVolumes.size()];
             for (int i = 0; i < mVolumes.size(); i++) {
-                res[i] = mVolumes.valueAt(i);
+                res[i] = mVolumes.valueAt(i).getVolumeInfo();
             }
             return res;
         }
@@ -4708,7 +4749,8 @@ class StorageManagerService extends IStorageManager.Stub
                     break;
                 }
                 case MSG_VOLUME_STATE_CHANGED: {
-                    callback.onVolumeStateChanged((VolumeInfo) args.arg1, args.argi2, args.argi3);
+                    VolumeInfo volInfo = ((WatchedVolumeInfo) args.arg1).getVolumeInfo();
+                    callback.onVolumeStateChanged(volInfo, args.argi2, args.argi3);
                     break;
                 }
                 case MSG_VOLUME_RECORD_CHANGED: {
@@ -4738,7 +4780,7 @@ class StorageManagerService extends IStorageManager.Stub
             obtainMessage(MSG_STORAGE_STATE_CHANGED, args).sendToTarget();
         }
 
-        private void notifyVolumeStateChanged(VolumeInfo vol, int oldState, int newState) {
+        private void notifyVolumeStateChanged(WatchedVolumeInfo vol, int oldState, int newState) {
             final SomeArgs args = SomeArgs.obtain();
             args.arg1 = vol.clone();
             args.argi2 = oldState;
@@ -4790,8 +4832,8 @@ class StorageManagerService extends IStorageManager.Stub
             pw.println("Volumes:");
             pw.increaseIndent();
             for (int i = 0; i < mVolumes.size(); i++) {
-                final VolumeInfo vol = mVolumes.valueAt(i);
-                if (VolumeInfo.ID_PRIVATE_INTERNAL.equals(vol.id)) continue;
+                final WatchedVolumeInfo vol = mVolumes.valueAt(i);
+                if (VolumeInfo.ID_PRIVATE_INTERNAL.equals(vol.getId())) continue;
                 vol.dump(pw);
             }
             pw.decreaseIndent();
@@ -5088,7 +5130,7 @@ class StorageManagerService extends IStorageManager.Stub
             final List<String> primaryVolumeIds = new ArrayList<>();
             synchronized (mLock) {
                 for (int i = 0; i < mVolumes.size(); i++) {
-                    final VolumeInfo vol = mVolumes.valueAt(i);
+                    final WatchedVolumeInfo vol = mVolumes.valueAt(i);
                     if (vol.isPrimary()) {
                         primaryVolumeIds.add(vol.getId());
                     }

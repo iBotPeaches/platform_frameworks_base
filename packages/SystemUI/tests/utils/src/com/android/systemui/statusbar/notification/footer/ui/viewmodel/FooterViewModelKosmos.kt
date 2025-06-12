@@ -22,6 +22,7 @@ import com.android.systemui.shade.domain.interactor.shadeInteractor
 import com.android.systemui.shared.notifications.domain.interactor.notificationSettingsInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.activeNotificationsInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.seenNotificationsInteractor
+import com.android.systemui.window.domain.interactor.windowRootViewBlurInteractor
 
 val Kosmos.footerViewModel by Fixture {
     FooterViewModel(
@@ -29,5 +30,11 @@ val Kosmos.footerViewModel by Fixture {
         notificationSettingsInteractor = notificationSettingsInteractor,
         seenNotificationsInteractor = seenNotificationsInteractor,
         shadeInteractor = shadeInteractor,
+        windowRootViewBlurInteractor = windowRootViewBlurInteractor,
     )
+}
+val Kosmos.footerViewModelFactory: FooterViewModel.Factory by Fixture {
+    object : FooterViewModel.Factory {
+        override fun create() = footerViewModel
+    }
 }

@@ -18,6 +18,7 @@ package com.android.server.am;
 
 import static android.app.ActivityManager.PROCESS_CAPABILITY_ALL;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_BFSL;
+import static android.app.ActivityManager.PROCESS_CAPABILITY_CPU_TIME;
 import static android.app.ActivityManager.PROCESS_STATE_BOUND_FOREGROUND_SERVICE;
 import static android.app.ActivityManager.PROCESS_STATE_BOUND_TOP;
 import static android.app.ActivityManager.PROCESS_STATE_CACHED_ACTIVITY;
@@ -40,7 +41,9 @@ import static android.app.ActivityManager.PROCESS_STATE_TOP_SLEEPING;
 import static android.app.ActivityManager.PROCESS_STATE_TRANSIENT_BACKGROUND;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_ACTIVITY;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_NONE;
+import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_SHORT_FGS_TIMEOUT;
 import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE;
+import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -71,6 +74,10 @@ import static com.android.server.am.ProcessList.SERVICE_ADJ;
 import static com.android.server.am.ProcessList.SERVICE_B_ADJ;
 import static com.android.server.am.ProcessList.UNKNOWN_ADJ;
 import static com.android.server.am.ProcessList.VISIBLE_APP_ADJ;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_PAUSING_OR_PAUSED;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_VISIBLE;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -105,6 +112,7 @@ import android.os.PowerManagerInternal;
 import android.os.Process;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.flag.junit.SetFlagsRule;
@@ -256,7 +264,6 @@ public class MockingOomAdjusterTests {
         mService.mOomAdjuster = mService.mProcessStateController.getOomAdjuster();
         mService.mOomAdjuster.mAdjSeq = 10000;
         mService.mWakefulness = new AtomicInteger(PowerManagerInternal.WAKEFULNESS_AWAKE);
-        mSetFlagsRule.enableFlags(Flags.FLAG_NEW_FGS_RESTRICTION_LOGIC);
 
         mUiTierSize = mService.mConstants.TIERED_CACHED_ADJ_UI_TIER_SIZE;
         mFirstNonUiCachedAdj = sFirstUiCachedAdj + mUiTierSize;
@@ -281,6 +288,15 @@ public class MockingOomAdjusterTests {
             field.set(obj, val);
         } catch (NoSuchFieldException | IllegalAccessException e) {
         }
+    }
+
+    private static void assertNoCpuTime(ProcessRecord app) {
+        assertEquals(0, app.mState.getSetCapability() & PROCESS_CAPABILITY_CPU_TIME);
+    }
+
+    private static void assertCpuTime(ProcessRecord app) {
+        assertEquals(PROCESS_CAPABILITY_CPU_TIME,
+                app.mState.getSetCapability() & PROCESS_CAPABILITY_CPU_TIME);
     }
 
     private static void assertBfsl(ProcessRecord app) {
@@ -532,7 +548,7 @@ public class MockingOomAdjusterTests {
                 MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
         WindowProcessController wpc = app.getWindowProcessController();
         doReturn(true).when(wpc).hasActivities();
-        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_VISIBLE)
+        doReturn(ACTIVITY_STATE_FLAG_IS_VISIBLE)
                 .when(wpc).getActivityStateFlags();
         setWakefulness(PowerManagerInternal.WAKEFULNESS_AWAKE);
         updateOomAdj(app);
@@ -541,28 +557,58 @@ public class MockingOomAdjusterTests {
         assertFalse(app.mState.isCached());
         assertFalse(app.mState.isEmpty());
         assertEquals("vis-activity", app.mState.getAdjType());
+        assertCpuTime(app);
 
-        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_VISIBLE
+        doReturn(ACTIVITY_STATE_FLAG_IS_VISIBLE
                 | WindowProcessController.ACTIVITY_STATE_FLAG_RESUMED_SPLIT_SCREEN)
                 .when(wpc).getActivityStateFlags();
         updateOomAdj(app);
         assertProcStates(app, PROCESS_STATE_TOP, VISIBLE_APP_ADJ, SCHED_GROUP_TOP_APP);
         assertEquals("resumed-split-screen-activity", app.mState.getAdjType());
+        assertCpuTime(app);
 
-        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_VISIBLE
+        doReturn(ACTIVITY_STATE_FLAG_IS_VISIBLE
                 | WindowProcessController.ACTIVITY_STATE_FLAG_PERCEPTIBLE_FREEFORM)
                 .when(wpc).getActivityStateFlags();
         updateOomAdj(app);
         assertProcStates(app, PROCESS_STATE_TOP, VISIBLE_APP_ADJ, SCHED_GROUP_TOP_APP);
         assertEquals("perceptible-freeform-activity", app.mState.getAdjType());
+        assertCpuTime(app);
 
-        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_VISIBLE
+        doReturn(ACTIVITY_STATE_FLAG_IS_VISIBLE
                 | WindowProcessController.ACTIVITY_STATE_FLAG_VISIBLE_MULTI_WINDOW_MODE)
                 .when(wpc).getActivityStateFlags();
         updateOomAdj(app);
         assertProcStates(app, PROCESS_STATE_TOP, VISIBLE_APP_ADJ,
                 SCHED_GROUP_FOREGROUND_WINDOW);
         assertEquals("vis-multi-window-activity", app.mState.getAdjType());
+        assertCpuTime(app);
+    }
+    @SuppressWarnings("GuardedBy")
+    @Test
+    public void testUpdateOomAdj_DoOne_PausingStoppingActivities() {
+        ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        WindowProcessController wpc = app.getWindowProcessController();
+        doReturn(true).when(wpc).hasActivities();
+        doReturn(ACTIVITY_STATE_FLAG_IS_PAUSING_OR_PAUSED).when(wpc).getActivityStateFlags();
+        setWakefulness(PowerManagerInternal.WAKEFULNESS_AWAKE);
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_TOP, PERCEPTIBLE_APP_ADJ, SCHED_GROUP_DEFAULT,
+                "pause-activity");
+        assertCpuTime(app);
+
+        doReturn(ACTIVITY_STATE_FLAG_IS_STOPPING).when(wpc).getActivityStateFlags();
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_LAST_ACTIVITY, PERCEPTIBLE_APP_ADJ,
+                SCHED_GROUP_BACKGROUND, "stop-activity");
+        assertCpuTime(app);
+
+        doReturn(ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING).when(wpc).getActivityStateFlags();
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_CACHED_ACTIVITY, CACHED_APP_MIN_ADJ,
+                SCHED_GROUP_BACKGROUND, "cch-act");
+        assertNoCpuTime(app);
     }
 
     @SuppressWarnings("GuardedBy")
@@ -661,6 +707,7 @@ public class MockingOomAdjusterTests {
         // SHORT_SERVICE, timed out already.
         s = ServiceRecord.newEmptyInstanceForTest(mService);
         s.appInfo = new ApplicationInfo();
+
         mProcessStateController.setStartRequested(s, true);
         s.isForeground = true;
         s.foregroundServiceType = FOREGROUND_SERVICE_TYPE_SHORT_SERVICE;
@@ -683,6 +730,157 @@ public class MockingOomAdjusterTests {
             assertEquals(app.mState.getSetProcState(), PROCESS_STATE_SERVICE);
             assertNoBfsl(app);
         }
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags({Flags.FLAG_USE_CPU_TIME_CAPABILITY, Flags.FLAG_PROTOTYPE_AGGRESSIVE_FREEZING})
+    public void testUpdateOomAdjFreezeState_bindingFromShortFgs() {
+        // Setting up a started short FGS within app1.
+        final ServiceRecord s = ServiceRecord.newEmptyInstanceForTest(mService);
+        s.appInfo = new ApplicationInfo();
+        mProcessStateController.setStartRequested(s, true);
+        s.isForeground = true;
+        s.foregroundServiceType = FOREGROUND_SERVICE_TYPE_SHORT_SERVICE;
+        mProcessStateController.setShortFgsInfo(s, SystemClock.uptimeMillis());
+
+        final ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        mProcessStateController.setHostProcess(s, app);
+        mProcessStateController.setHasForegroundServices(app.mServices, true,
+                FOREGROUND_SERVICE_TYPE_SHORT_SERVICE, /* hasNoneType=*/false);
+        mProcessStateController.startService(app.mServices, s);
+        app.mState.setLastTopTime(SystemClock.uptimeMillis()
+                - mService.mConstants.TOP_TO_FGS_GRACE_DURATION);
+
+        final ProcessRecord app2 = spy(makeDefaultProcessRecord(MOCKAPP2_PID, MOCKAPP2_UID,
+                MOCKAPP2_PROCESSNAME, MOCKAPP2_PACKAGENAME, false));
+        // App1 with short service binds to app2
+        bindService(app2, app, null, null, 0, mock(IBinder.class));
+
+        setProcessesToLru(app, app2);
+        updateOomAdj(app);
+
+        assertCpuTime(app);
+        assertCpuTime(app2);
+
+        // Timeout the short FGS.
+        mProcessStateController.setShortFgsInfo(s, SystemClock.uptimeMillis()
+                - mService.mConstants.mShortFgsTimeoutDuration
+                - mService.mConstants.mShortFgsProcStateExtraWaitDuration);
+        mService.mServices.onShortFgsProcstateTimeout(s);
+        // mService is a mock, but this verifies that the timeout would trigger an update.
+        verify(mService).updateOomAdjLocked(app, OOM_ADJ_REASON_SHORT_FGS_TIMEOUT);
+        updateOomAdj(app);
+
+        assertNoCpuTime(app);
+        assertNoCpuTime(app2);
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_USE_CPU_TIME_CAPABILITY)
+    public void testUpdateOomAdjFreezeState_bindingWithAllowFreeze() {
+        ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        WindowProcessController wpc = app.getWindowProcessController();
+        doReturn(true).when(wpc).hasActivities();
+        doReturn(ACTIVITY_STATE_FLAG_IS_VISIBLE).when(wpc).getActivityStateFlags();
+
+        final ProcessRecord app2 = spy(makeDefaultProcessRecord(MOCKAPP2_PID, MOCKAPP2_UID,
+                MOCKAPP2_PROCESSNAME, MOCKAPP2_PACKAGENAME, false));
+
+        // App with a visible activity binds to app2 without any special flag.
+        bindService(app2, app, null, null, 0, mock(IBinder.class));
+
+        final ProcessRecord app3 = spy(makeDefaultProcessRecord(MOCKAPP3_PID, MOCKAPP3_UID,
+                MOCKAPP3_PROCESSNAME, MOCKAPP3_PACKAGENAME, false));
+
+        // App with a visible activity binds to app3 with ALLOW_FREEZE.
+        bindService(app3, app, null, null, Context.BIND_ALLOW_FREEZE, mock(IBinder.class));
+
+        setProcessesToLru(app, app2, app3);
+
+        updateOomAdj(app);
+
+        assertCpuTime(app);
+        assertCpuTime(app2);
+        assertNoCpuTime(app3);
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_USE_CPU_TIME_CAPABILITY)
+    @DisableFlags(Flags.FLAG_PROTOTYPE_AGGRESSIVE_FREEZING)
+    public void testUpdateOomAdjFreezeState_bindingFromFgs() {
+        final ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        mProcessStateController.setHasForegroundServices(app.mServices, true,
+                FOREGROUND_SERVICE_TYPE_SPECIAL_USE, false);
+
+        final ProcessRecord app2 = spy(makeDefaultProcessRecord(MOCKAPP2_PID, MOCKAPP2_UID,
+                MOCKAPP2_PROCESSNAME, MOCKAPP2_PACKAGENAME, false));
+        // App with a foreground service binds to app2
+        bindService(app2, app, null, null, 0, mock(IBinder.class));
+
+        setProcessesToLru(app, app2);
+        updateOomAdj(app);
+
+        assertCpuTime(app);
+        assertCpuTime(app2);
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_USE_CPU_TIME_CAPABILITY)
+    @DisableFlags(Flags.FLAG_PROTOTYPE_AGGRESSIVE_FREEZING)
+    public void testUpdateOomAdjFreezeState_soloFgs() {
+        final ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        mProcessStateController.setHasForegroundServices(app.mServices, true,
+                FOREGROUND_SERVICE_TYPE_SPECIAL_USE, false);
+
+        setProcessesToLru(app);
+        updateOomAdj(app);
+
+        assertCpuTime(app);
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_USE_CPU_TIME_CAPABILITY)
+    public void testUpdateOomAdjFreezeState_receivers() {
+        final ProcessRecord app = makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true);
+
+        updateOomAdj(app);
+        assertNoCpuTime(app);
+
+        app.mReceivers.incrementCurReceivers();
+        updateOomAdj(app);
+        assertCpuTime(app);
+
+        app.mReceivers.decrementCurReceivers();
+        updateOomAdj(app);
+        assertNoCpuTime(app);
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_USE_CPU_TIME_CAPABILITY)
+    public void testUpdateOomAdjFreezeState_activeInstrumentation() {
+        ProcessRecord app = makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID, MOCKAPP_PROCESSNAME,
+                MOCKAPP_PACKAGENAME, true);
+        updateOomAdj(app);
+        assertNoCpuTime(app);
+
+        mProcessStateController.setActiveInstrumentation(app, mock(ActiveInstrumentation.class));
+        updateOomAdj(app);
+        assertCpuTime(app);
+
+        mProcessStateController.setActiveInstrumentation(app, null);
+        updateOomAdj(app);
+        assertNoCpuTime(app);
     }
 
     @SuppressWarnings("GuardedBy")
@@ -3142,11 +3340,19 @@ public class MockingOomAdjusterTests {
         assertEquals(true, app.getUidRecord().isSetAllowListed());
         assertFreezeState(app, false);
         assertFreezeState(app2, false);
+        if (Flags.useCpuTimeCapability()) {
+            assertCpuTime(app);
+            assertCpuTime(app2);
+        }
 
         mProcessStateController.setUidTempAllowlistStateLSP(MOCKAPP_UID, false);
         assertEquals(false, app.getUidRecord().isSetAllowListed());
         assertFreezeState(app, true);
         assertFreezeState(app2, true);
+        if (Flags.useCpuTimeCapability()) {
+            assertNoCpuTime(app);
+            assertNoCpuTime(app2);
+        }
     }
 
     @SuppressWarnings("GuardedBy")
@@ -3171,6 +3377,11 @@ public class MockingOomAdjusterTests {
         assertFreezeState(app, false);
         assertFreezeState(app2, false);
         assertFreezeState(app3, false);
+        if (Flags.useCpuTimeCapability()) {
+            assertCpuTime(app);
+            assertCpuTime(app2);
+            assertCpuTime(app3);
+        }
 
         // Remove app1 from allowlist.
         mProcessStateController.setUidTempAllowlistStateLSP(MOCKAPP_UID, false);
@@ -3179,6 +3390,11 @@ public class MockingOomAdjusterTests {
         assertFreezeState(app, true);
         assertFreezeState(app2, false);
         assertFreezeState(app3, false);
+        if (Flags.useCpuTimeCapability()) {
+            assertNoCpuTime(app);
+            assertCpuTime(app2);
+            assertCpuTime(app3);
+        }
 
         // Now remove app2 from allowlist.
         mProcessStateController.setUidTempAllowlistStateLSP(MOCKAPP2_UID, false);
@@ -3187,6 +3403,11 @@ public class MockingOomAdjusterTests {
         assertFreezeState(app, true);
         assertFreezeState(app2, true);
         assertFreezeState(app3, true);
+        if (Flags.useCpuTimeCapability()) {
+            assertNoCpuTime(app);
+            assertNoCpuTime(app2);
+            assertNoCpuTime(app3);
+        }
     }
 
     @SuppressWarnings("GuardedBy")
@@ -3219,6 +3440,112 @@ public class MockingOomAdjusterTests {
         // Follow up should not have been called again.
         verify(mService.mHandler).sendEmptyMessageAtTime(eq(FOLLOW_UP_OOMADJUSTER_UPDATE_MSG),
                 followUpTimeCaptor.capture());
+    }
+
+    /**
+     * For Perceptible Tasks adjustment, this solely unit-tests OomAdjuster -> onOtherActivity()
+     */
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_PERCEPTIBLE_TASKS)
+    public void testPerceptibleAdjustment() {
+        ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+
+        long now = mInjector.getUptimeMillis();
+
+        // GIVEN: perceptible adjustment is NOT enabled (perceptible stop time is not set)
+        // EXPECT: zero adjustment
+        // TLDR: App is not set as a perceptible task and hence no oom_adj boosting.
+        mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.initialize(app, CACHED_APP_MIN_ADJ,
+                false, false, PROCESS_STATE_CACHED_ACTIVITY,
+                SCHED_GROUP_DEFAULT, 0, 0, PROCESS_STATE_IMPORTANT_FOREGROUND);
+        mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.onOtherActivity(-1);
+        assertEquals(CACHED_APP_MIN_ADJ, mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.adj);
+
+        // GIVEN: perceptible adjustment is enabled (perceptible stop time is set) and
+        //        elapsed time < PERCEPTIBLE_TASK_TIMEOUT
+        // EXPECT: adjustment to PERCEPTIBLE_MEDIUM_APP_ADJ
+        // TLDR: App is a perceptible task (e.g. opened from launcher) and has oom_adj boosting.
+        mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.initialize(app, CACHED_APP_MIN_ADJ,
+                false, false, PROCESS_STATE_CACHED_ACTIVITY,
+                SCHED_GROUP_DEFAULT, 0, 0, PROCESS_STATE_IMPORTANT_FOREGROUND);
+        mInjector.reset();
+        mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.onOtherActivity(now);
+        assertEquals(PERCEPTIBLE_MEDIUM_APP_ADJ,
+                mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.adj);
+
+        // GIVEN: perceptible adjustment is enabled (perceptible stop time is set) and
+        //        elapsed time >  PERCEPTIBLE_TASK_TIMEOUT
+        // EXPECT: adjustment to PREVIOUS_APP_ADJ
+        // TLDR: App is a perceptible task (e.g. opened from launcher) and has oom_adj boosting, but
+        //       time has elapsed and has dropped to a lower boosting of PREVIOUS_APP_ADJ
+        mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.initialize(app, CACHED_APP_MIN_ADJ,
+                false, false, PROCESS_STATE_CACHED_ACTIVITY,
+                SCHED_GROUP_DEFAULT, 0, 0, PROCESS_STATE_IMPORTANT_FOREGROUND);
+        mInjector.jumpUptimeAheadTo(OomAdjuster.PERCEPTIBLE_TASK_TIMEOUT_MILLIS + 1000);
+        mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.onOtherActivity(0);
+        assertEquals(PREVIOUS_APP_ADJ, mService.mOomAdjuster.mTmpComputeOomAdjWindowCallback.adj);
+    }
+
+    /**
+     * For Perceptible Tasks adjustment, this tests overall adjustment flow.
+     */
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(Flags.FLAG_PERCEPTIBLE_TASKS)
+    public void testUpdateOomAdjPerceptible() {
+        ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        WindowProcessController wpc = app.getWindowProcessController();
+
+        // Set uptime to be at least the timeout time + buffer, so that we don't end up with
+        // negative stopTime in our test input
+        mInjector.jumpUptimeAheadTo(OomAdjuster.PERCEPTIBLE_TASK_TIMEOUT_MILLIS + 60L * 1000L);
+        long now = mInjector.getUptimeMillis();
+        doReturn(true).when(wpc).hasActivities();
+
+        // GIVEN: perceptible adjustment is is enabled
+        // EXPECT: perceptible-act adjustment
+        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING)
+                .when(wpc).getActivityStateFlags();
+        doReturn(now).when(wpc).getPerceptibleTaskStoppedTimeMillis();
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_IMPORTANT_BACKGROUND, PERCEPTIBLE_MEDIUM_APP_ADJ,
+                SCHED_GROUP_BACKGROUND, "perceptible-act");
+
+        // GIVEN: perceptible adjustment is is enabled and timeout has been reached
+        // EXPECT: stale-perceptible-act adjustment
+        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING)
+                .when(wpc).getActivityStateFlags();
+        assertNoCpuTime(app);
+
+        doReturn(now - OomAdjuster.PERCEPTIBLE_TASK_TIMEOUT_MILLIS).when(
+                wpc).getPerceptibleTaskStoppedTimeMillis();
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_LAST_ACTIVITY, PREVIOUS_APP_ADJ,
+                SCHED_GROUP_BACKGROUND, "stale-perceptible-act");
+        assertNoCpuTime(app);
+
+        // GIVEN: perceptible adjustment is is disabled
+        // EXPECT: no perceptible adjustment
+        doReturn(WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING)
+                .when(wpc).getActivityStateFlags();
+        doReturn(Long.MIN_VALUE).when(wpc).getPerceptibleTaskStoppedTimeMillis();
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_CACHED_ACTIVITY, CACHED_APP_MIN_ADJ,
+                SCHED_GROUP_BACKGROUND, "cch-act");
+        assertNoCpuTime(app);
+
+        // GIVEN: perceptible app is in foreground
+        // EXPECT: no perceptible adjustment
+        doReturn(ACTIVITY_STATE_FLAG_IS_VISIBLE)
+                .when(wpc).getActivityStateFlags();
+        doReturn(now).when(wpc).getPerceptibleTaskStoppedTimeMillis();
+        updateOomAdj(app);
+        assertProcStates(app, PROCESS_STATE_TOP, VISIBLE_APP_ADJ,
+                SCHED_GROUP_DEFAULT, "vis-activity");
+        assertCpuTime(app);
     }
 
     @SuppressWarnings("GuardedBy")
@@ -3277,6 +3604,51 @@ public class MockingOomAdjusterTests {
             final int cur = mInjector.mSetOomAdjAppliedAt.get(apps[i].mPid);
             assertTrue("setOomAdj is called in wrong order", pre < cur);
         }
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    public void testUpdateOomAdj_DoAll_BindUiServiceFromClientService() {
+        ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        ProcessRecord client = spy(makeDefaultProcessRecord(MOCKAPP2_PID, MOCKAPP2_UID,
+                MOCKAPP2_PROCESSNAME, MOCKAPP2_PACKAGENAME, false));
+        ServiceRecord s = makeServiceRecord(client);
+        mProcessStateController.setStartRequested(s, true);
+        mProcessStateController.setServiceLastActivityTime(s, SystemClock.uptimeMillis());
+        bindService(app, client, null, null, 0, mock(IBinder.class));
+
+        setWakefulness(PowerManagerInternal.WAKEFULNESS_AWAKE);
+        updateOomAdj(app, client);
+        if (Flags.raiseBoundUiServiceThreshold()) {
+            assertProcStates(app, PROCESS_STATE_SERVICE, SERVICE_ADJ, SCHED_GROUP_BACKGROUND,
+                    "service");
+        } else {
+            final int expectedAdj = mService.mConstants.USE_TIERED_CACHED_ADJ
+                    ? sFirstUiCachedAdj : sFirstCachedAdj;
+            assertProcStates(app, PROCESS_STATE_SERVICE, expectedAdj, SCHED_GROUP_BACKGROUND,
+                    "cch-bound-ui-services");
+        }
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @Test
+    public void testUpdateOomAdj_DoAll_BindUiServiceFromClientHome() {
+        ProcessRecord app = spy(makeDefaultProcessRecord(MOCKAPP_PID, MOCKAPP_UID,
+                MOCKAPP_PROCESSNAME, MOCKAPP_PACKAGENAME, true));
+        ProcessRecord client = spy(makeDefaultProcessRecord(MOCKAPP2_PID, MOCKAPP2_UID,
+                MOCKAPP2_PROCESSNAME, MOCKAPP2_PACKAGENAME, false));
+
+        WindowProcessController wpc = client.getWindowProcessController();
+        doReturn(true).when(wpc).isHomeProcess();
+        bindService(app, client, null, null, 0, mock(IBinder.class));
+        setWakefulness(PowerManagerInternal.WAKEFULNESS_AWAKE);
+        updateOomAdj(app, client);
+
+        final int expectedAdj = mService.mConstants.USE_TIERED_CACHED_ADJ
+                ? sFirstUiCachedAdj : sFirstCachedAdj;
+        assertProcStates(app, PROCESS_STATE_HOME, expectedAdj, SCHED_GROUP_BACKGROUND,
+                "cch-bound-ui-services");
     }
 
     private ProcessRecord makeDefaultProcessRecord(int pid, int uid, String processName,

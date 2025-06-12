@@ -23,6 +23,7 @@ import com.android.internal.util.ArrayUtils;
 /**
  * @hide
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class TemporaryBuffer {
     @UnsupportedAppUsage
     public static char[] obtain(int len) {

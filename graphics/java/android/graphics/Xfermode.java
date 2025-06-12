@@ -28,4 +28,5 @@ package android.graphics;
  * specified in the Modes enum. When an Xfermode is assigned to a Paint, then
  * objects drawn with that paint have the xfermode applied.
  */
+@android.ravenwood.annotation.RavenwoodKeepWholeClass
 public class Xfermode {}

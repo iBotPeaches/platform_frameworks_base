@@ -24,4 +24,9 @@ public class DragAndDropConstants {
      * ignore drag events.
      */
     public static final String EXTRA_DISALLOW_HIT_REGION = "DISALLOW_HIT_REGION";
+
+    /**
+     * An Intent extra that Launcher can use to specify the {@link android.content.pm.ShortcutInfo}
+     */
+    public static final String EXTRA_SHORTCUT_INFO = "EXTRA_SHORTCUT_INFO";
 }

@@ -31,16 +31,26 @@ import androidx.annotation.NonNull;
 public final class ActiveProcessingPicture implements Parcelable {
     private final int mId;
     private final String mProfileId;
+    private final boolean mForGlobal;
 
     public ActiveProcessingPicture(int id, @NonNull String profileId) {
         mId = id;
         mProfileId = profileId;
+        mForGlobal = true;
+    }
+
+    /** @hide */
+    public ActiveProcessingPicture(int id, @NonNull String profileId, boolean forGlobal) {
+        mId = id;
+        mProfileId = profileId;
+        mForGlobal = forGlobal;
     }
 
     /** @hide */
     ActiveProcessingPicture(Parcel in) {
         mId = in.readInt();
         mProfileId = in.readString();
+        mForGlobal = in.readBoolean();
     }
 
     @NonNull
@@ -73,6 +83,14 @@ public final class ActiveProcessingPicture implements Parcelable {
         return mProfileId;
     }
 
+    /**
+     * @hide
+     */
+    @NonNull
+    public boolean isForGlobal() {
+        return mForGlobal;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -82,5 +100,6 @@ public final class ActiveProcessingPicture implements Parcelable {
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         dest.writeInt(mId);
         dest.writeString(mProfileId);
+        dest.writeBoolean(mForGlobal);
     }
 }

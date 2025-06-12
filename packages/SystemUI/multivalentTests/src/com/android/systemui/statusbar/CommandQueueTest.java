@@ -18,11 +18,14 @@ import static android.hardware.biometrics.BiometricAuthenticator.TYPE_FACE;
 import static android.inputmethodservice.InputMethodService.BACK_DISPOSITION_ADJUST_NOTHING;
 import static android.inputmethodservice.InputMethodService.BACK_DISPOSITION_DEFAULT;
 import static android.inputmethodservice.InputMethodService.IME_ACTIVE;
+import static android.service.quickaccesswallet.Flags.FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP;
+import static android.service.quickaccesswallet.Flags.FLAG_LAUNCH_WALLET_VIA_SYSUI_CALLBACKS;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowInsetsController.BEHAVIOR_DEFAULT;
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -33,18 +36,19 @@ import android.hardware.biometrics.IBiometricSysuiReceiver;
 import android.hardware.biometrics.PromptInfo;
 import android.hardware.fingerprint.IUdfpsRefreshRateRequestCallback;
 import android.os.Bundle;
-import android.platform.test.annotations.DisableFlags;
+import android.os.RemoteException;
 import android.platform.test.annotations.EnableFlags;
+import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.WindowInsets;
 import android.view.WindowInsets.Type.InsetsType;
 import android.view.WindowInsetsController.Appearance;
 import android.view.WindowInsetsController.Behavior;
-import android.view.accessibility.Flags;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.internal.statusbar.DisableStates;
 import com.android.internal.statusbar.LetterboxDetails;
 import com.android.internal.statusbar.StatusBarIcon;
 import com.android.internal.view.AppearanceRegion;
@@ -57,11 +61,14 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class CommandQueueTest extends SysuiTestCase {
 
-    private static final LetterboxDetails[] TEST_LETTERBOX_DETAILS = new LetterboxDetails[] {
+    private static final LetterboxDetails[] TEST_LETTERBOX_DETAILS = new LetterboxDetails[]{
             new LetterboxDetails(
                     /* letterboxInnerBounds= */ new Rect(100, 0, 200, 500),
                     /* letterboxFullBounds= */ new Rect(0, 0, 500, 100),
@@ -116,6 +123,27 @@ public class CommandQueueTest extends SysuiTestCase {
         waitForIdleSync();
         verify(mCallbacks).disable(eq(SECONDARY_DISPLAY), eq(state1), eq(state2), eq(true));
     }
+
+    @Test
+    public void testDisableForAllDisplays() throws RemoteException {
+        int state1 = 14;
+        int state2 = 42;
+        int secondaryDisplayState1 = 16;
+        int secondaryDisplayState2 = 44;
+        Map<Integer, Pair<Integer, Integer>> displaysWithStates = new HashMap<>();
+        displaysWithStates.put(DEFAULT_DISPLAY, new Pair<>(state1, state2)); // Example values
+        displaysWithStates.put(SECONDARY_DISPLAY,
+                new Pair<>(secondaryDisplayState1, secondaryDisplayState2)); // Example values
+        DisableStates expectedDisableStates = new DisableStates(displaysWithStates, true);
+
+        mCommandQueue.disableForAllDisplays(expectedDisableStates);
+        waitForIdleSync();
+
+        verify(mCallbacks).disable(eq(DEFAULT_DISPLAY), eq(state1), eq(state2), eq(true));
+        verify(mCallbacks).disable(eq(SECONDARY_DISPLAY), eq(secondaryDisplayState1),
+                eq(secondaryDisplayState2), eq(true));
+    }
+
 
     @Test
     public void testExpandNotifications() {
@@ -367,6 +395,15 @@ public class CommandQueueTest extends SysuiTestCase {
     }
 
     @Test
+    @EnableFlags({FLAG_LAUNCH_WALLET_OPTION_ON_POWER_DOUBLE_TAP,
+            FLAG_LAUNCH_WALLET_VIA_SYSUI_CALLBACKS})
+    public void testWalletLaunchGesture() {
+        mCommandQueue.onWalletLaunchGestureDetected();
+        waitForIdleSync();
+        verify(mCallbacks).onWalletLaunchGestureDetected();
+    }
+
+    @Test
     public void testShowPipMenu() {
         mCommandQueue.showPictureInPictureMenu();
         waitForIdleSync();
@@ -374,30 +411,7 @@ public class CommandQueueTest extends SysuiTestCase {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void addQsTile_withA11yQsShortcutFlagOff() {
-        ComponentName c = new ComponentName("testpkg", "testcls");
-
-        mCommandQueue.addQsTile(c);
-        waitForIdleSync();
-
-        verify(mCallbacks).addQsTile(eq(c));
-    }
-
-    @Test
-    @DisableFlags(Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void addQsTileToFrontOrEnd_withA11yQsShortcutFlagOff_doNothing() {
-        ComponentName c = new ComponentName("testpkg", "testcls");
-
-        mCommandQueue.addQsTileToFrontOrEnd(c, true);
-        waitForIdleSync();
-
-        verifyNoMoreInteractions(mCallbacks);
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void addQsTile_withA11yQsShortcutFlagOn() {
+    public void addQsTile() {
         ComponentName c = new ComponentName("testpkg", "testcls");
 
         mCommandQueue.addQsTile(c);
@@ -407,8 +421,7 @@ public class CommandQueueTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_A11Y_QS_SHORTCUT)
-    public void addQsTileAtTheEnd_withA11yQsShortcutFlagOn() {
+    public void addQsTileAtTheEnd() {
         ComponentName c = new ComponentName("testpkg", "testcls");
 
         mCommandQueue.addQsTileToFrontOrEnd(c, true);
@@ -449,17 +462,17 @@ public class CommandQueueTest extends SysuiTestCase {
     }
 
     @Test
-    public void testOnDisplayReady() {
-        mCommandQueue.onDisplayReady(DEFAULT_DISPLAY);
+    public void testOnDisplayAddSystemDecorations() {
+        mCommandQueue.onDisplayAddSystemDecorations(DEFAULT_DISPLAY);
         waitForIdleSync();
-        verify(mCallbacks).onDisplayReady(eq(DEFAULT_DISPLAY));
+        verify(mCallbacks).onDisplayAddSystemDecorations(eq(DEFAULT_DISPLAY));
     }
 
     @Test
-    public void testOnDisplayReadyForSecondaryDisplay() {
-        mCommandQueue.onDisplayReady(SECONDARY_DISPLAY);
+    public void testOnDisplayAddSystemDecorationsForSecondaryDisplay() {
+        mCommandQueue.onDisplayAddSystemDecorations(SECONDARY_DISPLAY);
         waitForIdleSync();
-        verify(mCallbacks).onDisplayReady(eq(SECONDARY_DISPLAY));
+        verify(mCallbacks).onDisplayAddSystemDecorations(eq(SECONDARY_DISPLAY));
     }
 
     @Test
@@ -489,7 +502,8 @@ public class CommandQueueTest extends SysuiTestCase {
         final long requestId = 10;
 
         mCommandQueue.showAuthenticationDialog(promptInfo, receiver, sensorIds,
-                credentialAllowed, requireConfirmation, userId, operationId, packageName, requestId);
+                credentialAllowed, requireConfirmation, userId, operationId, packageName,
+                requestId);
         waitForIdleSync();
         verify(mCallbacks).showAuthenticationDialog(eq(promptInfo), eq(receiver), eq(sensorIds),
                 eq(credentialAllowed), eq(requireConfirmation), eq(userId), eq(operationId),
@@ -571,9 +585,9 @@ public class CommandQueueTest extends SysuiTestCase {
     @Test
     public void testImmersiveModeChanged() {
         final int displayAreaId = 10;
-        mCommandQueue.immersiveModeChanged(displayAreaId, true);
+        mCommandQueue.immersiveModeChanged(displayAreaId, true, TYPE_APPLICATION);
         waitForIdleSync();
-        verify(mCallbacks).immersiveModeChanged(displayAreaId, true);
+        verify(mCallbacks).immersiveModeChanged(displayAreaId, true, TYPE_APPLICATION);
     }
 
     @Test

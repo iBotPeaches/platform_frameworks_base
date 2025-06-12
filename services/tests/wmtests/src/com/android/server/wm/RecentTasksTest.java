@@ -52,7 +52,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import static java.lang.Integer.MAX_VALUE;
 
@@ -70,8 +70,6 @@ import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserManager;
-import android.platform.test.annotations.DisableFlags;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.ArraySet;
@@ -82,11 +80,10 @@ import android.window.TaskSnapshot;
 
 import androidx.test.filters.MediumTest;
 
-import com.android.launcher3.Flags;
 import com.android.server.wm.RecentTasks.Callbacks;
+import com.android.window.flags.Flags;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -717,18 +714,7 @@ public class RecentTasksTest extends WindowTestsBase {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_ENABLE_USE_TOP_VISIBLE_ACTIVITY_FOR_EXCLUDE_FROM_RECENT_TASK)
-    public void testVisibleTasks_excludedFromRecents() {
-        testVisibleTasks_excludedFromRecents_internal();
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_ENABLE_USE_TOP_VISIBLE_ACTIVITY_FOR_EXCLUDE_FROM_RECENT_TASK)
     public void testVisibleTasks_excludedFromRecents_withRefactorFlag() {
-        testVisibleTasks_excludedFromRecents_internal();
-    }
-
-    private void testVisibleTasks_excludedFromRecents_internal() {
         mRecentTasks.setParameters(-1 /* min */, 4 /* max */, -1 /* ms */);
 
         Task invisibleExcludedTask = createTaskBuilder(".ExcludedTask1")
@@ -766,19 +752,7 @@ public class RecentTasksTest extends WindowTestsBase {
     }
 
     @Test
-    @Ignore("b/342627272")
-    @DisableFlags(Flags.FLAG_ENABLE_USE_TOP_VISIBLE_ACTIVITY_FOR_EXCLUDE_FROM_RECENT_TASK)
-    public void testVisibleTasks_excludedFromRecents_visibleTaskNotFirstTask() {
-        testVisibleTasks_excludedFromRecents_visibleTaskNotFirstTask_internal();
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_ENABLE_USE_TOP_VISIBLE_ACTIVITY_FOR_EXCLUDE_FROM_RECENT_TASK)
     public void testVisibleTasks_excludedFromRecents_visibleTaskNotFirstTask_withRefactorFlag() {
-        testVisibleTasks_excludedFromRecents_visibleTaskNotFirstTask_internal();
-    }
-
-    private void testVisibleTasks_excludedFromRecents_visibleTaskNotFirstTask_internal() {
         mRecentTasks.setParameters(-1 /* min */, 4 /* max */, -1 /* ms */);
 
         Task invisibleExcludedTask = createTaskBuilder(".ExcludedTask1")
@@ -816,18 +790,7 @@ public class RecentTasksTest extends WindowTestsBase {
     }
 
     @Test
-    @DisableFlags(Flags.FLAG_ENABLE_USE_TOP_VISIBLE_ACTIVITY_FOR_EXCLUDE_FROM_RECENT_TASK)
-    public void testVisibleTasks_excludedFromRecents_firstTaskNotVisible() {
-        testVisibleTasks_excludedFromRecents_firstTaskNotVisible_internal();
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_ENABLE_USE_TOP_VISIBLE_ACTIVITY_FOR_EXCLUDE_FROM_RECENT_TASK)
     public void testVisibleTasks_excludedFromRecents_firstTaskNotVisible_withRefactorFlag() {
-        testVisibleTasks_excludedFromRecents_firstTaskNotVisible_internal();
-    }
-
-    private void testVisibleTasks_excludedFromRecents_firstTaskNotVisible_internal() {
         // Create some set of tasks, some of which are visible and some are not
         Task homeTask = createTaskBuilder("com.android.pkg1", ".HomeTask")
                 .setParentTask(mTaskContainer.getRootHomeTask())
@@ -966,6 +929,20 @@ public class RecentTasksTest extends WindowTestsBase {
         mRecentTasks.add(task);
 
         assertFalse(mRecentTasks.isVisibleRecentTask(task));
+    }
+
+    @Test
+    public void testVisibleTask_forceExcludedFromRecents() {
+        final Task forceExcludedFromRecentsTask = mTasks.getFirst();
+        forceExcludedFromRecentsTask.setForceExcludedFromRecents(true);
+
+        final boolean visible = mRecentTasks.isVisibleRecentTask(forceExcludedFromRecentsTask);
+
+        if (Flags.excludeTaskFromRecents()) {
+            assertFalse(visible);
+        } else {
+            assertTrue(visible);
+        }
     }
 
     @Test
@@ -1331,7 +1308,7 @@ public class RecentTasksTest extends WindowTestsBase {
 
         // Add secondTask to top again
         mRecentTasks.add(secondTask);
-        verifyZeroInteractions(controller);
+        verifyNoMoreInteractions(controller);
     }
 
     @Test

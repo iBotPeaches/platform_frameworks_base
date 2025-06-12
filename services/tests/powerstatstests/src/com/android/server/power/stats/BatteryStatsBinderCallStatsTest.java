@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 
 import android.os.Binder;
 import android.os.Process;
-import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.ArraySet;
 
 import androidx.test.filters.SmallTest;
@@ -28,7 +27,6 @@ import androidx.test.filters.SmallTest;
 import com.android.internal.os.BinderCallsStats;
 import com.android.internal.os.BinderTransactionNameResolver;
 
-import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -40,11 +38,6 @@ import java.util.Collection;
 @SmallTest
 @android.platform.test.annotations.DisabledOnRavenwood(blockedBy = BinderCallsStats.class)
 public class BatteryStatsBinderCallStatsTest {
-
-    @Rule
-    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
-            .setProvideMainThread(true)
-            .build();
 
     private static final int TRANSACTION_CODE1 = 100;
     private static final int TRANSACTION_CODE2 = 101;

@@ -22,39 +22,30 @@ import android.content.Context
 import android.content.res.Resources
 import android.graphics.Point
 import android.os.SystemProperties
-import android.util.Slog
-import androidx.core.content.withStyledAttributes
+import android.view.View.LAYOUT_DIRECTION_RTL
 import com.android.window.flags.Flags
 import com.android.wm.shell.R
 import com.android.wm.shell.desktopmode.CaptionState
+import com.android.wm.shell.desktopmode.DesktopModeUiEventLogger
+import com.android.wm.shell.desktopmode.DesktopModeUiEventLogger.DesktopUiEventEnum
 import com.android.wm.shell.desktopmode.WindowDecorCaptionHandleRepository
 import com.android.wm.shell.desktopmode.education.data.AppHandleEducationDatastoreRepository
 import com.android.wm.shell.shared.annotations.ShellBackgroundThread
 import com.android.wm.shell.shared.annotations.ShellMainThread
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus.canEnterDesktopMode
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource
-import com.android.wm.shell.windowdecor.common.DecorThemeUtil
-import com.android.wm.shell.windowdecor.common.Theme
 import com.android.wm.shell.windowdecor.education.DesktopWindowingEducationTooltipController
 import com.android.wm.shell.windowdecor.education.DesktopWindowingEducationTooltipController.TooltipColorScheme
 import com.android.wm.shell.windowdecor.education.DesktopWindowingEducationTooltipController.TooltipEducationViewConfig
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainCoroutineDispatcher
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.launch
 
 /**
@@ -73,61 +64,105 @@ class AppHandleEducationController(
     private val windowingEducationViewController: DesktopWindowingEducationTooltipController,
     @ShellMainThread private val applicationCoroutineScope: CoroutineScope,
     @ShellBackgroundThread private val backgroundDispatcher: MainCoroutineDispatcher,
+    private val desktopModeUiEventLogger: DesktopModeUiEventLogger,
 ) {
-    private val decorThemeUtil = DecorThemeUtil(context)
     private lateinit var openHandleMenuCallback: (Int) -> Unit
     private lateinit var toDesktopModeCallback: (Int, DesktopModeTransitionSource) -> Unit
+    private val onTertiaryFixedColor =
+        context.getColor(com.android.internal.R.color.materialColorOnTertiaryFixed)
+    private val tertiaryFixedColor =
+        context.getColor(com.android.internal.R.color.materialColorTertiaryFixed)
 
     init {
         runIfEducationFeatureEnabled {
+            // Coroutine block for the first hint that appears on a full-screen app's app handle to
+            // encourage users to open the app handle menu.
             applicationCoroutineScope.launch {
-                // Central block handling the app handle's educational flow end-to-end.
-                isAppHandleHintViewedFlow()
-                    .flatMapLatest { isAppHandleHintViewed ->
-                        if (isAppHandleHintViewed) {
-                            // If the education is viewed then return emptyFlow() that completes
-                            // immediately.
-                            // This will help us to not listen to [captionHandleStateFlow] after the
-                            // education
-                            // has been viewed already.
-                            emptyFlow()
-                        } else {
-                            // Listen for changes to window decor's caption handle.
-                            windowDecorCaptionHandleRepository.captionStateFlow
-                                // Wait for few seconds before emitting the latest state.
-                                .debounce(APP_HANDLE_EDUCATION_DELAY_MILLIS)
-                                .filter { captionState ->
-                                    captionState is CaptionState.AppHandle &&
-                                        appHandleEducationFilter.shouldShowAppHandleEducation(
-                                            captionState
-                                        )
-                                }
-                        }
-                    }
-                    .flowOn(backgroundDispatcher)
-                    .collectLatest { captionState ->
-                        val tooltipColorScheme = tooltipColorScheme(captionState)
-
-                        showEducation(captionState, tooltipColorScheme)
-                        // After showing first tooltip, mark education as viewed
-                        appHandleEducationDatastoreRepository
-                            .updateAppHandleHintViewedTimestampMillis(true)
-                    }
-            }
-
-            applicationCoroutineScope.launch {
-                if (isAppHandleHintUsed()) return@launch
+                if (isAppHandleHintViewed()) return@launch
                 windowDecorCaptionHandleRepository.captionStateFlow
+                    .debounce(APP_HANDLE_EDUCATION_DELAY_MILLIS)
                     .filter { captionState ->
-                        captionState is CaptionState.AppHandle && captionState.isHandleMenuExpanded
+                        captionState is CaptionState.AppHandle &&
+                            !captionState.isHandleMenuExpanded &&
+                            !isAppHandleHintViewed() &&
+                            appHandleEducationFilter.shouldShowDesktopModeEducation(captionState)
                     }
                     .take(1)
                     .flowOn(backgroundDispatcher)
-                    .collect {
-                        // If user expands app handle, mark user has used the app handle hint
+                    .collectLatest { captionState ->
+                        showEducation(captionState)
                         appHandleEducationDatastoreRepository
-                            .updateAppHandleHintUsedTimestampMillis(true)
+                            .updateAppHandleHintViewedTimestampMillis(true)
+                        delay(TOOLTIP_VISIBLE_DURATION_MILLIS)
+                        windowingEducationViewController.hideEducationTooltip()
                     }
+            }
+
+            // Coroutine block for the hint that appears when an app handle is expanded to
+            // encourage users to enter desktop mode.
+            applicationCoroutineScope.launch {
+                if (isEnterDesktopModeHintViewed()) return@launch
+                windowDecorCaptionHandleRepository.captionStateFlow
+                    .debounce(ENTER_DESKTOP_MODE_EDUCATION_DELAY_MILLIS)
+                    .filter { captionState ->
+                        captionState is CaptionState.AppHandle &&
+                            captionState.isHandleMenuExpanded &&
+                            !isEnterDesktopModeHintViewed() &&
+                            appHandleEducationFilter.shouldShowDesktopModeEducation(captionState)
+                    }
+                    .take(1)
+                    .flowOn(backgroundDispatcher)
+                    .collectLatest { captionState ->
+                        showWindowingImageButtonTooltip(captionState as CaptionState.AppHandle)
+                        appHandleEducationDatastoreRepository
+                            .updateEnterDesktopModeHintViewedTimestampMillis(true)
+                        delay(TOOLTIP_VISIBLE_DURATION_MILLIS)
+                        windowingEducationViewController.hideEducationTooltip()
+                    }
+            }
+
+            // Coroutine block for the hint that appears on the window app header in freeform mode
+            // to let users know how to exit desktop mode.
+            applicationCoroutineScope.launch {
+                if (isExitDesktopModeHintViewed()) return@launch
+                windowDecorCaptionHandleRepository.captionStateFlow
+                    .debounce(APP_HANDLE_EDUCATION_DELAY_MILLIS)
+                    .filter { captionState ->
+                        captionState is CaptionState.AppHeader &&
+                            !captionState.isHeaderMenuExpanded &&
+                            !isExitDesktopModeHintViewed() &&
+                            appHandleEducationFilter.shouldShowDesktopModeEducation(captionState)
+                    }
+                    .take(1)
+                    .flowOn(backgroundDispatcher)
+                    .collectLatest { captionState ->
+                        showExitWindowingTooltip(captionState as CaptionState.AppHeader)
+                        appHandleEducationDatastoreRepository
+                            .updateExitDesktopModeHintViewedTimestampMillis(true)
+                        delay(TOOLTIP_VISIBLE_DURATION_MILLIS)
+                        windowingEducationViewController.hideEducationTooltip()
+                    }
+            }
+
+            // Listens to a [NoCaption] state change to dismiss any tooltip if the app handle or app
+            // header is gone or de-focused (e.g. when a user swipes up to home, overview, or enters
+            // split screen)
+            applicationCoroutineScope.launch {
+                if (
+                    isAppHandleHintViewed() &&
+                        isEnterDesktopModeHintViewed() &&
+                        isExitDesktopModeHintViewed()
+                )
+                    return@launch
+                windowDecorCaptionHandleRepository.captionStateFlow
+                    .filter { captionState ->
+                        captionState is CaptionState.NoCaption &&
+                            !isAppHandleHintViewed() &&
+                            !isEnterDesktopModeHintViewed() &&
+                            !isExitDesktopModeHintViewed()
+                    }
+                    .flowOn(backgroundDispatcher)
+                    .collectLatest { windowingEducationViewController.hideEducationTooltip() }
             }
         }
     }
@@ -137,43 +172,54 @@ class AppHandleEducationController(
             block()
     }
 
-    private fun showEducation(captionState: CaptionState, tooltipColorScheme: TooltipColorScheme) {
+    private fun showEducation(captionState: CaptionState) {
         val appHandleBounds = (captionState as CaptionState.AppHandle).globalAppHandleBounds
+        val taskInfo = captionState.runningTaskInfo
         val tooltipGlobalCoordinates =
             Point(appHandleBounds.left + appHandleBounds.width() / 2, appHandleBounds.bottom)
-        // TODO: b/370546801 - Differentiate between user dismissing the tooltip vs following the
-        // cue.
         // Populate information important to inflate app handle education tooltip.
         val appHandleTooltipConfig =
             TooltipEducationViewConfig(
                 tooltipViewLayout = R.layout.desktop_windowing_education_top_arrow_tooltip,
-                tooltipColorScheme = tooltipColorScheme,
+                tooltipColorScheme =
+                    TooltipColorScheme(
+                        tertiaryFixedColor,
+                        onTertiaryFixedColor,
+                        onTertiaryFixedColor,
+                    ),
                 tooltipViewGlobalCoordinates = tooltipGlobalCoordinates,
                 tooltipText = getString(R.string.windowing_app_handle_education_tooltip),
                 arrowDirection =
                     DesktopWindowingEducationTooltipController.TooltipArrowDirection.UP,
                 onEducationClickAction = {
-                    launchWithExceptionHandling {
-                        showWindowingImageButtonTooltip(tooltipColorScheme)
-                    }
-                    openHandleMenuCallback(captionState.runningTaskInfo.taskId)
+                    openHandleMenuCallback(taskInfo.taskId)
+                    desktopModeUiEventLogger.log(
+                        taskInfo,
+                        DesktopUiEventEnum.APP_HANDLE_EDUCATION_TOOLTIP_CLICKED,
+                    )
                 },
                 onDismissAction = {
-                    launchWithExceptionHandling {
-                        showWindowingImageButtonTooltip(tooltipColorScheme)
-                    }
+                    desktopModeUiEventLogger.log(
+                        taskInfo,
+                        DesktopUiEventEnum.APP_HANDLE_EDUCATION_TOOLTIP_DISMISSED,
+                    )
                 },
             )
 
         windowingEducationViewController.showEducationTooltip(
             tooltipViewConfig = appHandleTooltipConfig,
-            taskId = captionState.runningTaskInfo.taskId,
+            taskId = taskInfo.taskId,
+        )
+        desktopModeUiEventLogger.log(
+            taskInfo,
+            DesktopUiEventEnum.APP_HANDLE_EDUCATION_TOOLTIP_SHOWN,
         )
     }
 
     /** Show tooltip that points to windowing image button in app handle menu */
-    private suspend fun showWindowingImageButtonTooltip(tooltipColorScheme: TooltipColorScheme) {
+    private suspend fun showWindowingImageButtonTooltip(captionState: CaptionState.AppHandle) {
         val appInfoPillHeight = getSize(R.dimen.desktop_mode_handle_menu_app_info_pill_height)
+        val taskInfo = captionState.runningTaskInfo
         val windowingOptionPillHeight =
             getSize(R.dimen.desktop_mode_handle_menu_windowing_pill_height)
         val appHandleMenuWidth =
@@ -183,147 +229,113 @@ class AppHandleEducationController(
             getSize(R.dimen.desktop_mode_handle_menu_margin_top) +
                 getSize(R.dimen.desktop_mode_handle_menu_pill_spacing_margin)
 
-        windowDecorCaptionHandleRepository.captionStateFlow
-            // After the first tooltip was dismissed, wait for 400 ms and see if the app handle menu
-            // has been expanded.
-            .timeout(APP_HANDLE_EDUCATION_TIMEOUT_MILLIS.milliseconds)
-            .catchTimeoutAndLog {
-                // TODO: b/341320146 - Log previous tooltip was dismissed
-            }
-            // Wait for few milliseconds before emitting the latest state.
-            .debounce(APP_HANDLE_EDUCATION_DELAY_MILLIS)
-            .filter { captionState ->
-                // Filter out states when app handle is not visible or not expanded.
-                captionState is CaptionState.AppHandle && captionState.isHandleMenuExpanded
-            }
-            // Before showing this tooltip, stop listening to further emissions to avoid
-            // accidentally
-            // showing the same tooltip on future emissions.
-            .take(1)
-            .flowOn(backgroundDispatcher)
-            .collectLatest { captionState ->
-                captionState as CaptionState.AppHandle
-                val appHandleBounds = captionState.globalAppHandleBounds
-                val tooltipGlobalCoordinates =
-                    Point(
-                        appHandleBounds.left + appHandleBounds.width() / 2 + appHandleMenuWidth / 2,
-                        appHandleBounds.top +
-                            appHandleMenuMargins +
-                            appInfoPillHeight +
-                            windowingOptionPillHeight / 2,
+        val appHandleBounds = captionState.globalAppHandleBounds
+        val appHandleCenterX = appHandleBounds.left + appHandleBounds.width() / 2
+        val tooltipGlobalCoordinates =
+            Point(
+                if (isRtl()) {
+                    appHandleCenterX - appHandleMenuWidth / 2
+                } else {
+                    appHandleCenterX + appHandleMenuWidth / 2
+                },
+                appHandleBounds.top +
+                    appHandleMenuMargins +
+                    appInfoPillHeight +
+                    windowingOptionPillHeight / 2,
+            )
+        // Populate information important to inflate windowing image button education
+        // tooltip.
+        val windowingImageButtonTooltipConfig =
+            TooltipEducationViewConfig(
+                tooltipViewLayout = R.layout.desktop_windowing_education_horizontal_arrow_tooltip,
+                tooltipColorScheme =
+                    TooltipColorScheme(
+                        tertiaryFixedColor,
+                        onTertiaryFixedColor,
+                        onTertiaryFixedColor,
+                    ),
+                tooltipViewGlobalCoordinates = tooltipGlobalCoordinates,
+                tooltipText =
+                    getString(R.string.windowing_desktop_mode_image_button_education_tooltip),
+                arrowDirection =
+                    DesktopWindowingEducationTooltipController.TooltipArrowDirection.HORIZONTAL,
+                onEducationClickAction = {
+                    toDesktopModeCallback(
+                        taskInfo.taskId,
+                        DesktopModeTransitionSource.APP_HANDLE_MENU_BUTTON,
                     )
-                // Populate information important to inflate windowing image button education
-                // tooltip.
-                val windowingImageButtonTooltipConfig =
-                    TooltipEducationViewConfig(
-                        tooltipViewLayout = R.layout.desktop_windowing_education_left_arrow_tooltip,
-                        tooltipColorScheme = tooltipColorScheme,
-                        tooltipViewGlobalCoordinates = tooltipGlobalCoordinates,
-                        tooltipText =
-                            getString(
-                                R.string.windowing_desktop_mode_image_button_education_tooltip
-                            ),
-                        arrowDirection =
-                            DesktopWindowingEducationTooltipController.TooltipArrowDirection.LEFT,
-                        onEducationClickAction = {
-                            launchWithExceptionHandling {
-                                showExitWindowingTooltip(tooltipColorScheme)
-                            }
-                            toDesktopModeCallback(
-                                captionState.runningTaskInfo.taskId,
-                                DesktopModeTransitionSource.APP_HANDLE_MENU_BUTTON,
-                            )
-                        },
-                        onDismissAction = {
-                            launchWithExceptionHandling {
-                                showExitWindowingTooltip(tooltipColorScheme)
-                            }
-                        },
+                    desktopModeUiEventLogger.log(
+                        taskInfo,
+                        DesktopUiEventEnum.ENTER_DESKTOP_MODE_EDUCATION_TOOLTIP_CLICKED,
                     )
+                },
+                onDismissAction = {
+                    desktopModeUiEventLogger.log(
+                        taskInfo,
+                        DesktopUiEventEnum.ENTER_DESKTOP_MODE_EDUCATION_TOOLTIP_DISMISSED,
+                    )
+                },
+            )
 
-                windowingEducationViewController.showEducationTooltip(
-                    taskId = captionState.runningTaskInfo.taskId,
-                    tooltipViewConfig = windowingImageButtonTooltipConfig,
-                )
-            }
+        windowingEducationViewController.showEducationTooltip(
+            taskId = taskInfo.taskId,
+            tooltipViewConfig = windowingImageButtonTooltipConfig,
+        )
+        desktopModeUiEventLogger.log(
+            taskInfo,
+            DesktopUiEventEnum.ENTER_DESKTOP_MODE_EDUCATION_TOOLTIP_SHOWN,
+        )
     }
 
     /** Show tooltip that points to app chip button and educates user on how to exit desktop mode */
-    private suspend fun showExitWindowingTooltip(tooltipColorScheme: TooltipColorScheme) {
-        windowDecorCaptionHandleRepository.captionStateFlow
-            // After the previous tooltip was dismissed, wait for 400 ms and see if the user entered
-            // desktop mode.
-            .timeout(APP_HANDLE_EDUCATION_TIMEOUT_MILLIS.milliseconds)
-            .catchTimeoutAndLog {
-                // TODO: b/341320146 - Log previous tooltip was dismissed
-            }
-            // Wait for few milliseconds before emitting the latest state.
-            .debounce(APP_HANDLE_EDUCATION_DELAY_MILLIS)
-            .filter { captionState ->
-                // Filter out states when app header is not visible or expanded.
-                captionState is CaptionState.AppHeader && !captionState.isHeaderMenuExpanded
-            }
-            // Before showing this tooltip, stop listening to further emissions to avoid
-            // accidentally
-            // showing the same tooltip on future emissions.
-            .take(1)
-            .flowOn(backgroundDispatcher)
-            .collectLatest { captionState ->
-                captionState as CaptionState.AppHeader
-                val globalAppChipBounds = captionState.globalAppChipBounds
-                val tooltipGlobalCoordinates =
-                    Point(
-                        globalAppChipBounds.right,
-                        globalAppChipBounds.top + globalAppChipBounds.height() / 2,
-                    )
-                // Populate information important to inflate exit desktop mode education tooltip.
-                val exitWindowingTooltipConfig =
-                    TooltipEducationViewConfig(
-                        tooltipViewLayout = R.layout.desktop_windowing_education_left_arrow_tooltip,
-                        tooltipColorScheme = tooltipColorScheme,
-                        tooltipViewGlobalCoordinates = tooltipGlobalCoordinates,
-                        tooltipText =
-                            getString(R.string.windowing_desktop_mode_exit_education_tooltip),
-                        arrowDirection =
-                            DesktopWindowingEducationTooltipController.TooltipArrowDirection.LEFT,
-                        onDismissAction = {},
-                        onEducationClickAction = {
-                            openHandleMenuCallback(captionState.runningTaskInfo.taskId)
-                        },
-                    )
-                windowingEducationViewController.showEducationTooltip(
-                    taskId = captionState.runningTaskInfo.taskId,
-                    tooltipViewConfig = exitWindowingTooltipConfig,
-                )
-            }
-    }
-
-    private fun tooltipColorScheme(captionState: CaptionState): TooltipColorScheme {
-        context.withStyledAttributes(
-            set = null,
-            attrs =
-                intArrayOf(
-                    com.android.internal.R.attr.materialColorOnTertiaryFixed,
-                    com.android.internal.R.attr.materialColorTertiaryFixed,
-                    com.android.internal.R.attr.materialColorTertiaryFixedDim,
-                ),
-            defStyleAttr = 0,
-            defStyleRes = 0,
-        ) {
-            val onTertiaryFixed = getColor(/* index= */ 0, /* defValue= */ 0)
-            val tertiaryFixed = getColor(/* index= */ 1, /* defValue= */ 0)
-            val tertiaryFixedDim = getColor(/* index= */ 2, /* defValue= */ 0)
-            val taskInfo = (captionState as CaptionState.AppHandle).runningTaskInfo
-
-            val tooltipContainerColor =
-                if (decorThemeUtil.getAppTheme(taskInfo) == Theme.LIGHT) {
-                    tertiaryFixed
+    private suspend fun showExitWindowingTooltip(captionState: CaptionState.AppHeader) {
+        val globalAppChipBounds = captionState.globalAppChipBounds
+        val taskInfo = captionState.runningTaskInfo
+        val tooltipGlobalCoordinates =
+            Point(
+                if (isRtl()) {
+                    globalAppChipBounds.left
                 } else {
-                    tertiaryFixedDim
-                }
-            return TooltipColorScheme(tooltipContainerColor, onTertiaryFixed, onTertiaryFixed)
-        }
-        return TooltipColorScheme(0, 0, 0)
+                    globalAppChipBounds.right
+                },
+                globalAppChipBounds.top + globalAppChipBounds.height() / 2,
+            )
+        // Populate information important to inflate exit desktop mode education tooltip.
+        val exitWindowingTooltipConfig =
+            TooltipEducationViewConfig(
+                tooltipViewLayout = R.layout.desktop_windowing_education_horizontal_arrow_tooltip,
+                tooltipColorScheme =
+                    TooltipColorScheme(
+                        tertiaryFixedColor,
+                        onTertiaryFixedColor,
+                        onTertiaryFixedColor,
+                    ),
+                tooltipViewGlobalCoordinates = tooltipGlobalCoordinates,
+                tooltipText = getString(R.string.windowing_desktop_mode_exit_education_tooltip),
+                arrowDirection =
+                    DesktopWindowingEducationTooltipController.TooltipArrowDirection.HORIZONTAL,
+                onDismissAction = {
+                    desktopModeUiEventLogger.log(
+                        taskInfo,
+                        DesktopUiEventEnum.EXIT_DESKTOP_MODE_EDUCATION_TOOLTIP_DISMISSED,
+                    )
+                },
+                onEducationClickAction = {
+                    openHandleMenuCallback(taskInfo.taskId)
+                    desktopModeUiEventLogger.log(
+                        taskInfo,
+                        DesktopUiEventEnum.EXIT_DESKTOP_MODE_EDUCATION_TOOLTIP_CLICKED,
+                    )
+                },
+            )
+        windowingEducationViewController.showEducationTooltip(
+            taskId = taskInfo.taskId,
+            tooltipViewConfig = exitWindowingTooltipConfig,
+        )
+        desktopModeUiEventLogger.log(
+            taskInfo,
+            DesktopUiEventEnum.EXIT_DESKTOP_MODE_EDUCATION_TOOLTIP_SHOWN,
+        )
     }
 
     /**
@@ -340,43 +352,20 @@ class AppHandleEducationController(
         this.toDesktopModeCallback = toDesktopModeCallback
     }
 
-    private inline fun <T> Flow<T>.catchTimeoutAndLog(crossinline block: () -> Unit) =
-        catch { exception ->
-            if (exception is TimeoutCancellationException) block() else throw exception
-        }
-
-    private fun launchWithExceptionHandling(block: suspend () -> Unit) =
-        applicationCoroutineScope.launch {
-            try {
-                block()
-            } catch (e: Throwable) {
-                Slog.e(TAG, "Error: ", e)
-            }
-        }
-
-    /**
-     * Listens to the changes to [WindowingEducationProto#hasAppHandleHintViewedTimestampMillis()]
-     * in datastore proto object.
-     *
-     * If [SHOULD_OVERRIDE_EDUCATION_CONDITIONS] is true, this flow will always emit false. That
-     * means it will always emit app handle hint has not been viewed yet.
-     */
-    private fun isAppHandleHintViewedFlow(): Flow<Boolean> =
-        appHandleEducationDatastoreRepository.dataStoreFlow
-            .map { preferences ->
-                preferences.hasAppHandleHintViewedTimestampMillis() &&
-                    !SHOULD_OVERRIDE_EDUCATION_CONDITIONS
-            }
-            .distinctUntilChanged()
-
-    /**
-     * Listens to the changes to [WindowingEducationProto#hasAppHandleHintUsedTimestampMillis()] in
-     * datastore proto object.
-     */
-    private suspend fun isAppHandleHintUsed(): Boolean =
+    private suspend fun isAppHandleHintViewed(): Boolean =
         appHandleEducationDatastoreRepository.dataStoreFlow
             .first()
-            .hasAppHandleHintUsedTimestampMillis()
+            .hasAppHandleHintViewedTimestampMillis() && !FORCE_SHOW_DESKTOP_MODE_EDUCATION
+
+    private suspend fun isEnterDesktopModeHintViewed(): Boolean =
+        appHandleEducationDatastoreRepository.dataStoreFlow
+            .first()
+            .hasEnterDesktopModeHintViewedTimestampMillis() && !FORCE_SHOW_DESKTOP_MODE_EDUCATION
+
+    private suspend fun isExitDesktopModeHintViewed(): Boolean =
+        appHandleEducationDatastoreRepository.dataStoreFlow
+            .first()
+            .hasExitDesktopModeHintViewedTimestampMillis() && !FORCE_SHOW_DESKTOP_MODE_EDUCATION
 
     private fun getSize(@DimenRes resourceId: Int): Int {
         if (resourceId == Resources.ID_NULL) return 0
@@ -385,18 +374,27 @@ class AppHandleEducationController(
 
     private fun getString(@StringRes resId: Int): String = context.resources.getString(resId)
 
+    private fun isRtl() = context.resources.configuration.layoutDirection == LAYOUT_DIRECTION_RTL
+
     companion object {
         const val TAG = "AppHandleEducationController"
         val APP_HANDLE_EDUCATION_DELAY_MILLIS: Long
             get() = SystemProperties.getLong("persist.windowing_app_handle_education_delay", 3000L)
 
-        val APP_HANDLE_EDUCATION_TIMEOUT_MILLIS: Long
-            get() = SystemProperties.getLong("persist.windowing_app_handle_education_timeout", 400L)
+        val ENTER_DESKTOP_MODE_EDUCATION_DELAY_MILLIS: Long
+            get() =
+                SystemProperties.getLong(
+                    "persist.windowing_enter_desktop_mode_education_timeout",
+                    400L,
+                )
 
-        val SHOULD_OVERRIDE_EDUCATION_CONDITIONS: Boolean
+        val TOOLTIP_VISIBLE_DURATION_MILLIS: Long
+            get() = SystemProperties.getLong("persist.windowing_tooltip_visible_duration", 12000L)
+
+        val FORCE_SHOW_DESKTOP_MODE_EDUCATION: Boolean
             get() =
                 SystemProperties.getBoolean(
-                    "persist.desktop_windowing_app_handle_education_override_conditions",
+                    "persist.windowing_force_show_desktop_mode_education",
                     false,
                 )
     }

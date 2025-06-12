@@ -87,6 +87,7 @@
     <string name="NetworkPreferenceSwitchTitle" msgid="1008329951315753038">"無法連上行動網路"</string>
     <string name="NetworkPreferenceSwitchSummary" msgid="2086506181486324860">"請嘗試變更偏好的網路。輕觸即可變更。"</string>
     <string name="EmergencyCallWarningTitle" msgid="1615688002899152860">"無法撥打緊急電話"</string>
+    <string name="emergency_calling_do_not_show_again" msgid="5034171343309733068">"不要再顯示"</string>
     <string name="EmergencyCallWarningSummary" msgid="9102799172089265268">"撥打緊急電話需要使用行動網路"</string>
     <string name="notification_channel_network_alert" msgid="4788053066033851841">"快訊"</string>
     <string name="notification_channel_call_forward" msgid="8230490317314272406">"來電轉接"</string>
@@ -268,6 +269,7 @@
     <string name="global_action_bug_report" msgid="5127867163044170003">"錯誤報告"</string>
     <string name="global_action_logout" msgid="6093581310002476511">"結束"</string>
     <string name="global_action_screenshot" msgid="2610053466156478564">"螢幕截圖"</string>
+    <string name="global_action_standby" msgid="6786920589970257642">"待機"</string>
     <string name="bugreport_title" msgid="8549990811777373050">"錯誤報告"</string>
     <string name="bugreport_message" msgid="5212529146119624326">"這會收集你目前裝置狀態的相關資訊，以便透過電子郵件傳送。從錯誤報告開始建立到準備傳送的這段過程可能需要一點時間，敬請耐心等候。"</string>
     <string name="bugreport_option_interactive_title" msgid="7968287837902871289">"互動式報告"</string>
@@ -301,6 +303,7 @@
     <string name="notification_channel_network_alerts" msgid="6312366315654526528">"網路警示"</string>
     <string name="notification_channel_network_available" msgid="6083697929214165169">"有可用的網路"</string>
     <string name="notification_channel_vpn" msgid="1628529026203808999">"VPN 狀態"</string>
+    <string name="notification_channel_system_time" msgid="1660313368058030441">"時間和時區"</string>
     <string name="notification_channel_device_admin" msgid="6384932669406095506">"來自 IT 管理員的快訊"</string>
     <string name="notification_channel_alerts" msgid="5070241039583668427">"快訊"</string>
     <string name="notification_channel_retail_mode" msgid="3732239154256431213">"零售商展示模式"</string>
@@ -308,6 +311,7 @@
     <string name="notification_channel_heavy_weight_app" msgid="17455756500828043">"應用程式執行中"</string>
     <string name="notification_channel_foreground_service" msgid="7102189948158885178">"正在耗用電量的應用程式"</string>
     <string name="notification_channel_accessibility_magnification" msgid="1707913872219798098">"放大"</string>
+    <string name="notification_channel_accessibility_hearing_device" msgid="7816963856388758952">"助聽器"</string>
     <string name="notification_channel_accessibility_security_policy" msgid="1727787021725251912">"無障礙功能使用情形"</string>
     <string name="notification_channel_display" msgid="6905032605735615090">"螢幕"</string>
     <string name="foreground_service_app_in_background" msgid="1439289699671273555">"「<xliff:g id="APP_NAME">%1$s</xliff:g>」正在耗用電量"</string>
@@ -350,6 +354,10 @@
     <string name="permgroupdesc_sensors" msgid="2610631290633747752">"存取與你生命徵象相關的感應器資料"</string>
     <string name="permgrouplab_notifications" msgid="5472972361980668884">"通知"</string>
     <string name="permgroupdesc_notifications" msgid="4608679556801506580">"顯示通知"</string>
+    <string name="permgrouplab_xr_tracking" msgid="7418994009794287471">"延展實境追蹤資料"</string>
+    <string name="permgroupdesc_xr_tracking" msgid="6777198859446500821">"存取與你和周遭環境相關的延展實境資料"</string>
+    <string name="permgrouplab_xr_tracking_sensitive" msgid="1194833982988144536">"敏感的延展實境追蹤資料"</string>
+    <string name="permgroupdesc_xr_tracking_sensitive" msgid="9178027369004805829">"存取敏感的追蹤資料，例如視線"</string>
     <string name="capability_title_canRetrieveWindowContent" msgid="7554282892101587296">"擷取視窗內容"</string>
     <string name="capability_desc_canRetrieveWindowContent" msgid="6195610527625237661">"檢查你存取的視窗內容。"</string>
     <string name="capability_title_canRequestTouchExploration" msgid="327598364696316213">"啟用輕觸探索功能"</string>
@@ -645,6 +653,22 @@
     <string name="permdesc_imagesWrite" msgid="5195054463269193317">"允許應用程式修改你的相片收藏。"</string>
     <string name="permlab_mediaLocation" msgid="7368098373378598066">"讀取你的媒體收藏的位置資訊"</string>
     <string name="permdesc_mediaLocation" msgid="597912899423578138">"允許應用程式讀取你的媒體收藏的位置資訊。"</string>
+    <string name="permlab_eye_tracking_coarse" msgid="7989596289790269059">"追蹤視線的大概方向"</string>
+    <string name="permdesc_eye_tracking_coarse" msgid="870510233930553355">"允許應用程式追蹤你視線的大概方向。"</string>
+    <string name="permlab_eye_tracking_fine" msgid="6914457357027049512">"追蹤視線"</string>
+    <string name="permdesc_eye_tracking_fine" msgid="5788889152304524730">"允許應用程式存取視線精確方向的資料。"</string>
+    <string name="permlab_face_tracking" msgid="2272048395128283324">"追蹤臉部"</string>
+    <string name="permdesc_face_tracking" msgid="2622783922311211866">"允許應用程式存取臉部追蹤資料。"</string>
+    <string name="permlab_hand_tracking" msgid="6478233866595566940">"追蹤手勢"</string>
+    <string name="permdesc_hand_tracking" msgid="8639715900104966456">"允許應用程式存取手勢追蹤資料。"</string>
+    <string name="permlab_head_tracking" msgid="1309731456372087270">"追蹤頭部"</string>
+    <string name="permdesc_head_tracking" msgid="231597390513699188">"允許應用程式存取頭部追蹤資料。"</string>
+    <string name="permlab_scene_understanding_coarse" msgid="6518646430502858641">"瞭解當下環境"</string>
+    <string name="permdesc_scene_understanding_coarse" msgid="4508880777646198656">"允許應用程式存取與你周遭環境相關的追蹤資料。"</string>
+    <string name="permlab_scene_understanding_fine" msgid="409126403264393251">"深入瞭解當下環境"</string>
+    <string name="permdesc_scene_understanding_fine" msgid="6223368011593524179">"允許應用程式存取與你周遭環境相關的詳細追蹤資料。"</string>
+    <string name="permlab_xr_tracking_in_background" msgid="7117098718465619023">"在非前景執行時存取延展實境資料"</string>
+    <string name="permdesc_xr_tracking_in_background" msgid="939504041387836853">"允許應用程式在非前景執行時存取延展實境資料。"</string>
     <string name="biometric_app_setting_name" msgid="3339209978734534457">"使用生物辨識功能"</string>
     <string name="biometric_or_screen_lock_app_setting_name" msgid="5348462421758257752">"使用生物辨識或螢幕鎖定功能"</string>
     <string name="biometric_dialog_default_title" msgid="55026799173208210">"驗證你的身分"</string>
@@ -1405,6 +1429,8 @@
     <string name="install_carrier_app_notification_button" msgid="6257740533102594290">"下載應用程式"</string>
     <string name="carrier_app_notification_title" msgid="5815477368072060250">"已插入新的 SIM 卡"</string>
     <string name="carrier_app_notification_text" msgid="6567057546341958637">"輕觸這裡即可進行設定"</string>
+    <string name="time_zone_change_notification_title" msgid="5232503069219193218">"時區已變更"</string>
+    <string name="time_zone_change_notification_body" msgid="6135793674904665585">"現在位於<xliff:g id="TIME_ZONE_DISPLAY_NAME">%1$s</xliff:g> (<xliff:g id="TIME_ZONE_OFFSET">%2$s</xliff:g>)"</string>
     <string name="time_picker_dialog_title" msgid="9053376764985220821">"設定時間"</string>
     <string name="date_picker_dialog_title" msgid="5030520449243071926">"日期設定"</string>
     <string name="date_time_set" msgid="4603445265164486816">"設定"</string>
@@ -1778,6 +1804,11 @@
     <string name="one_handed_mode_feature_name" msgid="2334330034828094891">"單手模式"</string>
     <string name="reduce_bright_colors_feature_name" msgid="3222994553174604132">"超暗"</string>
     <string name="hearing_aids_feature_name" msgid="1125892105105852542">"助聽器"</string>
+    <string name="autoclick_feature_name" msgid="8149248738736949630">"自動點選"</string>
+    <string name="hearing_device_status_disconnected" msgid="497547752953543832">"連線中斷"</string>
+    <string name="hearing_device_status_connected" msgid="2149385149669918764">"已連線"</string>
+    <string name="hearing_device_status_active" msgid="4770378695482566032">"運作中"</string>
+    <string name="hearing_device_status_loading" msgid="5717083847663109747">"載入中"</string>
     <string name="accessibility_shortcut_enabling_service" msgid="5473495203759847687">"已按住音量鍵。「<xliff:g id="SERVICE_NAME">%1$s</xliff:g>」已開啟。"</string>
     <string name="accessibility_shortcut_disabling_service" msgid="8675244165062700619">"已按住音量鍵。「<xliff:g id="SERVICE_NAME">%1$s</xliff:g>」已關閉。"</string>
     <string name="accessibility_shortcut_spoken_feedback" msgid="3760999147597564314">"放開音量鍵。如要開啟 <xliff:g id="SERVICE_NAME">%1$s</xliff:g>，請同時按住音量調高鍵和調低鍵 3 秒。"</string>
@@ -1788,7 +1819,12 @@
     <string name="accessibility_gesture_instructional_text" msgid="4133877896011098550">"下次使用這個捷徑時，就會開啟這項功能。請用 2 指從螢幕底部向上滑動並快速放開。"</string>
     <string name="accessibility_gesture_3finger_instructional_text" msgid="1124458279366968154">"下次使用這個捷徑時，就會開啟這項功能。請用 3 指從螢幕底部向上滑動並快速放開。"</string>
     <string name="accessibility_magnification_chooser_text" msgid="1502075582164931596">"放大"</string>
-    <string name="user_switched" msgid="7249833311585228097">"目前的使用者是 <xliff:g id="NAME">%1$s</xliff:g>。"</string>
+    <string name="hearing_device_switch_phone_mic_notification_title" msgid="6645178038359708836">"要切換到手機麥克風嗎？"</string>
+    <string name="hearing_device_switch_hearing_mic_notification_title" msgid="4612074852145289569">"要切換到助聽器麥克風嗎？"</string>
+    <string name="hearing_device_switch_phone_mic_notification_text" msgid="1332426273666077412">"可享更好的音質，或在助聽器電量過低時使用。麥克風只會在通話期間切換。"</string>
+    <string name="hearing_device_switch_hearing_mic_notification_text" msgid="8288368365767284208">"免持通話時，可以使用助聽器麥克風。麥克風只會在通話期間切換。"</string>
+    <string name="hearing_device_notification_switch_button" msgid="3619524619430941300">"切換"</string>
+    <string name="hearing_device_notification_settings_button" msgid="6673651052880279178">"設定"</string>
     <string name="user_switching_message" msgid="1912993630661332336">"正在切換至<xliff:g id="NAME">%1$s</xliff:g>…"</string>
     <string name="user_logging_out_message" msgid="7216437629179710359">"正在將<xliff:g id="NAME">%1$s</xliff:g>登出帳戶…"</string>
     <string name="owner_name" msgid="8713560351570795743">"擁有者"</string>
@@ -1930,7 +1966,7 @@
     <string name="lock_to_app_unlock_pattern" msgid="2694204070499712503">"取消固定時必須畫出解鎖圖案"</string>
     <string name="lock_to_app_unlock_password" msgid="9126722403506560473">"取消固定時必須輸入密碼"</string>
     <string name="package_installed_device_owner" msgid="8684974629306529138">"這是管理員安裝的套件。\n你可以前往設定查看授予的權限"</string>
-    <string name="package_updated_device_owner" msgid="7560272363805506941">"已由你的管理員更新"</string>
+    <string name="package_updated_device_owner" msgid="7770195449213776218">"管理員已更新套件。\n你可以前往設定查看授予的權限"</string>
     <string name="package_deleted_device_owner" msgid="2292335928930293023">"已由你的管理員刪除"</string>
     <string name="confirm_battery_saver" msgid="5247976246208245754">"確定"</string>
     <string name="battery_saver_description_with_learn_more" msgid="5444908404021316250">"省電模式會開啟深色主題，並限制或關閉背景活動、某些視覺效果、特定功能和部分網路連線。"</string>
@@ -2073,6 +2109,9 @@
     <string name="unpin_target" msgid="3963318576590204447">"取消固定"</string>
     <string name="unpin_specific_target" msgid="3859828252160908146">"將「<xliff:g id="LABEL">%1$s</xliff:g>」取消固定"</string>
     <string name="app_info" msgid="6113278084877079851">"應用程式資訊"</string>
+    <string name="shortcut_group_a11y_title" msgid="2992150163811583865">"直接分享目標"</string>
+    <string name="suggested_apps_group_a11y_title" msgid="2804876567839501831">"應用程式建議"</string>
+    <string name="all_apps_group_a11y_title" msgid="7020352520224108745">"應用程式清單"</string>
     <string name="negative_duration" msgid="1938335096972945232">"−<xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="demo_starting_message" msgid="6577581216125805905">"正在啟動示範模式..."</string>
     <string name="demo_restarting_message" msgid="1160053183701746766">"正在重設裝置..."</string>
@@ -2172,7 +2211,7 @@
     <string name="nas_upgrade_notification_enable_action" msgid="3046406808378726874">"確定"</string>
     <string name="nas_upgrade_notification_disable_action" msgid="3794833210043497982">"關閉"</string>
     <string name="nas_upgrade_notification_learn_more_action" msgid="7011130656195423947">"瞭解詳情"</string>
-    <string name="nas_upgrade_notification_learn_more_content" msgid="3735480566983530650">"在 Android 12 中，加強型通知功能已取代 Android 自動調整通知。這項功能可以顯示建議的操作和回覆內容，也可以幫你整理通知訊息。\n\n加強型通知功能可存取通知內容，包括聯絡人名稱和訊息內文等個人資訊。此外，這項功能還能關閉或回覆通知，例如接聽來電及控管「零打擾」功能。"</string>
+    <string name="nas_upgrade_notification_learn_more_content" msgid="3735480566983530650">"在 Android 12 中，加強型通知功能已取代 Android 自動調整通知，會顯示建議的操作和回覆內容，也可以幫你整理通知訊息。\n\n加強型通知功能可存取通知內容，包括聯絡人名稱和訊息內文等個人資訊；此外，還能關閉或回覆通知，例如接聽來電及控管「零打擾」功能。"</string>
     <string name="dynamic_mode_notification_channel_name" msgid="2986926422100223328">"日常安排模式資訊通知"</string>
     <string name="dynamic_mode_notification_title" msgid="1388718452788985481">"已開啟省電模式"</string>
     <string name="dynamic_mode_notification_summary" msgid="1639031262484979689">"降低電池用量，以便延長電池續航力"</string>
@@ -2227,6 +2266,20 @@
     <string name="accessibility_system_action_dpad_left_label" msgid="6557647179116479152">"Dpad 向左移"</string>
     <string name="accessibility_system_action_dpad_right_label" msgid="9180196950365804081">"Dpad 向右移"</string>
     <string name="accessibility_system_action_dpad_center_label" msgid="8149791419358224893">"Dpad 置中"</string>
+    <string name="accessibility_autoclick_type_settings_panel_title" msgid="7354373370578758696">"自動點選類型設定面板"</string>
+    <string name="accessibility_autoclick_left_click" msgid="2301793352260551080">"按滑鼠左鍵"</string>
+    <string name="accessibility_autoclick_right_click" msgid="4353495816526181293">"按一下滑鼠右鍵"</string>
+    <string name="accessibility_autoclick_double_click" msgid="2103826849116176478">"按兩下"</string>
+    <string name="accessibility_autoclick_drag" msgid="1499559489796843224">"拖曳"</string>
+    <string name="accessibility_autoclick_scroll" msgid="3499385943728726933">"捲動"</string>
+    <string name="accessibility_autoclick_pause" msgid="3272200156172573568">"暫停"</string>
+    <string name="accessibility_autoclick_position" msgid="2933660969907663545">"位置"</string>
+    <string name="accessibility_autoclick_scroll_up" msgid="2044948780797117443">"向上捲動"</string>
+    <string name="accessibility_autoclick_scroll_down" msgid="3733401063292018116">"向下捲動"</string>
+    <string name="accessibility_autoclick_scroll_left" msgid="8564421367992824198">"向左捲動"</string>
+    <string name="accessibility_autoclick_scroll_right" msgid="8932417330753984265">"向右捲動"</string>
+    <string name="accessibility_autoclick_scroll_exit" msgid="3788610039146769696">"退出捲動模式"</string>
+    <string name="accessibility_autoclick_scroll_panel_title" msgid="7120598166296447036">"捲動面板"</string>
     <string name="as_app_forced_to_restricted_bucket" msgid="8233871289353898964">"已將「<xliff:g id="PACKAGE_NAME">%1$s</xliff:g>」移入受限制的值區"</string>
     <string name="conversation_single_line_name_display" msgid="8958948312915255999">"<xliff:g id="SENDER_NAME">%1$s</xliff:g>："</string>
     <string name="conversation_single_line_image_placeholder" msgid="6983271082911936900">"傳送了一張圖片"</string>
@@ -2434,6 +2487,7 @@
     <string name="profile_label_work_3" msgid="4834572253956798917">"工作 3"</string>
     <string name="profile_label_test" msgid="9168641926186071947">"測試"</string>
     <string name="profile_label_communal" msgid="8743921499944800427">"通用"</string>
+    <string name="profile_label_supervising" msgid="5649312778545745371">"監督中"</string>
     <string name="accessibility_label_managed_profile" msgid="3366526886209832641">"工作資料夾"</string>
     <string name="accessibility_label_private_profile" msgid="1436459319135548969">"私人空間"</string>
     <string name="accessibility_label_clone_profile" msgid="7579118375042398784">"複製"</string>
@@ -2444,6 +2498,7 @@
     <string name="screen_not_shared_sensitive_content" msgid="7058419185079565001">"為安全起見，分享螢幕畫面隱藏了這個應用程式的內容"</string>
     <string name="satellite_notification_title" msgid="4026338973463121526">"已自動連上衛星"</string>
     <string name="satellite_notification_summary" msgid="5207364139430767162">"你可以收發訊息，沒有行動/Wi-Fi 網路也無妨"</string>
+    <string name="satellite_notification_summary_with_data" msgid="6486843676720429049">"你可以透過有限的衛星數據收發訊息"</string>
     <string name="satellite_notification_manual_title" msgid="1097504441849466279">"要使用衛星訊息功能嗎？"</string>
     <string name="satellite_notification_manual_summary" msgid="901206289846283445">"即使沒有行動或 Wi-Fi 網路，還是可以收發訊息"</string>
     <string name="satellite_notification_open_message" msgid="4149234979688273729">"開啟「訊息」應用程式"</string>
@@ -2500,4 +2555,10 @@
     <string name="keyboard_shortcut_group_applications_maps" msgid="7950000659522589471">"地圖"</string>
     <string name="keyboard_shortcut_group_applications" msgid="3010389163951364798">"應用程式"</string>
     <string name="fingerprint_loe_notification_msg" msgid="3927447270148854546">"系統無法再辨識你的指紋，請重新設定「指紋解鎖」。"</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_title" msgid="468577168569874967">"在鎖定時插入 USB 裝置"</string>
+    <string name="usb_apm_usb_plugged_in_when_locked_notification_text" msgid="6695268246267993166">"在 Android 裝置鎖定時插入 USB 裝置。如要使用 USB 裝置，請先解鎖 Android 裝置再重新插入。"</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_title" msgid="3461195995882871461">"可疑的 USB 活動"</string>
+    <string name="usb_apm_usb_suspicious_activity_notification_text" msgid="6537085605929303187">"USB 資料信號已停用。"</string>
+    <string name="fingerprint_frr_notification_title" msgid="3668331918920659093">"使用指紋解鎖時發生問題嗎？"</string>
+    <string name="fingerprint_frr_notification_msg" msgid="2162966846624639252">"輕觸即可查看提示，瞭解如何提升解鎖體驗"</string>
 </resources>

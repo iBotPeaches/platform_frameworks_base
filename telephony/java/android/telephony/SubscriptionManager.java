@@ -1187,6 +1187,61 @@ public class SubscriptionManager {
     public static final String IS_SATELLITE_PROVISIONED_FOR_NON_IP_DATAGRAM =
             SimInfo.COLUMN_IS_SATELLITE_PROVISIONED_FOR_NON_IP_DATAGRAM;
 
+    /**
+     * TelephonyProvider column name for satellite entitlement barred plmns. The value of this
+     * column is set based on entitlement query result for satellite configuration.
+     * By default, it's empty.
+     * <P>Type: TEXT </P>
+     *
+     * @hide
+     */
+    public static final String SATELLITE_ENTITLEMENT_BARRED_PLMNS =
+            SimInfo.COLUMN_SATELLITE_ENTITLEMENT_BARRED_PLMNS;
+
+    /**
+     * TelephonyProvider column name for satellite entitlement data plan for plmns. The value
+     * of this column is set based on entitlement query result for satellite configuration.
+     * By default, it's empty.
+     * <P>Type: TEXT </P>
+     *
+     * @hide
+     */
+    public static final String SATELLITE_ENTITLEMENT_DATA_PLAN_PLMNS =
+            SimInfo.COLUMN_SATELLITE_ENTITLEMENT_DATA_PLAN_PLMNS;
+
+    /**
+     * TelephonyProvider column name for satellite entitlement service type map. The value of
+     * this column is set based on entitlement query result for satellite configuration.
+     * By default, it's empty.
+     * <P>Type: TEXT </P>
+     *
+     * @hide
+     */
+    public static final String SATELLITE_ENTITLEMENT_SERVICE_TYPE_MAP =
+            SimInfo.COLUMN_SATELLITE_ENTITLEMENT_SERVICE_TYPE_MAP;
+
+    /**
+     * TelephonyProvider column name for satellite entitlement data service policy. The value
+     * of this column is set based on entitlement query result for satellite configuration.
+     * By default, it's empty.
+     * <P>Type: TEXT </P>
+     *
+     * @hide
+     */
+    public static final String SATELLITE_ENTITLEMENT_DATA_SERVICE_POLICY =
+            SimInfo.COLUMN_SATELLITE_ENTITLEMENT_DATA_SERVICE_POLICY;
+
+    /**
+     * TelephonyProvider column name for satellite entitlement voice service policy. The value
+     * of this column is set based on entitlement query result for satellite configuration.
+     * By default, it's empty.
+     * <P>Type: TEXT </P>
+     *
+     * @hide
+     */
+    public static final String SATELLITE_ENTITLEMENT_VOICE_SERVICE_POLICY =
+            SimInfo.COLUMN_SATELLITE_ENTITLEMENT_VOICE_SERVICE_POLICY;
+
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(prefix = {"USAGE_SETTING_"},
@@ -4821,10 +4876,14 @@ public class SubscriptionManager {
                     + "Invalid subscriptionId: " + subscriptionId);
         }
 
+        String contextPkg = mContext != null ? mContext.getOpPackageName() : "<unknown>";
+        String contextAttributionTag = mContext != null ? mContext.getAttributionTag() : null;
+
         try {
             ISub iSub = TelephonyManager.getSubscriptionService();
             if (iSub != null) {
-                return iSub.isSubscriptionAssociatedWithCallingUser(subscriptionId);
+                return iSub.isSubscriptionAssociatedWithCallingUser(subscriptionId, contextPkg,
+                        contextAttributionTag);
             } else {
                 throw new IllegalStateException("subscription service unavailable.");
             }
