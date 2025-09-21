@@ -217,7 +217,7 @@ bool ParseAttributeReference(StringPiece str, ResourceNameRef* out_ref) {
     }
 
     if (!type.empty() && type != "attr") {
-      return false;
+      // Apktool: Don't die out if private resource.
     }
 
     if (entry.empty()) {
