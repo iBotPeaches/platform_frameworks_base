@@ -2350,6 +2350,18 @@ public:
     // resolve resources that do not exist in this ResTable.  If 'attrType' is
     // supplied, the value will be type checked for this format if 'attrID'
     // is not supplied or found.
+    bool stringToValue(const ssize_t FORCED_PACKAGE_ID, Res_value* outValue, String16* outString,
+                       const char16_t* s, size_t len,
+                       bool preserveSpaces, bool coerceType,
+                       uint32_t attrID = 0,
+                       const String16* defType = NULL,
+                       const String16* defPackage = NULL,
+                       Accessor* accessor = NULL,
+                       void* accessorCookie = NULL,
+                       uint32_t attrType = ResTable_map::TYPE_ANY,
+                       bool enforcePrivate = true) const;
+
+    // Backwards-compatible overload for existing callers.
     bool stringToValue(Res_value* outValue, String16* outString,
                        const char16_t* s, size_t len,
                        bool preserveSpaces, bool coerceType,

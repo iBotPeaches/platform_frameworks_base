@@ -5741,6 +5741,21 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                              uint32_t attrType,
                              bool enforcePrivate) const
 {
+    return stringToValue(-1, outValue, outString, s, len, preserveSpaces, coerceType, attrID,
+                         defType, defPackage, accessor, accessorCookie, attrType, enforcePrivate);
+}
+
+bool ResTable::stringToValue(const ssize_t FORCED_PACKAGE_ID, Res_value* outValue, String16* outString,
+                             const char16_t* s, size_t len,
+                             bool preserveSpaces, bool coerceType,
+                             uint32_t attrID,
+                             const String16* defType,
+                             const String16* defPackage,
+                             Accessor* accessor,
+                             void* accessorCookie,
+                             uint32_t attrType,
+                             bool enforcePrivate) const
+{
     bool localizationSetting = accessor != NULL && accessor->getLocalizationSetting();
     const char* errorMsg = NULL;
 
@@ -5884,7 +5899,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                 }
 
                 uint32_t packageId = Res_GETPACKAGE(rid) + 1;
-                if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID) {
+                if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID && packageId != (uint32_t)FORCED_PACKAGE_ID) {
                     outValue->dataType = Res_value::TYPE_DYNAMIC_REFERENCE;
                 }
                 outValue->data = rid;
@@ -5905,7 +5920,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                         outValue->data = rid;
                         outValue->dataType = Res_value::TYPE_DYNAMIC_REFERENCE;
                         return true;
-                    } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID) {
+                    } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID || packageId == (uint32_t)FORCED_PACKAGE_ID) {
                         // We accept packageId's generated as 0x01 in order to support
                         // building the android system resources
                         outValue->data = rid;
@@ -6051,7 +6066,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
             }
 
             uint32_t packageId = Res_GETPACKAGE(rid) + 1;
-            if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID) {
+            if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID && packageId != (uint32_t)FORCED_PACKAGE_ID) {
                 outValue->dataType = Res_value::TYPE_DYNAMIC_ATTRIBUTE;
             }
             outValue->data = rid;
@@ -6066,7 +6081,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                     outValue->data = rid;
                     outValue->dataType = Res_value::TYPE_DYNAMIC_ATTRIBUTE;
                     return true;
-                } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID) {
+                } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID || packageId == (uint32_t)FORCED_PACKAGE_ID) {
                     // We accept packageId's generated as 0x01 in order to support
                     // building the android system resources
                     outValue->data = rid;
